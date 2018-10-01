@@ -13,6 +13,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>bacmman-modules-mother-machine</module>
+        <module>bacmman-modules-fluorescence-fit</module>
     </modules>
 
     <dependencies>
