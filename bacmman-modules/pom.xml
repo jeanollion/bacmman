@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>bacmman</artifactId>
+        <groupId>bacmman</groupId>
+        <version>2.1.3-SNAPSHOT</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>bacmman.modules</groupId>
+    <artifactId>bacmman-modules</artifactId>
+    <packaging>pom</packaging>
+    <modules>
+        <module>bacmman-modules-mother-machine</module>
+    </modules>
+
+    <dependencies>
+        <dependency>
+            <groupId>bacmman</groupId>
+            <artifactId>bacmman-core</artifactId>
+            <version>2.1.3-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+</project>
