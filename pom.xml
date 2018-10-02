@@ -9,6 +9,15 @@
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
     <version>2.1.3-SNAPSHOT</version>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3+</name>
+            <url>https://www.gnu.org/licenses/gpl.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
     <modules>
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
@@ -34,10 +43,10 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/jeanollion/bacmman-pom</connection>
-        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-pom</developerConnection>
+        <connection>scm:git:git://github.com/jeanollion/bacmman-master</connection>
+        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-master</developerConnection>
         <tag>HEAD</tag>
-        <url>https://github.com/jeanollion/bacmman-pom</url>
+        <url>https://github.com/jeanollion/bacmman-master</url>
     </scm>
 
     <properties>

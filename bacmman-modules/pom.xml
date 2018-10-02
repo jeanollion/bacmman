@@ -11,6 +11,21 @@
     <groupId>bacmman.modules</groupId>
     <artifactId>bacmman-modules</artifactId>
     <packaging>pom</packaging>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3+</name>
+            <url>https://www.gnu.org/licenses/gpl.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <connection>scm:git:git://github.com/jeanollion/bacmman-master</connection>
+        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-master</developerConnection>
+        <tag>HEAD</tag>
+        <url>https://github.com/jeanollion/bacmman-master</url>
+    </scm>
+
     <modules>
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-modules-fluorescence_fit</module>
