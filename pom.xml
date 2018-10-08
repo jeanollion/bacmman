@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>v2.1.8</version>
+    <version>v2.1.9</version>
 
     <licenses>
         <license>
@@ -25,7 +25,6 @@
         <module>bacmman-helpers</module>
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-modules-fluorescence_fit</module>
-
     </modules>
     <!--modules>
 
