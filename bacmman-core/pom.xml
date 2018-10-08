@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <groupId>com.github.jeanollion</groupId>
+        <artifactId>bacmman</artifactId>
+        <version>v2.1.8</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+    <artifactId>bacmman-core</artifactId>
+    <version>v0.1.4</version>
+    <packaging>jar</packaging>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3+</name>
+            <url>https://www.gnu.org/licenses/gpl.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <connection>scm:git:git://github.com/jeanollion/bacmman-core</connection>
+        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-core</developerConnection>
+        <tag>HEAD</tag>
+        <url>https://github.com/jeanollion/bacmman-core</url>
+    </scm>
+
+    <dependencies>
+        <dependency>
+            <groupId>sc.fiji</groupId>
+            <artifactId>imagescience</artifactId>
+            <version>3.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapdb</groupId>
+            <artifactId>mapdb</artifactId>
+            <version>3.0.5</version>
+        </dependency>
+        <dependency>
+            <groupId>com.googlecode.json-simple</groupId>
+            <artifactId>json-simple</artifactId>
+            <version>1.1.1</version>
+        </dependency>
+        <dependency>
+            <groupId>ome</groupId>
+            <artifactId>formats-gpl</artifactId>
+            <version>5.9.2</version>
+            <scope>compile</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>sc.fiji</groupId>
+            <artifactId>TrackMate_</artifactId>
+            <version>3.1.1-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
+    <repositories>
+        <repository>
+            <id>ome.external</id>
+            <url>http://artifacts.openmicroscopy.org/artifactory/ome.external</url>
+        </repository>
+        <repository>
+            <id>ome.releases</id>
+            <url>http://artifacts.openmicroscopy.org/artifactory/ome.releases</url>
+        </repository>
+        <repository>
+            <id>ome.snapshots</id>
+            <url>http://artifacts.openmicroscopy.org/artifactory/ome.snapshots</url>
+        </repository>
+        <repository>
+            <id>jitpack.io</id>
+            <url>https://jitpack.io</url>
+        </repository>
+    </repositories>
+    <pluginRepositories>
+        <pluginRepository>
+            <id>ome.releases</id>
+            <url>http://artifacts.openmicroscopy.org/artifactory/ome.releases</url>
+        </pluginRepository>
+        <pluginRepository>
+            <id>ome.snapshots</id>
+            <url>http://artifacts.openmicroscopy.org/artifactory/ome.snapshots</url>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </pluginRepository>
+        <pluginRepository>
+            <id>ome.external</id>
+            <url>http://artifacts.openmicroscopy.org/artifactory/ome.external</url>
+        </pluginRepository>
+    </pluginRepositories>
+
+    <build>
+        <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+            <version>2.19.1</version>
+            <configuration>
+                <skipTests>false</skipTests>
+            </configuration>
+        </plugin>
+        </plugins>
+    </build>
+
+
+</project>
