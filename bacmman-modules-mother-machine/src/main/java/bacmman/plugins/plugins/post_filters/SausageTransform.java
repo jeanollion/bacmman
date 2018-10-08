@@ -1,0 +1,69 @@
+/* 
+ * Copyright (C) 2018 Jean Ollion
+ *
+ * This File is part of BACMMAN
+ *
+ * BACMMAN is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * BACMMAN is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package bacmman.plugins.plugins.post_filters;
+
+import bacmman.configuration.parameters.Parameter;
+import bacmman.data_structure.*;
+import bacmman.image.BoundingBox;
+import bacmman.image.ImageByte;
+import bacmman.image.SimpleBoundingBox;
+import bacmman.plugins.Hint;
+import bacmman.processing.bacteria_spine.BacteriaSpineFactory;
+import bacmman.processing.bacteria_spine.CircularContourFactory;
+import bacmman.processing.bacteria_spine.SausageContourFactory;
+import bacmman.plugins.PostFilter;
+import bacmman.utils.geom.Point;
+
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/**
+ *
+ * @author Jean Ollion
+ */
+public class SausageTransform implements PostFilter, Hint {
+
+    @Override
+    public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
+        childPopulation.getRegions().forEach(r -> transform(r, parent.getBounds()));
+        return childPopulation;
+    }
+
+    public static void transform(Region r, BoundingBox parentBounds) {
+        BacteriaSpineFactory.SpineResult sr = BacteriaSpineFactory.createSpine(r, 1);
+        SausageContourFactory.toSausage(sr, 0.5); // resample to be able to fill
+        Set<Voxel> sausageContourVox = sr.contour.stream().map(l -> ((Point)l).asVoxel()).collect(Collectors.toSet());
+        ImageByte mask = CircularContourFactory.getMaskFromContour(sausageContourVox);
+        // mask should not extend outside parent bounds
+        if (!r.isAbsoluteLandMark()) parentBounds = new SimpleBoundingBox(parentBounds).resetOffset(); // post-filter -> relative to parent bounds
+        if (!BoundingBox.isIncluded(mask, parentBounds)) mask = mask.cropWithOffset(BoundingBox.getIntersection(parentBounds, mask));
+        r.setMask(mask);
+    }
+
+    @Override
+    public Parameter[] getParameters() {
+        return new Parameter[0];
+    }
+
+    @Override
+    public String getHintText() {
+        return "Modify the contour of segmented objects so that it has the shape of a sausage (potentially bended rod): constant width in the middle with hemicircular ends. Based on the spine.";
+    }
+    
+}

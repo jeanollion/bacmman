@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <parent>
+        <artifactId>bacmman</artifactId>
+        <groupId>com.github.jeanollion</groupId>
+        <version>v2.1.8</version>
+    </parent>
+    <modelVersion>4.0.0</modelVersion>
+
+    <artifactId>bacmman-gui</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <licenses>
+        <license>
+            <name>GNU General Public License v3+</name>
+            <url>https://www.gnu.org/licenses/gpl.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <scm>
+        <connection>scm:git:git://github.com/jeanollion/bacmman-gui</connection>
+        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-gui</developerConnection>
+        <tag>HEAD</tag>
+        <url>https://github.com/jeanollion/bacmman-gui</url>
+    </scm>
+
+
+
+    <dependencies>
+        <dependency>
+            <groupId>com.github.jeanollion</groupId>
+            <artifactId>bacmman-core</artifactId>
+            <version>v0.1.4</version>
+        </dependency>
+        <dependency>
+            <groupId>net.sf.py4j</groupId>
+            <artifactId>py4j</artifactId>
+            <version>0.10.4</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scijava</groupId>
+            <artifactId>scijava-ui-swing</artifactId>
+            <version>0.7.1</version>
+        </dependency>
+    </dependencies>
+
+</project>
