@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>v2.1.6</version>
+    <version>v2.1.7</version>
 
     <licenses>
         <license>
@@ -19,14 +19,14 @@
     </licenses>
 
     <modules>
-        <module>bacmman-modules</module>
-    </modules>
-    <!--modules>
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
         <module>bacmman-ij1_</module>
         <module>bacmman-helpers</module>
         <module>bacmman-modules</module>
+    </modules>
+    <!--modules>
+
     </modules-->
 
     <name>BACMMAN</name>
@@ -113,78 +113,5 @@
 
     </repositories>
 
-    <build>
-        <plugins>
-            <!--plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-dependency-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-dependencies</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>copy-dependencies</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                            <overWriteReleases>false</overWriteReleases>
-                            <overWriteSnapshots>false</overWriteSnapshots>
-                            <overWriteIfNewer>true</overWriteIfNewer>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin-->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.8.0</version>
-                <configuration>
-                    <source>8</source>
-                    <target>8</target>
-                </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>3.0.2</version>
-                <configuration>
-                    <archive>                   
-                        <manifest>
-                            <addDefaultImplementationEntries>true</addDefaultImplementationEntries>
-                            <addDefaultSpecificationEntries>true</addDefaultSpecificationEntries>
-                        </manifest>
-                    </archive>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-project-info-reports-plugin</artifactId>
-                <version>3.0.0</version>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-site-plugin</artifactId>
-                <version>3.7.1</version>
-            </plugin>
-        </plugins>
-        <directory>target</directory>
-        <outputDirectory>target/classes</outputDirectory>
-        <finalName>${project.artifactId}-${project.version}</finalName>
-        <testOutputDirectory>target/test-classes</testOutputDirectory>
-        <sourceDirectory>src/main/java</sourceDirectory>
-        <scriptSourceDirectory>src/main/scripts</scriptSourceDirectory>
-        <testSourceDirectory>src/test/java</testSourceDirectory>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-            </resource>
-        </resources>
-        <testResources>
-            <testResource>
-                <directory>src/test/resources</directory>
-            </testResource>
-        </testResources>
-    </build>
 
 </project>
