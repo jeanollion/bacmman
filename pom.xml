@@ -19,14 +19,14 @@
     </licenses>
 
     <modules>
-
-        <module>bacmman-modules</module>
-    </modules>
-    <!--modules>
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
         <module>bacmman-ij1_</module>
         <module>bacmman-helpers</module>
+        <module>bacmman-modules</module>
+    </modules>
+    <!--modules>
+
     </modules-->
 
     <name>BACMMAN</name>

@@ -27,10 +27,10 @@
     </scm>
 
     <modules>
-
-    </modules>
-    <!--
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-modules-fluorescence_fit</module>
+    </modules>
+    <!--
+
     -->
 </project>
