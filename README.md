@@ -1,3 +1,20 @@
 BACteria in Mother Maching Analyzer (BACMMAN) is a software allowing fast and reliable automated image analysis of high-throughput 2D/3D time-series images from mother machine. Mother machine is a very popular microfluidic device allowing investigating biological processes in bacteria at the single-cell level.
 
-This Software is in a process of publication, it will (hopefully) be soon available with a full documentation and test datasets. Please do not use it until then. 
+# Application
+See the (wiki)[https://github.com/jeanollion/bacmman/wiki]
+
+# Publications
+- [Robert et al. Mutation dynamics and fitness effects followed in single cells, Science 2018](http://science.sciencemag.org/content/359/6381/1283)
+
+# Licence
+
+BACMMAN is a free/libre open source software under the 3-clause BSD License ((see)[https://github.com/jeanollion/bacmman/LICENCE.txt]) 
+
+# Repositories
+BACMMAN is composed of several modules:
+- [The core module](http://github.com/jeanollion/bacmman-core) on which depend all other modules
+- [The graphical user interface](http://github.com/jeanollion/bacmman-gui)
+- [Mother machin modules](http://github.com/jeanollion/bacmman-modules-mother-machine)
+- [IJ1 binding](http://github.com/jeanollion/bacmman-ij1_) for integration in FIJI environment
+
+This repository contains parent maven pom.xml files and the wiki. 
