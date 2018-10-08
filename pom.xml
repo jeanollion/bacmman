@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>v2.1.5</version>
+    <version>v2.1.6</version>
 
     <licenses>
         <license>
@@ -18,13 +18,13 @@
         </license>
     </licenses>
 
-    <modules>
+    <!--modules>
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
         <module>bacmman-ij1_</module>
         <module>bacmman-helpers</module>
         <module>bacmman-modules</module>
-    </modules>
+    </modules-->
 
     <name>BACMMAN</name>
     <description>BACteria in Mother Machine ANalysis software</description>
