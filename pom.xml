@@ -18,6 +18,9 @@
         </license>
     </licenses>
 
+    <modules>
+        <module>bacmman-modules</module>
+    </modules>
     <!--modules>
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
