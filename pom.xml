@@ -5,7 +5,7 @@
 		http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.github.jeanollion</groupId>
+    <groupId>com.github.jeanollion.bacmman</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
     <version>v2.1.9</version>
@@ -22,13 +22,13 @@
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
         <module>bacmman-ij1_</module>
-        <module>bacmman-helpers</module>
         <module>bacmman-modules-mother-machine</module>
-        <module>bacmman-modules-fluorescence_fit</module>
-    </modules>
-    <!--modules>
 
-    </modules-->
+    </modules>
+    <!--
+        <module>bacmman-modules-fluorescence_fit</module>
+        <module>bacmman-helpers</module>
+    -->
 
     <name>BACMMAN</name>
     <description>BACteria in Mother Machine ANalysis software</description>
@@ -47,10 +47,10 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/jeanollion/bacmman-master</connection>
-        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-master</developerConnection>
+        <connection>scm:git:git://github.com/jeanollion/bacmman</connection>
+        <developerConnection>scm:git:git@github.com:jeanollion/bacmman</developerConnection>
         <tag>HEAD</tag>
-        <url>https://github.com/jeanollion/bacmman-master</url>
+        <url>https://github.com/jeanollion/bacmman</url>
     </scm>
 
     <properties>

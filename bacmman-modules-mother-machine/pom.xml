@@ -4,13 +4,11 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
         <artifactId>bacmman</artifactId>
-        <groupId>com.github.jeanollion</groupId>
-        <version>v2.1.8</version>
+        <groupId>com.github.jeanollion.bacmman</groupId>
+        <version>v2.1.9</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
-
     <artifactId>bacmman-modules-mother-machine</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <licenses>
@@ -20,12 +18,6 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
-    <scm>
-        <connection>scm:git:git://github.com/jeanollion/bacmman-modules-mother-machine</connection>
-        <developerConnection>scm:git:git@github.com:jeanollion/bacmman-modules-mother-machine</developerConnection>
-        <tag>HEAD</tag>
-        <url>https://github.com/jeanollion/bacmman-gui</url>
-    </scm>
 
     <dependencies>
         <dependency>
@@ -34,9 +26,9 @@
             <version>2.1.2-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>com.github.jeanollion</groupId>
+            <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-core</artifactId>
-            <version>v0.1.4</version>
+            <version>v2.1.9</version>
         </dependency>
     </dependencies>
     <repositories>
