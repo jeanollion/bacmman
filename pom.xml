@@ -24,6 +24,7 @@
         <module>bacmman-ij1_</module>
         <module>bacmman-modules-mother-machine</module>
 
+        <module>bacmman-headless</module>
     </modules>
     <!--
         <module>bacmman-modules-fluorescence_fit</module>

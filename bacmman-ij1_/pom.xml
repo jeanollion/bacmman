@@ -21,7 +21,7 @@
     </licenses>
 
     <properties>
-        <main-class>IJ1</main-class>
+        <main-class>bacmman.binding.IJ1</main-class>
     </properties>
 
     <dependencies>
