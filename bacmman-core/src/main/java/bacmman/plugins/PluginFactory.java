@@ -19,7 +19,6 @@
 package bacmman.plugins;
 
 import bacmman.core.Core;
-import com.sun.javafx.util.Utils;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -38,6 +37,9 @@ import java.util.Vector;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 import java.util.stream.Collectors;
+
+//import com.sun.javafx.util.Utils;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -114,9 +116,7 @@ public class PluginFactory {
                     addPlugin(c.getSimpleName(), c);
                 }
             }
-        } catch (ClassNotFoundException ex) {
-            logger.warn("find plugins", ex);
-        } catch (IOException ex) {
+        } catch (ClassNotFoundException | IOException ex) {
             logger.warn("find plugins", ex);
         }
         logger.info("total plugins found #{}", PLUGIN_NAMES_MAP_CLASS.size());
@@ -132,7 +132,7 @@ public class PluginFactory {
         Vector classes = (Vector) ClassLoader_classes_field.get(CL);
         return classes.iterator();
     }
-    
+
     // from : http://www.dzone.com/snippets/get-all-classes-within-package
     private static List<Class> getClasses(String packageName) throws ClassNotFoundException, IOException {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
