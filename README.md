@@ -10,11 +10,10 @@ See the [wiki](https://github.com/jeanollion/bacmman/wiki) for detailed informat
 
 BACMMAN is a free/libre open source software under GNU General Public License v3.0 ([see license](https://github.com/jeanollion/bacmman/blob/master/LICENSE.txt)) 
 
-# Repositories
+# Structure of repository
 BACMMAN is composed of several modules:
-- [The core module](http://github.com/jeanollion/bacmman-core) on which depend all other modules
-- [The graphical user interface](http://github.com/jeanollion/bacmman-gui)
-- [Mother machin modules](http://github.com/jeanollion/bacmman-modules-mother-machine)
-- [IJ1 binding](http://github.com/jeanollion/bacmman-ij1_) for integration in FIJI environment
+- The core module on which depend all other modules
+- The graphical user interface
+- Mother machine modules: image processing modules specifically designed for analysis of mother machine experiments
+- IJ1 binding integration in FIJI environment
 
-This repository contains parent maven pom.xml files and the wiki. 
