@@ -19,3 +19,4 @@ BACMMAN is composed of several modules:
 - The graphical user interface
 - Mother machine modules: image processing modules specifically designed for analysis of mother machine experiments
 - IJ1 binding integration in FIJI environment
+- Headless for run in command line mode 
