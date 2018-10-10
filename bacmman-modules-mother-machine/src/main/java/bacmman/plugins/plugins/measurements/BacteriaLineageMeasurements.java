@@ -42,7 +42,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class BacteriaLineageMeasurements implements Measurement, Hint {
-    protected ObjectClassParameter structure = new ObjectClassParameter("Bacteria Structure", 1, false, false);
+    protected ObjectClassParameter structure = new ObjectClassParameter("Bacteria Structure", -1, false, false);
     protected TextParameter keyName = new TextParameter("Lineage Index Name", "BacteriaLineage", false);
     protected Parameter[] parameters = new Parameter[]{structure, keyName};
     public static char[] lineageName = new char[]{'H', 'T'};
