@@ -47,22 +47,20 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class AutoRotationXY implements MultichannelTransformation, ConfigurableTransformation, Hint {
-    NumberParameter minAngle = new BoundedNumberParameter("Minimal Angle for search", 2, -10, -90, 90);
-    NumberParameter maxAngle = new BoundedNumberParameter("Maximal Angle for search", 2, 10, -90, 90);
+    IntervalParameter angleRange = new IntervalParameter("Angle range search", 2, -90, 90, -10, 10).setHint("Rotation angle search will be limited to this range (in degree) ");
     NumberParameter precision1 = new BoundedNumberParameter("Angular Precision of first search", 2, 1, 0, null);
     NumberParameter precision2 = new BoundedNumberParameter("Angular Precision", 2, 0.1, 0, 1);
     EnumChoiceParameter<InterpolationScheme> interpolation = new EnumChoiceParameter<>("Interpolation", ImageTransformation.InterpolationScheme.values(), ImageTransformation.InterpolationScheme.BSPLINE5, false);
-    ChoiceParameter searchMethod = new ChoiceParameter("Search method", SearchMethod.getValues(), SearchMethod.MAXVAR.getName(), false).setHint("<ul><li><b>"+SearchMethod.MAXVAR.getName()+"</b>: Search for the angle that yields in maximal dispersion of projected values</li><li><b>"+SearchMethod.MAXARTEFACT.getName()+": Search for the angle that yields in the maximal value, reached when optical aberration in phase-contrast images (located at interface with main channel) is perpendicular to the axis</b></li></ul>");
+    ChoiceParameter searchMethod = new ChoiceParameter("Search method", SearchMethod.getValues(), SearchMethod.MAXVAR.getName(), false).setHint("<ul><li><b>"+SearchMethod.MAXVAR.getName()+"</b>:This method is use for instance on images of fluorescent bacteria in mother machine microchannels, but also in phase contrast images of bacteria in microchannels if there is no strong bright line perpendicular to microchannels in the image<br />Algorithmic details: Search for the angle that yields in maximal dispersion of projected values</li><li><b>"+SearchMethod.MAXARTEFACT.getName()+"This method is used for instance in phase-contrast images of mother machine chips where there is a bright between main channel and microchannels. It will optimize the alignment of this line with the X-axis<br />Algorithmic details: Search for the angle that yields in the maximal value, reached when optical aberration in phase-contrast images (located at interface with main channel) is perpendicular to the axis</b></li></ul>");
     NumberParameter frameNumber = new BoundedNumberParameter("Number of frame", 0, 10, 0, null).setHint("Number of frames on which the angle should be computed. Resulting angle is the median value of all the angles");
     BooleanParameter removeIncompleteRowsAndColumns = new BooleanParameter("Remove Incomplete rows and columns", true).setHint("If this option is not selected the frame of the image will be enlarged to fit the whole rotated image and filled with zeros");
     FilterSequence prefilters = new FilterSequence("Pre-Filters");
     BooleanParameter maintainMaximum = new BooleanParameter("Maintain Maximum Value", false).setHint("When interpolation with polynomial of degree>1, higher values than maximal value can be created, which can be an issue in case of a saturated image if the saturated value should be preserved. <br />This option will saturate the rotated image to the old maximal value");
-    Parameter[] parameters = new Parameter[]{searchMethod, minAngle, maxAngle, precision1, precision2, interpolation, frameNumber, removeIncompleteRowsAndColumns, maintainMaximum, prefilters}; //
+    Parameter[] parameters = new Parameter[]{searchMethod, angleRange, precision1, precision2, interpolation, frameNumber, removeIncompleteRowsAndColumns, maintainMaximum, prefilters}; //
     double rotationAngle = Double.NaN;
     public boolean testMode = false;
     public AutoRotationXY(double minAngle, double maxAngle, double precision1, double precision2, InterpolationScheme interpolation, SearchMethod method) {
-        this.minAngle.setValue(minAngle);
-        this.maxAngle.setValue(maxAngle);
+        angleRange.setValues(minAngle, maxAngle);
         this.precision1.setValue(precision1);
         this.precision2.setValue(precision2);
         if (interpolation!=null) this.interpolation.setSelectedEnum(interpolation);
@@ -106,10 +104,11 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
 
     public double getAngle(Image image) {
         double angle=0;
+        double[] angeRangeValues = this.angleRange.getValuesAsDouble();
         if (this.searchMethod.getSelectedItem().equals(SearchMethod.MAXVAR.getName())) { 
-            angle = computeRotationAngleXY(image, image.sizeZ()/2, minAngle.getValue().doubleValue(), maxAngle.getValue().doubleValue(), precision1.getValue().doubleValue(), precision2.getValue().doubleValue(), true, false, 0);
+            angle = computeRotationAngleXY(image, image.sizeZ()/2, angeRangeValues[0], angeRangeValues[1], precision1.getValue().doubleValue(), precision2.getValue().doubleValue(), true, false, 0);
         } else if (this.searchMethod.getSelectedItem().equals(SearchMethod.MAXARTEFACT.getName())) {
-            angle = computeRotationAngleXY(image, image.sizeZ()/2, minAngle.getValue().doubleValue(), maxAngle.getValue().doubleValue(), precision1.getValue().doubleValue(), precision2.getValue().doubleValue(), false, true, 0);
+            angle = computeRotationAngleXY(image, image.sizeZ()/2, angeRangeValues[0], angeRangeValues[1], precision1.getValue().doubleValue(), precision2.getValue().doubleValue(), false, true, 0);
         }
         return angle;
     }

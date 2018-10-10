@@ -25,10 +25,10 @@ package bacmman.plugins;
 public interface Hint {
     /**
      * The returned tooltip string will be formatted as html in a box with a fixed with, so the \"<html>\" tag is not needed, and line skipping will be automatically managed
-     * @return the string that will be displayed as a tool tip when scrolling over the name of the plugin
+     * @return the (html) string that will be displayed as a tool tip when scrolling over the name of the plugin
      */
     public String getHintText();
-    public static int TOOL_TIP_BOX_WIDTH = 750;
+    public static int TOOL_TIP_BOX_WIDTH = 500;
     public static String formatTip(String toolTip) {
         toolTip = toolTip.replace("<html>", "").replace("</html>", "");
         return "<html><div style=\"width:"+TOOL_TIP_BOX_WIDTH+"px\">" + toolTip + "</div></html>";
