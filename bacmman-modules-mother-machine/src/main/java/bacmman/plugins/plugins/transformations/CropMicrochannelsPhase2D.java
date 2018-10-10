@@ -54,12 +54,12 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
     NumberParameter yEndMargin = new BoundedNumberParameter("Lower end Y-margin", 0, 60).setEmphasized(true).setHint("The y-coordinate of the microchannel end will be translated of this value. A positive value will yield in smaller images and a negative value in larger images");
     NumberParameter yEndMarginUp = new BoundedNumberParameter("Upper end Y-margin", 0, 0).setEmphasized(true).setHint("The y-coordinate of the upper end will be translated of this value. A positive value will yield in smaller images and a negative value in larger images");
     NumberParameter aberrationPeakPropUp = new BoundedNumberParameter("Optical aberration peak proportion for upper peak", 3, 0.25, 0.1, 1).setEmphasized(true).setHint("The end of optical aberration is determined as the first y index (in y-mean projection values) towards closed-end of microchanel that reach: this value * peak height<br />Depending on phase-contrast setup, the optical aberration can different tail profile. <br /> A lower value will keep more tail, a higher value will remove tail. A too low value can lead to unstable results over frames.<br />Refer to plot <em>Peak Detection</em>");
-    NumberParameter maxDistanceFromAberration = new BoundedNumberParameter("Max distance from bright line", 0, 0, 0, null).setHint("Limit the search for microchannel closed end to a given distance from the bright line peak. Distance is in pixels If 0 , no limit is set.");
+    IntervalParameter maxDistanceRangeFromAberration = new IntervalParameter("Distance range between bright line and microchannel ends", 0, 0, null, 0, 0).setHint("Limit the search for microchannel closed end to a given distance range from the bright line peak (after removing <em>Lower end Y-margin</em> to the bright line peak coordinate). <br />Distance is in pixels. <br />If 0 , no limit is set.");
     BooleanParameter hallmarkUpperPeak = new BooleanParameter("Hallmark is upper peak", false).setHint("When bounds are computed for all frames, Y size is homogenized. If true, the upper peak will be the hallmark for cropping. Choose the peak that has the most stable location in relation to microchannels through time");
 
     BooleanParameter twoPeaks = new BooleanParameter("Two-peak detection", false).setHint("If true, the algorithm will detect two peaks, the first one being the upper (lower y coordinate). Images are cropped between the two peaks");
     ConditionalParameter twoPeaksCond = new ConditionalParameter(twoPeaks)
-            .setActionParameters("false", cropMarginY, maxDistanceFromAberration)
+            .setActionParameters("false", cropMarginY, maxDistanceRangeFromAberration)
             .setActionParameters("true", aberrationPeakPropUp, yEndMarginUp, hallmarkUpperPeak);
     Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yEndMargin, boundGroup};
     @Override public String getHintText() {return toolTip;}
@@ -79,19 +79,22 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {
         if (debug) testMode = true;
         int yMarginEndChannel = yEndMargin.getValue().intValue();
-        int yMin=0, yMax;
+        int yMin=0, yMax, yMinMax;
         if (twoPeaks.getSelected()) {
             cropMargin = 0;
-            int[] yMinMax = searchYLimWithTwoOpticalAberration(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode);
-            yMin = yMinMax[0];
-            yMax = yMinMax[1];
+            int[] yMinAndMax = searchYLimWithTwoOpticalAberration(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode);
+            yMin = yMinAndMax[0];
+            yMax = yMinAndMax[1];
+            yMinMax = yMax;
             if (yMin<0 || yMax<0) throw new RuntimeException("Did not found two optical aberrations");
         } else {
+            int[] distanceRange=  maxDistanceRangeFromAberration.getValuesAsInt();
             yMax =  searchYLimWithOpticalAberration(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, testMode) ;
             if (yMax<0) throw new RuntimeException("No optical aberration found");
-            if (this.maxDistanceFromAberration.getValue().intValue()>0) {
-                yMin = Math.max(yMin, yMax - maxDistanceFromAberration.getValue().intValue());
+            if (distanceRange[1]>0) {
+                yMin = Math.max(yMin, yMax - distanceRange[1]);
             }
+            yMinMax = Math.max(yMin, yMax - distanceRange[1]);
         }
 
         // in case image was rotated and 0 were added, search for xMin & xMax so that no 0's are in the image
@@ -104,7 +107,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
             if (testMode) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check
             //if (yProj.length-1<channelHeight/10) throw new RuntimeException("No microchannels found in image. Out-of-Focus image ?");
-            yMin = ArrayUtil.max(yProj, 0, yProj.length - 1) + nonNullBound.yMin();
+            yMin = ArrayUtil.max(yProj, 0, yMinMax-nonNullBound.yMin()) + nonNullBound.yMin();
             //if (yMax<=0) yMax = yMin + channelHeight;
         }
         if (yStop==0) yStop = image.sizeY()-1;

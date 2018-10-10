@@ -65,9 +65,11 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        JSONArray list = (JSONArray)jsonEntry;
-        values = new Number[list.size()];
-        for (int i = 0; i<values.length;++i) values[i] = (Number)list.get(i);
+        if (jsonEntry instanceof JSONArray) {
+            JSONArray list = (JSONArray) jsonEntry;
+            values = new Number[list.size()];
+            for (int i = 0; i < values.length; ++i) values[i] = (Number) list.get(i);
+        } else logger.error("Could not initialize parameter: {}", toString());
     }
 
     public int getDecimalPlaces() {
