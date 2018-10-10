@@ -23,7 +23,6 @@
         <module>bacmman-gui</module>
         <module>bacmman-ij1_</module>
         <module>bacmman-modules-mother-machine</module>
-
         <module>bacmman-headless</module>
     </modules>
     <!--
