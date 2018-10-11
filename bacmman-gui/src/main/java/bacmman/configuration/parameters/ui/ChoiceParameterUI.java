@@ -28,7 +28,7 @@ import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.plugins.Hint;
-import static bacmman.plugins.Hint.formatTip;
+import static bacmman.plugins.Hint.formatHint;
 
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
@@ -92,7 +92,7 @@ public class ChoiceParameterUI implements ArmableUI {
                 Class plugClass = PluginFactory.getPluginClass(((PluginParameter)choice_).getPluginType(), choices[i]);
                 if (plugClass!=null && Hint.class.isAssignableFrom(plugClass)) {
                     Plugin p = PluginFactory.getPlugin(((PluginParameter)choice_).getPluginType(), choices[i]);
-                    if (p!=null) actionChoice[i].setToolTipText(formatTip(((Hint)p).getHintText()));
+                    if (p!=null) actionChoice[i].setToolTipText(formatHint(((Hint)p).getHintText()));
                 }
                 
                 

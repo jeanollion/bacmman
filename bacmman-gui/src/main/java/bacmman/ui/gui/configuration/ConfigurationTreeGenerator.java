@@ -34,13 +34,14 @@ import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static bacmman.plugins.Hint.formatTip;
+import static bacmman.plugins.Hint.formatHint;
 import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -71,15 +72,29 @@ public class ConfigurationTreeGenerator {
     protected ConfigurationTreeModel treeModel;
     protected JTree tree;
     private final Consumer<Boolean> xpIsValidCallBack;
+    private final Consumer<String> setHint;
+    private final Consumer<List<String>> setModules;
     private final MasterDAO mDAO;
     private final ProgressCallback pcb;
-    public ConfigurationTreeGenerator(Experiment xp, Consumer<Boolean> xpIsValidCallBack, MasterDAO mDAO, ProgressCallback pcb) {
+    public ConfigurationTreeGenerator(Experiment xp, Consumer<Boolean> xpIsValidCallBack, Consumer<List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
         rootParameter = xp;
         this.xpIsValidCallBack = xpIsValidCallBack;
         this.mDAO=mDAO;
         this.pcb = pcb;
+        this.setHint=setHint;
+        this.setModules = setModules;
     }
-    
+    public Consumer<String> getModuleChangeCallBack() {
+        return (selModule) -> {
+            if (tree.getSelectionCount() == 0) return;
+            TreePath path = tree.getSelectionPath();
+            if (!(path.getLastPathComponent() instanceof PluginParameter)) return;
+            PluginParameter pp = (PluginParameter)path.getLastPathComponent();
+            pp.setPlugin(selModule);
+            setHint.accept(getHint(path, false));
+            treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
+        };
+    }
     public JTree getTree() {
         if (tree==null) generateTree();
         return tree;
@@ -91,6 +106,35 @@ public class ConfigurationTreeGenerator {
             rootParameter = null;
         }
     }
+
+    private String getHint(TreePath path, boolean limitWidth) {
+        Object node = path.getLastPathComponent();
+        if (node instanceof Hint) {
+            String t = ((Hint)node).getHintText();
+            if (t==null) t = "";
+            if (node instanceof PluginParameter) {
+                Plugin p = ((PluginParameter)node).instanciatePlugin();
+                if (p instanceof Hint) {
+                    String t2 = ((Hint)p).getHintText();
+                    if (t2!=null && t2.length()>0) {
+                        if (t.length()>0) t = t+"<br /> <br />";
+                        t = t+"<b>Current Plugin:</b><br />"+t2;
+                    }
+                }
+                if (p instanceof Measurement) { // also display measurement keys
+                    List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
+                    if (!keys.isEmpty()) {
+                        if (t.length()>0) t= t+"<br /> <br />";
+                        t = t+ "<b>Measurement Keys (column names in extracted data and associated object class):</b><br />";
+                        for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<rootParameter.getStructureCount() ? " ("+rootParameter.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
+                    }
+                }
+            }
+            if (t!=null && t.length()>0) return formatHint(t, limitWidth);
+        }
+        return null;
+    }
+
     private void generateTree() {
         treeModel = new ConfigurationTreeModel(rootParameter, () -> xpChanged());
         tree = new JTree(treeModel) {
@@ -98,31 +142,7 @@ public class ConfigurationTreeGenerator {
             public String getToolTipText(MouseEvent evt) {
                 if (getRowForLocation(evt.getX(), evt.getY()) == -1) return null;
                 TreePath curPath = getPathForLocation(evt.getX(), evt.getY());
-                Object node = curPath.getLastPathComponent();
-                if (node instanceof Hint) {
-                    String t = ((Hint)node).getHintText();
-                    if (t==null) t = "";
-                    if (node instanceof PluginParameter) {
-                        Plugin p = ((PluginParameter)node).instanciatePlugin();
-                        if (p instanceof Hint) {
-                            String t2 = ((Hint)p).getHintText();
-                            if (t2!=null && t2.length()>0) {
-                                if (t.length()>0) t = t+"<br /> <br />";
-                                t = t+"<b>Current Plugin:</b><br />"+t2;
-                            }
-                        }
-                        if (p instanceof Measurement) { // also display measurement keys
-                            List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
-                            if (!keys.isEmpty()) {
-                                if (t.length()>0) t= t+"<br /> <br />";
-                                t = t+ "<b>Measurement Keys (column names in extracted data and associated object class):</b><br />";
-                                for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<rootParameter.getStructureCount() ? " ("+rootParameter.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
-                            }
-                        }
-                    }
-                    if (t!=null && t.length()>0) return formatTip(t);
-                }
-                return null;
+                return getHint(curPath, true);
             }
         };
         treeModel.setJTree(tree);
@@ -173,6 +193,21 @@ public class ConfigurationTreeGenerator {
                 xpChanged();
             }
         });
+        tree.addTreeSelectionListener(e -> {
+            switch (tree.getSelectionCount()) {
+                case 1:
+                    String hint = getHint(tree.getSelectionPath(), false);
+                    if (hint==null) setHint.accept("No hint available");
+                    else setHint.accept(hint);
+                    Object lastO = tree.getSelectionPath().getLastPathComponent();
+                    if (lastO instanceof PluginParameter) setModules.accept(((PluginParameter)lastO).getPluginNames());
+                    else setModules.accept(Collections.emptyList());
+                    break;
+                default:
+                    setModules.accept(Collections.emptyList());
+                    setHint.accept("");
+            }
+        });
         // drag and drop for lists
         tree.setDragEnabled(true);
         tree.setDropMode(DropMode.ON_OR_INSERT);
@@ -196,7 +231,7 @@ public class ConfigurationTreeGenerator {
         };
         rootParameter.getPositionParameter().addNewInstanceConfiguration(p->p.setDeletePositionCallBack(erasePosition));
     }
-    
+
     public void xpChanged() {
         xpIsValidCallBack.accept(rootParameter.isValid());
     }

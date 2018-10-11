@@ -93,10 +93,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
+import javax.swing.event.*;
 import javax.swing.text.BadLocationException;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.JTextComponent;
@@ -109,7 +106,7 @@ import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
 
-import static bacmman.plugins.Hint.formatTip;
+import static bacmman.plugins.Hint.formatHint;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.FileIO;
 import bacmman.utils.FileIO.ZipWriter;
@@ -154,10 +151,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     String logFile;
     // structure-related attributes
     //StructureObjectTreeGenerator objectTreeGenerator;
-    DefaultListModel<String> experimentModel = new DefaultListModel();
-    DefaultListModel<Task> actionPoolListModel = new DefaultListModel();
-    DefaultListModel<String> actionMicroscopyFieldModel;
-    DefaultListModel<Selection> selectionModel;
+    private DefaultListModel<String> experimentModel = new DefaultListModel<>();
+    private DefaultListModel<String> moduleModel = new DefaultListModel<>();
+    private DefaultListModel<Task> actionPoolListModel = new DefaultListModel<>();
+    private DefaultListModel<String> actionMicroscopyFieldModel;
+    private DefaultListModel<Selection> selectionModel;
     StructureSelectorTree trackTreeStructureSelector, actionStructureSelector;
     PythonGateway pyGtw;
     // shortcuts
@@ -179,6 +177,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.info("Creating GUI instance...");
         this.INSTANCE=this;
         initComponents();
+        this.moduleList.setModel(moduleModel);
         tabs.setTabComponentAt(1, new JLabel("Configuration")); // so that it can be colorized in red when configuration is not valid
         setConfigurationTabValid = v -> { // action when experiment is not valid
             tabs.getTabComponentAt(1).setForeground(v ? Color.black : Color.red);
@@ -203,6 +202,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     populateActionStructureList();
                     populateActionPositionList();
                 }
+
             }
         });
         // selections
@@ -228,16 +228,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // tool tips
         ToolTipManager.sharedInstance().setInitialDelay(100);
         ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
-        trackPanel.setToolTipText(formatTip("Element displayed are segmented tracks for each object class. Right click for actions on the track like display kymograph, run segmentation/tracking etc.."));
-        trackTreeStructureJSP.setToolTipText(formatTip("Object class to be displayed in the <em>Segmentation & Tracking</em> panel"));
-        interactiveObjectPanel.setToolTipText(formatTip("Object class that will be displayed and edited on interactive images. <br />ctrl+click to select/deselect object classes"));
-        editPanel.setToolTipText(formatTip("Commands to edit segmentation/lineage of selected objects of the interactive objects on the currently active kymograph<br />See <em>Shortcuts > Object/Lineage Edition</em> menu for while list of commands and description"));
-        actionStructureJSP.setToolTipText(formatTip("Object classes of the opened dataset. <br />Tasks will be run only on selected objects classes, or on all object classes if none is selected. <br />Ctrl + click to select/deselect"));
-        datasetJSP.setToolTipText(formatTip("List of all datasets contained in the current datasets folder<br />If a dataset is opened, its name written in the title of this window. The opened dataset does not necessarily correspond to the selected dataset in this list<br /><br />ctrl+click to select/deselect datasets<br />double-click to open dataset"));
-        actionPositionJSP.setToolTipText(formatTip("Positions of the opened dataset. <br />Tasks will be run only on selected position, or on all position if no position is selected<br />ctrl+click to select/deselect positions"));
-        deleteObjectsButton.setToolTipText(formatTip("Right-click for more delete commands"));
-        experimentFolder.setToolTipText(formatTip("Directory containing several datasets<br />Righ-click menu to access recent list and file browser"));
-        this.actionJSP.setToolTipText(formatTip("<b>Tasks to run on selected positions/object classes:</b> (ctrl+click to select/deselect tasks)<br/><ol>"
+        trackPanel.setToolTipText(formatHint("Element displayed are segmented tracks for each object class. Right click for actions on the track like display kymograph, run segmentation/tracking etc.."));
+        trackTreeStructureJSP.setToolTipText(formatHint("Object class to be displayed in the <em>Segmentation & Tracking</em> panel"));
+        interactiveObjectPanel.setToolTipText(formatHint("Object class that will be displayed and edited on interactive images. <br />ctrl+click to select/deselect object classes"));
+        editPanel.setToolTipText(formatHint("Commands to edit segmentation/lineage of selected objects of the interactive objects on the currently active kymograph<br />See <em>Shortcuts > Object/Lineage Edition</em> menu for while list of commands and description"));
+        actionStructureJSP.setToolTipText(formatHint("Object classes of the opened dataset. <br />Tasks will be run only on selected objects classes, or on all object classes if none is selected. <br />Ctrl + click to select/deselect"));
+        datasetJSP.setToolTipText(formatHint("List of all datasets contained in the current datasets folder<br />If a dataset is opened, its name written in the title of this window. The opened dataset does not necessarily correspond to the selected dataset in this list<br /><br />ctrl+click to select/deselect datasets<br />double-click to open dataset"));
+        actionPositionJSP.setToolTipText(formatHint("Positions of the opened dataset. <br />Tasks will be run only on selected position, or on all position if no position is selected<br />ctrl+click to select/deselect positions"));
+        deleteObjectsButton.setToolTipText(formatHint("Right-click for more delete commands"));
+        experimentFolder.setToolTipText(formatHint("Directory containing several datasets<br />Righ-click menu to access recent list and file browser"));
+        this.actionJSP.setToolTipText(formatHint("<b>Tasks to run on selected positions/object classes:</b> (ctrl+click to select/deselect tasks)<br/><ol>"
                 + "<li><b>"+runActionList.getModel().getElementAt(0)+"</b>: Performs preprocessing pipeline on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(1)+"</b>: Performs segmentation and tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(2)+"</b>: Performs Tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected). Ignored if "+runActionList.getModel().getElementAt(1)+" is selected.</li>"
@@ -245,9 +245,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(5)+"</b>: Extract measurements of selected object tpye (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected posisions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export > Export Options</em></li></ol>"));
-        helpMenu.setToolTipText(formatTip("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERT keyboard layout"));
-        localZoomMenu.setToolTipText(formatTip("Local zoom is activated/desactivated with TAB"));
-        this.importConfigurationMenuItem.setToolTipText(formatTip("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite preprocessing template"));
+        helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERT keyboard layout"));
+        localZoomMenu.setToolTipText(formatHint("Local zoom is activated/desactivated with TAB"));
+        this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite preprocessing template"));
         // disable componenets when run action
         actionPoolList.setModel(actionPoolListModel);
         datasetList.setModel(experimentModel);
@@ -736,12 +736,31 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             configurationTreeGenerator=null;
             configurationJSP.setViewportView(null);
             setConfigurationTabValid.accept(true);
+            for (ListSelectionListener ll : moduleList.getListSelectionListeners()) moduleList.removeListSelectionListener(ll);
         } else {
-            configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(),setConfigurationTabValid, db, ProgressCallback.get(this));
+            Consumer<String> setHint = hint -> {
+                hintTextPane.setText(hint);
+                SwingUtilities.invokeLater(() -> {
+                    if (hintJSP.getVerticalScrollBar()!=null) hintJSP.getVerticalScrollBar().setValue(0);
+                    if (hintJSP.getHorizontalScrollBar()!=null) hintJSP.getHorizontalScrollBar().setValue(0);
+                }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
+            };
+            configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(),setConfigurationTabValid, modules -> populateModuleList(modules), setHint, db, ProgressCallback.get(this));
             configurationJSP.setViewportView(configurationTreeGenerator.getTree());
             setConfigurationTabValid.accept(db.getExperiment().isValid());
+            final Consumer<String> moduleSelectionCallBack = configurationTreeGenerator.getModuleChangeCallBack();
+            moduleList.addListSelectionListener(e -> {
+                if (moduleModel.isEmpty()) return; // list was cleared
+                moduleSelectionCallBack.accept(moduleList.getSelectedValue());
+            });
         }
     }
+
+    private void populateModuleList(List<String> modules) {
+        this.moduleModel.removeAllElements();
+        for (String s : modules) moduleModel.addElement(s);
+    }
+
     
     private void promptSaveUnsavedChanges() {
         if (db==null) return;
@@ -784,6 +803,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (xp!=null) setMessage("XP: "+xp+ " closed");
         datasetListValueChanged(null);
         reloadObjectTrees=true;
+        populateModuleList(Collections.emptyList());
+        hintTextPane.setText("");
     }
     
     private void updateDisplayRelatedToXPSet() {
@@ -1096,6 +1117,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionPoolJSP = new javax.swing.JScrollPane();
         actionPoolList = new javax.swing.JList();
         configurationPanel = new javax.swing.JPanel();
+        configurationSplitPane = new javax.swing.JSplitPane();
+        configurationSplitPaneRight = new javax.swing.JSplitPane();
+        moduleListJSP = new javax.swing.JScrollPane();
+        moduleList = new javax.swing.JList<>();
+        hintJSP = new javax.swing.JScrollPane();
+        hintTextPane = new javax.swing.JTextPane();
         configurationJSP = new javax.swing.JScrollPane();
         dataPanel = new javax.swing.JPanel();
         trackPanel = new javax.swing.JPanel();
@@ -1209,7 +1236,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         experimentFolder.setBackground(new Color(getBackground().getRGB()));
         experimentFolder.setText("localhost");
-        experimentFolder.setBorder(javax.swing.BorderFactory.createTitledBorder("Datasets Folder"));
+        experimentFolder.setBorder(javax.swing.BorderFactory.createTitledBorder("Working Directory"));
         experimentFolder.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mousePressed(java.awt.event.MouseEvent evt) {
                 experimentFolderMousePressed(evt);
@@ -1251,7 +1278,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         runActionList.setSelectionForeground(new java.awt.Color(255, 255, 254));
         actionJSP.setViewportView(runActionList);
 
-        datasetJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Datasets:"));
+        datasetJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Datasets"));
 
         datasetList.setBackground(new java.awt.Color(247, 246, 246));
         datasetList.setBorder(null);
@@ -1325,17 +1352,40 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         tabs.addTab("Home", actionPanel);
 
-        configurationJSP.setBackground(new java.awt.Color(247, 246, 246));
+        configurationSplitPane.setDividerLocation(500);
+
+        configurationSplitPaneRight.setDividerLocation(250);
+        configurationSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
+
+        moduleListJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Available Modules"));
+
+        moduleList.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
+        moduleList.setName(""); // NOI18N
+        moduleListJSP.setViewportView(moduleList);
+
+        configurationSplitPaneRight.setTopComponent(moduleListJSP);
+
+        hintJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Hint"));
+
+        hintTextPane.setEditable(false);
+        hintTextPane.setBorder(javax.swing.BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        hintTextPane.setContentType("text/html"); // NOI18N
+        hintJSP.setViewportView(hintTextPane);
+
+        configurationSplitPaneRight.setRightComponent(hintJSP);
+
+        configurationSplitPane.setRightComponent(configurationSplitPaneRight);
+        configurationSplitPane.setLeftComponent(configurationJSP);
 
         javax.swing.GroupLayout configurationPanelLayout = new javax.swing.GroupLayout(configurationPanel);
         configurationPanel.setLayout(configurationPanelLayout);
         configurationPanelLayout.setHorizontalGroup(
             configurationPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(configurationJSP)
+            .addComponent(configurationSplitPane, javax.swing.GroupLayout.DEFAULT_SIZE, 814, Short.MAX_VALUE)
         );
         configurationPanelLayout.setVerticalGroup(
             configurationPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(configurationJSP, javax.swing.GroupLayout.DEFAULT_SIZE, 407, Short.MAX_VALUE)
+            .addComponent(configurationSplitPane, javax.swing.GroupLayout.DEFAULT_SIZE, 407, Short.MAX_VALUE)
         );
 
         tabs.addTab("Configuration", configurationPanel);
@@ -3682,6 +3732,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem compactLocalDBMenuItem;
     private javax.swing.JScrollPane configurationJSP;
     private javax.swing.JPanel configurationPanel;
+    private javax.swing.JSplitPane configurationSplitPane;
+    private javax.swing.JSplitPane configurationSplitPaneRight;
     private javax.swing.JTextPane console;
     private javax.swing.JScrollPane consoleJSP;
     private javax.swing.JScrollPane controlPanelJSP;
@@ -3712,6 +3764,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem extractMeasurementMenuItem;
     private javax.swing.JMenuItem extractSelectionMenuItem;
     private javax.swing.JMenu helpMenu;
+    private javax.swing.JScrollPane hintJSP;
+    private javax.swing.JTextPane hintTextPane;
     private javax.swing.JSplitPane homeSplitPane;
     private javax.swing.JCheckBoxMenuItem importConfigMenuItem;
     private javax.swing.JMenuItem importConfigurationForSelectedPositionsMenuItem;
@@ -3746,6 +3800,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JButton mergeObjectsButton;
     private javax.swing.JList microscopyFieldList;
     private javax.swing.JMenu miscMenu;
+    private javax.swing.JList<String> moduleList;
+    private javax.swing.JScrollPane moduleListJSP;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;
