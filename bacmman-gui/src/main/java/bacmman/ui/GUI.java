@@ -94,10 +94,7 @@ import javax.swing.JTree;
 import javax.swing.KeyStroke;
 import javax.swing.SwingUtilities;
 import javax.swing.event.*;
-import javax.swing.text.BadLocationException;
-import javax.swing.text.DefaultEditorKit;
-import javax.swing.text.JTextComponent;
-import javax.swing.text.TextAction;
+import javax.swing.text.*;
 
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
@@ -178,6 +175,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.INSTANCE=this;
         initComponents();
         this.moduleList.setModel(moduleModel);
+        Color backgroundColor = Color.CYAN;
         tabs.setTabComponentAt(1, new JLabel("Configuration")); // so that it can be colorized in red when configuration is not valid
         setConfigurationTabValid = v -> { // action when experiment is not valid
             tabs.getTabComponentAt(1).setForeground(v ? Color.black : Color.red);
@@ -1361,6 +1359,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         moduleList.setSelectionMode(javax.swing.ListSelectionModel.SINGLE_SELECTION);
         moduleList.setName(""); // NOI18N
+        moduleList.setOpaque(false);
         moduleListJSP.setViewportView(moduleList);
 
         configurationSplitPaneRight.setTopComponent(moduleListJSP);
