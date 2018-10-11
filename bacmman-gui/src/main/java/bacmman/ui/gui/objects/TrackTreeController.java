@@ -169,10 +169,12 @@ public class TrackTreeController {
         if (count!=1) return null;
         return displayedGeneratorS.get(0).getSelectedPosition();
     }
-    public void selectPosition(String position) {
+    public void selectPosition(String position, int childObjectClassIdx) {
         if (displayedGeneratorS.isEmpty()) return;
-        int count = displayedGeneratorS.get(0).tree.getSelectionCount();
+        int parentOCIdx = this.db.getExperiment().hierarchy.getParentObjectClassIdx(childObjectClassIdx);
+        if (!displayedGeneratorS.containsKey(parentOCIdx)) return;
+        int count = displayedGeneratorS.get(parentOCIdx).tree.getSelectionCount();
         if (count>1) return;
-        displayedGeneratorS.get(0).selectTracks(new ArrayList<SegmentedObject>(){{add(displayedGeneratorS.get(0).getObjectDAO(position).getRoot(0));}}, false);
+        displayedGeneratorS.get(parentOCIdx).selectTracks(new ArrayList<SegmentedObject>(){{add(displayedGeneratorS.get(parentOCIdx).getObjectDAO(position).getRoot(0));}}, false);
     }
 }

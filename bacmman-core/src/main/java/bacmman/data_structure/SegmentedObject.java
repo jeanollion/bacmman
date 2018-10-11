@@ -317,14 +317,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                 if (res!=null) return res.stream();
                 else return null;
             } else { // indirect child
-                //logger.debug("structure:{} is not direct child of: {}", structureIdx, this.structureIdx);
                 int[] path = getHierarchy().getPathToStructure(this.getStructureIdx(), structureIdx);
                 if (path.length == 0) { // structure is not (indirect) child of current structure -> get included objects from first common parent
                     int commonParentIdx = getExperiment().hierarchy.getFirstCommonParentObjectClassIdx(this.structureIdx, structureIdx);
                     SegmentedObject commonParent = this.getParent(commonParentIdx);
                     Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx);
-                    //if (this.frame==0) logger.debug("structure: {}, child: {}, commonParentIdx: {}, object: {}, path: {}, candidates: {}", this.structureIdx, structureIdx, commonParentIdx, commonParent, getExperiment().getPathToStructure(commonParentIdx, structureIdx), candidates.size());
-                    return candidates.filter(c -> BoundingBox.isIncluded(c.getBounds(), this.getBounds()));
+                    return candidates.filter(c -> is2D()?BoundingBox.intersect2D(c.getBounds(), this.getBounds()):BoundingBox.intersect(c.getBounds(), this.getBounds()));
                 } else { // direct children
                     Stream<SegmentedObject> currentChildren = getChildren(path[0]);
                     //logger.debug("getAllObjects: current structure {} current number of objects: {}", pathToStructure[0], currentChildren.size());

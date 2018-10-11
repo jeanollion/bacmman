@@ -2265,7 +2265,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 } else l = sel.getElementStrings(position);
                 logger.debug("position: {}, #objects: {}, nav: {}, NextPosition? {}", position, position!=null ? l.size() : 0, navigateCount, nextPosition);
                 if (position==null) return;
-                this.trackTreeController.selectPosition(position);
+                this.trackTreeController.selectPosition(position, sel.getStructureIdx());
                 List<SegmentedObject> parents = SelectionUtils.getParentTrackHeads(sel, position, displaySIdx, db);
                 Collections.sort(parents);
                 logger.debug("parent track heads: {} (sel: {}, displaySIdx: {})", parents.size(), sel.getStructureIdx(), displaySIdx);

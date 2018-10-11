@@ -68,7 +68,7 @@ public class MeasurementExtractor {
         sb.append("Frame");
         sb.append(separator);
         // index of this structure
-        sb.append(db.getExperiment().getStructureNames(structureIdx)[0]);
+        //sb.append(db.getExperiment().getStructureNames(structureIdx)[0]);
         sb.append("Idx");
         sb.append(separator);
         sb.append("Time");
