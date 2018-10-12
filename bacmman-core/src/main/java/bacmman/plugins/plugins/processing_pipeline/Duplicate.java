@@ -80,7 +80,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     }
     protected void segmentOnly(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
-        int parentStorage = parentTrack.get(0).getHierarchy().getParentObjectClassIdx(structureIdx);
+        int parentStorage = parentTrack.get(0).getExperimentStructure().getParentObjectClassIdx(structureIdx);
         if (dup.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected structure to duplicate");
         logger.debug("dup: {} dup parent: {}, parentTrack: {}", dup.getSelectedClassIdx(), dup.getParentObjectClassIdx(), parentTrack.get(0).getStructureIdx());
         //if (dup.getParentStructureIdx()!=parentTrack.get(0).getStructureIdx() && dup.getSelectedStructureIdx()!=parentTrack.get(0).getStructureIdx()) throw new IllegalArgumentException("Parent Structure should be the same as duplicated's parent strucutre");

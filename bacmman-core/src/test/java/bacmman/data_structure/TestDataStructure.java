@@ -157,8 +157,8 @@ public class TestDataStructure {
         rootTrack = dao.getTrack(rootFetch);
         for (int t = 0; t<rootTrack.size(); ++t) {
             //root[t]=dao.getById(root.get(t).getId());
-            for (int sIdx : xp.hierarchy.getStructuresInHierarchicalOrderAsArray()) {
-                rootTrack.get(t).getChildren(xp.hierarchy.getParentObjectClassIdx(sIdx)).forEach(parent -> {
+            for (int sIdx : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray()) {
+                rootTrack.get(t).getChildren(xp.experimentStructure.getParentObjectClassIdx(sIdx)).forEach(parent -> {
                     parent.setChildren(dao.getChildren(parent, sIdx), sIdx);
                 });
             }

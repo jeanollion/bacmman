@@ -58,7 +58,7 @@ public class TimePointNode implements TreeNode, UIContainer, StructureNodeContai
     
     public StructureNode[] getChildren() {
         if (children==null) {
-            int[] childrenIndicies = getGenerator().getExperiment().hierarchy.getAllDirectChildStructuresAsArray(-1);
+            int[] childrenIndicies = getGenerator().getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(-1);
             children = new StructureNode[childrenIndicies.length];
             for (int i = 0; i<children.length; ++i) children[i]=new StructureNode(childrenIndicies[i], this);
         }

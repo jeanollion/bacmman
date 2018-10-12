@@ -1,5 +1,6 @@
 package bacmman.data_structure;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
 import bacmman.image.BlankMask;
@@ -52,7 +53,9 @@ public class SegmentedObjectAccessor {
     public List<SegmentedObject> getDirectChildren(SegmentedObject o, int objectClassIdx) {
         return o.getDirectChildren(objectClassIdx);
     }
-
+    public Experiment getExperiment(SegmentedObject o) {
+        return o.getExperiment();
+    }
     // structure modifiers
 
     public void setDAO(SegmentedObject o, ObjectDAO dao) {

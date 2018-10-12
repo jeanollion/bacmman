@@ -114,7 +114,7 @@ public class RelativePosition implements Measurement, Hint {
     public void performMeasurement(SegmentedObject object) {
         SegmentedObject refObject=null;
         if (reference.getSelectedClassIdx()>=0) {
-            if (object.getHierarchy().isChildOf(reference.getSelectedClassIdx(), objects.getSelectedClassIdx()))  refObject = object.getParent(reference.getSelectedClassIdx());
+            if (object.getExperimentStructure().isChildOf(reference.getSelectedClassIdx(), objects.getSelectedClassIdx()))  refObject = object.getParent(reference.getSelectedClassIdx());
             else {
                 int refParent = reference.getFirstCommonParentObjectClassIdx(objects.getSelectedClassIdx());
                 refObject = SegmentedObjectUtils.getContainer(object.getRegion(), object.getParent(refParent).getChildren(reference.getSelectedClassIdx()), null);

@@ -20,7 +20,6 @@ package bacmman.data_structure;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
-import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.BasicObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
@@ -216,17 +215,19 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         return false;
     }
 
-    public Experiment getExperiment() {
+    Experiment getExperiment() {
         if (dao==null) {
             if (parent!=null) return parent.getExperiment();
             return null;
         }
         return dao.getExperiment();
     }
-    public ObjectClassHierarchy getHierarchy() {
-        return getExperiment().hierarchy;
+    public ExperimentStructure getExperimentStructure() {
+        return getExperiment().experimentStructure;
     }
-    public Position getPosition() {return getExperiment()!=null?getExperiment().getPosition(getPositionName()):null;}
+    private Position getPosition() {
+        return getExperiment()!=null?getExperiment().getPosition(getPositionName()):null;
+    }
     /**
      *
      * @return size of a pixel in micrometers in XY direction
@@ -258,7 +259,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (structureIdx==parentObjectClassIdx) return this;
         if (parentObjectClassIdx<0) return getRoot();
         if (parentObjectClassIdx == this.getParent().getStructureIdx()) return getParent();
-        int common = getExperiment().hierarchy.getFirstCommonParentObjectClassIdx(structureIdx, parentObjectClassIdx);
+        int common = getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(structureIdx, parentObjectClassIdx);
         //logger.debug("common idx: {}", common);
         if (common == parentObjectClassIdx) {
             SegmentedObject p = this;
@@ -296,7 +297,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
 
 
     void loadAllChildren(boolean indirect) {
-        for (int i : getHierarchy().getAllDirectChildStructures(structureIdx)) {
+        for (int i : getExperimentStructure().getAllDirectChildStructures(structureIdx)) {
             Stream<SegmentedObject> c = getChildren(i);
             if (indirect) c.forEach(o->loadAllChildren(true));
         }
@@ -312,14 +313,14 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (structureIdx<0) return Stream.of(getRoot());
         List<SegmentedObject> res= this.childrenSM.get(structureIdx);
         if (res==null) {
-            if (getExperiment().hierarchy.isDirectChildOf(this.structureIdx, structureIdx)) { // direct child
+            if (getExperiment().experimentStructure.isDirectChildOf(this.structureIdx, structureIdx)) { // direct child
                 res = getDirectChildren(structureIdx);
                 if (res!=null) return res.stream();
                 else return null;
             } else { // indirect child
-                int[] path = getHierarchy().getPathToStructure(this.getStructureIdx(), structureIdx);
+                int[] path = getExperimentStructure().getPathToStructure(this.getStructureIdx(), structureIdx);
                 if (path.length == 0) { // structure is not (indirect) child of current structure -> get included objects from first common parent
-                    int commonParentIdx = getExperiment().hierarchy.getFirstCommonParentObjectClassIdx(this.structureIdx, structureIdx);
+                    int commonParentIdx = getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(this.structureIdx, structureIdx);
                     SegmentedObject commonParent = this.getParent(commonParentIdx);
                     Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx);
                     return candidates.filter(c -> is2D()?BoundingBox.intersect2D(c.getBounds(), this.getBounds()):BoundingBox.intersect(c.getBounds(), this.getBounds()));
@@ -360,7 +361,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     
     List<SegmentedObject> setChildrenObjects(RegionPopulation population, int structureIdx) {
-        if (!getExperiment().hierarchy.isDirectChildOf(this.structureIdx, structureIdx)) throw new IllegalArgumentException("Set children object call with non-direct child object class");
+        if (!getExperiment().experimentStructure.isDirectChildOf(this.structureIdx, structureIdx)) throw new IllegalArgumentException("Set children object call with non-direct child object class");
         if (population==null) {
             ArrayList<SegmentedObject> res = new ArrayList<>();
             childrenSM.set(res, structureIdx);
@@ -642,7 +643,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         setAttribute(EDITED_SEGMENTATION, true);
         other.isTrackHead=false; // so that it won't be detected in the correction
         // update children
-        int[] chilIndicies = getExperiment().hierarchy.getAllDirectChildStructuresAsArray(structureIdx);
+        int[] chilIndicies = getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
         for (int cIdx : chilIndicies) {
             List<SegmentedObject> otherChildren = other.getDirectChildren(cIdx);
             if (otherChildren!=null) {

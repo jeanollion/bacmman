@@ -91,11 +91,11 @@ public class PluginConfigurationUtils {
 
     public static Map<SegmentedObject, TestDataStore> testImageProcessingPlugin(final ImageProcessingPlugin plugin, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean trackOnly) {
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
-        
+        SegmentedObjectAccessor accessor = getAccessor();
         // get parent objects -> create graph cut
         SegmentedObject o = parentSelection.get(0);
-        int parentStrutureIdx = o.getExperiment().getStructure(structureIdx).getParentStructure();
-        int segParentStrutureIdx = o.getExperiment().getStructure(structureIdx).getSegmentationParentStructure();
+        int parentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getParentStructure();
+        int segParentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getSegmentationParentStructure();
         Function<SegmentedObject, SegmentedObject> getParent = c -> (c.getStructureIdx()>parentStrutureIdx) ? c.getParent(parentStrutureIdx) : c.getChildren(parentStrutureIdx).findFirst().get();
         List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead(), false);
         Map<String, SegmentedObject> dupMap = SegmentedObjectUtils.createGraphCut(wholeParentTrack, true, true);  // don't modify object directly.
@@ -107,7 +107,7 @@ public class PluginConfigurationUtils {
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
         parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input", p.getRawImage(structureIdx))); // add input image
 
-        SegmentedObjectAccessor accessor = getAccessor();
+
         Parameter.logger.debug("test processing: sel {}", parentSelection);
         Parameter.logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
         if (plugin instanceof Segmenter) { // case segmenter -> segment only & call to test method
@@ -209,8 +209,8 @@ public class PluginConfigurationUtils {
     
     public static void displayIntermediateImages(Map<SegmentedObject, TestDataStore> stores, int structureIdx) {
         ImageWindowManager iwm = getImageManager();
-        int parentStructureIdx = stores.values().stream().findAny().get().getParent().getHierarchy().getParentObjectClassIdx(structureIdx);
-        int segParentStrutureIdx = stores.values().stream().findAny().get().getParent().getHierarchy().getSegmentationParentObjectClassIdx(structureIdx);
+        int parentStructureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getParentObjectClassIdx(structureIdx);
+        int segParentStrutureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         SegmentedObjectAccessor accessor = getAccessor();
         Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx);
         getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), res.value.size()+1));

@@ -18,8 +18,6 @@
  */
 package bacmman.configuration.parameters;
 
-import bacmman.configuration.experiment.Experiment;
-
 /**
  *
  * @author Jean Ollion
@@ -47,7 +45,7 @@ public abstract class ObjectClassParameterAbstract<T extends ObjectClassParamete
             logger.error("StructureParameter#getParentStructureIdx(): {}, could not get dataset", name);
             return -1;
         }
-        else return getXP().hierarchy.getFirstCommonParentObjectClassIdx(getSelectedIndex(), otherStructureIdx);
+        else return getXP().experimentStructure.getFirstCommonParentObjectClassIdx(getSelectedIndex(), otherStructureIdx);
     }
 
 

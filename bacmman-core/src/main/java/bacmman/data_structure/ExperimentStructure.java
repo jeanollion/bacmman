@@ -5,13 +5,14 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.utils.Utils;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.IntStream;
 
 import static bacmman.utils.Utils.toArray;
 
-public class ObjectClassHierarchy {
+public class ExperimentStructure {
     final Experiment xp;
-    public ObjectClassHierarchy(Experiment xp) {
+    public ExperimentStructure(Experiment xp) {
         this.xp=xp;
     }
 
@@ -50,7 +51,7 @@ public class ObjectClassHierarchy {
         }
     }
 
-    public ArrayList<Integer> getAllDirectChildStructures(int parentStructureIdx) {
+    public List<Integer> getAllDirectChildStructures(int parentStructureIdx) {
         int max = xp.getStructureCount();
         ArrayList<Integer> res = new ArrayList<Integer>(max);
         for (int s = parentStructureIdx+1; s<max; ++s) {
@@ -58,6 +59,22 @@ public class ObjectClassHierarchy {
         }
         return res;
     }
+
+    public String[] getChildObjectClassesAsString(int structureIdx) {
+        int[] childIdx = getAllChildStructures(structureIdx);
+        return getObjectClassesNames(childIdx);
+    }
+
+    public String[] getObjectClassesNames(int... structureIndicies) {
+        String[] res = new String[structureIndicies.length];
+        for (int i = 0; i<res.length; ++i) {
+            if (structureIndicies[i]<0) res[i]="Viewfield";
+            else res[i] = xp.getStructure(structureIndicies[i]).getName();
+        }
+        return res;
+    }
+
+    public String[] getObjectClassesAsString() {return xp.getStructures().getChildrenString();}
 
     /**
      *
@@ -105,8 +122,8 @@ public class ObjectClassHierarchy {
     }
     /**
      *
-     * @param startStructureIdx start structure (excluded), must be anterior to {@param stopStructureIdx} in the structure hierarchy
-     * @param stopStructureIdx stop structure (included), must be posterior to {@param stopStructureIdx} in the structure hierarchy
+     * @param startStructureIdx start structure (excluded), must be anterior to {@param stopStructureIdx} in the structure experimentStructure
+     * @param stopStructureIdx stop structure (included), must be posterior to {@param stopStructureIdx} in the structure experimentStructure
      * @return
      */
     public int[] getPathToStructure(int startStructureIdx, int stopStructureIdx) {
@@ -152,5 +169,11 @@ public class ObjectClassHierarchy {
         int idx=0;
         for (int[] o : so) for (int s:o) res[idx++]=s;
         return res;
+    }
+    public String getObjectClassName(int objectClassIdx) {
+        return xp.getStructure(objectClassIdx).getName();
+    }
+    public boolean singleFrame(String positionName, int objectClassIdx) {
+        return xp.getPosition(positionName).singleFrame(objectClassIdx);
     }
 }

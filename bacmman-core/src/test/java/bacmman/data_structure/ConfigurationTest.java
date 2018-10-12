@@ -18,7 +18,6 @@
  */
 package bacmman.data_structure;
 
-import bacmman.core.Task;
 import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
@@ -73,15 +72,15 @@ public class ConfigurationTest {
     public void testHierarchicalStructureOrder() {
         assertEquals("Structure 2", s2, xp.getStructure(2));
         
-        assertEquals("Hierarchical order s0:", 0, xp.hierarchy.getHierachicalOrder(0));
-        assertEquals("Hierarchical order s1:", 1, xp.hierarchy.getHierachicalOrder(1));
-        assertEquals("Hierarchical order s2:", 1, xp.hierarchy.getHierachicalOrder(2));
-        assertEquals("Hierarchical order s3:", 2, xp.hierarchy.getHierachicalOrder(3));
-        assertEquals("Hierarchical order s4:", 0, xp.hierarchy.getHierachicalOrder(4));
-        assertEquals("Hierarchical order s5:", 3, xp.hierarchy.getHierachicalOrder(5));
-        assertEquals("Hierarchical order s5:", 3, xp.hierarchy.getHierachicalOrder(6));
+        assertEquals("Hierarchical order s0:", 0, xp.experimentStructure.getHierachicalOrder(0));
+        assertEquals("Hierarchical order s1:", 1, xp.experimentStructure.getHierachicalOrder(1));
+        assertEquals("Hierarchical order s2:", 1, xp.experimentStructure.getHierachicalOrder(2));
+        assertEquals("Hierarchical order s3:", 2, xp.experimentStructure.getHierachicalOrder(3));
+        assertEquals("Hierarchical order s4:", 0, xp.experimentStructure.getHierachicalOrder(4));
+        assertEquals("Hierarchical order s5:", 3, xp.experimentStructure.getHierachicalOrder(5));
+        assertEquals("Hierarchical order s5:", 3, xp.experimentStructure.getHierachicalOrder(6));
         
-        int[][] orders = xp.hierarchy.getStructuresInHierarchicalOrder();
+        int[][] orders = xp.experimentStructure.getStructuresInHierarchicalOrder();
         assertArrayEquals("orders 0:", new int[]{0, 4}, orders[0]);
         assertArrayEquals("orders 1:", new int[]{1, 2}, orders[1]);
         assertArrayEquals("orders 2:", new int[]{3}, orders[2]);
@@ -90,16 +89,16 @@ public class ConfigurationTest {
     
     @Test
     public void testPathToStructure() {
-        assertArrayEquals("path to structure 0->6", new int[]{1, 3, 6}, xp.hierarchy.getPathToStructure(0, 6));
-        assertArrayEquals("path to structure 2->6", new int[]{}, xp.hierarchy.getPathToStructure(2, 6)); // 6 is not an indirect child of 2
-        assertArrayEquals("path to root 6", new int[]{0, 1, 3, 6}, xp.hierarchy.getPathToRoot(6));
+        assertArrayEquals("path to structure 0->6", new int[]{1, 3, 6}, xp.experimentStructure.getPathToStructure(0, 6));
+        assertArrayEquals("path to structure 2->6", new int[]{}, xp.experimentStructure.getPathToStructure(2, 6)); // 6 is not an indirect child of 2
+        assertArrayEquals("path to root 6", new int[]{0, 1, 3, 6}, xp.experimentStructure.getPathToRoot(6));
     }
     
     @Test
     public void testGetChildren() {
-        assertArrayEquals("getChildren 3", new int[]{5, 6}, xp.hierarchy.getAllDirectChildStructuresAsArray(3));
-        assertArrayEquals("getChildren 2", new int[]{}, xp.hierarchy.getAllDirectChildStructuresAsArray(2));
-        assertArrayEquals("getAllChildren 0", new int[]{1, 2, 3, 5, 6}, xp.hierarchy.getAllChildStructures(0));
+        assertArrayEquals("getChildren 3", new int[]{5, 6}, xp.experimentStructure.getAllDirectChildStructuresAsArray(3));
+        assertArrayEquals("getChildren 2", new int[]{}, xp.experimentStructure.getAllDirectChildStructuresAsArray(2));
+        assertArrayEquals("getAllChildren 0", new int[]{1, 2, 3, 5, 6}, xp.experimentStructure.getAllChildStructures(0));
     }
     
     @Test

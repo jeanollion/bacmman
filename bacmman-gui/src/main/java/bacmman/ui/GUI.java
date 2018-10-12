@@ -1003,7 +1003,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(true);*/
     }
     private void setInteractiveStructures() {
-        List<String> structureNames= Arrays.asList(db.getExperiment().getStructuresAsString());
+        List<String> structureNames= Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
         Object selectedO = interactiveStructure.getSelectedItem();
         this.interactiveStructure.removeAllItems();
         interactiveStructure.addItem("Viewfield");
@@ -2244,7 +2244,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (i.getChildStructureIdx() == currentImageStructure) idx += (next ? 1 : -1) ; // only increment if same structure
             logger.debug("current inter: {}, current image child: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure);
             if (siblings.size()==idx || idx<0) { // next position
-                List<String> positions = Arrays.asList(i.getParent().getExperiment().getPositionsAsString());
+                List<String> positions = Arrays.asList(db.getExperiment().getPositionsAsString());
                 int idxP = positions.indexOf(i.getParent().getPositionName()) + (next ? 1 : -1);
                 if (idxP<0 || idxP==positions.size()) return;
                 String nextPos = positions.get(idxP);
@@ -2271,7 +2271,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (sel==null) ImageWindowManagerFactory.getImageManager().goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next);
         else {
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
-            if (i!=null && i.getParent().getExperiment()!=db.getExperiment()) i=null;
             if (structureDisplay==-1 && i!=null) {
                 Image im = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2();
                 if (im!=null) {

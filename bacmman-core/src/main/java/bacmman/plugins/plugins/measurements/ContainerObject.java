@@ -93,7 +93,7 @@ public class ContainerObject implements Measurement, Hint {
     @Override
     public void performMeasurement(SegmentedObject object) {
         SegmentedObject refObject;
-        if (object.getHierarchy().isChildOf(reference.getSelectedClassIdx(), objects.getSelectedClassIdx()))  refObject = object.getParent(reference.getSelectedClassIdx());
+        if (object.getExperimentStructure().isChildOf(reference.getSelectedClassIdx(), objects.getSelectedClassIdx()))  refObject = object.getParent(reference.getSelectedClassIdx());
         else {
             int refParent = reference.getFirstCommonParentObjectClassIdx(objects.getSelectedClassIdx());
             refObject = SegmentedObjectUtils.getContainer(object.getRegion(), object.getParent(refParent).getChildren(reference.getSelectedClassIdx()), null);

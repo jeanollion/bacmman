@@ -19,7 +19,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
-import bacmman.data_structure.ObjectClassHierarchy;
+import bacmman.data_structure.ExperimentStructure;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;
@@ -94,7 +94,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     
     public enum ImageDAOTypes {LocalFileSystem};
     ImageDAOTypes imageDAOType=ImageDAOTypes.LocalFileSystem;
-    public final ObjectClassHierarchy hierarchy = new ObjectClassHierarchy(this);
+    public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
     
     @Override
     public JSONObject toJSONEntry() {
@@ -307,25 +307,15 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         return positions.getIndex(positionName);
     }
     
-    public String[] getStructuresAsString() {return structures.getChildrenString();}
+
     
     public String[] getChannelImagesAsString() {return channelImages.getChildrenString();}
     
     public String[] getPositionsAsString() {return positions.getChildrenString();}
     
-    public String[] getChildStructuresAsString(int structureIdx) {
-        int[] childIdx = hierarchy.getAllChildStructures(structureIdx);
-        return getStructureNames(childIdx);
-    }
+
     
-    public String[] getStructureNames(int... structureIndicies) {
-        String[] res = new String[structureIndicies.length];
-        for (int i = 0; i<res.length; ++i) {
-            if (structureIndicies[i]<0) res[i]="Viewfield";
-            else res[i] = this.getStructure(structureIndicies[i]).getName();
-        }
-        return res;
-    }
+
     
     // measurement-related methods
     public SimpleListParameter<PluginParameter<Measurement>> getMeasurements() { return measurements;}

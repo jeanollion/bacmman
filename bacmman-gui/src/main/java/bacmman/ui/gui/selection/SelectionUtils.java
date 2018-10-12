@@ -72,7 +72,7 @@ public class SelectionUtils {
             logger.error("Name should not contain special characters");
             return false;
         }
-        List<String> structures = Arrays.asList(db.getExperiment().getStructuresAsString());
+        List<String> structures = Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
         if (structures.contains(name)) {
             logger.error("Name should not be a Structure's name");
             return false;
@@ -212,8 +212,8 @@ public class SelectionUtils {
         return parents;
     }
     public static List<SegmentedObject> getParents(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
-        if (!(db.getExperiment().hierarchy.isChildOf(parentStructureIdx, sel.getStructureIdx())||parentStructureIdx==sel.getStructureIdx())) return Collections.EMPTY_LIST;
-        int[] path = db.getExperiment().hierarchy.getPathToStructure(parentStructureIdx, sel.getStructureIdx());
+        if (!(db.getExperiment().experimentStructure.isChildOf(parentStructureIdx, sel.getStructureIdx())||parentStructureIdx==sel.getStructureIdx())) return Collections.EMPTY_LIST;
+        int[] path = db.getExperiment().experimentStructure.getPathToStructure(parentStructureIdx, sel.getStructureIdx());
         List<String> parentStrings = parentStructureIdx!=sel.getStructureIdx()?Utils.transform(sel.getElementStrings(position), s->Selection.getParent(s, path.length)):new ArrayList<>(sel.getElementStrings(position));
         Utils.removeDuplicates(parentStrings, false);
         Stream<SegmentedObject> allObjects = SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentStructureIdx);

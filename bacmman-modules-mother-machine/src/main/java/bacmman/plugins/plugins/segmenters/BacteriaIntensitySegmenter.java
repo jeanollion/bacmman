@@ -125,8 +125,13 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
     }
     @Override public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         if (isVoid) return null;
-        
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
+
+        if (splitAndMerge==null || !parent.equals(currentParent)) {
+            currentParent = parent;
+            splitAndMerge = initializeSplitAndMerge(parent, objectClassIdx, parent.getMask());
+        }
+
         edgeDetector = initEdgeDetector(parent, objectClassIdx);
         RegionPopulation splitPop = edgeDetector.runSegmenter(input, objectClassIdx, parent);
         splitPop.smoothRegions(1, true, parent.getMask());
@@ -135,10 +140,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         splitPop = filterRegionsAfterEdgeDetector(parent, objectClassIdx, splitPop);
         if (stores!=null) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Filtering of Paritions"));
         
-        if (splitAndMerge==null || !parent.equals(currentParent)) {
-            currentParent = parent;
-            splitAndMerge = initializeSplitAndMerge(parent, objectClassIdx, parent.getMask());
-        }
+
         RegionPopulation split = splitAndMerge.split(splitPop.getLabelMap(), MIN_SIZE_PROPAGATION);
         if (stores!=null) {
             imageDisp.accept(splitAndMerge.getHessian().setName("Hessian"));
@@ -161,7 +163,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         
         if (stores!=null) {
-            int pSIdx = ((SegmentedObject)parent).getExperiment().getStructure(objectClassIdx).getParentStructure();
+            int pSIdx = parent.getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
             stores.get(parent).addMisc("Display Thresholds", l->{
                 if (l.stream().map(o->o.getParent(pSIdx)).anyMatch(o->o==parent)) {
                     displayAttributes();

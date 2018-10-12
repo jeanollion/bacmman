@@ -386,7 +386,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         Set<Integer> toDelete = new HashSet<>(); // add all direct children
         for (int s: structures) {
             toDelete.add(s);
-            toDelete.addAll(Utils.toList(getExperiment().hierarchy.getAllChildStructures(s)));
+            toDelete.addAll(Utils.toList(getExperiment().experimentStructure.getAllChildStructures(s)));
         }
         for (int structureIdx : toDelete) {
             if (this.dbS.containsKey(structureIdx)) {
@@ -496,7 +496,7 @@ public class DBMapObjectDAO implements ObjectDAO {
             allModifiedStructureIdx.add(key.value);
             List<SegmentedObject> toRemove = splitByPTH.get(key);
             if (deleteChildren) {
-                for (int sChild : getExperiment().hierarchy.getAllDirectChildStructures(key.value)) {
+                for (int sChild : getExperiment().experimentStructure.getAllDirectChildStructures(key.value)) {
                     allModifiedStructureIdx.addAll(deleteChildren(toRemove, sChild, false)); // will call this method recursively
                 }
             }

@@ -71,9 +71,9 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         }
         if (parentTrack.isEmpty()) return;
         int parentStructureIdx = parentTrack.get(0).getStructureIdx();
-        int segParentStructureIdx = ((SegmentedObject)parentTrack.get(0)).getExperiment().getStructure(structureIdx).getSegmentationParentStructure();
+        int segParentStructureIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         boolean subSegmentation = segParentStructureIdx>parentStructureIdx;
-        boolean singleFrame = ((SegmentedObject)parentTrack.get(0)).getPosition().singleFrame(structureIdx); // will semgent only on first frame
+        boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
         
         // segment in direct parents
         List<SegmentedObject> allParents = singleFrame ? SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream().limit(1), segParentStructureIdx).collect(Collectors.toList()) : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segParentStructureIdx).collect(Collectors.toList());

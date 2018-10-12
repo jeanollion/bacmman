@@ -88,7 +88,7 @@ public class BasicObjectDAO implements ObjectDAO {
     private void applyRec(Stream<SegmentedObject> col, Consumer<SegmentedObject> function) {
         col.forEach(o-> {
             function.accept(o);
-            for (int s : this.getExperiment().hierarchy.getAllDirectChildStructures(o.getStructureIdx())) applyRec(o.getChildren(s), function);
+            for (int s : this.getExperiment().experimentStructure.getAllDirectChildStructures(o.getStructureIdx())) applyRec(o.getChildren(s), function);
         });
     }
     
@@ -119,7 +119,7 @@ public class BasicObjectDAO implements ObjectDAO {
     
     protected void deleteObjectByStructureIdx(int structureIdx) {
         if (structureIdx==-1) deleteAllObjects();
-        int[] pathToRoot = getExperiment().hierarchy.getPathToRoot(structureIdx);
+        int[] pathToRoot = getExperiment().experimentStructure.getPathToRoot(structureIdx);
         if (pathToRoot.length==1) for (SegmentedObject r : rootTrack.values()) deleteChildren(r, structureIdx);
         else {
             for (SegmentedObject r : rootTrack.values()) {

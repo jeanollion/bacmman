@@ -82,7 +82,7 @@ public class ImportExportJSON {
     private static Set<Triplet<SegmentedObject,Integer, Integer>> listAllTrackImages(ObjectDAO dao) {
         Set<Triplet<SegmentedObject,Integer, Integer>> res = new HashSet<>();
         for (int sIdx = 0; sIdx<dao.getExperiment().getStructureCount(); ++sIdx) {
-            List<Integer> direct = dao.getExperiment().hierarchy.getAllDirectChildStructures(sIdx);
+            List<Integer> direct = dao.getExperiment().experimentStructure.getAllDirectChildStructures(sIdx);
             direct = Utils.transform(direct, s->dao.getExperiment().getChannelImageIdx(s));
             Utils.removeDuplicates(direct, false);
             if (direct.isEmpty()) continue;

@@ -426,7 +426,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public TrackConfigurer<SpotSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
         // get scaling per segmentation parent track
-        int segParent = parentTrack.iterator().next().getHierarchy().getSegmentationParentObjectClassIdx(structureIdx);
+        int segParent = parentTrack.iterator().next().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         int parentIdx = parentTrack.iterator().next().getStructureIdx();
         Map<SegmentedObject, List<SegmentedObject>> segParentTracks = SegmentedObjectUtils.getAllTracks(parentTrack, segParent);
         Function<List<SegmentedObject>, DoubleStream> valueStream = t -> {

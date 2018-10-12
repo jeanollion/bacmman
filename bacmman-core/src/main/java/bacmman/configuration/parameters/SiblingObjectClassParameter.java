@@ -97,7 +97,7 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
         }
         if (getXP()==null && idxStructureMap==null) idxStructureMap=new int[]{-1};
         else {
-            idxStructureMap =  getXP().hierarchy.getAllChildStructures(parentStructureIdx);
+            idxStructureMap =  getXP().experimentStructure.getAllChildStructures(parentStructureIdx);
             if (includeParent && parentStructureIdx!=-1) { // add Parent before
                 int[] idxStructureMap2 = new int[idxStructureMap.length+1];
                 System.arraycopy(idxStructureMap, 0, idxStructureMap2, 1, idxStructureMap.length);
@@ -146,7 +146,7 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
     @Override
     public String[] getChoiceList() {
         if (getXP()!=null) {
-            return getXP().getStructureNames(getIndexStructureMap());
+            return getXP().experimentStructure.getObjectClassesNames(getIndexStructureMap());
         } else {
             return new String[]{"error: no xp found in tree"};
         }

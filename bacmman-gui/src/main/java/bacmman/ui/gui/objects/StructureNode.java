@@ -153,7 +153,7 @@ public class StructureNode implements TreeNode, UIContainer {
             actions[1] = rawSubMenu;
             JMenu segmentationSubMenu = new JMenu("Segmentation"); // No segmentation for the moment, see how to run it only if independent from tracking..
             //actions[2] = segmentationSubMenu;
-            String[] structureNames = getGenerator().getExperiment().getStructuresAsString();
+            String[] structureNames = getGenerator().getExperiment().experimentStructure.getObjectClassesAsString();
             
             openRaw=new JMenuItem[structureNames.length];
             for (int i = 0; i < openRaw.length; i++) {
@@ -163,7 +163,7 @@ public class StructureNode implements TreeNode, UIContainer {
                         public void actionPerformed(ActionEvent ae) {
                             int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
                             if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening input image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
-                            int[] path = getGenerator().getExperiment().hierarchy.getPathToStructure(getParentObject().getStructureIdx(), structureIdx);
+                            int[] path = getGenerator().getExperiment().experimentStructure.getPathToStructure(getParentObject().getStructureIdx(), structureIdx);
                             parent.loadAllChildObjects(path, 0);
                             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(getParentObject(), getStructureIdx(ae.getActionCommand(), openRaw), true);
                             ImageWindowManagerFactory.getImageManager().addImage(i.generatemage(structureIdx, true), i, structureIdx, true);
@@ -184,7 +184,7 @@ public class StructureNode implements TreeNode, UIContainer {
                             if (GUI.logger.isDebugEnabled()) GUI.logger.debug("perform segmentation for structure: {} of idx: {} from structure idx: {}", ae.getActionCommand(), getStructureIdx(ae.getActionCommand(), openRaw), getParentObject().getStructureIdx());
                             int directParentIdx = getGenerator().getExperiment().getStructure(getStructureIdx(ae.getActionCommand(), openRaw)).getParentStructure();
                             if (directParentIdx!=getParentObject().getStructureIdx()) {
-                                int[] path = getGenerator().getExperiment().hierarchy.getPathToStructure(getParentObject().getStructureIdx(), directParentIdx);
+                                int[] path = getGenerator().getExperiment().experimentStructure.getPathToStructure(getParentObject().getStructureIdx(), directParentIdx);
                                 parent.loadAllChildObjects(path, 0);
                             }
                             

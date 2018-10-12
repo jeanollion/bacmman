@@ -56,8 +56,8 @@ public class MeasurementExtractor {
         this.structureIdx=structureIdx;
     }
     protected StringBuilder getBaseHeader() {
-        int[] path = db.getExperiment().hierarchy.getPathToRoot(structureIdx);
-        String[] structureNames = db.getExperiment().getStructureNames(path);
+        int[] path = db.getExperiment().experimentStructure.getPathToRoot(structureIdx);
+        String[] structureNames = db.getExperiment().experimentStructure.getObjectClassesNames(path);
         StringBuilder sb = new StringBuilder(50+20*structureNames.length);
         sb.append("Position");
         sb.append(separator);
@@ -68,7 +68,7 @@ public class MeasurementExtractor {
         sb.append("Frame");
         sb.append(separator);
         // index of this structure
-        //sb.append(db.getExperiment().getStructureNames(structureIdx)[0]);
+        //sb.append(db.getExperiment().getObjectClassesNames(structureIdx)[0]);
         sb.append("Idx");
         sb.append(separator);
         sb.append("Time");
@@ -136,7 +136,7 @@ public class MeasurementExtractor {
             int[] parentOrder = new int[currentStructureIdx]; // maps structureIdx to parent order
             for (int s : allMeasurementsSort.keySet()) {
                 if (s!=currentStructureIdx) {
-                    parentOrder[s] = xp.hierarchy.getPathToStructure(s, currentStructureIdx).length;
+                    parentOrder[s] = xp.experimentStructure.getPathToStructure(s, currentStructureIdx).length;
                 }
             }
             String[] currentMeasurementNames = allMeasurementsSort.pollLastEntry().getValue();

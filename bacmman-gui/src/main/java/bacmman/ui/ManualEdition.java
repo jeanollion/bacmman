@@ -416,7 +416,7 @@ public class ManualEdition {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.isEmpty()) return;
         if (db==null) test = true;
-        Experiment xp = db!=null ? db.getExperiment() : objects.iterator().next().getExperiment();
+        Experiment xp = db!=null ? db.getExperiment() : getAccessor().getExperiment(objects.iterator().next());
         ObjectSplitter splitter = defaultSplitter==null ? xp.getStructure(structureIdx).getObjectSplitter() : defaultSplitter;
         if (splitter==null) {
             logger.warn("No splitter configured");

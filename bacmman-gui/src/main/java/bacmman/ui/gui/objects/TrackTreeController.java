@@ -63,7 +63,7 @@ public class TrackTreeController {
     }
     
     public void setStructure(int structureIdx) {
-        structurePathToRoot = db.getExperiment().hierarchy.getPathToRoot(structureIdx);
+        structurePathToRoot = db.getExperiment().experimentStructure.getPathToRoot(structureIdx);
         if (structureIdx<0) {
             for (TrackTreeGenerator t : displayedGeneratorS.values()) t.clearTree();
             displayedGeneratorS.clear();
@@ -171,7 +171,7 @@ public class TrackTreeController {
     }
     public void selectPosition(String position, int childObjectClassIdx) {
         if (displayedGeneratorS.isEmpty()) return;
-        int parentOCIdx = this.db.getExperiment().hierarchy.getParentObjectClassIdx(childObjectClassIdx);
+        int parentOCIdx = this.db.getExperiment().experimentStructure.getParentObjectClassIdx(childObjectClassIdx);
         if (!displayedGeneratorS.containsKey(parentOCIdx)) return;
         int count = displayedGeneratorS.get(parentOCIdx).tree.getSelectionCount();
         if (count>1) return;

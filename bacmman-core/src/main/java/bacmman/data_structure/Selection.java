@@ -243,7 +243,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
             return Collections.EMPTY_SET;
         }
         ObjectDAO dao = mDAO.getDao(position);
-        int[] pathToRoot = mDAO.getExperiment().hierarchy.getPathToRoot(structureIdx);
+        int[] pathToRoot = mDAO.getExperiment().experimentStructure.getPathToRoot(structureIdx);
         Set<SegmentedObject> res = new HashSet<>(indiciesList.size());
         retrievedElements.put(position, res);
         List<SegmentedObject> roots = dao.getRoots();

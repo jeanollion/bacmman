@@ -149,7 +149,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     }
 
     @Override public boolean isLeaf() {
-        if (track==null && getParent() instanceof RootTrackNode && root.generator.getExperiment().hierarchy.getPathToRoot(root.structureIdx).length==1) return false; // Lazy loading only for 1st structure after root
+        if (track==null && getParent() instanceof RootTrackNode && root.generator.getExperiment().experimentStructure.getPathToRoot(root.structureIdx).length==1) return false; // Lazy loading only for 1st structure after root
         return getChildCount()==0;
     }
 
@@ -203,12 +203,12 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         boolean noChildStructure;
         public TrackNodeUI(TrackNode tn) {
             this.trackNode=tn;
-            String[] childStructureNames = trackNode.trackHead.getExperiment().getChildStructuresAsString(trackNode.trackHead.getStructureIdx());
+            String[] childStructureNames = trackNode.trackHead.getExperimentStructure().getChildObjectClassesAsString(trackNode.trackHead.getStructureIdx());
             noChildStructure = childStructureNames.length==0;
             this.actions = new JMenuItem[7];
             JMenu rawSubMenu = new JMenu("Open Kymograph");
             actions[0] = rawSubMenu;
-            String[] structureNames = trackNode.trackHead.getExperiment().getStructuresAsString();
+            String[] structureNames = trackNode.trackHead.getExperimentStructure().getObjectClassesAsString();
             JMenu runSegAndTrackingSubMenu = new JMenu("Run segmentation and tracking");
             actions[1] = runSegAndTrackingSubMenu;
             JMenu runTrackingSubMenu = new JMenu("Run tracking");

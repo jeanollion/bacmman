@@ -46,7 +46,7 @@ public class ObjectNode implements TreeNode, UIContainer, StructureNodeContainer
         this.data=data;
         this.idx=idx;
         this.parent = parent;
-        int[] childrenIndicies = getGenerator().getExperiment().hierarchy.getAllDirectChildStructuresAsArray(parent.idx);
+        int[] childrenIndicies = getGenerator().getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(parent.idx);
         children = new StructureNode[childrenIndicies.length];
         for (int i = 0; i<children.length; ++i) children[i]=new StructureNode(childrenIndicies[i], this);
     }
@@ -134,7 +134,7 @@ public class ObjectNode implements TreeNode, UIContainer, StructureNodeContainer
             this.objectNode=on;
             this.actions = new JMenuItem[1];
             
-            String[] structureNames = objectNode.data.getExperiment().getStructuresAsString();
+            String[] structureNames = objectNode.data.getExperimentStructure().getObjectClassesAsString();
             
             JMenu rawSubMenu = new JMenu("Open Input Image");
             actions[0] = rawSubMenu;

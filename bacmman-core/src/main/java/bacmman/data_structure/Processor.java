@@ -171,7 +171,7 @@ public class Processor {
         if (structures.length==0 || structures.length==xp.getStructureCount()) dao.deleteAllObjects();
         else dao.deleteObjectsByStructureIdx(structures);
         ImageDAO imageDAO = xp.getImageDAO();
-        if (structures.length==0) for (int s : xp.hierarchy.getStructuresInHierarchicalOrderAsArray()) imageDAO.deleteTrackImages(dao.getPositionName(), s);
+        if (structures.length==0) for (int s : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray()) imageDAO.deleteTrackImages(dao.getPositionName(), s);
         else for (int s : structures) imageDAO.deleteTrackImages(dao.getPositionName(), s);
     }
     public static void processAndTrackStructures(ObjectDAO dao, boolean deleteObjects, boolean trackOnly, int... structures) {
@@ -179,7 +179,7 @@ public class Processor {
         if (deleteObjects) deleteObjects(dao, structures);
         List<SegmentedObject> root = getOrCreateRootTrack(dao);
 
-        if (structures.length==0) structures=xp.hierarchy.getStructuresInHierarchicalOrderAsArray();
+        if (structures.length==0) structures=xp.experimentStructure.getStructuresInHierarchicalOrderAsArray();
         for (int s: structures) {
             if (!trackOnly) logger.info("Segmentation & Tracking: Position: {}, Structure: {} available mem: {}/{}GB", dao.getPositionName(), s, (Runtime.getRuntime().freeMemory()/1000000)/1000d, (Runtime.getRuntime().totalMemory()/1000000)/1000d);
             else logger.info("Tracking: Position: {}, Structure: {}", dao.getPositionName(), s);

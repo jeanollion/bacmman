@@ -45,8 +45,8 @@ public abstract class RegionContainer {
     public void setStructureObject(SegmentedObject structureObject) {
         this.structureObject=structureObject;
     }
-    protected float getScaleXY() {return structureObject.getPosition().getScaleXY();}
-    protected float getScaleZ() {return structureObject.getPosition().getScaleZ();}
+    protected float getScaleXY() {return structureObject.getScaleXY();}
+    protected float getScaleZ() {return structureObject.getScaleZ();}
     public boolean is2D() {return is2D;}
     public abstract Region getRegion();
     

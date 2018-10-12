@@ -39,7 +39,7 @@ public class ObjectClassParameter extends ObjectClassParameterAbstract<ObjectCla
     public String[] getChoiceList() {
         String[] choices;
         if (getXP()!=null) {
-            choices=getXP().getStructuresAsString();
+            choices=getXP().experimentStructure.getObjectClassesAsString();
         } else {
             choices = new String[]{"error, no experiment in the configuration"};
         }

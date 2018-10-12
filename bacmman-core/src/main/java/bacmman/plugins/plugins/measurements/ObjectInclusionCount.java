@@ -107,7 +107,7 @@ public class ObjectInclusionCount implements Measurement, Hint {
 
     public static int count(SegmentedObject container, int structureToCount, double proportionInclusion, boolean onlyTrackHeads) {
         if (structureToCount==container.getStructureIdx()) return 1;
-        int common = container.getHierarchy().getFirstCommonParentObjectClassIdx(container.getStructureIdx(), structureToCount);
+        int common = container.getExperimentStructure().getFirstCommonParentObjectClassIdx(container.getStructureIdx(), structureToCount);
         SegmentedObject commonParent = container.getParent(common);
 
         Stream<SegmentedObject> toCount = commonParent.getChildren(structureToCount);

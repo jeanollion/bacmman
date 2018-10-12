@@ -123,11 +123,11 @@ public abstract class Kymograph extends InteractiveImage {
         Image image0 = trackObjects[0].generatemage(structureIdx, false);
         if (image0==null) return null;
         String structureName;
-        if (getParent().getExperiment()!=null) structureName = getParent().getExperiment().getStructure(structureIdx).getName(); 
+        if (getParent().getExperimentStructure()!=null) structureName = getParent().getExperimentStructure().getObjectClassName(structureIdx);
         else structureName= structureIdx+"";
         if (image0==null) return null;
         String pStructureName;
-        if (getParent().getExperiment()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperiment().getStructure(getParent().getStructureIdx()).getName(); 
+        if (getParent().getExperimentStructure()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx());
         else pStructureName= getParent().getStructureIdx()+"";
         final Image displayImage =  generateEmptyImage("Kymograph of"+pStructureName+" P:"+getParent().getPositionIdx()+" Idx:"+getParent().getIdx()+" Frames ["+getParent().getFrame()+";"+parents.get(parents.size()-1).getFrame()+"]. Displayed image of: "+structureName, image0);
         Image.pasteImage(image0, displayImage, trackOffset[0]);

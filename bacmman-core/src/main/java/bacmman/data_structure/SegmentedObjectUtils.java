@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.StreamConcatenation;
@@ -105,11 +104,11 @@ public class SegmentedObjectUtils {
         if (objectsFromSameStructure.isEmpty()) return Collections.EMPTY_MAP;
         SegmentedObject o = objectsFromSameStructure.iterator().next();
         Map<SegmentedObject, SegmentedObject>  res= new HashMap<>();
-        if (o.getExperiment().hierarchy.isChildOf(inclusionStructureIdx, o.getStructureIdx())) {
+        if (o.getExperiment().experimentStructure.isChildOf(inclusionStructureIdx, o.getStructureIdx())) {
             for (SegmentedObject oo : objectsFromSameStructure) res.put(oo, oo.getParent(inclusionStructureIdx));
             return res;
         }
-        int closestParentStructureIdx = o.getExperiment().hierarchy.getFirstCommonParentObjectClassIdx(o.getStructureIdx(), inclusionStructureIdx);
+        int closestParentStructureIdx = o.getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(o.getStructureIdx(), inclusionStructureIdx);
         for (SegmentedObject oo : objectsFromSameStructure) {
             SegmentedObject i = getContainer(oo.getRegion(), oo.getParent(closestParentStructureIdx).getChildren(inclusionStructureIdx), null);
             res.put(oo, i);
@@ -138,14 +137,14 @@ public class SegmentedObjectUtils {
         ObjectDAO dao = (parentTrack.get(0)).getDAO();
         if (dao instanceof BasicObjectDAO) return;
         SegmentedObject.logger.debug("set all children: parent: {}, structure: {}", parentTrack.get(0).getTrackHead(), structureIdx);
-        if (dao.getExperiment().hierarchy.isDirectChildOf(parentTrack.get(0).getStructureIdx(), structureIdx)) {
+        if (dao.getExperiment().experimentStructure.isDirectChildOf(parentTrack.get(0).getStructureIdx(), structureIdx)) {
             List<SegmentedObject> parentWithNoChildren = new ArrayList<>(parentTrack.size());
             for (SegmentedObject p : parentTrack) if (!p.hasChildren(structureIdx)) parentWithNoChildren.add((SegmentedObject)p);
             SegmentedObject.logger.debug("parents with no children : {}", parentWithNoChildren.size());
             if (parentWithNoChildren.isEmpty()) return;
             dao.setAllChildren(parentWithNoChildren, structureIdx);
         }
-        else if (!dao.getExperiment().hierarchy.isChildOf(parentTrack.get(0).getStructureIdx(), structureIdx)) return;
+        else if (!dao.getExperiment().experimentStructure.isChildOf(parentTrack.get(0).getStructureIdx(), structureIdx)) return;
         else { // indirect child
             int pIdx = dao.getExperiment().getStructure(structureIdx).getParentStructure();
             setAllChildren(parentTrack, pIdx);
@@ -483,7 +482,7 @@ public class SegmentedObjectUtils {
         SegmentedObject res=o.duplicate(generateNewId, true, true);
         if (sourceToDupMap!=null) sourceToDupMap.put(o.getId(), res);
         if (children) {
-            for (int cIdx : o.getExperiment().hierarchy.getAllDirectChildStructures(o.structureIdx)) {
+            for (int cIdx : o.getExperiment().experimentStructure.getAllDirectChildStructures(o.structureIdx)) {
                 List<SegmentedObject> c = o.childrenSM.get(cIdx);
                 if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, true, false, generateNewId)), cIdx);
             }
@@ -521,12 +520,12 @@ public class SegmentedObjectUtils {
             SegmentedObject p = o.getParent();
             while(p!=null) {objectsWithParentsAndChildren.add(p); p=p.getParent();}
             if (includeChildren) {
-                for (int sIdx : o.getExperiment().hierarchy.getAllChildStructures(o.getStructureIdx())) objectsWithParentsAndChildren.addAll(o.getDirectChildren(sIdx));
+                for (int sIdx : o.getExperiment().experimentStructure.getAllChildStructures(o.getStructureIdx())) objectsWithParentsAndChildren.addAll(o.getDirectChildren(sIdx));
             }
         }
         if (includeChildren) {
             for (SegmentedObject o : objectsWithParentsAndChildren) {
-                for (int sIdx : o.getExperiment().hierarchy.getAllDirectChildStructures(o.getStructureIdx())) o.getTrackImage(sIdx);
+                for (int sIdx : o.getExperiment().experimentStructure.getAllDirectChildStructures(o.getStructureIdx())) o.getTrackImage(sIdx);
             }
         }
         // create basic dao for duplicated objects

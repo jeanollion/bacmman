@@ -60,7 +60,7 @@ public class ParentObjectClassParameter extends ObjectClassParameterAbstract<Par
     public String[] getChoiceList() {
         String[] choices;
         if (getXP()!=null) {
-            choices=getXP().getStructuresAsString();
+            choices=getXP().experimentStructure.getObjectClassesAsString();
         } else {
            return new String[]{"error: no xp found in tree"};
         }

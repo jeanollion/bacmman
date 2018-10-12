@@ -463,7 +463,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             if (this.measurements) count += positions.size();
             if (this.generateTrackImages) {
                 int gen = 0;
-                for (int s : structures)  if (!db.getExperiment().hierarchy.getAllDirectChildStructures(s).isEmpty()) ++gen;
+                for (int s : structures)  if (!db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) ++gen;
                 count+=positions.size()*gen;
             }
             count+=extractMeasurementDir.size();
@@ -559,7 +559,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
                     errors.addExceptions(new Pair("Error while processing: db: "+db.getDBName()+" pos: "+position+" structure: "+s, e));
                 }
                 incrementProgress();
-                if (generateTrackImages && !db.getExperiment().hierarchy.getAllDirectChildStructures(s).isEmpty()) {
+                if (generateTrackImages && !db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) {
                     publish("Generating Track Images for Structure: "+s);
                     Processor.generateTrackImages(db.getDao(position), s, this);
                     incrementProgress();
@@ -574,7 +574,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             publish("Generating Track Images...");
             // generate track images for all selected structure that has direct children
             for (int s : structures) {
-                if (db.getExperiment().hierarchy.getAllDirectChildStructures(s).isEmpty()) continue;
+                if (db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) continue;
                 Processor.generateTrackImages(db.getDao(position), s, this);
                 incrementProgress();
             }
