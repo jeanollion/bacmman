@@ -20,6 +20,7 @@ package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.configuration.parameters.ListParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
@@ -114,12 +115,13 @@ public class ConfigurationTreeGenerator {
     }
 
     private String getHint(TreePath path, boolean limitWidth) {
-        Object node = path.getLastPathComponent();
-        if (node instanceof Hint) {
-            String t = ((Hint)node).getHintText();
+        Object parameter = path.getLastPathComponent();
+        if (parameter instanceof ConditionalParameter) parameter = ((ConditionalParameter)parameter).getActionableParameter();
+        if (parameter instanceof Hint) {
+            String t = ((Hint)parameter).getHintText();
             if (t==null) t = "";
-            if (node instanceof PluginParameter) {
-                Plugin p = ((PluginParameter)node).instanciatePlugin();
+            if (parameter instanceof PluginParameter) {
+                Plugin p = ((PluginParameter)parameter).instanciatePlugin();
                 if (p instanceof Hint) {
                     String t2 = ((Hint)p).getHintText();
                     if (t2!=null && t2.length()>0) {
