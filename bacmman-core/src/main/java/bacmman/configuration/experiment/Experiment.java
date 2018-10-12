@@ -72,8 +72,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
                     return !Sets.intersection(otherKeys, new HashSet<>(e.getValue())).isEmpty();
                 });
             })
-            .setHint("Measurement to be performed after processing. Help displayed output keys (column in extracted data) and the associated strucutre. If several keys are equal for the same structure, the associated measurement won't be valid (displayed in red)");
-    SimpleListParameter<Position> positions= new SimpleListParameter<>("Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Preprocessing is defined for each position. Right-click menu allows to overwrite preprocessing to other position.");
+            .setHint("Measurement to be performed after processing. Hint displays output keys (column in extracted table) and the associated object class. If several keys are equal for the same object class, the associated measurement won't be valid (displayed in red)");
+    SimpleListParameter<Position> positions= new SimpleListParameter<>("Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre(processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.");
     PreProcessingChain template = new PreProcessingChain("Pre-Processing pipeline template").setHint("Default pre-processing set to positions at import");
     
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where preprocessed images will be stored");

@@ -64,9 +64,7 @@ import bacmman.ui.gui.objects.StructureSelectorTree;
 import bacmman.image.Image;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.event.ActionEvent;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -743,20 +741,23 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     if (hintJSP.getHorizontalScrollBar()!=null) hintJSP.getHorizontalScrollBar().setValue(0);
                 }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
             };
-            configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(),setConfigurationTabValid, modules -> populateModuleList(modules), setHint, db, ProgressCallback.get(this));
+            configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(),setConfigurationTabValid, (selectedModule, modules) -> populateModuleList(selectedModule, modules), setHint, db, ProgressCallback.get(this));
             configurationJSP.setViewportView(configurationTreeGenerator.getTree());
             setConfigurationTabValid.accept(db.getExperiment().isValid());
             final Consumer<String> moduleSelectionCallBack = configurationTreeGenerator.getModuleChangeCallBack();
-            moduleList.addListSelectionListener(e -> {
-                if (moduleModel.isEmpty()) return; // list was cleared
-                moduleSelectionCallBack.accept(moduleList.getSelectedValue());
+            moduleList.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    moduleSelectionCallBack.accept(moduleList.getSelectedValue());
+                }
             });
         }
     }
 
-    private void populateModuleList(List<String> modules) {
+    private void populateModuleList(String selectedModule, List<String> modules) {
         this.moduleModel.removeAllElements();
         for (String s : modules) moduleModel.addElement(s);
+        moduleList.setSelectedValue(selectedModule, true);
     }
 
     
@@ -801,7 +802,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (xp!=null) setMessage("XP: "+xp+ " closed");
         datasetListValueChanged(null);
         reloadObjectTrees=true;
-        populateModuleList(Collections.emptyList());
+        populateModuleList(null, Collections.emptyList());
         hintTextPane.setText("");
     }
     

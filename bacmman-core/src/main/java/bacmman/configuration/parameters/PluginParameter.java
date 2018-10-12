@@ -145,7 +145,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     }
     
     public boolean isOnePluginSet() {
-        if (pluginParameters==null && !NO_SELECTION.equals(pluginName) && pluginName!=null) setPlugin(pluginName); // case of constructor with default method
+        if (pluginParameters==null && !NO_SELECTION.equals(pluginName) && pluginName!=null && pluginName.length()>0) setPlugin(pluginName); // case of constructor with default method
         return pluginName!=null && (!NO_SELECTION.equals(pluginName) || pluginParameters!=null);
     }
     @Override

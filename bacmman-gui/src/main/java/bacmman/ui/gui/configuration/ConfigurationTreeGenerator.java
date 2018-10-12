@@ -43,6 +43,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.swing.Action;
@@ -73,10 +74,10 @@ public class ConfigurationTreeGenerator {
     protected JTree tree;
     private final Consumer<Boolean> xpIsValidCallBack;
     private final Consumer<String> setHint;
-    private final Consumer<List<String>> setModules;
+    private final BiConsumer<String, List<String>> setModules;
     private final MasterDAO mDAO;
     private final ProgressCallback pcb;
-    public ConfigurationTreeGenerator(Experiment xp, Consumer<Boolean> xpIsValidCallBack, Consumer<List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
+    public ConfigurationTreeGenerator(Experiment xp, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
         rootParameter = xp;
         this.xpIsValidCallBack = xpIsValidCallBack;
         this.mDAO=mDAO;
@@ -91,8 +92,12 @@ public class ConfigurationTreeGenerator {
             if (!(path.getLastPathComponent() instanceof PluginParameter)) return;
             PluginParameter pp = (PluginParameter)path.getLastPathComponent();
             pp.setPlugin(selModule);
-            setHint.accept(getHint(path, false));
+            if (pp.isOnePluginSet() && !pp.isValid()) {
+                logger.debug("checking validation for : {}", pp.toString());
+                tree.expandPath(path);
+            }
             treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
+            setHint.accept(getHint(path, false));
         };
     }
     public JTree getTree() {
@@ -200,11 +205,11 @@ public class ConfigurationTreeGenerator {
                     if (hint==null) setHint.accept("No hint available");
                     else setHint.accept(hint);
                     Object lastO = tree.getSelectionPath().getLastPathComponent();
-                    if (lastO instanceof PluginParameter) setModules.accept(((PluginParameter)lastO).getPluginNames());
-                    else setModules.accept(Collections.emptyList());
+                    if (lastO instanceof PluginParameter) setModules.accept(((PluginParameter)lastO).getPluginName(), ((PluginParameter)lastO).getPluginNames());
+                    else setModules.accept(null, Collections.emptyList());
                     break;
                 default:
-                    setModules.accept(Collections.emptyList());
+                    setModules.accept(null, Collections.emptyList());
                     setHint.accept("");
             }
         });
