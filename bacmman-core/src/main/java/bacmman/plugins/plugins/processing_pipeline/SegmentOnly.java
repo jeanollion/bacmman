@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 
 import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
+import bacmman.utils.MultipleException;
 
 /**
  *
@@ -63,6 +64,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {
+        MultipleException me = new MultipleException();
         if (!segmenter.isOnePluginSet()) {
             logger.info("No segmenter set for structure: {}", structureIdx);
             return;
@@ -134,7 +136,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         }
         long t4 = System.currentTimeMillis();
         logger.debug("SegmentOnly: {}(trackLength: {}) total time: {}, load images: {}ms, compute maps: {}ms, process: {}ms, set to parents: {}", parentTrack.get(0), parentTrack.size(), t4-t0, t1-t0, t2-t1, t3-t2, t4-t3);
-        
+        if (!me.isEmpty()) throw me;
     }
     
     @Override public void trackOnly(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {return;}

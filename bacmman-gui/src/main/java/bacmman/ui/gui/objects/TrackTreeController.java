@@ -77,7 +77,7 @@ public class TrackTreeController {
     
     private int getLastTreeIdxWithSelection() {
         for (int i = structurePathToRoot.length-1; i>=0; --i) {
-            if (displayedGeneratorS.get(structurePathToRoot[i]).hasSelection()) return i;
+            if (displayedGeneratorS.containsKey(structurePathToRoot[i]) && displayedGeneratorS.get(structurePathToRoot[i]).hasSelection()) return i;
         }
         return -1;
     }

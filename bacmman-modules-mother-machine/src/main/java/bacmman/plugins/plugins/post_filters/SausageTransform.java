@@ -28,6 +28,8 @@ import bacmman.processing.bacteria_spine.BacteriaSpineFactory;
 import bacmman.processing.bacteria_spine.CircularContourFactory;
 import bacmman.processing.bacteria_spine.SausageContourFactory;
 import bacmman.plugins.PostFilter;
+import bacmman.utils.MultipleException;
+import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 
 import java.util.Set;
@@ -41,19 +43,30 @@ public class SausageTransform implements PostFilter, Hint {
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        childPopulation.getRegions().forEach(r -> transform(r, parent.getBounds()));
+        MultipleException me = new MultipleException();
+        childPopulation.getRegions().forEach(r -> {
+            try {
+                transform(r, parent.getBounds());
+            } catch (Throwable t) {
+                me.addExceptions(new Pair<>(parent.toString(), t));
+            }
+        });
+        if (!me.isEmpty()) throw me; //TODO not catched yet!
         return childPopulation;
     }
 
     public static void transform(Region r, BoundingBox parentBounds) {
         BacteriaSpineFactory.SpineResult sr = BacteriaSpineFactory.createSpine(r, 1);
+        logger.debug("spine ok");
         SausageContourFactory.toSausage(sr, 0.5); // resample to be able to fill
+        //logger.debug("to sausage ok");
         Set<Voxel> sausageContourVox = sr.contour.stream().map(l -> ((Point)l).asVoxel()).collect(Collectors.toSet());
         ImageByte mask = CircularContourFactory.getMaskFromContour(sausageContourVox);
         // mask should not extend outside parent bounds
         if (!r.isAbsoluteLandMark()) parentBounds = new SimpleBoundingBox(parentBounds).resetOffset(); // post-filter -> relative to parent bounds
         if (!BoundingBox.isIncluded(mask, parentBounds)) mask = mask.cropWithOffset(BoundingBox.getIntersection(parentBounds, mask));
         r.setMask(mask);
+        //logger.debug("apply to object ok");
     }
 
     @Override

@@ -87,6 +87,7 @@ public class ConfigurationTreeGenerator {
     }
     public Consumer<String> getModuleChangeCallBack() {
         return (selModule) -> {
+            if (tree==null) return;
             if (tree.getSelectionCount() == 0) return;
             TreePath path = tree.getSelectionPath();
             if (!(path.getLastPathComponent() instanceof PluginParameter)) return;

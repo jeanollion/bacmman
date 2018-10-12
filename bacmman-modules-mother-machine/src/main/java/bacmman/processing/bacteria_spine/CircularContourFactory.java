@@ -222,19 +222,37 @@ public class CircularContourFactory {
         CircularNode.apply(circContour, c->res.add(c.element), true);
         return res;
     }
+    public static boolean isClosed(CircularNode circContour) {
+        CircularNode n = circContour.next;
+        while(circContour!=n) {
+            n = n.next;
+            if (n==null) return false;
+        }
+        return true;
+    }
     /**
      * Enshures distance between nodes of {@param circContour} is inferior to {@param d}
      * @param circContour
      * @param d 
      */
-    public static void resampleContour(CircularNode<Point> circContour, double d) {
+    public static CircularNode<Point> resampleContour(CircularNode<Point> circContour, double d) {
         CircularNode<Point> current = circContour;
-        while (current!=circContour.prev) current = moveNextPoint(current, d);
-        while (current!=circContour) current = moveNextPoint(current, d);
+        while (current!=circContour.prev) {
+            current = moveNextPoint(current, d, circContour.prev);
+            if (current==null) return circContour; // circContour.prev was removed
+        }
+        CircularNode<Point> last;
+        while (current!=circContour) {
+            last = current;
+            current = moveNextPoint(current, d, circContour);
+            if (current==null) return last; // circContour was removed
+        }
+        return circContour;
     }
     private static double DIST_PRECISION = 1e-3;
-    private static CircularNode<Point> moveNextPoint(CircularNode<Point> circContour, double d) {
+    private static CircularNode<Point> moveNextPoint(CircularNode<Point> circContour, double d, CircularNode<Point> testPoint) {
         double dN = circContour.element.distXY(circContour.next.element);
+        //logger.debug("resample: target = {}, current: {}", d, dN);
         if (Math.abs(dN-d)<=DIST_PRECISION) return circContour.next; // do nothing
         if (dN>=2*d) { // creates a point between the two
             double w = d/dN;
@@ -244,10 +262,13 @@ public class CircularContourFactory {
             circContour.next.element.translate(Vector.vector(circContour.next.element, circContour.element).normalize().multiply(dN-d));
             return circContour.next;
         }
-        // distance is inferior to ressampling factor. if distance to next's next is inferior , simply remove next
+        // distance is inferior to resampling factor. if distance to next's next is inferior , simply remove next
+
         double dNN = circContour.element.dist(circContour.next.next.element);
         if (dNN<=d) { // simply remove next element
+            CircularNode<Point> n = circContour.next;
             circContour.setNext(circContour.next.next);
+            if (n.equals(testPoint)) return null; // avoid infinite loop!
             return Math.abs(dNN-d)<=DIST_PRECISION ? circContour.next : circContour;
         }
         // move next point to a distance d in direction of next & next.next
@@ -269,8 +290,6 @@ public class CircularContourFactory {
      * @return fraction of segment BC. Intersection = B + t * BC. In case of 2 solution returns the further away from B
      */
     public static double intersectSegmentWithShpere(Point center, double radius, Point segStart, Point segEnd) {
-        
-        
         double dx = segEnd.get(0) - segStart.get(0);
         double dy = segEnd.get(1) - segStart.get(1);
         double Ox =  segStart.get(0) - center.get(0);

@@ -147,7 +147,7 @@ public class BacteriaSpineFactory {
         long t5 = System.currentTimeMillis();
         circContour = (CircularNode)CircularContourFactory.smoothContour2D(circContour,0.5);
         long t6 = System.currentTimeMillis();
-        CircularContourFactory.resampleContour((CircularNode)circContour,0.5);
+        circContour=CircularContourFactory.resampleContour((CircularNode)circContour,0.5);
         circContour = (CircularNode)CircularContourFactory.smoothContour2D(circContour,contourSmoothSigma);
         long t7 = System.currentTimeMillis();
         //CircularNode.apply(circContour, c->logger.debug("{} after smooth {}", count[0]++, c.element), true);

@@ -22,6 +22,9 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.PointContainer2;
 import bacmman.utils.geom.Vector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +39,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class SausageContourFactory {
+    public final static Logger logger = LoggerFactory.getLogger(SausageContourFactory.class);
     /**
      * Modifies the spine so that it has a sausage shape: width is median width, ends are circles of radius width/2
      * @param spine that will be modified
@@ -62,10 +66,9 @@ public class SausageContourFactory {
         List<Point> all = Stream.concat(left, right).collect(Collectors.toList());
         CircularNode<Point> circContour = CircularNode.toCircularContour(all);
         if (resampleContour>0) {
-            CircularContourFactory.resampleContour(circContour, resampleContour);
+            circContour=CircularContourFactory.resampleContour(circContour, resampleContour);
             spine.setContour(CircularContourFactory.getSet(circContour));
         } else spine.setContour(new HashSet<>(all));
         spine.setCircContour(circContour);
-        
     }
 }
