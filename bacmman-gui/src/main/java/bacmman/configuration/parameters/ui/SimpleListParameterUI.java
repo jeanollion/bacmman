@@ -41,7 +41,7 @@ public class SimpleListParameterUI implements ListParameterUI {
     Object[] actions;
     ConfigurationTreeModel model;
     static String[] actionNames=new String[]{"Add Element", "Remove All"};
-    static String[] childActionNames=new String[]{"Add", "Remove", "Up", "Down"};
+    static String[] childActionNames=new String[]{"Add", "Duplicate", "Remove", "Up", "Down"};
     static String[] deactivatableNames=new String[]{"Deactivate All", "Activate All"};
     static String[] childDeactivatableNames=new String[]{"Deactivate", "Activate"};
     
@@ -115,7 +115,7 @@ public class SimpleListParameterUI implements ListParameterUI {
         final int unMutableIdx = list.getUnMutableIndex();
         final int idx = list.getIndex(child);
         final boolean mutable = idx>unMutableIdx;
-        Component[] childActions = new Component[list.isDeactivatable()?7:4];
+        Component[] childActions = new Component[list.isDeactivatable()?8:5];
         childActions[0] = new JMenuItem(childActionNames[0]);
         ((JMenuItem)childActions[0]).setAction(
             new AbstractAction(childActionNames[0]) {
@@ -127,7 +127,18 @@ public class SimpleListParameterUI implements ListParameterUI {
             }
         );
         childActions[1] = new JMenuItem(childActionNames[1]);
-        ((JMenuItem)childActions[1]).setAction(new AbstractAction(childActionNames[1]) {
+        ((JMenuItem)childActions[1]).setAction(
+                new AbstractAction(childActionNames[1]) {
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        Parameter p = list.createChildInstance();
+                        p.setContentFrom(child);
+                        model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
+                    }
+                }
+        );
+        childActions[2] = new JMenuItem(childActionNames[2]);
+        ((JMenuItem)childActions[2]).setAction(new AbstractAction(childActionNames[2]) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     if (child instanceof ListElementErasable) {
@@ -138,18 +149,18 @@ public class SimpleListParameterUI implements ListParameterUI {
                 }
             }
         );
-        childActions[2] = new JMenuItem(childActionNames[2]);
-        ((JMenuItem)childActions[2]).setAction(
-            new AbstractAction(childActionNames[2]) {
+        childActions[3] = new JMenuItem(childActionNames[3]);
+        ((JMenuItem)childActions[3]).setAction(
+            new AbstractAction(childActionNames[3]) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     model.moveUp(list, child);
                 }
             }
         );
-        childActions[3] = new JMenuItem(childActionNames[3]);
-        ((JMenuItem)childActions[3]).setAction(
-            new AbstractAction(childActionNames[3]) {
+        childActions[4] = new JMenuItem(childActionNames[4]);
+        ((JMenuItem)childActions[4]).setAction(
+            new AbstractAction(childActionNames[4]) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     model.moveDown(list, child);
@@ -158,21 +169,21 @@ public class SimpleListParameterUI implements ListParameterUI {
         );
         
         if (!mutable) {
-            childActions[1].setEnabled(false);
-            childActions[2].setEnabled(false);
-            childActions[3].setEnabled(false);
+            childActions[2].setEnabled(false); // delete
+            childActions[3].setEnabled(false); // move up
+            childActions[4].setEnabled(false); // move down
         } else if (!list.allowMoveChildren()) {
-            childActions[2].setEnabled(false);
-            childActions[3].setEnabled(false);
+            childActions[3].setEnabled(false); // move up
+            childActions[4].setEnabled(false); // move down
         }
-        if (idx==unMutableIdx+1) childActions[2].setEnabled(false);
-        if (idx==0) childActions[2].setEnabled(false);
-        if (idx==list.getChildCount()-1) childActions[3].setEnabled(false);
+        if (idx==unMutableIdx+1) childActions[3].setEnabled(false);  // move up
+        if (idx==0) childActions[3].setEnabled(false);  // move up
+        if (idx==list.getChildCount()-1) childActions[4].setEnabled(false); // move down
         
         if (list.isDeactivatable()) {
-            childActions[4]=new JSeparator();
-            childActions[5] = new JMenuItem(childActionNames[0]);
-            ((JMenuItem)childActions[5]).setAction(
+            childActions[5]=new JSeparator();
+            childActions[6] = new JMenuItem(childDeactivatableNames[0]);
+            ((JMenuItem)childActions[6]).setAction(
                     new AbstractAction(childDeactivatableNames[0]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
@@ -181,8 +192,8 @@ public class SimpleListParameterUI implements ListParameterUI {
                         }
                     }
             );
-            childActions[6] = new JMenuItem(childActionNames[1]);
-            ((JMenuItem)childActions[6]).setAction(
+            childActions[7] = new JMenuItem(childDeactivatableNames[1]);
+            ((JMenuItem)childActions[7]).setAction(
                     new AbstractAction(childDeactivatableNames[1]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
@@ -191,11 +202,11 @@ public class SimpleListParameterUI implements ListParameterUI {
                         }
                     }
             );
-            if (((Deactivatable)child).isActivated()) childActions[6].setEnabled(false);
-            else childActions[5].setEnabled(false);
+            if (((Deactivatable)child).isActivated()) childActions[7].setEnabled(false); // activate
+            else childActions[6].setEnabled(false); // desactivate
             if (!mutable) {
-                childActions[5].setEnabled(false);
                 childActions[6].setEnabled(false);
+                childActions[7].setEnabled(false);
             }
         }
         
