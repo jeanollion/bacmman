@@ -44,10 +44,7 @@ import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
 
 import ij.process.AutoThresholder;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -64,21 +61,22 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     
     BooleanParameter filterBorderArtefacts = new BooleanParameter("Filter border Artefacts", true).setHint("In some phase-contrast images, a high intensity gradient is present at border of microchannels, and thus lead to false-positive segmentation. If this option is set to true, thin objects touching sides of microchannels will be removed");
     BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
+    NumberParameter dilateRadius = new BoundedNumberParameter("Dilate Radius", 0, 0, 0, null).setHint("Dilatation applied to cell region before local thresholding");
     NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
     ConditionalParameter cond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment after segmentation");
-    ConditionalParameter ltCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, smoothScale, cond);
+    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, smoothScale, cond, dilateRadius);
     NumberParameter minSize = new BoundedNumberParameter("Minimum Region Size", 0, 300, 50, null).setHint("Minimum Object Size in voxels. <br />After split and merge using hessian: regions under this size will be merged by the adjacent region that has the lowest interface value, and if this value is under 2 * <em>Split Threshold</em>");
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
-    EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.MIN_WIDTH, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at minimum width. Hessian: splits according to hessian");
+    EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.MIN_WIDTH, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
 
     // attributes parametrized during track parametrization
     double lowerThld = Double.NaN, upperThld = Double.NaN, filterThld=Double.NaN;
     
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{vcThldForVoidMC, edgeMap, foreThresholder, filterBorderArtefacts, hessianScale, splitThreshold, minSize , ltCond, splitMethod};
+        return new Parameter[]{vcThldForVoidMC, edgeMap, foreThresholder, filterBorderArtefacts, hessianScale, splitThreshold, minSize , contourAdjustmentCond, splitMethod};
     }
     public BacteriaPhaseContrast() {
         this.splitThreshold.setValue(0.10); // 0.15 for hessian scale = 3
@@ -312,10 +310,10 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         if (pop.getRegions().isEmpty()) return pop;
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_W_EDGE:
-                double dilRadius = callFromSplit ? 0 : 2;
+                double dilRadius = callFromSplit ? 0 : dilateRadius.getValue().doubleValue();
                 Image smooth = smoothScale.getValue().doubleValue() < 1 ? parent.getRawImage(structureIdx) : ImageFeatures.gaussianSmooth(parent.getRawImage(structureIdx), smoothScale.getValue().doubleValue(), false);
                 Image edgeMap = Sigma.filter(parent.getRawImage(structureIdx), parent.getMask(), 3, 1, smoothScale.getValue().doubleValue(), 1, false);
-                Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject) parent);
+                Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
                 if (imageDisp != null) { //| (callFromSplit && splitVerbose)
                     imageDisp.accept(smooth.setName("Local Threshold intensity map"));
                     imageDisp.accept(edgeMap.setName("Local Threshold edge map"));
@@ -324,7 +322,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                 // different local threshold for middle part of upper cell when touches borders
                 boolean differentialLF = false;
                 if (upperCellCorrection.getSelected()) {
-                    Region upperCell = pop.getRegions().stream().min((r1, r2) -> Integer.compare(r1.getBounds().yMin(), r2.getBounds().yMin())).get();
+                    Region upperCell = pop.getRegions().stream().min(Comparator.comparingInt(r -> r.getBounds().yMin())).get();
                     if (upperCell.getBounds().yMin() <= maxYCoordinate.getValue().intValue()) {
                         differentialLF = true;
                         double yLim = upperCell.getGeomCenter(false).get(1) + upperCell.getBounds().sizeY() / 3.0;
