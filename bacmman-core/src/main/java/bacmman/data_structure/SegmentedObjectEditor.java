@@ -8,10 +8,9 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
-public class StructureObjectEditor {
-    public static final Logger logger = LoggerFactory.getLogger(StructureObjectEditor.class);
+public class SegmentedObjectEditor {
+    public static final Logger logger = LoggerFactory.getLogger(SegmentedObjectEditor.class);
 
     public static final BiPredicate<SegmentedObject, SegmentedObject> NERVE_MERGE = (s1, s2)->false;
     public static final BiPredicate<SegmentedObject, SegmentedObject> ALWAYS_MERGE = (s1, s2)->true;

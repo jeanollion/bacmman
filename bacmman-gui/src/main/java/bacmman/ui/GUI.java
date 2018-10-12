@@ -24,7 +24,7 @@ import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.data_structure.Selection;
-import bacmman.data_structure.StructureObjectEditor;
+import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -2886,7 +2886,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (!checkConnection()) return;
         if (db.isConfigurationReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        ManualEdition.prune(db, sel, StructureObjectEditor.ALWAYS_MERGE, true);
+        ManualEdition.prune(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, true);
         logger.debug("prune: {}", Utils.toStringList(sel));
     }
     
@@ -3538,7 +3538,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.info("delete: evt source {}, evt: {}, ac: {}, param: {}", evt.getSource(), evt, evt.getActionCommand(), evt.paramString());
         //if (db.isReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, StructureObjectEditor.ALWAYS_MERGE, true);
+        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, true);
     }//GEN-LAST:event_deleteObjectsButtonActionPerformed
 
     private void deleteObjectsButtonMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_deleteObjectsButtonMousePressed

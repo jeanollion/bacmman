@@ -229,7 +229,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                                 }).collect(Collectors.toMap(o->o.getId(), o->o));
                         cache.put(key, objectMap);
                         long t2 = System.currentTimeMillis();
-                        logger.debug("#{} objects from structure: {}, time to retrieve: {}, time to parse: {}", allStrings.size(), key.value, t1-t0, t2-t1);
+                        //logger.debug("#{} objects from structure: {}, time to retrieve: {}, time to parse: {}", allStrings.size(), key.value, t1-t0, t2-t1);
                     } catch(IOError|AssertionError|Exception e) {
                         logger.error("Corrupted DATA for structure: "+key.value+" parent: "+key.key, e);
                         allObjectsRetrievedInCache.put(key, true);
@@ -375,7 +375,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         Map<String, SegmentedObject> cacheMap = getChildren(key);
         Set<String> parentIds = toIds(parents);
         Set<SegmentedObject> toDelete = cacheMap.values().stream().filter(o->parentIds.contains(o.getParentId())).collect(Collectors.toSet());
-        logger.debug("delete {}/{} children of structure {} from track: {}(length:{}) ", toDelete.size(), cacheMap.size(), structureIdx, parents.stream().min(SegmentedObject::compareTo), parents.size());
+        //logger.debug("delete {}/{} children of structure {} from track: {}(length:{}) ", toDelete.size(), cacheMap.size(), structureIdx, parents.stream().min(SegmentedObject::compareTo), parents.size());
         return delete(toDelete, true, true, false, commit);
     }
     

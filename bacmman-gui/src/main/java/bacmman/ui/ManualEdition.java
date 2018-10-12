@@ -26,7 +26,7 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 
-import bacmman.data_structure.StructureObjectEditor;
+import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
@@ -70,7 +70,7 @@ import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static bacmman.data_structure.StructureObjectEditor.*;
+import static bacmman.data_structure.SegmentedObjectEditor.*;
 
 /**
  *
@@ -82,7 +82,7 @@ public class ManualEdition {
 
     public static void prune(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean updateDisplay) {
         int objectClassIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
-        StructureObjectEditor.prune(db, objects, mergeTracks, getFactory(objectClassIdx), getEditor(objectClassIdx, new HashSet<>()));
+        SegmentedObjectEditor.prune(db, objects, mergeTracks, getFactory(objectClassIdx), getEditor(objectClassIdx, new HashSet<>()));
         // update display
 
         //Update all opened images & objectImageInteraction
@@ -267,7 +267,7 @@ public class ManualEdition {
         
         Set<SegmentedObject> modifiedObjects = new HashSet<SegmentedObject>();
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
-        for (SegmentedObject o : objects) StructureObjectEditor.unlinkObject(o, ALWAYS_MERGE, editor);
+        for (SegmentedObject o : objects) SegmentedObjectEditor.unlinkObject(o, ALWAYS_MERGE, editor);
         Utils.removeDuplicates(modifiedObjects, false);
         db.getDao(objects.get(0).getPositionName()).store(modifiedObjects);
         if (updateDisplay) {
@@ -497,7 +497,7 @@ public class ManualEdition {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         SegmentedObjectFactory factory = getFactory(structureIdx);
-        List<SegmentedObject> newObjects = StructureObjectEditor.mergeObjects(db, objects, factory, editor);
+        List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor);
         if (updateDisplay) updateDisplayAndSelectObjects(newObjects);
     }
     public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects) {
@@ -529,7 +529,7 @@ public class ManualEdition {
     public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean updateDisplay) {
         Map<Integer, List<SegmentedObject>> objectsByStructureIdx = SegmentedObjectUtils.splitByStructureIdx(objects);
         for (int structureIdx : objectsByStructureIdx.keySet()) {
-            StructureObjectEditor.deleteObjects(db, objects, mergeTracks, getFactory(structureIdx), getEditor(structureIdx, new HashSet<>()));
+            SegmentedObjectEditor.deleteObjects(db, objects, mergeTracks, getFactory(structureIdx), getEditor(structureIdx, new HashSet<>()));
             if (updateDisplay) {
                 //Update selection on opened image
                 //ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);

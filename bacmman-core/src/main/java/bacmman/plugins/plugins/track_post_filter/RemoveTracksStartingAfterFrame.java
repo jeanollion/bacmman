@@ -67,7 +67,7 @@ public class RemoveTracksStartingAfterFrame implements TrackPostFilter, Hint {
         }
         //logger.debug("remove track trackLength: #objects to remove: {}", objectsToRemove.size());
         BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
-        if (!objectsToRemove.isEmpty()) StructureObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
+        if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
     }
 
     @Override

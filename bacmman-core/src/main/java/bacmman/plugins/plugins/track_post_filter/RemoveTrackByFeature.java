@@ -31,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import bacmman.data_structure.StructureObjectEditor;
+import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.TrackPostFilter;
@@ -124,7 +124,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
             }
         }
         BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = PostFilter.MERGE_POLICY.valueOf(mergePolicy.getSelectedItem()).mergePredicate;
-        if (!objectsToRemove.isEmpty()) StructureObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor); // only delete
+        if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor); // only delete
     }
 
     @Override

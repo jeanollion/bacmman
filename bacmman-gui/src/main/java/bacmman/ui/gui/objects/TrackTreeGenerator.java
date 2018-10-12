@@ -21,6 +21,8 @@ package bacmman.ui.gui.objects;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Selection;
+import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.ui.ManualEdition;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -200,50 +202,25 @@ public class TrackTreeGenerator {
             }
         });
     }
-    
-    /*private ImageObjectInterface getImageObjectInterface() {
-        StructureObject parentTrackHead = getParentTrackHead();
-        if (parentTrackHead==null) return null;
-        return ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterfaceIfExisting(parentTrackHead, getStructureIdx());
-    }
-    
-    public void displaySelectedTracks() {
-        logger.debug("display: {} selected tracks", tree.getSelectionCount());
-        ImageObjectInterface i = getImageObjectInterface();
-        if (i!=null) ImageWindowManagerFactory.getImageManager().displayTrackAllImages(i, false, null, null, false); // unselect tracks
-        if (tree.getSelectionCount()>0 && i!=null) {
-            //Color[] palette = Utils.generatePalette(tree.getSelectionCount(), true);
-            int idx=0;
-            for (TreePath p : tree.getSelectionPaths()) {
-                Object lastO = p.getLastPathComponent();
-                if (lastO instanceof TrackNode) {
-                    ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-                    iwm.displayTrackAllImages(i, true, i.pairWithOffset(StructureObjectUtils.extendTrack(((TrackNode)lastO).track)), ImageWindowManager.getColor(), false);
-                }
-            }
-        }
-    }*/
+
     public void deleteSelectedTracks() {
         List<SegmentedObject> selectedTrackHeads = getSelectedTrackHeads();
-        for (SegmentedObject s : selectedTrackHeads) deleteTrack(s);
+        ArrayList<SegmentedObject> toDelete = new ArrayList<>();
+        for (SegmentedObject trackHead : selectedTrackHeads) {
+            toDelete.addAll(SegmentedObjectUtils.getTrack(trackHead));
+            removeTrackFromTree(trackHead);
+        }
+        ManualEdition.deleteObjects(db, toDelete, SegmentedObjectEditor.ALWAYS_MERGE, true);
     }
-    public void deleteTrack(SegmentedObject trackHead) {
-        ObjectDAO dao = this.db.getDao(trackHead.getPositionName());
-        List<SegmentedObject> track = SegmentedObjectUtils.getTrack(trackHead);
-        dao.delete(track, true, true, true);
-        
+    private void removeTrackFromTree(SegmentedObject trackHead) {
         TreePath  p = getTreePath(trackHead);
         if (p!=null) {
             treeModel.removeNodeFromParent((MutableTreeNode)p.getLastPathComponent());
             if (p.getPathCount()>=2 ) treeModel.nodeChanged((TreeNode)p.getPathComponent(p.getPathCount()-2));
         }
-        
-        // reload object tree
-        //for (StructureObject t : track) this.controller.objectGenerator.reload(t);
-        
     }
 
-    
+
     public void selectTracks(Collection<SegmentedObject> trackHeads, boolean addToSelection) {
         if (!addToSelection) tree.setSelectionRow(-1);
         if (trackHeads==null) return;

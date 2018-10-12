@@ -52,9 +52,9 @@ public class PostFilter implements TrackPostFilter, Hint {
                     + "<li><em>Prune Track</em>: delete the track from objects to be deleted plus the following connected tracks</li></ol>");
 
     public enum MERGE_POLICY {
-        NERVER_MERGE(StructureObjectEditor.NERVE_MERGE),
-        ALWAYS_MERGE(StructureObjectEditor.ALWAYS_MERGE),
-        MERGE_TRACKS_BACT_SIZE_COND(StructureObjectEditor.MERGE_TRACKS_BACT_SIZE_COND);
+        NERVER_MERGE(SegmentedObjectEditor.NERVE_MERGE),
+        ALWAYS_MERGE(SegmentedObjectEditor.ALWAYS_MERGE),
+        MERGE_TRACKS_BACT_SIZE_COND(SegmentedObjectEditor.MERGE_TRACKS_BACT_SIZE_COND);
         public final BiPredicate<SegmentedObject, SegmentedObject> mergePredicate;
         private MERGE_POLICY(BiPredicate<SegmentedObject, SegmentedObject> mergePredicate) {
             this.mergePredicate=mergePredicate; 
@@ -122,16 +122,16 @@ public class PostFilter implements TrackPostFilter, Hint {
             BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
             switch (this.deleteMethod.getSelectedIndex()) {
                 case 0:
-                    StructureObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor); // only delete
+                    SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor); // only delete
                     break;
                 case 2:
-                    StructureObjectEditor.prune(null, objectsToRemove, mergePredicate, factory, editor); // prune tracks
+                    SegmentedObjectEditor.prune(null, objectsToRemove, mergePredicate, factory, editor); // prune tracks
                     break;
                 case 1:
                     Set<SegmentedObject> trackHeads = new HashSet<>(Utils.transform(objectsToRemove, o->o.getTrackHead()));
                     objectsToRemove.clear();
                     for (SegmentedObject th : trackHeads) objectsToRemove.addAll(SegmentedObjectUtils.getTrack(th, false));
-                    StructureObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
+                    SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
                     break;
                 default:
                     break;
