@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -35,12 +36,6 @@ import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
 import ij.process.AutoThresholder;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
@@ -69,9 +64,10 @@ import java.util.stream.DoubleStream;
  */
 public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
     public static boolean verbose = false;
-    public enum FOREGROUND_SELECTION_METHOD {SIMPLE_THRESHOLDING, HYSTERESIS_THRESHOLDING, EDGE_FUSION};
-    public enum THRESHOLD_COMPUTATION {CURRENT_FRAME, PARENT_TRACK, ROOT_TRACK};
-    private enum BACKGROUND_REMOVAL {BORDER_CONTACT, THRESHOLDING, BORDER_CONTACT_AND_THRESHOLDING};
+    public enum FOREGROUND_SELECTION_METHOD {SIMPLE_THRESHOLDING, HYSTERESIS_THRESHOLDING, EDGE_FUSION}
+    public enum THRESHOLD_COMPUTATION {CURRENT_FRAME, PARENT_TRACK, ROOT_TRACK}
+    private enum BACKGROUND_REMOVAL {BORDER_CONTACT, THRESHOLDING, BORDER_CONTACT_AND_THRESHOLDING}
+    public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_IQR}
     // configuration-related attributes
     
     PluginParameter<SimpleThresholder> bckThresholderFrame = new PluginParameter<>("Method", bacmman.plugins.SimpleThresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection after watershed partitioning on edge map. All regions with median value under this value are considered background").setEmphasized(true);
@@ -90,14 +86,16 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
     ConditionalParameter backgroundSelCond = new ConditionalParameter(backgroundSel).setActionParameters(BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING.toString(), foregroundEdgeFusionThld, bckThldCond).setActionParameters(BACKGROUND_REMOVAL.THRESHOLDING.toString(), foregroundEdgeFusionThld, bckThldCond).setHint("Method to remove background partition after merging edges.<br/><ol><li>"+BACKGROUND_REMOVAL.BORDER_CONTACT.toString()+": Removes all partition directly in contact with upper, left and right borders. Length & with of microchannels should be adjusted so that bacteria going out of microchannels are no within the segmented regions of microchannel otherwise they may touch the left/right sides of microchannels are be erased</li><li>"+BACKGROUND_REMOVAL.THRESHOLDING.toString()+": Removes regions with median value under <em>Background Threshold</em></li><li>"+BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING.toString()+": Combination of the two previous methods</li></ol>");
     ChoiceParameter foregroundSelectionMethod=  new ChoiceParameter("Foreground Selection Method", Utils.toStringArray(FOREGROUND_SELECTION_METHOD.values()), FOREGROUND_SELECTION_METHOD.EDGE_FUSION.toString(), false); 
     ConditionalParameter foregroundSelectionCond = new ConditionalParameter(foregroundSelectionMethod).setActionParameters(FOREGROUND_SELECTION_METHOD.SIMPLE_THRESHOLDING.toString(), bckThldCond).setActionParameters(FOREGROUND_SELECTION_METHOD.HYSTERESIS_THRESHOLDING.toString(), bckThldCond, foreThldCond).setActionParameters(FOREGROUND_SELECTION_METHOD.EDGE_FUSION.toString(), backgroundEdgeFusionThld,backgroundSelCond).setEmphasized(true).setHint("Foreground selection after watershed partitioning on <em>Edge Map</em><br /><ol><li>"+FOREGROUND_SELECTION_METHOD.SIMPLE_THRESHOLDING.toString()+": All regions with median value inferior to threshold defined in <em>Background Threshold</em> are erased. No suitable when fluorescence signal is highly variable among bacteria</li><li>"+FOREGROUND_SELECTION_METHOD.HYSTERESIS_THRESHOLDING.toString()+": Regions with median value under <em>Background Threshold</em> are considered as background, all regions over threshold defined in <em>Foreground Threshold</em> are considered as foreground. Other regions are fused to the adjacent region that has lower edge value at interface, until only Background and Foreground region remain. Then background regions are removed. This method is suitable if a foreground threshold can be defined verifying the following conditions : <ol><li>each bacteria has at least one partition with a value superior to this threshold</li><li>No foreground partition (especially close to highly fluorescent bacteria) has a value over this threshold</li></ol> </li> This method is suitable when fluorescence signal is highly variable, but requires to be tuned according to fluorescence signal (that can vary between different strands/growth conditions)<li>"+FOREGROUND_SELECTION_METHOD.EDGE_FUSION.toString()+": </li>Foreground selection is performed in 3 steps:<ol><li>All adjacent regions that verify condition defined in <em>Background Edge Fusion Threshold</em> are merged. This mainly merges background regions </li><li>All adjacent regions that verify condition defined in <em>Foreground Edge Fusion Threshold</em> are merged. This mainly merges foreground regions </li><li>All regions with median value inferior to threshold defined in <em>Background Threshold</em> are erased</li></ol>This method is more suitable when foreground fluorescence levels are highly variable, but might lead in false negative when edges are not sharp enough</ol>");
-    
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_IQR, true).setHint("Method for contour adjustment after segmentation");;
+    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_IQR.toString(), localThresholdFactor);
+
     // attributes parametrized during track parametrization
     protected double bckThld = Double.NaN, foreThld = Double.NaN;
     private double globalBackgroundSigma=1;
     
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{vcThldForVoidMC, edgeMap, foregroundSelectionCond, hessianScale, splitThreshold, smoothScale, localThresholdFactor};
+        return new Parameter[]{vcThldForVoidMC, edgeMap, foregroundSelectionCond, hessianScale, splitThreshold, smoothScale, contourAdjustmentCond};
     }
     @Override
     public String getHintText() {
@@ -267,9 +265,14 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
     }
     @Override
     protected RegionPopulation localThreshold(Image input, RegionPopulation pop, SegmentedObject parent, int structureIdx, boolean callFromSplit) {
-        Image smooth = smoothScale.getValue().doubleValue()>=1 ? ImageFeatures.gaussianSmooth(input, smoothScale.getValue().doubleValue(), false):input;
-        pop.localThreshold(smooth, localThresholdFactor.getValue().doubleValue(), true, true);
-        return pop;
+        switch(contourAdjustmentMethod.getSelectedEnum()) {
+            case LOCAL_THLD_IQR:
+                Image smooth = smoothScale.getValue().doubleValue()>=1 ? ImageFeatures.gaussianSmooth(input, smoothScale.getValue().doubleValue(), false):input;
+                pop.localThreshold(smooth, localThresholdFactor.getValue().doubleValue(), true, true);
+                return pop;
+            default:
+                return pop;
+        }
     }
     
     /**
