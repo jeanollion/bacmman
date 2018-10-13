@@ -423,10 +423,6 @@ public class RegionPopulation {
     
     public RegionPopulation erodToEdges(Image erodeMap, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
         //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
-        if (dilateRegionRadius>0) {
-            labelImage = (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
-            constructObjects();
-        }
         List<Region> addedObjects = new ArrayList<>();
         if (dilateRegionRadius>0) {
             labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));

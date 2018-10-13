@@ -43,14 +43,9 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.image.SimpleImageProperties;
 import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+
+import java.util.*;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.processing.Filters;
@@ -62,7 +57,7 @@ import static bacmman.utils.Utils.comparator;
 import static bacmman.utils.Utils.comparatorInt;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
-import java.util.Arrays;
+
 import java.util.function.Predicate;
 /**
  * 
@@ -552,25 +547,26 @@ public class Region {
     }
     public boolean erodeContoursEdge(Image image, boolean keepOnlyBiggestObject) {
         boolean changes = false;
-        TreeSet<Voxel> heap = new TreeSet<>(Voxel.getComparator());
-        heap.addAll(getContour());
+        LinkedList<Voxel> heap = new LinkedList<>();
+        Set<Voxel> contour = getContour();
+        contour.forEach(v -> v.value = image.getPixel(v.x, v.y, v.z));
+        heap.addAll(contour);
         EllipsoidalNeighborhood neigh = !this.is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true);
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
-        int xx, yy, zz;
         while(!heap.isEmpty()) {
-            Voxel v = heap.pollFirst();
-            double value = image.getPixel(v.x, v.y, v.z);
+            Voxel v = ( heap).pollFirst();
             for (int i = 0; i<neigh.dx.length; ++i) {
-                xx=v.x+neigh.dx[i];
-                yy=v.y+neigh.dy[i];
-                zz=v.z+neigh.dz[i];
-                if (mask.contains(xx-mask.xMin(), yy-mask.yMin(), zz-mask.zMin()) && mask.insideMask(xx-mask.xMin(), yy-mask.yMin(), zz-mask.zMin())) {
-                    double value2 = image.getPixel(xx, yy, zz);
-                    if (value2>value) {
+                Voxel next = new Voxel(v.x+neigh.dx[i], v.y+neigh.dy[i], v.z+neigh.dz[i]);
+                if (contour.contains(next)) continue;
+                if (mask.contains(next.x-mask.xMin(), next.y-mask.yMin(), next.z-mask.zMin()) && mask.insideMask(next.x-mask.xMin(), next.y-mask.yMin(), next.z-mask.zMin())) {
+                    next.value = image.getPixel(next.x, next.y, next.z);
+                    if (next.value>v.value) {
                         changes = true;
                         mask.setPixel(v.x-mask.xMin(), v.y-mask.yMin(), v.z-mask.zMin(), 0);
-                        heap.add(new Voxel(xx, yy, zz));
+                        contour.remove(v);
+                        contour.add(next);
+                        heap.add(next);
                     }
                 }
             }

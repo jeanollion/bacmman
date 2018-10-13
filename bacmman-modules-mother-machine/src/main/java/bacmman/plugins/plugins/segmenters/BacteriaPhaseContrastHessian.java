@@ -52,7 +52,7 @@ import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
  * Bacteria segmentation within microchannels, for phas images
  * @author Jean Ollion
  */
-public class BacteriaPhaseContrastHessian extends BacteriaIntensitySegmenter<BacteriaPhaseContrastHessian> implements DevPlugin {
+public class BacteriaPhaseContrastHessian extends BacteriaIntensitySegmenter<BacteriaPhaseContrastHessian> { //implements DevPlugin {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
@@ -85,9 +85,45 @@ public class BacteriaPhaseContrastHessian extends BacteriaIntensitySegmenter<Bac
         this.minSize.setValue(minSize);
         return this;
     }
+
     @Override public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         if (isVoid) return null;
-        return super.runSegmenter(input, objectClassIdx, parent);
+        Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
+
+        if (splitAndMerge==null || !parent.equals(currentParent)) {
+            currentParent = parent;
+            splitAndMerge = initializeSplitAndMerge(parent, objectClassIdx, parent.getMask());
+        }
+        RegionPopulation split = splitAndMerge.split(parent.getMask(), 10);
+        if (stores!=null) {
+            imageDisp.accept(splitAndMerge.getHessian().setName("Hessian"));
+
+        }
+        split = filterRegionsAfterSplitByHessian(parent, objectClassIdx, split);
+        if (stores!=null)  {
+            imageDisp.accept(EdgeDetector.generateRegionValueMap(split, input).setName("Region Values before merge by Hessian"));
+            imageDisp.accept(splitAndMerge.drawInterfaceValues(split).setName("Interface values before merge by Hessian"));
+        }
+        RegionPopulation res = splitAndMerge.merge(split, null);
+        res = filterRegionsAfterMergeByHessian(parent, objectClassIdx, res);
+        if (stores!=null)  {
+            imageDisp.accept(EdgeDetector.generateRegionValueMap(res, input).setName("Region Values after merge by Hessian + filter"));
+        }
+        res = localThreshold(input, res, parent, objectClassIdx, false);
+        res.filter(new RegionPopulation.Thickness().setX(2).setY(2)); // remove thin objects
+        //res.filter(new RegionPopulation.Size().setMin(minSize.getValue().intValue())); // remove small objects
+
+        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+
+        if (stores!=null) {
+            int pSIdx = parent.getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
+            stores.get(parent).addMisc("Display Thresholds", l->{
+                if (l.stream().map(o->o.getParent(pSIdx)).anyMatch(o->o==parent)) {
+                    displayAttributes();
+                }
+            });
+        }
+        return res;
     }
     final private String toolTip = "<b>Bacteria segmentation within microchannels</b><br />"
             + "Same algorithm as BacteriaIntensity with several changes:<br />"
@@ -130,15 +166,13 @@ public class BacteriaPhaseContrastHessian extends BacteriaIntensitySegmenter<Bac
     @Override 
     protected RegionPopulation filterRegionsAfterSplitByHessian(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
         return pop;
-        //return filterBorderArtifacts(parent, structureIdx, pop);
     }
     @Override
     protected RegionPopulation filterRegionsAfterMergeByHessian(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
         if (stores!=null) stores.get(parent).addIntermediateImage("values after merge by hessian", EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values before merge by Hessian"));
-
-        //pop.localThresholdEdges(parent.getPreFilteredImage(structureIdx), splitAndMerge.getWatershedMap(), 0.5, true, false, 0, parent.getMask(), null);
-        pop.erodToEdges(splitAndMerge.getWatershedMap(), true, 0, parent.getMask());
-        pop.smoothRegions(1, true, parent.getMask());
+        // adjust regions to edges
+        pop.localThresholdEdges(parent.getPreFilteredImage(structureIdx), splitAndMerge.getWatershedMap(), 0, true, false, 0, parent.getMask(), null);
+        pop.localThresholdEdges(parent.getPreFilteredImage(structureIdx), this.edgeMap.filter(parent.getRawImage(structureIdx), parent.getMask()), 0.5, true, false, 0, parent.getMask(), null);
 
         if (stores!=null) stores.get(parent).addIntermediateImage("values after edge fit on hessian", EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values before merge by Hessian"));
         if (pop.getRegions().isEmpty()) return pop;        
@@ -146,24 +180,16 @@ public class BacteriaPhaseContrastHessian extends BacteriaIntensitySegmenter<Bac
         if (!Double.isNaN(filterThld)) {
             Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(structureIdx))));
             pop.filter(r->values.get(r)>=filterThld);
-            if (pop.getRegions().isEmpty()) return pop;        
+            if (pop.getRegions().isEmpty()) return pop;
         }
         // merge small objects with the object with the smallest edge
-        int minSize = this.minSize.getValue().intValue();
+        /*int minSize = this.minSize.getValue().intValue();
         SplitAndMergeHessian sm= new SplitAndMergeHessian(parent.getPreFilteredImage(structureIdx), splitThreshold.getValue().doubleValue()*2, hessianScale.getValue().doubleValue(), globalBackgroundLevel);
         sm.setHessian(splitAndMerge.getHessian());
         sm.addForbidFusion(i -> i.getE1().size()>minSize && i.getE2().size()>minSize);
         setInterfaceValue(parent.getPreFilteredImage(structureIdx), sm);
         sm.merge(pop, null);
-
-        // merge objects that are cut along Y-axis
-        // if contact length is above 50% of min Y length -> merge objects
-        sm.setInterfaceValue(i -> {
-            double l  = i.getVoxels().stream().mapToDouble(v->v.y).max().getAsDouble()- i.getVoxels().stream().mapToDouble(v->v.y).min().getAsDouble();
-             //CleanVoxelLine.cleanSkeleton(e1Vox); could be used to get more accurate result
-            return 1 -l/Math.min(i.getE1().getBounds().sizeY(), i.getE2().getBounds().sizeY()); // 1 - contact% because S&M used inverted criterion: small are merged
-        }).setThreshold(0.5).setForbidFusion(null);
-        sm.merge(pop, null);
+        */
         return pop;
     }
     public static boolean verbosePlus=false;
@@ -174,7 +200,7 @@ public class BacteriaPhaseContrastHessian extends BacteriaIntensitySegmenter<Bac
     
     @Override
     protected RegionPopulation localThreshold(Image input, RegionPopulation pop, SegmentedObject parent, int structureIdx, boolean callFromSplit) {
-        if (pop.getRegions().isEmpty()) return pop;
+        if (true || pop.getRegions().isEmpty()) return pop;
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_W_EDGE:
                 double dilRadius = callFromSplit ? 0 : dilateRadius.getValue().doubleValue();
