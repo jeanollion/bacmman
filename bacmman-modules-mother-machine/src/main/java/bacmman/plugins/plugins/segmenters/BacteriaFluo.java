@@ -110,6 +110,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
     
     
     public BacteriaFluo() {
+        super();
         localThresholdFactor.setHint("Factor defining the local threshold.  Lower value of this factor will yield in smaller cells. "
                 + "<br />T = median value - (inter-quartile) * (this factor).");
     }

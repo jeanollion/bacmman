@@ -79,6 +79,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         return new Parameter[]{vcThldForVoidMC, edgeMap, foreThresholder, filterBorderArtifacts, hessianScale, splitThreshold, minSize , contourAdjustmentCond, splitMethod};
     }
     public BacteriaPhaseContrast() {
+        super();
         this.splitThreshold.setValue(0.10); // 0.15 for hessian scale = 3
         this.hessianScale.setValue(2);
         this.edgeMap.removeAll().add(new Sigma(3).setMedianRadius(2));
@@ -392,12 +393,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     protected double getGlobalThreshold(List<SegmentedObject> parent, int structureIdx) {
         return getGlobalOtsuThreshold(parent.stream(), structureIdx);
     }
-    private static double  getGlobalOtsuThreshold(Stream<SegmentedObject> parent, int structureIdx) {
-        Map<Image, ImageMask> imageMapMask = parent.collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask() )); 
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
-        return IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
-        
-    }
+
     @Override
     protected void displayAttributes() {
         Core.userLog("Lower Threshold: "+this.lowerThld);
