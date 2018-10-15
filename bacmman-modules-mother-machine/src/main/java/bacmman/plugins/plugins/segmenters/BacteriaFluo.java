@@ -348,7 +348,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
         };
         boolean needToComputeGlobalMin = this.bckThresholdMethod.getSelectedIndex()>0 && (foregroundSelectionMethod.getSelectedIndex()!=2 || backgroundSel.getSelectedIndex()>0);
         boolean needToComputeGlobalMax = this.foregroundSelectionMethod.getSelectedIndex()==1 && this.foreThresholdMethod.getSelectedIndex()>0;
-        if (!needToComputeGlobalMin && !needToComputeGlobalMin) return new double[]{Double.NaN, Double.NaN};
+        if (!needToComputeGlobalMin && !needToComputeGlobalMax) return new double[]{Double.NaN, Double.NaN};
         double bckThld = Double.NaN, foreThld = Double.NaN;
         if (needToComputeGlobalMin) {
             ThresholderHisto thlder = bckThresholder.instanciatePlugin();

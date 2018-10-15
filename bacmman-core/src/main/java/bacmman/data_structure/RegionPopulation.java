@@ -18,20 +18,10 @@
  */
 package bacmman.data_structure;
 
+import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.GeometricalMeasurements;
-import bacmman.image.BlankMask;
-import bacmman.image.BoundingBox;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
-import bacmman.image.ImageMask;
 import bacmman.processing.ImageOperations;
-import bacmman.image.ImageProperties;
-import bacmman.image.Offset;
-import bacmman.image.SimpleImageProperties;
 import bacmman.processing.RegionFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -63,6 +53,7 @@ import static bacmman.utils.Utils.objectsAllHaveSameProperty;
 
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -241,7 +232,7 @@ public class RegionPopulation {
     }
     public void redrawLabelMap(boolean fillImage) {
         if (hasImage()) {
-            int maxLabel = getRegions().isEmpty()? 0 : Collections.max(getRegions(), (o1, o2) -> Integer.compare(o1.getLabel(), o2.getLabel())).getLabel();
+            int maxLabel = getRegions().isEmpty()? 0 : Collections.max(getRegions(), Comparator.comparingInt(Region::getLabel)).getLabel();
             if (maxLabel > ImageInteger.getMaxValue(labelImage, false)) {
                 labelImage = ImageInteger.createEmptyLabelImage(labelImage.getName(), maxLabel, properties);
             } else {
@@ -359,7 +350,7 @@ public class RegionPopulation {
         constructObjects(); // updates bounds of objects
         return this;
     }
-    public RegionPopulation localThresholdEdges(Image erodeMap, Image edgeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask, Predicate<Voxel> removeContourVoxel) {
+    public RegionPopulation localThresholdEdges(Image erodeMap, Image edgeMap, double sigmaFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask, Predicate<Voxel> removeContourVoxel) {
         if (dilateRegionRadius>0) {
             labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
             constructObjects();
@@ -369,26 +360,26 @@ public class RegionPopulation {
         for (Region r : getRegions()) {
             double[] values = erodeMap.stream(r.getMask(), r.isAbsoluteLandMark()).toArray();
             double[] valuesEdge = edgeMap.stream(r.getMask(), r.isAbsoluteLandMark()).toArray();
-            double meanW= 0, mean=0, sumEdge = 0;
-            for (int i = 0; i<values.length; ++i) {
-                sumEdge +=valuesEdge[i];
-                meanW+=valuesEdge[i]*values[i];
-                mean+=values[i];
+            double meanW = 0, mean = 0, sumEdge = 0;
+            for (int i = 0; i < values.length; ++i) {
+                sumEdge += valuesEdge[i];
+                meanW += valuesEdge[i] * values[i];
+                mean += values[i];
             }
-            meanW/=sumEdge;
-            mean/=values.length;
+            meanW /= sumEdge;
+            mean /= values.length;
             double sigmaW = 0;
-            for (int i = 0; i<values.length; ++i) sigmaW+=Math.pow(values[i]-mean, 2)*valuesEdge[i];
-            sigmaW = Math.sqrt(sigmaW/sumEdge);
+            for (int i = 0; i < values.length; ++i) sigmaW += Math.pow(values[i] - mean, 2) * valuesEdge[i];
+            sigmaW = Math.sqrt(sigmaW / sumEdge);
             double thld;
             if (darkBackground) {
-                thld = meanW-iqrFactor*sigmaW;
-                if ( values[ArrayUtil.min(values)]<thld) labelMapThld.put(r.getLabel(), thld); // if no dilatation: put the threshold only if some pixels are under thld
+                thld = meanW - sigmaFactor * sigmaW;
+                if (values[ArrayUtil.min(values)] < thld)
+                    labelMapThld.put(r.getLabel(), thld); // if no dilatation: put the threshold only if some pixels are under thld
             } else {
-                thld = meanW+iqrFactor*sigmaW;
-                if ( values[ArrayUtil.max(values)]>thld) labelMapThld.put(r.getLabel(), thld);
+                thld = meanW + sigmaFactor * sigmaW;
+                if (values[ArrayUtil.max(values)] > thld) labelMapThld.put(r.getLabel(), thld);
             }
-            //logger.debug("local thld edge: object: {}, thld: {}, mean: {}, w_mean: {} w_sigma {} count: {}", r.getLabel(), thld, mean, meanW, sigmaW, sumEdge, values.length);
         }
         
         for (Region r : getRegions()) {
@@ -462,10 +453,10 @@ public class RegionPopulation {
     }
     public Region getBackground(ImageMask mask) {
         if (mask!=null && !mask.sameDimensions(getLabelMap())) throw new RuntimeException("Mask should have same size as label map");
-        int bckLabel = getRegions().isEmpty() ? 1 : Collections.max(getRegions(), (o1, o2)->Integer.compare(o1.getLabel(), o2.getLabel())).getLabel()+1;
-        ImageInteger bckMask = getLabelMap().duplicate().resetOffset();
-        if (mask!=null) ImageOperations.andNot(mask, bckMask, bckMask);
-        else ImageOperations.not(bckMask, bckMask);
+        int bckLabel = getRegions().isEmpty() ? 1 : Collections.max(getRegions(), Comparator.comparingInt(Region::getLabel)).getLabel()+1;
+        ImageByte bckMask = new ImageByte("", this.getImageProperties()).resetOffset();
+        if (mask!=null) ImageOperations.andNot(mask, getLabelMap(), bckMask);
+        else ImageOperations.not(getLabelMap(), bckMask);
         return new Region(bckMask, bckLabel, bckMask.sizeZ()==1);
     }
     public void smoothRegions(double radius, boolean eraseVoxelsIfConnectedToBackground, ImageMask mask) {
@@ -476,7 +467,7 @@ public class RegionPopulation {
         Region bck = getBackground(mask);
         bck.getVoxels();
         getRegions().add(bck);
-        bck.draw(labelImage, bck.getLabel());
+        this.redrawLabelMap(true);
         Map<Integer, Region> regionByLabel = getRegions().stream().collect(Collectors.toMap(r->r.getLabel(), r->r));
         Iterator<Region> rIt = getRegions().iterator();
         Set<Region> modified = new HashSet<>();
@@ -493,8 +484,9 @@ public class RegionPopulation {
                 
                 if (!count.containsKey(r.getLabel())) {
                     logger.error("smooth interface: {} not present @Voxel: {}/ bck: {}, counts: {}", r.getLabel(), v, bck.getLabel(), Utils.toStringList(count.entrySet(), e->e.getKey()+"->"+e.getValue()[0]));
+                    continue; // TODO solve
                 }
-                int maxLabel = Collections.max(count.entrySet(), (e1, e2)->Integer.compare(e1.getValue()[0], e2.getValue()[0])).getKey();
+                int maxLabel = Collections.max(count.entrySet(), Comparator.comparingInt(e -> e.getValue()[0])).getKey();
                 if (maxLabel!=r.getLabel() &&  count.get(maxLabel)[0]> count.get(r.getLabel())[0]) {
                     it.remove();
                     modified.add(r);

@@ -797,6 +797,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         populateActionPositionList();
         updateDisplayRelatedToXPSet();
         updateConfigurationTree();
+        setTrackTreeStructures();
+        loadObjectTrees();
         tabs.setSelectedIndex(0);
         ImageWindowManagerFactory.getImageManager().flush();
         if (xp!=null) setMessage("XP: "+xp+ " closed");
@@ -877,6 +879,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     protected void loadObjectTrees() {
         if (db==null) {
             trackTreeController = null;
+            setTrackTreeStructures();
             return;
         }
         trackTreeController = new TrackTreeController(db, ProgressCallback.get(this));
