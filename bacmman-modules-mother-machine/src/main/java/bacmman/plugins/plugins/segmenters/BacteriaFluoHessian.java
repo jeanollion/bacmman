@@ -52,6 +52,8 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
         return new Parameter[]{vcThldForVoidMC, hessianScale, mergeThreshold, edgeMap, foreThldCond, splitThreshold, contourAdjustmentCond};
     }
 
+    @Override boolean rawHasDarkBackground() {return true;}
+
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         if (isVoid) return null;

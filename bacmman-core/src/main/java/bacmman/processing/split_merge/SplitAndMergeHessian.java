@@ -57,8 +57,9 @@ public class SplitAndMergeHessian extends SplitAndMerge<Interface> {
             if (i.getVoxels().isEmpty()) {
                 return Double.NaN;
             } else {
-                double hessSum = Stream.concat(i.voxels.stream(), i.duplicatedVoxels.stream()).mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).sum();
                 double intensitySum = Stream.concat(i.voxels.stream(), i.duplicatedVoxels.stream()).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)-intensityBackground).sum();
+                if (intensitySum<=0) return Double.NaN;
+                double hessSum = Stream.concat(i.voxels.stream(), i.duplicatedVoxels.stream()).mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).sum();
                 return hessSum / intensitySum;
             }
         };

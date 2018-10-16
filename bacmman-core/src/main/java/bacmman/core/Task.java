@@ -446,6 +446,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             if (array[ArrayUtil.min(array)]<0) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
         }
         private void checkArray(List<Integer> array, int maxValue, String message) {
+            if (array==null || array.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception(message)));
             if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.max(array)+ " not found, max value: "+maxValue)));
             if (Collections.min(array)<0) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.min(array)+ " not found")));
         }

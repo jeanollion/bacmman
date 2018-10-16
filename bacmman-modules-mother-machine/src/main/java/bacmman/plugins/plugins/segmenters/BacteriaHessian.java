@@ -52,14 +52,15 @@ import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
  */
 public abstract class BacteriaHessian<T extends BacteriaHessian> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter { //implements DevPlugin {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
-    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
+    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
     NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions A and B are merged if mean(hessian) @ interface(A-B) / mean(intensity) @ interface(A-B)  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
 
-    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null);
+    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factory for local threhsolding to fit edges. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this factor (edges as defined by <em>Edge Map</em>. Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
 
-    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment after segmentation");
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment");
     ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor);
+
 
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
     EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
@@ -84,7 +85,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         //localThresholdFactor.setValue(1);
         
     }
-
+    abstract boolean rawHasDarkBackground();
     @Override public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         if (isVoid) return null;
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
@@ -110,14 +111,14 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         // hessian "edges"
         pop.localThresholdEdges(smooth, splitAndMerge.getWatershedMap(), 0, true, false, 0, parent.getMask(), null);
         //if (stores!=null)  imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after local threshold: hessian"));
-
         Image edges = this.edgeMap.filter(parent.getPreFilteredImage(objectClassIdx), parent.getMask());
         // edges of pre-filtered images
-        localThreshold(pop, edges, smooth, parent.getMask(), true);
+        localThreshold(pop, edges, smooth, parent.getRawImage(objectClassIdx), parent.getMask());
         if (stores != null) {
             imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after local threshold: prefiltered images"));
             imageDisp.accept(edges.setName("Edge map for local threshold"));
         }
+
 
         if (!Double.isNaN(filterThld)) {
             Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(objectClassIdx))));
@@ -151,7 +152,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
             int pSIdx = parent.getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
             stores.get(parent).addMisc("Display Thresholds", l->{
                 if (l.stream().map(o->o.getParent(pSIdx)).anyMatch(o->o==parent)) {
-                    //displayAttributes();
+                    logger.debug("Threshold: {}", filterThld);
                 }
             });
         }
@@ -169,11 +170,11 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     abstract void setInterfaceValue(Image input, SplitAndMergeHessian sam);
 
 
-    protected RegionPopulation localThreshold(RegionPopulation pop, Image edgeMap, Image smooth, ImageMask mask, boolean darkBackground) {
+    protected RegionPopulation localThreshold(RegionPopulation pop, Image edgeMap, Image preFilteredSmoothedIntensity, Image rawIntensity, ImageMask mask) {
         if (pop.getRegions().isEmpty()) return pop;
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_W_EDGE:
-                pop.localThresholdEdges(smooth, edgeMap, localThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, null);
+                pop.localThresholdEdges(preFilteredSmoothedIntensity, edgeMap, localThresholdFactor.getValue().doubleValue(), true, false, 0, mask, null);
                 pop.smoothRegions(2, true, mask);
                 return pop;
             default:

@@ -93,6 +93,7 @@ public class ConfigurationTreeGenerator {
             TreePath path = tree.getSelectionPath();
             if (!(path.getLastPathComponent() instanceof PluginParameter)) return;
             PluginParameter pp = (PluginParameter)path.getLastPathComponent();
+            logger.debug("setting : {} to pp: {}", selModule, pp);
             pp.setPlugin(selModule);
             if (pp.isOnePluginSet() && !pp.isValid()) {
                 logger.debug("checking validation for : {}", pp.toString());
@@ -114,9 +115,15 @@ public class ConfigurationTreeGenerator {
         }
     }
 
-    private String getHint(TreePath path, boolean limitWidth) {
-        Object parameter = path.getLastPathComponent();
-        if (parameter instanceof ConditionalParameter && !(parameter instanceof Hint)) parameter = ((ConditionalParameter)parameter).getActionableParameter();
+    private String getHint(Object parameter, boolean limitWidth) {
+        if (!(parameter instanceof Parameter)) return null;
+        if (parameter instanceof ConditionalParameter) {
+            Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
+            if (action.getHintText()!=null) {
+                if (((ConditionalParameter) parameter).getHintText()!=null) return formatHint(((Hint)parameter).getHintText()+"<br /> <br />"+action.getHintText(), limitWidth);
+                else parameter = action;
+            }
+        }
         if (parameter instanceof Hint) {
             String t = ((Hint)parameter).getHintText();
             if (t==null) t = "";
@@ -137,6 +144,10 @@ public class ConfigurationTreeGenerator {
                         for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<rootParameter.getStructureCount() ? " ("+rootParameter.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
                     }
                 }
+            } else if (parameter instanceof ConditionalParameter) {
+                Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
+                if (t=="") return getHint(action, limitWidth);
+                else t = t+"<br /> <br />"+getHint(action, false);
             }
             if (t!=null && t.length()>0) return formatHint(t, limitWidth);
         }
@@ -150,7 +161,7 @@ public class ConfigurationTreeGenerator {
             public String getToolTipText(MouseEvent evt) {
                 if (getRowForLocation(evt.getX(), evt.getY()) == -1) return null;
                 TreePath curPath = getPathForLocation(evt.getX(), evt.getY());
-                return getHint(curPath, true);
+                return getHint(curPath.getLastPathComponent(), true);
             }
         };
         treeModel.setJTree(tree);

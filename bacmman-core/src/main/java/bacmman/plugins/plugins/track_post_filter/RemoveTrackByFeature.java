@@ -18,13 +18,7 @@
  */
 package bacmman.plugins.plugins.track_post_filter;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 
 import java.util.ArrayList;
@@ -51,8 +45,9 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class RemoveTrackByFeature implements TrackPostFilter, Hint {
+    public enum STAT {Mean, Median, Quantile}
     PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setHint("Feature computed on each object of the track");
-    ChoiceParameter statistics = new ChoiceParameter("Statistics", new String[]{"Mean", "Median", "Quantile"}, "mean", false);
+    EnumChoiceParameter<STAT> statistics = new EnumChoiceParameter("Statistics", STAT.values(), STAT.Mean, false);
     NumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
     ConditionalParameter statCond = new ConditionalParameter(statistics).setActionParameters("Quantile", quantile).setHint("Statistics to summarize the distribution of computed features");
     NumberParameter threshold = new NumberParameter("Threshold", 4, 0);
@@ -77,12 +72,12 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         return this;
     }
     public RemoveTrackByFeature setQuantileValue(double quantile) {
-        this.statistics.setSelectedIndex(2);
+        this.statistics.setSelectedEnum(STAT.Quantile);
         this.quantile.setValue(quantile);
         return this;
     }
-    public RemoveTrackByFeature setStatistics(int stat) {
-        this.statistics.setSelectedIndex(stat);
+    public RemoveTrackByFeature setStatistics(STAT stat) {
+        this.statistics.setSelectedEnum(stat);
         return this;
     }
     
@@ -106,11 +101,11 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         for (List<SegmentedObject> track : allTracks.values()) {
             List<Double> values = Utils.transform(track, so->valueMap.get(so.getRegion()));
             double value;
-            switch (statistics.getSelectedIndex()) {
-                case 0:
+            switch (statistics.getSelectedEnum()) {
+                case Mean:
                     value = ArrayUtil.mean(values);
                     break;
-                case 1:
+                case Median:
                     value = ArrayUtil.median(values);
                     break;
                 default:

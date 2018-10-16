@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion.bacmman</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>v2.2.0</version>
+    <version>v2.2.1</version>
 
     <licenses>
         <license>
@@ -24,12 +24,12 @@
         <module>bacmman-ij1_</module>
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-headless</module>
-        <module>bacmman-modules-fluorescence_fit</module>
-        <module>bacmman-helpers</module>
+
 
     </modules>
     <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository
-
+        <module>bacmman-modules-fluorescence_fit</module>
+        <module>bacmman-helpers</module>
     -->
 
     <name>BACMMAN</name>

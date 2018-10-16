@@ -31,7 +31,7 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         super(name, Arrays.stream(enumChoiceList)
                 .map(e -> e.toString())
                 .toArray(l -> new String[l] ),
-                selectedItem.toString(), allowNoSelection);
+                selectedItem==null ? null : selectedItem.toString(), allowNoSelection);
         this.enumChoiceList=enumChoiceList;
     }
 

@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
 import bacmman.plugins.MultichannelTransformation;
 
@@ -86,17 +87,18 @@ public class SimpleCrop implements MultichannelTransformation, Hint {
     }*/
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        enshureValidBounds(image);
+        ensureValidBounds(new SimpleBoundingBox(image).resetOffset());
         return image.crop(bounds);
     }
 
-    private void enshureValidBounds(BoundingBox bb) {
+    private void ensureValidBounds(BoundingBox bb) {
         if (bounds!=null && bounds.getSizeXYZ()!=0) return;
         else synchronized (this) {
             if (bounds == null) bounds = new MutableBoundingBox(xMin.getValue().intValue(), yMin.getValue().intValue(), zMin.getValue().intValue());
-            bounds.setxMax(xLength.getValue().intValue()==0 ? bb.xMax() : bounds.xMin()+xLength.getValue().intValue());
-            bounds.setyMax(yLength.getValue().intValue()==0 ? bb.yMax() : bounds.yMin()+yLength.getValue().intValue());
-            bounds.setzMax(zLength.getValue().intValue()==0 ? bb.zMax() : bounds.zMin()+zLength.getValue().intValue());
+            bounds.setxMax(xLength.getValue().intValue()==0 ? bb.xMax() : bounds.xMin()+xLength.getValue().intValue()-1);
+            bounds.setyMax(yLength.getValue().intValue()==0 ? bb.yMax() : bounds.yMin()+yLength.getValue().intValue()-1);
+            bounds.setzMax(zLength.getValue().intValue()==0 ? bb.zMax() : bounds.zMin()+zLength.getValue().intValue()-1);
+            logger.debug("simple crop bounds: {}", bounds);
             bounds.trim(bb);
         }
         

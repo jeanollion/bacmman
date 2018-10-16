@@ -253,7 +253,11 @@ public class PluginConfigurationUtils {
                             int[] channels =null;
                             if (!showAllSteps) {
                                 channels = tpp.getOutputChannels();
-                                if (channels==null) channels = new int[]{tpp.getInputChannel()};
+                                if (channels==null) {
+                                    if (tpp.getInputChannel()>=0) channels = new int[]{tpp.getInputChannel()};
+                                    else channels = null;
+                                }
+
                             }
                             Image[][] imagesTC = images.getImagesTC(0, position.getFrameNumber(false), channels);
                             ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
