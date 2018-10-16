@@ -1,5 +1,11 @@
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.BoundedNumberParameter;
+import bacmman.configuration.parameters.ConditionalParameter;
+import bacmman.configuration.parameters.NumberParameter;
+import bacmman.data_structure.Region;
+import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Voxel;
 import bacmman.image.Histogram;
@@ -9,23 +15,28 @@ import bacmman.image.ImageMask;
 import bacmman.plugins.Hint;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
 
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseContrastHessian> implements Hint {
 
+    BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
+    NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
+    NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
+    ConditionalParameter cond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
+
+
+    public BacteriaPhaseContrastHessian() {
+        super();
+        this.mergeThreshold.setHint(mergeThreshold.getHintText().replace("mean(intensity) @ interface(A-B)", "mean(intensity) in A and B"));
+        this.splitThreshold.setHint(splitThreshold.getHintText().replace("mean(intensity) @ interface(A-B)", "mean(intensity) in A and B"));
+        contourAdjustmentCond.setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, cond);
+    }
+
     final private String hint = "<b>Bacteria segmentation within microchannels</b><br />"
             + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, filtered with the Track-pre-filter: \"SubtractBackgroundMicrochannels\"<br />"
-            + "<ol><li>Partition of the whole microchannel using seeded watershed algorithm on maximal hessian eignvalue transform</li>"
-            +"<li>Merging of partition using a criterion on hessian value at interface see hint of parameter <em>Merge Threshold</em></li>"
-            +"<li>Local Threshold of regions to fit contour on <em>Edge Map<em>, see hint of <em>Local Threshold factor</em> for details</li>"
-            +"<li>Region of intensity inferior to <em>Threshold</em> are erased</li>"
-            +"<li>Foreground is split by applying a watershed transform on the maximal hessian Eigen value, regions are then merged, using a criterion described in <em>Split Threshold</em> parameter</li>"
-            +"</ol>";
+            +operationSequenceHint;
 
     @Override public String getHintText() {return hint;}
 
@@ -37,13 +48,39 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
             else {
                 Image hessian = sam.getHessian();
                 double val  =  voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).average().getAsDouble();
-                // normalize using mean value (compare with max of mean or max of median
                 double mean = Stream.concat(i.getE1().getVoxels().stream(), i.getE2().getVoxels().stream()).mapToDouble(v->(double)input.getPixel(v.x, v.y, v.z)).average().getAsDouble();
                 val/=mean;
                 return val;
             }
         });
     }
+
+    protected RegionPopulation localThreshold(RegionPopulation pop, Image edgeMap, Image smooth, ImageMask mask, boolean darkBackground) {
+        if (pop.getRegions().isEmpty()) return pop;
+        switch(contourAdjustmentMethod.getSelectedEnum()) {
+            case LOCAL_THLD_W_EDGE:
+                // different local threshold for middle part of upper cell when touches borders
+                boolean differentialLF = false;
+                if (upperCellCorrection.getSelected()) {
+                    Region upperCell = pop.getRegions().stream().min(Comparator.comparingInt(r -> r.getBounds().yMin())).get();
+                    if (upperCell.getBounds().yMin() <= maxYCoordinate.getValue().intValue()) {
+                        differentialLF = true;
+                        double yLim = upperCell.getGeomCenter(false).get(1) + upperCell.getBounds().sizeY() / 3.0;
+                        pop.localThresholdEdges(smooth, edgeMap, localThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, v -> v.y < yLim); // local threshold for lower cells & half lower part of cell
+                        if (stores != null) { //|| (callFromSplit && splitVerbose)
+                            logger.debug("y lim: {}", yLim);
+                        }
+                        pop.localThresholdEdges(smooth, edgeMap, upperCellLocalThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, v -> v.y > yLim); // local threshold for half upper part of 1st cell
+                    }
+                }
+                if (!differentialLF) pop.localThresholdEdges(smooth, edgeMap, localThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, null);
+                pop.smoothRegions(2, true, mask);
+                return pop;
+            default:
+                return pop;
+        }
+    }
+
     // track parametrization
     @Override
     public TrackConfigurer<BacteriaHessian> run(int structureIdx, List<SegmentedObject> parentTrack) {

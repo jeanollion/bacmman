@@ -54,22 +54,24 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
-    NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions are merged if sum(hessian) @ interface / sum(intensity) @ interface  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
+    NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions A and B are merged if mean(hessian) @ interface(A-B) / mean(intensity) @ interface(A-B)  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
 
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null);
 
-    BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
-    NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
-    NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
-    ConditionalParameter cond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment after segmentation");
-    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, cond);
+    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor);
 
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
     EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
 
     // attributes parametrized during track parametrization
     double filterThld=Double.NaN;
+    final String operationSequenceHint = "<ol><li>Partition of the whole microchannel using seeded watershed algorithm on maximal hessian eigenvalue transform</li>"
+            +"<li>Merging of partition using a criterion on hessian value at interface see hint of parameter <em>Merge Threshold</em></li>"
+            +"<li>Local Threshold of regions to fit contour on <em>Edge Map<em>, see hint of <em>Local Threshold factor</em> for details</li>"
+            +"<li>Region of intensity inferior to <em>Threshold</em> are erased</li>"
+            +"<li>Foreground is split by applying a watershed transform on the maximal hessian Eigen value, regions are then merged, using a criterion described in <em>Split Threshold</em> parameter</li>"
+            +"</ol>";
 
     @Override
     public Parameter[] getParameters() {
@@ -96,7 +98,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         if (stores!=null) {
             imageDisp.accept(splitAndMerge.getHessian().setName("Hessian"));
             imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after partitioning"));
-            imageDisp.accept(splitAndMerge.drawInterfaceValues(pop).setName("Interface values after partitioning (HINT: use to set merge threshol)"));
+            imageDisp.accept(splitAndMerge.drawInterfaceValues(pop).setName("Interface values after partitioning (HINT: use to set merge threshold)"));
         }
 
         pop = splitAndMerge.merge(pop, null);
@@ -127,7 +129,8 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
 
 
         // step 3 second round of split/merging
-        pop = splitAndMerge.split(pop.getLabelMap(), 5); // partition the whole parent mask
+
+        pop = splitAndMerge.split(pop.getLabelMap(), 0); // partition the foreground mask
         splitAndMerge.setThreshold(this.splitThreshold.getValue().doubleValue());
         if (stores!=null) {
             imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after split by hessian"));
@@ -170,21 +173,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         if (pop.getRegions().isEmpty()) return pop;
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_W_EDGE:
-                // different local threshold for middle part of upper cell when touches borders
-                boolean differentialLF = false;
-                if (upperCellCorrection.getSelected()) {
-                    Region upperCell = pop.getRegions().stream().min(Comparator.comparingInt(r -> r.getBounds().yMin())).get();
-                    if (upperCell.getBounds().yMin() <= maxYCoordinate.getValue().intValue()) {
-                        differentialLF = true;
-                        double yLim = upperCell.getGeomCenter(false).get(1) + upperCell.getBounds().sizeY() / 3.0;
-                        pop.localThresholdEdges(smooth, edgeMap, localThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, v -> v.y < yLim); // local threshold for lower cells & half lower part of cell
-                        if (stores != null) { //|| (callFromSplit && splitVerbose)
-                            logger.debug("y lim: {}", yLim);
-                        }
-                        pop.localThresholdEdges(smooth, edgeMap, upperCellLocalThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, v -> v.y > yLim); // local threshold for half upper part of 1st cell
-                    }
-                }
-                if (!differentialLF) pop.localThresholdEdges(smooth, edgeMap, localThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, null);
+                pop.localThresholdEdges(smooth, edgeMap, localThresholdFactor.getValue().doubleValue(), darkBackground, false, 0, mask, null);
                 pop.smoothRegions(2, true, mask);
                 return pop;
             default:

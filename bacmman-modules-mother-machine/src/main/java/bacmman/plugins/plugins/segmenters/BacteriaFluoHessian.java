@@ -30,8 +30,8 @@ import java.util.stream.Stream;
 public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> implements Hint {
     private final static Logger logger = LoggerFactory.getLogger(BacteriaFluoHessian.class);
     private double globalBackgroundSigma=1;
-    PluginParameter<SimpleThresholder> foreThresholderFrame = new PluginParameter<>("Method", bacmman.plugins.SimpleThresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true);
-    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Method", ThresholderHisto.class, new BackgroundFit(20), false).setEmphasized(true).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track/root track.");
+    PluginParameter<SimpleThresholder> foreThresholderFrame = new PluginParameter<>("Method", bacmman.plugins.SimpleThresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection. Computed on each frame.");
+    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Method", ThresholderHisto.class, new BackgroundFit(20), false).setEmphasized(true).setHint("Threshold for foreground region selection. Computed on the whole parent-track/root track.");
     EnumChoiceParameter<BacteriaFluo.THRESHOLD_COMPUTATION> foreThresholdMethod=  new EnumChoiceParameter<>("Foreground Threshold", BacteriaFluo.THRESHOLD_COMPUTATION.values(), BacteriaFluo.THRESHOLD_COMPUTATION.ROOT_TRACK, false);
     ConditionalParameter foreThldCond = new ConditionalParameter(foreThresholdMethod).setActionParameters(BacteriaFluo.THRESHOLD_COMPUTATION.CURRENT_FRAME.toString(), foreThresholderFrame).setActionParameters(BacteriaFluo.THRESHOLD_COMPUTATION.ROOT_TRACK.toString(), foreThresholder).setActionParameters(BacteriaFluo.THRESHOLD_COMPUTATION.PARENT_TRACK.toString(), foreThresholder).setHint("Threshold for foreground region selection after watershed partitioning on edge map. All regions with median value over this value are considered foreground. <br />If <em>CURRENT_FRAME</em> is selected, threshold will be computed at each frame. If <em>PARENT_BRANCH</em> is selected, threshold will be computed on the whole parent track. If <em>ROOT_TRACK</em> is selected, threshold will be computed on the whole root track, on raw images (no prefilters).<br />Configuration Hint: value is displayed on right click menu: <em>display thresholds</em> command. Tune the value using intermediate image <em>Region Values after partitioning</em>, only foreground partitions should be over this value");
 
@@ -44,14 +44,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
         this.splitMethod.setSelectedEnum(SPLIT_METHOD.HESSIAN);
     }
 
-    final private String hint = "<b>Bacteria segmentation within microchannels</b><br />"
-            + "<ol><li>Partition of the whole microchannel using seeded watershed algorithm on maximal hessian eignvalue transform</li>"
-            +"<li>Merging of partition using a criterion on hessian value at interface see hint of parameter <em>Merge Threshold</em></li>"
-            +"<li>Local Threshold of regions to fit contour on <em>Edge Map<em>, see hint of <em>Local Threshold factor</em> for details</li>"
-            +"<li>Region of intensity inferior to <em>Threshold</em> are erased</li>"
-            +"<li>Foreground is split by applying a watershed transform on the maximal hessian Eigen value, regions are then merged, using a criterion described in <em>Split Threshold</em> parameter</li>"
-            +"</ol>";
-
+    final private String hint = "<b>Bacteria segmentation within microchannels</b><br />"  + this.operationSequenceHint;
     @Override public String getHintText() {return hint;}
 
     @Override
@@ -121,13 +114,19 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
         if (!needToComputeGlobalMax) return Double.NaN;
         double foreThld;
         ThresholderHisto thlder = foreThresholder.instanciatePlugin();
-        if (foreThresholdMethod.getSelectedIndex()==2) { // root threshold
-            if (thlder instanceof BackgroundFit) {
-                double[] ms = getRootBckMeanAndSigma(parentTrack, structureIdx, histoRoot);
-                foreThld = ms[0] + ((BackgroundFit)thlder).getSigmaFactor() * ms[1];
-            } else foreThld = getRootThreshold(parentTrack, structureIdx, histoRoot);
-        } else foreThld = thlder.runThresholderHisto(getHistoParent.get());  // parent threshold
-
+        switch (foreThresholdMethod.getSelectedEnum()) {
+            case ROOT_TRACK:
+                if (thlder instanceof BackgroundFit) {
+                    double[] ms = getRootBckMeanAndSigma(parentTrack, structureIdx, histoRoot);
+                    foreThld = ms[0] + ((BackgroundFit)thlder).getSigmaFactor() * ms[1];
+                } else foreThld = getRootThreshold(parentTrack, structureIdx, histoRoot);
+            break;
+            case PARENT_TRACK:
+                foreThld = thlder.runThresholderHisto(getHistoParent.get());
+            break;
+            default:
+                foreThld = Double.NaN;
+        }
         logger.debug("parent: {} global threshold on images with foreground: [{}]", parentTrack.get(0), foreThld);
         return foreThld;
     }

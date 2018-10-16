@@ -116,7 +116,7 @@ public class ConfigurationTreeGenerator {
 
     private String getHint(TreePath path, boolean limitWidth) {
         Object parameter = path.getLastPathComponent();
-        if (parameter instanceof ConditionalParameter) parameter = ((ConditionalParameter)parameter).getActionableParameter();
+        if (parameter instanceof ConditionalParameter && !(parameter instanceof Hint)) parameter = ((ConditionalParameter)parameter).getActionableParameter();
         if (parameter instanceof Hint) {
             String t = ((Hint)parameter).getHintText();
             if (t==null) t = "";
