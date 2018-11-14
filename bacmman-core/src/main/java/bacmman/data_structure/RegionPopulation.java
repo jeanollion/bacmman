@@ -51,7 +51,9 @@ import org.slf4j.LoggerFactory;
 
 import static bacmman.utils.Utils.objectsAllHaveSameProperty;
 
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -66,21 +68,22 @@ public class RegionPopulation {
     private ImageProperties properties;
     //private boolean absoluteLandmark=false;
     private boolean lowConnectivity = false;
+
     /**
      * Creates an empty ObjectPopulation instance
-     * @param properties 
+     *
+     * @param properties
      */
     public RegionPopulation(ImageProperties properties) {
-        this.properties = new BlankMask( properties);
-        this.objects=new ArrayList<>();
+        this.properties = new BlankMask(properties);
+        this.objects = new ArrayList<>();
     }
-    
+
     /**
-     *
-     * @param image image with values >0 within segmented objects
+     * @param image          image with values >0 within segmented objects
      * @param isLabeledImage if true, the image is considered as a labeled
-     * image, one value per object, if false, the image will be labeled (and
-     * thus modified) by Connected Components Labeling
+     *                       image, one value per object, if false, the image will be labeled (and
+     *                       thus modified) by Connected Components Labeling
      */
     public RegionPopulation(ImageInteger image, boolean isLabeledImage) {
         this.properties = image.getProperties();
@@ -90,53 +93,57 @@ public class RegionPopulation {
             relabel(false); // in order to have consistent labels between image & object list
         }
     }
-    
+
     public RegionPopulation setConnectivity(boolean low) {
         this.lowConnectivity = low;
         return this;
     }
 
     public RegionPopulation(Collection<Region> objects, ImageProperties properties) {
-        if (properties==null) throw new IllegalArgumentException("ImageProperties should no be null");
+        if (properties == null) throw new IllegalArgumentException("ImageProperties should no be null");
         if (objects != null) {
-            if (objects instanceof List) this.objects = (List)objects;
+            if (objects instanceof List) this.objects = (List) objects;
             else this.objects = new ArrayList<>(objects);
         } else {
             this.objects = new ArrayList<>();
         }
         checkObjectValidity();
-        this.properties = new BlankMask( properties); 
+        this.properties = new BlankMask(properties);
     }
-    
+
     private void checkObjectValidity() {
-        if (!objectsAllHaveSameProperty(objects, o->o.isAbsoluteLandMark())) throw new IllegalArgumentException("Regions should all have same landmark");
-        if (!objectsAllHaveSameProperty(objects, o->o.is2D)) throw new IllegalArgumentException("Regions should all be either 2D or 3D");
+        if (!objectsAllHaveSameProperty(objects, o -> o.isAbsoluteLandMark()))
+            throw new IllegalArgumentException("Regions should all have same landmark");
+        if (!objectsAllHaveSameProperty(objects, o -> o.is2D))
+            throw new IllegalArgumentException("Regions should all be either 2D or 3D");
         //if (twoObjectsHaveSameProperty(objects, o->o.getLabel())) relabel(false);
     }
-    
+
     public RegionPopulation duplicate() {
-        if (objects!=null) {
+        if (objects != null) {
             ArrayList<Region> ob = new ArrayList<>(objects.size());
             for (Region o : objects) ob.add(o.duplicate());
             return new RegionPopulation(ob, properties).setConnectivity(lowConnectivity);
-        } else if (labelImage!=null) {
+        } else if (labelImage != null) {
             return new RegionPopulation(labelImage.duplicate(""), true).setConnectivity(lowConnectivity);
         }
-        return new RegionPopulation(null , properties).setConnectivity(lowConnectivity);
+        return new RegionPopulation(null, properties).setConnectivity(lowConnectivity);
     }
-    
+
     public boolean isAbsoluteLandmark() {
-        if (objects==null || objects.isEmpty()) return false; // default
+        if (objects == null || objects.isEmpty()) return false; // default
         return objects.get(0).isAbsoluteLandMark();
     }
-    
+
     public RegionPopulation addObjects(boolean updateLabelImage, Region... objects) {
         return addObjects(Arrays.asList(objects), updateLabelImage);
     }
+
     /**
      * Add objects to the list.
+     *
      * @param objects
-     * @return 
+     * @return
      */
     public RegionPopulation addObjects(List<Region> objects, boolean updateLabelImage) {
         this.objects.addAll(objects);
@@ -144,25 +151,25 @@ public class RegionPopulation {
         if (updateLabelImage) relabel(true);
         return this;
     }
-    
+
     public ImageInteger<? extends ImageInteger<?>> getLabelMap() {
         if (labelImage == null) constructLabelImage();
         return labelImage;
     }
-    
+
     public List<Region> getRegions() {
         if (objects == null) {
             constructObjects();
         }
         return objects;
     }
-    
+
     private void draw(Region o, int label) {
         //if (this.absoluteLandmark) o.draw(labelImage, label, new BoundingBox(0, 0, 0)); // in order to remove the offset of the image
         //else o.draw(labelImage, label);
         o.draw(labelImage, label); // depends on object's landmark
     }
-    
+
     private void constructLabelImage() {
         if (objects == null || objects.isEmpty()) {
             labelImage = ImageInteger.createEmptyLabelImage("labelImage", 0, getImageProperties());
@@ -172,16 +179,16 @@ public class RegionPopulation {
             for (Region o : objects) draw(o, o.getLabel());
         }
     }
-        
+
     private void constructObjects() {
-        if (labelImage==null) objects = new ArrayList<>();
+        if (labelImage == null) objects = new ArrayList<>();
         else {
             Region[] obs = RegionFactory.getObjectsImage(labelImage, false);
             objects = new ArrayList<>(Arrays.asList(obs));
         }
     }
-    
-    
+
+
     public void eraseObject(Region o, boolean eraseInList) {
         if (labelImage != null) {
             draw(o, 0);
@@ -194,45 +201,50 @@ public class RegionPopulation {
     public boolean hasImage() {
         return labelImage != null;
     }
-    
+
     public RegionPopulation setProperties(ImageProperties properties, boolean onlyIfSameSize) {
         if (labelImage != null) {
             if (!onlyIfSameSize || labelImage.sameDimensions(properties)) {
                 labelImage.resetOffset().translate(properties);
-                this.properties=  new SimpleImageProperties(properties); 
+                this.properties = new SimpleImageProperties(properties);
             }
             labelImage.setCalibration(properties);
-            
+
         } else {
-            this.properties=  new SimpleImageProperties(properties);  //set aussi la taille de l'image
+            this.properties = new SimpleImageProperties(properties);  //set aussi la taille de l'image
         }
-        
+
         return this;
     }
-    
+
     public ImageProperties getImageProperties() {
         if (properties == null) {
             if (labelImage != null) {
-                properties = new BlankMask( labelImage);
-            } else if (objects!=null && !objects.isEmpty()) { //unscaled, no offset for label image..
+                properties = new BlankMask(labelImage);
+            } else if (objects != null && !objects.isEmpty()) { //unscaled, no offset for label image..
                 MutableBoundingBox box = new MutableBoundingBox();
                 for (Region o : objects) {
                     box.union(o.getBounds());
                 }
-                properties = box.getBlankMask();                
+                properties = box.getBlankMask();
             }
         }
         return properties;
     }
-    public void relabel() {relabel(true);}
+
+    public void relabel() {
+        relabel(true);
+    }
+
     public void relabel(boolean fillImage) {
         int idx = 1;
         for (Region o : getRegions()) o.label = idx++;
         redrawLabelMap(fillImage);
     }
+
     public void redrawLabelMap(boolean fillImage) {
         if (hasImage()) {
-            int maxLabel = getRegions().isEmpty()? 0 : Collections.max(getRegions(), Comparator.comparingInt(Region::getLabel)).getLabel();
+            int maxLabel = getRegions().isEmpty() ? 0 : Collections.max(getRegions(), Comparator.comparingInt(Region::getLabel)).getLabel();
             if (maxLabel > ImageInteger.getMaxValue(labelImage, false)) {
                 labelImage = ImageInteger.createEmptyLabelImage(labelImage.getName(), maxLabel, properties);
             } else {
@@ -241,37 +253,38 @@ public class RegionPopulation {
             for (Region o : getRegions()) draw(o, o.getLabel());
         }
     }
-        
+
     public void translate(Offset offset, boolean absoluteLandmark) {
         for (Region o : getRegions()) {
             o.translate(offset);
             o.setIsAbsoluteLandmark(absoluteLandmark);
         }
         this.properties = new BlankMask(this.properties).translate(offset);
-        if (labelImage!=null) labelImage.translate(offset);
+        if (labelImage != null) labelImage.translate(offset);
     }
-    
+
     public void setVoxelIntensities(Image intensityMap) {
         for (Region o : getRegions()) {
-            for (Voxel v : o.getVoxels()) v.value=intensityMap.getPixel(v.x, v.y, v.z);
+            for (Voxel v : o.getVoxels()) v.value = intensityMap.getPixel(v.x, v.y, v.z);
         }
     }
-    
-    
-    
+
+
     public boolean isInContactWithOtherObject(Region o) {
         DisplacementNeighborhood n = (DisplacementNeighborhood) Filters.getNeighborhood(1.5, 1, properties);
         getLabelMap();
         for (Voxel v : o.getContour()) {
             n.setPixels(v, labelImage, null);
-            for (int i = 0; i<n.getValueCount(); ++i) if (n.getPixelValues()[i]>0 && n.getPixelValues()[i]!=o.getLabel()) return true; // TODO for high number of objects float can lead to ambiguities
-            
+            for (int i = 0; i < n.getValueCount(); ++i)
+                if (n.getPixelValues()[i] > 0 && n.getPixelValues()[i] != o.getLabel())
+                    return true; // TODO for high number of objects float can lead to ambiguities
+
         }
         return false;
     }
-    
+
     public void fitToEdges(Image edgeMap, ImageMask mask) {
-        // get seeds outsit label image
+        // get seeds outside label image
         ImageInteger seedMap = Filters.localExtrema(edgeMap, null, false, null, Filters.getNeighborhood(1.5, 1.5, edgeMap));
         this.getLabelMap(); //creates the labelImage        
         // merge background seeds && foreground seeds : background = 1, foreground = label+1
@@ -286,43 +299,59 @@ public class RegionPopulation {
                 }
             }
         }
-        ArrayList<Region> seeds = new ArrayList<>(Arrays.asList(RegionFactory.getObjectsImage(seedMap, false)));        
+        ArrayList<Region> seeds = new ArrayList<>(Arrays.asList(RegionFactory.getObjectsImage(seedMap, false)));
         RegionPopulation pop = WatershedTransform.watershed(edgeMap, mask, seeds, new WatershedConfiguration().lowConectivity(lowConnectivity));
         this.objects = pop.getRegions();
         objects.remove(0); // remove background object
         relabel(true);
     }
+
     public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject) {
         return localThreshold(erodeMap, iqrFactor, darkBackground, keepOnlyBiggestObject, 0, null);
     }
+
     /**
-     * 
      * @param erodeMap
      * @param iqrFactor
      * @param darkBackground
      * @param keepOnlyBiggestObject when applying local threhsold one object could be splitted in several, if true only the biggest will be kept
-     * @param dilateRegionRadius radius for dilate region label-wise. 0 -> no dilatation
-     * @param mask mask for region dilatation
-     * @return 
+     * @param dilateRegionRadius    radius for dilate region label-wise. 0 -> no dilatation
+     * @param mask                  mask for region dilatation
+     * @return
      */
     public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
-        //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
-        List<Region> addedObjects = new ArrayList<>();
-        Map<Integer, Double> labelMapThld = new HashMap<>(getRegions().size());
-        for (Region o : getRegions()) {
-            List<Double> values = Utils.transform(o.getVoxels(), (Voxel v) -> (double) erodeMap.getPixel(v.x, v.y, v.z));
+        Function<Region, Double> thldFct = o -> {
+            List < Double > values = Utils.transform(o.getVoxels(), (Voxel v) -> (double) erodeMap.getPixel(v.x, v.y, v.z));
             double q1 = ArrayUtil.quantile(values, 0.25);
             double q2 = ArrayUtil.quantile(values, 0.5);
             double q3 = ArrayUtil.quantile(values, 0.75);
             double thld;
             if (darkBackground) {
                 thld = q2 - iqrFactor * (q3 - q1);
-                if (dilateRegionRadius>0 || values.get(0)<thld) labelMapThld.put(o.getLabel(), thld); // if no dilatation: put the threshold only if some pixels are under thld
+                if (dilateRegionRadius > 0 || values.get(0) < thld) return thld; // if no dilatation: put the threshold only if some pixels are under thld
+                else return null;
             } else {
                 thld = q2 + iqrFactor * (q3 - q1);
-                if (dilateRegionRadius>0 || values.get(values.size() - 1)>thld) labelMapThld.put(o.getLabel(), thld);
+                if (dilateRegionRadius > 0 || values.get(values.size() - 1) > thld) return thld;
+                else return null;
             }
-        }
+        };
+        return localThreshold(erodeMap, thldFct, darkBackground, keepOnlyBiggestObject, dilateRegionRadius, mask);
+    }
+    /**
+     *
+     * @param erodeMap
+     * @param thresholdFunction
+     * @param darkBackground
+     * @param keepOnlyBiggestObject when applying local threhsold one object could be splitted in several, if true only the biggest will be kept
+     * @param dilateRegionRadius radius for dilate region label-wise. 0 -> no dilatation
+     * @param mask mask for region dilatation
+     * @return
+     */
+    public RegionPopulation localThreshold(Image erodeMap, Function<Region, Double> thresholdFunction, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
+        //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
+        List<Region> addedObjects = new ArrayList<>();
+        Map<Integer, Double> labelMapThld = Utils.toMapWithNullValues(getRegions().stream(), r->r.getLabel(), thresholdFunction, false);
         if (dilateRegionRadius>0) {
             labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
             constructObjects();
@@ -412,7 +441,7 @@ public class RegionPopulation {
         return this;
     }
     
-    public RegionPopulation erodToEdges(Image erodeMap, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
+    public RegionPopulation erodToEdges(Image erodeMap, Image intensityMap, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
         //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
         List<Region> addedObjects = new ArrayList<>();
         if (dilateRegionRadius>0) {
@@ -420,7 +449,7 @@ public class RegionPopulation {
             constructObjects();
         }
         for (Region r : getRegions()) {
-            boolean change = r.erodeContoursEdge(erodeMap, keepOnlyBiggestObject);
+            boolean change = r.erodeContoursEdge(erodeMap, intensityMap, keepOnlyBiggestObject);
             if (change && !keepOnlyBiggestObject) {
                 List<Region> subRegions = ImageLabeller.labelImageListLowConnectivity(r.mask);
                 if (subRegions.size()>1) {

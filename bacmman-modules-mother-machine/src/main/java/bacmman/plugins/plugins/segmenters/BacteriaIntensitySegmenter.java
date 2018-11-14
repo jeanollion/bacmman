@@ -184,7 +184,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
             Voxel seed = so.getVoxels().iterator().next();
             double wsVal0 = wsMap.getPixel(seed.x, seed.y, seed.z);
             double inVal0= input.getPixel(seed.x, seed.y, seed.z);
-            Voxel newSeed = n.stream(seed, segmentationMask).map(v-> {
+            Voxel newSeed = n.stream(seed, segmentationMask, false).map(v-> {
                 double wsVal = wsMap.getPixel(v.x, v.y, v.z);
                 if (wsVal>=wsVal0) return null;
                 double inVal = input.getPixel(v.x, v.y, v.z);

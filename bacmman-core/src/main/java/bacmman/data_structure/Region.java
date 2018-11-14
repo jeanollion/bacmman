@@ -18,6 +18,8 @@
  */
 package bacmman.data_structure;
 
+import bacmman.processing.EDT;
+import bacmman.processing.watershed.WatershedTransform;
 import com.google.common.collect.Sets;
 import bacmman.data_structure.region_container.RegionContainer;
 import static bacmman.data_structure.region_container.RegionContainer.MAX_VOX_3D;
@@ -59,6 +61,8 @@ import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 /**
  * 
  * @author Jean Ollion
@@ -124,18 +128,25 @@ public class Region {
     public double getQuality() {
         return quality;
     }
-    
-    public Region duplicate() {
+
+    public Region duplicate(boolean duplicateVoxels) {
         if (this.mask!=null) {
             return new Region(getMask().duplicateMask(), label, is2D).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null : center.duplicate());
         }
         else if (this.voxels!=null) {
-            Set<Voxel> vox = new HashSet<> (voxels.size());
-            for (Voxel v : voxels) vox.add(v.duplicate());
+            Set<Voxel> vox;
+            if (duplicateVoxels) {
+                vox = new HashSet<>(voxels.size());
+                for (Voxel v : voxels) vox.add(v.duplicate());
+            } else vox = new HashSet<>(voxels);
             if (bounds==null) return new Region(vox, label, is2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null: center.duplicate());
             else return new Region(vox, label, new SimpleBoundingBox(bounds), is2D, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null: center.duplicate());
         }
         return null;
+    }
+
+    public Region duplicate() {
+        return duplicate(true);
     }
     
     public int getLabel() {
@@ -535,53 +546,85 @@ public class Region {
                 }
             }
         }
-        if (changes && keepOnlyBiggestObject) { // check if 2 objects and erase all but smallest
+        if (changes) {
             List<Region> objects = ImageLabeller.labelImageListLowConnectivity(mask);
-            if (objects.size()>1) {
-                objects.remove(Collections.max(objects, comparatorInt(o->o.size())));
-                for (Region toErase: objects) toErase.draw(mask, 0);
+            if (objects.size() > 1) {
+                if (keepOnlyBiggestObject) { // check if 2 objects and erase all but smallest
+                    objects.remove(Collections.max(objects, comparatorInt(o -> o.size())));
+                } else { // erase single pixels
+                    objects.removeIf(r->r.size()>1);
+                }
+                for (Region toErase : objects) toErase.draw(mask, 0);
             }
+            voxels = null; // reset voxels
         }
-        if (changes)  voxels = null; // reset voxels
         return changes;
     }
-    public boolean erodeContoursEdge(Image image, boolean keepOnlyBiggestObject) {
+    public boolean erodeContoursEdge(Image edgeMap, Image intensityMap, boolean keepOnlyBiggestObject) {
         boolean changes = false;
-        LinkedList<Voxel> heap = new LinkedList<>();
+        TreeSet<Voxel> heap = new TreeSet<>(Voxel.getComparator());
+        Image distanceMap = EDT.transform(getMask(), true, scaleXY, scaleZ, false);
         Set<Voxel> contour = getContour();
-        contour.forEach(v -> v.value = image.getPixel(v.x, v.y, v.z));
+        contour.forEach(v -> v.value = distanceMap.getPixelWithOffset(v.x, v.y, v.z));
         heap.addAll(contour);
-        EllipsoidalNeighborhood neigh = !this.is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true);
+        EllipsoidalNeighborhood neigh = !this.is2D() ? new EllipsoidalNeighborhood(1.5, 1.5, true) : new EllipsoidalNeighborhood(1.5, true);
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
         while(!heap.isEmpty()) {
-            Voxel v = ( heap).pollFirst();
-            for (int i = 0; i<neigh.dx.length; ++i) {
-                Voxel next = new Voxel(v.x+neigh.dx[i], v.y+neigh.dy[i], v.z+neigh.dz[i]);
-                if (contour.contains(next)) continue;
-                if (mask.contains(next.x-mask.xMin(), next.y-mask.yMin(), next.z-mask.zMin()) && mask.insideMask(next.x-mask.xMin(), next.y-mask.yMin(), next.z-mask.zMin())) {
-                    next.value = image.getPixel(next.x, next.y, next.z);
-                    if (next.value>v.value) {
-                        changes = true;
-                        mask.setPixel(v.x-mask.xMin(), v.y-mask.yMin(), v.z-mask.zMin(), 0);
-                        contour.remove(v);
-                        contour.add(next);
-                        heap.add(next);
-                    }
-                }
-            }
+            Voxel v = heap.pollFirst();
+            // get distance of nearest voxel that is further away from center
+            double dist = neigh.stream(v, getMask(), true).mapToDouble(n->distanceMap.getPixelWithOffset(n.x, n.y, n.z)).filter(d->d>v.value).min().orElse(Double.NaN);
+            if (Double.isNaN(dist)) continue;
+            double curValue = intensityMap.getPixel(v.x, v.y, v.z);
+            double curEdge = edgeMap.getPixel(v.x, v.y, v.z);
+            List<Voxel> nexts =  neigh.stream(v, getMask(), true).filter(n->distanceMap.getPixelWithOffset(n.x, n.y, n.z)==dist).filter(n->edgeMap.getPixel(n.x, n.y, n.z)>curEdge && intensityMap.getPixel(n.x, n.y, n.z)>curValue).collect(Collectors.toList());
+            if (nexts.isEmpty()) continue;
+            changes = true;
+            mask.setPixelWithOffset(v.x, v.y, v.z, 0);
+            nexts.forEach(next -> {
+                contour.remove(v);
+                next.value = (float)dist;
+                contour.add(next);
+                heap.add(next);
+            });
         }
-        if (changes && keepOnlyBiggestObject) { // check if 2 objects and erase all but smallest
+        if (changes) {
             List<Region> objects = ImageLabeller.labelImageListLowConnectivity(mask);
-            if (objects.size()>1) {
-                objects.remove(Collections.max(objects, comparatorInt(o->o.size())));
-                for (Region toErase: objects) toErase.draw(mask, 0);
+            if (objects.size() > 1) {
+                if (keepOnlyBiggestObject) { // check if 2 objects and erase all but smallest
+                    objects.remove(Collections.max(objects, comparatorInt(o -> o.size())));
+                } else { // erase single pixels
+                    objects.removeIf(r->r.size()>1);
+                }
+                for (Region toErase : objects) toErase.draw(mask, 0);
             }
+            voxels = null; // reset voxels
         }
-        if (changes) voxels = null; // reset voxels
         return changes;
     }
-    
+    /*public void fitToEdges(Image edgeMap, double seedDistanceFactorFore, double seedDistanceFactorBck) {
+        if (seedDistanceFactorFore<0||seedDistanceFactorFore>1) throw new IllegalArgumentException("distance factor should be between 0 and 1");
+        if (seedDistanceFactorBck<0||seedDistanceFactorBck>1) throw new IllegalArgumentException("distance factor should be between 0 and 1");
+        if (seedDistanceFactorBck>=seedDistanceFactorFore) throw new IllegalArgumentException("bck distance factor should be inferior");
+        if (!edgeMap.sameBounds(getMask())) edgeMap.cropWithOffset(getMask());
+
+        ImageInteger seedMap = Filters.localExtrema(edgeMap, null, false, getMask(), Filters.getNeighborhood(1.5, 1.5, edgeMap));
+        List<Region> seeds = ImageLabeller.labelImageList(seedMap);
+        Image distanceMap = EDT.transform(getMask(), true, scaleXY, scaleZ, false);
+        // separate background and foreground seed by distance to border
+        seeds.forEach(s -> s.getVoxels().forEach(v->v.value = distanceMap.getPixel(v.x, v.y, v.z)));
+        double maxDistance = seeds.stream().mapToDouble(s->s.getVoxels().iterator().next().value).max().getAsDouble();
+        double foreDistThld = maxDistance * seedDistanceFactorFore;
+        double backDistThld = Math.max(scaleXY, maxDistance * seedDistanceFactorBck);
+        List<Region> back = seeds.stream().filter(s->s.getVoxels().iterator().next().value==scaleXY).collect(Collectors.toList());
+        List<Region> fore = seeds.stream().filter(s->s.getVoxels().iterator().next().value>=foreDistThld).collect(Collectors.toList());
+
+        ArrayList<Region> seeds = new ArrayList<>(Arrays.asList(RegionFactory.getObjectsImage(seedMap, false)));
+        RegionPopulation pop = WatershedTransform.watershed(edgeMap, mask, seeds, new WatershedTransform.WatershedConfiguration().lowConectivity(lowConnectivity));
+        this.objects = pop.getRegions();
+        objects.remove(0); // remove background object
+        relabel(true);
+    }*/
     public void dilateContours(Image image, double threshold, boolean addIfHigherThanThreshold, Collection<Voxel> contour, ImageInteger labelMap) {
         //if (labelMap==null) labelMap = Collections.EMPTY_SET;
         TreeSet<Voxel> heap = new TreeSet<>(Voxel.getComparator());

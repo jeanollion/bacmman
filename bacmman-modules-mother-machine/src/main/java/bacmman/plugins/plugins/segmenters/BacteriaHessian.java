@@ -35,13 +35,13 @@ import bacmman.processing.RegionFactory;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
+import bacmman.utils.ArrayUtil;
 import ij.process.AutoThresholder;
 
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
 
@@ -118,19 +118,11 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
             imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after local threshold: prefiltered images"));
             imageDisp.accept(edges.setName("Edge map for local threshold"));
         }
-
-
         if (!Double.isNaN(filterThld)) {
             Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(objectClassIdx))));
             pop.filter(r->values.get(r)>=filterThld);
             if (pop.getRegions().isEmpty()) return pop;
         }
-
-        //pop = localThreshold(input, pop, parent, objectClassIdx, false);
-
-
-        // step 3 second round of split/merging
-
         pop = splitAndMerge.split(pop.getLabelMap(), 0); // partition the foreground mask
         splitAndMerge.setThreshold(this.splitThreshold.getValue().doubleValue());
         if (stores!=null) {
@@ -177,8 +169,16 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
                 pop.localThresholdEdges(preFilteredSmoothedIntensity, edgeMap, localThresholdFactor.getValue().doubleValue(), true, false, 0, mask, null);
                 pop.smoothRegions(2, true, mask);
                 return pop;
+            /*case LOCAL_THLD_EDGE:
+                Function<Region, Double> thldFct = r-> { // median intensity value on contours after fit to edges
+                    Region dup = r.duplicate(false);
+                    dup.erodeContoursEdge(edgeMap, preFilteredSmoothedIntensity, true);
+                    return ArrayUtil.median(dup.getContour().stream().mapToDouble(v->preFilteredSmoothedIntensity.getPixel(v.x,v.y,v.z)).toArray());
+                };
+                return pop.localThreshold(preFilteredSmoothedIntensity, thldFct, true, false, 0, null);
+            */
             default:
-                return pop;
+            return pop;
         }
     }
     
@@ -228,7 +228,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
             Voxel seed = so.getVoxels().iterator().next();
             double wsVal0 = wsMap.getPixel(seed.x, seed.y, seed.z);
             double inVal0= input.getPixel(seed.x, seed.y, seed.z);
-            Voxel newSeed = n.stream(seed, segmentationMask).map(v-> {
+            Voxel newSeed = n.stream(seed, segmentationMask, false).map(v-> {
                 double wsVal = wsMap.getPixel(v.x, v.y, v.z);
                 if (wsVal>=wsVal0) return null;
                 double inVal = input.getPixel(v.x, v.y, v.z);
