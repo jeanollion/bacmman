@@ -100,7 +100,7 @@ public class ConfigurationTreeGenerator {
                 tree.expandPath(path);
             }
             treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
-            setHint.accept(getHint(path, false));
+            setHint.accept(getHint(pp, false));
         };
     }
     public JTree getTree() {
@@ -215,12 +215,14 @@ public class ConfigurationTreeGenerator {
         tree.addTreeSelectionListener(e -> {
             switch (tree.getSelectionCount()) {
                 case 1:
-                    String hint = getHint(tree.getSelectionPath(), false);
-                    if (hint==null) setHint.accept("No hint available");
-                    else setHint.accept(hint);
+
                     Object lastO = tree.getSelectionPath().getLastPathComponent();
                     if (lastO instanceof PluginParameter) setModules.accept(((PluginParameter)lastO).getPluginName(), ((PluginParameter)lastO).getPluginNames());
                     else setModules.accept(null, Collections.emptyList());
+                    String hint = getHint(tree.getSelectionPath().getLastPathComponent(), false);
+                    if (hint==null) setHint.accept("No hint available");
+                    else setHint.accept(hint);
+                    logger.debug("set modules. hint: {}", hint);
                     break;
                 default:
                     setModules.accept(null, Collections.emptyList());
