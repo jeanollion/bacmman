@@ -843,10 +843,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         for (Selection sel : sels) {
             selectionModel.addElement(sel);
             sel.setState(state.get(sel.getName()));
-            //logger.debug("Selection : {}, displayingObjects: {} track: {}", sel.getName(), sel.isDisplayingObjects(), sel.isDisplayingTracks());
+            logger.debug("Populating... Selection : {}, displayingObjects: {} track: {} (state : {})", sel.getName(), sel.isDisplayingObjects(), sel.isDisplayingTracks(), state.containsKey(sel.getName()));
         }
         Utils.setSelectedValues(selectedValues, selectionList, selectionModel);
         resetSelectionHighlight();
+        SwingUtilities.invokeLater(()->selectionList.updateUI());
     }
     
     public void resetSelectionHighlight() {

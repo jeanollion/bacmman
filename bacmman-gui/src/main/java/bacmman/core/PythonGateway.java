@@ -48,19 +48,30 @@ public class PythonGateway {
     public void setExperimentToGUI(String xpName) {
         GUI.getInstance().openExperiment(xpName, null, false);
     }
-    
-    public void saveCurrentSelection(String dbName, int structureIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int structureDisplay, int interactiveStructure) {
+
+    /**
+     * Save a selection to the dataset {@param dbName}
+     * @param dbName name of the dataset
+     * @param objectClassIdx index of the class of the objects contained the selection
+     * @param selectionName name of the selection
+     * @param ids indices of the objects contained in the selection
+     * @param positions position of the objects contained in the selection
+     * @param showObjects whether objects should be shown
+     * @param showTracks
+     * @param open
+     * @param openWholeSelection
+     * @param objectClassIdxDisplay
+     * @param interactiveObjectClassIdx
+     */
+    public void saveCurrentSelection(String dbName, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
         if (ids.isEmpty()) return;
         if (ids.size()!=positions.size()) throw new IllegalArgumentException("idx & position lists should be of same size "+ids.size() +" vs "+ positions.size());
         if (selectionName.length()==0) selectionName=null;
         HashMapGetCreate<String, List<String>> idsByPosition = new HashMapGetCreate<>(ids.size(), new HashMapGetCreate.ListFactory());
         for (int i = 0; i<ids.size(); ++i) idsByPosition.getAndCreateIfNecessary(positions.get(i)).add(ids.get(i));
-        Selection res = Selection.generateSelection(selectionName, structureIdx, idsByPosition);
+        Selection res = Selection.generateSelection(selectionName, objectClassIdx, idsByPosition);
         logger.info("Generating selection: size: {} ({})", positions.size(), res.count());
-        res.setIsDisplayingObjects(showObjects);
-        res.setIsDisplayingTracks(showTracks);
-        res.setHighlightingTracks(true);
-        
+
         if (GUI.getDBConnection()==null || !GUI.getDBConnection().getDBName().equals(dbName)) {
             if (GUI.getDBConnection()!=null) logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbName);
             logger.info("Connection to {}....", dbName);
@@ -72,14 +83,22 @@ public class PythonGateway {
         GUI.getDBConnection().getSelectionDAO().store(res);
         logger.info("pop sels..");
         GUI.getInstance().populateSelections();
-        logger.info("sel sel..");
-        GUI.getInstance().setSelectedSelection(res);
+        logger.debug("all selections: {}", GUI.getInstance().getSelections().stream().map(s->s.getName()).toArray());
+        Selection savedSel = GUI.getInstance().getSelections().stream().filter(s->s.getName().equals(res.getName())).findFirst().orElse(null);
+        if (savedSel==null) throw new IllegalArgumentException("selection could not be saved");
+        savedSel.setIsDisplayingObjects(showObjects);
+        savedSel.setIsDisplayingTracks(showTracks);
+        savedSel.setHighlightingTracks(true);
+        savedSel.setNavigate(true);
+
         if (openWholeSelection) {
-            SelectionUtils.displaySelection(res, -2, structureDisplay);
-        } else {
-            GUI.getInstance().navigateToNextObjects(true, false, structureDisplay, interactiveStructure<0);
+            // limit to 200 objects
+            if (ids.size()>200) throw new IllegalArgumentException("too many objects in selection");
+            SelectionUtils.displaySelection(savedSel, -2, objectClassIdxDisplay);
+        } else if (open) {
+            GUI.getInstance().navigateToNextObjects(true, false, objectClassIdxDisplay, interactiveObjectClassIdx<0);
         }
-        if (interactiveStructure>=0) GUI.getInstance().setInteractiveStructureIdx(interactiveStructure);
+        if (interactiveObjectClassIdx>=0) GUI.getInstance().setInteractiveStructureIdx(interactiveObjectClassIdx);
     }
     
 }

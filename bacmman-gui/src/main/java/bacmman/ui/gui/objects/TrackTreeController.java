@@ -24,6 +24,7 @@ import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.GUI;
 
+import javax.swing.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -161,7 +162,7 @@ public class TrackTreeController {
     }
     public void resetHighlight() {
         for (TrackTreeGenerator t : allGeneratorS.values()) t.resetHighlightedObjects();
-        for (TrackTreeGenerator t : this.displayedGeneratorS.values()) if (t.tree!=null) t.tree.updateUI();
+        for (TrackTreeGenerator t : this.displayedGeneratorS.values()) if (t.tree!=null) SwingUtilities.invokeLater(() -> t.tree.updateUI());
     }
     public String getSelectedPosition() {
         if (displayedGeneratorS.isEmpty()) return null;
