@@ -567,7 +567,10 @@ public abstract class ImageWindowManager<I, U, V> {
     public void displayAllObjects(Image image) {
         if (image==null) {
             image = getDisplayer().getCurrentImage2();
-            if (image==null) return;
+            if (image==null) {
+                GUI.logger.debug("no active image");
+                return;
+            }
         }
         InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
         if (i==null) {
@@ -763,7 +766,7 @@ public abstract class ImageWindowManager<I, U, V> {
         SegmentedObject trackHead = track.get(track.size()>1 ? 1 : 0).key.getTrackHead(); // idx = 1 because track might begin with previous object
         boolean canDisplayTrack = i instanceof Kymograph;
         //canDisplayTrack = canDisplayTrack && ((TrackMask)i).parent.getTrackHead().equals(trackHead.getParent().getTrackHead()); // same track head
-        canDisplayTrack = canDisplayTrack && i.getParent().getStructureIdx()<=trackHead.getStructureIdx();
+        //canDisplayTrack = canDisplayTrack && i.getParent().getStructureIdx()<=trackHead.getStructureIdx();
         if (canDisplayTrack) {
             Kymograph tm = (Kymograph)i;
             tm.trimTrack(track);

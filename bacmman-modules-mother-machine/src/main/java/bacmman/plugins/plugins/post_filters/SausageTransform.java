@@ -57,7 +57,7 @@ public class SausageTransform implements PostFilter, Hint {
 
     public static void transform(Region r, BoundingBox parentBounds) {
         BacteriaSpineFactory.SpineResult sr = BacteriaSpineFactory.createSpine(r, 1);
-        logger.debug("spine ok");
+        //logger.debug("spine ok");
         SausageContourFactory.toSausage(sr, 0.5); // resample to be able to fill
         //logger.debug("to sausage ok");
         Set<Voxel> sausageContourVox = sr.contour.stream().map(l -> ((Point)l).asVoxel()).collect(Collectors.toSet());

@@ -56,10 +56,21 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
 
     NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions A and B are merged if mean(hessian) @ interface(A-B) / mean(intensity) @ interface(A-B)  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
 
-    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factory for local threhsolding to fit edges. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this factor (edges as defined by <em>Edge Map</em>. Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
+    protected NumberParameter localThresholdFactorHess = new BoundedNumberParameter("Local Threshold Factor (Hessian)", 2, 0, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit hessian. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the hessian values - standard-deviation of intensity * this factor. Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
+    BooleanParameter upperCellCorrectionHess = new BooleanParameter("Upper Cell Correction (Hessian)", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
+    NumberParameter upperCellLocalThresholdFactorHess = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
+    NumberParameter maxYCoordinateHess = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
+    ConditionalParameter upperCellCorrectionCondHess = new ConditionalParameter(upperCellCorrectionHess).setActionParameters("true", upperCellLocalThresholdFactorHess, maxYCoordinateHess);
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodHess = new EnumChoiceParameter<>("Contour Adjustment (hessian)", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment using hessian");
+    ConditionalParameter contourAdjustmentCondHess = new ConditionalParameter(contourAdjustmentMethodHess).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactorHess, upperCellCorrectionCondHess);
 
+    BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
+    NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
+    NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
+    ConditionalParameter upperCellCorrectionCond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
+    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit edges. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this factor (edges as defined by <em>Edge Map</em>). Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment");
-    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor);
+    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, upperCellCorrectionCond);
 
 
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
@@ -69,14 +80,15 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     double filterThld=Double.NaN;
     final String operationSequenceHint = "<ol><li>Partition of the whole microchannel using seeded watershed algorithm on maximal hessian eigenvalue transform</li>"
             +"<li>Merging of partition using a criterion on hessian value at interface see hint of parameter <em>Merge Threshold</em></li>"
-            +"<li>Local Threshold of regions to fit contour on <em>Edge Map<em>, see hint of <em>Local Threshold factor</em> for details</li>"
+            +"<li>Local Threshold of regions <em>Hessian</em>, see hint of <em>Contour Adjustment (hessian)</em> and sub-parameters for details</li>"
+            +"<li>Local Threshold of regions to fit contour on <em>Edge Map</em>, see hint of <em>Contour Adjustment</em> and sub-parameters for details</li>"
             +"<li>Region of intensity inferior to <em>Threshold</em> are erased</li>"
             +"<li>Foreground is split by applying a watershed transform on the maximal hessian Eigen value, regions are then merged, using a criterion described in <em>Split Threshold</em> parameter</li>"
             +"</ol>";
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{vcThldForVoidMC, hessianScale, mergeThreshold, edgeMap, foreThresholder, splitThreshold, contourAdjustmentCond, splitMethod};
+        return new Parameter[]{vcThldForVoidMC, hessianScale, mergeThreshold, edgeMap, foreThresholder, splitThreshold, contourAdjustmentCondHess, contourAdjustmentCond, splitMethod};
     }
     public BacteriaHessian() {
         this.hessianScale.setValue(2);
@@ -107,23 +119,14 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         if (stores!=null)  imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after merge partitions"));
 
         // step 2 adjust regions to edges
-        Image smooth = ImageFeatures.gaussianSmooth(parent.getPreFilteredImage(objectClassIdx), 2, false);
-        // hessian "edges"
-        pop.localThresholdEdges(smooth, splitAndMerge.getWatershedMap(), 0, true, false, 0, parent.getMask(), null);
-        //if (stores!=null)  imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after local threshold: hessian"));
-        Image edges = this.edgeMap.filter(parent.getPreFilteredImage(objectClassIdx), parent.getMask());
-        // edges of pre-filtered images
-        localThreshold(pop, edges, smooth, parent.getRawImage(objectClassIdx), parent.getMask());
-        if (stores != null) {
-            imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after local threshold: prefiltered images"));
-            imageDisp.accept(edges.setName("Edge map for local threshold"));
-        }
+        localThreshold(pop, parent, objectClassIdx);
+
         if (!Double.isNaN(filterThld)) {
             Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(objectClassIdx))));
             pop.filter(r->values.get(r)>=filterThld);
             if (pop.getRegions().isEmpty()) return pop;
         }
-        pop = splitAndMerge.split(pop.getLabelMap(), 0); // partition the foreground mask
+        pop = splitAndMerge.split(pop.getLabelMap(), 20); // partition the foreground mask
         splitAndMerge.setThreshold(this.splitThreshold.getValue().doubleValue());
         if (stores!=null) {
             imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after split by hessian"));
@@ -161,24 +164,48 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     }
     abstract void setInterfaceValue(Image input, SplitAndMergeHessian sam);
 
+    protected void localThresholdWEdge(RegionPopulation pop, Image edgeMap, Image intensity, ImageMask mask, boolean darkBck, boolean upperCellCorrection, int upperCellCorrectionMinYCoord, double factor, double factorUpperCell) {
+        // different local threshold for middle part of upper cell when touches borders
+        boolean differentialLF = false;
+        if (upperCellCorrection) {
+            Region upperCell = pop.getRegions().stream().min(Comparator.comparingInt(r -> r.getBounds().yMin())).get();
+            if (upperCell.getBounds().yMin() <= upperCellCorrectionMinYCoord) {
+                differentialLF = true;
+                double yLim = upperCell.getGeomCenter(false).get(1); // + upperCell.getBounds().sizeY() / 3.0; // local threshold for half upper part of 1st cell
+                pop.localThresholdEdges(intensity, edgeMap, factorUpperCell, darkBck, false, 0, mask, v -> v.y < yLim);
+                if (stores != null) { //|| (callFromSplit && splitVerbose)
+                    logger.debug("y lim: {}", yLim);
+                }
+                pop.localThresholdEdges(intensity, edgeMap, factor, darkBck, false, 0, mask, v -> v.y > yLim);  // local threshold for lower cells & half lower part of cell
+            }
+        }
+        if (!differentialLF) pop.localThresholdEdges(intensity, edgeMap, factor, darkBck, false, 0, mask, null);
+        pop.smoothRegions(2, true, mask);
+    }
 
-    protected RegionPopulation localThreshold(RegionPopulation pop, Image edgeMap, Image preFilteredSmoothedIntensity, Image rawIntensity, ImageMask mask) {
-        if (pop.getRegions().isEmpty()) return pop;
+    protected void localThreshold(RegionPopulation pop, SegmentedObject parent, int objectClassIdx) {
+        if (pop.getRegions().isEmpty()) return;
+        Image smooth = ImageFeatures.gaussianSmooth(parent.getPreFilteredImage(objectClassIdx), 2, false);
+        switch(contourAdjustmentMethodHess.getSelectedEnum()) {
+            case LOCAL_THLD_W_EDGE:
+                localThresholdWEdge(pop, splitAndMerge.getWatershedMap(), smooth, parent.getMask(), true, this.upperCellCorrectionHess.getSelected(), maxYCoordinateHess.getValue().intValue(), this.localThresholdFactorHess.getValue().doubleValue(), upperCellLocalThresholdFactorHess.getValue().doubleValue());
+                break;
+            default:
+        }
+        if (contourAdjustmentMethod.getSelectedIndex()<0) return;
+
+        Image edges = this.edgeMap.filter(parent.getPreFilteredImage(objectClassIdx), parent.getMask());
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_W_EDGE:
-                pop.localThresholdEdges(preFilteredSmoothedIntensity, edgeMap, localThresholdFactor.getValue().doubleValue(), true, false, 0, mask, null);
-                pop.smoothRegions(2, true, mask);
-                return pop;
-            /*case LOCAL_THLD_EDGE:
-                Function<Region, Double> thldFct = r-> { // median intensity value on contours after fit to edges
-                    Region dup = r.duplicate(false);
-                    dup.erodeContoursEdge(edgeMap, preFilteredSmoothedIntensity, true);
-                    return ArrayUtil.median(dup.getContour().stream().mapToDouble(v->preFilteredSmoothedIntensity.getPixel(v.x,v.y,v.z)).toArray());
-                };
-                return pop.localThreshold(preFilteredSmoothedIntensity, thldFct, true, false, 0, null);
-            */
+                localThresholdWEdge(pop, edges, smooth, parent.getMask(), true, this.upperCellCorrection.getSelected(), maxYCoordinate.getValue().intValue(), this.localThresholdFactor.getValue().doubleValue(), upperCellLocalThresholdFactor.getValue().doubleValue());
+                break;
             default:
-            return pop;
+        }
+
+        if (stores != null) {
+            Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
+            imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values after local threshold: prefiltered images"));
+            imageDisp.accept(edges.setName("Edge map for local threshold"));
         }
     }
     

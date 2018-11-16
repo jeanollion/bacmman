@@ -63,8 +63,8 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     IntervalParameter sizeRatio = new IntervalParameter("Size Ratio", 2, 0.5, 3, 0.8, 1.5).setHint("Typical range of ratio of size between two frames");
     ChoiceParameter sizeFeature = new ChoiceParameter("Feature used for Size", new String[]{"Size", "Length"}, "Size", false).setHint("Object feature used to compute the size ratio. <ul><li><em>Size</em> : number of pixels</li><li><em>Length</em> : Feret distance (max distance between two points of contour)</li></ul>");
     
-    BoundedNumberParameter costLimit = new BoundedNumberParameter("Correction: operation cost limit", 3, 1.5, 0, null).setHint("Limits the cost of each single correction operation (merge/split). Value depends on the segmenter and the threshold for splitting set in the segmenter");
-    BoundedNumberParameter cumCostLimit = new BoundedNumberParameter("Correction: cumulative cost limit", 3, 5, 0, null).setHint("Limits the sum of costs for a correction over multiple frames");
+    BoundedNumberParameter costLimit = new BoundedNumberParameter("Correction: operation cost limit", 3, 1.5, 0, null).setHint("Limits the cost of each single correction operation (merge/split). <br />Cost value is the difference between the interface value (as computed by the segmenter) and the split threshold parameter of the segmenter. For a merge operation the interface between the 2 regions to be merged is considered. For a split operation: a region is split in two and the interface between the 2 new regions is considered.<br />When an correction operation (split / merge) yields to a cost superior to this parameter, it is not performed");
+    BoundedNumberParameter cumCostLimit = new BoundedNumberParameter("Correction: cumulative cost limit", 3, 5, 0, null).setHint("Limits the sum of costs for a correction over multiple frames <br />(see <em>operation cost limit</em> parameter for details on cost computation");
     BoundedNumberParameter endOfChannelContactThreshold = new BoundedNumberParameter("End of channel contact Threshold", 2, 0.45, 0, 1).setHint("A cell is considered to be partially outside the channel if the contact with the open-end of the channel divided by its thickness is superior to this value");
     Parameter[] parameters = new Parameter[]{segmenter, sizeFeature, sizeRatio, costLimit, cumCostLimit, endOfChannelContactThreshold};
 
@@ -75,7 +75,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
             + "<li>First assignment is the minimal that verify the growth inequality: given Sf = sum(size)@Frame=F Sf-1 = sum(size)@Frame=F-1 : Sf-1 * minGrowthRate <= Sf <= Sf-1 * maxGrowthRate </li>"
             + "<li>In order to take into account a wide range of growth rate, when possible the size ratio between Frames F & F-1 is compared to the median size ratio of the 20 last observations of the same line, and the difference is minimized</li>"
             + "<li>In order to take into account cells exiting microchannels no errors are counted to assignment of cells close to the microchannel open-end</li>"
-            + "<li>When tracking errors are detected (e.g two bacteria merging at next frame), a local correction is intended, comparing the scenario(s) of merging cells at previous frames and splitting cells at next frames. The scenario that minimizes firstly tracking error number and secondly correction cost (defined by the segmenter) will be chosen if its cost is under the thresholds defined by parameters <em>Correction: operation cost limit</em> and <em>Correction: cumulative cost limit</em></li></ul>";
+            + "<li>When tracking errors are detected (e.g two bacteria merging at next frame), a local correction is tried, comparing the scenario(s) of merging cells at previous frames and splitting cells at next frames. The scenario that minimizes firstly tracking error number and secondly correction cost (defined by the segmenter) will be chosen if its cost is under the thresholds defined by parameters <em>Correction: operation cost limit</em> and <em>Correction: cumulative cost limit</em></li></ul>";
 
     @Override public String getHintText() {return toolTip;}
     
@@ -122,7 +122,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     final static boolean setSRErrorsAsErrors = false; // SI errors are set as tracking errors in object attributes
     
     // limits to correction to avoid out-of-memory errors due to big correction scenarios
-    final static double maxErrorRate = 4; // above this number of error per frame (mean on 7 consecutive frame) no correction is intended
+    final static double maxErrorRate = 4; // above this number of error per frame (mean on 7 consecutive frame) no correction is performed
     final static int maxCorrectionLength = 100; // limit length of correction scenario
     final static int correctionIndexLimit = 20; // max bacteria idx for correction
     
@@ -204,8 +204,13 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
         
         // 1) Segment and keep track of segmenter parametrizer for corrections
         SegmentOnly so = new SegmentOnly(segmenter.instanciatePlugin()).setPostFilters(postFilters).setTrackPreFilters(trackPreFilters);
-        so.segmentAndTrack(structureIdx, parentTrack, factory, editor);
-        if (correction) inputImages=parentTrack.stream().collect(Collectors.toMap(p->p.getFrame(), p->p.getPreFilteredImage(structureIdx))); // record prefiltered images
+        if (correction) {
+            so.getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
+            applyToSegmenter=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instanciatePlugin());
+            so.segmentAndTrack(structureIdx, parentTrack, applyToSegmenter, factory);
+            inputImages=parentTrack.stream().collect(Collectors.toMap(p->p.getFrame(), p->p.getPreFilteredImage(structureIdx))); // record prefiltered images
+        } else so.segmentAndTrack(structureIdx, parentTrack, factory, editor);
+
         // trim empty frames @ start & end. Limit to first continuous segment ? 
         while (minF<maxFExcluded && getObjects(minF).isEmpty()) ++minF;
         while (maxFExcluded>minF && getObjects(maxFExcluded-1).isEmpty()) --maxFExcluded;

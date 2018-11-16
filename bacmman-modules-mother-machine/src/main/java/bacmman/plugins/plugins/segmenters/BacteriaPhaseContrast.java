@@ -58,7 +58,7 @@ import java.util.stream.Stream;
 public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPhaseContrast> {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
-    
+
     BooleanParameter filterBorderArtifacts = new BooleanParameter("Filter border Artifacts", true).setHint("In some phase-contrast images, a high intensity gradient is present at border of microchannels, and thus lead to false-positive segmentation. If this option is set to true, thin objects touching sides of microchannels will be removed");
     BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
     NumberParameter dilateRadius = new BoundedNumberParameter("Dilate Radius", 0, 0, 0, null).setHint("Dilatation applied to cell region before local thresholding");
@@ -66,17 +66,25 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
     ConditionalParameter cond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment after segmentation");
-    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, smoothScale, cond, dilateRadius);
+    BooleanParameter adjustContoursOnRaw = new BooleanParameter("Adjust contours on raw signal", true);
+    ConditionalParameter adjustContoursOnRawCond = new ConditionalParameter(adjustContoursOnRaw).setActionParameters("true", smoothScale);
+    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, adjustContoursOnRawCond, cond, dilateRadius);
     NumberParameter minSize = new BoundedNumberParameter("Minimum Region Size", 0, 200, 10, null).setHint("Minimum Object Size in voxels. <br />After split and merge using hessian: regions under this size will be merged by the adjacent region that has the lowest interface value, and if this value is under 2 * <em>Split Threshold</em>");
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
     EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.MIN_WIDTH, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
+
+    enum INTERFACE_VALUE {MEAN_HESS_DIV_MEAN_INTENSITY, NORMED_HESS}
+    EnumChoiceParameter<INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Value", INTERFACE_VALUE.values(), INTERFACE_VALUE.MEAN_HESS_DIV_MEAN_INTENSITY, false).setHint("Interface value for splitting objects: <ol>" +
+            "<li>MEAN_HESS_DIV_MEAN_INTENSITY: mean value of hessian at interface between to regions normalized by the mean value of the pre-filtered image within whole segmented regions</li>" +
+            "<li>NORMED_HESS: mean value of hessian at interface between to regions normalized by the mean value of the pre-filtered at the interface between the two regions - estimation of background level (mean of pixels under Ostu's threshold on the whole parent track histogram)</li>" +
+            "</ol>");
 
     // attributes parametrized during track parametrization
     double lowerThld = Double.NaN, upperThld = Double.NaN, filterThld=Double.NaN;
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{vcThldForVoidMC, edgeMap, foreThresholder, filterBorderArtifacts, hessianScale, splitThreshold, minSize , contourAdjustmentCond, splitMethod};
+        return new Parameter[]{vcThldForVoidMC, edgeMap, foreThresholder, filterBorderArtifacts, hessianScale, interfaceValue, splitThreshold, minSize , contourAdjustmentCond, splitMethod};
     }
     public BacteriaPhaseContrast() {
         super();
@@ -100,7 +108,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             + "Same algorithm as BacteriaIntensity with several changes:<br />"
             + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, filtered with the Track-pre-filter: \"SubtractBackgroundMicrochannels\"<br />"
             + "<ol><li>Background partition selection can include filtering of High-intensity background objects resulting from border-effects & phase contrast imaging. See <em>Filter border Artefacts</em></li>"
-            + "<li>Split/Merge criterion is value of hessian at interface between to regions normalized by the mean value of the pre-filtered image within all segmented regions</li>"
+            + "<li>Split/Merge criterion is value of hessian at interface between to regions normalized by the mean value of the pre-filtered image within all segmented regions, or can be set using <em>Interface value</em> parameter</li>"
             + "<li>Local threshold step is performed on the raw images with a different value described in the <em>local threshold factor</em> parameter</li></ol>";
     
     @Override public String getHintText() {return toolTip;}
@@ -112,18 +120,39 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         return sam;
     }
     private void setInterfaceValue(Image input, SplitAndMergeHessian sam) {
-        sam.setInterfaceValue(i-> {
-            Collection<Voxel> voxels = i.getVoxels();
-            if (voxels.isEmpty()) return Double.NaN;
-            else {
-                Image hessian = sam.getHessian();
-                double val  =  voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).average().getAsDouble();
-                // normalize using mean value (compare with max of mean or max of median
-                double mean = Stream.concat(i.getE1().getVoxels().stream(), i.getE2().getVoxels().stream()).mapToDouble(v->(double)input.getPixel(v.x, v.y, v.z)).average().getAsDouble();
-                val/=mean;
-                return val;
-            }
-        });
+        switch (interfaceValue.getSelectedEnum()) {
+            case MEAN_HESS_DIV_MEAN_INTENSITY:
+            default:
+                sam.setInterfaceValue(i-> {
+                    Collection<Voxel> voxels = i.getVoxels();
+                    if (voxels.isEmpty()) return Double.NaN;
+                    else {
+                        // normalize using mean value
+                        double mean = Stream.concat(i.getE1().getVoxels().stream(), i.getE2().getVoxels().stream()).mapToDouble(v->(double)input.getPixel(v.x, v.y, v.z)).average().getAsDouble()-globalBackgroundLevel;
+                        if (mean<=0) return Double.NaN;
+                        Image hessian = sam.getHessian();
+                        double val  =  voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).average().getAsDouble();
+                        val/=mean;
+                        return val;
+                    }
+                });
+            break;
+            case NORMED_HESS:
+                if (Double.isNaN(lowerThld)) throw new RuntimeException("Segmenter not parametrized");
+                sam.setInterfaceValue(i-> {
+                    Collection<Voxel> voxels = i.getVoxels();
+                    if (voxels.isEmpty()) return Double.NaN;
+                    else {
+                        Image hessian = sam.getHessian();
+                        double intensitySum = voxels.stream().mapToDouble(v->input.getPixel(v.x, v.y, v.z)-lowerThld).sum();
+                        if (intensitySum<=0) return Double.NaN;
+                        double hessSum = voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).sum();
+                        return hessSum / intensitySum;
+                    }
+                });
+            break;
+        }
+
     }
     
     @Override
@@ -169,6 +198,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     public static boolean verbosePlus=false;
     @Override
     protected RegionPopulation filterRegionsAfterEdgeDetector(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
+        // TODO: filter artifacts according to their hessian value
         if (pop.getRegions().isEmpty()) return pop;
         Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(structureIdx))));
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent);
@@ -181,6 +211,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         if (stores!=null && verbosePlus) {
             Map<Region, Double> valuesArt = pop.getRegions().stream().collect(Collectors.toMap(r->r, r->artifactFunc.apply(r)+2d));
             imageDisp.accept(EdgeDetector.generateRegionValueMap(parent.getPreFilteredImage(structureIdx), valuesArt).setName("artifact map: 1 = artifact / 2 = unknown / 3 = not artifact"));
+            //imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, this.splitAndMerge.getHessian()).setName("hessian"));
             imageDisp.accept(pop.getLabelMap().duplicate("region before artifact filter"));
         }
         Set<Region> backgroundL = pop.getRegions().stream().filter(r->values.get(r)<lowerThld || artifactFunc.apply(r)==-1).collect(Collectors.toSet());
@@ -312,8 +343,14 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         switch(contourAdjustmentMethod.getSelectedEnum()) {
             case LOCAL_THLD_W_EDGE:
                 double dilRadius = callFromSplit ? 0 : dilateRadius.getValue().doubleValue();
-                Image smooth = smoothScale.getValue().doubleValue() < 1 ? parent.getRawImage(structureIdx) : ImageFeatures.gaussianSmooth(parent.getRawImage(structureIdx), smoothScale.getValue().doubleValue(), false);
-                Image edgeMap = Sigma.filter(parent.getRawImage(structureIdx), parent.getMask(), 3, 1, smoothScale.getValue().doubleValue(), 1, false);
+                Image smooth, edgeMap;
+                if (adjustContoursOnRaw.getSelected()) {
+                    smooth = smoothScale.getValue().doubleValue() < 1 ? parent.getRawImage(structureIdx) : ImageFeatures.gaussianSmooth(parent.getRawImage(structureIdx), smoothScale.getValue().doubleValue(), false);
+                    edgeMap = Sigma.filter(parent.getRawImage(structureIdx), parent.getMask(), 3, 1, smoothScale.getValue().doubleValue(), 1, false);
+                } else {
+                    smooth = input;
+                    edgeMap = this.edgeDetector.getWsMap(input, parent.getMask());
+                }
                 Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
                 if (imageDisp != null) { //| (callFromSplit && splitVerbose)
                     imageDisp.accept(smooth.setName("Local Threshold intensity map"));
@@ -350,7 +387,8 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             currentParent = parent;
             splitAndMerge = initializeSplitAndMerge(parent, structureIdx,parent.getMask());
         }
-        splitAndMerge.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent));
+        if (splitVerbose) splitAndMerge.setTestMode(i->Core.showImage(i));
+        logger.debug("split object: lower thld: {}", lowerThld);
         if (splitMethod.getSelectedEnum().equals(SPLIT_METHOD.MIN_WIDTH)) splitAndMerge.setInterfaceValue(i->-(double)i.getVoxels().size()); // algorithm:  split  @ smallest interface
         RegionPopulation res = splitAndMerge.splitAndMerge(mask, MIN_SIZE_PROPAGATION, splitAndMerge.objectNumberLimitCondition(2));
         setInterfaceValue(input, splitAndMerge); // for interface value computation
@@ -367,7 +405,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         double[] thlds = getTrackThresholds(parentTrack, structureIdx, voidMC);
         return (p, s) -> {
             if (voidMC.contains(p)) s.isVoid=true; 
-            s.globalBackgroundLevel = 0; // was 0. use in SplitAndMergeHessian -> should be minimal value
+            s.globalBackgroundLevel = 0; // used in SplitAndMergeHessian -> influence on split threshold parameter & correction cost in tracker
             s.lowerThld= thlds[0];
             s.upperThld = thlds[1]; // was otsu
             s.filterThld = thlds[1]; // was mean over otsu

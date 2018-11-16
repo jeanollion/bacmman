@@ -49,7 +49,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{vcThldForVoidMC, hessianScale, mergeThreshold, edgeMap, foreThldCond, splitThreshold, contourAdjustmentCond};
+        return new Parameter[]{vcThldForVoidMC, hessianScale, mergeThreshold, edgeMap, foreThldCond, splitThreshold, contourAdjustmentCondHess, contourAdjustmentCond};
     }
 
     @Override boolean rawHasDarkBackground() {return true;}
