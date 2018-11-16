@@ -291,7 +291,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
             currentParent = parent;
             splitAndMerge = initializeSplitAndMerge(parent, structureIdx,parent.getMask());
         }
-        if (stores!=null) splitAndMerge.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent));
+        if (stores!=null) splitAndMerge.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = splitAndMerge.splitAndMerge(mask, MIN_SIZE_PROPAGATION, splitAndMerge.objectNumberLimitCondition(2));
         res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         //res =  localThreshold(input, res, parent, structureIdx, true); 

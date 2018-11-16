@@ -22,6 +22,8 @@ import bacmman.image.Offset;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Objects;
+
 import net.imglib2.Localizable;
 
 /**
@@ -66,11 +68,16 @@ public class Voxel implements Offset<Voxel>, Localizable {
         } else return false;
     }
 
-    @Override
+    /*@Override
     public int hashCode() {
         return 97 * (97 * (679 + this.x) + this.y) + this.z;
+    }*/
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(x, y, z);
     }
-    
+
     @Override
     public String toString() {
         return "{" + x + ";" + y + ";" + z + ";V=" + value + '}';

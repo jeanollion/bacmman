@@ -27,10 +27,9 @@ import bacmman.utils.geom.GeomUtils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.PointSmoother;
 import bacmman.utils.geom.Vector;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+
+import java.util.*;
+
 import net.imglib2.RealLocalizable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -67,7 +66,7 @@ public class CircularContourFactory {
     public static CircularNode<Voxel> getCircularContour(Set<Voxel> contour) {
         Set<Voxel> contourVisited = new HashSet<>(contour.size());
         EllipsoidalNeighborhood neigh = new EllipsoidalNeighborhood(1.5, true);
-        CircularNode<Voxel> circContour = new CircularNode(contour.stream().min((Voxel v1, Voxel v2) -> Integer.compare(v1.x + v1.y, v2.x + v2.y)).get()); // circContour with upper-leftmost voxel
+        CircularNode<Voxel> circContour = new CircularNode(contour.stream().min(Comparator.comparingInt((Voxel v) -> v.x + v.y)).get()); // circContour with upper-leftmost voxel
         contourVisited.add(circContour.element);
         int count = 1;
         CircularNode<Voxel> current = null;
@@ -85,13 +84,13 @@ public class CircularContourFactory {
         if (crossPMap.size() == 1) {
             throw new RuntimeException("circular contour: first point is end point");
         }
-        current = circContour.setNext(crossPMap.entrySet().stream().max((Map.Entry<Voxel, Double> e1, Map.Entry<Voxel, Double> e2) -> Double.compare(e1.getValue(), e2.getValue())).get().getKey());
-        circContour.setPrev(crossPMap.entrySet().stream().min((Map.Entry<Voxel, Double> e1, Map.Entry<Voxel, Double> e2) -> Double.compare(e1.getValue(), e2.getValue())).get().getKey());
+        current = circContour.setNext(crossPMap.entrySet().stream().max(Comparator.comparingDouble(Map.Entry::getValue)).get().getKey());
+        circContour.setPrev(crossPMap.entrySet().stream().min(Comparator.comparingDouble(Map.Entry::getValue)).get().getKey());
         count += 2;
         contourVisited.add(current.element);
         contourVisited.add(circContour.prev.element);
         //logger.debug("count: {}, source: {}, next: {}, prev: {}", count, circContour.element, circContour.next.element, circContour.prev.element);
-        // 2) loop and get other points in the same direction. This requieres that each point of the contour has exactly 2 neighbours
+        // 2) loop and get other points in the same direction. This requires that each point of the contour has exactly 2 neighbours
         Map<Voxel, Integer> alternativeNext = new HashMap<>(neigh.getSize() - 2);
         CircularNode<Voxel> lastIntersection = null;
         Voxel currentNext = null;
@@ -116,8 +115,8 @@ public class CircularContourFactory {
                     }
                 }
             }
-            if (!alternativeNext.isEmpty()) {
-                // get non-deadend voxel with least unvisited neighbors
+            if (!alternativeNext.isEmpty()) { // there were several possibilities for next
+                // get non-dead end voxel with least unvisited neighbors
                 if (BacteriaSpineFactory.imageDisp!=null) {
                     BacteriaSpineFactory.logger.debug("get non-dead voxel among: {}", alternativeNext);
                 }
@@ -130,7 +129,7 @@ public class CircularContourFactory {
                     return c;
                 }).orElse(null);
                 if (entry == null) {
-                    entry = alternativeNext.entrySet().stream().findFirst().get(); // only deadends, try one
+                    entry = alternativeNext.entrySet().stream().findFirst().get(); // only dead-ends, try one
                 }
                 lastIntersection = current;
                 alternativeNext.clear();

@@ -94,8 +94,7 @@ public class Region {
     }
     
     public Region(Set<Voxel> voxels, int label, boolean is2D, double scaleXY, double scaleZ) {
-        if (voxels instanceof Set) this.voxels = (Set)voxels;
-        else this.voxels=new HashSet<>(voxels);
+        this.voxels = voxels;
         this.label=label;
         this.scaleXY=scaleXY;
         this.scaleZ=scaleXY;
@@ -444,7 +443,6 @@ public class Region {
      * @return subset of object's voxels that are in contact with background, edge or other object
      */
     public Set<Voxel> getContour() {
-        getMask();
         EllipsoidalNeighborhood neigh = !is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true); // 1 and not 1.5 -> diagonal
         Set<Voxel> res = new HashSet<>();
         if (voxels!=null) {
@@ -907,7 +905,10 @@ public class Region {
         else {
             if (mask!=null) mask.translate(offset);
             if (bounds!=null) bounds.translate(offset);
-            if (voxels!=null) for (Voxel v : voxels) v.translate(offset);
+            if (voxels!=null) {
+                for (Voxel v : voxels) v.translate(offset);
+                this.voxels = new HashSet<>(voxels); // hash of voxel change
+            }
             if (center!=null) center.translate(offset);
         }
         return this;

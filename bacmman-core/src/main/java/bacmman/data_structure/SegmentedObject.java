@@ -662,11 +662,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             logger.warn("split error: {}", this);
             return null;
         }
-        // first object returned by splitter is updated to current structureObject
+        // set landmark
         if (!pop.isAbsoluteLandmark()) {
             pop.translate(getParent().getBounds(), true);
             logger.debug("offsets: {}", Utils.toStringList(pop.getRegions(), r -> new SimpleOffset(r.getBounds())));
-        } 
+        }
+        // first object returned by splitter is updated to current structureObject
         this.object=pop.getRegions().get(0).setLabel(idx+1);
         this.regionContainer = null;
         flushImages();
