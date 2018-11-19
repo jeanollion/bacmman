@@ -27,15 +27,8 @@ import bacmman.data_structure.image_container.MultipleImageContainerSingleFile;
 import bacmman.image.io.ImageReader;
 import java.io.File;
 import java.io.FileFilter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -93,7 +86,7 @@ public class ImageFieldFactory {
             for (File ff : f.listFiles()) {
                 ImageFieldFactory.importImagesSingleFile(ff, xp, containersTC, pcb);
             }
-        } else if (!isIgnoredExtension(f.getName())) {
+        } else if (!isIgnoredFile(f.getName())) {
             addContainerSingleFile(f, xp, containersTC, pcb);
         }
     }
@@ -142,7 +135,7 @@ public class ImageFieldFactory {
         File[] subDirs = input.listFiles(getDirectoryFilter()); // recursivity
         for (File dir : subDirs) importImagesChannel(dir, xp, channelKeywords, containersTC, pcb);// recursivity
         
-        File[] file0 = input.listFiles((File dir, String name) -> name.contains(channelKeywords[0]) && !isIgnoredExtension(name));
+        File[] file0 = input.listFiles((File dir, String name) -> name.contains(channelKeywords[0]) && !isIgnoredFile(name));
         Processor.logger.debug("import images in dir: {} number of candidates: {}", input.getAbsolutePath(), file0.length);
         for (File f : file0) {
             String[] allChannels = new String[channelKeywords.length];
@@ -175,11 +168,11 @@ public class ImageFieldFactory {
         for (File dir : subDirs) importImagesCTP(dir, xp, channelKeywords, containersTC, pcb);// recursivity
         // 1 : filter by extension
         Pattern allchanPattern = getAllChannelPattern(channelKeywords);
-        Map<String, List<File>> filesByExtension = Arrays.stream(input.listFiles((File dir, String name) -> allchanPattern.matcher(name).find() && !isIgnoredExtension(name))).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
+        Map<String, List<File>> filesByExtension = Arrays.stream(input.listFiles((File dir, String name) -> allchanPattern.matcher(name).find() && !isIgnoredFile(name))).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
         List<File> files=null;
         String extension = null;
         if (filesByExtension.size()>1) { // keep most common extension
-            int maxLength = Collections.max(filesByExtension.entrySet(), (e1, e2) -> e1.getValue().size() - e2.getValue().size()).getValue().size();
+            int maxLength = Collections.max(filesByExtension.entrySet(), Comparator.comparingInt(e1 -> e1.getValue().size())).getValue().size();
             filesByExtension.entrySet().removeIf(e -> e.getValue().size()<maxLength);
             if (filesByExtension.size()>1) { // keep extension in list
                 Set<String> contained = new HashSet<>(Arrays.asList(IMAGE_EXTENSION_CTP));
@@ -330,10 +323,11 @@ public class ImageFieldFactory {
     
     
     
-    private static boolean isIgnoredExtension(String s) {
+    public static boolean isIgnoredFile(String s) {
+        if (s==null || s.length()==0 || s.charAt(0)=='.') return true;
         for (int i =s.length()-1; i>=0; --i) {
             if (s.charAt(i)=='.') {
-                String ext = s.substring(i, s.length());
+                String ext = s.substring(i);
                 return ignoredExtensions.contains(ext);
             }
         }

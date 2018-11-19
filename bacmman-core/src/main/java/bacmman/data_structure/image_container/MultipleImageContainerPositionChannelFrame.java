@@ -18,18 +18,14 @@
  */
 package bacmman.data_structure.image_container;
 
+import static bacmman.core.ImageFieldFactory.isIgnoredFile;
 import static bacmman.data_structure.Processor.logger;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -261,13 +257,13 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     private void createFileMap() {
         File in = new File(inputDir);
         Pattern positionPattern = Pattern.compile(".*"+positionKey+".*"+extension);
-        File[] allImages = in.listFiles();
+        File[] allImages = in.listFiles((f, name) -> !isIgnoredFile(name));
         if (allImages==null) throw new RuntimeException("No Images found in directory:"+in.getAbsolutePath());
         List<File> files = Arrays.stream(allImages).filter( f -> positionPattern.matcher(f.getName()).find()).collect(Collectors.toList());
         Pattern timePattern = Pattern.compile(".*"+timeKeyword+"(\\d+).*");
         Map<Integer, List<File>> filesByChannel = files.stream().collect(Collectors.groupingBy(f -> getKeywordIdx(f.getName(), channelKeywords)));
         fileCT = new ArrayList<>(filesByChannel.size());
-        filesByChannel.entrySet().stream().sorted((n1, n2)->Integer.compare(n1.getKey(), n2.getKey())).forEach((channelFiles) -> {
+        filesByChannel.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).forEach((channelFiles) -> {
             Map<Integer, String> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> get(f.getName(), timePattern), f -> f.getAbsolutePath()));
             fileCT.add(new ArrayList<>(new TreeMap(filesByTimePoint).values()).subList(0, frameNumber));
         });

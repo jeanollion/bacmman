@@ -27,7 +27,7 @@
         <module>bacmman-modules-fluorescence_fit</module>
         <module>bacmman-helpers</module>
     </modules>
-    <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository
+    <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository (helpers & fluorescence fit)
 
     -->
 
