@@ -19,17 +19,15 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.image.io.KymographFactory;
 import bacmman.ui.GUI;
 import bacmman.core.DefaultWorker;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import bacmman.utils.Pair;
 
@@ -44,20 +42,31 @@ import java.util.stream.IntStream;
 public abstract class Kymograph extends InteractiveImage {
 
     public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx) {
-        //setAllChildren(parentTrack, childStructureIdx); // if set -> tracking test cannot work ?
-        BoundingBox bb = parentTrack.get(0).getBounds();
-        return bb.sizeY() >= bb.sizeX() ? new KymographX(parentTrack, childStructureIdx, false) : new KymographY(parentTrack, childStructureIdx);
+        KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
+        switch (data.direction) {
+            case X:
+            default:
+                return new KymographX(data, childStructureIdx);
+            case Y:
+                return new KymographY(data, childStructureIdx);
+        }
     }
     BoundingBox[] trackOffset;
     SimpleInteractiveImage[] trackObjects;
     static final int updateImageFrequency=50;
     public static int INTERVAL_PIX=0; 
     static final float displayMinMaxFraction = 0.9f;
-    
+    final int maxParentSize, maxParentSizeZ;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
     
-    public Kymograph(List<SegmentedObject> parentTrack, int childStructureIdx) {
-        super(parentTrack, childStructureIdx);
+    public Kymograph(KymographFactory.KymographData data, int childStructureIdx) {
+        super(data.parentTrack, childStructureIdx);
+        maxParentSize = data.maxParentSize;
+        maxParentSizeZ = data.maxParentSizeZ;
+        GUI.logger.trace("track mask image object: max parent Y-size: {} z-size: {}", maxParentSize, maxParentSizeZ);
+        trackOffset = data.trackOffset;
+        SegmentedObjectUtils.setAllChildren(data.parentTrack, childStructureIdx);
+        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(m->m.getObjects()).toArray(l->new SimpleInteractiveImage[l]);
     }
     
     @Override public List<SegmentedObject> getParents() {
@@ -83,7 +92,7 @@ public abstract class Kymograph extends InteractiveImage {
         int idx = object.getFrame()-parents.get(0).getFrame();
         if (idx<trackObjects.length && idx>0 && parents.get(idx).getFrame()==object.getFrame()) return trackObjects[idx].getObjectOffset(object);
         else { // case of uncontinuous tracks -> search whole track
-            idx = Collections.binarySearch(parents, object, (o1, o2) -> Integer.compare(o1.getFrame(), o2.getFrame()));
+            idx = Collections.binarySearch(parents, object, Comparator.comparingInt(SegmentedObject::getFrame));
             if (idx<0) return null;
             BoundingBox res =  trackObjects[idx].getObjectOffset(object);
             if (res!=null) return res;
@@ -167,7 +176,7 @@ public abstract class Kymograph extends InteractiveImage {
                 if (imageHasBeenPasted) GUI.logger.debug("call back paste image: [{};{}] time: {} & {}", idxMin, idxMax, t01-t00, t02-t01);
                 return imageHasBeenPasted;
             };
-            // ALSO lauch a thread to paste image in background without image display
+            // ALSO launch a thread to paste image in background without image display
             DefaultWorker bckPaste = new DefaultWorker(i-> {
                 if (pastedImage[i] || pastedImageBck[i]) return "";
                 synchronized(lock[i]) {
@@ -192,23 +201,20 @@ public abstract class Kymograph extends InteractiveImage {
         trackObjects[0].drawObjects(image);
         double[] mm = image.getMinAndMax(null, trackObjects[0].parent.getBounds());
         // draw image in another thread..
-        Thread t = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                int count = 0;
-                for (int i = 1; i<trackObjects.length; ++i) {
-                    trackObjects[i].drawObjects(image);
-                    //double[] mm2 = image.getMinAndMax(null, trackObjects[0].parent.getBounds());
-                    //if (mm[0]>mm2[0]) mm[0] = mm2[0];
-                    //if (mm[1]<mm2[1]) mm[1] = mm2[1];
-                    if (count>=updateImageFrequency) {
-                        
-                        ImageWindowManagerFactory.getImageManager().getDisplayer().updateImageDisplay(image, mm[0], mm[1]); // do not cmopute min and max. Keep track of min and max?
-                        count=0;
-                    } else count++;
-                }
-                ImageWindowManagerFactory.getImageManager().getDisplayer().updateImageDisplay(image);
+        Thread t = new Thread(() -> {
+            int count = 0;
+            for (int i = 1; i<trackObjects.length; ++i) {
+                trackObjects[i].drawObjects(image);
+                //double[] mm2 = image.getMinAndMax(null, trackObjects[0].parent.getBounds());
+                //if (mm[0]>mm2[0]) mm[0] = mm2[0];
+                //if (mm[1]<mm2[1]) mm[1] = mm2[1];
+                if (count>=updateImageFrequency) {
+
+                    ImageWindowManagerFactory.getImageManager().getDisplayer().updateImageDisplay(image, mm[0], mm[1]); // do not cmopute min and max. Keep track of min and max?
+                    count=0;
+                } else count++;
             }
+            ImageWindowManagerFactory.getImageManager().getDisplayer().updateImageDisplay(image);
         });
         t.start();
         if (!guiMode) try {

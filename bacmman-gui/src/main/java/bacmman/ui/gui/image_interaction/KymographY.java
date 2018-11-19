@@ -20,6 +20,7 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.image.io.KymographFactory;
 import bacmman.ui.GUI;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
@@ -40,25 +41,9 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class KymographY extends Kymograph {
-    int maxParentX, maxParentZ;
-    public KymographY(List<SegmentedObject> parentTrack, int childStructureIdx) {
-        this(parentTrack, childStructureIdx, false);
-    }
-    public KymographY(List<SegmentedObject> parentTrack, int childStructureIdx, boolean middleXZ) {
-        super(parentTrack, childStructureIdx);
-        maxParentX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
-        maxParentZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
-        GUI.logger.trace("track mask image object: max parent X-size: {} z-size: {}", maxParentX, maxParentZ);
-        trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
-        int currentOffsetY=0;
-        for (int i = 0; i<parentTrack.size(); ++i) {
-            if (middleXZ) trackOffset[i].translate(new SimpleOffset((int)((maxParentX-1)/2.0-(trackOffset[i].sizeX()-1)/2.0), currentOffsetY , (int)((maxParentZ-1)/2.0-(trackOffset[i].sizeZ()-1)/2.0))); // Y & Z middle of parent track
-            else trackOffset[i].translate(new SimpleOffset(0, currentOffsetY, 0)); // X & Z up of parent track
-            currentOffsetY+=INTERVAL_PIX+trackOffset[i].sizeY();
-            GUI.logger.trace("current index: {}, current bounds: {} current offsetX: {}", i, trackOffset[i], currentOffsetY);
-        }
-        SegmentedObjectUtils.setAllChildren(parentTrack, childStructureIdx);
-        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(m->m.getObjects()).toArray(l->new SimpleInteractiveImage[l]);
+    public KymographY(KymographFactory.KymographData data, int childStructureIdx) {
+        super(data, childStructureIdx);
+        if (!KymographFactory.DIRECTION.Y.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
     
     
@@ -101,13 +86,13 @@ public class KymographY extends Kymograph {
         String structureName;
         if (GUI.hasInstance() && GUI.getDBConnection()!=null && GUI.getDBConnection().getExperiment()!=null) structureName = GUI.getDBConnection().getExperiment().getStructure(childStructureIdx).getName(); 
         else structureName= childStructureIdx+"";
-        final ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Track: Parent:"+parents+" Segmented Image of: "+structureName, maxLabel, new SimpleImageProperties( this.maxParentX, trackOffset[trackOffset.length-1].yMax()+1, this.maxParentZ, parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+        final ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Track: Parent:"+parents+" Segmented Image of: "+structureName, maxLabel, new SimpleImageProperties( this.maxParentSize, trackOffset[trackOffset.length-1].yMax()+1, this.maxParentSizeZ, parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
         drawObjects(displayImage);
         return displayImage;
     }
     @Override 
     public Image generateEmptyImage(String name, Image type) {
-        return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentX, trackOffset[trackOffset.length-1].yMax()+1, Math.max(type.sizeZ(), this.maxParentZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+        return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSize, trackOffset[trackOffset.length-1].yMax()+1, Math.max(type.sizeZ(), this.maxParentSizeZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
     }
     
     

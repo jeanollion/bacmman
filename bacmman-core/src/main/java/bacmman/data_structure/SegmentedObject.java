@@ -38,15 +38,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import bacmman.image.io.KymographFactory;
+import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.plugins.ObjectSplitter;
-import bacmman.utils.Id;
-import bacmman.utils.JSONSerializable;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.SmallArray;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 
 import java.util.stream.Collectors;
@@ -836,7 +834,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         //logger.debug("get Track image for : {}, id: {}, thId: {}, isTH?: {}, th: {}", this, id, this.trackHeadId, isTrackHead, this.trackHead);
         //logger.debug("get Track Image for: {} th {}", this, getTrackHead());
         // feature temporarily not supported anymore TODO restore
-        /*if (this.isTrackHead) {
+        if (this.isTrackHead) {
             int channelIdx = getExperiment().getChannelImageIdx(structureIdx);
             if (this.trackImagesC.get(channelIdx)==null) {
                 synchronized(trackImagesC) {
@@ -844,10 +842,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                         Image im = getExperiment().getImageDAO().openTrackImage(this, channelIdx);
                         if (im!=null) { // set image && set offsets for all track
                             im.setCalibration(getScaleXY(), getScaleZ());
-                            List<StructureObject> track = StructureObjectUtils.getTrack(this, false);
-                            InteractiveImage i = Kymograph.generateKymograph(track, structureIdx); // not saved in image window manager to avoid memory leaks
-                            List<Pair<StructureObject, BoundingBox>> off = i.pairWithOffset(track);
-                            for (Pair<StructureObject, BoundingBox> p : off) p.key.offsetInTrackImage=p.value;
+                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(this, false);
+                            KymographFactory.KymographData kymo = KymographFactory.generateKymographData(track, false, 0);
+                            IntStream.range(0, track.size()).forEach(i->track.get(i).offsetInTrackImage=kymo.trackOffset[i]);
                             //logger.debug("get track image: track:{}(id: {}/trackImageCId: {}) length: {}, chId: {}", this, this.hashCode(), trackImagesC.hashCode(), track.size(), channelIdx);
                             //logger.debug("offsets: {}", Utils.toStringList(track, o->o+"->"+o.offsetInTrackImage));
                             trackImagesC.setQuick(im, channelIdx); // set after offset is set if not offset could be null
@@ -858,8 +855,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             return trackImagesC.get(channelIdx);
         } else {
             return getTrackHead().getTrackImage(structureIdx);
-        }*/
-        return null;
+        }
     }
     
     private BoundingBox getOffsetInTrackImage() {

@@ -29,6 +29,8 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
+import bacmman.image.Image;
+import bacmman.image.io.KymographFactory;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import java.util.ArrayList;
@@ -390,10 +392,9 @@ public class Processor {
     }
     
     public static void generateTrackImages(ObjectDAO dao, int parentStructureIdx, ProgressCallback pcb, int... childStructureIdx) {
-        throw new RuntimeException("Not supported anymore"); //TODO restore
-        /*if (dao==null || dao.getExperiment()==null) return;
+        if (dao==null || dao.getExperiment()==null) return;
         if (childStructureIdx==null || childStructureIdx.length==0) {
-            List<Integer> childStructures =dao.getExperiment().getAllDirectChildStructures(parentStructureIdx);
+            List<Integer> childStructures =dao.getExperiment().experimentStructure.getAllDirectChildStructures(parentStructureIdx);
             childStructures.add(parentStructureIdx);
             Utils.removeDuplicates(childStructures, sIdx -> dao.getExperiment().getStructure(sIdx).getChannelImage());
             childStructureIdx = Utils.toArray(childStructures, false);
@@ -401,16 +402,16 @@ public class Processor {
         final int[] cSI = childStructureIdx;
         ImageDAO imageDAO = dao.getExperiment().getImageDAO();
         imageDAO.deleteTrackImages(dao.getPositionName(), parentStructureIdx);
-        Map<StructureObject, List<StructureObject>> allTracks = StructureObjectUtils.getAllTracks(dao.getRoots(), parentStructureIdx);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(dao.getRoots(), parentStructureIdx);
         if (pcb!=null) pcb.log("Generating Image for structure: "+parentStructureIdx+". #tracks: "+allTracks.size()+", child structures: "+Utils.toStringArray(childStructureIdx));
-        ThreadRunner.execute(allTracks.values(), false, (List<StructureObject> track, int idx) -> {
-            InteractiveImage i = Kymograph.generateKymograph(track, parentStructureIdx);
+        ThreadRunner.execute(allTracks.values(), false, (List<SegmentedObject> track, int idx) -> {
+            KymographFactory.KymographData kymo = KymographFactory.generateKymographData(track, false, 0);
             for (int childSIdx : cSI) {
                 //Core.userLog("Generating Image for track:"+track.get(0)+", structureIdx:"+childSIdx+" ...");
-                Image im = i.generatemage(childSIdx, false);
+                Image im = kymo.generateImage("", childSIdx, true);
                 int channelIdx = dao.getExperiment().getChannelImageIdx(childSIdx);
                 imageDAO.writeTrackImage(track.get(0), channelIdx, im);
             }
-        });*/
+        });
     }
 }

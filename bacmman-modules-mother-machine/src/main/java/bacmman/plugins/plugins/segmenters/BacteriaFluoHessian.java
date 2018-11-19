@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
-public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> implements Hint {
+public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> implements Hint, DevPlugin {
     private final static Logger logger = LoggerFactory.getLogger(BacteriaFluoHessian.class);
     private double globalBackgroundSigma=1;
     PluginParameter<SimpleThresholder> foreThresholderFrame = new PluginParameter<>("Method", bacmman.plugins.SimpleThresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection. Computed on each frame.");

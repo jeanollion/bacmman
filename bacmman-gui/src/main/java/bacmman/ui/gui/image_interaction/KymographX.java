@@ -19,7 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.image.io.KymographFactory;
 import bacmman.ui.GUI;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
@@ -34,36 +34,16 @@ import java.util.Comparator;
 import java.util.List;
 
 import bacmman.utils.Pair;
-import java.util.stream.IntStream;
 
 /**
  *
  * @author Jean Ollion
  */
 public class KymographX extends Kymograph {
-    int maxParentSizeY, maxParentSizeZ;
-    
-    public KymographX(List<SegmentedObject> parentTrack, int childStructureIdx, boolean middleYZ) {
-        super(parentTrack, childStructureIdx);
-        maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
-        maxParentSizeZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
 
-        GUI.logger.trace("track mask image object: max parent Y-size: {} z-size: {}", maxParentSizeY, maxParentSizeZ);
-        int currentOffsetX=0;
-        long t0 = System.currentTimeMillis();
-        trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
-        // set cumulative offset
-        for (int i = 0; i<parentTrack.size(); ++i) {
-            if (middleYZ) trackOffset[i].translate(new SimpleOffset(currentOffsetX, (int)((maxParentSizeY-1)/2.0-(trackOffset[i].sizeY()-1)/2.0), (int)((maxParentSizeZ-1)/2.0-(trackOffset[i].sizeZ()-1)/2.0))); // Y & Z middle of parent track
-            else trackOffset[i].translate(new SimpleOffset(currentOffsetX, 0, 0)); // Y & Z up of parent track
-            currentOffsetX+=INTERVAL_PIX+trackOffset[i].sizeX();
-            GUI.logger.trace("current index: {}, current bounds: {} current offsetX: {}", i, trackOffset[i], currentOffsetX);
-        }
-        long t1 = System.currentTimeMillis();
-        SegmentedObjectUtils.setAllChildren(parentTrack, childStructureIdx);
-        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(m->m.getObjects()).toArray(l->new SimpleInteractiveImage[l]);
-        long t2 = System.currentTimeMillis();
-        GUI.logger.debug("TrackMaskX creation: offset: {}, objects: {}", t1-t0, t2-t1);
+    public KymographX(KymographFactory.KymographData data, int childStructureIdx) {
+        super(data, childStructureIdx);
+        if (!KymographFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
     
     @Override
@@ -106,13 +86,13 @@ public class KymographX extends Kymograph {
         String structureName;
         if (GUI.hasInstance() && GUI.getDBConnection()!=null && GUI.getDBConnection().getExperiment()!=null) structureName = GUI.getDBConnection().getExperiment().getStructure(childStructureIdx).getName(); 
         else structureName= childStructureIdx+"";
-        final ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Track: Parent:"+parents+" Segmented Image of: "+structureName, maxLabel, new SimpleImageProperties( trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSizeY, this.maxParentSizeZ,parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+        final ImageInteger displayImage = ImageInteger.createEmptyLabelImage("Track: Parent:"+parents+" Segmented Image of: "+structureName, maxLabel, new SimpleImageProperties( trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSize, this.maxParentSizeZ,parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
         drawObjects(displayImage);
         return displayImage;
     }
     @Override 
     public Image generateEmptyImage(String name, Image type) {
-        return  Image.createEmptyImage(name, type, new SimpleImageProperties(trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSizeY, Math.max(type.sizeZ(), this.maxParentSizeZ),parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
+        return  Image.createEmptyImage(name, type, new SimpleImageProperties(trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSize, Math.max(type.sizeZ(), this.maxParentSizeZ),parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
     }
     
     class OffsetComparatorX implements Comparator<Offset>{

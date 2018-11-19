@@ -9,6 +9,7 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Hint;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.processing.ImageFeatures;
@@ -19,7 +20,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseContrastHessian> implements Hint {
+public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseContrastHessian> implements Hint, DevPlugin {
 
     BooleanParameter upperCellCorrectionR = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
     NumberParameter upperCellLocalThresholdFactorR = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
