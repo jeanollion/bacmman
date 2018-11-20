@@ -24,11 +24,11 @@
         <module>bacmman-ij1_</module>
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-headless</module>
-
-    </modules>
-    <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository (helpers & fluorescence fit)
         <module>bacmman-modules-fluorescence_fit</module>
         <module>bacmman-helpers</module>
+    </modules>
+    <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository (helpers & fluorescence fit)
+
     -->
 
     <name>BACMMAN</name>
