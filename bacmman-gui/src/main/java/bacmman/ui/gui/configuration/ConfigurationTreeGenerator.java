@@ -93,10 +93,10 @@ public class ConfigurationTreeGenerator {
             TreePath path = tree.getSelectionPath();
             if (!(path.getLastPathComponent() instanceof PluginParameter)) return;
             PluginParameter pp = (PluginParameter)path.getLastPathComponent();
-            logger.debug("setting : {} to pp: {}", selModule, pp);
+            //logger.debug("setting : {} to pp: {}", selModule, pp);
             pp.setPlugin(selModule);
             if (pp.isOnePluginSet() && !pp.isValid()) {
-                logger.debug("checking validation for : {}", pp.toString());
+                //logger.debug("checking validation for : {}", pp.toString());
                 tree.expandPath(path);
             }
             treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
@@ -222,7 +222,7 @@ public class ConfigurationTreeGenerator {
                     String hint = getHint(tree.getSelectionPath().getLastPathComponent(), false);
                     if (hint==null) setHint.accept("No hint available");
                     else setHint.accept(hint);
-                    logger.debug("set modules. hint: {}", hint);
+                    //logger.debug("set modules. hint: {}", hint);
                     break;
                 default:
                     setModules.accept(null, Collections.emptyList());

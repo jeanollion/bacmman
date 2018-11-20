@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion.bacmman</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>v2.2.2</version>
+    <version>v2.2.3</version>
 
     <licenses>
         <license>
