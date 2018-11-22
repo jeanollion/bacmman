@@ -232,7 +232,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         datasetJSP.setToolTipText(formatHint("List of all datasets contained in the current datasets folder<br />If a dataset is opened, its name written in the title of this window. The opened dataset does not necessarily correspond to the selected dataset in this list<br /><br />ctrl+click to select/deselect datasets<br />double-click to open dataset"));
         actionPositionJSP.setToolTipText(formatHint("Positions of the opened dataset. <br />Tasks will be run only on selected position, or on all position if no position is selected<br />ctrl+click to select/deselect positions"));
         deleteObjectsButton.setToolTipText(formatHint("Right-click for more delete commands"));
-        experimentFolder.setToolTipText(formatHint("Directory containing several datasets<br />Righ-click menu to access recent list and file browser"));
+        workingDirectory.setToolTipText(formatHint("Directory containing several datasets<br />Righ-click menu to access recent list and file browser"));
         this.actionJSP.setToolTipText(formatHint("<b>Tasks to run on selected positions/object classes:</b> (ctrl+click to select/deselect tasks)<br/><ol>"
                 + "<li><b>"+runActionList.getModel().getElementAt(0)+"</b>: Performs preprocessing pipeline on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(1)+"</b>: Performs segmentation and tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected)</li>"
@@ -259,7 +259,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             currentDBPrefix="";
             localFileSystemDatabaseRadioButton.setSelected(true);
             String path = PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH);
-            if (path!=null) experimentFolder.setText(path);
+            if (path!=null) workingDirectory.setText(path);
             MasterDAOFactory.setCurrentType(MasterDAOFactory.DAOType.DBMap);
             localDBMenu.setEnabled(true);
         }
@@ -564,7 +564,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.miscMenu.setEnabled(!running);
         
         // action tab
-        this.experimentFolder.setEditable(!running);
+        this.workingDirectory.setEditable(!running);
         this.datasetList.setEnabled(!running);
         if (actionStructureSelector!=null) this.actionStructureSelector.getTree().setEnabled(!running);
         this.runActionList.setEnabled(!running);
@@ -680,24 +680,26 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         //long t0 = System.currentTimeMillis();
         if (hostnameOrDir==null) hostnameOrDir = getHostNameOrDir(dbName);
         db = MasterDAOFactory.createDAO(dbName, hostnameOrDir);
+        if (db==null) {
+            logger.warn("no experiment found in DB: {}", db);
+            return;
+        }
         db.setConfigurationReadOnly(readOnly);
-        if (!readOnly) { // locks all positions
-            db.lockPositions();
-            for (String p : db.getExperiment().getPositionsAsString()) if (db.getDao(p).isReadOnly()) setMessage("Position: "+p+" could not be locked. it may be used by another process. All changes on segmented objects of this position won't be saved");
-        } 
-        if (db==null || db.getExperiment()==null) {
+        if (db.getExperiment()==null) {
             logger.warn("no experiment found in DB: {}", db);
             closeExperiment();
             return;
+        }
+        if (!readOnly) { // locks all positions
+            db.lockPositions();
+            for (String p : db.getExperiment().getPositionsAsString()) if (db.getDao(p).isReadOnly()) setMessage("Position: "+p+" could not be locked. it may be used by another process. All changes on segmented objects of this position won't be saved");
+        }
+        logger.info("Experiment found in db: {} ", db.getDBName());
+        if (db.isConfigurationReadOnly()) {
+            GUI.log(dbName+ ": Config file could not be locked. Dataset already opened ? Dataset will be opened in Read Only mode: all modifications on configuration or selections won't be saved. ");
+            GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
         } else {
-            logger.info("Experiment found in db: {} ", db.getDBName());
-            if (db.isConfigurationReadOnly()) {
-                GUI.log(dbName+ ": Config file could not be locked. Dataset already opened ? Dataset will be opened in Read Only mode: all modifications on configuration or selections won't be saved. ");
-                GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
-            } else {
-               setMessage("Dataset: "+db.getDBName()+" opened"); 
-            }
-            
+           setMessage("Dataset: "+db.getDBName()+" opened");
         }
         updateConfigurationTree();
         populateActionStructureList();
@@ -1109,7 +1111,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         homeSplitPane = new javax.swing.JSplitPane();
         tabs = new javax.swing.JTabbedPane();
         actionPanel = new javax.swing.JPanel();
-        experimentFolder = new javax.swing.JTextField();
+        workingDirectory = new javax.swing.JTextField();
         actionStructureJSP = new javax.swing.JScrollPane();
         actionPositionJSP = new javax.swing.JScrollPane();
         microscopyFieldList = new javax.swing.JList();
@@ -1237,15 +1239,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         tabs.setPreferredSize(new java.awt.Dimension(840, 450));
 
-        experimentFolder.setBackground(new Color(getBackground().getRGB()));
-        experimentFolder.setText("localhost");
-        experimentFolder.setBorder(javax.swing.BorderFactory.createTitledBorder("Working Directory"));
-        experimentFolder.addMouseListener(new java.awt.event.MouseAdapter() {
+        workingDirectory.setBackground(new Color(getBackground().getRGB()));
+        workingDirectory.setText("localhost");
+        workingDirectory.setBorder(javax.swing.BorderFactory.createTitledBorder("Working Directory"));
+        workingDirectory.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mousePressed(java.awt.event.MouseEvent evt) {
                 experimentFolderMousePressed(evt);
             }
         });
-        experimentFolder.addActionListener(new java.awt.event.ActionListener() {
+        workingDirectory.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 experimentFolderActionPerformed(evt);
             }
@@ -1324,7 +1326,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 .addContainerGap()
                 .addGroup(actionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(datasetJSP)
-                    .addComponent(experimentFolder))
+                    .addComponent(workingDirectory))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(actionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
                     .addComponent(actionPositionJSP)
@@ -1348,7 +1350,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(actionStructureJSP, javax.swing.GroupLayout.PREFERRED_SIZE, 194, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(actionPanelLayout.createSequentialGroup()
-                        .addComponent(experimentFolder, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(workingDirectory, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(datasetJSP))))
         );
@@ -2197,7 +2199,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         return getHostNameOrDir(getSelectedExperiment());
     }
     private String getHostNameOrDir(String xpName) {
-        String host = this.experimentFolder.getText();
+        String host = this.workingDirectory.getText();
         if (this.localFileSystemDatabaseRadioButton.isSelected()) {
             if (xpName==null) return null;
             File f = this.dbFiles.get(xpName);
@@ -2418,6 +2420,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     private void refreshExperimentListMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshExperimentListMenuItemActionPerformed
         populateExperimentList();
+        PropertyUtils.set(PropertyUtils.LOCAL_DATA_PATH, workingDirectory.getText());
     }//GEN-LAST:event_refreshExperimentListMenuItemActionPerformed
 
     private void setSelectedExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_setSelectedExperimentMenuItemActionPerformed
@@ -2439,7 +2442,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         else {
             String adress = null;
             if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) { // create directory
-                File dir = new File(experimentFolder.getText());
+                File dir = new File(workingDirectory.getText());
                 adress = createSubdir(dir.getAbsolutePath(), name);
                 logger.debug("new dataset dir: {}", adress);
                 if (adress==null) return;
@@ -2956,7 +2959,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (path!=null && !this.appendToFileMenuItem.isSelected() && new File(path).exists()) new File(path).delete();
     }
     private void setLogFileMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_setLogFileMenuItemActionPerformed
-        File f = Utils.chooseFile("Save Log As...", experimentFolder.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
+        File f = Utils.chooseFile("Save Log As...", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
         if (f==null) {
             PropertyUtils.set(PropertyUtils.LOG_FILE, null);
             setLogFile(null);
@@ -3033,10 +3036,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     private void unDumpObjectsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_unDumpObjectsMenuItemActionPerformed
         closeExperiment();
-        final List<File> dumpedFiles = Utils.seachAll(experimentFolder.getText(), s->s.endsWith("_dump.zip"), 1);
+        final List<File> dumpedFiles = Utils.seachAll(workingDirectory.getText(), s->s.endsWith("_dump.zip"), 1);
         if (dumpedFiles==null) return;
         // remove xp already undumped
-        Map<String, File> dbFiles = ExperimentSearchUtils.listExperiments(experimentFolder.getText(), true, ProgressCallback.get(this));
+        Map<String, File> dbFiles = ExperimentSearchUtils.listExperiments(workingDirectory.getText(), true, ProgressCallback.get(this));
         dumpedFiles.removeIf(f->dbFiles.containsValue(f.getParentFile()));
         log("undumping: "+dumpedFiles.size()+ " Experiment"+(dumpedFiles.size()>1?"s":""));
         
@@ -3070,7 +3073,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         closeExperiment();
         MasterDAOFactory.setCurrentType(MasterDAOFactory.DAOType.DBMap);
         PropertyUtils.set(PropertyUtils.DATABASE_TYPE, MasterDAOFactory.DAOType.DBMap.toString());
-        experimentFolder.setText(PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH, ""));
+        workingDirectory.setText(PropertyUtils.get(PropertyUtils.LOCAL_DATA_PATH, ""));
         localDBMenu.setEnabled(true);
         populateExperimentList();
     }//GEN-LAST:event_localFileSystemDatabaseRadioButtonActionPerformed
@@ -3189,7 +3192,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action save = new AbstractAction("Save to File") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    File out = Utils.chooseFile("Save Task list as...", experimentFolder.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
+                    File out = Utils.chooseFile("Save Task list as...", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
                     if (out==null || out.isDirectory()) return;
                     String outS = out.getAbsolutePath();
                     if (!outS.endsWith(".txt")&&!outS.endsWith(".json")) outS+=".json";
@@ -3201,7 +3204,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action saveProc = new AbstractAction("Split and Save to files...") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    File out = Utils.chooseFile("Choose Folder", experimentFolder.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
+                    File out = Utils.chooseFile("Choose Folder", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
                     if (out==null || !out.isDirectory()) return;
                     String outDir = out.getAbsolutePath();
                     List<Task> tasks = Collections.list(actionPoolListModel.elements());
@@ -3218,7 +3221,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action load = new AbstractAction("Load from File") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    String dir = experimentFolder.getText();
+                    String dir = workingDirectory.getText();
                     if (!new File(dir).isDirectory()) dir = null;
                     File f = Utils.chooseFile("Choose Task list file", dir, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
                     if (f!=null && f.exists()) {
@@ -3236,7 +3239,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     String xp = (String) datasetList.getSelectedValue();
-                    String dir = experimentFolder.getText();
+                    String dir = workingDirectory.getText();
                     Map<Integer, Task> indexSelJobMap = ((List<Task>)actionPoolList.getSelectedValuesList()).stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
                     for (Entry<Integer, Task> en : indexSelJobMap.entrySet()) {
                         Task t = en.getValue();
@@ -3295,7 +3298,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void experimentFolderMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_experimentFolderMousePressed
         if (this.running) return;
         if (SwingUtilities.isRightMouseButton(evt) && localFileSystemDatabaseRadioButton.isSelected()) {
-                    logger.debug("frame fore: {} , back: {}, hostName: {}", this.getForeground(), this.getBackground(), experimentFolder.getBackground());
+                    logger.debug("frame fore: {} , back: {}, hostName: {}", this.getForeground(), this.getBackground(), workingDirectory.getBackground());
 
             JPopupMenu menu = new JPopupMenu();
             Action chooseFile = new AbstractAction("Choose local data folder") {
@@ -3307,7 +3310,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                         closeExperiment();
                         PropertyUtils.set(PropertyUtils.LOCAL_DATA_PATH, f.getAbsolutePath());
                         PropertyUtils.addFirstStringToList(PropertyUtils.LOCAL_DATA_PATH, f.getAbsolutePath());
-                        experimentFolder.setText(f.getAbsolutePath());
+                        workingDirectory.setText(f.getAbsolutePath());
                         localFileSystemDatabaseRadioButton.setSelected(true);
                         populateExperimentList();
                     }
@@ -3324,7 +3327,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                         File f = new File(s);
                         if (f.exists() && f.isDirectory()) {
                             closeExperiment();
-                            experimentFolder.setText(s);
+                            workingDirectory.setText(s);
                             PropertyUtils.set(PropertyUtils.LOCAL_DATA_PATH, s);
                             localFileSystemDatabaseRadioButton.setSelected(true);
                             populateExperimentList();
@@ -3341,7 +3344,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             recentFiles.add(delRecent);
-            menu.show(this.experimentFolder, evt.getX(), evt.getY());
+            menu.show(this.workingDirectory, evt.getX(), evt.getY());
         }
     }//GEN-LAST:event_experimentFolderMousePressed
 
@@ -3682,7 +3685,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     private List<String> getDBNames() {
         if (this.localFileSystemDatabaseRadioButton.isSelected()) {
-            dbFiles = ExperimentSearchUtils.listExperiments(experimentFolder.getText(), true, ProgressCallback.get(this));
+            dbFiles = ExperimentSearchUtils.listExperiments(workingDirectory.getText(), true, ProgressCallback.get(this));
             List<String> res = new ArrayList<>(dbFiles.keySet());
             Collections.sort(res);
             return res;
@@ -3750,7 +3753,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem displayShortcutMenuItem;
     private javax.swing.JMenuItem duplicateXPMenuItem;
     private javax.swing.JPanel editPanel;
-    private javax.swing.JTextField experimentFolder;
+    private javax.swing.JTextField workingDirectory;
     private javax.swing.JMenu experimentMenu;
     private javax.swing.JCheckBoxMenuItem exportConfigMenuItem;
     private javax.swing.JMenuItem exportDataMenuItem;

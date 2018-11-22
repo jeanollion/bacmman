@@ -711,12 +711,17 @@ public class Utils {
     public static boolean isMac() {
         return System.getProperty("os.name").toLowerCase().contains("mac");
     }
+    public static boolean isMacOSX() {
+        return System.getProperty("os.name").toLowerCase().startsWith("mac os x");
+    }
     public static boolean isWindows() {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }
     public static boolean isUnix() {return !isWindows();}
     public static File[] chooseFiles(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent) {
-        if (isMac()) {
+        if (false && isMacOSX()) {
+            // FileDialog does not allow to select directories...
+            //System.setProperty("apple.awt.fileDialogForDirectories", "false");
             FileDialog fd = new FileDialog(parent,  dialogTitle, FileDialog.LOAD);
             fd.setDirectory(directory);
             fd.setMode(0);
