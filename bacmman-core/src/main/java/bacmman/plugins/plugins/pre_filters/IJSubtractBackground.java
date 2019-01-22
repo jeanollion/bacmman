@@ -120,7 +120,7 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
 
     @Override
     public String getHintText() {
-        return "ImageJ's subtract background algorithm. See: http://imagejdocu.tudor.lu/doku.php?id=gui:process:subtract_background";
+        return "ImageJ's subtract background algorithm. See: <a href='http://imagejdocu.tudor.lu/doku.php?id=gui:process:subtract_background'>http://imagejdocu.tudor.lu/doku.php?id=gui:process:subtract_background</a>";
     }
 
     public static enum FILTER_DIRECTION { X_DIRECTION(false), Y_DIRECTION(false) , DIAGONAL_1A(true) , DIAGONAL_1B(true) , DIAGONAL_2A(true) , DIAGONAL_2B(true);
