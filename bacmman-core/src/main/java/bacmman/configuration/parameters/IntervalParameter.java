@@ -17,8 +17,6 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
         if (values.length==0) throw new IllegalArgumentException("value number should be >=1");
         Arrays.sort(values);
         this.values = Arrays.stream(values).map(v->v.doubleValue()).toArray(l->new Number[l]);
-        if (lowerBound!=null && compare(values[0], lowerBound)<0) throw new IllegalArgumentException("lowest values should be superior to lower bound");
-        if (upperBound!=null && compare(values[values.length-1], upperBound)>0) throw new IllegalArgumentException("highest values should be inferior to upper bound");
         if (lowerBound!=null) this.lowerBound=lowerBound.doubleValue();
         if (upperBound!=null) this.upperBound=upperBound.doubleValue();
         this.decimalPlaces = decimalPlaces;
@@ -53,6 +51,16 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         return res;
+    }
+
+    @Override
+    public boolean isValid() {
+        // check that is sorted
+        for (int i = 1; i<values.length; ++i) if (compare(values[i], values[i-1])<0) return false;
+        // check bounds
+        if (lowerBound!=null && compare(values[0], lowerBound)<0) return false;
+        if (upperBound!=null && compare(values[values.length-1], upperBound)>0) return false;
+        return true;
     }
 
     @Override
