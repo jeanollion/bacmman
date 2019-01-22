@@ -45,7 +45,7 @@ import java.util.function.Predicate;
 public class Position extends ContainerParameterImpl<Position> implements ListElementErasable {
     
     private MultipleImageContainer sourceImages;
-    PreProcessingChain preProcessingChain=new PreProcessingChain("Pre-Processing");
+    PreProcessingChain preProcessingChain=new PreProcessingChain("Pre-Processing", false);
     BoundedNumberParameter defaultTimePoint = new BoundedNumberParameter("Default TimePoint", 0, defaultTP, 0, null).setHint("Frame used by default by transformations that requires a single frame");
     InputImagesImpl inputImages;
     public static final int defaultTP = 50;

@@ -117,41 +117,32 @@ public class ConfigurationTreeGenerator {
 
     private String getHint(Object parameter, boolean limitWidth) {
         if (!(parameter instanceof Parameter)) return null;
-        if (parameter instanceof ConditionalParameter) {
+        String t = ((Hint)parameter).getHintText();
+        if (t==null) t = "";
+        if (parameter instanceof PluginParameter) {
+            Plugin p = ((PluginParameter)parameter).instanciatePlugin();
+            if (p instanceof Hint) {
+                String t2 = ((Hint)p).getHintText();
+                if (t2!=null && t2.length()>0) {
+                    if (t.length()>0) t = t+"<br /> <br />";
+                    t = t+"<b>Current Plugin:</b><br />"+t2;
+                }
+            }
+            if (p instanceof Measurement) { // also display measurement keys
+                List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
+                if (!keys.isEmpty()) {
+                    if (t.length()>0) t= t+"<br /> <br />";
+                    t = t+ "<b>Measurement Keys (column names in extracted data and associated object class):</b><br />";
+                    for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<rootParameter.getStructureCount() ? " ("+rootParameter.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
+                }
+            }
+        } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter
             Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
-            if (action.getHintText()!=null) {
-                if (((ConditionalParameter) parameter).getHintText()!=null) return formatHint(((Hint)parameter).getHintText()+"<br /> <br />"+action.getHintText(), limitWidth);
-                else parameter = action;
-            }
+            if (t=="") return getHint(action, limitWidth);
+            else if (action.getHintText()!=null) t = t+"<br /> <br />"+getHint(action, false);
         }
-        if (parameter instanceof Hint) {
-            String t = ((Hint)parameter).getHintText();
-            if (t==null) t = "";
-            if (parameter instanceof PluginParameter) {
-                Plugin p = ((PluginParameter)parameter).instanciatePlugin();
-                if (p instanceof Hint) {
-                    String t2 = ((Hint)p).getHintText();
-                    if (t2!=null && t2.length()>0) {
-                        if (t.length()>0) t = t+"<br /> <br />";
-                        t = t+"<b>Current Plugin:</b><br />"+t2;
-                    }
-                }
-                if (p instanceof Measurement) { // also display measurement keys
-                    List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
-                    if (!keys.isEmpty()) {
-                        if (t.length()>0) t= t+"<br /> <br />";
-                        t = t+ "<b>Measurement Keys (column names in extracted data and associated object class):</b><br />";
-                        for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<rootParameter.getStructureCount() ? " ("+rootParameter.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
-                    }
-                }
-            } else if (parameter instanceof ConditionalParameter) {
-                Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
-                if (t=="") return getHint(action, limitWidth);
-                else t = t+"<br /> <br />"+getHint(action, false);
-            }
-            if (t!=null && t.length()>0) return formatHint(t, limitWidth);
-        }
-        return null;
+        if (t!=null && t.length()>0) return formatHint(t, limitWidth);
+        else return null;
     }
 
     private void generateTree() {

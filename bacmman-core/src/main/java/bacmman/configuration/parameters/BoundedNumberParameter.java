@@ -19,6 +19,8 @@
 package bacmman.configuration.parameters;
 
 
+import static bacmman.configuration.parameters.IntervalParameter.compare;
+
 /**
  *
  * @author Jean Ollion
@@ -47,6 +49,12 @@ public class BoundedNumberParameter extends NumberParameter<BoundedNumberParamet
     public boolean isValid() {
         if (!super.isValid()) return false;
         return super.isValid() && (lowerBound==null || value.doubleValue()>=lowerBound.doubleValue()) && (upperBound==null || value.doubleValue()<=upperBound.doubleValue());
+    }
+    @Override
+    public void setValue(Number value) {
+        if (lowerBound!=null && compare(value, lowerBound)<0) value=lowerBound;
+        if (upperBound!=null && compare(value, upperBound)>0) value=upperBound;
+        super.setValue(value);
     }
     @Override public BoundedNumberParameter duplicate() {
         BoundedNumberParameter res = new BoundedNumberParameter(name, decimalPlaces, value, lowerBound, upperBound);

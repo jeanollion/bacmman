@@ -20,6 +20,7 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.ui.GUI;
 import ij.ImagePlus;
 import ij.VirtualStack;
@@ -31,6 +32,7 @@ import static bacmman.image.Image.logger;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
@@ -82,7 +84,7 @@ public class IJVirtualStack extends VirtualStack {
         }
         logger.debug("scale: {}", bdsC[0].getScaleXY());
         // case of reference image with only one Z -> duplicate
-        int maxZ = Collections.max(Arrays.asList(bdsC), (b1, b2)->Integer.compare(b1.sizeZ(), b2.sizeZ())).sizeZ();
+        int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
         int[] fcz = new int[]{frames, channels, maxZ};
         BiFunction<Integer, Integer, Image> imageOpenerCT  = preProcessed ? (c, t) -> xp.getImageDAO().openPreProcessedImage(c, t, position) : (c, t) -> f.getInputImages().getImage(c, t);
         IJVirtualStack s = new IJVirtualStack(bdsC[0].sizeX(), bdsC[0].sizeY(), fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);

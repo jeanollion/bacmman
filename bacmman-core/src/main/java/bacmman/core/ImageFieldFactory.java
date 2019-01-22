@@ -114,8 +114,7 @@ public class ImageFieldFactory {
             else end = Utils.removeExtension(image.getName());
             if (tc[1]==xp.getChannelImageCount()) {
                 double[] scaleXYZ = reader.getScaleXYZ(1);
-                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2]);
-                if (xp.isImportImageInvertTZ()) c.setInvertTZ(true);
+                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
                 containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
                 Processor.logger.info("image {} imported successfully", image.getAbsolutePath());
             } else {

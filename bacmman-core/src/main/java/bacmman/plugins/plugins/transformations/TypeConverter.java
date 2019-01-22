@@ -46,7 +46,7 @@ public class TypeConverter implements MultichannelTransformation, Hint {
     }
     @Override
     public String getHintText() {
-        return "Converts bit-depth of all images";
+        return "Converts bit-depth of all images. <br />Some transformation such as rotations convert images in 32-bit floats. This transformation allows for instance to lower the bit-depth in order to save memory";
     }
     public TypeConverter setLimitTo16(short addValue) {
         this.method.setSelectedItem(METHOD.LIMIT_TO_16.toString());

@@ -74,14 +74,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
             })
             .setHint("Measurement to be performed after processing. Hint displays output keys (column in extracted table) and the associated object class. If several keys are equal for the same object class, the associated measurement won't be valid (displayed in red)");
     SimpleListParameter<Position> positions= new SimpleListParameter<>("Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre(processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.");
-    PreProcessingChain template = new PreProcessingChain("Pre-Processing pipeline template").setHint("Default pre-processing set to positions at import");
+    PreProcessingChain template = new PreProcessingChain("Pre-Processing pipeline template", true).setHint("Default pre-processing set to positions at import");
     
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where preprocessed images will be stored");
     protected FileChooser outputPath = new FileChooser("Output Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where segmentation & lineage results will be stored");
     ChoiceParameter importMethod = new ChoiceParameter("Import Method", IMPORT_METHOD.getChoices(), null, false);
     TextParameter positionSeparator = new TextParameter("Position Separator", "xy", true).setHint("character sequence located directly before the position identifier in all image files");
     TextParameter frameSeparator = new TextParameter("Frame Separator", "t", true).setHint("character sequence located directly before the frame number in all image files");
-    BooleanParameter invertTZ = new BooleanParameter("Invert T & Z dimension", false).setHint("Whether Time and Z dimension should be inverted during image import");
+    BooleanParameter invertTZ = new BooleanParameter("Invert T & Z dimension", false).setHint("Whether Time and Z dimension should be inverted during image import. <br />This option has to be set to <em>true</em> if Frames and Z-slices are inverted. This can be checked by opening input images of a position through the <em>Open Input Images</em> command and check the properties of the image (CTRL + SHIFT + P under imageJ/FIJI)<br />After changing this parameter, images should be re-imported (re-run the import / re-link command)");
     ConditionalParameter importCond = new ConditionalParameter(importMethod).setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator).setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ).setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ)
             .setHint("<b>Define here the input image organization</b><ol>"
                     + "<li>"+IMPORT_METHOD.SINGLE_FILE.getMethod()+": A single file contains all frames, channels (and positions)</li>"

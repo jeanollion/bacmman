@@ -28,6 +28,7 @@ import bacmman.image.ImageMask;
 import bacmman.image.TypeConverter;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.plugins.Filter;
+import bacmman.plugins.Hint;
 import bacmman.plugins.PreFilter;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
@@ -43,7 +44,7 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class IJSubtractBackground implements PreFilter, Filter {
+public class IJSubtractBackground implements PreFilter, Filter, Hint {
     BooleanParameter method = new BooleanParameter("Method", "Rolling Ball", "Sliding Paraboloid", true);
     BooleanParameter imageType = new BooleanParameter("Image Background", "Dark", "Light", true);
     BooleanParameter smooth = new BooleanParameter("Perform Smoothing", true);
@@ -116,6 +117,12 @@ public class IJSubtractBackground implements PreFilter, Filter {
     }
     
     private final static int MAXIMUM = 0, MEAN = 1;         //filter types of filter3x3
+
+    @Override
+    public String getHintText() {
+        return "ImageJ's subtract background algorithm. See: http://imagejdocu.tudor.lu/doku.php?id=gui:process:subtract_background";
+    }
+
     public static enum FILTER_DIRECTION { X_DIRECTION(false), Y_DIRECTION(false) , DIAGONAL_1A(true) , DIAGONAL_1B(true) , DIAGONAL_2A(true) , DIAGONAL_2B(true);
         public final boolean diag;
         private FILTER_DIRECTION(boolean diag) {

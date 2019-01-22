@@ -64,7 +64,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     
     NumberParameter channelHeight = new BoundedNumberParameter("Microchannel Height", 0, 320, 5, null).setHint("Height of microchannels, in pixels");
     NumberParameter channelWidth = new BoundedNumberParameter("Microchannel Width", 0, 60, 5, null).setHint("Width of microchannels in pixels");
-    NumberParameter yShift = new BoundedNumberParameter("y-Start Shift", 0, 20, 0, null).setHint("Top of the microchannel will be translated of this value (in pixels) towards upper direction");
+    NumberParameter yShift = new BoundedNumberParameter("y-Start Shift", 0, 20, 0, null).setHint("Y-coordinate of the closed-end of microchannels will be translated of this value (in pixels) towards upper direction");
     public final static  String THLD_TOOL_TIP = "Threshold to segment bacteria. <br />Configuration hint: result of segmentation is the image <em>Thresholded Bacteria</em>";
     PluginParameter<SimpleThresholder> threshold= new PluginParameter<>("Threshold", SimpleThresholder.class, new BackgroundFit(10), false).setHint(THLD_TOOL_TIP); //new BackgroundThresholder(3, 6, 3) when background is removed and images saved in 16b, half of background is trimmed -> higher values
     public final static  String FILL_TOOL_TIP = "Fill proportion = y-length of bacteria / height of microchannel. If proportion is under this value, the object won't be segmented. Allows to avoid segmenting islated bacteria in central channel.<br /> Configuration Hint: Refer to plot <em>Microchannel Fill proportion</em>: peaks over the filling proportion value are segmented. Decrease the value to included lower peaks";
@@ -73,10 +73,9 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     NumberParameter minObjectSize = new BoundedNumberParameter("Min. Object Size", 0, 200, 1, null).setHint(SIZE_TOOL_TIP);
     Parameter[] parameters = new Parameter[]{channelHeight, channelWidth, yShift, threshold, fillingProportion, minObjectSize};
     public static boolean debug = false;
-    public static final String TOOL_TIP = "<b>Detection of microchannel using bacteria fluorescence:</b>"
-    + "<ol><li>Rough segmentation of cells using \"Threshold\" computed the whole track prior to segmentation step</li>"
-    + "<li>Selection of filled channels: lengh in X direction should be over \"Microchannel Height\" x \"Microchannel filling proportion\"</li>"
-    + "<li>Computation of Y start: min value of the min y coordinate of the selected objects at step 2</li></ol>";
+    public static final String TOOL_TIP = "<ol><li>Rough segmentation of cells using the <em>Threshold</em> parameter computed on all frames</li>"
+    + "<li>Selection of filled channels: length of segmented objects at step 1 in X direction should be over <em>Microchannel Height</em> x <em>Microchannel filling proportion</em></li>"
+    + "<li>Computation of the y-coordinate of all microchannel's closed-end (Y start): min value of the min y coordinate of the selected objects at step 2</li></ol>";
     public MicrochannelFluo2D() {}
 
     public MicrochannelFluo2D(int channelHeight, int channelWidth, int yMargin, double fillingProportion, int minObjectSize) {
@@ -248,7 +247,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
 
     @Override
     public String getHintText() {
-        return TOOL_TIP;
+        return "<b>Detection of microchannel using bacteria fluorescence:</b>" + TOOL_TIP;
     }
 
 }

@@ -38,7 +38,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     BoundedNumberParameter frameDuration= new BoundedNumberParameter("Frame Duration", 4, 4, 0, null).setHint("This parameter is only used when no Frame duration is found in image metadata");
     IntervalParameter trimFrames = new IntervalParameter("Trim Frames", 0, 0, 0, 0, 0).setHint("Frame interval (inclusive) to be pre-processed. [0;0] = no trimming");
     SimpleListParameter<TransformationPluginParameter<Transformation>> transformations = new SimpleListParameter<>("Pre-Processing pipeline", new TransformationPluginParameter<>("Transformation", Transformation.class, false));
-    
+    final boolean template;
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -62,17 +62,21 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
         transformations.initFromJSONEntry(jsonO.get("transformations"));
     }
     
-    public PreProcessingChain(String name) {
+    public PreProcessingChain(String name, boolean template) {
         super(name);
+        this.template=template;
         //logger.debug("new PPC: {}", name);
         initChildList();
-        Consumer<IntervalParameter> pl =  sourceParameter -> {
-            Position pos = ParameterUtils.getMicroscopyField(sourceParameter);
-            if (pos!=null) {
-                pos.flushImages(true, true);
-            }
-        };
-        trimFrames.addListener(pl);
+        if (template) this.trimFrames.setUpperBound(null);
+        else {
+            Consumer<IntervalParameter> pl = sourceParameter -> {
+                Position pos = ParameterUtils.getMicroscopyField(sourceParameter);
+                if (pos != null) {
+                    pos.flushImages(true, true);
+                }
+            };
+            trimFrames.addListener(pl);
+        }
     }
 
     public PreProcessingChain setCustomScale(double scaleXY, double scaleZ) {

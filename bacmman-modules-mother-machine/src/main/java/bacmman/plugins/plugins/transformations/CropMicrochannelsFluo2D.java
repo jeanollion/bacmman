@@ -73,7 +73,9 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint {
     
     @Override
     public String getHintText() {
-        return "Crop input image around microchannels. Supposes that microchannels are aligned with Y-axis and that closed-end is located at the top of the image. Microchannels are detected as follow:<br />"+TOOL_TIP;
+        return "<b>Automatic crop of the image around microchannels in fluorescence images</b><br />" +
+                "Supposes that microchannels are aligned with Y-axis and that closed-end is located at the top of the image. (for instance use AutorotationXY and AutoFlip)<br />" +
+                "Microchannels are detected as follow:<br />"+TOOL_TIP;
     }
     
     public CropMicrochannelsFluo2D() {

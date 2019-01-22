@@ -46,19 +46,22 @@ import org.slf4j.LoggerFactory;
 public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint {
     private final static Logger logger = LoggerFactory.getLogger(CropMicrochannelsPhase2D.class);
     public static boolean debug = false;
-    protected String toolTip = "<b>Microchannel Detection in phase-contrast images</b><br />"
-            + "Based on detection of optical aberration (shadow of opened-end of microchannels in phase contrast imaging) as the max of Y mean profile. End of peak is determined using the <em>peak proportion</em> parameter and height using the <em>channel length</em> parameter. <br />Supposes optical aberration is the highest peak. Refer to plot <em>Peak Detection</em><br />"
-            + "Closed-end of microchannels is detected as the highest peak of dI/dy (refer to graph <em>Closed-end detection</em>) after excluding the optical aberration.<br />"
-            + "If a previous rotation has added null values to the image corners, the final bounding box is ensured to exclude them";
-    private static String PEAK_HINT = "The end of optical aberration is determined as the first y index (in y-mean projection values) starting from the peak index towards the microchanels that reach the value of this parameter * peak height<br />Depending on phase-contrast setup, the optical aberration can different tail profile. <br />A value of 1 means the coordinate of the peak is used, then an additional margin might be necessary. A lower value will keep more tail, a higher value will remove tail. A too low value can lead to unstable results over frames if the peak profile changes over frames.<br />Refer to plot <em>Peak Detection</em> to set this parameter";
+    protected String toolTip = "<b>Automatic crop of the image around microchannels in phase-contrast images</b><br />"
+            + "Microchannels must be aligned along the Y-axis with the closed-end at the top of the image (use for instance <em>AutorotationXY</em> and <em/>AutoFlip</em>) <br />"
+            + "Based on the detection of the bright line which corresponds to the shadow of the main channel  in phase-contrast imaging <br />"
+            + "Supposes the bright line corresponds to the peak of highest intensity in the Y-intensity profile<br />"
+            + "<ol><li>Opened-end of microchannels is determined using the peak of highest intensity in the Y-intensity profile (which corresponds to the bright line). The y-coordinate of the opened-end is then set at the end of this peak, determined using the <em>peak proportion</em> parameter and <em>y-margin</em> parameter (tuning hint: Refer to plot <em>Peak Detection</em> in test mode)</li>"
+            + "<li>Closed-end of microchannels is detected as the highest peak of <b>dI/dy</b> after excluding the bright line (tuning hint: refer to graph <em>Closed-end detection</em> in test mode)</li>"
+            + "<li>If a previous rotation has added null values to the image corners, the final bounding box is ensured to exclude them</li></ol>";
+    private static String PEAK_HINT = "The end of bright line is determined as the first y index (in y-mean projection values) starting from the peak index towards the microchanels that reach the value of this parameter * peak height. <br />Depending on phase-contrast setup, the bright line can display different tail profile. <br />A value of 1 means the coordinate of the peak is used, then an additional margin might be necessary. A lower value will keep more tail. A value of 0.5 corresponds to half of the peak. A too low value can lead to unstable results over frames if the peak profile changes between different frames.<br />Refer to plot <em>Peak Detection</em> to set this parameter";
     NumberParameter aberrationPeakProp = new BoundedNumberParameter("Bright line peak proportion", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
     NumberParameter yEndMargin = new BoundedNumberParameter("Lower end Y-margin", 0, 60).setEmphasized(true).setHint("The y-coordinate of the microchannel end will be translated of this value. A positive value will yield in smaller images and a negative value in larger images");
     NumberParameter yEndMarginUp = new BoundedNumberParameter("Upper end Y-margin", 0, 0).setEmphasized(true).setHint("The y-coordinate of the upper end will be translated of this value. A positive value will yield in smaller images and a negative value in larger images");
     NumberParameter aberrationPeakPropUp = new BoundedNumberParameter("Bright line peak", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
-    IntervalParameter maxDistanceRangeFromAberration = new IntervalParameter("Distance range between bright line and microchannel ends", 0, 0, null, 0, 0).setHint("Limit the search for microchannel closed end to a given distance range from the bright line peak (after removing <em>Lower end Y-margin</em> to the bright line peak coordinate). <br />Distance is in pixels. <br />If 0 , no limit is set.");
+    IntervalParameter maxDistanceRangeFromAberration = new IntervalParameter("Distance range between bright line and microchannel ends", 0, 0, null, 0, 0).setHint("Limits the search for microchannel's closed-end to a given distance range from the bright line peak (after removing <em>Lower end Y-margin</em> to the bright line peak coordinate). <br />Distance is in pixels. <br />If 0 , no limit is set.");
     BooleanParameter hallmarkUpperPeak = new BooleanParameter("Hallmark is upper peak", false).setHint("When bounds are computed for all frames, Y size is homogenized. If true, the upper peak will be the hallmark for cropping. Choose the peak that has the most stable location in relation to microchannels through time");
 
-    BooleanParameter twoPeaks = new BooleanParameter("Two-peak detection", false).setHint("If true, the algorithm will detect two intensity peaks along Y-axis, the first one being the upper (lower y coordinate). Images are cropped between the two peaks");
+    BooleanParameter twoPeaks = new BooleanParameter("Two-peak detection", false).setHint("If true, the algorithm will detect the two peaks of highest intensity on the y-intensity profile. Images are then cropped between the two peaks");
     ConditionalParameter twoPeaksCond = new ConditionalParameter(twoPeaks)
             .setActionParameters("false", cropMarginY, maxDistanceRangeFromAberration)
             .setActionParameters("true", aberrationPeakPropUp, yEndMarginUp, hallmarkUpperPeak);
@@ -83,15 +86,15 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
         int yMin=0, yMax, yMinMax;
         if (twoPeaks.getSelected()) {
             cropMargin = 0;
-            int[] yMinAndMax = searchYLimWithTwoOpticalAberration(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode);
+            int[] yMinAndMax = searchYLimWithTwoBrightLines(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode);
             yMin = yMinAndMax[0];
             yMax = yMinAndMax[1];
             yMinMax = yMax;
-            if (yMin<0 || yMax<0) throw new RuntimeException("Did not found two optical aberrations");
+            if (yMin<0 || yMax<0) throw new RuntimeException("Did not found two bright lines");
         } else {
             int[] distanceRange=  maxDistanceRangeFromAberration.getValuesAsInt();
-            yMax =  searchYLimWithOpticalAberration(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, testMode) ;
-            if (yMax<0) throw new RuntimeException("No optical aberration found");
+            yMax =  searchYLimWithBrightLine(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, testMode) ;
+            if (yMax<0) throw new RuntimeException("No bright line found");
             if (distanceRange[1]>0) {
                 yMin = Math.max(yMin, yMax - distanceRange[1]);
             }
@@ -125,19 +128,19 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
     }
     
     /**
-     * Search of Optical Aberration (shadow produced by the microfluidic device at the edge of main chanel microchannels
+     * Search of bright line (shadow produced by the microfluidic device at the edge of main chanel microchannels
      * The closed-end should be towards top of image
      * All the following steps are performed on the mean projection of {@param image} along Y axis
      * 1) search for global max yMax
-     * 2) search for min value after yMax (yMin>yMax) -> define aberration peak height: h = I(yMax) - I(yMin)
+     * 2) search for min value after yMax (yMin>yMax) -> define bright line peak height: h = I(yMax) - I(yMin)
      * 3) search for first occurrence of the value h * {@param peakProportion} before yMax -> endOfPeakYIdx<yMax
      * @param image
      * @param peakProportion
      * @param margin removed to the endOfPeakYIdx value in order to remove long range over-illumination
      * @param testMode
-     * @return the y coordinate over the optical aberration
+     * @return the y coordinate over the bright line
      */
-    public static int searchYLimWithOpticalAberration(Image image, double peakProportion, int margin, boolean testMode) {
+    public static int searchYLimWithBrightLine(Image image, double peakProportion, int margin, boolean testMode) {
         float[] yProj = ImageOperations.meanProjection(image, ImageOperations.Axis.Y, null, (double v) -> v > 0); // when image was rotated by a high angle zeros are introduced
         ArrayUtil.gaussianSmooth(yProj, 10);
         int start = getFirstNonNanIdx(yProj, true);
@@ -152,24 +155,24 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
             Core.showImage(image.setName("Peak detection Input Image"));
             Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end:"+endOfPeakYIdx+" end of microchannels:"+startOfMicroChannel, yProj, "Y", "Mean Intensity projection along X");
             //Utils.plotProfile("Sliding sigma", slidingSigma);
-            Plugin.logger.debug("Optical Aberration detection: start mc / end peak/ peak: idx: [{};{};{}], values: [{};{};{}]", startOfMicroChannel, endOfPeakYIdx, peakIdx, median, thld, yProj[peakIdx]);
+            logger.debug("Bright line detection: start mc / end peak/ peak: idx: [{};{};{}], values: [{};{};{}]", startOfMicroChannel, endOfPeakYIdx, peakIdx, median, thld, yProj[peakIdx]);
         }
         return startOfMicroChannel;
     }
     /**
-     * Search of Optical Aberration (shadow produced by the microfluidic device at the edge of main chanel microchannels
+     * Search of bright line (shadow produced by the microfluidic device at the edge of main chanel microchannels
      * Case of open-microchannels : two fringes on each side
      * All the following steps are performed on the mean projection of {@param image} along Y axis
      * 1) search for 2 global max yMax1 & yMax2
-     * 2) search for min value in range [yMax1; yMax2] -> define aberration peak height: h = I(yMax) - I(yMin)
+     * 2) search for min value in range [yMax1; yMax2] -> define bright line peak height: h = I(yMax) - I(yMin)
      * 3) search for first occurrence of the value h * {@param peakProportion} after each peak in the area between the peaks to define the end of peaks
      * @param image
      * @param peakProportionL
      * @param marginL removed to the endOfPeakYIdx value in order to remove long range over-illumination
      * @param testMode
-     * @return the y coordinate over the optical aberration [yMin, yMax]
+     * @return the y coordinate over the bright line [yMin, yMax]
      */
-    public static int[] searchYLimWithTwoOpticalAberration(Image image, double peakProportionL, int marginL, double peakProportionUp, int marginUp, boolean testMode) {
+    public static int[] searchYLimWithTwoBrightLines(Image image, double peakProportionL, int marginL, double peakProportionUp, int marginUp, boolean testMode) {
         float[] yProj = ImageOperations.meanProjection(image, ImageOperations.Axis.Y, null, (double v) -> v > 0); // when image was rotated by a high angle zeros are introduced
         ArrayUtil.gaussianSmooth(yProj, 10);
         int start = getFirstNonNanIdx(yProj, true);
@@ -215,7 +218,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
             Core.showImage(image.setName("Peak detection Input Image"));
             Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end:"+endOfPeakYIdx+" peak2: "+peakIdx2+ " end of peak 2: "+endOfPeak2YIdx+ " microchannel: ["+startOfMicroChannel[0]+ ";" + startOfMicroChannel[1]+"]", yProj, "Y", "Mean Intensity projection along X");
             //Utils.plotProfile("Sliding sigma", slidingSigma);
-            Plugin.logger.debug("Optical Aberration detection: peak1 {} / end of peak1 {} , peak2: {} end of peak2: {}, microchannels: {}", peakIdx, endOfPeakYIdx, peakIdx2, endOfPeak2YIdx, startOfMicroChannel);
+            Plugin.logger.debug("Bright line detection: peak1 {} / end of peak1 {} , peak2: {} end of peak2: {}, microchannels: {}", peakIdx, endOfPeakYIdx, peakIdx2, endOfPeak2YIdx, startOfMicroChannel);
         }
         return startOfMicroChannel;
     }

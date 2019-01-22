@@ -64,9 +64,9 @@ import java.util.Arrays;
 public class AutoFlipY implements ConfigurableTransformation, MultichannelTransformation, Hint {
     
     public enum AutoFlipMethod {
-        FLUO("Bacteria Fluo", "Detects side where bacteria are more aligned -> should be the upper side"),
-        FLUO_HALF_IMAGE("Bacteria Fluo: Upper Half of Image", "Bacteria should be present in upper half of the image"),
-        PHASE("Phase Contrast Optical Aberration", "Optical Aberration is detected and side where variance along X axis is maximal is selected OR if the optical aberration is closer to one side on the image than microchannel height the other side is selected");
+        FLUO("Bacteria Fluo", "Flips the image so that the side where bacteria are more aligned (corresponding to the closed-end) is the upper side"),
+        FLUO_HALF_IMAGE("Bacteria Fluo: Upper Half of Image", "Flips the image so that Bacteria are present in the upper half of the image"),
+        PHASE("Phase Contrast Optical Aberration", "Optical Aberration (bright line corresponding to the shadow of the main channel in phase contrast images) is detected. Then, the image is flipped so that the side where variance along X-axis is maximal is the upper side. In case the optical aberration is closer to one side on the image than microchannel height the image is flipped to that the other side is the upper side");
         final String name;
         final String toolTip;
         AutoFlipMethod(String name, String toolTip) {
@@ -78,7 +78,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
             return null;
         }
     }
-    String toolTip = "Methods for flipping image along Y-axis in order to set the close-end of channel at the top of the image. <br />Should be set after the rotation";
+    String toolTip = "Methods for flipping image along Y-axis in order to set the close-end of channel at the top of the image. <br />Microchannels must be aligned with the Y-axis (use for instance <em>AutorotationXY</em>)";
     ChoiceParameter method = new ChoiceParameter("Method", Utils.transform(AutoFlipMethod.values(), new String[AutoFlipMethod.values().length], f->f.name), FLUO_HALF_IMAGE.name, false);
     PluginParameter<SimpleThresholder> fluoThld = new PluginParameter<>("Threshold for bacteria Segmentation", SimpleThresholder.class, new BackgroundThresholder(3, 6, 3), false);
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");

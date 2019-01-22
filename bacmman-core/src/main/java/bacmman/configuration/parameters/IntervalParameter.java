@@ -1,6 +1,5 @@
 package bacmman.configuration.parameters;
 
-import bacmman.measurement.MeasurementExtractor;
 import bacmman.utils.Utils;
 import org.json.simple.JSONArray;
 
@@ -78,6 +77,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
 
     public IntervalParameter setValues(Number... values) {
         this.values = Arrays.stream(values).map(v->v.doubleValue()).sorted().toArray(l->new Number[l]);
+        checkBounds();
         this.fireListeners();
         return this;
     }
@@ -88,8 +88,22 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
     public IntervalParameter setValue(Number value, int index) {
         if (index<0 || index>=values.length) throw new IllegalArgumentException("invalid index");
         values[index] = value;
+        if (index>0 && compare(values[index], values[index-1])<0) values[index] = values[index-1].doubleValue();
+        if (index<values.length-1 && compare(values[index], values[index+1])>0) values[index] = values[index+1].doubleValue();
+        checkBounds();
         this.fireListeners();
         return this;
+    }
+
+    private void checkBounds() {
+        if (lowerBound!=null) {
+            int i = 0;
+            while(i<values.length && compare(values[i], lowerBound)<0) values[i++] = lowerBound.doubleValue();
+        }
+        if (upperBound!=null) {
+            int i = values.length-1;
+            while(i>=0 && compare(values[i], upperBound)>0) values[i--] = upperBound.doubleValue();
+        }
     }
 
     public void setLowerBound(Number lowerBound) {
@@ -113,7 +127,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
         return name +  Utils.toStringArray(values, ": [",  "]", "; ", n-> NumberParameter.trimDecimalPlaces(n, decimalPlaces));
     }
 
-    private int compare(Number a, Number b){
+    public static int compare(Number a, Number b){
         return new BigDecimal(a.toString()).compareTo(new BigDecimal(b.toString()));
     }
 }

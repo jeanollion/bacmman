@@ -47,14 +47,12 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     }
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        super.initFromJSONEntry(jsonEntry);
+        super.initFromJSONEntry(jsonEntry); // calls setPlugin -> init input and output channel attributes
         JSONObject jsonO = (JSONObject)jsonEntry;
-        if (jsonO.containsKey("inputChannel")) {
-            if (inputChannel==null) initInputChannel();
+        if (inputChannel!=null && jsonO.containsKey("inputChannel")) {
             inputChannel.initFromJSONEntry(jsonO.get(("inputChannel")));
         }
-        if (jsonO.containsKey("outputChannel")) {
-            if (outputChannel==null) initOutputChannel(null);
+        if (outputChannel!=null && jsonO.containsKey("outputChannel")) {
             outputChannel.initFromJSONEntry(jsonO.get(("outputChannel")));
         }
         //if (jsonO.containsKey("configurationData")) configurationData = (List)jsonO.get("configurationData");
@@ -75,8 +73,9 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     private void initInputChannel() {
         inputChannel = new ChannelImageParameter("Configuration Channel", -1);
     }
-    private void initOutputChannel(int... selectedChannels) {
-        outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels);
+    private void initOutputChannel(boolean multiple, int... selectedChannels) {
+        if (multiple) outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels);
+        else outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels!=null && selectedChannels.length>=1 ? selectedChannels[0] : -1);
     }
     @Override 
     public TransformationPluginParameter<T> setPlugin(T pluginInstance) {
@@ -86,10 +85,10 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         if (pluginInstance instanceof MultichannelTransformation) {  
             switch (((MultichannelTransformation)pluginInstance).getOutputChannelSelectionMode()) {
                 case MULTIPLE:
-                    initOutputChannel(null);
+                    initOutputChannel(true, null);
                     break;
                 case SINGLE:
-                    initOutputChannel(-1);
+                    initOutputChannel(false, -1);
                     break;
                 case ALL:
                     allChannels=true;
@@ -101,6 +100,9 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
                     allChannels=false;
                     break;
             }
+        } else {
+            initOutputChannel(false, -1); // single-channel transformation
+            allChannels=false;
         }
         super.setPlugin(pluginInstance);
         //configurationData = ParameterUtils.duplicateConfigurationDataList(pluginInstance.getConfigurationData());
@@ -122,6 +124,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     public int[] getOutputChannels() { // if null -> all selected or same as input...
         if (outputChannel==null) {
             if (allChannels) return null;
+            else if (inputChannel==null) return null;
             else return inputChannel.getSelectedItems();
         }
         else return outputChannel.getSelectedItems();
@@ -191,8 +194,8 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
             }
             if (otherPP.outputChannel==null) this.outputChannel=null;
             else {
-                if (outputChannel==null) initOutputChannel(((MultichannelTransformation)otherPP).getOutputChannelSelectionMode()==MultichannelTransformation.OUTPUT_SELECTION_MODE.SINGLE?-1:null);
-                this.outputChannel=otherPP.outputChannel.duplicate();
+                if (otherPP.outputChannel==null) this.outputChannel=null;
+                else this.outputChannel=otherPP.outputChannel.duplicate();
                 init = true;
             }
             if (init) initChildList();

@@ -103,7 +103,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         }
     }
     protected MultipleImageContainerSingleFile() {super(1, 1);}
-    public MultipleImageContainerSingleFile(String name, String imagePath, int series, int timePointNumber, int channelNumber, int sizeZ, double scaleXY, double scaleZ) {
+    public MultipleImageContainerSingleFile(String name, String imagePath, int series, int timePointNumber, int channelNumber, int sizeZ, double scaleXY, double scaleZ, boolean invertTZ) {
         super(scaleXY, scaleZ);
         this.name = name;
         this.seriesIdx=series;
@@ -111,16 +111,11 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         this.timePointNumber = timePointNumber;
         this.channelNumber=channelNumber;
         this.sizeZ=sizeZ;
-    }
-
-    public void setInvertTZ(boolean invertTZ) {
-        this.invertTZ = invertTZ;
-        if (reader!=null && invertTZ) reader.setInvertTZ(invertTZ);
+        this.invertTZ=invertTZ;
     }
 
     @Override public MultipleImageContainerSingleFile duplicate() {
-        MultipleImageContainerSingleFile res = new MultipleImageContainerSingleFile(name, filePath, seriesIdx, timePointNumber, channelNumber, sizeZ, scaleXY, scaleZ);
-        res.setInvertTZ(invertTZ);
+        MultipleImageContainerSingleFile res = new MultipleImageContainerSingleFile(name, filePath, seriesIdx, timePointNumber, channelNumber, sizeZ, scaleXY, scaleZ, invertTZ);
         return res;
     }
     

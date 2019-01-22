@@ -28,7 +28,6 @@ import bacmman.utils.Utils;
 public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> extends ParameterImpl<P> implements ChoosableParameter<P>, ChoosableParameterMultiple<P> {
     protected int[] selectedIndices;
     protected boolean allowNoSelection, multipleSelection;
-    //@Transient ParameterUI ui;
     
     public IndexChoiceParameter(String name) {
         this(name, -1, false, false);
