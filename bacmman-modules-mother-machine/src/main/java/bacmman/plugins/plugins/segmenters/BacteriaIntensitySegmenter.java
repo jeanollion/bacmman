@@ -68,7 +68,7 @@ import bacmman.plugins.TrackConfigurable;
 public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegmenter<T>> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter, Hint {
     protected final int MIN_SIZE_PROPAGATION = 20; // was 50
 
-    protected PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new Sigma(2).setMedianRadius(0)).setHint("Filters used to define edge map used in first watershed step. <br />Max eigen value of Structure tensor is a good option<br />Median/Gaussian + Sigma is more suitable for noisy images (involve less derivation)<br />Gradient magnitude is another option. <br />Configuration Hint: tune this value using the intermediate images <em>Edge Map for Partitioning</em> and <em>Region Values after partitioning</em>");  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
+    protected PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new Sigma(2).setMedianRadius(0)).setHint("Filters used to define edge map used in first watershed step.<br />Configuration hint: refer to the <em>Edge Map</em> image displayed in test mode, and set operations so that edges of bacteria are best detected.<br />Max eigen value of Structure tensor is a good option<br />Median/Gaussian + Sigma is more suitable for noisy images (involve less derivation)<br />Gradient magnitude is another option.");  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
     protected NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 0, 5).setHint("Scale (pixels) for gaussian filtering for the local thresholding step");
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null);
 
@@ -76,7 +76,6 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
     protected EdgeDetector edgeDetector;
 
     public BacteriaIntensitySegmenter() {
-        edgeMap.setHint("Filters used to define edge map used in first watershed step. <br />Max eigen value of Structure tensor is a good option<br />Median/Gaussian + Sigma is more suitable for noisy images (involve less derivation)<br />Gradient magnitude is another option. <br />Configuration Hint: tune this value using the intermediate images <em>Edge Map for Partitioning</em> and <em>Region Values after partitioning</em>");  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
     }
 
     public T setSplitThreshold(double splitThreshold) {
@@ -142,7 +141,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         RegionPopulation res = splitAndMerge.merge(split, null);
         res = filterRegionsAfterMergeByHessian(parent, objectClassIdx, res);
         if (stores!=null)  {
-            imageDisp.accept(EdgeDetector.generateRegionValueMap(res, input).setName("Region Values after merge by Hessian + filter"));
+            imageDisp.accept(EdgeDetector.generateRegionValueMap(res, input).setName("Region Values after merge by Hessian"));
         }
         res = localThreshold(input, res, parent, objectClassIdx, false);
         res.filter(new RegionPopulation.Thickness().setX(2).setY(2)); // remove thin objects

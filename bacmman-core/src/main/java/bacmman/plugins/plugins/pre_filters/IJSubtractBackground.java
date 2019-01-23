@@ -123,12 +123,12 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
         return "ImageJ's subtract background algorithm. See: <a href='http://imagejdocu.tudor.lu/doku.php?id=gui:process:subtract_background'>http://imagejdocu.tudor.lu/doku.php?id=gui:process:subtract_background</a>";
     }
 
-    public static enum FILTER_DIRECTION { X_DIRECTION(false), Y_DIRECTION(false) , DIAGONAL_1A(true) , DIAGONAL_1B(true) , DIAGONAL_2A(true) , DIAGONAL_2B(true);
+    public enum FILTER_DIRECTION { X_DIRECTION(false), Y_DIRECTION(false) , DIAGONAL_1A(true) , DIAGONAL_1B(true) , DIAGONAL_2A(true) , DIAGONAL_2B(true);
         public final boolean diag;
-        private FILTER_DIRECTION(boolean diag) {
+        FILTER_DIRECTION(boolean diag) {
             this.diag=diag;
         }
-    }; //filter directions
+    } //filter directions
     
     static void modifiedSlidingParaboloid(ImageProcessor ip, float radius, boolean light, boolean smooth, boolean parallele, FILTER_DIRECTION... directions) {
         FloatProcessor fp = ip.toFloat(0, null);

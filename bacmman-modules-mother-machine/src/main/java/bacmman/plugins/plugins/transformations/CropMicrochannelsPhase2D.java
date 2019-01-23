@@ -55,8 +55,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
             + "<li>If a previous rotation has added null values to the image corners, the final bounding box is ensured to exclude them</li></ol>";
     private static String PEAK_HINT = "The end of bright line is determined as the first y index (in y-mean projection values) starting from the peak index towards the microchanels that reach the value of this parameter * peak height. <br />Depending on phase-contrast setup, the bright line can display different tail profile. <br />A value of 1 means the coordinate of the peak is used, then an additional margin might be necessary. A lower value will keep more tail. A value of 0.5 corresponds to half of the peak. A too low value can lead to unstable results over frames if the peak profile changes between different frames.<br />Refer to plot <em>Peak Detection</em> to set this parameter";
     NumberParameter aberrationPeakProp = new BoundedNumberParameter("Bright line peak proportion", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
-    NumberParameter yEndMargin = new BoundedNumberParameter("Lower end Y-margin", 0, 60).setEmphasized(true).setHint("The y-coordinate of the microchannel end will be translated of this value. A positive value will yield in smaller images and a negative value in larger images");
-    NumberParameter yEndMarginUp = new BoundedNumberParameter("Upper end Y-margin", 0, 0).setEmphasized(true).setHint("The y-coordinate of the upper end will be translated of this value. A positive value will yield in smaller images and a negative value in larger images");
+    NumberParameter yOpenedEndMargin = new BoundedNumberParameter("Lower end Y-margin", 0, 60).setEmphasized(true).setHint("The y-coordinate of the microchannel open end will be translated of this value towards the top of the image. Allows to remove bright line from the cropped image. A positive value will yield in smaller images and a negative value in larger images");
+    NumberParameter yEndMarginUp = new BoundedNumberParameter("Upper end Y-margin", 0, 0).setEmphasized(true).setHint("The y-coordinate of the closed-end will be translated of this value towards the bottom of the image. A positive value will yield in smaller images and a negative value in larger images");
     NumberParameter aberrationPeakPropUp = new BoundedNumberParameter("Bright line peak", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
     IntervalParameter maxDistanceRangeFromAberration = new IntervalParameter("Distance range between bright line and microchannel ends", 0, 0, null, 0, 0).setHint("Limits the search for microchannel's closed-end to a given distance range from the bright line peak (after removing <em>Lower end Y-margin</em> to the bright line peak coordinate). <br />Distance is in pixels. <br />If 0 , no limit is set.");
     BooleanParameter hallmarkUpperPeak = new BooleanParameter("Hallmark is upper peak", false).setHint("When bounds are computed for all frames, Y size is homogenized. If true, the upper peak will be the hallmark for cropping. Choose the peak that has the most stable location in relation to microchannels through time");
@@ -65,7 +65,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
     ConditionalParameter twoPeaksCond = new ConditionalParameter(twoPeaks)
             .setActionParameters("false", cropMarginY, maxDistanceRangeFromAberration)
             .setActionParameters("true", aberrationPeakPropUp, yEndMarginUp, hallmarkUpperPeak);
-    Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yEndMargin, boundGroup};
+    Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup};
     @Override public String getHintText() {return toolTip;}
     public CropMicrochannelsPhase2D(int cropMarginY) {
         this();
@@ -82,7 +82,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
     
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {
         if (debug) testMode = true;
-        int yMarginEndChannel = yEndMargin.getValue().intValue();
+        int yMarginEndChannel = yOpenedEndMargin.getValue().intValue();
         int yMin=0, yMax, yMinMax;
         if (twoPeaks.getSelected()) {
             cropMargin = 0;
@@ -98,7 +98,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
             if (distanceRange[1]>0) {
                 yMin = Math.max(yMin, yMax - distanceRange[1]);
             }
-            yMinMax = Math.max(yMin, yMax - distanceRange[1]);
+            yMinMax = Math.max(yMin, yMax - distanceRange[0]);
         }
 
         // in case image was rotated and 0 were added, search for xMin & xMax so that no 0's are in the image

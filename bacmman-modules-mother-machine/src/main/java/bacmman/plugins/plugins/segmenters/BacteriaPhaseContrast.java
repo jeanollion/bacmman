@@ -52,32 +52,33 @@ import java.util.stream.Stream;
 
 
 /**
- * Bacteria segmentation within microchannels, for phas images
+ * Bacteria segmentation within microchannels, for phase-contrast images
  * @author Jean Ollion
  */
 public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPhaseContrast> {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
-    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
+    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
-    BooleanParameter filterBorderArtifacts = new BooleanParameter("Filter border Artifacts", true).setHint("In some phase-contrast images, a high intensity gradient is present at border of microchannels, and thus lead to false-positive segmentation. If this option is set to true, thin objects touching sides of microchannels will be removed");
-    BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", true).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
+    BooleanParameter filterBorderArtifacts = new BooleanParameter("Filter border Artifacts", true).setHint("In some phase-contrast images, an important intensity gradient is present at border of microchannels, and thus lead to false-positive segmentation. If this option is set to true, thin objects touching sides of microchannels will be removed");
+    BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", true).setHint("In some experimental setups, cell poles touching the closed-end of microchannel have significant lower intensity than the rest of the cell.<br />If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell.");
     NumberParameter dilateRadius = new BoundedNumberParameter("Dilate Radius", 0, 0, 0, null).setHint("Dilatation applied to cell region before local thresholding");
     NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 1.5, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
-    NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
+    NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null).setHint("When distance between cell pole and closed-end of microchannels is under this value, the cell pole is considered to be touching the microchannel end.");
     ConditionalParameter cond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment after segmentation");
-    BooleanParameter adjustContoursOnRaw = new BooleanParameter("Adjust contours on raw signal", true);
+    BooleanParameter adjustContoursOnRaw = new BooleanParameter("Adjust contours on raw signal", true).setHint("If false, local threshold step is performed on pre-filtered images, on the contrary it is performed on the raw images after a smoothing step");
     ConditionalParameter adjustContoursOnRawCond = new ConditionalParameter(adjustContoursOnRaw).setActionParameters("true", smoothScale);
-    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, adjustContoursOnRawCond, cond, dilateRadius);
+    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, adjustContoursOnRawCond, cond);
     NumberParameter minSize = new BoundedNumberParameter("Minimum Region Size", 0, 200, 10, null).setHint("Minimum Object Size in voxels. <br />After split and merge using hessian: regions under this size will be merged by the adjacent region that has the lowest interface value, and if this value is under 2 * <em>Split Threshold</em>");
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
-    EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
+    EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN, false).setHint("Method for splitting objects (used during manual correction or by a tracker able to perform local correction): <ol><li>MIN_WIDTH: splits at the interface of minimal width.</li><li>HESSIAN: splits at the interface of maximal hessian value</li></ol>");
 
     enum INTERFACE_VALUE {MEAN_HESS_DIV_MEAN_INTENSITY, NORMED_HESS}
-    EnumChoiceParameter<INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Value", INTERFACE_VALUE.values(), INTERFACE_VALUE.MEAN_HESS_DIV_MEAN_INTENSITY, false).setHint("Interface value for splitting objects: <ol>" +
+    EnumChoiceParameter<INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Value", INTERFACE_VALUE.values(), INTERFACE_VALUE.MEAN_HESS_DIV_MEAN_INTENSITY, false).setHint("Split/Merge criterion: <ol>" +
             "<li>MEAN_HESS_DIV_MEAN_INTENSITY: mean value of hessian at interface between to regions normalized by the mean value of the pre-filtered image within whole segmented regions</li>" +
             "<li>NORMED_HESS: mean value of hessian at interface between to regions normalized by the mean value of the pre-filtered at the interface between the two regions - estimation of background level (mean of pixels under Ostu's threshold on the whole parent track histogram)</li>" +
-            "</ol>");
+            "</ol> " +
+            "See intermediate image <em>Interface Values before merge by Hessian</em> displayed in test mode");
 
     // attributes parametrized during track parametrization
     double lowerThld = Double.NaN, upperThld = Double.NaN, filterThld=Double.NaN;
@@ -88,12 +89,12 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     }
     public BacteriaPhaseContrast() {
         super();
+        this.splitThreshold.setHint("Threshold used for merging partition after splitting foreground on hessian map. Criterion is defined by the <em/>Interface Value</em> parameter. <br />Lower value splits more.  <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged<br />This parameter should be carefully calibrated for each experimental setup");
         this.splitThreshold.setValue(0.115); // 0.15 for hessian scale = 3
         this.hessianScale.setValue(2);
         this.edgeMap.removeAll().add(new Sigma(3).setMedianRadius(2));
-        localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this factor will yield in smaller cells. <br />Threshold = mean_w - sigma_w * (this factor), <br />with mean_w = weigthed mean of raw pahse image weighted by edge image, sigma_w = sigma weighted by edge image. Refer to images: <em>Local Threshold edge map</em> and <em>Local Threshold intensity map</em>");
+        localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this factor will yield in smaller cells. <br />Threshold = mean_w - sigma_w * (this factor), <br />with mean_w = weigthed mean of raw pahse image weighted by edge image, sigma_w = sigma weighted by edge image. <br />Refer to images: <em>Local Threshold edge map</em> and <em>Local Threshold intensity map</em>");
         localThresholdFactor.setValue(1);
-        
     }
     public BacteriaPhaseContrast setMinSize(int minSize) {
         this.minSize.setValue(minSize);
@@ -105,12 +106,18 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         return filterBorderArtifacts(parent, objectClassIdx, pop);
     }
     final private String toolTip = "<b>Bacteria segmentation within microchannels</b><br />"
-            + "Same algorithm as BacteriaIntensity with several changes:<br />"
-            + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, filtered with the Track-pre-filter: \"SubtractBackgroundMicrochannels\"<br />"
-            + "<ol><li>Background partition selection can include filtering of High-intensity background objects resulting from border-effects & phase contrast imaging. See <em>Filter border Artefacts</em></li>"
-            + "<li>Split/Merge criterion is value of hessian at interface between to regions normalized by the mean value of the pre-filtered image within all segmented regions, or can be set using <em>Interface value</em> parameter</li>"
-            + "<li>Local threshold step is performed on the raw images with a different value described in the <em>local threshold factor</em> parameter</li></ol>";
-    
+            + "This algorithm is similar to <em>BacteriaIntensity</em><br />"
+            + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the Track-pre-filter: <em>SubtractBackgroundMicrochannels</em><br />"
+            + "Main steps:"
+            + "<ol><li>Partitioning of the image using watershed transform on the edges defined by the <em>Edge Map</em></li>"
+            + "<li>In order to define the foreground mask, background partitions are removed, based on comparison of their median intensity with the threshold defined by the <em>Threshold</em> parameter. Optionally thin partitions located at border of microchannels are removed (See <em>Filter border Artifacts</em> parameter).</li>"
+            + "<li>Split/Merge strategy to separate touching cells: foreground mask is split by applying a watershed transform on the Hessian transform. Partitions are then merged using a criterion defined by the <em>Interface value</em> parameter</li>"
+            + "<li>A local threshold step is performed on each bacteria. Threshold value is described in the <em>local threshold factor</em> parameter</li></ol>"
+            + "Intermediate images displayed in test mode for each of the previous steps. In order to display the different partitions after a partitioning step, we use an image displaying median intensity value of each partition, referred to as MIP"
+            + "<ol><li><em>Edge Map for partitioning</em>: image of edges used for watershed partitioning<br /> <em>Region values after partitioning</em>: MIP after partitioning step</li>"
+            + "<li><em>Region Values after filtering of partitions</em>: MIP after the filtering step</li>"
+            + "<li><em>Hessian</em>: max Eigenvalue of the hessian matrix used for the partitioning of the foreground mask<br /> <em>Region values before merge by hessian</em>: MIP after partitioning on Hessian image<br /> <em>Interface values before merge by hessian</em>: Each segment represent the area of contact between two partitions (referred to as interface) and its value is the criterion, to be compared with the parameter <em>Split Threshold</em><br /> <em>Region values after merge by hessian</em>: MIP after merging using the Split/Merge criterion </li>"
+            + "<li><em>Local Threshold intensity map</em> & <em>Local threshold edge map</em>: images used for local thresholding </li></ol>";
     @Override public String getHintText() {return toolTip;}
     
     @Override public SplitAndMergeHessian initializeSplitAndMerge(SegmentedObject parent, int structureIdx, ImageMask foregroundMask) {
@@ -169,7 +176,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     }
     @Override
     protected RegionPopulation filterRegionsAfterMergeByHessian(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
-        if (stores!=null) stores.get(parent).addIntermediateImage("values after merge by hessian", EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values before merge by Hessian"));
+        if (stores!=null && verbosePlus) stores.get(parent).addIntermediateImage("Region Values after merge by hessian and before filter", EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values before merge by Hessian"));
         if (pop.getRegions().isEmpty()) return pop;        
         // filter low value regions
         if (!Double.isNaN(filterThld)) {
@@ -266,7 +273,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         }
         if (!relabeled) pop.relabel(true);
         
-        if (stores!=null) imageDisp.accept(pop.getLabelMap().duplicate("after fore & back & intertermined fusion"));
+        if (stores!=null && verbosePlus) imageDisp.accept(pop.getLabelMap().duplicate("after fore & back & intertermined fusion"));
         return pop;
     }
     /**
