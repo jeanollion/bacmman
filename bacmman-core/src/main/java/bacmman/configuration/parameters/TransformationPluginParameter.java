@@ -100,7 +100,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
                     allChannels=false;
                     break;
             }
-        } else {
+        } else if (inputChannel==null) {
             initOutputChannel(false, -1); // single-channel transformation
             allChannels=false;
         }

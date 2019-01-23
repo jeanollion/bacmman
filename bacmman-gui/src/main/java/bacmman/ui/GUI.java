@@ -62,12 +62,13 @@ import bacmman.ui.gui.configuration.TransparentListCellRenderer;
 import bacmman.ui.gui.image_interaction.Kymograph;
 import bacmman.ui.gui.objects.StructureSelectorTree;
 import bacmman.image.Image;
-import java.awt.Color;
-import java.awt.Component;
+
+import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -1375,6 +1376,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         hintTextPane.setEditable(false);
         hintTextPane.setBorder(javax.swing.BorderFactory.createEmptyBorder(1, 1, 1, 1));
+        hintTextPane.addHyperlinkListener(e -> {
+            if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+                try {
+                    Desktop.getDesktop().browse(e.getURL().toURI());
+                } catch (IOException | URISyntaxException e1) {
+
+                }
+            }
+        });
         hintTextPane.setContentType("text/html"); // NOI18N
         JPopupMenu hintMenu = new JPopupMenu();
         Action copyHint = new DefaultEditorKit.CopyAction();
