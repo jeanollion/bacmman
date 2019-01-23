@@ -74,11 +74,14 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN, false).setHint("Method for splitting objects (used during manual correction or by a tracker able to perform local correction): <ol><li>MIN_WIDTH: splits at the interface of minimal width.</li><li>HESSIAN: splits at the interface of maximal hessian value</li></ol>");
 
     enum INTERFACE_VALUE {MEAN_HESS_DIV_MEAN_INTENSITY, NORMED_HESS}
-    EnumChoiceParameter<INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Value", INTERFACE_VALUE.values(), INTERFACE_VALUE.MEAN_HESS_DIV_MEAN_INTENSITY, false).setHint("Split/Merge criterion: <ol>" +
-            "<li>MEAN_HESS_DIV_MEAN_INTENSITY: mean value of hessian at interface between to regions normalized by the mean value of the pre-filtered image within whole segmented regions</li>" +
-            "<li>NORMED_HESS: mean value of hessian at interface between to regions normalized by the mean value of the pre-filtered at the interface between the two regions - estimation of background level (mean of pixels under Ostu's threshold on the whole parent track histogram)</li>" +
-            "</ol> " +
-            "See intermediate image <em>Interface Values before merge by Hessian</em> displayed in test mode");
+    EnumChoiceParameter<INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Value", INTERFACE_VALUE.values(), INTERFACE_VALUE.MEAN_HESS_DIV_MEAN_INTENSITY, false).setHint("Split/Merge criterion used in step 3:"
+            +"Interface refer to the contact area between two regions. <br />"
+            +"mean(H)@Inter refer to the mean hessian value at the interface<br />"
+            +"mean(PF)@Regions refer to the mean value of the pre-filtered input image within the two regions in contact"
+            +"BCK refers to the estimation of background level, computed as the mean of pre-filtered images with value under Ostu's threshold on the whole microchannel track"
+            +"<ol><li>MEAN_HESS_DIV_MEAN_INTENSITY: mean(H)@Inter /  ( mean(PF)@Regions - BCK )</li>"
+            +"<li>NORMED_HESS: mean(H)@Inter / ( mean(PF)@Inter - BCK )</li></ol>"
+            +"See intermediate image <em>Interface Values before merge by Hessian</em> displayed in test mode");
 
     // attributes parametrized during track parametrization
     double lowerThld = Double.NaN, upperThld = Double.NaN, filterThld=Double.NaN;
@@ -151,7 +154,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                     if (voxels.isEmpty()) return Double.NaN;
                     else {
                         Image hessian = sam.getHessian();
-                        double intensitySum = voxels.stream().mapToDouble(v->input.getPixel(v.x, v.y, v.z)-lowerThld).sum();
+                        double intensitySum = voxels.stream().mapToDouble(v->input.getPixel(v.x, v.y, v.z)-globalBackgroundLevel).sum(); // was lower threshold
                         if (intensitySum<=0) return Double.NaN;
                         double hessSum = voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).sum();
                         return hessSum / intensitySum;

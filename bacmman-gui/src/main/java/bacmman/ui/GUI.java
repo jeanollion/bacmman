@@ -1376,6 +1376,20 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         hintTextPane.setEditable(false);
         hintTextPane.setBorder(javax.swing.BorderFactory.createEmptyBorder(1, 1, 1, 1));
         hintTextPane.setContentType("text/html"); // NOI18N
+        JPopupMenu hintMenu = new JPopupMenu();
+        Action copyHint = new DefaultEditorKit.CopyAction();
+        copyHint.putValue(Action.NAME, "Copy");
+        copyHint.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke("control C"));
+        hintMenu.add( copyHint );
+        Action selectAllHint = new TextAction("Select All") {
+            @Override public void actionPerformed(ActionEvent e) {
+                JTextComponent component = getFocusedComponent();
+                component.selectAll();
+                component.requestFocusInWindow();
+            }
+        };
+        hintMenu.add( selectAllHint );
+        hintTextPane.setComponentPopupMenu( hintMenu );
         hintJSP.setViewportView(hintTextPane);
 
         configurationSplitPaneRight.setRightComponent(hintJSP);
