@@ -20,6 +20,12 @@
     </licenses>
 
     <dependencies>
+        <!-->for non-local means wrapping<-->
+        <dependency>
+            <groupId>com.github.thorstenwagner</groupId>
+            <artifactId>ij-nl-means</artifactId>
+            <version>1.4.6</version>
+        </dependency>
         <dependency>
             <groupId>sc.fiji</groupId>
             <artifactId>imagescience</artifactId>
