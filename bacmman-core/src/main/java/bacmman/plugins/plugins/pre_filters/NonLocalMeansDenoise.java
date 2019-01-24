@@ -40,7 +40,7 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public class NonLocalMeans implements PreFilter, Filter, Hint {
+public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 0, 15, 0, null).setHint("Estimation of standard deviation of noise.");
     BoundedNumberParameter smoothingFactor = new BoundedNumberParameter("Smoothing factor", 2, 1, 0.1, null);
     BooleanParameter autoEstimateSigma = new BooleanParameter("Auto Estimate Sigma", false);
@@ -100,7 +100,7 @@ public class NonLocalMeans implements PreFilter, Filter, Hint {
     public String getHintText() {
         return "Non local means denosing<br /> " +
                 "To use this plugin, activate the update site: <em>biomedgroup</em><br />"+
-                "<a href='https://imagej.net/Non_Local_Means_Denoise'</a>" +
+                "<a href='https://imagej.net/Non_Local_Means_Denoise'>https://imagej.net/Non_Local_Means_Denoise</a><br />" +
                 "Method: Antoni Buades, Bartomeu Coll, and Jean-Michel Morel, Non-Local Means Denoising, Image Processing On Line, vol. 2011.<br />" +
                 "Implementation: Darbon, J. et al., 2008. Fast nonlocal filtering applied to electron cryomicroscopy. In 2008 5th IEEE International Symposium on Biomedical Imaging: From Nano to Macro, Proceedings, ISBI. IEEE, pp. 1331–1334.";
     }
