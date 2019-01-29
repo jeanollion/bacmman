@@ -112,7 +112,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint {
         return this;
     }
     /**
-     * Tracking of microchannels using <a href="https://imagej.net/TrackMate" target="_top">TrackMate</a> in 4 steps
+     * Tracking of microchannels using <a href='https://imagej.net/TrackMate' target="_top">TrackMate</a> in 4 steps
      * 1) Frame to Frame tracking using "Maximal Distance Factor for Frame-to-Frame Tracking" parameter
      * 2) Gap-closing tracking using "Maximal Distance for Gap-Closing procedure" parameter
      * 3) Removal of crossing links: if some micro-channels are missing, the gap-closing procedure can produce links that cross, as microchannels are not moving relatively, those links should be removed in order to be able to apply the {@link #fillGaps(int, List, boolean, SegmentedObjectFactory, TrackLinkEditor)}  gap-filling procdure}

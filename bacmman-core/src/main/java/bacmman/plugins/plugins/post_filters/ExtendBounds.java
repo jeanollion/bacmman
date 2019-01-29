@@ -41,7 +41,7 @@ public class ExtendBounds implements PostFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "Extends the bouding box of a region of a user-defined size in each directions, and set a rectangular mask to the region";
+        return "Extends the bounding box of a region of a user-defined size in each directions, and set a rectangular mask to the region";
     }
     public enum OUT_OF_BOUNDS_CONDITION {
         TRIM("Trim"),

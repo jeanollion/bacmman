@@ -436,7 +436,7 @@ public class ManualEdition {
                 if (test) splitter.splitObject(objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                 else {
                     SegmentedObject newObject = factory.split(objectToSplit, splitter);
-                    if (newObject==null) logger.warn("Object could not be splitted!");
+                    if (newObject==null) logger.warn("Object could not be split!");
                     else {
                         newObjects.add(newObject);
                         SegmentedObject prev = objectToSplit.getPrevious();

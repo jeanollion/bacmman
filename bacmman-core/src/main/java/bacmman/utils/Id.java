@@ -119,7 +119,7 @@ public final class Id implements Comparable<Id>, Serializable {
 
     /**
      * <p>Creates an Id using time, machine and inc values.  The Java driver used to create all ObjectIds this way, but it does not
- match the <a href="http://docs.mongodb.org/manual/reference/object-id/">Id specification</a>, which requires four values, not
+ match the <a href='http://docs.mongodb.org/manual/reference/object-id/'>Id specification</a>, which requires four values, not
      * three. This major release of the Java driver conforms to the specification, but still supports clients that are relying on the
      * behavior of the previous major release by providing this explicit factory method that takes three parameters instead of four.</p>
      *

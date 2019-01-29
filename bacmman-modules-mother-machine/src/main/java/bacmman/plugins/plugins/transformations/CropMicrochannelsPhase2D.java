@@ -52,7 +52,10 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
             + "Supposes the bright line corresponds to the peak of highest intensity in the Y-intensity profile<br />"
             + "<ol><li>Opened-end of microchannels is determined using the peak of highest intensity in the Y-intensity profile (which corresponds to the bright line). The y-coordinate of the opened-end is then set at the end of this peak, determined using the <em>peak proportion</em> parameter and <em>y-margin</em> parameter (tuning hint: Refer to plot <em>Peak Detection</em> in test mode)</li>"
             + "<li>Closed-end of microchannels is detected as the highest peak of <b>dI/dy</b> after excluding the bright line (tuning hint: refer to graph <em>Closed-end detection</em> in test mode)</li>"
-            + "<li>If a previous rotation has added null values to the image corners, the final bounding box is ensured to exclude them</li></ol>";
+            + "<li>If a previous rotation has added null values to the image corners, the final bounding box is ensured to exclude them</li></ol>"
+            + "Displayed graphs in test mode:"
+            + "<ul><li><em>Peak Detection</em>: Graph displaying the mean profile of the image along the Y-axis, used to detect the bright line(s). Y-coordinate of the detected peak(s) are displayed in the title of the graph</li>" +
+            "<li><em>Closed-end detection</em>: Graph displaying the mean profile of the 1st-order y-derivative (dI / dY) along Y axis, used to detect the closed-end of microchannels when only one bright line is present (only displayed when parameter <em>Two-peak detection</em> is set to <em>false</em>). Highest peak should correspond to closed-end, if not, set the parameter <em>Distance range between bright line and microchannel ends</em> in order to limit the peak search zone<li></ul>";
     private static String PEAK_HINT = "The end of bright line is determined as the first y index (in y-mean projection values) starting from the peak index towards the microchanels that reach the value of this parameter * peak height. <br />Depending on phase-contrast setup, the bright line can display different tail profile. <br />A value of 1 means the coordinate of the peak is used, then an additional margin might be necessary. A lower value will keep more tail. A value of 0.5 corresponds to half of the peak. A too low value can lead to unstable results over frames if the peak profile changes between different frames.<br />Refer to plot <em>Peak Detection</em> to set this parameter";
     NumberParameter aberrationPeakProp = new BoundedNumberParameter("Bright line peak proportion", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
     NumberParameter yOpenedEndMargin = new BoundedNumberParameter("Lower end Y-margin", 0, 60).setEmphasized(true).setHint("The y-coordinate of the microchannel open end will be translated of this value towards the top of the image. Allows to remove bright line from the cropped image. A positive value will yield in smaller images and a negative value in larger images");
@@ -152,8 +155,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
         int endOfPeakYIdx = ArrayUtil.getFirstOccurence(yProj, peakIdx, start, v->v<thld);
         int startOfMicroChannel = endOfPeakYIdx - margin;
         if (testMode) {
-            Core.showImage(image.setName("Peak detection Input Image"));
-            Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end:"+endOfPeakYIdx+" end of microchannels:"+startOfMicroChannel, yProj, "Y", "Mean Intensity projection along X");
+            //Core.showImage(image.setName("Peak detection Input Image"));
+            Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" end of microchannels: y = "+startOfMicroChannel, yProj, "Y", "Mean Intensity projection along X");
             //Utils.plotProfile("Sliding sigma", slidingSigma);
             logger.debug("Bright line detection: start mc / end peak/ peak: idx: [{};{};{}], values: [{};{};{}]", startOfMicroChannel, endOfPeakYIdx, peakIdx, median, thld, yProj[peakIdx]);
         }
@@ -215,8 +218,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
         if (startOfMicroChannel[1]>image.yMax()) startOfMicroChannel[1] = image.yMax();
 
         if (testMode) {
-            Core.showImage(image.setName("Peak detection Input Image"));
-            Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end:"+endOfPeakYIdx+" peak2: "+peakIdx2+ " end of peak 2: "+endOfPeak2YIdx+ " microchannel: ["+startOfMicroChannel[0]+ ";" + startOfMicroChannel[1]+"]", yProj, "Y", "Mean Intensity projection along X");
+            //Core.showImage(image.setName("Peak detection Input Image"));
+            Utils.plotProfile("Peak Detection: detected at y = "+peakIdx+" peak end: y = "+endOfPeakYIdx+" peak2: y = "+peakIdx2+ " end of peak 2: y = "+endOfPeak2YIdx+ " microchannel: ["+startOfMicroChannel[0]+ ";" + startOfMicroChannel[1]+"]", yProj, "Y", "Mean Intensity projection along X");
             //Utils.plotProfile("Sliding sigma", slidingSigma);
             Plugin.logger.debug("Bright line detection: peak1 {} / end of peak1 {} , peak2: {} end of peak2: {}, microchannels: {}", peakIdx, endOfPeakYIdx, peakIdx2, endOfPeak2YIdx, startOfMicroChannel);
         }

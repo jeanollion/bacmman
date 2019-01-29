@@ -51,7 +51,7 @@ public class PluginFactory {
     private final static TreeMap<String, Class> PLUGIN_NAMES_MAP_CLASS = new TreeMap<>();
     private final static Map<Class, String> CLASS_MAP_PLUGIN_NAME = new HashMap<>();
     private final static Logger logger = LoggerFactory.getLogger(PluginFactory.class);
-    private final static Map<String, String> OLD_NAMES_MAP_NEW = new HashMap<String, String>(){{put("FitRegionsToEdges", "FitMicrochannelsToEdges"); put("BacteriaIntensity", "BacteriaFluo");put("BacteriaIntensityPhase", "BacteriaPhaseContrast"); put("MutationTrackerSpine", "NestedSpotTracker");put("MutationSegmenter", "SpotSegmenter");}};
+    private final static Map<String, String> OLD_NAMES_MAP_NEW = new HashMap<String, String>(){{put("Sigma", "StandardDeviation"); put("FitRegionsToEdges", "FitMicrochannelsToEdges"); put("BacteriaIntensity", "BacteriaFluo");put("BacteriaIntensityPhase", "BacteriaPhaseContrast"); put("MutationTrackerSpine", "NestedSpotTracker");put("MutationSegmenter", "SpotSegmenter");}};
     public static void importIJ1Plugins() {
         Hashtable<String, String> table = ij.Menus.getCommands();
         if (table==null) {

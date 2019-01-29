@@ -32,7 +32,7 @@ public interface SegmenterSplitAndMerge extends Segmenter {
      * Split an object into several objects
      * @param parent
      * @param structureIdx
-     * @param o object to be splitted
+     * @param o object to be split
      * @param result list in which put the resulting objects
      * @return a value representing the cost of splitting the object, NaN if the object could not be split
      */

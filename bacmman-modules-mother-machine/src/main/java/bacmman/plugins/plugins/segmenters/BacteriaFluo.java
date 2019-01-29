@@ -99,25 +99,25 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
     }
     @Override
     public String getHintText() {
-        return "<b>Intensity-based 2D segmentation of bacteria within microchannels:</b>"
+        return "<b>Intensity-based 2D segmentation of bacteria within microchannels:</b><br />"
             +"Void microchannels are detected prior to segmentation step using information on the whole microchannel track. See <em>Variation coefficient threshold</em> parameter"
-            +"Segmentation steps:"
+            +"<br />Segmentation steps:"
             + "<ol><li>Foreground detection: image is partitioned using by watershed on the edge map (see <em>Edge Map</em> parameter)</li>"
             + "<li>Foreground partition are then selected depending on the method chosen in <em>Foreground Selection Method</em></li>"
             + "<li>In order to separate touching cells, foreground is split by applying a watershed transform on the maximal hessian Eigenvalue, regions are then merged, using a criterion described in <em>Split Threshold</em> parameter</li>"
             + "<li>A local threshold is applied to each region. Mostly because inter-foreground regions may be segmented in step 1). Threshold is set as described in <em>Local Threshold Factor</em> parameter. <br /> "
             + "Propagating from contour voxels, all voxels with value on the smoothed image (<em>Smooth scale</em> parameter) under the local threshold is removed</li></ol>"
             + "Intermediate images displayed in test mode for each of the previous steps. In order to display the different partitions after a partitioning step, we use an image displaying median intensity value of each partition, referred to as MIP"
-            + "<ol><li><em>Edge Map for partitioning</em>: image of edges used for watershed partitioning<br /> " +
-            "<em>Region values after partitioning</em>: MIP after partitioning step. Importantly regions should be either located in foreground or in background but not overlap both areas<br />"
-            +"<em>Interface Values for background partition fusion</em>: Each segment represent the area of contact between two partitions (referred to as interface) and its value is the criterion, to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between foreground and background, and as low as possible between background regions<br />"
-            +"<em>Region Values after background partition fusion</em>: MIP after merging background partition. No foreground regions should be merged with background</li>"
-            + "<li><em>Region Values after filtering of partitions</em>: MIP after the filtering step</li>"
-            + "<li><em>Hessian</em>: max Eigenvalue of the hessian matrix used for the partitioning of the foreground mask in order to separate cells. Its intensity should be as high as possible at the interface between touching cells and as low as possible within cells<br /> " +
-            "<em>Region values before merge by hessian</em>: MIP after partitioning on <em>Hessian</em> image<br /> " +
-            "<em>Interface values before merge by hessian</em>: Each segment represent the area of contact between two partitions (referred to as interface) and its value is the criterion, to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between cells and as low as possible within cells<br /> " +
-            "<em>Region values after merge by hessian</em>: MIP after merging using the Split/Merge criterion </li>"
-            +"</ol>";
+            + "<ul><li><em>Edge Map for partitioning</em>: image of edges used for watershed partitioning (<em>used in step 1</em>)</li>"
+            + "<li><em>Region values after partitioning</em>: MIP after partitioning step. Importantly regions should be either located in foreground or in background but not overlap both areas (<em>used in step 1</em>)</li>"
+            + "<li><em>Interface Values for background partition fusion</em>: Each segment represent the area of contact between two partitions (referred to as interface) and its value is the criterion, to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between foreground and background, and as low as possible between background regions (<em>used in step 1</em>)</li>"
+            + "<li><em>Region Values after background partition fusion</em>: MIP after merging background partition. No foreground regions should be merged with background (<em>used in step 1</em>)</li>"
+            + "<li><em>Region Values after filtering of partitions</em>: MIP after the filtering step (<em>used in step 2</em>)</li>"
+            + "<li><em>Hessian</em>: max Eigenvalue of the hessian matrix used for the partitioning of the foreground mask in order to separate cells. Its intensity should be as high as possible at the interface between touching cells and as low as possible within cells  (<em>used in step 3</em>)</li> "
+            + "<li><em>Region values before merge by hessian</em>: MIP after partitioning on <em>Hessian</em> image(<em>used in step 3</em>)</li> "
+            + "<li><em>Interface values before merge by hessian</em>: Each segment represent the area of contact between two partitions (referred to as interface) and its value is the criterion, to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between cells and as low as possible within cells (<em>used in step 3</em>)</li> "
+            + "<li><em>Region values after merge by hessian</em>: MIP after merging using the Split/Merge criterion (<em>used in step 3</em>)</li>"
+            +"</ul>";
     }
     
     

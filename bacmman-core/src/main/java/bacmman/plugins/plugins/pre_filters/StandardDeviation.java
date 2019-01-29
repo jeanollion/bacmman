@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Hint;
 import bacmman.processing.Filters;
 import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
@@ -33,25 +34,25 @@ import static bacmman.processing.Filters.applyFilter;
  *
  * @author Jean Ollion
  */
-public class Sigma implements PreFilter, Filter {
-    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 3, 1, true).setHint("Radius in pixel");
-    ScaleXYZParameter medianRadius = new ScaleXYZParameter("Median Filtering Radius", 0, 1, true).setHint("Radius for median filtering, prior to sigma, in pixel. 0 = no median filtering");
+public class StandardDeviation implements PreFilter, Filter, Hint {
+    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 3, 1, true).setHint("Radius (in pixel) defining the neighborhood in which the standard deviation is computed");
+    ScaleXYZParameter medianRadius = new ScaleXYZParameter("Median Filtering Radius", 0, 1, true).setHint("Radius for median filtering, prior to sigma, in pixel. <br />0 = no median filtering");
     Parameter[] parameters = new Parameter[]{radius, medianRadius};
-    public Sigma() {}
-    public Sigma(double radius) {
+    public StandardDeviation() {}
+    public StandardDeviation(double radius) {
         this.radius.setScaleXY(radius);
         this.radius.setUseImageCalibration(true);
     }
-    public Sigma(double radiusXY, double radiusZ) {
+    public StandardDeviation(double radiusXY, double radiusZ) {
         this.radius.setScaleXY(radiusXY);
         this.radius.setScaleZ(radiusZ);
     }
-    public Sigma setMedianRadius(double radius) {
+    public StandardDeviation setMedianRadius(double radius) {
         this.medianRadius.setScaleXY(radius);
         this.medianRadius.setUseImageCalibration(true);
         return this;
     }
-    public Sigma setMedianRadius(double radiusXY, double radiusZ) {
+    public StandardDeviation setMedianRadius(double radiusXY, double radiusZ) {
         this.medianRadius.setScaleXY(radiusXY);
         this.medianRadius.setScaleZ(radiusZ);
         return this;
@@ -80,4 +81,9 @@ public class Sigma implements PreFilter, Filter {
 
     boolean testMode;
     @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+
+    @Override
+    public String getHintText() {
+        return "Computes the local Standard Deviation of the image within an Elipsoidal neighborhood defined in the <em>Radius</em> parameter. Optionally a performs a median filtering before in order to reduce noise";
+    }
 }

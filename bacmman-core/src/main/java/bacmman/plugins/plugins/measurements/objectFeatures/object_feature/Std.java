@@ -19,13 +19,14 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.data_structure.Region;
+import bacmman.plugins.Hint;
 import bacmman.plugins.object_feature.IntensityMeasurement;
 
 /**
  *
  * @author Jean Ollion
  */
-public class Std extends IntensityMeasurement {
+public class Std extends IntensityMeasurement implements Hint {
 
     @Override public double performMeasurement(Region object) {
         return core.getIntensityMeasurements(object).sd;
@@ -34,5 +35,9 @@ public class Std extends IntensityMeasurement {
     @Override public String getDefaultName() {
         return "std";
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "Computed the standard deviation of pixel values within the segmented object";
+    }
 }

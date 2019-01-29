@@ -42,7 +42,7 @@ public class FeatureFilter implements PostFilter, Hint {
     
     @Override
     public String getHintText() {
-        return "Filter regions according to a user-defined feature";
+        return "Removes segmented regions according to a user-defined feature, such as Size, Length etc...";
     }
     
     public FeatureFilter() {}

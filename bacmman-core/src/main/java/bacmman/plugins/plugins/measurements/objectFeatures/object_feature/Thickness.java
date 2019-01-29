@@ -62,7 +62,7 @@ public class Thickness implements GeometricalFeature, Hint {
 
     @Override
     public String getHintText() {
-        return "Estimation of thickness using euclidean distance map: median value of local maxima of the EDM";
+        return "Estimation of thickness using euclidean distance map (EDM): median value of local maxima of the EDM";
     }
     
 }

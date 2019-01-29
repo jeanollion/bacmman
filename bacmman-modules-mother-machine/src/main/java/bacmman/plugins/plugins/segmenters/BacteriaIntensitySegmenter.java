@@ -25,39 +25,26 @@ import bacmman.core.Core;
 import bacmman.processing.EDT;
 import bacmman.processing.Filters;
 import bacmman.processing.RegionFactory;
-import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
-import bacmman.processing.split_merge.SplitAndMergeHessian;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Voxel;
-import bacmman.image.BlankMask;
-import bacmman.image.BoundingBox;
 import bacmman.image.Image;
-import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.ManualSegmenter;
-import bacmman.plugins.ObjectSplitter;
-import bacmman.plugins.SegmenterSplitAndMerge;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Hint;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
-import bacmman.plugins.plugins.pre_filters.Sigma;
+import bacmman.plugins.plugins.pre_filters.StandardDeviation;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+
 import bacmman.plugins.TrackConfigurable;
 
 /**
@@ -66,9 +53,16 @@ import bacmman.plugins.TrackConfigurable;
  * @param <T>
  */
 public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegmenter<T>> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter, Hint {
+    public static String Edge_Hint = "Several operation allowing to detect edges:" +
+            "<ul><li>Max Eigenvalue of Structure tensor (located in the <em>ImageFeatures</em> module)</li>" +
+            "<li>StandardDeviation is more suitable for noisy images (involve less derivation)</li>" +
+            "<li>Gradient magnitude (located in the <em>ImageFeatures</em> module)</li><ul>" +
+            "Those operation should be preceded by a de-noising operation such as: " +
+            "<ul><li>Gaussian Smooth (located in the <em>ImageFeatures</em> module)</li>" +
+            "<li>Median</li>" +
+            "<li>NonLocalMeansDenoising</li></ul>";
     protected final int MIN_SIZE_PROPAGATION = 20; // was 50
-
-    protected PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new Sigma(2).setMedianRadius(0)).setHint("Filters used to define edge map used in first watershed step.<br />Configuration hint: refer to the <em>Edge Map for partitioning</em> image displayed in test mode, and set operations so that edges of bacteria are best detected. Also refer to <em>Region values after partitioning</em>: regions should be either within background OR foreground but not overlap both<br />Max Eigenvalue of Structure tensor is a good option<br />Median/Gaussian + Sigma is more suitable for noisy images (involve less derivation)<br />Gradient magnitude is also a good option.");  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
+    protected PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new StandardDeviation(2).setMedianRadius(0)).setHint("List of operations used to compute the edge map used in first watershed step.<br />Configuration hint: the <em>Edge Map for partitioning</em> (displayed in test mode) is the result of those operations. Set operations so that edges of bacteria are best detected, several operations can be added through right-click menu. Also refer to <em>Region values after partitioning</em>: regions should be either within background OR foreground but not overlap both. <br />"+Edge_Hint);  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
     protected NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 0, 5).setHint("Scale (pixels) for gaussian filtering for the local thresholding step");
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null);
 

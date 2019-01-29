@@ -64,7 +64,7 @@ public class LocalThickness implements GeometricalFeature, Hint {
 
     @Override
     public String getHintText() {
-        return "Estimation of thickness: median value of local thickness within object. <br />Local thickness at a given voxel is the radius of the largest circle (sphere) center on this voxel that can fit within the object";
+        return "Estimation of thickness: median value of local thickness within object. <br />Local thickness at a given voxel is the radius of the largest circle (sphere) center on this voxel that can fit within the object<br />Based on implementation by Bob Dougherty  <a href='https://imagej.net/Local_Thickness'>https://imagej.net/Local_Thickness</a>";
     }
     
 }

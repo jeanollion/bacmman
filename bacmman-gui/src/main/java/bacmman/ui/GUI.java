@@ -22,6 +22,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.*;
+import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
@@ -117,6 +118,7 @@ import java.util.function.Consumer;
 import javax.swing.ToolTipManager;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
+import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JSeparator;
 
@@ -149,6 +151,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     //StructureObjectTreeGenerator objectTreeGenerator;
     private DefaultListModel<String> experimentModel = new DefaultListModel<>();
     private DefaultListModel<String> moduleModel = new DefaultListModel<>();
+    private DefaultListModel<String> testModuleModel = new DefaultListModel<>();
     private DefaultListModel<Task> actionPoolListModel = new DefaultListModel<>();
     private DefaultListModel<String> actionMicroscopyFieldModel;
     private DefaultListModel<Selection> selectionModel;
@@ -156,6 +159,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     PythonGateway pyGtw;
     // shortcuts
     private Shortcuts shortcuts;
+
+    // test panel
+    private IntervalParameter testFrameRange = new IntervalParameter("", 0, 0, null, 0, 0);
     
     // enable/disable components
     private NumberParameter openedImageLimit = new BoundedNumberParameter("Limit", 0, 5, 0, null);
@@ -174,6 +180,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.INSTANCE=this;
         initComponents();
         this.moduleList.setModel(moduleModel);
+        this.testModuleList.setModel(testModuleModel);
+        Utils.addHorizontalScrollBar(testPositionJCB);
+        this.testFrameRange.addListener(i -> {
+            testFrameRangeLabel.setText(testFrameRange.toString());
+            testFrameRangeLabel.setForeground(testFrameRange.isValid() ? Color.BLACK : Color.red);
+        });
         Color backgroundColor = Color.CYAN;
         tabs.setTabComponentAt(1, new JLabel("Configuration")); // so that it can be colorized in red when configuration is not valid
         setConfigurationTabValid = v -> { // action when experiment is not valid
@@ -181,25 +193,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             tabs.getTabComponentAt(1).repaint();
         };
         tabs.addChangeListener(new ChangeListener() {
-            int lastSelTab=0;
             @Override public void stateChanged(ChangeEvent e) {
-                if (lastSelTab==1 && tabs.getSelectedIndex()!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
-                lastSelTab=tabs.getSelectedIndex();
-                if (tabs.getSelectedComponent()==dataPanel) {
-                    if (reloadObjectTrees) {
-                        reloadObjectTrees=false;
-                        loadObjectTrees();
-                        displayTrackTrees();
-                    }
-                    setTrackTreeStructures();
-                    setInteractiveStructures();
-                    
-                }
-                if (tabs.getSelectedComponent()==actionPanel) {
-                    populateActionStructureList();
-                    populateActionPositionList();
-                }
-
+                setSelectedTab(tabs.getSelectedIndex());
             }
         });
         // selections
@@ -705,11 +700,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         updateConfigurationTree();
         populateActionStructureList();
         populateActionPositionList();
+        populateTestPositionJCB();
         reloadObjectTrees=true;
         populateSelections();
         updateDisplayRelatedToXPSet();
         datasetListValueChanged(null);
-        setInteractiveStructures();
+        setObjectClassJCB(interactiveStructure, true);
+        setObjectClassJCB(testObjectClassJCB, false);
 
         // in case Output path is modified in configuration -> need some reload
         FileChooser outputPath = (FileChooser)db.getExperiment().getChildren().stream().filter(p->p.getName().equals("Output Path")).findAny().get();
@@ -744,7 +741,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     if (hintJSP.getHorizontalScrollBar()!=null) hintJSP.getHorizontalScrollBar().setValue(0);
                 }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
             };
-            configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(),setConfigurationTabValid, (selectedModule, modules) -> populateModuleList(selectedModule, modules), setHint, db, ProgressCallback.get(this));
+            configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), db.getExperiment(),setConfigurationTabValid, (selectedModule, modules) -> populateModuleList(moduleModel, moduleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
             configurationJSP.setViewportView(configurationTreeGenerator.getTree());
             setConfigurationTabValid.accept(db.getExperiment().isValid());
             final Consumer<String> moduleSelectionCallBack = configurationTreeGenerator.getModuleChangeCallBack();
@@ -757,12 +754,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
     }
 
-    private void populateModuleList(String selectedModule, List<String> modules) {
-        this.moduleModel.removeAllElements();
+    private void populateModuleList(DefaultListModel<String> moduleModel, javax.swing.JList<String> moduleList, String selectedModule, List<String> modules) {
+        moduleModel.removeAllElements();
         for (String s : modules) moduleModel.addElement(s);
         moduleList.setSelectedValue(selectedModule, true);
     }
-
+    
     
     private void promptSaveUnsavedChanges() {
         if (db==null) return;
@@ -794,6 +791,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         db=null;
         if (configurationTreeGenerator!=null) configurationTreeGenerator.flush();
         configurationTreeGenerator=null;
+        if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.flush();
+        testConfigurationTreeGenerator = null;
         trackTreeController=null;
         reloadObjectTrees=true;
         populateActionStructureList();
@@ -807,7 +806,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (xp!=null) setMessage("XP: "+xp+ " closed");
         datasetListValueChanged(null);
         reloadObjectTrees=true;
-        populateModuleList(null, Collections.emptyList());
+        populateModuleList(moduleModel, moduleList, null, Collections.emptyList());
         hintTextPane.setText("");
     }
     
@@ -821,7 +820,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         runActionAllXPMenuItem.setEnabled(!enable); // only available if no xp is set
         this.tabs.setEnabledAt(1, enable); // configuration
         this.tabs.setEnabledAt(2, enable); // data browsing
-    
+        this.tabs.setEnabledAt(3, enable); // test 
         // readOnly
         if (enable) {
             boolean rw = !db.isConfigurationReadOnly();
@@ -887,7 +886,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return;
         }
         trackTreeController = new TrackTreeController(db, ProgressCallback.get(this));
-        setInteractiveStructures();
+        setObjectClassJCB(interactiveStructure, true);
         setTrackTreeStructures();
         resetSelectionHighlight();
     }
@@ -951,18 +950,31 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         else return Utils.transform((List<String>)microscopyFieldList.getSelectedValuesList(), s->s.substring(0, s.indexOf(" ")));
     }
     
+    private int lastSelTab=0;
     public void setSelectedTab(int tabIndex) {
-        this.tabs.setSelectedIndex(tabIndex);
+        if (tabs.getSelectedIndex()!=tabIndex) tabs.setSelectedIndex(tabIndex);
+        if (lastSelTab==1 && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
+        lastSelTab=tabIndex;
         if (tabs.getSelectedComponent()==dataPanel) {
             if (reloadObjectTrees) {
                 reloadObjectTrees=false;
                 loadObjectTrees();
+                displayTrackTrees();
             }
-            setInteractiveStructures();
             setTrackTreeStructures();
-        } 
+            setObjectClassJCB(interactiveStructure, true);
+
+        }
+        if (tabs.getSelectedComponent()==actionPanel) {
+            populateActionStructureList();
+            populateActionPositionList();
+        }
+        if (tabs.getSelectedComponent() == testPanel) {
+            setObjectClassJCB(interactiveStructure, false);
+            populateTestPositionJCB();
+            updateConfigurationTree();
+        }  
     }
-    
     
     public static GUI getInstance() {
         if (INSTANCE==null) INSTANCE=new GUI();
@@ -1009,15 +1021,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         objectTreeGenerator.unselectAllObjects();
         objectTreeGenerator.setUpdateRoiDisplayWhenSelectionChange(true);*/
     }
-    private void setInteractiveStructures() {
+    private void setObjectClassJCB(JComboBox jcb, boolean addViewField) {
         List<String> structureNames= Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
-        Object selectedO = interactiveStructure.getSelectedItem();
-        this.interactiveStructure.removeAllItems();
-        interactiveStructure.addItem("Viewfield");
-        for (String s: structureNames) interactiveStructure.addItem(s);
+        Object selectedO = jcb.getSelectedItem();
+        jcb.removeAllItems();
+        if (addViewField) jcb.addItem("Viewfield");
+        for (String s: structureNames) jcb.addItem(s);
         if (structureNames.size()>0) {
-            if (selectedO!=null && structureNames.contains(selectedO)) interactiveStructure.setSelectedItem(selectedO);
-            else interactiveStructure.setSelectedIndex(1);
+            if (selectedO!=null && structureNames.contains(selectedO)) jcb.setSelectedItem(selectedO);
+            else jcb.setSelectedIndex(addViewField ? 1 : 0);
         }
     }
     private void setTrackTreeStructures() {
@@ -1160,6 +1172,30 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         trackTreeStructureJSP = new javax.swing.JScrollPane();
         interactiveObjectPanel = new javax.swing.JPanel();
         interactiveStructure = new javax.swing.JComboBox();
+        testPanel = new javax.swing.JPanel();
+        testSplitPane = new javax.swing.JSplitPane();
+        testSplitPaneRight = new javax.swing.JSplitPane();
+        testModuleJSP = new javax.swing.JScrollPane();
+        testModuleList = new javax.swing.JList<>();
+        testHintJSP = new javax.swing.JScrollPane();
+        testHintTextPane = new javax.swing.JTextPane();
+        testSplitPaneLeft = new javax.swing.JSplitPane();
+        testConfigurationJSP = new javax.swing.JScrollPane();
+        testControlJSP = new javax.swing.JScrollPane();
+        testControlPanel = new javax.swing.JPanel();
+        testFramePanel = new javax.swing.JPanel();
+        testFrameRangeLabel = new javax.swing.JLabel();
+        testTestButton = new javax.swing.JButton();
+        testCopyButton = new javax.swing.JButton();
+        testStepPanel = new javax.swing.JPanel();
+        testStepJCB = new javax.swing.JComboBox<>();
+        testPositionPanel = new javax.swing.JPanel();
+        testPositionJCB = new javax.swing.JComboBox<>();
+        testObjectClassPanel = new javax.swing.JPanel();
+        testObjectClassJCB = new javax.swing.JComboBox<>();
+        testParentTrackPanel = new javax.swing.JPanel();
+        testParentTrackJCB = new javax.swing.JComboBox<>();
+        closeAllWindowsButton = new javax.swing.JButton();
         progressAndConsolPanel = new javax.swing.JPanel();
         consoleJSP = new javax.swing.JScrollPane();
         console = new javax.swing.JTextPane();
@@ -1245,12 +1281,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         workingDirectory.setBorder(javax.swing.BorderFactory.createTitledBorder("Working Directory"));
         workingDirectory.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mousePressed(java.awt.event.MouseEvent evt) {
-                experimentFolderMousePressed(evt);
+                workingDirectoryMousePressed(evt);
             }
         });
         workingDirectory.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                experimentFolderActionPerformed(evt);
+                workingDirectoryActionPerformed(evt);
             }
         });
 
@@ -1334,7 +1370,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     .addComponent(actionStructureJSP))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(actionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                    .addComponent(actionPoolJSP, javax.swing.GroupLayout.DEFAULT_SIZE, 254, Short.MAX_VALUE)
+                    .addComponent(actionPoolJSP)
                     .addComponent(actionJSP)))
         );
         actionPanelLayout.setVerticalGroup(
@@ -1372,34 +1408,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         configurationSplitPaneRight.setTopComponent(moduleListJSP);
 
-        hintJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Hint"));
+        hintJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Help"));
 
         hintTextPane.setEditable(false);
         hintTextPane.setBorder(javax.swing.BorderFactory.createEmptyBorder(1, 1, 1, 1));
-        hintTextPane.addHyperlinkListener(e -> {
-            if (e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-                try {
-                    Desktop.getDesktop().browse(e.getURL().toURI());
-                } catch (IOException | URISyntaxException e1) {
-
-                }
-            }
-        });
         hintTextPane.setContentType("text/html"); // NOI18N
-        JPopupMenu hintMenu = new JPopupMenu();
-        Action copyHint = new DefaultEditorKit.CopyAction();
-        copyHint.putValue(Action.NAME, "Copy");
-        copyHint.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke("control C"));
-        hintMenu.add( copyHint );
-        Action selectAllHint = new TextAction("Select All") {
-            @Override public void actionPerformed(ActionEvent e) {
-                JTextComponent component = getFocusedComponent();
-                component.selectAll();
-                component.requestFocusInWindow();
-            }
-        };
-        hintMenu.add( selectAllHint );
-        hintTextPane.setComponentPopupMenu( hintMenu );
         hintJSP.setViewportView(hintTextPane);
 
         configurationSplitPaneRight.setRightComponent(hintJSP);
@@ -1721,6 +1734,208 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Data Browsing", dataPanel);
+
+        testSplitPane.setDividerLocation(550);
+
+        testSplitPaneRight.setDividerLocation(250);
+        testSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
+
+        testModuleJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Available Modules"));
+
+        testModuleJSP.setViewportView(testModuleList);
+
+        testSplitPaneRight.setTopComponent(testModuleJSP);
+
+        testHintJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Help"));
+
+        testHintTextPane.setContentType("text/html"); // NOI18N
+        testHintJSP.setViewportView(testHintTextPane);
+
+        testSplitPaneRight.setRightComponent(testHintJSP);
+
+        testSplitPane.setRightComponent(testSplitPaneRight);
+
+        testSplitPaneLeft.setDividerLocation(175);
+        testSplitPaneLeft.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
+
+        testConfigurationJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Configuration"));
+        testSplitPaneLeft.setBottomComponent(testConfigurationJSP);
+
+        testControlJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Test Controls"));
+
+        testFramePanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Frame Range"));
+        testFramePanel.setPreferredSize(new java.awt.Dimension(120, 49));
+
+        testFrameRangeLabel.setText("[0; 0]");
+        testFrameRangeLabel.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseClicked(java.awt.event.MouseEvent evt) {
+                testFrameRangeLabelMouseClicked(evt);
+            }
+        });
+
+        javax.swing.GroupLayout testFramePanelLayout = new javax.swing.GroupLayout(testFramePanel);
+        testFramePanel.setLayout(testFramePanelLayout);
+        testFramePanelLayout.setHorizontalGroup(
+            testFramePanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testFrameRangeLabel, javax.swing.GroupLayout.DEFAULT_SIZE, 110, Short.MAX_VALUE)
+        );
+        testFramePanelLayout.setVerticalGroup(
+            testFramePanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testFrameRangeLabel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+        );
+
+        testTestButton.setText("Test");
+
+        testCopyButton.setText("Copy pre-processing to all positions");
+
+        testStepPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Step"));
+
+        testStepJCB.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Pre-Processing", "Processing" }));
+        testStepJCB.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                testStepJCBItemStateChanged(evt);
+            }
+        });
+
+        javax.swing.GroupLayout testStepPanelLayout = new javax.swing.GroupLayout(testStepPanel);
+        testStepPanel.setLayout(testStepPanelLayout);
+        testStepPanelLayout.setHorizontalGroup(
+            testStepPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testStepJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+        );
+        testStepPanelLayout.setVerticalGroup(
+            testStepPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, testStepPanelLayout.createSequentialGroup()
+                .addGap(0, 0, Short.MAX_VALUE)
+                .addComponent(testStepJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+        );
+
+        testPositionPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Position"));
+
+        testPositionJCB.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                testPositionJCBItemStateChanged(evt);
+            }
+        });
+
+        javax.swing.GroupLayout testPositionPanelLayout = new javax.swing.GroupLayout(testPositionPanel);
+        testPositionPanel.setLayout(testPositionPanelLayout);
+        testPositionPanelLayout.setHorizontalGroup(
+            testPositionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testPositionJCB, 0, 140, Short.MAX_VALUE)
+        );
+        testPositionPanelLayout.setVerticalGroup(
+            testPositionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testPositionJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+        );
+
+        testObjectClassPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Object Class"));
+
+        testObjectClassJCB.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                testObjectClassJCBItemStateChanged(evt);
+            }
+        });
+
+        javax.swing.GroupLayout testObjectClassPanelLayout = new javax.swing.GroupLayout(testObjectClassPanel);
+        testObjectClassPanel.setLayout(testObjectClassPanelLayout);
+        testObjectClassPanelLayout.setHorizontalGroup(
+            testObjectClassPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testObjectClassJCB, 0, 161, Short.MAX_VALUE)
+        );
+        testObjectClassPanelLayout.setVerticalGroup(
+            testObjectClassPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testObjectClassJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+        );
+
+        testParentTrackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Parent Track"));
+
+        testParentTrackJCB.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                testParentTrackJCBItemStateChanged(evt);
+            }
+        });
+
+        javax.swing.GroupLayout testParentTrackPanelLayout = new javax.swing.GroupLayout(testParentTrackPanel);
+        testParentTrackPanel.setLayout(testParentTrackPanelLayout);
+        testParentTrackPanelLayout.setHorizontalGroup(
+            testParentTrackPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testParentTrackJCB, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+        );
+        testParentTrackPanelLayout.setVerticalGroup(
+            testParentTrackPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testParentTrackJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+        );
+
+        closeAllWindowsButton.setText("Close All Windows");
+        closeAllWindowsButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                closeAllWindowsButtonActionPerformed(evt);
+            }
+        });
+
+        javax.swing.GroupLayout testControlPanelLayout = new javax.swing.GroupLayout(testControlPanel);
+        testControlPanel.setLayout(testControlPanelLayout);
+        testControlPanelLayout.setHorizontalGroup(
+            testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(testControlPanelLayout.createSequentialGroup()
+                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addGroup(testControlPanelLayout.createSequentialGroup()
+                        .addComponent(testStepPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(testPositionPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(testFramePanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(testControlPanelLayout.createSequentialGroup()
+                        .addComponent(testObjectClassPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(testParentTrackPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addGroup(testControlPanelLayout.createSequentialGroup()
+                        .addComponent(testTestButton, javax.swing.GroupLayout.PREFERRED_SIZE, 71, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(closeAllWindowsButton, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(testCopyButton)))
+                .addContainerGap())
+        );
+        testControlPanelLayout.setVerticalGroup(
+            testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(testControlPanelLayout.createSequentialGroup()
+                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
+                    .addComponent(testPositionPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(testStepPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                    .addComponent(testFramePanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
+                    .addComponent(testParentTrackPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(testObjectClassPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(testTestButton)
+                    .addComponent(testCopyButton)
+                    .addComponent(closeAllWindowsButton)))
+        );
+
+        testControlJSP.setViewportView(testControlPanel);
+
+        testSplitPaneLeft.setLeftComponent(testControlJSP);
+
+        testSplitPane.setLeftComponent(testSplitPaneLeft);
+
+        javax.swing.GroupLayout testPanelLayout = new javax.swing.GroupLayout(testPanel);
+        testPanel.setLayout(testPanelLayout);
+        testPanelLayout.setHorizontalGroup(
+            testPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testSplitPane, javax.swing.GroupLayout.DEFAULT_SIZE, 814, Short.MAX_VALUE)
+        );
+        testPanelLayout.setVerticalGroup(
+            testPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(testPanelLayout.createSequentialGroup()
+                .addContainerGap()
+                .addComponent(testSplitPane, javax.swing.GroupLayout.DEFAULT_SIZE, 395, Short.MAX_VALUE))
+        );
+
+        tabs.addTab("Configuration Test", testPanel);
 
         homeSplitPane.setLeftComponent(tabs);
 
@@ -2644,6 +2859,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 db.updateExperiment();
                 updateConfigurationTree();
                 populateActionPositionList();
+                populateTestPositionJCB();
                 loadObjectTrees();
                 ImageWindowManagerFactory.getImageManager().flush();
                 if (!error) pcb.log("importing done!");
@@ -2871,6 +3087,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (dir!=null) PropertyUtils.set(PropertyUtils.LAST_IMPORT_IMAGE_DIR, dir.getAbsolutePath());
             db.updateExperiment(); //stores imported position
             populateActionPositionList();
+            populateTestPositionJCB();
             updateConfigurationTree();
             // also lock all new positions
             db.lockPositions();
@@ -3134,6 +3351,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 db.updateExperiment();
                 updateConfigurationTree();
                 populateActionPositionList();
+                populateTestPositionJCB();
                 loadObjectTrees();
                 ImageWindowManagerFactory.getImageManager().flush();
                 if (!error) pcb.log("importing done!");
@@ -3315,11 +3533,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return new MultiProgressLogger(this, logUI);
         } else return this;
     }
-    private void experimentFolderActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_experimentFolderActionPerformed
+    private void workingDirectoryActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_workingDirectoryActionPerformed
         // TODO add your handling code here:
-    }//GEN-LAST:event_experimentFolderActionPerformed
+    }//GEN-LAST:event_workingDirectoryActionPerformed
 
-    private void experimentFolderMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_experimentFolderMousePressed
+    private void workingDirectoryMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_workingDirectoryMousePressed
         if (this.running) return;
         if (SwingUtilities.isRightMouseButton(evt) && localFileSystemDatabaseRadioButton.isSelected()) {
                     logger.debug("frame fore: {} , back: {}, hostName: {}", this.getForeground(), this.getBackground(), workingDirectory.getBackground());
@@ -3370,7 +3588,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             recentFiles.add(delRecent);
             menu.show(this.workingDirectory, evt.getX(), evt.getY());
         }
-    }//GEN-LAST:event_experimentFolderMousePressed
+    }//GEN-LAST:event_workingDirectoryMousePressed
 
     private void newXPFromTemplateMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPFromTemplateMenuItemActionPerformed
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, IJ.getDir("plugins")+File.separator+"BACMMAN");
@@ -3478,6 +3696,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                     db.updateExperiment();
                     populateActionPositionList();
+                    populateTestPositionJCB();
                     updateConfigurationTree();
                 }
             };
@@ -3658,6 +3877,61 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void printShortcutMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_printShortcutMenuItemActionPerformed
         shortcuts.printTable();
     }//GEN-LAST:event_printShortcutMenuItemActionPerformed
+
+    private void testStepJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testStepJCBItemStateChanged
+        boolean pp = this.testStepJCB.getSelectedIndex()==0;
+        this.testObjectClassJCB.setEnabled(!pp);
+        this.testParentTrackJCB.setEnabled(!pp);
+        this.testCopyButton.setEnabled(pp);
+        updateTestConfigurationTree();
+    }//GEN-LAST:event_testStepJCBItemStateChanged
+
+    private void testPositionJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testPositionJCBItemStateChanged
+        // TODO check if this is fired at each update! 
+        logger.debug("fire test position changed");
+        int positionIdx = testPositionJCB.getSelectedIndex();
+        if (testStepJCB.getSelectedIndex()==0) { // pre-processing
+            if (positionIdx<0) { // unset frame range
+                testFrameRange.setUpperBound(0);
+            } else testFrameRange.setUpperBound(db.getExperiment().getPosition(positionIdx).getFrameNumber(true));
+            this.updateTestConfigurationTree();
+        } else {
+            this.testParentTrackJCB.removeAllItems();
+            populateTestParentTrackHead();
+        }
+    }//GEN-LAST:event_testPositionJCBItemStateChanged
+
+    private void testFrameRangeLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_testFrameRangeLabelMouseClicked
+        if (SwingUtilities.isRightMouseButton(evt)) {
+            // display popupmenu to edit frame range
+            JPopupMenu menu = new JPopupMenu();
+            ParameterUI ui = ParameterUIBinder.getUI(this.testFrameRange, null, null);
+            ConfigurationTreeGenerator.addToMenu(ui.getDisplayComponent(), menu);
+            menu.show(testFramePanel, evt.getX(), evt.getY());
+        }
+    }//GEN-LAST:event_testFrameRangeLabelMouseClicked
+
+    private void testObjectClassJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testObjectClassJCBItemStateChanged
+        this.testParentTrackJCB.removeAllItems();
+        populateTestParentTrackHead();
+        updateTestConfigurationTree();
+    }//GEN-LAST:event_testObjectClassJCBItemStateChanged
+
+    private void testParentTrackJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testParentTrackJCBItemStateChanged
+        if (evt.getStateChange() == ItemEvent.SELECTED) {
+            // set trim frame lower and upper bounds
+            SegmentedObject trackHead = getTestTrackHead();
+            List<SegmentedObject> parentTrack = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex()).getTrack(trackHead);
+            this.testFrameRange.setLowerBound(trackHead.getFrame());
+            this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size()-1).getFrame());
+        } else {
+            this.testTestButton.setEnabled(false);
+        }
+    }//GEN-LAST:event_testParentTrackJCBItemStateChanged
+
+    private void closeAllWindowsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_closeAllWindowsButtonActionPerformed
+        closeAllWindowsMenuItemActionPerformed(evt);
+    }//GEN-LAST:event_closeAllWindowsButtonActionPerformed
     public void updateSelectionListUI() {
         selectionList.updateUI();
     }
@@ -3742,7 +4016,97 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             getInstance().nextTrackErrorButton.setText("Go to Next Track Error (X)");
             getInstance().previousTrackErrorButton.setText("Go to Prev. TrackError (W)");
         }*/
-    } 
+    }
+
+    // test panel section
+
+    
+    private void updateTestButton(Boolean configValid) {
+        if (configValid == null) { // config valid is not known
+            if (this.testConfigurationTreeGenerator==null) configValid = false;
+            else configValid = testConfigurationTreeGenerator.getRoot().isValid();
+        }
+        if (!configValid) this.testTestButton.setEnabled(false);
+        else {
+            if (!testFrameRange.isValid()) this.testTestButton.setEnabled(false);
+            else {
+                if (testStepJCB.getSelectedIndex()==0) { // pre-processing
+                    testTestButton.setEnabled(this.testPositionJCB.getSelectedIndex()>=0); // one position is selected
+                } else {
+                    testTestButton.setEnabled(this.testPositionJCB.getSelectedIndex()>=0 && this.testObjectClassJCB.getSelectedIndex()>=0 && this.testParentTrackJCB.getSelectedIndex()>=0);
+                }
+            }
+        }
+    }
+    
+    public void populateTestPositionJCB() {
+        String sel = Utils.getSelectedString(testPositionJCB);
+        testPositionJCB.removeAllItems();
+        if (db!=null) {
+            for (int i =0; i<db.getExperiment().getPositionCount(); ++i) testPositionJCB.addItem(db.getExperiment().getPosition(i).getName()+" (#"+i+")");
+            if (sel !=null) testPositionJCB.setSelectedItem(sel);
+        }
+    }
+    
+    private ConfigurationTreeGenerator testConfigurationTreeGenerator;
+    
+    private void updateTestConfigurationTree() {
+        boolean pp = this.testStepJCB.getSelectedIndex()==0;
+        int objectClassIdx = this.testObjectClassJCB.getSelectedIndex();
+        int positionIdx = this.testPositionJCB.getSelectedIndex();
+        if (db==null || (!pp && objectClassIdx<0) || (pp && positionIdx<0)) {
+            testConfigurationTreeGenerator=null;
+            testConfigurationJSP.setViewportView(null);
+            for (ListSelectionListener ll : testModuleList.getListSelectionListeners()) testModuleList.removeListSelectionListener(ll);
+        } else {
+            Consumer<String> setHint = hint -> {
+                testHintTextPane.setText(hint);
+                SwingUtilities.invokeLater(() -> {
+                    if (testHintJSP.getVerticalScrollBar()!=null) testHintJSP.getVerticalScrollBar().setValue(0);
+                    if (testHintJSP.getHorizontalScrollBar()!=null) testHintJSP.getHorizontalScrollBar().setValue(0);
+                }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
+            };
+            testConfigurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), pp?db.getExperiment().getPosition(positionIdx).getPreProcessingChain().getTransformations():db.getExperiment().getStructure(objectClassIdx).getProcessingPipelineParameter(), b->updateTestButton(b), (selectedModule, modules) -> populateModuleList(testModuleModel, testModuleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
+            testConfigurationJSP.setViewportView(testConfigurationTreeGenerator.getTree());
+            final Consumer<String> moduleSelectionCallBack = testConfigurationTreeGenerator.getModuleChangeCallBack();
+            testModuleList.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    moduleSelectionCallBack.accept(testModuleList.getSelectedValue());
+                }
+            });
+        }
+    }
+    private void populateTestParentTrackHead() {
+        int testObjectClassIdx = this.testObjectClassJCB.getSelectedIndex();
+        int positionIdx = testPositionJCB.getSelectedIndex();
+        if (testObjectClassIdx<0 || positionIdx<0) {
+            this.testParentTrackJCB.removeAllItems();
+        } else {
+            String position = db.getExperiment().getPosition(positionIdx).getName();
+            int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
+            SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(so -> so.isTrackHead()).map(o->Selection.indicesString(o)).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
+            /*if (parentObjectClassIdx<0) {
+                testParentTrackJCB.addItem(position);
+            } else { // get list of all trackHeads in position
+                
+            }*/
+        }
+    }
+    
+    private SegmentedObject getTestTrackHead() {
+        if (db==null) return null;
+        int positionIdx = testPositionJCB.getSelectedIndex();
+        int testObjectClassIdx = this.testObjectClassJCB.getSelectedIndex();
+        if (positionIdx<0 || testObjectClassIdx<0) return null;
+        String position = db.getExperiment().getPosition(positionIdx).getName();
+        int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
+        int[] path = db.getExperiment().experimentStructure.getPathToRoot(parentObjectClassIdx);
+        String sel = Utils.getSelectedString(testParentTrackJCB);
+        return Selection.getObject(Selection.parseIndices(sel), path, db.getDao(position).getRoots());
+    }
+    
+    
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JMenuItem CloseNonInteractiveWindowsMenuItem;
@@ -3758,6 +4122,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem clearMemoryMenuItem;
     private javax.swing.JMenuItem clearPPImageMenuItem;
     private javax.swing.JMenuItem clearTrackImagesMenuItem;
+    private javax.swing.JButton closeAllWindowsButton;
     private javax.swing.JMenuItem closeAllWindowsMenuItem;
     private javax.swing.JMenuItem compactLocalDBMenuItem;
     private javax.swing.JScrollPane configurationJSP;
@@ -3777,7 +4142,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem displayShortcutMenuItem;
     private javax.swing.JMenuItem duplicateXPMenuItem;
     private javax.swing.JPanel editPanel;
-    private javax.swing.JTextField workingDirectory;
     private javax.swing.JMenu experimentMenu;
     private javax.swing.JCheckBoxMenuItem exportConfigMenuItem;
     private javax.swing.JMenuItem exportDataMenuItem;
@@ -3860,8 +4224,31 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu shortcutPresetMenu;
     private javax.swing.JButton splitObjectsButton;
     private javax.swing.JTabbedPane tabs;
+    private javax.swing.JScrollPane testConfigurationJSP;
+    private javax.swing.JScrollPane testControlJSP;
+    private javax.swing.JPanel testControlPanel;
+    private javax.swing.JButton testCopyButton;
+    private javax.swing.JPanel testFramePanel;
+    private javax.swing.JLabel testFrameRangeLabel;
+    private javax.swing.JScrollPane testHintJSP;
+    private javax.swing.JTextPane testHintTextPane;
     private javax.swing.JButton testManualSegmentationButton;
+    private javax.swing.JScrollPane testModuleJSP;
+    private javax.swing.JList<String> testModuleList;
+    private javax.swing.JComboBox<String> testObjectClassJCB;
+    private javax.swing.JPanel testObjectClassPanel;
+    private javax.swing.JPanel testPanel;
+    private javax.swing.JComboBox<String> testParentTrackJCB;
+    private javax.swing.JPanel testParentTrackPanel;
+    private javax.swing.JComboBox<String> testPositionJCB;
+    private javax.swing.JPanel testPositionPanel;
     private javax.swing.JButton testSplitButton;
+    private javax.swing.JSplitPane testSplitPane;
+    private javax.swing.JSplitPane testSplitPaneLeft;
+    private javax.swing.JSplitPane testSplitPaneRight;
+    private javax.swing.JComboBox<String> testStepJCB;
+    private javax.swing.JPanel testStepPanel;
+    private javax.swing.JButton testTestButton;
     private javax.swing.JPanel trackPanel;
     private javax.swing.JPanel trackSubPanel;
     private javax.swing.JScrollPane trackTreeStructureJSP;
@@ -3869,6 +4256,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem unDumpObjectsMenuItem;
     private javax.swing.JButton unlinkObjectsButton;
     private javax.swing.JButton updateRoiDisplayButton;
+    private javax.swing.JTextField workingDirectory;
     // End of variables declaration//GEN-END:variables
 
     

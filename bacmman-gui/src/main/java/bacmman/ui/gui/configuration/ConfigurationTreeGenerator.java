@@ -21,6 +21,7 @@ package bacmman.ui.gui.configuration;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.parameters.ConditionalParameter;
+import bacmman.configuration.parameters.ContainerParameter;
 import bacmman.configuration.parameters.ListParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
@@ -70,7 +71,8 @@ import javax.swing.tree.TreeSelectionModel;
  */
 public class ConfigurationTreeGenerator {
     public static final Logger logger = LoggerFactory.getLogger(ConfigurationTreeGenerator.class);
-    protected Experiment rootParameter;
+    protected Experiment experiment;
+    protected ContainerParameter rootParameter;
     protected ConfigurationTreeModel treeModel;
     protected JTree tree;
     private final Consumer<Boolean> xpIsValidCallBack;
@@ -78,8 +80,9 @@ public class ConfigurationTreeGenerator {
     private final BiConsumer<String, List<String>> setModules;
     private final MasterDAO mDAO;
     private final ProgressCallback pcb;
-    public ConfigurationTreeGenerator(Experiment xp, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
-        rootParameter = xp;
+    public ConfigurationTreeGenerator(Experiment xp, ContainerParameter root, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
+        rootParameter = root;
+        experiment = xp;
         this.xpIsValidCallBack = xpIsValidCallBack;
         this.mDAO=mDAO;
         this.pcb = pcb;
@@ -107,6 +110,9 @@ public class ConfigurationTreeGenerator {
         if (tree==null) generateTree();
         return tree;
     }
+    public ContainerParameter getRoot() {
+        return this.rootParameter;
+    }
     public void flush() {
         if (tree!=null) {
             ToolTipManager.sharedInstance().unregisterComponent(tree);
@@ -133,7 +139,7 @@ public class ConfigurationTreeGenerator {
                 if (!keys.isEmpty()) {
                     if (t.length()>0) t= t+"<br /> <br />";
                     t = t+ "<b>Measurement Keys (column names in extracted data and associated object class):</b><br />";
-                    for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<rootParameter.getStructureCount() ? " ("+rootParameter.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
+                    for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<experiment.getStructureCount() ? " ("+experiment.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
                 }
             }
         } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter
@@ -231,17 +237,17 @@ public class ConfigurationTreeGenerator {
         ToolTipManager.sharedInstance().registerComponent(tree);
 
         // configure call back for structures (update display)
-        rootParameter.getStructures().addNewInstanceConfiguration(s->s.setParameterChangeCallBack( p -> treeModel.nodeChanged(p)));
+        experiment.getStructures().addNewInstanceConfiguration(s->s.setParameterChangeCallBack( p -> treeModel.nodeChanged(p)));
         // configure call back for position (delete position from DAO)
         Predicate<Position> erasePosition = p -> {
             logger.debug("erase position: {}", p.getName());
             mDAO.getDao(p.getName()).deleteAllObjects();
             if (p.getInputImages()!=null) p.getInputImages().deleteFromDAO();
-            for (int s =0; s<rootParameter.getStructureCount(); ++s) rootParameter.getImageDAO().deleteTrackImages(p.getName(), s);
-            Utils.deleteDirectory(rootParameter.getOutputDirectory()+ File.separator+p.getName());
+            for (int s =0; s<experiment.getStructureCount(); ++s) experiment.getImageDAO().deleteTrackImages(p.getName(), s);
+            Utils.deleteDirectory(experiment.getOutputDirectory()+ File.separator+p.getName());
             return true;
         };
-        rootParameter.getPositionParameter().addNewInstanceConfiguration(p->p.setDeletePositionCallBack(erasePosition));
+        experiment.getPositionParameter().addNewInstanceConfiguration(p->p.setDeletePositionCallBack(erasePosition));
     }
 
     public void xpChanged() {

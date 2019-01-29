@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Hint;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
@@ -34,7 +35,7 @@ import bacmman.plugins.PreFilter;
  *
  * @author Jean Ollion
  */
-public class TopHat implements PreFilter, Filter {
+public class TopHat implements PreFilter, Filter, Hint {
 
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius");
     BooleanParameter darkBackground = new BooleanParameter("Image Background", "Dark", "Light", true);
@@ -77,4 +78,8 @@ public class TopHat implements PreFilter, Filter {
     boolean testMode;
     @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
 
+    @Override
+    public String getHintText() {
+        return "Classical Top-hat transform for edge-enhancement or background equalization: <a href='https://en.wikipedia.org/wiki/Top-hat_transform'>https://en.wikipedia.org/wiki/Top-hat_transform</a>";
+    }
 }

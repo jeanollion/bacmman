@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Hint;
 import bacmman.processing.Filters;
 import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
@@ -30,7 +31,7 @@ import bacmman.plugins.PreFilter;
  *
  * @author Jean Ollion
  */
-public class Median implements PreFilter, Filter {
+public class Median implements PreFilter, Filter, Hint {
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 2, 1, true).setHint("Radius in pixel");
     Parameter[] parameters = new Parameter[]{radius};
     public Median() {}
@@ -66,4 +67,9 @@ public class Median implements PreFilter, Filter {
 
     boolean testMode;
     @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+
+    @Override
+    public String getHintText() {
+        return "Classical Median filter used to reduce noise while preserving edges (See: <a href='https://en.wikipedia.org/wiki/Median_filter'>https://en.wikipedia.org/wiki/Median_filter</a>";
+    }
 }

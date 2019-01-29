@@ -61,8 +61,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     public enum END_DETECTION_METHOD {OPEN_END, CLOSED_END_WITH_ADJUST}
     IntervalParameter channelWidth = new IntervalParameter("Microchannel Width", 0, 0, null, 15, 20, 28).setEmphasized(true).setHint("Width of microchannel in pixels. First value is lower the minimal value, last value the maximal value and middle value is the typical value");
     EnumChoiceParameter<X_DER_METHOD> xDerPeakThldMethod = new EnumChoiceParameter("X-Derivative Threshold Method", X_DER_METHOD.values(), X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE, false);
-    NumberParameter localDerExtremaThld = new BoundedNumberParameter("X-Derivative Threshold", 3, 10, 0, null).setHint("Threshold for Microchannel side detection (peaks of 1st derivative in X-axis). <br />This parameter will depend on the intensity of the image and should be adjusted if microchannels are poorly detected. <br />Configuration Hint: Refer to side detection plot (displayed through right-click menu) to display peak heights.<br />A higher value if too many channels are detected and a lower value in the contrary.");
-    NumberParameter relativeDerThld = new BoundedNumberParameter("X-Derivative Ratio", 3, 40, 1, null).setHint("To compute x-derivative threshold for peaks, the signal range is computed range = the median signal value - mean backgroud value. X-derivative threshold = signal range / this ratio.<br />Configuration Hint: Refer to side detection plot (displayed through right-click menu) to display peak heights. <br />Decrease this value if too many microchannels are detected.");
+    NumberParameter localDerExtremaThld = new BoundedNumberParameter("X-Derivative Threshold", 3, 10, 0, null).setHint("Threshold for Microchannel side detection (peaks of 1st-order x-derivative). <br />This parameter will depend on the intensity of the image and should be adjusted if microchannels are poorly detected. <br />Configuration Hint: Refer to <em>Side detection graph</em> (displayed through right-click menu in test mode) to display peak heights.<br />A higher value if too many channels are detected and a lower value in the contrary.");
+    NumberParameter relativeDerThld = new BoundedNumberParameter("X-Derivative Ratio", 3, 40, 1, null).setHint("To compute x-derivative threshold for peaks of 1st-order x-derivative, the signal range is computed as range = median signal value - mean background value. X-derivative threshold = range / this ratio.<br />Configuration Hint: Refer to <em>Side detection graph</em> (displayed through right-click menu in test mode) to display peak heights. Threshold is writen in the graph title <br />Decrease this value if too many microchannels are detected.");
     ConditionalParameter xDerPeakThldCond = new ConditionalParameter(xDerPeakThldMethod).setActionParameters(X_DER_METHOD.CONSTANT.toString(), localDerExtremaThld).setActionParameters(X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE.toString(), relativeDerThld).setEmphasized(true).setHint("Side detection: peak selection method. <ol><li>"+X_DER_METHOD.CONSTANT.toString()+": Constant threshold</li><li>"+X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE.toString()+": Relative to signal Range. This method is more adapted when signal range can vary from one dataset to another</li></ol> <br/ >");
 
     EnumChoiceParameter<END_DETECTION_METHOD> endDetectionMethod = new EnumChoiceParameter<>("End Detection Method", END_DETECTION_METHOD.values(), END_DETECTION_METHOD.CLOSED_END_WITH_ADJUST, false);
@@ -74,11 +74,21 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     public static boolean debug = false;
     public static int debugIdx = -1;
     protected String toolTip = "<b>Microchannel Segmentation in phase-contrast images:</b>"
-            + "<ol><li>Search for global closed-end y-coordinate of Microchannels: global max of the Y-proj of d/dy (requires no optical aberration is present on the image)</li>"
-            + "<li>Search of x-positions of microchannels using X-projection of d/dx image & peak detection: <br />"
-            + "(detection of positive peask & negative peaks with amplitude over <em>X-derivative Threshold</em> separated by a distance as close as possible to <em>Typical Width</em> and in the range [widthMin; widthMax]</li>"
-            + "<li>Adjust yStart for each channel: first local max of d/dy image in the range [yEnd-  AdjustWindow ; yEnd+ AdjustWindow]</li></ol>" +
-            "<br >Testing mode: after run the Test command, right click on the image to display intermediate images";
+            + "This algorithm requires that microchannels are aligned along Y-axis, with the closed end on the top side, and that no bright line or other structure are visible"
+            + "Main steps:"
+            + "<ol><li>Search for global closed-end y-coordinate of Microchannels: global maximum of the projection of the first-order y-derivative along the Y-axis</li>"
+            + "<li>Search of x-positions of microchannel sides:  using projection of the first-order x-derivative along X-axis: <br />"
+            + "Positive and negative peaks that verify the criterion defined in the <em>X-Derivative Threshold Method</em> parameter are detected <br />"
+            + "Among those peaks, those that are separated by a distance as close as possible to a typical width and within a range defined in the <em>Microchannel Width</em> parameter are selected and considered as the sides of the microchannels</li>"
+            + "<li>Adjust yStart for each channel: first local max of d/dy image in the range [yEnd-  AdjustWindow ; yEnd+ AdjustWindow]</li></ol>"
+            + "<br /> <em>Test mode</em>: after run the Test command, select one viewfield or one segmented microchannel (set the <em>interactive objects</em> from <em>Data Browsing</em> tab), and right click on the image to display intermediate images"
+            + "<br />List of displayed graphs:"
+            + "<li><em>Closed-end detection image</em>: image used to detect closed-end of microchannels (first-order y-derivative)</li>"
+            + "<li><em>Closed-end detection graph</em>: mean intensity profile of the <em>Closed-end detection image</em> used  to detect closed-end of microchannels. The peak of maximal intensity should correspond to the closed end. If not, adjust the pre-processing (cropping step) so that no other structure disturbing the detection is visible </li>"
+            + "<li><em>Side detection graph</em></li>: Mean intensity profile of the <em>Side detection image</em> used for detection of microchannel sides<br />Refer to <em>X-Derivative Threshold Method</em> and <em>Microchannel Width</em> parameters"
+            + "<ul><li><em>Side detection image</em>: Image used for detection of microchannel sides (corresponding to a 1st-order derivate in the X-axis). In this image the bright line is removed. </li>"
+            + "/<ul>"
+            ;
 
     public MicrochannelPhase2D() {}
 

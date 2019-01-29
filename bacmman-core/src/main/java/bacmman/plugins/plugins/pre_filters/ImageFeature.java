@@ -42,7 +42,8 @@ public class ImageFeature implements PreFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "Collection of features computed on image, such as Gaussian Smooth, Laplacian etc.. Uses ImageScience library (imagescience.org)";
+        return "Collection of image features using ImageScience library <a href='www.imagescience.org'>imagescience.org</a>" +
+                "<ul><li>Gaussian Smooth</li><li>Gradient Magnitude</li><li>Laplacian</li><li>Hessian</li><li></li><li>Structure</li></ul>";
     }
     public static enum Feature {
         GAUSS("Gaussian Smooth"),
@@ -62,7 +63,7 @@ public class ImageFeature implements PreFilter, Hint {
         }
     }
     ChoiceParameter feature = new ChoiceParameter("Feature", Utils.transform(Feature.values(), new String[Feature.values().length], f->f.name), Feature.GAUSS.name, false);
-    ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setHint("Scale of the operation in pixels");
     ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true);
     ConditionalParameter cond = new ConditionalParameter(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, new Parameter[]{scale, smoothScale});
 

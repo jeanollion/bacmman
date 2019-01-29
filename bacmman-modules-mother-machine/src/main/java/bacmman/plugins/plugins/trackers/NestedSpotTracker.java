@@ -129,7 +129,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         track(structureIdx, parentTrack, false, allowSplitting.getSelected(), allowMerging.getSelected(), null, editor);
     }
     /**
-     * Mutation tracking within bacteria using <a href="https://imagej.net/TrackMate" target="_top">TrackMate</a>
+     * Mutation tracking within bacteria using <a href='https://imagej.net/TrackMate' target="_top">TrackMate</a>
      * Distance between spots is relative to the nearest bacteria pole (or division point for dividing bacteria)
      * If {@param LQSpots} is true, a first step of removal of low-quality (LQ) spots will be applied: only LQ spots that can be linked (directly or indirectly) to high-quality (HQ) spots are kept, allowing a better selection of true-positives spots of low intensity
      * A global linking with remaining LQ and HQ spots is applied allowing gaps

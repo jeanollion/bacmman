@@ -26,6 +26,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
+import bacmman.plugins.Hint;
 import bacmman.processing.ImageOperations;
 
 import java.util.TreeMap;
@@ -37,9 +38,9 @@ import java.util.Map.Entry;
  *
  * @author Jean Ollion
  */
-public class NormalizeTrack  implements TrackPreFilter {
-    NumberParameter saturation = new BoundedNumberParameter("Saturation", 3, 0.99, 0, 1);
-    BooleanParameter invert = new BooleanParameter("Invert", false);
+public class NormalizeTrack  implements TrackPreFilter, Hint {
+    NumberParameter saturation = new BoundedNumberParameter("Saturation", 4, 0.996, 0, 1).setHint("Determines the number of pixels in the image that are allowed to become saturated (proportion of saturated pixels = 1 - this value). Decreasing this value increases contrast. This value should be lower than one to prevent a few outlying pixel from causing the normalization to not work as intended");
+    BooleanParameter invert = new BooleanParameter("Invert", false).setHint("If set to <em>true</em>, all images will be inverted");
     public NormalizeTrack() {}
     public NormalizeTrack(double saturation, boolean invert) {
         this.saturation.setValue(saturation);
@@ -58,7 +59,7 @@ public class NormalizeTrack  implements TrackPreFilter {
             scale = -scale;
             offset = 1 - offset;
         }
-        logger.debug("normalization: range: [{}-{}] scale: {} off: {}", minAndMax[0], minAndMax[1], scale, offset);
+        logger.debug("Normalization: range: [{}-{}] scale: {} off: {}", minAndMax[0], minAndMax[1], scale, offset);
         for (Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) {
             Image trans = ImageOperations.affineOperation(e.getValue(), canModifyImage?e.getValue():null, scale, offset);
             e.setValue(trans);
@@ -69,5 +70,10 @@ public class NormalizeTrack  implements TrackPreFilter {
     public Parameter[] getParameters() {
         return new Parameter[]{saturation, invert};
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "Normalize image values between 0 and 1, by dividing all values by the maximal value (or by a percentile, see <em>Saturation</em> parameter) of the images of the whole parent track.<br />" +
+                "Optionally inverts the images";
+    }
 }

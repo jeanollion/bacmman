@@ -314,7 +314,7 @@ public class RegionPopulation {
      * @param erodeMap
      * @param iqrFactor
      * @param darkBackground
-     * @param keepOnlyBiggestObject when applying local threhsold one object could be splitted in several, if true only the biggest will be kept
+     * @param keepOnlyBiggestObject when applying local threhsold one object could be split in several, if true only the biggest will be kept
      * @param dilateRegionRadius    radius for dilate region label-wise. 0 -> no dilatation
      * @param mask                  mask for region dilatation
      * @return
@@ -343,7 +343,7 @@ public class RegionPopulation {
      * @param erodeMap
      * @param thresholdFunction
      * @param darkBackground
-     * @param keepOnlyBiggestObject when applying local threhsold one object could be splitted in several, if true only the biggest will be kept
+     * @param keepOnlyBiggestObject when applying local threhsold one object could be split in several, if true only the biggest will be kept
      * @param dilateRegionRadius radius for dilate region label-wise. 0 -> no dilatation
      * @param mask mask for region dilatation
      * @return

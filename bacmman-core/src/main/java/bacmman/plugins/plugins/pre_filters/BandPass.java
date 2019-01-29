@@ -20,6 +20,7 @@ package bacmman.plugins.plugins.pre_filters;
 
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Hint;
 import bacmman.processing.IJFFTBandPass;
 import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
@@ -33,7 +34,7 @@ import bacmman.configuration.parameters.Parameter;
  *
  * @author Jean Ollion
  */
-public class BandPass implements PreFilter, Filter {
+public class BandPass implements PreFilter, Filter, Hint {
     NumberParameter min = new BoundedNumberParameter("Remove structures under size (pixels)", 1, 0, 0, null);
     NumberParameter max = new BoundedNumberParameter("Remove structures over size (pixels)", 1, 100, 0, null); 
     ChoiceParameter removeStripes = new ChoiceParameter("Remove Stripes", new String[]{"None", "Horizontal", "Vertical"}, "None", false);
@@ -73,4 +74,9 @@ public class BandPass implements PreFilter, Filter {
 
     boolean testMode;
     @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+
+    @Override
+    public String getHintText() {
+        return "ImageJ's Band-pass filter using Fourier transform: <a href='https://imagej.nih.gov/ij/plugins/fft-filter.html'>https://imagej.nih.gov/ij/plugins/fft-filter.html</a>";
+    }
 }

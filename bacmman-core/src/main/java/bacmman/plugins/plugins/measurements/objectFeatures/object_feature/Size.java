@@ -65,7 +65,7 @@ public class Size implements GeometricalFeature, Hint {
 
     @Override
     public String getHintText() {
-        return "Size is estimated by counting the number of voxels of an object.";
+        return "Estimation of the object size by counting the number of segmented voxels.";
     }
     
 }

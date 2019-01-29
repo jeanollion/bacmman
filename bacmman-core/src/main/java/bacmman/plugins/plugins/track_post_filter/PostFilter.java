@@ -60,11 +60,11 @@ public class PostFilter implements TrackPostFilter, Hint {
             this.mergePredicate=mergePredicate; 
         }
     }
-    public final static String MERGE_POLICY_TT = "When removing an object/track that has a previous object (p) that was linked to this object and one other object (n). p is now linked to one single object n. This parameter controls wheter / in which conditions should p's track and n's track be merged.<br/><ul><li>NEVER_MERGE: never merge tracks</li><li>ALWAYS_MERGE: always merge tracks</li><li>MERGE_TRACKS_SIZE_COND: merge tracks only if size(n)>0.8 * size(p) (useful for bacteria linking)</li></ul>";
+    public final static String MERGE_POLICY_TT = "When removing an object/track that has a previous object (p) that was linked to this object and one other object (n). p is now linked to one single object n. This parameter controls whether / in which conditions should p's track and n's track be merged.<br/><ul><li>NEVER_MERGE: never merge tracks</li><li>ALWAYS_MERGE: always merge tracks</li><li>MERGE_TRACKS_SIZE_COND: merge tracks only if size(n)>0.8 * size(p) (useful for bacteria linking)</li></ul>";
     EnumChoiceParameter<MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",MERGE_POLICY.values(), MERGE_POLICY.ALWAYS_MERGE, false).setHint(MERGE_POLICY_TT);
     @Override 
     public String getHintText() {
-        return "Performs regular post-filter frame-by-frame and manage lineage breaks";
+        return "Performs regular post-filter frame-by-frame. In the case the post-filter removes segmented objects, lineage breaks is managed as defined in <em>Delete method</em> parameter";
     }
     public PostFilter setMergePolicy(PostFilter.MERGE_POLICY policy) {
         mergePolicy.setSelectedItem(policy.toString());

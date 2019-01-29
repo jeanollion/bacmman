@@ -225,5 +225,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
             processingPipeline.getParameters().stream().filter(p->p instanceof ParentObjectClassParameter).map(p->(ParentObjectClassParameter)p).forEach(p->p.setMaxStructureIdx(idx));
         }
     }
-
+    public PluginParameter<ProcessingPipeline>  getProcessingPipelineParameter() {
+        return processingPipeline;
+    }
 }

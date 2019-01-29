@@ -3,25 +3,17 @@ package bacmman.plugins.plugins.segmenters;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.PreFilterSequence;
-import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Voxel;
 import bacmman.image.*;
-import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.ObjectSplitter;
 import bacmman.plugins.SegmenterSplitAndMerge;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
-import bacmman.plugins.plugins.pre_filters.Sigma;
+import bacmman.plugins.plugins.pre_filters.StandardDeviation;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
-import bacmman.processing.EDT;
-import bacmman.processing.Filters;
-import bacmman.processing.RegionFactory;
 import bacmman.processing.clustering.RegionCluster;
-import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
 import ij.process.AutoThresholder;
 
@@ -33,9 +25,9 @@ import java.util.stream.Stream;
 
 public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAndMerge, ObjectSplitter, TestableProcessingPlugin {
     NumberParameter vcThldForVoidMC = new BoundedNumberParameter("Variation coefficient threshold", 3, 0.085, 0, null).setHint("Parameter used for void microchannels detection during track pre-filter step: <br />Lower this value if no cells are found in some microchannel containing cells. On the contrary increase the value if false positive objects are segmented in void microchannels<br />Computation details: To assess if whole microchannel track is void: we first compute the coefficient of variation (CV) of the histogram of raw images of the whole microchannel track, using only pixels in the central line of each microchannel (1/3 of the width). If CV is inferior to the value of this parameter, the whole track is considered to be void. <br />If the track is not void according to the previous criterion, another criterion is applied to detect frames where a microchannel is void: an Otsu threshold is computed on the prefiltered images of the whole microchannel track. A microchannel is considered as void at a given frame if the CV of raw signal at this frame is inferior to this threshold and its mean value of prefiltered signal is superior to the Otsu threshold");
-    NumberParameter hessianScale = new BoundedNumberParameter("Hessian scale", 1, 4, 1, 6).setEmphasized(true).setHint("In pixels. Hessian is used to split cells within foreground. A lower value allows to detect finner separations between cells but is more sensitive to noise. Influences the value of <em>Split threshold</em> parameter. <br />Configuration Hint: tune this value using the intermediate image <em>Hessian</em> so that separations between cells are enhanced. Also check that the resulting interfaces between regions displayed in the image <em>Interface values before merge by hessian</em> have high value between cells and low values within cells");
-    NumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("Threshold for Split/Merge step. <br />A criterion is computed for each adjacent region pair, and they are merged if this criterion is inferior to this threshold.<br />Let's call interface the contact area between two regions, mean(H)@Inter the mean hessian value at the interface and mean(PF)@Inter the mean value of the pre-filtered image at the interface, and BCK an estimation of the background value. Criterion is mean(H)@Inter / ( mean(PF)@Inter - BCK )<br />Lower value splits more.  <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged<br />This parameter should be carefully calibrated for each experimental setup");
-    PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new Sigma(2).setMedianRadius(0)).setEmphasized(true).setHint("Operations defining edges used in the first watershed procedure that is used to define foreground");
+    NumberParameter hessianScale = new BoundedNumberParameter("Hessian scale", 1, 4, 1, 6).setEmphasized(true).setHint("In pixels. Hessian is used to split cells within foreground. A lower value allows to detect finner separations between cells but is more sensitive to noise. Influences the value of <em>Split threshold</em> parameter. <br />Configuration Hint: tune this value using the intermediate image <em>Hessian</em> so that separations between cells are enhanced. Also check that the resulting interfaces between regions displayed in the image <em>Interface values before merge by hessian</em> have high value between cells and low values within cells.");
+    NumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("Threshold for Split/Merge step. <br />A criterion is computed for each adjacent region pair, and they are merged if this criterion is inferior to this threshold. <br />A lower value will lead to more separation of bacteria.<br /><br /><em>Configuration Hint</em>: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged<br />This parameter should be carefully calibrated for each experimental setup<br /><br /><em>Algorithmic Details: </em>Let's call <em>interface</em> the contact area between two regions, <em>mean(H)@Inter</em> the mean hessian value at the interface and <em>mean(PF)@Inter</em> the mean value of the pre-filtered image at the interface, and <em>BCK</em> an estimation of the background value. <be />Criterion is:  mean(H)@Inter / ( mean(PF)@Inter - BCK )<br />");
+    PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new StandardDeviation(2).setMedianRadius(0)).setEmphasized(true).setHint("Operations defining edges used in the first watershed procedure that is used to define foreground");
 
     SplitAndMergeHessian splitAndMerge;
     SegmentedObject currentParent;
