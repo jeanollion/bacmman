@@ -259,7 +259,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.testCopyButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to all other positions"));
         this.testCopyToTemplateButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to template"));
 
-        // disable componenets when run action
+        // disable components when run action
         actionPoolList.setModel(actionPoolListModel);
         datasetList.setModel(experimentModel);
         relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);}};
