@@ -221,7 +221,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // tool tips
         ToolTipManager.sharedInstance().setInitialDelay(100);
         ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
-        trackPanel.setToolTipText(formatHint("Segmented tracks for each object class are listed in this panel. Right click to display kymograph, run segmentation/tracking etc.."));
+        trackPanel.setToolTipText(formatHint("Segmented tracks for each object class are listed in this panel. Right click to display kymograph, run segmentation/tracking etc..."));
         trackTreeStructureJSP.setToolTipText(formatHint("Object class to be displayed in the <em>Segmentation & Tracking Results</em> panel"));
         interactiveObjectPanel.setToolTipText(formatHint("Object class that will be displayed and edited on interactive kymographs"));
         editPanel.setToolTipText(formatHint("Commands to edit segmentation/lineage of selected objects of the interactive objects on the currently active kymograph<br />See <em>Help > Display shortcut table</em> from the menu for a list of commands their description"));
