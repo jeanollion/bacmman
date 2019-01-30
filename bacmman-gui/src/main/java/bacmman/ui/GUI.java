@@ -242,10 +242,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
         localZoomMenu.setToolTipText(formatHint("Local zoom is activated/deactivated with TAB"));
         this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite pre-processing template"));
-        this.selectionPanel.setToolTipText(formatHint("Selection are list of segmented objects.<br />" +
-                "In the selection list, the index of object class and number of segmented objects in the selection is displayed in brackets" +
-                "<ul><li>To create a new selection: Click on <em>Create Selection</em>, right-click on the selection and choose <em>Active Selection group 0</em> or <em>Active Selection group 1</em>. Then select segmented objects on a kymograph and use shortcuts corresponding to the chosen selection group (See <em>Help / Display shortcut table</em>) to add or remove them from the active selection(s)</li>" +
-                "<li>To browse a selection, right-click on the selection and select: <em>Enable Navigation<em>, <em>Display Objects</em> and/or <em>Display Tracks</em> then use shortcuts to display kymographs containing objects of the selection</li>" +
+        this.selectionPanel.setToolTipText(formatHint("Selections are lists of segmented objects.<br />" +
+                "In the selection list, the object class and the number of objects in the selection is displayed in brackets" +
+                "<ul><li>To create a new selection: Click on <em>Create Selection</em></li>" +
+                "<li>Objects can be added to/removed from a single selection using the right click menu. " +
+                "Shortcuts can also be used to add objects to or remove objects from a single active selection or a group of several active selections. Two different groups can be defined (0 and 1). " +
+                "To define active selections right-click on the selections and choose <em>Active Selection group 0</em> or <em>Active Selection group 1</em>. To add or remove objects from the active selection(s), select them on a kymograph and use the shortcuts corresponding to the appropriate selection group (See <em>Help / Display shortcut table</em>)</li>" +
+                "<li>To navigate a selection and display the objects, right-click on the selection and select: <em>Enable Navigation</em>, <em>Display Objects</em> and/or <em>Display Tracks</em> then use the commands (Navigate Next and previous and corresponding shortcuts) to display the appropriate kymographs </li>" +
                 "<li>Selected selections can be exported to a table from the menu <em>Run / Extract selections</em></li>"+
                 "<li>Selections can also be generated from R or Python. After generating a selection from R, click on <em>Reload Selections</em> to display it in the list</li>" +
                 "</ul>"));
