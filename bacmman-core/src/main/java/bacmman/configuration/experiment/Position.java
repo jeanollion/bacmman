@@ -99,7 +99,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public PreProcessingChain getPreProcessingChain() {
         return preProcessingChain;
     }
-    private int getEndTrimFrame() {
+    public int getEndTrimFrame() {
         if (preProcessingChain.trimFrames.getValuesAsInt()[1]==0 && sourceImages!=null) return sourceImages.getFrameNumber()-1;
         return preProcessingChain.trimFrames.getValuesAsInt()[1];
     }

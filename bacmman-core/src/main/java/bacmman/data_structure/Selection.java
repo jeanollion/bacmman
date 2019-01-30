@@ -455,8 +455,11 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     @Override 
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(name);
-        sb.append(" (oc=").append(structureIdx).append("; n=").append(count()).append(")");
+        sb.append(name).append(" (");
+        if (structureIdx==-1) sb.append("NO OBJECT CLASS");
+        else if (mDAO==null) sb.append("oc=").append(structureIdx);
+        else sb.append(mDAO.getExperiment().getStructure(structureIdx).getName());
+        sb.append("; n=").append(count()).append(")");
         if (isNavigate()) sb.append("[NAV]");
         if (isDisplayingObjects()) sb.append("[O]");
         if (isDisplayingTracks()) sb.append("[T]");

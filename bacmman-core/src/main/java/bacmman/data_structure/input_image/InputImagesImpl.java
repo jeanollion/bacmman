@@ -63,6 +63,25 @@ public class InputImagesImpl implements InputImages {
         }
         return new InputImagesImpl(imageCTDup, defaultTimePoint, new Pair<>(autofocusChannel, autofocusAlgo));
     }
+    public InputImagesImpl duplicate(int frameMin, int frameMaxExcluded) {
+        if (frameMin<0) throw new IllegalArgumentException("Frame min must be >=0");
+        if (frameMin>=frameNumber) throw new IllegalArgumentException("Frame min must be < to frame number");
+        if (frameMaxExcluded>frameNumber) throw new IllegalArgumentException("Frame min must be <= to frame number");
+        InputImage[][] imageCTDup = new InputImage[imageCT.length][];
+        for (int i = 0; i<imageCT.length; ++i) { //channel
+            if (singleFrameChannel(i)) {
+                imageCTDup[i] = new InputImage[]{imageCT[i][0].duplicate()};
+            } else {
+                imageCTDup[i] = new InputImage[frameMaxExcluded-frameMin];
+                for (int j = frameMin; j<frameMaxExcluded; ++j) {
+                    imageCTDup[i][j-frameMin] = imageCT[i][j].duplicate();
+                    imageCTDup[i][j-frameMin].setTimePoint(j-frameMin);
+                }
+            }
+        }
+        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo));
+    }
+
     @Override public int getBestFocusPlane(int timePoint) {
         if (autofocusChannel>=0 && autofocusAlgo!=null) {
             if (autofocusPlanes[timePoint]==null) {

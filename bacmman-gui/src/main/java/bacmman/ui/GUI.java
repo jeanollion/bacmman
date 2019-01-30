@@ -3939,9 +3939,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.debug("fire test position changed");
         int positionIdx = testPositionJCB.getSelectedIndex();
         if (testStepJCB.getSelectedIndex()==0) { // pre-processing
-            if (positionIdx<0) { // unset frame range
-                testFrameRange.setUpperBound(0);
-            } else testFrameRange.setUpperBound(db.getExperiment().getPosition(positionIdx).getFrameNumber(true));
+            setTestFrameRange();
             this.updateTestConfigurationTree();
         } else {
             populateTestParentTrackHead();
@@ -3966,13 +3964,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void testParentTrackJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testParentTrackJCBItemStateChanged
         if (freezeTestParentTHListener) return;
-        if (this.testParentTrackJCB.getSelectedIndex()>=0) {
-            // set trim frame lower and upper bounds
-            SegmentedObject trackHead = getTestTrackHead();
-            List<SegmentedObject> parentTrack = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex()).getTrack(trackHead);
-            this.testFrameRange.setLowerBound(trackHead.getFrame());
-            this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size()-1).getFrame());
-        } 
+        setTestFrameRange();
     }//GEN-LAST:event_testParentTrackJCBItemStateChanged
 
     private void closeAllWindowsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_closeAllWindowsButtonActionPerformed
@@ -4110,7 +4102,29 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         }
     }*/
-    
+    private void setTestFrameRange() {
+        if (testStepJCB.getSelectedIndex()==0) {
+            this.testFrameRange.setLowerBound(0);
+            int positionIdx = testPositionJCB.getSelectedIndex();
+            if (positionIdx<0) { // unset frame range
+                testFrameRange.setUpperBound(null);
+            } else {
+                testFrameRange.setUpperBound(db.getExperiment().getPosition(positionIdx).getFrameNumber(false));
+                logger.debug("position: {} frame number: {}, frame min: {} frame max: {}", positionIdx, db.getExperiment().getPosition(positionIdx).getFrameNumber(false), db.getExperiment().getPosition(positionIdx).getStartTrimFrame(), db.getExperiment().getPosition(positionIdx).getEndTrimFrame());
+            }
+        } else {
+            if (this.testParentTrackJCB.getSelectedIndex()>=0) {
+                // set trim frame lower and upper bounds
+                SegmentedObject trackHead = getTestTrackHead();
+                List<SegmentedObject> parentTrack = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex()).getTrack(trackHead);
+                this.testFrameRange.setLowerBound(trackHead.getFrame());
+                this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size()-1).getFrame());
+            } else {
+                this.testFrameRange.setLowerBound(0);
+                this.testFrameRange.setUpperBound(null);
+            }
+        }
+    }
     private boolean freezeTestPositionListener = false;
     public void populateTestPositionJCB() {
         boolean noSel = testObjectClassJCB.getSelectedIndex()<0;
@@ -4231,7 +4245,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         res.removeIf(o->o.getFrame()<frameRange[0] || o.getFrame()>frameRange[1]);
         return res;
     }
-    
+
+    /**
+     * Frame range for test mode
+     * @return [frame min; frame max[
+     */
+    public int[] getTestFrameRange() {
+        int[] res= this.testFrameRange.getValuesAsInt();
+        res[1]++;
+        return res;
+    }
+    public boolean isTestTabSelected() {
+        return tabs.getSelectedComponent()==testPanel;
+    }
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
     private javax.swing.JMenuItem CloseNonInteractiveWindowsMenuItem;

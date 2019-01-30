@@ -246,8 +246,8 @@ public class PluginConfigurationUtils {
         item.setAction(new AbstractAction(item.getActionCommand()) {
             @Override
             public void actionPerformed(ActionEvent ae) {
-                InputImagesImpl images = position.getInputImages().duplicate();
-                
+                int[] frames = GUI.hasInstance() && GUI.getInstance().isTestTabSelected() ? GUI.getInstance().getTestFrameRange() : new int[]{0, position.getFrameNumber(false)};
+                InputImagesImpl images = position.getInputImages().duplicate(frames[0], frames[1]);
                 PreProcessingChain ppc = position.getPreProcessingChain();
                 List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
                 for (int i = 0; i<=transfoIdx; ++i) {
@@ -263,7 +263,7 @@ public class PluginConfigurationUtils {
                                 }
 
                             }
-                            Image[][] imagesTC = images.getImagesTC(0, position.getFrameNumber(false), channels);
+                            Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
                             ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
@@ -287,7 +287,7 @@ public class PluginConfigurationUtils {
                                     else outputChannels = new int[]{tpp.getInputChannel()}; 
                                 }
                             }
-                            Image[][] imagesTC = images.getImagesTC(0, position.getFrameNumber(false), outputChannels);
+                            Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), outputChannels);
                             if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
                             getImageManager().getDisplayer().showImage5D("after: "+tpp.getPluginName(), imagesTC);
                         }
