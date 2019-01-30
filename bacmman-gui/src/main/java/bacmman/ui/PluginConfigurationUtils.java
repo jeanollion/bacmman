@@ -105,7 +105,7 @@ public class PluginConfigurationUtils {
         // generate data store for test images
         Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, i-> ImageWindowManagerFactory.showImage(i)), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
-        parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input", p.getRawImage(structureIdx))); // add input image
+        parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
 
 
         Parameter.logger.debug("test processing: sel {}", parentSelection);
@@ -116,7 +116,7 @@ public class PluginConfigurationUtils {
             boolean runPreFiltersOnWholeTrack = !psc.getTrackPreFilters(false).isEmpty() || plugin instanceof TrackConfigurable; 
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("pre-filtered", p.getPreFilteredImage(structureIdx))); // add preFiltered image
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
             Parameter.logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
             TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, (Segmenter)plugin);
             SegmentOnly so;
@@ -164,7 +164,11 @@ public class PluginConfigurationUtils {
     }
     public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, Experiment xp, int structureIdx) {
         Consumer<Boolean> performTest = b-> {
-            List<SegmentedObject> sel = getImageManager().getSelectedLabileObjects(null);
+            List<SegmentedObject> sel;
+            if (GUI.hasInstance()) {
+                sel = GUI.getInstance().getTestParents();
+                if ((sel == null || sel.isEmpty()) ) return;
+            } else sel = getImageManager().getSelectedLabileObjects(null);
             if ((sel == null || sel.isEmpty()) ) {
                 Core.userLog("No selected objects : select parent objects on a kymograph first");
                 return;

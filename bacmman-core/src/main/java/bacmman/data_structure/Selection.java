@@ -456,7 +456,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(name);
-        sb.append(" (s:").append(structureIdx).append("; n=").append(count()).append(")");
+        sb.append(" (oc=").append(structureIdx).append("; n=").append(count()).append(")");
         if (isNavigate()) sb.append("[NAV]");
         if (isDisplayingObjects()) sb.append("[O]");
         if (isDisplayingTracks()) sb.append("[T]");

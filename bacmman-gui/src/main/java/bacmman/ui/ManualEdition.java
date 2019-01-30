@@ -85,7 +85,7 @@ public class ManualEdition {
         SegmentedObjectEditor.prune(db, objects, mergeTracks, getFactory(objectClassIdx), getEditor(objectClassIdx, new HashSet<>()));
         // update display
 
-        //Update all opened images & objectImageInteraction
+        //Update all open images & objectImageInteraction
         for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(objects) ) ImageWindowManagerFactory.getImageManager().reloadObjects(p, p.getStructureIdx(), false);
         GUI.updateRoiDisplayForSelections(null, null);
 
@@ -376,7 +376,7 @@ public class ManualEdition {
                         node.getParent().createChildren();
                         GUI.getInstance().objectTreeGenerator.reload(node.getParent());
                     }*/
-                    //Update all opened images & objectImageInteraction
+                    //Update all open images & objectImageInteraction
                     ImageWindowManagerFactory.getImageManager().reloadObjects(e.getKey(), structureIdx, false);
                 }
             }
@@ -475,7 +475,7 @@ public class ManualEdition {
                         //StructureNode node = GUI.getInstance().objectTreeGenerator.getObjectNode(p).getStructureNode(structureIdx);
                         //node.createChildren();
                         //GUI.getInstance().objectTreeGenerator.reload(node);
-                        //Update all opened images & objectImageInteraction
+                        //Update all open images & objectImageInteraction
                         ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
                     }
                 //}
@@ -513,7 +513,7 @@ public class ManualEdition {
                 GUI.getInstance().objectTreeGenerator.reload(node.getParent());
             }*/
             Set<SegmentedObject> parents = SegmentedObjectUtils.getParentTrackHeads(e.getValue());
-            //Update all opened images & objectImageInteraction
+            //Update all open images & objectImageInteraction
             for (SegmentedObject p : parents) ImageWindowManagerFactory.getImageManager().reloadObjects(p, e.getKey(), false);
             // update selection
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null, e.getKey());
@@ -531,13 +531,13 @@ public class ManualEdition {
         for (int structureIdx : objectsByStructureIdx.keySet()) {
             SegmentedObjectEditor.deleteObjects(db, objects, mergeTracks, getFactory(structureIdx), getEditor(structureIdx, new HashSet<>()));
             if (updateDisplay) {
-                //Update selection on opened image
+                //Update selection on open image
                 //ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
                 List<SegmentedObject> toDelete = objectsByStructureIdx.get(structureIdx);
                 ImageWindowManagerFactory.getImageManager().removeObjects(toDelete, true);
                 List<SegmentedObject> selTh = ImageWindowManagerFactory.getImageManager().getSelectedLabileTrackHeads(null);
 
-                //Update all opened images & objectImageInteraction
+                //Update all open images & objectImageInteraction
                 for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(toDelete))
                     ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
                 ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh, true), true);

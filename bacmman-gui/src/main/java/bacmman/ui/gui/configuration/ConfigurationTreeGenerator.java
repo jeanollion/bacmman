@@ -276,4 +276,8 @@ public class ConfigurationTreeGenerator {
         panel.add(c);
         menu.add(panel);
     }
+    public void nodeStructureChanged(Parameter node) {
+        if (treeModel==null) return;
+        treeModel.nodeStructureChanged(node);
+    }
 }

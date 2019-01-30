@@ -69,7 +69,6 @@ import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -162,9 +161,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     // test panel
     private IntervalParameter testFrameRange = new IntervalParameter("", 0, 0, null, 0, 0);
+    private ConfigurationTreeGenerator testConfigurationTreeGenerator;
     
     // enable/disable components
-    private NumberParameter openedImageLimit = new BoundedNumberParameter("Limit", 0, 5, 0, null);
+    private NumberParameter openImageLimit = new BoundedNumberParameter("Limit", 0, 5, 0, null);
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
@@ -179,6 +179,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.info("Creating GUI instance...");
         this.INSTANCE=this;
         initComponents();
+        this.testStepJCBItemStateChanged(null);
         this.moduleList.setModel(moduleModel);
         this.testModuleList.setModel(testModuleModel);
         Utils.addHorizontalScrollBar(testPositionJCB);
@@ -220,26 +221,44 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // tool tips
         ToolTipManager.sharedInstance().setInitialDelay(100);
         ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
-        trackPanel.setToolTipText(formatHint("Element displayed are segmented tracks for each object class. Right click for actions on the track like display kymograph, run segmentation/tracking etc.."));
-        trackTreeStructureJSP.setToolTipText(formatHint("Object class to be displayed in the <em>Segmentation & Tracking</em> panel"));
-        interactiveObjectPanel.setToolTipText(formatHint("Object class that will be displayed and edited on interactive images. <br />ctrl+click to select/deselect object classes"));
-        editPanel.setToolTipText(formatHint("Commands to edit segmentation/lineage of selected objects of the interactive objects on the currently active kymograph<br />See <em>Shortcuts > Object/Lineage Edition</em> menu for while list of commands and description"));
-        actionStructureJSP.setToolTipText(formatHint("Object classes of the opened dataset. <br />Tasks will be run only on selected objects classes, or on all object classes if none is selected. <br />Ctrl + click to select/deselect"));
-        datasetJSP.setToolTipText(formatHint("List of all datasets contained in the current datasets folder<br />If a dataset is opened, its name written in the title of this window. The opened dataset does not necessarily correspond to the selected dataset in this list<br /><br />ctrl+click to select/deselect datasets<br />double-click to open dataset"));
-        actionPositionJSP.setToolTipText(formatHint("Positions of the opened dataset. <br />Tasks will be run only on selected position, or on all position if no position is selected<br />ctrl+click to select/deselect positions"));
+        trackPanel.setToolTipText(formatHint("Segmented tracks for each object class are listed in this panel. Right click to display kymograph, run segmentation/tracking etc.."));
+        trackTreeStructureJSP.setToolTipText(formatHint("Object class to be displayed in the <em>Segmentation & Tracking Results</em> panel"));
+        interactiveObjectPanel.setToolTipText(formatHint("Object class that will be displayed and edited on interactive kymographs"));
+        editPanel.setToolTipText(formatHint("Commands to edit segmentation/lineage of selected objects of the interactive objects on the currently active kymograph<br />See <em>Help > Display shortcut table</em> from the menu for a list of commands their description"));
+        actionStructureJSP.setToolTipText(formatHint("Object classes of the open dataset. <br />Tasks will be run only on selected object classes, or on all object classes if none is selected. <br />Ctrl + click to select/deselect"));
+        datasetJSP.setToolTipText(formatHint("List of all datasets contained in the current working directory<br />ctrl+click to select/deselect datasets<br />double-click to open a dataset<br />The open dataset is indicated in the title of BACMMAN's window"));
+        actionPositionJSP.setToolTipText(formatHint("Positions of the open dataset. <br />Tasks will be run only on selected positions, or on all positions if no position is selected<br />ctrl+click to select/deselect positions"));
         deleteObjectsButton.setToolTipText(formatHint("Right-click for more delete commands"));
-        workingDirectory.setToolTipText(formatHint("Directory containing several datasets<br />Righ-click menu to access recent list and file browser"));
+        workingDirectory.setToolTipText(formatHint("Directory containing the datasets<br />Right-click to access recent list and file browser"));
         this.actionJSP.setToolTipText(formatHint("<b>Tasks to run on selected positions/object classes:</b> (ctrl+click to select/deselect tasks)<br/><ol>"
-                + "<li><b>"+runActionList.getModel().getElementAt(0)+"</b>: Performs preprocessing pipeline on selected positions (or all if none is selected)</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(0)+"</b>: Performs pre-processing pipeline on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(1)+"</b>: Performs segmentation and tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(2)+"</b>: Performs Tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected). Ignored if "+runActionList.getModel().getElementAt(1)+" is selected.</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Pre-computes kymographs and saves them in the dataset folder in order to have a faster display of kymograph, and to eventually allow to erase pre-processed images to save disk-space</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Pre-computes kymographs and saves them in the dataset folder in order to have a faster display of kymograph, and to eventually allow erasing pre-processed images to save disk-space</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(5)+"</b>: Extract measurements of selected object tpye (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected posisions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export > Export Options</em></li></ol>"));
-        helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERT keyboard layout"));
-        localZoomMenu.setToolTipText(formatHint("Local zoom is activated/desactivated with TAB"));
-        this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite preprocessing template"));
+                + "<li><b>"+runActionList.getModel().getElementAt(5)+"</b>: Extract measurements of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected positions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export / Export Options</em></li></ol>"));
+        this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
+        helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
+        localZoomMenu.setToolTipText(formatHint("Local zoom is activated/deactivated with TAB"));
+        this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite pre-processing template"));
+        this.selectionPanel.setToolTipText(formatHint("Selection are list of segmented objects.<br />" +
+                "In the selection list, the index of object class and number of segmented objects in the selection is displayed in brackets" +
+                "<ul><li>To create a new selection: Click on <em>Create Selection</em>, right-click on the selection and choose <em>Active Selection group 0</em> or <em>Active Selection group 1</em>. Then select segmented objects on a kymograph and use shortcuts corresponding to the chosen selection group (See <em>Help / Display shortcut table</em>) to add or remove them from the active selection(s)</li>" +
+                "<li>To browse a selection, right-click on the selection and select: <em>Enable Navigation<em>, <em>Display Objects</em> and/or <em>Display Tracks</em> then use shortcuts to display kymographs containing objects of the selection</li>" +
+                "<li>Selected selections can be exported to a table from the menu <em>Run / Extract selections</em></li>"+
+                "<li>Selections can also be generated from R or Python. After generating a selection from R, click on <em>Reload Selections</em> to display it in the list</li>" +
+                "</ul>"));
+        // tool tips for test panel
+        this.testNormalModeToggleButton.setToolTipText(formatHint("Switch between <em>Normal</em> and <em>Expert</em> test mode. In <em>Expert</em> test mode, more information can be displayed"));
+        this.testStepPanel.setToolTipText(formatHint("Select the step to configure and test"));
+        this.testPositionPanel.setToolTipText(formatHint("Select the position on which tests will be performed"));
+        this.testFramePanel.setToolTipText(formatHint("Set frame range on which tests will be performed in order to limit processing time"));
+        this.testObjectClassPanel.setToolTipText(formatHint("Select the Object Class to configure and test"));
+        this.testParentTrackPanel.setToolTipText(formatHint("Select parent on which test will be performed"));
+        this.testCopyButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to all other positions"));
+        this.testCopyToTemplateButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to template"));
+
         // disable componenets when run action
         actionPoolList.setModel(actionPoolListModel);
         datasetList.setModel(experimentModel);
@@ -277,10 +296,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistant(exportPPImagesMenuItem, "export_ppimages", true);
         PropertyUtils.setPersistant(exportTrackImagesMenuItem, "export_trackImages", true);
         // image display limit
-        PropertyUtils.setPersistant(openedImageLimit, "limit_disp_images");
-        ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openedImageLimit.getValue().intValue());
-        openedImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openedImageLimit.getValue().intValue()));
-        ConfigurationTreeGenerator.addToMenu(openedImageLimit.getName(), ParameterUIBinder.getUI(openedImageLimit).getDisplayComponent(), openedImageNumberLimitMenu);
+        PropertyUtils.setPersistant(openImageLimit, "limit_disp_images");
+        ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue());
+        openImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue()));
+        ConfigurationTreeGenerator.addToMenu(openImageLimit.getName(), ParameterUIBinder.getUI(openImageLimit).getDisplayComponent(), openImageNumberLimitMenu);
         // kymograph interval
         PropertyUtils.setPersistant(kymographInterval, "kymograph_interval");
         Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
@@ -692,10 +711,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         logger.info("Experiment found in db: {} ", db.getDBName());
         if (db.isConfigurationReadOnly()) {
-            GUI.log(dbName+ ": Config file could not be locked. Dataset already opened ? Dataset will be opened in Read Only mode: all modifications on configuration or selections won't be saved. ");
+            GUI.log(dbName+ ": Config file could not be locked. Dataset already open ? Dataset will be open in Read Only mode: all modifications on configuration or selections won't be saved. ");
             GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
         } else {
-           setMessage("Dataset: "+db.getDBName()+" opened");
+           setMessage("Dataset: "+db.getDBName()+" open");
         }
         updateConfigurationTree();
         populateActionStructureList();
@@ -706,7 +725,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         updateDisplayRelatedToXPSet();
         datasetListValueChanged(null);
         setObjectClassJCB(interactiveStructure, true);
-        setObjectClassJCB(testObjectClassJCB, false);
+        populateTestObjectClassJCB();
 
         // in case Output path is modified in configuration -> need some reload
         FileChooser outputPath = (FileChooser)db.getExperiment().getChildren().stream().filter(p->p.getName().equals("Output Path")).findAny().get();
@@ -970,9 +989,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             populateActionPositionList();
         }
         if (tabs.getSelectedComponent() == testPanel) {
-            setObjectClassJCB(interactiveStructure, false);
+            populateTestObjectClassJCB();
             populateTestPositionJCB();
-            updateConfigurationTree();
+            populateTestParentTrackHead();
+            updateTestConfigurationTree();
         }  
     }
     
@@ -1185,7 +1205,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testControlPanel = new javax.swing.JPanel();
         testFramePanel = new javax.swing.JPanel();
         testFrameRangeLabel = new javax.swing.JLabel();
-        testTestButton = new javax.swing.JButton();
         testCopyButton = new javax.swing.JButton();
         testStepPanel = new javax.swing.JPanel();
         testStepJCB = new javax.swing.JComboBox<>();
@@ -1196,6 +1215,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testParentTrackPanel = new javax.swing.JPanel();
         testParentTrackJCB = new javax.swing.JComboBox<>();
         closeAllWindowsButton = new javax.swing.JButton();
+        testCopyToTemplateButton = new javax.swing.JButton();
+        testNormalModeToggleButton = new javax.swing.JToggleButton();
         progressAndConsolPanel = new javax.swing.JPanel();
         consoleJSP = new javax.swing.JScrollPane();
         console = new javax.swing.JTextPane();
@@ -1258,7 +1279,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         jMenu1 = new javax.swing.JMenu();
         clearTrackImagesMenuItem = new javax.swing.JMenuItem();
         clearPPImageMenuItem = new javax.swing.JMenuItem();
-        openedImageNumberLimitMenu = new javax.swing.JMenu();
+        openImageNumberLimitMenu = new javax.swing.JMenu();
         localZoomMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         logMenu = new javax.swing.JMenu();
@@ -1735,7 +1756,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         tabs.addTab("Data Browsing", dataPanel);
 
-        testSplitPane.setDividerLocation(550);
+        testSplitPane.setDividerLocation(500);
 
         testSplitPaneRight.setDividerLocation(250);
         testSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
@@ -1755,13 +1776,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         testSplitPane.setRightComponent(testSplitPaneRight);
 
-        testSplitPaneLeft.setDividerLocation(175);
+        testSplitPaneLeft.setDividerLocation(200);
         testSplitPaneLeft.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
         testConfigurationJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Configuration"));
         testSplitPaneLeft.setBottomComponent(testConfigurationJSP);
 
         testControlJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Test Controls"));
+
+        testControlPanel.setPreferredSize(new java.awt.Dimension(400, 141));
 
         testFramePanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Frame Range"));
         testFramePanel.setPreferredSize(new java.awt.Dimension(120, 49));
@@ -1781,12 +1804,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
         testFramePanelLayout.setVerticalGroup(
             testFramePanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(testFrameRangeLabel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addComponent(testFrameRangeLabel, javax.swing.GroupLayout.PREFERRED_SIZE, 27, javax.swing.GroupLayout.PREFERRED_SIZE)
         );
 
-        testTestButton.setText("Test");
-
-        testCopyButton.setText("Copy pre-processing to all positions");
+        testCopyButton.setText("Copy to all positions");
+        testCopyButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                testCopyButtonActionPerformed(evt);
+            }
+        });
 
         testStepPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Step"));
 
@@ -1822,7 +1848,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testPositionPanel.setLayout(testPositionPanelLayout);
         testPositionPanelLayout.setHorizontalGroup(
             testPositionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(testPositionJCB, 0, 140, Short.MAX_VALUE)
+            .addComponent(testPositionJCB, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
         );
         testPositionPanelLayout.setVerticalGroup(
             testPositionPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -1841,7 +1867,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testObjectClassPanel.setLayout(testObjectClassPanelLayout);
         testObjectClassPanelLayout.setHorizontalGroup(
             testObjectClassPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(testObjectClassJCB, 0, 161, Short.MAX_VALUE)
+            .addComponent(testObjectClassJCB, 0, 165, Short.MAX_VALUE)
         );
         testObjectClassPanelLayout.setVerticalGroup(
             testObjectClassPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -1860,17 +1886,32 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testParentTrackPanel.setLayout(testParentTrackPanelLayout);
         testParentTrackPanelLayout.setHorizontalGroup(
             testParentTrackPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(testParentTrackJCB, 0, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+            .addComponent(testParentTrackJCB, 0, 110, Short.MAX_VALUE)
         );
         testParentTrackPanelLayout.setVerticalGroup(
             testParentTrackPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addComponent(testParentTrackJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
         );
 
-        closeAllWindowsButton.setText("Close All Windows");
+        closeAllWindowsButton.setText("Close all windows");
         closeAllWindowsButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 closeAllWindowsButtonActionPerformed(evt);
+            }
+        });
+
+        testCopyToTemplateButton.setText("Copy to template");
+        testCopyToTemplateButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                testCopyToTemplateButtonActionPerformed(evt);
+            }
+        });
+
+        testNormalModeToggleButton.setSelected(true);
+        testNormalModeToggleButton.setText("Normal");
+        testNormalModeToggleButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                testNormalModeToggleButtonActionPerformed(evt);
             }
         });
 
@@ -1883,42 +1924,45 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     .addGroup(testControlPanelLayout.createSequentialGroup()
                         .addComponent(testStepPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(testPositionPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(testFramePanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                        .addComponent(testPositionPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
                     .addGroup(testControlPanelLayout.createSequentialGroup()
+                        .addComponent(testFramePanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(testObjectClassPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(testParentTrackPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                        .addComponent(testParentTrackPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(testControlPanelLayout.createSequentialGroup()
-                        .addComponent(testTestButton, javax.swing.GroupLayout.PREFERRED_SIZE, 71, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addComponent(testNormalModeToggleButton)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(closeAllWindowsButton, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(closeAllWindowsButton)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(testCopyButton)))
-                .addContainerGap())
+                        .addComponent(testCopyButton)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                        .addComponent(testCopyToTemplateButton)))
+                .addGap(0, 61, Short.MAX_VALUE))
         );
         testControlPanelLayout.setVerticalGroup(
             testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(testControlPanelLayout.createSequentialGroup()
                 .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                    .addComponent(testPositionPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(testStepPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addComponent(testFramePanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                    .addComponent(testPositionPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(testStepPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
                     .addComponent(testParentTrackPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(testObjectClassPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addComponent(testObjectClassPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(testFramePanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                    .addComponent(testTestButton)
                     .addComponent(testCopyButton)
-                    .addComponent(closeAllWindowsButton)))
+                    .addComponent(closeAllWindowsButton)
+                    .addComponent(testCopyToTemplateButton)
+                    .addComponent(testNormalModeToggleButton)))
         );
 
         testControlJSP.setViewportView(testControlPanel);
 
-        testSplitPaneLeft.setLeftComponent(testControlJSP);
+        testSplitPaneLeft.setTopComponent(testControlJSP);
 
         testSplitPane.setLeftComponent(testSplitPaneLeft);
 
@@ -2351,8 +2395,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         miscMenu.add(jMenu1);
 
-        openedImageNumberLimitMenu.setText("Number of opened Images Limit");
-        miscMenu.add(openedImageNumberLimitMenu);
+        openImageNumberLimitMenu.setText("Number of open Images Limit");
+        miscMenu.add(openImageNumberLimitMenu);
 
         localZoomMenu.setText("Local Zoom");
         miscMenu.add(localZoomMenu);
@@ -2595,7 +2639,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                     else ImageWindowManagerFactory.getImageManager().setActive(im);
                     navigateCount=0;
-                    if (newImage && setInteractiveStructure) { // new image open -> set interactive structure & navigate to next object in newly opened image
+                    if (newImage && setInteractiveStructure) { // new image open -> set interactive structure & navigate to next object in newly open image
                         setInteractiveStructureIdx(sel.getStructureIdx());
                         interactiveStructureActionPerformed(null);
                     }
@@ -3883,11 +3927,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.testObjectClassJCB.setEnabled(!pp);
         this.testParentTrackJCB.setEnabled(!pp);
         this.testCopyButton.setEnabled(pp);
+        this.testCopyToTemplateButton.setEnabled(pp);
         updateTestConfigurationTree();
     }//GEN-LAST:event_testStepJCBItemStateChanged
 
     private void testPositionJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testPositionJCBItemStateChanged
-        // TODO check if this is fired at each update! 
+        if (freezeTestPositionListener) return;
         logger.debug("fire test position changed");
         int positionIdx = testPositionJCB.getSelectedIndex();
         if (testStepJCB.getSelectedIndex()==0) { // pre-processing
@@ -3896,7 +3941,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             } else testFrameRange.setUpperBound(db.getExperiment().getPosition(positionIdx).getFrameNumber(true));
             this.updateTestConfigurationTree();
         } else {
-            this.testParentTrackJCB.removeAllItems();
             populateTestParentTrackHead();
         }
     }//GEN-LAST:event_testPositionJCBItemStateChanged
@@ -3912,26 +3956,51 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_testFrameRangeLabelMouseClicked
 
     private void testObjectClassJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testObjectClassJCBItemStateChanged
-        this.testParentTrackJCB.removeAllItems();
+        if (freezeTestObjectClassListener) return;
         populateTestParentTrackHead();
         updateTestConfigurationTree();
     }//GEN-LAST:event_testObjectClassJCBItemStateChanged
 
     private void testParentTrackJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testParentTrackJCBItemStateChanged
-        if (evt.getStateChange() == ItemEvent.SELECTED) {
+        if (freezeTestParentTHListener) return;
+        if (this.testParentTrackJCB.getSelectedIndex()>=0) {
             // set trim frame lower and upper bounds
             SegmentedObject trackHead = getTestTrackHead();
             List<SegmentedObject> parentTrack = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex()).getTrack(trackHead);
             this.testFrameRange.setLowerBound(trackHead.getFrame());
             this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size()-1).getFrame());
-        } else {
-            this.testTestButton.setEnabled(false);
-        }
+        } 
     }//GEN-LAST:event_testParentTrackJCBItemStateChanged
 
     private void closeAllWindowsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_closeAllWindowsButtonActionPerformed
         closeAllWindowsMenuItemActionPerformed(evt);
     }//GEN-LAST:event_closeAllWindowsButtonActionPerformed
+
+    private void testCopyButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testCopyButtonActionPerformed
+        if (db==null) return;
+        if (testStepJCB.getSelectedIndex()!=0) return;
+        if (this.testConfigurationTreeGenerator==null) return;
+        for (Position p : db.getExperiment().getPositions()) {
+            if (p.getIndex()==testPositionJCB.getSelectedIndex()) continue;
+            p.getPreProcessingChain().getTransformations().setContentFrom(testConfigurationTreeGenerator.getRoot());
+            if (configurationTreeGenerator!=null) configurationTreeGenerator.nodeStructureChanged(p.getPreProcessingChain().getTransformations());
+        }
+        
+    }//GEN-LAST:event_testCopyButtonActionPerformed
+
+    private void testCopyToTemplateButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testCopyToTemplateButtonActionPerformed
+        if (db==null) return;
+        if (testStepJCB.getSelectedIndex()!=0) return;
+        if (this.testConfigurationTreeGenerator==null) return;
+        db.getExperiment().getPreProcessingTemplate().getTransformations().setContentFrom(testConfigurationTreeGenerator.getRoot());
+        setMessage("Configuration copied to template!");
+        if (configurationTreeGenerator!=null) configurationTreeGenerator.nodeStructureChanged(db.getExperiment().getPreProcessingTemplate().getTransformations());
+    }//GEN-LAST:event_testCopyToTemplateButtonActionPerformed
+
+    private void testNormalModeToggleButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testNormalModeToggleButtonActionPerformed
+        if (testNormalModeToggleButton.isSelected()) testNormalModeToggleButton.setText("Normal");
+        else testNormalModeToggleButton.setText("Expert");
+    }//GEN-LAST:event_testNormalModeToggleButtonActionPerformed
     public void updateSelectionListUI() {
         selectionList.updateUI();
     }
@@ -4021,7 +4090,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     // test panel section
 
     
-    private void updateTestButton(Boolean configValid) {
+    /*private void updateTestButton(Boolean configValid) {
         if (configValid == null) { // config valid is not known
             if (this.testConfigurationTreeGenerator==null) configValid = false;
             else configValid = testConfigurationTreeGenerator.getRoot().isValid();
@@ -4037,18 +4106,31 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             }
         }
-    }
+    }*/
     
+    private boolean freezeTestPositionListener = false;
     public void populateTestPositionJCB() {
+        boolean noSel = testObjectClassJCB.getSelectedIndex()<0;
+        freezeTestPositionListener = true;
         String sel = Utils.getSelectedString(testPositionJCB);
         testPositionJCB.removeAllItems();
         if (db!=null) {
             for (int i =0; i<db.getExperiment().getPositionCount(); ++i) testPositionJCB.addItem(db.getExperiment().getPosition(i).getName()+" (#"+i+")");
             if (sel !=null) testPositionJCB.setSelectedItem(sel);
         }
+        freezeTestPositionListener = false;
+        if (noSel != testPositionJCB.getSelectedIndex()<0) testPositionJCBItemStateChanged(null);
+    }
+    private boolean freezeTestObjectClassListener = false;
+    public void populateTestObjectClassJCB() {
+        boolean noSel = testObjectClassJCB.getSelectedIndex()<0;
+        freezeTestObjectClassListener = true;
+        setObjectClassJCB(testObjectClassJCB, false);
+        freezeTestObjectClassListener = false;
+        if (noSel != testObjectClassJCB.getSelectedIndex()<0) this.testObjectClassJCBItemStateChanged(null);
     }
     
-    private ConfigurationTreeGenerator testConfigurationTreeGenerator;
+    
     
     private void updateTestConfigurationTree() {
         boolean pp = this.testStepJCB.getSelectedIndex()==0;
@@ -4066,7 +4148,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     if (testHintJSP.getHorizontalScrollBar()!=null) testHintJSP.getHorizontalScrollBar().setValue(0);
                 }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
             };
-            testConfigurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), pp?db.getExperiment().getPosition(positionIdx).getPreProcessingChain().getTransformations():db.getExperiment().getStructure(objectClassIdx).getProcessingPipelineParameter(), b->updateTestButton(b), (selectedModule, modules) -> populateModuleList(testModuleModel, testModuleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
+            testConfigurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), pp?db.getExperiment().getPosition(positionIdx).getPreProcessingChain().getTransformations():db.getExperiment().getStructure(objectClassIdx).getProcessingPipelineParameter(), b->{}, (selectedModule, modules) -> populateModuleList(testModuleModel, testModuleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
             testConfigurationJSP.setViewportView(testConfigurationTreeGenerator.getTree());
             final Consumer<String> moduleSelectionCallBack = testConfigurationTreeGenerator.getModuleChangeCallBack();
             testModuleList.addMouseListener(new MouseAdapter() {
@@ -4077,12 +4159,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
         }
     }
+    
+    private boolean freezeTestParentTHListener = false;
     private void populateTestParentTrackHead() {
         int testObjectClassIdx = this.testObjectClassJCB.getSelectedIndex();
         int positionIdx = testPositionJCB.getSelectedIndex();
-        if (testObjectClassIdx<0 || positionIdx<0) {
-            this.testParentTrackJCB.removeAllItems();
-        } else {
+        String sel = Utils.getSelectedString(testParentTrackJCB);
+        freezeTestParentTHListener = true;
+        this.testParentTrackJCB.removeAllItems();
+        if (testObjectClassIdx>=0 && positionIdx>=0) {
             String position = db.getExperiment().getPosition(positionIdx).getName();
             int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
             SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(so -> so.isTrackHead()).map(o->Selection.indicesString(o)).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
@@ -4091,7 +4176,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             } else { // get list of all trackHeads in position
                 
             }*/
+            if (sel !=null) testParentTrackJCB.setSelectedItem(sel);
         }
+        freezeTestParentTHListener = false;
+        if (sel==null == testParentTrackJCB.getSelectedIndex()<0) this.testParentTrackJCBItemStateChanged(null);
     }
     
     private SegmentedObject getTestTrackHead() {
@@ -4105,7 +4193,41 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         String sel = Utils.getSelectedString(testParentTrackJCB);
         return Selection.getObject(Selection.parseIndices(sel), path, db.getDao(position).getRoots());
     }
-    
+    public List<SegmentedObject> getTestParents() {
+        if (db==null) return null;
+        if (testConfigurationTreeGenerator==null) return null;
+        if (!testConfigurationTreeGenerator.getRoot().isValid()) {
+            setMessage("Error in configuration");
+            return null;
+        }
+        int positionIdx = testPositionJCB.getSelectedIndex();
+        if (positionIdx<0) {
+            setMessage("no position selected");
+            return null;
+        }
+        int testObjectClassIdx = this.testObjectClassJCB.getSelectedIndex();
+        if (testObjectClassIdx<0) {
+            setMessage("no object class selected");
+            return null;
+        }
+        String sel = Utils.getSelectedString(testParentTrackJCB);
+        if (sel==null) {
+            setMessage("no parent track selected");
+            return null;
+        }
+        String position = db.getExperiment().getPosition(positionIdx).getName();
+        int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
+        int[] path = db.getExperiment().experimentStructure.getPathToRoot(parentObjectClassIdx);
+        SegmentedObject th = Selection.getObject(Selection.parseIndices(sel), path, db.getDao(position).getRoots());
+        if (th == null) {
+            setMessage("Could not find track");
+            return null;
+        }
+        int[] frameRange = this.testFrameRange.getValuesAsInt();
+        List<SegmentedObject> res = db.getDao(position).getTrack(th);
+        res.removeIf(o->o.getFrame()<frameRange[0] || o.getFrame()>frameRange[1]);
+        return res;
+    }
     
 
     // Variables declaration - do not modify//GEN-BEGIN:variables
@@ -4199,7 +4321,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;
-    private javax.swing.JMenu openedImageNumberLimitMenu;
+    private javax.swing.JMenu openImageNumberLimitMenu;
     private javax.swing.JMenu optionMenu;
     private javax.swing.JButton previousTrackErrorButton;
     private javax.swing.JMenuItem printShortcutMenuItem;
@@ -4228,6 +4350,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JScrollPane testControlJSP;
     private javax.swing.JPanel testControlPanel;
     private javax.swing.JButton testCopyButton;
+    private javax.swing.JButton testCopyToTemplateButton;
     private javax.swing.JPanel testFramePanel;
     private javax.swing.JLabel testFrameRangeLabel;
     private javax.swing.JScrollPane testHintJSP;
@@ -4235,6 +4358,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JButton testManualSegmentationButton;
     private javax.swing.JScrollPane testModuleJSP;
     private javax.swing.JList<String> testModuleList;
+    private javax.swing.JToggleButton testNormalModeToggleButton;
     private javax.swing.JComboBox<String> testObjectClassJCB;
     private javax.swing.JPanel testObjectClassPanel;
     private javax.swing.JPanel testPanel;
@@ -4248,7 +4372,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JSplitPane testSplitPaneRight;
     private javax.swing.JComboBox<String> testStepJCB;
     private javax.swing.JPanel testStepPanel;
-    private javax.swing.JButton testTestButton;
     private javax.swing.JPanel trackPanel;
     private javax.swing.JPanel trackSubPanel;
     private javax.swing.JScrollPane trackTreeStructureJSP;

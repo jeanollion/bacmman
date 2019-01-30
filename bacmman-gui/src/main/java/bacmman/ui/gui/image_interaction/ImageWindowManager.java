@@ -304,7 +304,7 @@ public abstract class ImageWindowManager<I, U, V> {
         closeLastInputImages(displayedImageNumber);
     }
     public void closeLastActiveImages(int numberOfKeptImages) {
-        GUI.logger.debug("close active images: total opened {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
+        GUI.logger.debug("close active images: total open {} limit: {}", displayedInteractiveImages.size(), numberOfKeptImages);
         if (numberOfKeptImages<=0) return;
         if (displayedInteractiveImages.size()>numberOfKeptImages) {
             Iterator<Image> it = displayedInteractiveImages.iterator();

@@ -84,7 +84,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
         for (ImagePlus ip : displayedImages.values()) if (ip.isVisible()) ip.close();
         displayedImages.clear();
         displayedImagesInv.clear();
-        WindowManager.closeAllWindows(); // also close all opened windows
+        WindowManager.closeAllWindows(); // also close all open windows
     }
     @Override public void close(Image image) {
         ImagePlus imp = this.getImage(image);
@@ -287,7 +287,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
     /*public BoundingBox getImageDisplay(Image image) {
         ImagePlus im = image!=null ? this.getImage(image) : WindowManager.getCurrentImage();
         if (im==null) {
-            logger.warn("no opened image");
+            logger.warn("no open image");
             return null;
         }
         im.getCanvas().get
