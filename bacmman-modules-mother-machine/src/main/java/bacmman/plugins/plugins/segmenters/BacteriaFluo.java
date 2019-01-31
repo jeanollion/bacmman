@@ -23,14 +23,12 @@ import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.*;
+import bacmman.plugins.SimpleThresholder;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.measurement.BasicMeasurements;
-import bacmman.plugins.Plugin;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.ThresholderHisto;
-import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
@@ -46,8 +44,6 @@ import bacmman.image.ImageMask;
 import java.util.List;
 import java.util.Set;
 
-import bacmman.plugins.SimpleThresholder;
-
 import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
 
 import java.util.Map;
@@ -62,7 +58,7 @@ import java.util.stream.DoubleStream;
  *
  * @author Jean Ollion
  */
-public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
+public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> implements HintSimple {
     public static boolean verbose = false;
     public enum FOREGROUND_SELECTION_METHOD {SIMPLE_THRESHOLDING, HYSTERESIS_THRESHOLDING, EDGE_FUSION}
     public enum THRESHOLD_COMPUTATION {CURRENT_FRAME, PARENT_TRACK, ROOT_TRACK}
@@ -119,11 +115,15 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
             + "<li><em>Region values after merge by hessian</em>: MIP after merging using the Split/Merge criterion (<em>used in step 3</em>)</li>"
             +"</ul>";
     }
-    
+    @Override
+    public String getSimpleHintText() {
+        return "<b>Intensity-based 2D segmentation of bacteria within microchannels:</b><br />";
+
+    }
     
     public BacteriaFluo() {
         super();
-        localThresholdFactor.setHint("Factor defining the local threshold used in step 4.<br /> Lower value of this factor will yield in smaller cells. "
+        localThresholdFactor.setHint("Factor defining the local threshold used in step 4.<br /> Lower value of this factor will yield in smaller cells.<br />This threshold should be calibrated for each new experimental setup "
                 + "<br />Let be Med(PF)@Region the median value of the prefiltered image within the region, IQ(PF)@Region the inter-quartile of the prefiltered image within the region. <br />Threshold = Med(PF)@Region - IQ(PF)@Region * (this factor).");
     }
     
@@ -196,9 +196,9 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> {
                     return val;
                 }
             }).setThresholdValue(this.foregroundEdgeFusionThld.getValue().doubleValue());
-            if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(pop).setName("Interface Values for Foreground Partition Fusion"));
+            if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(sm.drawInterfaceValues(pop).setName("Interface Values for Foreground Partition Fusion"));
             sm.merge(pop, null);
-            if (stores!=null) imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values After Foreground Partition Fusion"));
+            if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values After Foreground Partition Fusion"));
         }
         if (remThld) ensureThresholds(parent, structureIdx, true, false);
         RegionPopulation.ContactBorderMask contact = new RegionPopulation.ContactBorderMask(2, parent.getMask(), RegionPopulation.Border.XYup);

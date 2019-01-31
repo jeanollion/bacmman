@@ -42,7 +42,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     protected ParameterImpl(String name) {
         this.name=name;
     }
-    protected String toolTipText;
+    protected String toolTipText, toolTipTextSimple;
     @Override
     public String getHintText() {
         return toolTipText;
@@ -50,6 +50,15 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     @Override
     public P setHint(String tip) {
         this.toolTipText= tip;
+        return (P)this;
+    }
+    @Override
+    public String getSimpleHintText() {
+        return toolTipTextSimple;
+    }
+    @Override
+    public P setSimpleHint(String tip) {
+        this.toolTipTextSimple= tip;
         return (P)this;
     }
     @Override

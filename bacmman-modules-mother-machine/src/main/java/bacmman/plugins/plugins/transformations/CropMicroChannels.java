@@ -31,6 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import bacmman.plugins.MultichannelTransformation;
+import bacmman.plugins.TestableOperation;
 import bacmman.utils.Utils;
 
 import java.util.HashSet;
@@ -46,7 +47,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public abstract class CropMicroChannels implements ConfigurableTransformation, MultichannelTransformation {
+public abstract class CropMicroChannels implements ConfigurableTransformation, MultichannelTransformation, TestableOperation {
     public static boolean debug = false;
     private final static Logger logger = LoggerFactory.getLogger(CropMicroChannels.class);
     protected NumberParameter xStart = new BoundedNumberParameter("X start", 0, 0, 0, null);
@@ -105,12 +106,11 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             }
             return getBoundingBox(im);
         };
-        boolean test = testMode;
-        if (framesN!=1 && test) { // only test for one frame
-            this.setTestMode(true);
+        TEST_MODE test = testMode;
+        if (framesN!=1 && test.testSimple()) { // only test for one frame
             getBds.apply(inputImages.getDefaultTimePoint());
         }
-        if (framesN!=1) this.setTestMode(false);
+        if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);
         Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(frames.stream().parallel(), i->i, i->getBds.apply(i), true); // not using Collectors.toMap because result of getBounds can be null
         List<Integer> nullBounds = bounds.entrySet().stream().filter(e->e.getValue()==null).map(b->b.getKey()).collect(Collectors.toList());
         if (!nullBounds.isEmpty()) logger.warn("bounds could not be computed for frames: {}", nullBounds);
@@ -140,6 +140,8 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             while (it.hasNext()) bds.union(it.next());
             this.bounds = bds;
         }*/
+
+        if (framesN!=1) this.setTestMode(test); // restore initial value
     }
     protected abstract void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx);
     
@@ -204,7 +206,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         return bounds!=null ? image.crop(bounds) : image.crop(cropBounds.get(timePoint));
     }
-    
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+    TestableOperation.TEST_MODE testMode= TestableOperation.TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TestableOperation.TEST_MODE testMode) {this.testMode=testMode;}
 }

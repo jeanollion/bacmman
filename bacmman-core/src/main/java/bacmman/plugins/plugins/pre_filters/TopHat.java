@@ -75,9 +75,6 @@ public class TopHat implements PreFilter, Filter, Hint {
         return true;
     }
 
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
-
     @Override
     public String getHintText() {
         return "Classical Top-hat transform for edge-enhancement or background equalization: <a href='https://en.wikipedia.org/wiki/Top-hat_transform'>https://en.wikipedia.org/wiki/Top-hat_transform</a>";

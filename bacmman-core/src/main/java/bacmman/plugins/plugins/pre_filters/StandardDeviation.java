@@ -78,10 +78,6 @@ public class StandardDeviation implements PreFilter, Filter, Hint {
     public Image applyTransformation(int channelIdx, int timePoint, Image input) {
         return filter(input, null, radius.getScaleXY(), radius.getScaleZ(input.getScaleXY(), input.getScaleZ()), medianRadius.getScaleXY(), medianRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), true);
     }
-
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
-
     @Override
     public String getHintText() {
         return "Computes the local Standard Deviation of the image within an Elipsoidal neighborhood defined in the <em>Radius</em> parameter. Optionally a performs a median filtering before in order to reduce noise";

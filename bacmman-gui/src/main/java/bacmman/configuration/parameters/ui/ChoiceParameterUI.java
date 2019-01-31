@@ -88,7 +88,7 @@ public class ChoiceParameterUI implements ArmableUI {
                     }
                 }
             );
-            if (choice_ instanceof PluginParameter) { // TODO instead of instanciate: check tool tip from class
+            if (choice_ instanceof PluginParameter) { // add hint to menu
                 Class plugClass = PluginFactory.getPluginClass(((PluginParameter)choice_).getPluginType(), choices[i]);
                 if (plugClass!=null && Hint.class.isAssignableFrom(plugClass)) {
                     Plugin p = PluginFactory.getPlugin(((PluginParameter)choice_).getPluginType(), choices[i]);

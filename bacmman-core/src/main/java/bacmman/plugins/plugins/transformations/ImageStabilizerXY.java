@@ -28,6 +28,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.data_structure.input_image.InputImages;
+import bacmman.plugins.TestableOperation;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
@@ -59,7 +60,7 @@ import bacmman.utils.ThreadRunner;
  *
  * @author Jean Ollion
  */
-public class ImageStabilizerXY implements ConfigurableTransformation, MultichannelTransformation, Hint {
+public class ImageStabilizerXY implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
     public final static Logger logger = LoggerFactory.getLogger(ImageStabilizerXY.class);
     ChoiceParameter transformationType = new ChoiceParameter("Transformation", new String[]{"Translation"}, "Translation", false); //, "Affine"
     ChoiceParameter pyramidLevel = new ChoiceParameter("Pyramid Level", new String[]{"0", "1", "2", "3", "4"}, "1", false);
@@ -101,7 +102,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
     
     @Override
     public void computeConfigurationData(final int channelIdx, final InputImages inputImages) {
-        if (debug) testMode = true;
+        if (debug) testMode = TEST_MODE.TEST_EXPERT;
         long tStart = System.currentTimeMillis();
         final int tRef = inputImages.getDefaultTimePoint();
         //final int tRef=0;
@@ -161,16 +162,16 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         int nSegments = (int)(0.5 +(double)(inputImages.getFrameNumber()-1) / (double)segmentLength) ;
         if (nSegments<1) nSegments=1;
         int[][] segments = new int[nSegments][3]; // tStart, tEnd, tRef
-        if (debug) logger.debug("n segment: {}, {}", segments.length);
+        if (testMode.testExpert()) logger.debug("n segment: {}, {}", segments.length);
         final Map<Integer, Integer> mapImageToRef = new HashMap<>(inputImages.getFrameNumber());
         for (int i = 0; i<nSegments; ++i) {
             segments[i][0] = i==0 ? 0 : segments[i-1][1]+1;
             segments[i][1] = i==segments.length-1 ? inputImages.getFrameNumber()-1 : segments[i][0]+segmentLength-1;
             segments[i][2] = i==0 ? Math.min(Math.max(0, tRef), segments[i][1]) : segments[i-1][1]; 
             for (int j = segments[i][0]; j<=segments[i][1]; ++j) mapImageToRef.put(j, segments[i][2]);
-            if (debug) logger.debug("segment: {}, {}", i, segments[i]);
+            if (testMode.testExpert()) logger.debug("segment: {}, {}", i, segments[i]);
         }
-        if (debug)logger.debug("im to ref map: {}", mapImageToRef);
+        if (testMode.testExpert())logger.debug("im to ref map: {}", mapImageToRef);
         MutableBoundingBox refBB = cropBB==null ? inputImages.getImage(channelIdx, tRef).getBoundingBox().resetOffset() : cropBB;
         // process each segment
         final HashMapGetCreate<Integer, FloatProcessor> processorMap = new HashMapGetCreate<>(i-> getFloatProcessor(cropBB==null ? inputImages.getImage(channelIdx, i) : inputImages.getImage(channelIdx, i).crop(cropBB), false));
@@ -196,7 +197,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
                 translationTXYArray[p.getKey()] = performCorrection(processorMap, p.getKey(), b.pyramid, outParams);
                 pyramids.push(b, p.getValue());
             }
-            if (debug) logger.debug("t: {}, tRef: {}, dX: {}, dY: {}, rmse: {}, iterations: {}", p.getKey(), p.getValue(), translationTXYArray[p.getKey()][0], translationTXYArray[p.getKey()][1], outParams[0], outParams[1]);
+            if (testMode.testExpert()) logger.debug("t: {}, tRef: {}, dX: {}, dY: {}, rmse: {}, iterations: {}", p.getKey(), p.getValue(), translationTXYArray[p.getKey()][0], translationTXYArray[p.getKey()][1], outParams[0], outParams[1]);
         });
         // translate shifts
         for (int i = 1; i<segments.length; ++i) {
@@ -205,7 +206,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
                 translationTXYArray[t][0]+=ref[0];
                 translationTXYArray[t][1]+=ref[1];
             }
-            if (debug) logger.debug("ref: {}, tp: {}, trans: {}", i,segments[i][2], ref);
+            if (testMode.testExpert()) logger.debug("ref: {}, tp: {}, trans: {}", i,segments[i][2], ref);
         }
     }
     
@@ -242,7 +243,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         double[][] wp = ImageStabilizerCore.estimateTranslation(currentTime, null, pyramids[0], pyramids[1], false, maxIter.getValue().intValue(), tol.getValue().doubleValue(), null, outParameters);
         long tEnd = System.currentTimeMillis();
         Double[] res =  new Double[]{wp[0][0], wp[1][0]};
-        if (debug) logger.debug("ImageStabilizerXY: timepoint: {} dX: {} dY: {}, open & preProcess time: {}, estimate translation time: {}", t, res[0], res[1], tStart-t0, tEnd-tStart);
+        if (testMode.testExpert()) logger.debug("ImageStabilizerXY: timepoint: {} dX: {} dY: {}, open & preProcess time: {}, estimate translation time: {}", t, res[0], res[1], tStart-t0, tEnd-tStart);
         return res;
     }
     
@@ -372,7 +373,8 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         }
         
     }
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 
 }

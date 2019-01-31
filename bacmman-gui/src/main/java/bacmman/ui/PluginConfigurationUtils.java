@@ -29,6 +29,7 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.image_container.MemoryImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.TypeConverter;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
@@ -36,14 +37,7 @@ import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 
 import bacmman.image.Image;
-import bacmman.plugins.ConfigurableTransformation;
-import bacmman.plugins.ImageProcessingPlugin;
-import bacmman.plugins.MultichannelTransformation;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
-import bacmman.plugins.Tracker;
-import bacmman.plugins.Transformation;
 import bacmman.ui.gui.image_interaction.Kymograph;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
@@ -59,9 +53,7 @@ import bacmman.utils.HashMapGetCreate;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
-import bacmman.plugins.ProcessingPipeline;
-import bacmman.plugins.ProcessingPipelineWithTracking;
-import bacmman.plugins.TrackConfigurable;
+
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 
 /**
@@ -89,7 +81,7 @@ public class PluginConfigurationUtils {
         }
     }
 
-    public static Map<SegmentedObject, TestDataStore> testImageProcessingPlugin(final ImageProcessingPlugin plugin, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean trackOnly) {
+    public static Map<SegmentedObject, TestDataStore> testImageProcessingPlugin(final ImageProcessingPlugin plugin, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean trackOnly, boolean expertMode) {
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
         SegmentedObjectAccessor accessor = getAccessor();
         // get parent objects -> create graph cut
@@ -103,7 +95,7 @@ public class PluginConfigurationUtils {
         List<SegmentedObject> parentTrackDup = parentSelection.stream().map(getParent).distinct().map(p->dupMap.get(p.getId())).sorted().collect(Collectors.toList());
 
         // generate data store for test images
-        Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, i-> ImageWindowManagerFactory.showImage(i)), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, i-> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
         parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
 
@@ -162,7 +154,7 @@ public class PluginConfigurationUtils {
         }
         return stores;
     }
-    public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, Experiment xp, int structureIdx) {
+    public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, Experiment xp, int objectClassIdx, boolean expertMode) {
         Consumer<Boolean> performTest = b-> {
             List<SegmentedObject> sel;
             if (GUI.hasInstance()) {
@@ -177,8 +169,8 @@ public class PluginConfigurationUtils {
             //if (sel==null) sel = new ArrayList<>(1);
             //if (sel.isEmpty()) sel.add(GUI.getDBConnection().getDao(pos).getRoot(0));
 
-            Map<SegmentedObject, TestDataStore> stores = testImageProcessingPlugin(plugin, xp, structureIdx, sel, b);
-            if (stores!=null) displayIntermediateImages(stores, structureIdx);
+            Map<SegmentedObject, TestDataStore> stores = testImageProcessingPlugin(plugin, xp, objectClassIdx, sel, b, expertMode);
+            if (stores!=null) displayIntermediateImages(stores, objectClassIdx);
         };
         List<JMenuItem> res = new ArrayList<>();
         if (plugin instanceof Tracker) {
@@ -241,11 +233,12 @@ public class PluginConfigurationUtils {
         
     }
 
-    public static JMenuItem getTransformationTest(String name, Position position, int transfoIdx, boolean showAllSteps, ProgressCallback pcb) {
+    public static JMenuItem getTransformationTest(String name, Position position, int transfoIdx, boolean showAllSteps, ProgressCallback pcb, boolean expertMode) {
         JMenuItem item = new JMenuItem(name);
         item.setAction(new AbstractAction(item.getActionCommand()) {
             @Override
             public void actionPerformed(ActionEvent ae) {
+                TestableOperation.TEST_MODE testMode = expertMode ? TestableOperation.TEST_MODE.TEST_EXPERT : TestableOperation.TEST_MODE.TEST_SIMPLE;
                 int[] frames = GUI.hasInstance() && GUI.getInstance().isTestTabSelected() ? GUI.getInstance().getTestFrameRange() : new int[]{0, position.getFrameNumber(false)};
                 InputImagesImpl images = position.getInputImages().duplicate(frames[0], frames[1]);
                 PreProcessingChain ppc = position.getPreProcessingChain();
@@ -268,7 +261,7 @@ public class PluginConfigurationUtils {
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
                         Transformation transfo = tpp.instanciatePlugin();
-                        transfo.setTestMode(i==transfoIdx);
+                        if (transfo instanceof TestableOperation && i==transfoIdx) ((TestableOperation)transfo).setTestMode(testMode);
                         Parameter.logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
                         try{
                             if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
@@ -298,11 +291,12 @@ public class PluginConfigurationUtils {
         });
         return item;
     }
-    public static JMenuItem getTransformationTestOnCurrentImage(String name, Position position, int transfoIdx) {
+    public static JMenuItem getTransformationTestOnCurrentImage(String name, Position position, int transfoIdx, boolean expertMode) {
         JMenuItem item = new JMenuItem(name);
         item.setAction(new AbstractAction(item.getActionCommand()) {
             @Override
             public void actionPerformed(ActionEvent ae) {
+                TestableOperation.TEST_MODE testMode = expertMode ? TestableOperation.TEST_MODE.TEST_EXPERT : TestableOperation.TEST_MODE.TEST_SIMPLE;
                 Image[][] imCT = getImageManager().getDisplayer().getCurrentImageCT();
                 if (imCT==null) {
                     Parameter.logger.warn("No active image");
@@ -338,7 +332,7 @@ public class PluginConfigurationUtils {
                 }
 
                 Parameter.logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}, isConfigured?: {}", transfo, transfo.getClass(), position.getName(), input, output);
-                transfo.setTestMode(true);
+                if (transfo instanceof TestableOperation) ((TestableOperation)transfo).setTestMode(testMode);
                 if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
                       
                 //tpp.setConfigurationData(transfo.getConfigurationData());

@@ -61,10 +61,10 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
             "<ul><li>Gaussian Smooth (located in the <em>ImageFeatures</em> module)</li>" +
             "<li>Median</li>" +
             "<li>NonLocalMeansDenoising</li></ul>";
-    protected final int MIN_SIZE_PROPAGATION = 20; // was 50
+    protected final int MIN_SIZE_PROPAGATION = 20;
     protected PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new StandardDeviation(2).setMedianRadius(0)).setHint("List of operations used to compute the edge map used in first watershed step.<br />Configuration hint: the <em>Edge Map for partitioning</em> (displayed in test mode) is the result of those operations. Set operations so that edges of bacteria are best detected, several operations can be added through right-click menu. Also refer to <em>Region values after partitioning</em>: regions should be either within background OR foreground but not overlap both. <br />"+Edge_Hint);  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
     protected NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 0, 5).setHint("Scale (pixels) for gaussian filtering for the local thresholding step");
-    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null);
+    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null).setEmphasized(true).setSimpleHint("Lower value of this factor will yield in smaller cells.<br />This threshold should be calibrated for each new experimental setup");
 
     //segmentation-related attributes (kept for split and merge methods)
     protected EdgeDetector edgeDetector;
@@ -116,10 +116,10 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         edgeDetector = initEdgeDetector(parent, objectClassIdx);
         RegionPopulation splitPop = edgeDetector.runSegmenter(input, objectClassIdx, parent);
         splitPop.smoothRegions(1, true, parent.getMask());
-        if (stores!=null) imageDisp.accept(edgeDetector.getWsMap(parent.getPreFilteredImage(objectClassIdx), parent.getMask()).setName("Edge Map for Partitioning"));
-        if (stores!=null) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Partitioning"));
+        if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(edgeDetector.getWsMap(parent.getPreFilteredImage(objectClassIdx), parent.getMask()).setName("Edge Map for Partitioning"));
+        if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Partitioning"));
         splitPop = filterRegionsAfterEdgeDetector(parent, objectClassIdx, splitPop);
-        if (stores!=null) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Filtering of Paritions"));
+        if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Filtering of Partitions"));
         
 
         RegionPopulation split = splitAndMerge.split(splitPop.getLabelMap(), MIN_SIZE_PROPAGATION);
@@ -129,12 +129,12 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         }
         split = filterRegionsAfterSplitByHessian(parent, objectClassIdx, split);
         if (stores!=null)  {
-            imageDisp.accept(EdgeDetector.generateRegionValueMap(split, input).setName("Region Values before merge by Hessian"));
+            if (stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(split, input).setName("Region Values before merge by Hessian"));
             imageDisp.accept(splitAndMerge.drawInterfaceValues(split).setName("Interface values before merge by Hessian"));
         }
         RegionPopulation res = splitAndMerge.merge(split, null);
         res = filterRegionsAfterMergeByHessian(parent, objectClassIdx, res);
-        if (stores!=null)  {
+        if (stores!=null && stores.get(parent).isExpertMode())  {
             imageDisp.accept(EdgeDetector.generateRegionValueMap(res, input).setName("Region Values after merge by Hessian"));
         }
         res = localThreshold(input, res, parent, objectClassIdx, false);

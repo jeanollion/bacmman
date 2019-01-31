@@ -25,6 +25,7 @@ public class ParameterUIBinder {
         return getUI(p, null, null);
     }
     public static ParameterUI getUI(Parameter p, ConfigurationTreeModel model, ProgressCallback pcb) {
+        boolean expertMode = model==null || model.isExpertMode();
         if (p instanceof NumberParameter) return new NumberParameterUI((NumberParameter)p, model);
         if (p instanceof IndexChoiceParameter) {
             IndexChoiceParameter icp = (IndexChoiceParameter)p;
@@ -34,14 +35,14 @@ public class ParameterUIBinder {
         if (p instanceof MultipleChoiceParameter) return new MultipleChoiceParameterUI((MultipleChoiceParameter)p, model);
         if (p instanceof PluginParameter) {
             PluginParameter pp = (PluginParameter)p;
-            ChoiceParameterUI ui =  new ChoiceParameterUI(pp, "Plugins", model);
+            ChoiceParameterUI ui =  new ChoiceParameterUI(pp, "Modules", model);
             if (pp.isOnePluginSet()) {
                 // get structureIdx
                 Structure s = bacmman.configuration.parameters.ParameterUtils.getFirstParameterFromParents(Structure.class, pp, false);
                 if (s!=null) {
                     Plugin pl = pp.instanciatePlugin();
                     if (pl instanceof Segmenter || pl instanceof Tracker) {
-                        List<JMenuItem> testCommands = PluginConfigurationUtils.getTestCommand((ImageProcessingPlugin)pl, ParameterUtils.getExperiment(pp), s.getIndex());
+                        List<JMenuItem> testCommands = PluginConfigurationUtils.getTestCommand((ImageProcessingPlugin)pl, ParameterUtils.getExperiment(pp), s.getIndex(), expertMode);
                         for (int i = 0; i<testCommands.size(); ++i) ui.addActions(testCommands.get(i), i==0);
                     }
                 }
@@ -51,9 +52,9 @@ public class ParameterUIBinder {
                 Position f = ParameterUtils.getFirstParameterFromParents(Position.class, pp, false);
                 if (f!=null) {
                     int idx = pp.getParent().getIndex(pp);
-                    ui.addActions(PluginConfigurationUtils.getTransformationTest("Test Transformation", f, idx, false, pcb), true);
+                    ui.addActions(PluginConfigurationUtils.getTransformationTest("Test Transformation", f, idx, false, pcb, expertMode), true);
                     //ui.addActions(PluginConfigurationUtils.getTransformationTest("Test Transformation (show all steps)", f, idx, true), false);
-                    ui.addActions(PluginConfigurationUtils.getTransformationTestOnCurrentImage("Test Transformation on current Image", f, idx), false);
+                    ui.addActions(PluginConfigurationUtils.getTransformationTestOnCurrentImage("Test Transformation on current Image", f, idx, expertMode), false);
                 }
             }
             return ui;

@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.transformations;
 
 import bacmman.core.Core;
+import bacmman.plugins.TestableOperation;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.ChannelImageParameter;
@@ -46,7 +47,7 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class RemoveStripesSignalExclusion implements ConfigurableTransformation, Hint {
+public class RemoveStripesSignalExclusion implements ConfigurableTransformation, TestableOperation, Hint {
     ChannelImageParameter signalExclusion = new ChannelImageParameter("Channel for Signal Exclusion", -1, true);
     PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundFit(5), false); //new ConstantValue(150)
     BooleanParameter signalExclusionBool2 = new BooleanParameter("Second Signal Exclusion", false);
@@ -92,7 +93,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     public void computeConfigurationData(final int channelIdx, final InputImages inputImages)  {
         final int chExcl = signalExclusion.getSelectedIndex();
         final int chExcl2 = this.signalExclusionBool2.getSelected() ? signalExclusion2.getSelectedIndex() : -1;
-        if (testMode && chExcl>=0) {
+        if (testMode.testExpert() && chExcl>=0) {
             testMasks = new ConcurrentHashMap<>();
             if (chExcl>=0) testMasks2 = new ConcurrentHashMap<>();
         }
@@ -125,12 +126,12 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                     Image se1 = allImagesExcl[frame];
                     double thld1 = signalExclusionThreshold.instanciatePlugin().runSimpleThresholder(se1, null);
                     ThresholdMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new ThresholdMask(se1, thld1, true, true, 0):new ThresholdMask(se1, thld1, true, true);
-                    if (testMode) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
+                    if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
                     if (chExcl2>=0) {
                         Image se2 = allImagesExcl2[frame];
                         double thld2 = signalExclusionThreshold2.instanciatePlugin().runSimpleThresholder(se2, null);
                         ThresholdMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new ThresholdMask(se2, thld2, true, true, 0):new ThresholdMask(se2, thld2, true, true);
-                        if (testMode) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
+                        if (testMode.testExpert()) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
                         mask = ThresholdMask.or(mask, mask2);
                     }
                     m = mask;
@@ -139,7 +140,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                 if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());      
             }
         );
-        if (testMode) { // make stripes images
+        if (testMode.testExpert()) { // make stripes images
             Image[][] stripesTC = new Image[meanFZY.length][1];
             for (int f = 0; f<meanFZY.length; ++f) {
                 stripesTC[f][0] = new ImageFloat("removeStripes", allImages[f]);
@@ -153,7 +154,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
             }
             Core.showImage5D("Stripes", stripesTC);
         }
-        if (testMode) {
+        if (testMode.testSimple()) {
             if (!testMasks.isEmpty()) {
                 Image[][] maskTC = new Image[testMasks.size()][1];
                 for (Map.Entry<Integer, Image> e : testMasks.entrySet()) maskTC[e.getKey()][0] = e.getValue();
@@ -233,7 +234,9 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
         return meanFZY!=null && meanFZY.length==totalTimePointNumber;
     }
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 
 }

@@ -35,7 +35,7 @@ import java.util.List;
  * @author Jean Ollion
  */
 public class BacteriaTrackingAttributes implements Measurement, Hint {
-    protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria Structure", -1, false, false);
+    protected ObjectClassParameter bacteria = new ObjectClassParameter("Object Class", -1, false, false).setHint("Select object class corresponding to bacteria");;
     protected Parameter[] parameters = new Parameter[]{bacteria};
     
     public BacteriaTrackingAttributes(){}

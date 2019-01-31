@@ -29,6 +29,7 @@ import bacmman.image.TypeConverter;
 import java.util.ArrayList;
 import java.util.List;
 
+import bacmman.plugins.TestableOperation;
 import bacmman.processing.ImageTransformation;
 import bacmman.processing.ImageTransformation.InterpolationScheme;
 import bacmman.processing.RadonProjection;
@@ -46,7 +47,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class AutoRotationXY implements MultichannelTransformation, ConfigurableTransformation, Hint {
+public class AutoRotationXY implements MultichannelTransformation, ConfigurableTransformation, TestableOperation, Hint {
     IntervalParameter angleRange = new IntervalParameter("Angle range search", 2, -90, 90, -10, 10).setHint("Rotation angle search will be limited to this range (in degree) ");
     NumberParameter precision1 = new BoundedNumberParameter("Angular Precision of first search", 2, 1, 0, null);
     NumberParameter precision2 = new BoundedNumberParameter("Angular Precision", 2, 0.1, 0, 1);
@@ -58,7 +59,6 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
     BooleanParameter maintainMaximum = new BooleanParameter("Maintain Maximum Value", false).setHint("When interpolation with polynomial of degree>1, higher values than maximal value can be created, which can be an issue in case of a saturated image if the saturated value should be preserved. <br />This option will saturate the rotated image to the old maximal value");
     Parameter[] parameters = new Parameter[]{searchMethod, angleRange, precision1, precision2, interpolation, frameNumber, removeIncompleteRowsAndColumns, maintainMaximum, prefilters}; //
     double rotationAngle = Double.NaN;
-    public boolean testMode = false;
     public AutoRotationXY(double minAngle, double maxAngle, double precision1, double precision2, InterpolationScheme interpolation, SearchMethod method) {
         angleRange.setValues(minAngle, maxAngle);
         this.precision1.setValue(precision1);
@@ -119,7 +119,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
     
     @Override 
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {     
-        if (testMode) {
+        if (testMode.testExpert()) {
             sinogram1Test = new ArrayList<>();
             sinogram2Test = new ArrayList<>();
         }
@@ -138,7 +138,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
             }
             return getAngle(image);
         }).collect(Collectors.toList());
-        if (testMode) {
+        if (testMode.testExpert()) {
             Core.showImage(Image.mergeZPlanes(sinogram1Test).setName("Sinogram: first search"));
             Core.showImage(Image.mergeZPlanes(sinogram2Test).setName("Sinogram: second search"));
             sinogram1Test.clear();
@@ -169,10 +169,10 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
         double[] angleMax=new double[]{angles[0], angles[0]};
         double max=-1;
         ImageFloat sinogram = null;
-        if (testMode) sinogram = new ImageFloat("sinogram search angles: ["+ang1+";"+ang2+"]", angles.length, proj.length, 1);
+        if (testMode.testExpert()) sinogram = new ImageFloat("sinogram search angles: ["+ang1+";"+ang2+"]", angles.length, proj.length, 1);
         for (int angleIdx = 0; angleIdx<angles.length; ++angleIdx) { 
             radonProject(image, z, angles[angleIdx]+90, proj, true);
-            if (testMode) paste(proj, sinogram, angleIdx);
+            if (testMode.testExpert()) paste(proj, sinogram, angleIdx);
             //if (filterScale>0) filter(filterScale, proj);
             double tempMax = var?RadonProjection.var(proj):RadonProjection.max(proj);
             if (tempMax > max) {
@@ -184,7 +184,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
             }
             //logger.trace("radon projection: computeRotationAngleXY: {}", angleMax);
         }
-        if (testMode) {
+        if (testMode.testExpert()) {
             if (sinogram1Test.size()<=sinogram2Test.size()) sinogram1Test.add(sinogram);
             else sinogram2Test.add(sinogram);
         }
@@ -229,5 +229,9 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
         }
         
     }
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
+
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
+
 }

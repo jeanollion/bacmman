@@ -107,7 +107,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         }
     }
     
-    protected String toolTipText;
+    protected String toolTipText, simpleToolTipText;
     @Override
     public String getHintText() {
         return toolTipText;
@@ -115,6 +115,15 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     @Override
     public L setHint(String tip) {
         this.toolTipText= tip;
+        return (L)this;
+    }
+    @Override
+    public String getSimpleHintText() {
+        return simpleToolTipText;
+    }
+    @Override
+    public L setSimpleHint(String tip) {
+        this.simpleToolTipText= tip;
         return (L)this;
     }
     

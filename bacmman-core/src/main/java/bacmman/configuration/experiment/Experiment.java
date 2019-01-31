@@ -54,7 +54,7 @@ import java.util.stream.Stream;
  */
 
 public class Experiment extends ContainerParameterImpl<Experiment> {
-    SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Channel Images", 0 , ChannelImage.class).setNewInstanceNameFunction(i->"channel image"+i).setHint("Channel of input images");
+    SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels", 0 , ChannelImage.class).setNewInstanceNameFunction(i->"channel image"+i).setHint("Channel of input images");
     SimpleListParameter<Structure> structures= new SimpleListParameter<>("Object Classes", -1 , Structure.class).setNewInstanceNameFunction(i->"object class"+i).setHint("Types of objects to be analysed in this dataset. All processing is defined in this part of the configuration tree");
     SimpleListParameter<PluginParameter<Measurement>> measurements = new SimpleListParameter<>("Measurements", -1 , new PluginParameter<>("Measurements", Measurement.class, false))
             .addValidationFunctionToChildren(ppm -> {
@@ -73,22 +73,22 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
                 });
             })
             .setHint("Measurement to be performed after processing. Hint displays output keys (column in extracted table) and the associated object class. If several keys are equal for the same object class, the associated measurement won't be valid (displayed in red)");
-    SimpleListParameter<Position> positions= new SimpleListParameter<>("Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre(processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.");
-    PreProcessingChain template = new PreProcessingChain("Pre-Processing pipeline template", true).setHint("Default pre-processing set to positions at import");
+    SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre(processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.");
+    PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operation can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
     
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where preprocessed images will be stored");
     protected FileChooser outputPath = new FileChooser("Output Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where segmentation & lineage results will be stored");
     ChoiceParameter importMethod = new ChoiceParameter("Import Method", IMPORT_METHOD.getChoices(), null, false);
     TextParameter positionSeparator = new TextParameter("Position Separator", "xy", true).setHint("character sequence located directly before the position identifier in all image files");
     TextParameter frameSeparator = new TextParameter("Frame Separator", "t", true).setHint("character sequence located directly before the frame number in all image files");
-    BooleanParameter invertTZ = new BooleanParameter("Invert T & Z dimension", false).setHint("Whether Time and Z dimension should be inverted during image import. <br />This option has to be set to <em>true</em> if Frames and Z-slices are inverted. This can be checked by opening input images of a position through the <em>Open Input Images</em> command and check the properties of the image (CTRL + SHIFT + P under imageJ/FIJI)<br />After changing this parameter, images should be re-imported (re-run the import / re-link command)");
+    BooleanParameter invertTZ = new BooleanParameter("Swap T & Z dimension", false).setHint("BACMMAN can analyze time series of Z-stacks. For some image formats, the Z and time dimensions may be swapped during import. In this case, set SWAP time and Z to TRUE. <br />The correct interpretation of time and Z dimensions can be checked after import by opening the images of a position through the <em>Open Input Images</em> command and checking the properties of the image (CTRL + SHIFT + P under imageJ/FIJI)<br />After changing this parameter, images should be re-imported (re-run the import / re-link command)");
     ConditionalParameter importCond = new ConditionalParameter(importMethod).setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator).setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ).setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ)
-            .setHint("<b>Define here the input image organization</b><ol>"
-                    + "<li>"+IMPORT_METHOD.SINGLE_FILE.getMethod()+": A single file contains all frames, channels (and positions)</li>"
-                    + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod()+": For each position, there is one file per channel that contains all frames<br /> File names must contain the user-defined channel keywords (defined in <em>Channel Images</em>). For a given position file names only differ by their channel keyword</li>"
-                    + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod()+": There is one file for each position, channel and Frame. <br />For a given folder, all file must have the same extension. <br /> File names must contain the user-defined channel keywords (defined in <em>Channel Images</em>), the user-defined <em>position separator</em>, and contain the user-defined <em>frame separator</em> followed by the frame number. For a given position file names should only differ by channel keyword and frame number</li></ol>");
+            .setHint("<b>Define here the organization of input images</b><ol>"
+                    + "<li>"+IMPORT_METHOD.SINGLE_FILE.getMethod()+": A single file contains all frames, detection channels and positions</li>"
+                    + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod()+": For each position, there is one file per detection channel, wich contains all frames<br /> File names must contain the user-defined channel keywords (defined in <em>Detection Channel</em>). For a given position, the file names should differ only by their channel keyword</li>"
+                    + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod()+": A single file corresponds to a single position, a single detection channel and a single frame. <br />All files must have the same extension. <br /> File names must contain the user-defined channel keywords (defined in <em>Detection Channel</em>), the user-defined <em>position separator</em>, and contain the user-defined <em>frame separator</em> followed by the frame index. For a given position, the file names should only differ by their channel keyword and their frame index</li></ol>");
     
-    ChannelImageParameter bestFocusPlaneChannel = new ChannelImageParameter("Channel", 0, true).setHint("Channel for best focus plane computation");
+    ChannelImageParameter bestFocusPlaneChannel = new ChannelImageParameter("Channel", 0, true).setHint("Detection Channel for best focus plane computation");
     PluginParameter<Autofocus> autofocus = new PluginParameter<>("Algorithm", Autofocus.class, new SelectBestFocusPlane(), true);
     GroupParameter bestFocusPlane = new GroupParameter("Best Focus plane computation", new Parameter[]{bestFocusPlaneChannel, autofocus}).setHint("This algorithm will be used to select one plane in case a transformation that requires 2D images and 3D images are provided");
     
@@ -161,7 +161,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
     
     protected void initChildList() {
-        super.initChildren(importCond, template, positions, channelImages, structures, measurements, outputPath, imagePath, bestFocusPlane);
+        super.initChildren(importCond, channelImages, template, positions, structures, measurements, outputPath, imagePath, bestFocusPlane);
     }
     
     public PreProcessingChain getPreProcessingTemplate() {

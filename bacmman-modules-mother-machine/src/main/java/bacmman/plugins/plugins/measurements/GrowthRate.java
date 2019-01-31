@@ -54,7 +54,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class GrowthRate implements Measurement, MultiThreaded {
-    protected ObjectClassParameter structure = new ObjectClassParameter("Bacteria Structure", -1, false, false);
+    protected ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false).setHint("Select object class corresponding to bacteria");
     protected PluginParameter<GeometricalFeature> feature = new PluginParameter<>("Feature", GeometricalFeature.class, new Size(), false).setHint("Geometrical Feature of object used to compute Growth Rate");
     protected TextParameter suffix = new TextParameter("Suffix", "", false).setHint("Suffix added to measurement keys");
     protected BooleanParameter saveSizeAtDiv = new BooleanParameter("Save Size at Division", false).setHint("Wether the estimated size at division should be saved or not");

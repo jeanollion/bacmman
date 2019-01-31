@@ -72,9 +72,6 @@ public class BandPass implements PreFilter, Filter, Hint {
         return filter(image, min.getValue().doubleValue(), max.getValue().doubleValue(), removeStripes.getSelectedIndex(), stripeTolerance.getValue().doubleValue());
     }
 
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
-
     @Override
     public String getHintText() {
         return "ImageJ's Band-pass filter using Fourier transform: <a href='https://imagej.nih.gov/ij/plugins/fft-filter.html'>https://imagej.nih.gov/ij/plugins/fft-filter.html</a>";

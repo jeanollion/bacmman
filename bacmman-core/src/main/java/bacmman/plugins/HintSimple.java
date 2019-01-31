@@ -18,12 +18,10 @@
  */
 package bacmman.plugins;
 
-import bacmman.image.Image;
-
 /**
- *
+ * Hint for non-expert mode
  * @author Jean Ollion
  */
-public interface Transformation extends ImageProcessingPlugin {
-    Image applyTransformation(int channelIdx, int timePoint, Image image);
+public interface HintSimple {
+    String getSimpleHintText();
 }

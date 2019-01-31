@@ -60,7 +60,4 @@ public class Flip implements MultichannelTransformation, Hint {
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
         return OUTPUT_SELECTION_MODE.ALL;
     }
-
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
 }

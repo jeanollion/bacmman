@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import bacmman.plugins.TestableOperation;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Median;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
@@ -48,7 +49,7 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class RemoveDeadPixels implements ConfigurableTransformation, Hint {
+public class RemoveDeadPixels implements ConfigurableTransformation, TestableOperation, Hint {
     NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higer than this threshold pixel is considered as dead and will be replaced by the median value");
     NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 4, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
     HashMapGetCreate<Integer, Set<Voxel>> configMapF;
@@ -68,8 +69,8 @@ public class RemoveDeadPixels implements ConfigurableTransformation, Hint {
         double thld= threshold.getValue().doubleValue();
         int frameRadius = this.frameRadius.getValue().intValue();
         double fRd= (double)frameRadius;
-        final Image[][] testMeanTC= testMode ? new Image[inputImages.getFrameNumber()][1] : null;
-        final Image[][] testMedianTC= testMode ? new Image[inputImages.getFrameNumber()][1] : null;
+        final Image[][] testMeanTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
+        final Image[][] testMedianTC= testMode.testSimple() ? new Image[inputImages.getFrameNumber()][1] : null;
         // perform sliding mean of image
         SlidingOperator<Image, Pair<Integer, Image>, Void> operator = new SlidingOperator<Image, Pair<Integer, Image>, Void>() {
             @Override public Pair<Integer, Image> instanciateAccumulator() {
@@ -98,7 +99,7 @@ public class RemoveDeadPixels implements ConfigurableTransformation, Hint {
             @Override public Void compute(Pair<Integer, Image> accumulator) {   
                 Filters.median(accumulator.value, median, n, true);
                 //Filters.median(inputImages.getImage(channelIdx, accumulator.key), median, n);
-                if (testMode) {
+                if (testMode.testSimple()) {
                     testMeanTC[accumulator.key][0] = accumulator.value.duplicate();
                     testMedianTC[accumulator.key][0] = median.duplicate();
                 }
@@ -119,7 +120,7 @@ public class RemoveDeadPixels implements ConfigurableTransformation, Hint {
         List<Image> imList = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         if (frameRadius>=1) SlidingOperator.performSlideLeft(imList, frameRadius, operator);
         else IntStream.range(0, imList.size()).parallel().forEach(i-> operator.compute(new Pair<>(i, imList.get(i))));
-        if (testMode) {
+        if (testMode.testSimple()) {
             // first frames are not computed
             for (int f = 0; f<frameRadius-1; ++f) testMeanTC[f][0] = testMeanTC[frameRadius-1][0];
             for (int f = 0; f<frameRadius-1; ++f) testMedianTC[f][0] = testMedianTC[frameRadius-1][0];
@@ -159,12 +160,10 @@ public class RemoveDeadPixels implements ConfigurableTransformation, Hint {
         }
         return image;
     }
-    
-    boolean testMode;
+
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
     @Override
-    public void setTestMode(boolean testMode) {
-        this.testMode=testMode;
-    }
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 
     @Override
     public Parameter[] getParameters() {

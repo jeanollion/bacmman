@@ -102,9 +102,6 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
         return true;
     }
-
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
     
     public static ImageFloat filterCustomSlidingParaboloid(Image input, double radius, boolean lightBackground, boolean smooth, boolean duplicate, boolean parallele, FILTER_DIRECTION... directions) {
         if (!(input instanceof ImageFloat)) input = TypeConverter.toFloat(input, null);

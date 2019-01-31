@@ -113,9 +113,6 @@ public class SimpleCrop implements MultichannelTransformation, Hint {
         return OUTPUT_SELECTION_MODE.ALL;
     }
 
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
-
     @Override
     public String getHintText() {
         return "Crop All preprocessed image within a constant bounding box.";

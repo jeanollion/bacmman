@@ -19,7 +19,7 @@
 package bacmman.plugins.plugins.transformations;
 
 import bacmman.core.Core;
-import bacmman.plugins.Hint;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.ChoiceParameter;
@@ -46,12 +46,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import bacmman.plugins.SimpleThresholder;
 
 import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.FLUO_HALF_IMAGE;
 import bacmman.processing.ImageTransformation;
-import bacmman.plugins.ConfigurableTransformation;
-import bacmman.plugins.MultichannelTransformation;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -61,7 +58,7 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class AutoFlipY implements ConfigurableTransformation, MultichannelTransformation, Hint {
+public class AutoFlipY implements ConfigurableTransformation, MultichannelTransformation, Hint, TestableOperation {
     
     public enum AutoFlipMethod {
         FLUO("Bacteria Fluo", "Flips the image so that the side where bacteria are more aligned (corresponding to the closed-end) is the upper side"),
@@ -107,7 +104,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         AutoFlipMethod m = AutoFlipMethod.getMethod(method.getSelectedItem());
         switch(m) {
             case FLUO: {
-                if (testMode) {
+                if (testMode.testExpert()) {
                     upperObjectsTest=new ArrayList<>();
                     lowerObjectsTest=new ArrayList<>();
                 }
@@ -124,7 +121,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 }).collect(Collectors.toList());
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
-                if (testMode) {
+                if (testMode.testExpert()) {
                     Core.showImage(Image.mergeZPlanes(upperObjectsTest).setName("Upper Objects"));
                     Core.showImage(Image.mergeZPlanes(lowerObjectsTest).setName("Lower Objects"));
                     upperObjectsTest.clear();
@@ -206,7 +203,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         ImageMask lower = new BlankMask( image.sizeX(), image.sizeY()/2, image.sizeZ(), image.xMin(), image.yMin()+image.sizeY()/2, image.zMin(), image.getScaleXY(), image.getScaleZ());
         double upperMean = ImageOperations.getMeanAndSigmaWithOffset(image, upper, null, true)[0];
         double lowerMean = ImageOperations.getMeanAndSigmaWithOffset(image, lower, null, true)[0];
-        if (testMode) logger.debug("AutoFlipY: upper half mean {} lower: {}", upperMean, lowerMean);
+        if (testMode.testSimple()) logger.debug("AutoFlipY: upper half mean {} lower: {}", upperMean, lowerMean);
         if (upperMean>lowerMean) return false;
         else if (lowerMean>upperMean) return true;
         else return null;
@@ -216,7 +213,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         ImageMask lower = new BlankMask( image.sizeX(), image.sizeY()/2, image.sizeZ(), image.xMin(), image.yMin()+image.sizeY()/2, image.zMin(), image.getScaleXY(), image.getScaleZ());
         double upperMean = ImageOperations.getMeanAndSigmaWithOffset(image, upper, null, true)[0];
         double lowerMean = ImageOperations.getMeanAndSigmaWithOffset(image, lower, null, true)[0];
-        if (testMode) logger.debug("AutoFlipY: upper half mean {} lower: {}", upperMean, lowerMean);
+        if (testMode.testSimple()) logger.debug("AutoFlipY: upper half mean {} lower: {}", upperMean, lowerMean);
         if (upperMean>lowerMean) return false;
         else if (lowerMean>upperMean) return true;
         else return null;
@@ -225,7 +222,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         int minSize = minObjectSize.getValue().intValue();
         SimpleThresholder thlder = fluoThld.instanciatePlugin();
         double thld = thlder.runSimpleThresholder(image, null);
-        if (testMode) logger.debug("threshold: {}", thld);
+        if (testMode.testSimple()) logger.debug("threshold: {}", thld);
         ImageMask mask = new ThresholdMask(image, thld, true, true);
         List<Region> objects = ImageLabeller.labelImageList(mask);
         objects.removeIf(o->o.size()<minSize);
@@ -233,7 +230,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         Map<Region, Integer> sizeY = objects.stream().collect(Collectors.toMap(o->o, o->o.getBounds().sizeY()));
         double medianSizeY = ArrayUtil.medianInt(sizeY.values());
         objects.removeIf(o->sizeY.get(o)<medianSizeY/2);
-        if (testMode) logger.debug("objects: {}, minSize: {}, minSizeY: {} (median sizeY: {})", objects.size(), minSize, medianSizeY/2, medianSizeY);
+        if (testMode.testSimple()) logger.debug("objects: {}, minSize: {}, minSizeY: {} (median sizeY: {})", objects.size(), minSize, medianSizeY/2, medianSizeY);
         if (objects.isEmpty() || objects.size()<=2) return null;
         Map<Region, MutableBoundingBox> xBounds = objects.stream().collect(Collectors.toMap(o->o, o->new MutableBoundingBox(o.getBounds().xMin(), o.getBounds().xMax(), 0, 1, 0, 1)));
         Iterator<Region> it = objects.iterator();
@@ -254,7 +251,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         double yMaxMed = ArrayUtil.medianInt(Utils.transform(yMaxOs, o->o.getBounds().yMax()));
         yMaxOs.removeIf(o->Math.abs(o.getBounds().yMax()-yMaxMed)>o.getBounds().sizeY()/4);
         
-        if (testMode) {
+        if (testMode.testExpert()) {
             //ImageWindowManagerFactory.showImage(TypeConverter.toByteMask(mask, null, 1).setName("Segmentation mask"));
             this.upperObjectsTest.add(new RegionPopulation(yMinOs, image).getLabelMap().setName("Upper Objects"));
             this.lowerObjectsTest.add(new RegionPopulation(yMaxOs, image).getLabelMap().setName("Lower Objects"));
@@ -263,7 +260,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         double sigmaMin = getSigma(yMins);
         List<Pair<Integer, Integer>> yMaxs = Utils.transform(yMaxOs, o->new Pair<>(o.getBounds().yMax(), o.getBounds().sizeY()));
         double sigmaMax = getSigma(yMaxs);
-        if (testMode) {
+        if (testMode.testSimple()) {
             logger.debug("yMins sigma: {}: {}", sigmaMin, Utils.toStringList(yMins));
             logger.debug("yMaxs sigma {}: {}", sigmaMax, Utils.toStringList(yMaxs));
             logger.debug("flip: {}", sigmaMin>sigmaMax);
@@ -302,11 +299,10 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
         return OUTPUT_SELECTION_MODE.ALL;
     }
-    boolean testMode;
+
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
     @Override
-    public void setTestMode(boolean testMode) {
-        this.testMode=testMode;
-    }
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 
     @Override
     public Parameter[] getParameters() {

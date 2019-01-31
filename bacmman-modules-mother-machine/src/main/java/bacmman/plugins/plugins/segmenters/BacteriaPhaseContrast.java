@@ -96,7 +96,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         this.splitThreshold.setValue(0.115); // 0.15 for hessian scale = 3
         this.hessianScale.setValue(2);
         this.edgeMap.removeAll().add(new StandardDeviation(3).setMedianRadius(2)).setEmphasized(true);
-        localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this factor will yield in smaller cells. <br />Threshold = mean_w - sigma_w * (this factor), <br />with mean_w = weighted mean of signal weighted by edge image, sigma_w = standard deviation of signal weighted by edge image. <br />Refer to images: <em>Local Threshold edge map</em> and <em>Local Threshold intensity map</em>");
+        localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this factor will yield in smaller cells.<br />This threshold should be calibrated for each new experimental setup. <br />Threshold = mean_w - sigma_w * (this factor), <br />with mean_w = weighted mean of signal weighted by edge image, sigma_w = standard deviation of signal weighted by edge image. <br />Refer to images: <em>Local Threshold edge map</em> and <em>Local Threshold intensity map</em>");
         localThresholdFactor.setValue(1);
     }
     public BacteriaPhaseContrast setMinSize(int minSize) {
@@ -216,7 +216,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         // TODO: filter artifacts according to their hessian value
         if (pop.getRegions().isEmpty()) return pop;
         Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(structureIdx))));
-        Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent);
+        Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         if (Double.isNaN(upperThld)) throw new RuntimeException("Upper Threshold not computed");
         if (Double.isNaN(lowerThld)) throw new RuntimeException("Lower Threshold not computed");
         
@@ -367,7 +367,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                     edgeMap = this.edgeDetector.getWsMap(input, parent.getMask());
                 }
                 Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
-                if (imageDisp != null) { //| (callFromSplit && splitVerbose)
+                if (imageDisp != null && stores.get(parent).isExpertMode()) { //| (callFromSplit && splitVerbose)
                     imageDisp.accept(smooth.setName("Local Threshold intensity map"));
                     imageDisp.accept(edgeMap.setName("Local Threshold edge map"));
                 }
@@ -438,7 +438,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         double minThreshold = (mean+globalThld)/2.0;
         double meanUp = histo.getValueFromIdx(histo.getMeanIdx((int)histo.getIdxFromValue(globalThld), histo.data.length));
         double maxThreshold = (meanUp+globalThld)/2.0;
-        logger.debug("bacteria phase segmentation: {} global threshold on images with forground: global thld: {}, thresholds: [{};{}]", parentTrack.get(0), globalThld, minThreshold, maxThreshold);
+        logger.debug("bacteria phase segmentation: {} global threshold on images with foreground: global thld: {}, thresholds: [{};{}]", parentTrack.get(0), globalThld, minThreshold, maxThreshold);
         return new double[]{minThreshold, globalThld, maxThreshold}; 
     }
     @Override 

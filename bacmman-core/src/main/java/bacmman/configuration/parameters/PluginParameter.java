@@ -36,7 +36,7 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  * @param <T> type of plugin
  */
-public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivatable, ChoosableParameter<PluginParameter<T>> {
+public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivatable, ChoosableParameter<PluginParameter<T>>, InvisibleNode {
     
     public final static HashMapGetCreate<Class<? extends Plugin>, List<String>> PLUGIN_NAMES=new HashMapGetCreate<Class<? extends Plugin>, List<String>>(c -> PluginFactory.getPluginNames(c));
     protected List<Parameter> pluginParameters;
@@ -310,5 +310,30 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         }
         return pluginType;
     }
-    
+    // invisible node implementation : for hiding some parameters in beginners mode
+    @Override
+    public Parameter getChildAt(int index, boolean filterIsActive) {
+        if (!filterIsActive) {
+            return getChildAt(index);
+        }
+        if (children == null) {
+            throw new ArrayIndexOutOfBoundsException("node has no children");
+        }
+        int realIndex = -1;
+        int visibleIndex = -1;
+        for (Parameter p : children) {
+            if (p.isEmphasized()) visibleIndex++;
+            realIndex++;
+            if (visibleIndex == index) {
+                return children.get(realIndex);
+            }
+        }
+        throw new ArrayIndexOutOfBoundsException("index unmatched");
+    }
+    @Override
+    public int getChildCount(boolean filterIsActive) {
+        if (!filterIsActive) return getChildCount();
+        if (children == null) return 0;
+        return (int)children.stream().filter(p->p.isEmphasized()).count();
+    }
 }

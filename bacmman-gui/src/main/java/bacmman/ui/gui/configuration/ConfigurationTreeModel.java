@@ -19,6 +19,7 @@
 package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.parameters.ContainerParameter;
+import bacmman.configuration.parameters.InvisibleNode;
 import bacmman.configuration.parameters.ListParameter;
 import bacmman.configuration.parameters.Parameter;
 
@@ -36,6 +37,7 @@ import javax.swing.tree.TreePath;
 public class ConfigurationTreeModel extends DefaultTreeModel {
     protected JTree tree;
     private final Runnable update;
+    private boolean expertMode = true;
     public ConfigurationTreeModel(ContainerParameter root, Runnable update) {
         super(root);
         this.update=update;
@@ -46,7 +48,15 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
     public JTree getTree() {
         return tree;
     }
-    
+
+    public void setExpertMode(boolean expertMode) {
+        this.expertMode = expertMode;
+    }
+
+    public boolean isExpertMode() {
+        return expertMode;
+    }
+
     @Override
     public void insertNodeInto(MutableTreeNode newChild, MutableTreeNode parent, int index) {
         super.insertNodeInto(newChild, parent, index);
@@ -102,5 +112,24 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         }
 
         return nodes.isEmpty() ? null : new TreePath(nodes.toArray());
+    }
+    // methods to hide non-emphasized parameters in simple mode
+    @Override
+    public Object getChild(Object parent, int index) {
+        if (!expertMode) {
+            if (!parent.equals(root) && parent instanceof InvisibleNode) {
+                return ((InvisibleNode) parent).getChildAt(index, true);
+            }
+        }
+        return ((TreeNode) parent).getChildAt(index);
+    }
+    @Override
+    public int getChildCount(Object parent) {
+        if (!expertMode) {
+            if (!parent.equals(root) && parent instanceof InvisibleNode) {
+                return ((InvisibleNode) parent).getChildCount(true);
+            }
+        }
+        return ((TreeNode) parent).getChildCount();
     }
 }

@@ -30,6 +30,7 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.Hint;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.Plugin;
 import bacmman.utils.Utils;
@@ -80,6 +81,7 @@ public class ConfigurationTreeGenerator {
     private final BiConsumer<String, List<String>> setModules;
     private final MasterDAO mDAO;
     private final ProgressCallback pcb;
+    private boolean expertMode = true;
     public ConfigurationTreeGenerator(Experiment xp, ContainerParameter root, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
         rootParameter = root;
         experiment = xp;
@@ -88,6 +90,14 @@ public class ConfigurationTreeGenerator {
         this.pcb = pcb;
         this.setHint=setHint;
         this.setModules = setModules;
+    }
+    public void setExpertMode(boolean expertMode) {
+        this.expertMode = expertMode;
+        if (treeModel!=null) treeModel.setExpertMode(expertMode);
+    }
+
+    public boolean isExpertMode() {
+        return expertMode;
     }
     public Consumer<String> getModuleChangeCallBack() {
         return (selModule) -> {
@@ -120,32 +130,57 @@ public class ConfigurationTreeGenerator {
             rootParameter = null;
         }
     }
-
+    private String getParameterHint(Parameter p) {
+        if (expertMode) {
+            String hint = p.getHintText();
+            if (hint == null) return p.getSimpleHintText();
+            else return hint;
+        }
+        else {
+            String hint = p.getSimpleHintText();
+            if (hint == null) return p.getHintText();
+            else return hint;
+        }
+    }
+    private String getPluginHint(Plugin p) {
+        if (expertMode) {
+            if (p instanceof Hint) return ((Hint)p).getHintText();
+            else if (p instanceof HintSimple) return ((HintSimple)p).getSimpleHintText();
+            else return null;
+        } else {
+            if (p instanceof HintSimple) return ((HintSimple)p).getSimpleHintText();
+            else if (p instanceof Hint) return ((Hint)p).getHintText();
+            else return null;
+        }
+    }
     private String getHint(Object parameter, boolean limitWidth) {
         if (!(parameter instanceof Parameter)) return null;
-        String t = ((Hint)parameter).getHintText();
+        String t = getParameterHint((Parameter)parameter);
         if (t==null) t = "";
         if (parameter instanceof PluginParameter) {
             Plugin p = ((PluginParameter)parameter).instanciatePlugin();
-            if (p instanceof Hint) {
-                String t2 = ((Hint)p).getHintText();
-                if (t2!=null && t2.length()>0) {
+            String t2 = getPluginHint(p);
+            if (t2!=null) {
+                if (t2.length()>0) {
                     if (t.length()>0) t = t+"<br /> <br />";
-                    t = t+"<b>Current Plugin:</b><br />"+t2;
+                    t = t+"<b>Current Module:</b><br />"+t2;
                 }
             }
             if (p instanceof Measurement) { // also display measurement keys
                 List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
                 if (!keys.isEmpty()) {
                     if (t.length()>0) t= t+"<br /> <br />";
-                    t = t+ "<b>Measurement Keys (column names in extracted data and associated object class):</b><br />";
+                    t = t+ "<b>Measurement Name (for each output measurement, the list displays column names in extracted table and associated object class in brackets):</b><br />";
                     for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<experiment.getStructureCount() ? " ("+experiment.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
                 }
             }
         } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter
             Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
             if (t=="") return getHint(action, limitWidth);
-            else if (action.getHintText()!=null) t = t+"<br /> <br />"+getHint(action, false);
+            else {
+                String t2 = getHint(action, false);
+                if (t2!=null && t2.length()>0) t = t+"<br /> <br />"+ t2;
+            }
         }
         if (t!=null && t.length()>0) return formatHint(t, limitWidth);
         else return null;
@@ -153,6 +188,7 @@ public class ConfigurationTreeGenerator {
 
     private void generateTree() {
         treeModel = new ConfigurationTreeModel(rootParameter, () -> xpChanged());
+        treeModel.setExpertMode(expertMode);
         tree = new JTree(treeModel) {
             @Override
             public String getToolTipText(MouseEvent evt) {

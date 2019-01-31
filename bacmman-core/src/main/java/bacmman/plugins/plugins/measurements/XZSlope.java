@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class XZSlope implements Measurement, DevPlugin {
-    protected ObjectClassParameter microchannel = new ObjectClassParameter("Microchannel Structure", 0, false, false);
+    protected ObjectClassParameter microchannel = new ObjectClassParameter("Object Class", 0, false, false).setHint("Select object class corresponding to microchannel");
     @Override
     public int getCallObjectClassIdx() {
         return -1;

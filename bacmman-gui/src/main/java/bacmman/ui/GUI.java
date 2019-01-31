@@ -253,7 +253,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 "<li>Selections can also be generated from R or Python. After generating a selection from R, click on <em>Reload Selections</em> to display it in the list</li>" +
                 "</ul>"));
         // tool tips for test panel
-        this.testNormalModeToggleButton.setToolTipText(formatHint("Switch between <em>Normal</em> and <em>Expert</em> test mode. In <em>Expert</em> test mode, more information can be displayed"));
+        this.testNormalModeToggleButton.setToolTipText(formatHint("Switch between <em>Beginner</em> and <em>Advanced</em> mode. In <em>Advanced</em> mode, more technical information and more parameters are available"));
         this.testStepPanel.setToolTipText(formatHint("Select the step to configure and test"));
         this.testPositionPanel.setToolTipText(formatHint("Select the position on which tests will be performed"));
         this.testFramePanel.setToolTipText(formatHint("Set frame range on which tests will be performed in order to limit processing time"));
@@ -552,6 +552,25 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         };
         shortcutPreset.addListener(setShortcut);
         setShortcut.accept(shortcutPreset);
+
+
+        // copy hint
+        JPopupMenu hintMenu = new JPopupMenu();
+        Action copy = new DefaultEditorKit.CopyAction();
+        copy.putValue(Action.NAME, "Copy");
+        copy.putValue(Action.ACCELERATOR_KEY, KeyStroke.getKeyStroke("control C"));
+        hintMenu.add( copy );
+        Action selectAll = new TextAction("Select All") {
+            @Override public void actionPerformed(ActionEvent e) {
+                JTextComponent component = getFocusedComponent();
+                component.selectAll();
+                component.requestFocusInWindow();
+            }
+        };
+        hintMenu.add( selectAll );
+        hintTextPane.setComponentPopupMenu( hintMenu );
+        testHintTextPane.setComponentPopupMenu( hintMenu );
+
     }
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
@@ -3993,8 +4012,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_testCopyToTemplateButtonActionPerformed
 
     private void testNormalModeToggleButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testNormalModeToggleButtonActionPerformed
-        if (testNormalModeToggleButton.isSelected()) testNormalModeToggleButton.setText("Normal");
-        else testNormalModeToggleButton.setText("Expert");
+        if (testNormalModeToggleButton.isSelected()) testNormalModeToggleButton.setText("Beginner");
+        else testNormalModeToggleButton.setText("Advanced");
+        if (testConfigurationTreeGenerator!=null) {
+            testConfigurationTreeGenerator.setExpertMode(!testNormalModeToggleButton.isSelected());
+            testConfigurationTreeGenerator.nodeStructureChanged(testConfigurationTreeGenerator.getRoot());
+        }
     }//GEN-LAST:event_testNormalModeToggleButtonActionPerformed
     public void updateSelectionListUI() {
         selectionList.updateUI();
@@ -4166,6 +4189,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
             };
             testConfigurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), pp?db.getExperiment().getPosition(positionIdx).getPreProcessingChain().getTransformations():db.getExperiment().getStructure(objectClassIdx).getProcessingPipelineParameter(), b->{}, (selectedModule, modules) -> populateModuleList(testModuleModel, testModuleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
+            testConfigurationTreeGenerator.setExpertMode(!testNormalModeToggleButton.isSelected());
             testConfigurationJSP.setViewportView(testConfigurationTreeGenerator.getTree());
             final Consumer<String> moduleSelectionCallBack = testConfigurationTreeGenerator.getModuleChangeCallBack();
             testModuleList.addMouseListener(new MouseAdapter() {
@@ -4194,9 +4218,17 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 
             }*/
             if (sel !=null) testParentTrackJCB.setSelectedItem(sel);
-        }
+            setTestParentTHTitle(parentObjectClassIdx>=0 ? db.getExperiment().getStructure(parentObjectClassIdx).getName() : "Viewfield");
+            //testParentTrackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Parent Track"));
+
+        } else setTestParentTHTitle("Viewfield");
         freezeTestParentTHListener = false;
         if (sel==null == testParentTrackJCB.getSelectedIndex()<0) this.testParentTrackJCBItemStateChanged(null);
+    }
+
+    private void setTestParentTHTitle(String title) {
+        ((javax.swing.border.TitledBorder)testParentTrackPanel.getBorder()).setTitle(title);
+        testParentTrackPanel.updateUI();
     }
     
     private SegmentedObject getTestTrackHead() {

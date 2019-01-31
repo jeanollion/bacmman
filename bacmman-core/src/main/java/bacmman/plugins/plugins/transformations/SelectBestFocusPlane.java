@@ -125,8 +125,5 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
         return bestFocusPlaneIdxT !=null && bestFocusPlaneIdxT.size() == totalTimePointNumber;
     }
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
 
-    
 }

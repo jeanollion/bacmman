@@ -19,6 +19,7 @@
 package bacmman.configuration.parameters;
 
 import bacmman.plugins.Hint;
+import bacmman.plugins.HintSimple;
 import bacmman.utils.JSONSerializable;
 import java.util.ArrayList;
 import java.util.function.Predicate;
@@ -30,7 +31,7 @@ import org.slf4j.Logger;
  * @author Jean Ollion
  */
 
-public interface Parameter<P extends Parameter<P>> extends MutableTreeNode, JSONSerializable, Hint {
+public interface Parameter<P extends Parameter<P>> extends MutableTreeNode, JSONSerializable, Hint, HintSimple {
     Logger logger = LoggerFactory.getLogger(Parameter.class);
     ArrayList<Parameter> getPath();
     void setContentFrom(Parameter other);
@@ -40,6 +41,7 @@ public interface Parameter<P extends Parameter<P>> extends MutableTreeNode, JSON
     void setName(String name);
     String toStringFull();
     <T extends P> T setHint(String tip);
+    <T extends P> T setSimpleHint(String simpleHint);
     boolean isValid();
     boolean isEmphasized();
     P setEmphasized(boolean isEmphasized);

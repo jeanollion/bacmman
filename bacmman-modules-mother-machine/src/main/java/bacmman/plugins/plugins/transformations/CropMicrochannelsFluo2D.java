@@ -20,6 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.TestableOperation;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
@@ -53,7 +54,7 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint {
+public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, TestableOperation {
     protected NumberParameter channelHeight = new BoundedNumberParameter("Channel Height", 0, 410, 0, null);
     NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setHint(SIZE_TOOL_TIP);
     NumberParameter fillingProportion = new BoundedNumberParameter("Filling proportion of Microchannel", 2, 0.5, 0.05, 1).setHint(FILL_TOOL_TIP);
@@ -113,9 +114,9 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint {
     }
     
     public MutableBoundingBox getBoundingBox(Image image, ImageInteger thresholdedImage, double threshold) {
-        if (debug) testMode = true;
-        Consumer<Image> dispImage = testMode ? i-> Core.showImage(i) : null;
-        BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
+        if (debug) testMode = TEST_MODE.TEST_EXPERT;
+        Consumer<Image> dispImage = testMode.testSimple() ? i-> Core.showImage(i) : null;
+        BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testSimple() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
         Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 0, this.channelHeight.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), dispImage, miscDisp);
         if (r == null) return null;
         
@@ -203,7 +204,8 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint {
         return parameters;
     }
 
-    
-    
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
     
 }

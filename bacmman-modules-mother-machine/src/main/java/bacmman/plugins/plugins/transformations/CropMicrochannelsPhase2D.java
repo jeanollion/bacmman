@@ -26,6 +26,7 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
+import bacmman.plugins.TestableOperation;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.Plugin;
@@ -43,7 +44,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint {
+public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint, TestableOperation {
     private final static Logger logger = LoggerFactory.getLogger(CropMicrochannelsPhase2D.class);
     public static boolean debug = false;
     protected String toolTip = "<b>Automatic crop of the image around microchannels in phase-contrast images</b><br />"
@@ -84,19 +85,19 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
     }
     
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {
-        if (debug) testMode = true;
+        if (debug) testMode = TEST_MODE.TEST_EXPERT;
         int yMarginEndChannel = yOpenedEndMargin.getValue().intValue();
         int yMin=0, yMax, yMinMax;
         if (twoPeaks.getSelected()) {
             cropMargin = 0;
-            int[] yMinAndMax = searchYLimWithTwoBrightLines(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode);
+            int[] yMinAndMax = searchYLimWithTwoBrightLines(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, aberrationPeakPropUp.getValue().doubleValue(), yEndMarginUp.getValue().intValue(), testMode.testSimple());
             yMin = yMinAndMax[0];
             yMax = yMinAndMax[1];
             yMinMax = yMax;
             if (yMin<0 || yMax<0) throw new RuntimeException("Did not found two bright lines");
         } else {
             int[] distanceRange=  maxDistanceRangeFromAberration.getValuesAsInt();
-            yMax =  searchYLimWithBrightLine(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, testMode) ;
+            yMax =  searchYLimWithBrightLine(image, aberrationPeakProp.getValue().doubleValue(), yMarginEndChannel, testMode.testSimple()) ;
             if (yMax<0) throw new RuntimeException("No bright line found");
             if (distanceRange[1]>0) {
                 yMin = Math.max(yMin, yMax - distanceRange[1]);
@@ -106,12 +107,12 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
 
         // in case image was rotated and 0 were added, search for xMin & xMax so that no 0's are in the image
         BoundingBox nonNullBound = getNonNullBound(image, yMin, yMax);
-        if (testMode) logger.debug("non null bounds: {}", nonNullBound);
+        if (testMode.testSimple()) logger.debug("non null bounds: {}", nonNullBound);
         if (!twoPeaks.getSelected()) {
             Image imCrop = image.crop(nonNullBound);
             Image imDerY = ImageFeatures.getDerivative(imCrop, 2, 0, 1, 0, true);
             float[] yProj = ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
-            if (testMode) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
+            if (testMode.testSimple()) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check
             //if (yProj.length-1<channelHeight/10) throw new RuntimeException("No microchannels found in image. Out-of-Focus image ?");
             yMin = ArrayUtil.max(yProj, 0, yMinMax-nonNullBound.yMin()) + nonNullBound.yMin();
@@ -269,5 +270,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint 
         uniformizeX(allBounds);
         
     }
-
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 }

@@ -75,9 +75,6 @@ public class TypeConverter implements MultichannelTransformation, Hint {
                 } else return image;
         }
     }
-    
-    @Override
-    public void setTestMode(boolean testMode) { }
 
     @Override
     public Parameter[] getParameters() {

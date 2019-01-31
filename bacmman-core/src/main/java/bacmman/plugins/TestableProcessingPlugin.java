@@ -61,9 +61,15 @@ public interface TestableProcessingPlugin extends ImageProcessingPlugin {
         public final Map<String, Integer> nameOrder = new HashMap<>();
         public final HashMapGetCreate<String, List<Consumer<List<SegmentedObject>>>> miscData = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
         public final Consumer<Image> imageDisp;
-        public TestDataStore(SegmentedObject parent, Consumer<Image> imageDisp) {
+        public final boolean expertMode;
+        public TestDataStore(SegmentedObject parent, Consumer<Image> imageDisp, boolean expertMode) {
             this.parent= parent;
             this.imageDisp=imageDisp;
+            this.expertMode=expertMode;
+        }
+
+        public boolean isExpertMode() {
+            return expertMode;
         }
 
         public SegmentedObject getParent() {

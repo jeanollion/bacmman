@@ -92,11 +92,6 @@ public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
     }
 
     @Override
-    public void setTestMode(boolean testMode) {
-
-    }
-
-    @Override
     public String getHintText() {
         return "Non local means denosing<br /> " +
                 "To use this plugin, activate the update site: <em>biomedgroup</em><br />"+

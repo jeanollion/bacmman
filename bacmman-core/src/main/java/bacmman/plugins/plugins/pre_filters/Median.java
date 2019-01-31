@@ -65,9 +65,6 @@ public class Median implements PreFilter, Filter, Hint {
         return filter(image, radius.getScaleXY(), radius.getScaleZ(image.getScaleXY(), image.getScaleZ()), true);
     }
 
-    boolean testMode;
-    @Override public void setTestMode(boolean testMode) {this.testMode=testMode;}
-
     @Override
     public String getHintText() {
         return "Classical Median filter used to reduce noise while preserving edges (See: <a href='https://en.wikipedia.org/wiki/Median_filter'>https://en.wikipedia.org/wiki/Median_filter</a>";
