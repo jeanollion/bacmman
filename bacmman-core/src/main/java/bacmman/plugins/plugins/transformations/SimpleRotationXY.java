@@ -25,6 +25,7 @@ import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Image;
 import bacmman.image.TypeConverter;
+import bacmman.plugins.Hint;
 import bacmman.processing.ImageTransformation;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.utils.Utils;
@@ -33,10 +34,10 @@ import bacmman.utils.Utils;
  *
  * @author Jean Ollion
  */
-public class SimpleRotationXY implements MultichannelTransformation {
+public class SimpleRotationXY implements MultichannelTransformation, Hint {
     NumberParameter angle = new BoundedNumberParameter("Angle (degree)", 4, 0, -180, 180);
-    ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.LINEAR.toString(), false);
-    BooleanParameter removeIncomplete = new BooleanParameter("Remove incomplete rows and columns", false);
+    ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.LINEAR.toString(), false).setHint("The interpolation scheme to be used"+ImageTransformation.INTERPOLATION_HINT);
+    BooleanParameter removeIncomplete = new BooleanParameter("Remove incomplete rows and columns", false).setHint("If this option is not selected, the rotated image will be inscribed in a larger image filled with zeros");
     Parameter[] parameters = new Parameter[]{angle, interpolation, removeIncomplete};
     
     public SimpleRotationXY() {}
@@ -63,5 +64,10 @@ public class SimpleRotationXY implements MultichannelTransformation {
     @Override
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
         return OUTPUT_SELECTION_MODE.ALL;
+    }
+
+    @Override
+    public String getHintText() {
+        return "Rotates the image in XY plane using a user-defined angle.";
     }
 }

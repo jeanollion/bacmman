@@ -69,6 +69,7 @@ import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -570,7 +571,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         hintMenu.add( selectAll );
         hintTextPane.setComponentPopupMenu( hintMenu );
         testHintTextPane.setComponentPopupMenu( hintMenu );
-
+        HyperlinkListener hl = e -> {
+            logger.debug("link event: {}", e);
+            if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
+                logger.debug("link clicked: {}", e.getURL());
+                try {
+                    Desktop.getDesktop().browse(e.getURL().toURI());
+                } catch (IOException|URISyntaxException e1) { }
+            }
+        };
+        hintTextPane.addHyperlinkListener(hl);
+        testHintTextPane.addHyperlinkListener(hl);
+        console.addHyperlinkListener(hl);
     }
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
@@ -1791,6 +1803,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         testHintJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Help"));
 
+        testHintTextPane.setEditable(false);
         testHintTextPane.setContentType("text/html"); // NOI18N
         testHintJSP.setViewportView(testHintTextPane);
 

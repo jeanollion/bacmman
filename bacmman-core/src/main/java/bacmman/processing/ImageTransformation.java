@@ -48,7 +48,7 @@ public class ImageTransformation {
             else return new Axes();
         }
     };
-    public static enum InterpolationScheme {
+    public enum InterpolationScheme {
         NEAREST(0), LINEAR(1), CUBIC(2), BSPLINE3(3), OMOMS3(4), BSPLINE5(5);
         private final int value;
         InterpolationScheme(int value){
@@ -56,7 +56,7 @@ public class ImageTransformation {
         }
         public int getValue(){return value;};
     }
-    
+    public static String INTERPOLATION_HINT = "<ul><li>NEAREST: Nearest-neighbor interpolation.</li><li>LINEAR: Linear interpolation.</li><li>CUBIC: Cubic convolution interpolation</li><li>BSPLINE3: Cubic B-spline interpolation</li><li>OMOMS3: Cubic O-MOMS interpolation</li><li>BSPLINE5: Quintic B-spline interpolation.</li></ul>Implementation by Erik Meijering, <a href='https://imagescience.org/meijering/software/imagescience/'>https://imagescience.org/meijering/software/imagescience/</a>";
     public static Image rotateXY(Image image, double angle, InterpolationScheme interpolation, boolean removeIncompleteRowsAndColumns) {
         if (angle%90==0) {
             if (angle<0) angle = 360+angle;

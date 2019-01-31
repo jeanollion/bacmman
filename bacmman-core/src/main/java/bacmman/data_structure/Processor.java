@@ -76,7 +76,7 @@ public class Processor {
             if (c.getScaleXY()==1 || c.getScaleXY()==0) {
                 if (pcb!=null) {
                     pcb.log("Warning: no scale set for position: "+c.getName());
-                    pcb.log("Scale can be set in configuration tab, \"Pre-processing pipeline template\">\"Voxel Calibration\" and overriden on all existing positions");
+                    pcb.log("Scale can be set in configuration tab, \"Pre-processing pipeline template\">\"Voxel Calibration\" and overwritten on all existing positions");
                 }
                 logger.info("no scale set for position: "+c.getName());
             }

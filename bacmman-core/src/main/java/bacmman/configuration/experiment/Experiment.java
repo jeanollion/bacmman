@@ -74,7 +74,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
             })
             .setHint("Measurement to be performed after processing. Hint displays output keys (column in extracted table) and the associated object class. If several keys are equal for the same object class, the associated measurement won't be valid (displayed in red)");
     SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre(processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.");
-    PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operation can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
+    PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operations can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
     
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where preprocessed images will be stored");
     protected FileChooser outputPath = new FileChooser("Output Path", FileChooserOption.DIRECTORIES_ONLY).setHint("Directory where segmentation & lineage results will be stored");

@@ -31,7 +31,7 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChain> {
-    BooleanParameter useImageScale = new BooleanParameter("Voxel Calibration", "Use Image Calibration", "Custom Calibration", true).setHint("Voxel calibration (voxel size in x, y, z axis). If <em>Custom calibration</em> is set, the image calibration (if present) will be overriden");
+    BooleanParameter useImageScale = new BooleanParameter("Voxel Calibration", "Use Image Calibration", "Custom Calibration", true).setHint("Voxel calibration (voxel size in x, y, z axis). If <em>Custom calibration</em> is set, the image calibration will be overwritten");
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("Scale XY", 5, 1, 0.00001, null);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("Scale Z", 5, 1, 0.00001, null);
     ConditionalParameter imageScaleCond = new ConditionalParameter(useImageScale).setActionParameters("Custom Calibration", new Parameter[]{scaleXY, scaleZ});
