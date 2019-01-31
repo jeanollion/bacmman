@@ -572,9 +572,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         hintTextPane.setComponentPopupMenu( hintMenu );
         testHintTextPane.setComponentPopupMenu( hintMenu );
         HyperlinkListener hl = e -> {
-            logger.debug("link event: {}", e);
             if(e.getEventType() == HyperlinkEvent.EventType.ACTIVATED) {
-                logger.debug("link clicked: {}", e.getURL());
                 try {
                     Desktop.getDesktop().browse(e.getURL().toURI());
                 } catch (IOException|URISyntaxException e1) { }
