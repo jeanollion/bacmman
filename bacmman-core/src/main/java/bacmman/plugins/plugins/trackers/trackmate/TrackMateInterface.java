@@ -112,6 +112,7 @@ public class TrackMateInterface<S extends Spot> {
         ftfSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
 
         final SparseLAPFrameToFrameTrackerFromExistingGraph frameToFrameLinker = new SparseLAPFrameToFrameTrackerFromExistingGraph(collection, ftfSettings, graph );
+        frameToFrameLinker.setConstantAlternativeDistance(distanceThreshold * 1.05);
         frameToFrameLinker.setNumThreads( numThreads );
         final Logger.SlaveLogger ftfLogger = new Logger.SlaveLogger( internalLogger, 0, 0.5 );
         frameToFrameLinker.setLogger( ftfLogger );
@@ -164,9 +165,9 @@ public class TrackMateInterface<S extends Spot> {
         slSettings.put( KEY_MERGING_MAX_DISTANCE, distanceThreshold );
 
         slSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
-        slSettings.put( KEY_CUTOFF_PERCENTILE, 1d );
+        slSettings.put( KEY_CUTOFF_PERCENTILE, 1.0 );
         // Solve.
-        final SparseLAPSegmentTracker segmentLinker = new SparseLAPSegmentTracker( graph, slSettings, distanceThreshold * 1.05);
+        final SparseLAPSegmentTracker segmentLinker = new SparseLAPSegmentTracker( graph, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
         //final fiji.plugin.trackmate.tracking.sparselap.SparseLAPSegmentTracker segmentLinker = new fiji.plugin.trackmate.tracking.sparselap.SparseLAPSegmentTracker( graph, slSettings);
         segmentLinker.setNumThreads(numThreads);
         final Logger.SlaveLogger slLogger = new Logger.SlaveLogger( internalLogger, 0.5, 0.5 );

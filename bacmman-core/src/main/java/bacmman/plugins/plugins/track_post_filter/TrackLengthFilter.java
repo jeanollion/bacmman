@@ -37,8 +37,8 @@ import java.util.function.BiPredicate;
  */
 public class TrackLengthFilter implements TrackPostFilter, Hint {
     
-    BoundedNumberParameter minSize = new BoundedNumberParameter("Minimum Length", 0, 0, 0, null).setHint("Minimal track length (in frame number). Tracks with less elements than this value will be removed");
-    BoundedNumberParameter maxSize = new BoundedNumberParameter("Maximum Length", 0, 0, 0, null).setHint("Maximal track length (in frame number). Tracks with more elements than this value will be removed. If this parameter is set to 0 no maximal length will be used");
+    BoundedNumberParameter minSize = new BoundedNumberParameter("Minimum Length", 0, 0, 0, null).setEmphasized(true).setHint("Minimal track length (in frame number). Tracks with less elements than this value will be removed");
+    BoundedNumberParameter maxSize = new BoundedNumberParameter("Maximum Length", 0, 0, 0, null).setEmphasized(true).setHint("Maximal track length (in frame number). Tracks with more elements than this value will be removed. If this parameter is set to 0 no maximal length will be used");
     EnumChoiceParameter<PostFilter.MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",PostFilter.MERGE_POLICY.values(), PostFilter.MERGE_POLICY.ALWAYS_MERGE, false).setHint(PostFilter.MERGE_POLICY_TT);
     Parameter[] parameters = new Parameter[]{minSize, maxSize, mergePolicy};
     

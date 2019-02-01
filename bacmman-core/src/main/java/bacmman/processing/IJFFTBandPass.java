@@ -32,6 +32,8 @@ public class IJFFTBandPass {
         return ImageOperations.applyPlaneByPlane(input, i->bandPass2D(i, min, max, stripes, stripeTolerance));
     }
     private static Image bandPass2D(Image input, double min, double max, int stripes, double stripeTolerance) {
+        if (max<=min) throw new IllegalArgumentException("Max radius should be superior to Min radius");
+        if (min<0) throw new IllegalArgumentException("Min should be >=0");
         ImagePlus ip = IJImageWrapper.getImagePlus(input);
         FftBandPassFilter fftBandPassFilter = new FftBandPassFilter(ip, min, max, stripes, stripeTolerance);
         

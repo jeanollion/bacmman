@@ -20,6 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.TestableOperation;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
@@ -54,8 +55,8 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, TestableOperation {
-    protected NumberParameter channelLength = new BoundedNumberParameter("Channel Length", 0, 410, 0, null).setHint("Length of microchannels, in pixels. This length will determine the y-size of the cropped image");
+public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, HintSimple, TestableOperation {
+    protected NumberParameter channelLength = new BoundedNumberParameter("Channel Length", 0, 410, 0, null).setEmphasized(true).setHint("Length of microchannels, in pixels. This length will determine the y-size of the cropped image");
     NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setHint(SIZE_TOOL_TIP);
     NumberParameter fillingProportion = new BoundedNumberParameter("Filling proportion of Microchannel", 2, 0.5, 0.05, 1).setHint(FILL_TOOL_TIP);
     PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setHint(THLD_TOOL_TIP);
@@ -71,12 +72,17 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         this.frameNumber.setValue(0);
         //frameNumber.setValue(FrameNumber);
     }
-    
+    private static String simpleHint = "<b>Automatically crops the image around the microchannels in fluorescence images</b><br />" +
+            "The microchannels should be aligned along the Y-axis, with their closed-end up (for instance use <em>AutorotationXY</em> and <em>AutoFlip</em> modules)";
+    private static String testModeDisp = "Displayed image and graphs in test mode:<ul><li><em>Thresholded Bacteria:</em> Result of bacteria thresholding (using the threshold method defined in <em>Threshold</em> parameter, available in advanced mode), after filtering of small objects (see <em>Object Size Filter</em> parameter, available in advanced mode).</li>";
+
     @Override
     public String getHintText() {
-        return "<b>Automatically crops the image around the microchannels in fluorescence images</b><br />" +
-                "The microchannels should be aligned along the Y-axis, with their closed-end up (for instance use <em>AutorotationXY</em> and <em>AutoFlip</em> modules)<br />" +
-                "The microchannels are detected as follows:<br />"+TOOL_TIP;
+        return  simpleHint + "<br />The microchannels are detected as follows:<br />"+TOOL_TIP + testModeDisp + "<li><em>Microchannel Fill proportion:</em>Plot representing the proportion of filled length of detected microchannels. Microchannels with a low value are excluded (see module description)</li></ul>";
+    }
+    @Override
+    public String getSimpleHintText() {
+        return simpleHint + testModeDisp+"</ul>";
     }
     
     public CropMicrochannelsFluo2D() {
@@ -116,7 +122,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     public MutableBoundingBox getBoundingBox(Image image, ImageInteger thresholdedImage, double threshold) {
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
         Consumer<Image> dispImage = testMode.testSimple() ? i-> Core.showImage(i) : null;
-        BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testSimple() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
+        BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testExpert() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
         Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 0, this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), dispImage, miscDisp);
         if (r == null) return null;
         
@@ -204,8 +210,4 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         return parameters;
     }
 
-    TEST_MODE testMode=TEST_MODE.NO_TEST;
-    @Override
-    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
-    
 }

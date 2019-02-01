@@ -36,7 +36,7 @@ import bacmman.plugins.PostFilter;
  * @author Jean Ollion
  */
 public class BinaryClose implements PostFilter, MultiThreaded, Hint {
-    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, true);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
     
     @Override
     public String getHintText() {

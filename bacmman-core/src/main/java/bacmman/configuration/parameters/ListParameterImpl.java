@@ -169,8 +169,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     }
     
     public boolean containsElement(String name) {
-        for (Parameter p : getChildren()) if (p.getName().equals(name)) return true;
-        return false;
+        return getChildren().stream().anyMatch(p->p.getName().equals(name));
     }
 
     @Override public Class<T> getChildClass() {
@@ -191,14 +190,14 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         if (childInstance == null && getChildClass() != null) {
             try {
                 res = childClass.getDeclaredConstructor(String.class).newInstance(newInstanceNameFunction!=null ? newInstanceNameFunction.apply(getChildCount()) : "new "+childClass.getSimpleName());
-                if (isEmphasized!=null) res.setEmphasized(isEmphasized);
+                //if (isEmphasized!=null) res.setEmphasized(isEmphasized);
             } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
                 logger.error("duplicate error", ex);
             }
         } else if (childInstance != null) {
             res =  (T)childInstance.duplicate();
             if (newInstanceNameFunction!=null) res.setName(newInstanceNameFunction.apply(getChildCount()));
-            if (childInstance.isEmphasized() || Boolean.FALSE.equals(isEmphasized)) res.setEmphasized(true);
+            if (childInstance.isEmphasized()) res.setEmphasized(true); // || Boolean.FALSE.equals(isEmphasized)
         }
         if (res!=null) {
             res.addValidationFunction(childrenValidation); // validation should not be present in child instance...
@@ -276,11 +275,12 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public boolean isEmphasized() {
         //return isEmphasized;
         if(isEmphasized!=null) return isEmphasized;
-        return getActivatedChildren().stream().anyMatch((child) -> (child.isEmphasized()));
+        return false;
+        //return getActivatedChildren().stream().anyMatch((child) -> (child.isEmphasized()));
     }
     @Override
     public L setEmphasized(boolean isEmphasized) {
-        this.getChildren().stream().filter(p->!p.isEmphasized()).forEach(p -> p.setEmphasized(isEmphasized));
+        //this.getChildren().stream().filter(p->!p.isEmphasized()).forEach(p -> p.setEmphasized(isEmphasized));
         this.isEmphasized = isEmphasized;
         return (L)this;
     }

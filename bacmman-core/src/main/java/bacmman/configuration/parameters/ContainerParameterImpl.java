@@ -36,7 +36,7 @@ import java.util.function.Predicate;
  * @param <P>
  */
 
-public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<P> {
+public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<P>, InvisibleNode {
     protected String name;
     protected ContainerParameter parent;
     protected List<Parameter> children;
@@ -68,11 +68,12 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     @Override
     public boolean isEmphasized() {
         if (isEmphasized!=null) return isEmphasized;
-        return getChildren().stream().anyMatch((child) -> (child.isEmphasized()));
+        return false;
+        //return getChildren().stream().anyMatch((child) -> (child.isEmphasized()));
     }
     @Override
     public P setEmphasized(boolean isEmphasized) {
-        this.getChildren().stream().filter(p->!p.isEmphasized()).forEach(p -> p.setEmphasized(isEmphasized));
+        //this.getChildren().stream().filter(p->!p.isEmphasized()).forEach(p -> p.setEmphasized(isEmphasized));
         this.isEmphasized = isEmphasized;
         return (P) this;
     }
@@ -261,4 +262,30 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
         else this.listeners=new ArrayList<>(listeners);
     }
 
+    // invisible node implementation : allows hiding some parameters in beginners mode
+    @Override
+    public Parameter getChildAt(int index, boolean filterIsActive) {
+        if (!filterIsActive) {
+            return getChildAt(index);
+        }
+        if (children == null) {
+            throw new ArrayIndexOutOfBoundsException("node has no children");
+        }
+        int realIndex = -1;
+        int visibleIndex = -1;
+        for (Parameter p : children) {
+            if (p.isEmphasized()) visibleIndex++;
+            realIndex++;
+            if (visibleIndex == index) {
+                return children.get(realIndex);
+            }
+        }
+        throw new ArrayIndexOutOfBoundsException("index unmatched");
+    }
+    @Override
+    public int getChildCount(boolean filterIsActive) {
+        if (!filterIsActive) return getChildCount();
+        if (children == null) return 0;
+        return (int)children.stream().filter(p->p.isEmphasized()).count();
+    }
 }

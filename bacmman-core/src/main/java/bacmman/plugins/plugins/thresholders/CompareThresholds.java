@@ -24,16 +24,17 @@ import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Hint;
 import bacmman.plugins.SimpleThresholder;
 
 /**
  *
  * @author Jean Ollion
  */
-public class CompareThresholds implements SimpleThresholder {
-    public PluginParameter<SimpleThresholder> threshold1 = new PluginParameter("Threshold 1", SimpleThresholder.class, false);
-    public PluginParameter<SimpleThresholder> threshold2 = new PluginParameter("Threshold 2", SimpleThresholder.class, false);
-    public BooleanParameter max = new BooleanParameter("Compute", "Max", "Min", true);
+public class CompareThresholds implements SimpleThresholder, Hint {
+    public PluginParameter<SimpleThresholder> threshold1 = new PluginParameter<>("Threshold 1", SimpleThresholder.class, false).setEmphasized(true);
+    public PluginParameter<SimpleThresholder> threshold2 = new PluginParameter<>("Threshold 2", SimpleThresholder.class, false).setEmphasized(true);
+    public BooleanParameter max = new BooleanParameter("Compute", "Max", "Min", true).setHint("<ul><li><em>Max:</em> computes the maximum of <em>Threshold 1</em> and <em>Threshold 2</em></li><li><em>Min:</em> computes the minimum of <em>Threshold 1</em> and <em>Threshold 2</em></li></ul>");
     Parameter[] parameters = new Parameter[]{threshold1, threshold2, max};
     
     public CompareThresholds() {}
@@ -61,5 +62,9 @@ public class CompareThresholds implements SimpleThresholder {
     public Parameter[] getParameters() {
         return parameters;
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "Compare thresholds computed by two user-defined methods";
+    }
 }

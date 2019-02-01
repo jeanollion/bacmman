@@ -24,6 +24,7 @@ import bacmman.configuration.parameters.ActionableParameter;
 import bacmman.configuration.parameters.ChoosableParameter;
 import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.configuration.parameters.PluginParameter;
+import bacmman.plugins.HintSimple;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
@@ -90,9 +91,12 @@ public class ChoiceParameterUI implements ArmableUI {
             );
             if (choice_ instanceof PluginParameter) { // add hint to menu
                 Class plugClass = PluginFactory.getPluginClass(((PluginParameter)choice_).getPluginType(), choices[i]);
-                if (plugClass!=null && Hint.class.isAssignableFrom(plugClass)) {
+                if (plugClass!=null && (Hint.class.isAssignableFrom(plugClass) || HintSimple.class.isAssignableFrom(plugClass))) {
                     Plugin p = PluginFactory.getPlugin(((PluginParameter)choice_).getPluginType(), choices[i]);
-                    if (p!=null) actionChoice[i].setToolTipText(formatHint(((Hint)p).getHintText()));
+                    if (p!=null) {
+                        if (p instanceof HintSimple) actionChoice[i].setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
+                        else actionChoice[i].setToolTipText(formatHint(((Hint)p).getHintText()));
+                    }
                 }
                 
                 

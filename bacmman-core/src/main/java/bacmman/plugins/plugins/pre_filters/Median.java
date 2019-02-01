@@ -32,7 +32,7 @@ import bacmman.plugins.PreFilter;
  * @author Jean Ollion
  */
 public class Median implements PreFilter, Filter, Hint {
-    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 2, 1, true).setHint("Radius in pixel");
+    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 2, 1, true).setHint("Radius in pixel").setEmphasized(true);
     Parameter[] parameters = new Parameter[]{radius};
     public Median() {}
     public Median(double radius) {

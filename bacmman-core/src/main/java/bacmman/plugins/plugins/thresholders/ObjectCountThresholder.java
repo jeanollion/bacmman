@@ -30,6 +30,7 @@ import bacmman.image.Histogram;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageMask;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Thresholder;
 import bacmman.processing.Filters;
 import bacmman.processing.watershed.WatershedTransform;
@@ -43,7 +44,7 @@ import bacmman.utils.ArrayUtil;
  *
  * @author Jean Ollion
  */
-public class ObjectCountThresholder implements Thresholder {
+public class ObjectCountThresholder implements Thresholder, DevPlugin {
     NumberParameter maxObjectNumber = new BoundedNumberParameter("Max. object number", 0, 10, 1, null);
     BooleanParameter descendingIntensities = new BooleanParameter("Brights spots", true);
     Parameter[] parameters = new Parameter[]{maxObjectNumber, descendingIntensities};

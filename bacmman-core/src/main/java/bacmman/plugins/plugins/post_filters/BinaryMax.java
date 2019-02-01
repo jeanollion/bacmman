@@ -34,7 +34,7 @@ import bacmman.plugins.PostFilter;
  * @author Jean Ollion
  */
 public class BinaryMax implements PostFilter, MultiThreaded, Hint {
-    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, true);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
     @Override
     public String getHintText() {
         return "Performs an max operation on region masks<br />When several segmented regions are present, the filter is applied label-wise";

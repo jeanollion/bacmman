@@ -25,14 +25,14 @@ import fiji.plugin.trackmate.Spot;
 import fiji.plugin.trackmate.SpotCollection;
 import static fiji.plugin.trackmate.tracking.LAPUtils.checkFeatureMap;
 import fiji.plugin.trackmate.tracking.SpotTracker;
-import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_ALTERNATIVE_LINKING_COST_FACTOR;
-import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_LINKING_FEATURE_PENALTIES;
-import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_LINKING_MAX_DISTANCE;
 import fiji.plugin.trackmate.tracking.sparselap.costfunction.CostFunction;
 import fiji.plugin.trackmate.tracking.sparselap.costfunction.FeaturePenaltyCostFunction;
 import fiji.plugin.trackmate.tracking.sparselap.costfunction.SquareDistCostFunction;
+import fiji.plugin.trackmate.tracking.sparselap.costmatrix.CostMatrixCreator;
 import fiji.plugin.trackmate.tracking.sparselap.costmatrix.JaqamanLinkingCostMatrixCreator;
 import fiji.plugin.trackmate.tracking.sparselap.linker.JaqamanLinker;
+
+import static fiji.plugin.trackmate.tracking.TrackerKeys.*;
 import static fiji.plugin.trackmate.util.TMUtils.checkMapKeys;
 import static fiji.plugin.trackmate.util.TMUtils.checkParameter;
 import java.util.ArrayList;
@@ -62,6 +62,8 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 
 	private final Map< String, Object > settings;
 
+	private double alternativeCost = Double.NaN;
+
 	/*
 	 * CONSTRUCTOR
 	 */
@@ -81,6 +83,11 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 	/*
 	 * METHODS
 	 */
+
+	public SparseLAPFrameToFrameTrackerFromExistingGraph setConstantAlternativeDistance(double alternativeDistance) {
+		this.alternativeCost=alternativeDistance * alternativeDistance;
+		return this;
+	}
 
 	@Override
 	public SimpleWeightedGraph< Spot, DefaultWeightedEdge > getResult()
@@ -170,7 +177,6 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 		final Double maxDist = ( Double ) settings.get( KEY_LINKING_MAX_DISTANCE );
 		final double costThreshold = maxDist * maxDist;
 		final double alternativeCostFactor = ( Double ) settings.get( KEY_ALTERNATIVE_LINKING_COST_FACTOR );
-
 		// Instantiate graph
                 final boolean graphWasNull;
                 final HashMapGetCreate<Integer, List<Spot>> spotsFromGraph;
@@ -241,7 +247,10 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 						 * Run the linker.
 						 */
 
-						final JaqamanLinkingCostMatrixCreator< Spot, Spot > creator = new JaqamanLinkingCostMatrixCreator< Spot, Spot >( sources, targets, costFunction, costThreshold, alternativeCostFactor, 1d );
+						final JaqamanLinkingCostMatrixCreator< Spot, Spot > creator = Double.isNaN(alternativeCost) ? new JaqamanLinkingCostMatrixCreator<>( sources, targets, costFunction, costThreshold, alternativeCostFactor, 1 ) :
+								new JaqamanLinkingCostMatrixCreatorWithConstantAltCost<>( sources, targets, costFunction, costThreshold, alternativeCost);
+
+
 						final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker< Spot, Spot >( creator );
 						if ( !linker.checkInput() || !linker.process() )
 						{
@@ -351,5 +360,23 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 		ok = ok & checkMapKeys( settings, mandatoryKeys, optionalKeys, str );
 
 		return ok;
+	}
+	private class JaqamanLinkingCostMatrixCreatorWithConstantAltCost< K extends Comparable< K >, J extends Comparable< J >> extends JaqamanLinkingCostMatrixCreator<K, J> {
+		final double altCost;
+		public JaqamanLinkingCostMatrixCreatorWithConstantAltCost( final Iterable< K > sources, final Iterable< J > targets, final CostFunction< K, J > costFunction, final double costThreshold, final double alternativeCost) {
+			super(sources, targets, costFunction, costThreshold, 1.05, 1);
+			this.altCost=alternativeCost;
+		}
+		@Override
+		public double getAlternativeCostForSource( final K source )
+		{
+			return altCost;
+		}
+
+		@Override
+		public double getAlternativeCostForTarget( final J target )
+		{
+			return altCost;
+		}
 	}
 }

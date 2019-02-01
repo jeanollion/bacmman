@@ -36,7 +36,7 @@ import java.util.function.Consumer;
  */
 public class PreFilter implements TrackPreFilter, Hint {
     
-    PluginParameter<bacmman.plugins.PreFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PreFilter.class, false);
+    PluginParameter<bacmman.plugins.PreFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PreFilter.class, false).setEmphasized(true).setHint("Pre-filter that will be applied on each frame independently");
 
     public PreFilter() {}
     public PreFilter(bacmman.plugins.PreFilter preFilter) {

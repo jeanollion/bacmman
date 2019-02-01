@@ -34,6 +34,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.Hint;
+import bacmman.plugins.HintSimple;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Mean;
 import bacmman.processing.ImageTransformation;
@@ -50,7 +51,7 @@ import java.util.TreeMap;
  *
  * @author Jean Ollion
  */
-public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint {
+public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, HintSimple {
     public static boolean debug = false;
     BooleanParameter isDarkBck = new BooleanParameter("Image Background", "Dark", "Light", false);
     BooleanParameter smooth = new BooleanParameter("Perform Smoothing", false);
@@ -63,6 +64,10 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint {
                 + "<br />Builds an image with all microchannel images next to each other from top to bottom. "
                 + "<br />To avoid border effect, each microchannel image is mirrored on the x-axis and the whole image is also mirrored on the x-axis"
                 + "<br />Allows homogeneous background subtraction on the whole track, effective to remove border effect on some phase-contrast image of microchannels";
+    }
+    @Override
+    public String getSimpleHintText() {
+        return "Subtract background adapted to microchannel track";
     }
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {

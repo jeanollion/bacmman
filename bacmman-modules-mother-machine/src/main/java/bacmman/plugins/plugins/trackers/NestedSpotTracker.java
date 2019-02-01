@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.plugins.Hint;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
@@ -32,15 +33,6 @@ import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.PostFilterSequence;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.TrackPreFilterSequence;
 
 import static bacmman.data_structure.SegmentedObjectUtils.getDivisionSiblings;
 import static bacmman.processing.bacteria_spine.BacteriaSpineLocalizer.project;
@@ -68,35 +60,33 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPlugin, Hint {
-    private static final String CONF_HINT = "<br />Configuration hint: to display distance between two spots, select the two spots on test images and choose <em>Diplay Spine</em> from right-click menu. Distance will be logged in the console and projection of source spot to destination bacteria displayed";
-    protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false);
-    ObjectClassParameter compartmentStructure = new ObjectClassParameter("Compartment Structure", -1, false, false).setHint("Structure of bacteria objects.");
+    private static final String CONF_HINT = "<br />Configuration hint: to display distance between two spots, select the two spots on test images and choose <em>Display Spine</em> from right-click menu. Distance will be logged in the console and projection of source spot to destination bacteria displayed";
+    protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false).setEmphasized(true);
+    ObjectClassParameter compartmentStructure = new ObjectClassParameter("Compartment Structure", -1, false, false).setEmphasized(true).setHint("Object class for bacteria (containing spots to be segmented).");
     NumberParameter spotQualityThreshold = new NumberParameter<>("Spot Quality Threshold", 3, 3.5).setEmphasized(true).setHint("Spot with quality parameter over this threshold are considered as high quality spots, others as low quality spots");
     NumberParameter maxGap = new BoundedNumberParameter("Maximum frame gap", 0, 1, 0, null).setEmphasized(true).setHint("Maximum frame gap for spot linking: if two spots are separated by more frame than this value they cannot be linked together directly");
-    NumberParameter maxLinkingDistance = new BoundedNumberParameter("Maximum Linking Distance (FTF)", 2, 0.4, 0, null).setHint("Maximum linking distance for frame-to-frame step, in unit (microns). If two spots are separated by a distance (relative to the nereast pole) superior to this value, they cannot be linked together."+CONF_HINT);
-    NumberParameter maxLinkingDistanceGC = new BoundedNumberParameter("Maximum Linking Distance", 2, 0.75, 0, null).setHint("Maximum linking distance for theglobal linking step, in unit (microns). If two spots are separated by a distance (relative to the nereast pole) superior to this value, they cannot be linked together. An additional cost proportional to the gap is added to the distance between spots (see <em>gap penalty</em>"+CONF_HINT);
-    NumberParameter gapPenalty = new BoundedNumberParameter("Gap Distance Penalty", 2, 0.15, 0, null).setEmphasized(true).setHint("When two spots are separated by a gap, an additional distance is added to their distance: this value x number of frame of the gap");
-    // TODO alternative not taken into acount remove parameter or take into account!!
-    NumberParameter alternativeDistance = new BoundedNumberParameter("Alternative Distance", 2, 0.77, 0, null).setHint("The algorithm performs a global optimization minimizing the global cost. Cost are the distance between spots. Alternative distance represent the cost of being linked with no other spot. If this value is too low, the algorithm won't link any spot, it should be superior to the linking distance threshold");
-    ChoiceParameter projectionType = new ChoiceParameter("Projection type", Utils.toStringArray(BacteriaSpineLocalizer.PROJECTION.values()), BacteriaSpineLocalizer.PROJECTION.PROPORTIONAL.toString(), false ).setHint("Spine projection for distance calculation: spine coordinate of source spots are first computed and then projected in destination bacteria. <ol><li>"+ BacteriaSpineLocalizer.PROJECTION.PROPORTIONAL+": spine coordinate is multiplied by the ratio of the spine length of the two bacteria</li><li>"+ BacteriaSpineLocalizer.PROJECTION.NEAREST_POLE+": distance (in terms of path along the spine) to nearest pole is conseverd</li></ol><br />"+CONF_HINT);
-    BooleanParameter projectOnSameSide = new BooleanParameter("Project on same side", true).setHint("Whether point should be projected on same side of the spine as destination point. <br />This allows to remove the rotation of the bacteria along its spine axis");
-    BooleanParameter allowSplitting = new BooleanParameter("Allow splitting", false);
-    BooleanParameter allowMerging = new BooleanParameter("Allow merging", false);
-    Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, alternativeDistance, spotQualityThreshold, allowSplitting, allowMerging};
-    String toolTip = "<b>Tracker for spots moving within bacteria</b> using <em>TrackMate (https://imagej.net/TrackMate)</em> <br />"
-            + "<ul><li>Distance between spots is computed using spine coordinates in order to take into acount bacteria growth and movements</li>"
+    NumberParameter maxLinkingDistance = new BoundedNumberParameter("Maximum Linking Distance (FTF)", 2, 0.4, 0, null).setHint("Maximum linking distance for frame-to-frame linking, in unit (microns). If two spots are separated by a distance superior to this value, they cannot be linked together."+CONF_HINT);
+    NumberParameter maxLinkingDistanceGC = new BoundedNumberParameter("Maximum Linking Distance", 2, 0.75, 0, null).setHint("Maximum linking distance for the gap-closing linking, in unit (microns). If two spots are separated by a distance superior to this value, they cannot be linked together. An additional cost proportional to the gap is added to the distance between spots (see <em>gap penalty</em>"+CONF_HINT);
+    NumberParameter gapPenalty = new BoundedNumberParameter("Gap Distance Penalty", 2, 0.15, 0, null).setHint("When two spots are separated by a gap, an additional distance is added to their distance: this value x number of frame of the gap");
+    EnumChoiceParameter<BacteriaSpineLocalizer.PROJECTION> projectionType = new EnumChoiceParameter<>("Projection type", BacteriaSpineLocalizer.PROJECTION.values(), BacteriaSpineLocalizer.PROJECTION.PROPORTIONAL, false ).setHint("Spine projection for distance calculation: spine coordinate of source spots are first computed and then projected in destination bacteria. <ol><li>"+ BacteriaSpineLocalizer.PROJECTION.PROPORTIONAL+": spine coordinate is multiplied by the ratio of the spine length of the two bacteria</li><li>"+ BacteriaSpineLocalizer.PROJECTION.NEAREST_POLE+": distance (in terms of path along the spine) to nearest pole is conseverd</li></ol><br />"+CONF_HINT);
+    BooleanParameter projectOnSameSide = new BooleanParameter("Project on same side", true).setHint("Whether a spot should be projected on same side of the spine as destination spot. <br />This allows to remove the effect of the rotation of the bacteria along its spine axis");
+    BooleanParameter allowSplitting = new BooleanParameter("Allow splitting", false).setHint("If set to <em>true</em>, a spot can be link to two other spots observed afterwards");
+    BooleanParameter allowMerging = new BooleanParameter("Allow merging", false).setHint("If set to <em>true</em>, two spots can be link to the same spot observed afterwards");
+    Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, spotQualityThreshold, allowSplitting, allowMerging};
+    String toolTip = "<b>Tracker for spots moving within bacteria</b><br />"
+            + "<ul><li>Distance between spots is computed using spine coordinates in order to take into account bacteria growth and movements</li>"
             + "<li>Bacteria lineage is honoured: two spots can only be linked if they are contained in bacteria from the same track or connected tracks (after division events)</li>"
             + "<li>If segmentation and tracking are performed jointly, a first step of removal of low-quality (LQ) spots (spot that can be either false-negative or true-positive) will be applied: only LQ spots that can be linked (directly or indirectly) to high-quality (HQ) spots (ie spots that are true-positives) are kept, allowing a better selection of true-positives spots of low intensity. HQ/LQ definition depends on the parameter <em>Spot Quality Threshold</em> and depends on the quality parameter defined by the segmenter</li>"
-            + "<li>A global linking procedure frame-to-frame then - allowing gaps (if <em>Maximum frame gap</em> is >0) - is applied among remaining spots</li></ul>";
+            + "<li>linking procedure frame-to-frame then - allowing gaps (if <em>Maximum frame gap</em> is superior to 0) - is applied among remaining spots</li></ul>"
+            + "<br />Based on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
     // multithreaded interface
         
     public NestedSpotTracker setCompartimentStructure(int compartimentStructureIdx) {
         this.compartmentStructure.setSelectedClassIdx(compartimentStructureIdx);
         return this;
     }
-    public NestedSpotTracker setLinkingMaxDistance(double maxDist, double alternativeLinking) {
+    public NestedSpotTracker setLinkingMaxDistance(double maxDist) {
         maxLinkingDistance.setValue(maxDist);
-        alternativeDistance.setValue(alternativeLinking);
         return this;
     }
     public NestedSpotTracker setGapParameters(double maxDistGapClosing, double gapPenalty, int maxFrameGap) {
@@ -147,13 +137,13 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         DistanceComputationParameters distParams = new DistanceComputationParameters()
                 .setQualityThreshold(spotQualityThreshold)
                 .setGapDistancePenalty(gapPenalty.getValue().doubleValue())
-                .setAlternativeDistance(alternativeDistance.getValue().doubleValue())
+                //.setAlternativeDistance(alternativeDistance.getValue().doubleValue())
                 .setAllowGCBetweenLQ(true)
                 .setMaxFrameDifference(maxGap)
-                .setProjectionType(BacteriaSpineLocalizer.PROJECTION.valueOf(projectionType.getSelectedItem()))
+                .setProjectionType(projectionType.getSelectedEnum())
                 .setProjOnSameSide(this.projectOnSameSide.getSelected());
         
-        logger.debug("distanceFTF: {}, distance GC: {}, gapP: {}, atl: {}", maxLinkingDistance, maxLinkingDistanceGC, gapPenalty, alternativeDistance);
+        logger.debug("distanceFTF: {}, distance GC: {}, gapP: {}", maxLinkingDistance, maxLinkingDistanceGC, gapPenalty);
         
         final Map<Region, SegmentedObject> mutationMapParentBacteria = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx)
                 .collect(Collectors.toMap(m->m.getRegion(), m->SegmentedObjectUtils.getContainer(m.getRegion(), m.getParent().getChildren(compartmentStructure), null)));

@@ -40,16 +40,16 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  */
 public class ThresholderWithOperation implements ThresholderHisto, SimpleThresholder, Hint {
-    PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Thresholder", ThresholderHisto.class, new BackgroundFit(10), false).setHint("Threshold method");
-    NumberParameter quantile = new BoundedNumberParameter("Quantile", 5, 0.25, 0, 1);
-    BooleanParameter overThld = new BooleanParameter("Perform stat over threshold", true);
+    PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Thresholder", ThresholderHisto.class, new BackgroundFit(10), false).setEmphasized(true).setHint("Threshold method");
+    NumberParameter quantile = new BoundedNumberParameter("Quantile", 5, 0.25, 0, 1).setEmphasized(true);
+    BooleanParameter overThld = new BooleanParameter("Perform stat over threshold", true).setEmphasized(true);
     enum STAT {MEAN, QUANTILE};
-    ChoiceParameter stat = new ChoiceParameter("Statistics", Utils.toStringArray(STAT.values()), STAT.QUANTILE.toString(), false);
-    ConditionalParameter cond = new ConditionalParameter(stat).setActionParameters(STAT.QUANTILE.toString(), overThld,quantile ).setActionParameters(STAT.MEAN.toString(), overThld);
+    ChoiceParameter stat = new ChoiceParameter("Statistics", Utils.toStringArray(STAT.values()), STAT.QUANTILE.toString(), false).setEmphasized(true);
+    ConditionalParameter cond = new ConditionalParameter(stat).setActionParameters(STAT.QUANTILE.toString(), overThld,quantile ).setActionParameters(STAT.MEAN.toString(), overThld).setEmphasized(true);
     
     @Override
     public String getHintText() {
-        return "First compute a threshold using <em>Thresholder<em> method. Then compute a statistics relative to this threshold, defined in <em>Statistics</em>";
+        return "First computes a threshold using <em>Thresholder<em> method. Resulting threshold is a statistics (defined in <em>Statistics</em> parameter) computed on pixels values above (if <em>Perform stat over threshold</em> is set to <em>true</em>) or under this threshold (if <em>Perform stat over threshold</em> is set to <em>false</em>)";
     }
     
     @Override

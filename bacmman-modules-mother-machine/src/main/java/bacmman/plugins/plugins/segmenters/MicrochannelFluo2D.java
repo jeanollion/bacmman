@@ -41,17 +41,12 @@ import bacmman.image.ImageFloat;
 import bacmman.image.ImageInteger;
 import bacmman.image.ImageLabeller;
 
-import java.util.ArrayList;
+import java.util.*;
 
 import bacmman.plugins.Plugin;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Hint;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import bacmman.plugins.TrackConfigurable;
@@ -65,8 +60,8 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     NumberParameter channelLength = new BoundedNumberParameter("Microchannel Length", 0, 320, 5, null).setHint("Length of microchannels, in pixels. This parameter will determine the length of segmented microchannels along the y-axis");
     NumberParameter channelWidth = new BoundedNumberParameter("Microchannel Width", 0, 60, 5, null).setHint("Width of microchannels in pixels");
     NumberParameter yShift = new BoundedNumberParameter("y-Start Shift", 0, 20, 0, null).setHint("Y-coordinate of the closed-end of microchannels will be translated of this value (in pixels) towards upper direction");
-    public final static  String THLD_TOOL_TIP = "Threshold to segment bacteria. <br />Configuration hint: result of segmentation is the image <em>Thresholded Bacteria</em> displayed in test mode";
-    PluginParameter<SimpleThresholder> threshold= new PluginParameter<>("Threshold", SimpleThresholder.class, new BackgroundFit(10), false).setHint(THLD_TOOL_TIP); //new BackgroundThresholder(3, 6, 3) when background is removed and images saved in 16b, half of background is trimmed -> higher values
+    public final static  String THLD_TOOL_TIP = "Threshold to segment bacteria. <br />Configuration hint: result of segmentation is the image <em>Thresholded Bacteria</em> displayed in test mode. Method should be chosen so that most bacteria and not background are detected. <br />If background pixels are segmented and background intensity is non-uniform, a background correction operation (such as <em>NonLocalMeansDenoising</em>) should be added at a previous step";
+    PluginParameter<SimpleThresholder> threshold= new PluginParameter<>("Threshold", SimpleThresholder.class, new BackgroundFit(10), false).setEmphasized(true).setHint(THLD_TOOL_TIP); //new BackgroundThresholder(3, 6, 3) when background is removed and images saved in 16b, half of background is trimmed -> higher values
     public final static  String FILL_TOOL_TIP = "If the ratio  <em>length of bacteria / length of microchannel</em> is smaller than this value, the object won't be segmented. This procedure allows avoiding segmenting isolated bacteria in the main channel.<br /> Configuration Hint: Refer to plot <em>Microchannel Fill proportion</em> displayed in test mode: peaks over the filling proportion value are segmented. Decrease the value to include lower peaks";
     NumberParameter fillingProportion = new BoundedNumberParameter("Microchannel filling proportion", 2, 0.3, 0.05, 1).setHint(FILL_TOOL_TIP);
     public final static String SIZE_TOOL_TIP = "After cell segmentation step (see help of the module, step 1), objects whose size in pixels is smaller than <em>Object Size Filter</em> are removed.<br />Configuration Hint: Refer to the <em>Thresholded Bacteria</em> image displayed in test mode in order to estimate the size of bacteria";
@@ -239,7 +234,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
             int[] minMaxYShift = new int[]{xMin, xMax, yMins[i] - yMin < yShift ? 0 : yMins[i] - yMin};
             sortedMinMaxYShiftList.add(minMaxYShift);
         }
-        Collections.sort(sortedMinMaxYShiftList, (int[] i1, int[] i2) -> Integer.compare(i1[0], i2[0]));
+        Collections.sort(sortedMinMaxYShiftList, Comparator.comparingInt((int[] i) -> i[0]));
         int shift = Math.min(yMin, yShift);
         return new Result(sortedMinMaxYShiftList, yMin-shift, yMin + channelLength - 1);
     }

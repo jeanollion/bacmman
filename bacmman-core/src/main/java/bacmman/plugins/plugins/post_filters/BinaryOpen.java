@@ -37,7 +37,7 @@ import bacmman.plugins.Hint;
  * @author Jean Ollion
  */
 public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
-    ScaleXYZParameter scale = new ScaleXYZParameter("Opening Radius", 3, 1, true);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Opening Radius", 3, 1, true).setEmphasized(true);
     
     @Override
     public String getHintText() {

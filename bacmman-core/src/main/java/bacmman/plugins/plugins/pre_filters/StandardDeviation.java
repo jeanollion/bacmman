@@ -35,7 +35,7 @@ import static bacmman.processing.Filters.applyFilter;
  * @author Jean Ollion
  */
 public class StandardDeviation implements PreFilter, Filter, Hint {
-    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 3, 1, true).setHint("Radius (in pixel) defining the neighborhood in which the standard deviation is computed");
+    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 3, 1, true).setEmphasized(true).setHint("Radius (in pixel) defining the neighborhood in which the standard deviation is computed");
     ScaleXYZParameter medianRadius = new ScaleXYZParameter("Median Filtering Radius", 0, 1, true).setHint("Radius for median filtering, prior to sigma, in pixel. <br />0 = no median filtering");
     Parameter[] parameters = new Parameter[]{radius, medianRadius};
     public StandardDeviation() {}

@@ -26,6 +26,7 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.TestableOperation;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
@@ -44,34 +45,40 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint, TestableOperation {
+public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint, HintSimple, TestableOperation {
     private final static Logger logger = LoggerFactory.getLogger(CropMicrochannelsPhase2D.class);
     public static boolean debug = false;
-    protected String toolTip = "<b>Automatically crops the image around the microchannels in phase-contrast images</b><br />"
+    protected static String simpleToolTip = "<b>Automatically crops the image around the microchannels in phase-contrast images</b><br />"
             + "The microchannels should be aligned along the Y-axis, with their closed-end up (use for instance <em>AutorotationXY</em> and <em/>AutoFlip</em>) <br />"
-            + "This algorithm is based on the detection of the bright line caused by the side of the main channel, which should correspond to the peak of highest intensity in the Y-intensity profile.<br />"
-            + "If the bright line is not visible, this procedure should not be used, a simple constant cropping can be applied instead to reduce the size of the image. <br />"
-            + "The microchannels are detected as follows:"
+            + "This algorithm is based on the detection of the bright line caused by the side of the main channel, which should correspond to the peak of highest intensity in the Y-intensity profile (displayed in test mode as <em>Peak Detection</em> graph).<br />"
+            + "If the bright line is not visible, this procedure should not be used, a simple constant cropping can be applied instead to reduce the size of the image. <br />";
+    protected static String peakDetectionToolTip = "<br />Displayed graphs in test mode:"
+            + "<ul><li><em>Peak Detection</em>: Graph displaying the mean profile of the image along the Y-axis, used to detect the bright line(s). Y-coordinate of the detected peak(s) are displayed in the title of the graph</li>";
+    protected static String toolTip = "The microchannels are detected as follows:"
             + "<ol><li>The open-end of the microchannels are detected using the peak of highest intensity in the Y-intensity profile (which corresponds to the bright line). The y-coordinate of the open-end is then set at the end of this peak, determined using the <em>Bright line peak proportion</em> and <em>Lower end y-margin</em> parameters.<br />Configuration hint: Refer to the Peak Detection plot in test mode.</li>"
             + "<li>If the <em>Two-peaks detection</em> parameter is set to <em>false</em>, the closed-ends of the microchannels are detected as the highest peak of dI/dy (y-derivative of the intensity) after excluding the bright line.<br />Configuration hint: refer to the <em>Closed-end detection</em> plot in test mode. <br />If two-peaks detection is set to <em>true</em>, the closed-ends of the microchannels are detected as a second intensity peak (such as described in step 1)</li>"
             + "<li>If a previous rotation has added null values to the image corners, the image will be cropped according to a bounding box in that excludes those null values.</li></ol>"
-            + "Displayed graphs in test mode:"
-            + "<ul><li><em>Peak Detection</em>: Graph displaying the mean profile of the image along the Y-axis, used to detect the bright line(s). Y-coordinate of the detected peak(s) are displayed in the title of the graph</li>" +
-            "<li><em>Closed-end detection</em>: Graph displaying the mean profile of the 1st-order y-derivative (dI / dY) along Y axis, used to detect the closed-end of microchannels when only one bright line is present (only displayed when parameter <em>Two-peak detection</em> is set to <em>false</em>). <br />Highest peak should correspond to closed-end, if not, set the parameter <em>Distance range between bright line and microchannel ends</em> in order to limit the peak search zone<li></ul>";
+             + peakDetectionToolTip +
+            "<li><em>Closed-end detection</em>: Graph displaying the mean profile of the 1st-order y-derivative (dI / dY) along Y axis, used to detect the closed-end of microchannels when only one bright line is present (only displayed when parameter <em>Two-peak detection</em> is set to <em>false</em>). <br />Highest peak should correspond to closed-end, if not, set the parameter <em>Distance range between bright line and microchannel ends</em> in order to limit the peak search zone</li></ul>";
     private static String PEAK_HINT = "The end of bright line is determined as the first y index (in y-mean projection values) starting from the peak index towards the microchanels that reaches the value of this parameter * <em>peak height</em>. <br />Depending on phase-contrast setup, the bright line can display different tail profiles.<br />A value of 1 means the y-coordinate of the peak is used, then an additional margin might be necessary (using <em>y-margin</em> parameter). A lower value will keep more tail. A value of 0.5 corresponds to half of the peak. A too low value can lead to unstable results over frames if the peak profile changes between different frames.<br />Refer to plot <em>Peak Detection</em> displayed in test mode to set this parameter</li></ul>";
-    NumberParameter aberrationPeakProp = new BoundedNumberParameter("Bright line peak proportion", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
+    NumberParameter aberrationPeakProp = new BoundedNumberParameter("Bright line peak proportion", 3, 0.25, 0.1, 1).setHint(PEAK_HINT);
     NumberParameter yOpenedEndMargin = new BoundedNumberParameter("Lower end Y-margin", 0, 60).setEmphasized(true).setHint("The y-coordinate of the microchannel open end will be translated of this value towards the top of the image. Allows to remove bright line from the cropped image. A positive value will yield in smaller images and a negative value in larger images");
     NumberParameter yEndMarginUp = new BoundedNumberParameter("Upper end Y-margin", 0, 0).setEmphasized(true).setHint("The y-coordinate of the closed-end will be translated of this value towards the bottom of the image. A positive value will yield in smaller images and a negative value in larger images");
-    NumberParameter aberrationPeakPropUp = new BoundedNumberParameter("Bright line peak", 3, 0.25, 0.1, 1).setEmphasized(true).setHint(PEAK_HINT);
-    IntervalParameter maxDistanceRangeFromAberration = new IntervalParameter("Distance range between bright line and microchannel ends", 0, 0, null, 0, 0).setHint("Limits the search for microchannel's closed-end to a given distance range from detected open end of microchannel (see description of the module for details). <br />Distance is in pixels, if both values are set to 0, no limit is set.<br />This parameter is useful when there are visible structure close to the microchannels closed-end that could perturb the detection of closed-ends.");
+    NumberParameter aberrationPeakPropUp = new BoundedNumberParameter("Bright line peak", 3, 0.25, 0.1, 1).setHint(PEAK_HINT);
+    IntervalParameter maxDistanceRangeFromAberration = new IntervalParameter("Distance range between bright line and microchannel ends", 0, 0, null, 0, 0).setEmphasized(true).setHint("Limits the search for microchannel's closed-end to a given distance range from detected open end of microchannel (see description of the module for details). <br />Distance is in pixels, if both values are set to 0, no limit is set.<br />This parameter is useful when there are visible structure close to the microchannels closed-end that could perturb the detection of closed-ends.");
     BooleanParameter hallmarkUpperPeak = new BooleanParameter("Hallmark is upper peak", false).setHint("Bounds are computed for all frames and then y-size is homogenized. If this parameter is set to <em>true</em>, the upper peak will be the hallmark for cropping. <br />Choose the peak that has the most stable location in relation to microchannels through time");
 
-    BooleanParameter twoPeaks = new BooleanParameter("Two-peaks detection", false).setEmphasized(true).setHint("Set this parameter to <em>false</em> if images contain a bright line that corresponds to the highest peak in a vertical intensity profile (refer to the <em>Peak Detection</em> graph displayed in test mode).<br />Set this parameter to <em>false</em> if there are two peaks or comparable intensity one being located at the microchannel closed-end and the other located at the microchannel open-end. <br />See description of the module for algorithmic details.");
+    BooleanParameter twoPeaks = new BooleanParameter("Two-peaks detection", false).setEmphasized(true).setHint("<ul><li>Set this parameter to <em>false</em> if images contain a bright line that corresponds to the highest peak in a vertical intensity profile (refer to the <em>Peak Detection</em> graph displayed in test mode).</li><li>Set this parameter to <em>true</em> if there are two peaks or comparable intensity one being located at the microchannel closed-end and the other located at the microchannel open-end.</li></ul>See description of the module for algorithmic details.");
     ConditionalParameter twoPeaksCond = new ConditionalParameter(twoPeaks)
             .setActionParameters("false", cropMarginY, maxDistanceRangeFromAberration)
             .setActionParameters("true", aberrationPeakPropUp, yEndMarginUp, hallmarkUpperPeak);
     Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup};
-    @Override public String getHintText() {return toolTip;}
+    @Override public String getHintText() {
+        return simpleToolTip + toolTip;
+    }
+    @Override public String getSimpleHintText() {
+        return simpleToolTip + peakDetectionToolTip+ "</ul>";
+    }
     public CropMicrochannelsPhase2D(int cropMarginY) {
         this();
         this.cropMarginY.setValue(cropMarginY);
@@ -113,7 +120,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
             Image imCrop = image.crop(nonNullBound);
             Image imDerY = ImageFeatures.getDerivative(imCrop, 2, 0, 1, 0, true);
             float[] yProj = ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
-            if (testMode.testSimple()) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
+            if (testMode.testExpert()) Utils.plotProfile("Closed-end detection", yProj, nonNullBound.yMin(), "y", "dI/dy");
             // when optical aberration is very extended, actual length of micro-channels can be way smaller than the parameter -> no check
             //if (yProj.length-1<channelHeight/10) throw new RuntimeException("No microchannels found in image. Out-of-Focus image ?");
             yMin = ArrayUtil.max(yProj, 0, yMinMax-nonNullBound.yMin()) + nonNullBound.yMin();
@@ -271,7 +278,4 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         uniformizeX(allBounds);
         
     }
-    TEST_MODE testMode=TEST_MODE.NO_TEST;
-    @Override
-    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 }

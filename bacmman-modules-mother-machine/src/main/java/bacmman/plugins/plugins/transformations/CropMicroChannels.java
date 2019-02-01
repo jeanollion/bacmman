@@ -54,7 +54,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     protected NumberParameter xStop = new BoundedNumberParameter("X stop (0 for image width)", 0, 0, 0, null);
     protected NumberParameter yStart = new BoundedNumberParameter("Y start", 0, 0, 0, null);
     protected NumberParameter yStop = new BoundedNumberParameter("Y stop (0 for image heigth)", 0, 0, 0, null);
-    protected GroupParameter boundGroup = new GroupParameter("Bound constraint", xStart, xStop, yStart, yStop).setHint("Constant crop. It should rather set here than in a separated module at a previous step, because image size needs to be the same for all frames, images could be cut in case of XY-drift.");
+    protected GroupParameter boundGroup = new GroupParameter("Bound constraint", xStart, xStop, yStart, yStop).setHint("Parameters to crop the image according to constant bounds. <br />If needed, a constant crop should rather be set here than in a separated module at a previous step, because image size needs to be the same for all frames, images could be cut in case of XY-drift.");
     protected BoundedNumberParameter cropMarginY = new BoundedNumberParameter("Crop Margin", 0, 45, 0, null).setHint("The y-coordinate of the microchannels closed-end used to crop the image is defined as: <em>Y start</em> - <em>Crop margin</em> (for definition of <em>Y start</em> see help of the module)<br />A positive value will yield in larger microchannels.");
     protected NumberParameter frameNumber = new BoundedNumberParameter("Frame Number", 0, 0, 0, null); // not used anymore -> both implementations compute bounds on every image -> value = 0
     
@@ -107,7 +107,9 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             return getBoundingBox(im);
         };
         TEST_MODE test = testMode;
+        logger.debug("test mode: {}", test);
         if (framesN!=1 && test.testSimple()) { // only test for one frame
+            logger.debug("testing for 1 frame");
             getBds.apply(inputImages.getDefaultTimePoint());
         }
         if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);

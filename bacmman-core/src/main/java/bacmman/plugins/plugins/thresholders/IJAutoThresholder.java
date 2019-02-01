@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.thresholders;
 import bacmman.configuration.parameters.ChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.HintSimple;
 import ij.process.AutoThresholder;
 import ij.process.AutoThresholder.Method;
 import bacmman.image.BlankMask;
@@ -40,8 +41,8 @@ import net.imglib2.type.numeric.RealType;
  *
  * @author Jean Ollion
  */
-public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto {
-    ChoiceParameter method = new ChoiceParameter("Method", AutoThresholder.getMethods(), AutoThresholder.Method.Otsu.toString(), false);
+public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, HintSimple {
+    ChoiceParameter method = new ChoiceParameter("Method", AutoThresholder.getMethods(), AutoThresholder.Method.Otsu.toString(), false).setEmphasized(true);
     
     public IJAutoThresholder setMethod(AutoThresholder.Method method) {
         this.method.setValue(method.toString());
@@ -165,6 +166,9 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto {
         return true;
     }
 
-    
-    
+
+    @Override
+    public String getSimpleHintText() {
+        return "ImageJ's Histogram thresholding methods<br />See: <a href='https://imagej.net/Auto_Threshold'>https://imagej.net/Auto_Threshold</a>";
+    }
 }

@@ -33,9 +33,9 @@ import bacmman.plugins.Hint;
  * @author Jean Ollion
  */
 public class FeatureFilter implements PostFilter, Hint {
-    PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false);
-    NumberParameter threshold = new NumberParameter("Threshold", 4, 0);
-    BooleanParameter keepOverThreshold = new BooleanParameter("Keep over threshold", true);
+    PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setEmphasized(true);
+    NumberParameter threshold = new NumberParameter<>("Threshold", 4, 0).setEmphasized(true);
+    BooleanParameter keepOverThreshold = new BooleanParameter("Keep over threshold", true).setEmphasized(true);
     BooleanParameter strict = new BooleanParameter("Strict comparison with threshold", true);
     
     Parameter[] parameters = new Parameter[]{feature, threshold, keepOverThreshold, strict};

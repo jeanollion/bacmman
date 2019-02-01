@@ -93,8 +93,8 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 	{
 		this.graph = graph;
 		this.settings = settings;
-                this.gcCostThreshold=gcCostThreshold;
-                this.alternativeCost=alternativeCost;
+		this.gcCostThreshold=gcCostThreshold;
+		this.alternativeCost=alternativeCost;
 		setNumThreads();
 	}
 

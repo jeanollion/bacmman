@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class PostFilter implements TrackPostFilter, Hint {
-    PluginParameter<bacmman.plugins.PostFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PostFilter.class, false);
+    PluginParameter<bacmman.plugins.PostFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PostFilter.class, false).setEmphasized(true);
     final static String[] METHODS = new String[]{"Delete single objects", "Delete whole track", "Prune Track"};
     ChoiceParameter deleteMethod = new ChoiceParameter("Delete method", METHODS, METHODS[0], false)
             .setHint("How to cope with lineage break when post-filter deletes objects. <ol>"

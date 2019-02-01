@@ -18,42 +18,38 @@
  */
 package bacmman.plugins.plugins.pre_filters;
 
+import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.Hint;
 import bacmman.processing.IJFFTBandPass;
 import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
 
 /**
  *
  * @author Jean Ollion
  */
 public class BandPass implements PreFilter, Filter, Hint {
-    NumberParameter min = new BoundedNumberParameter("Remove structures under size (pixels)", 1, 0, 0, null);
-    NumberParameter max = new BoundedNumberParameter("Remove structures over size (pixels)", 1, 100, 0, null); 
+    IntervalParameter range = new IntervalParameter("Band-pass range", 1, 0, null, 0, 7).setHint("The filter will remove small structures (of size inferior to first value (in pixels)) and large structures (of size superior to second value (in pixels)).").setEmphasized(true);
     ChoiceParameter removeStripes = new ChoiceParameter("Remove Stripes", new String[]{"None", "Horizontal", "Vertical"}, "None", false);
     NumberParameter stripeTolerance = new BoundedNumberParameter("Stripes tolerance (%)", 2, 1, 0, 100);
     ConditionalParameter stripes = new ConditionalParameter(removeStripes).setDefaultParameters(new Parameter[]{stripeTolerance}).setActionParameters("None", new Parameter[0]);
-    Parameter[] parameters = new Parameter[]{min, max, stripes};
+    Parameter[] parameters = new Parameter[]{range, stripes};
     
     public BandPass() {}
     public BandPass(double min, double max) {
         this(min, max, 0, 0);
     }
     public BandPass(double min, double max, int removeStripes, double stripeTolerance) {
-        this.min.setValue(min);
-        this.max.setValue(max);
+        if (max<=min || min<0) throw new IllegalArgumentException("invalid range");
+        this.range.setValues(min, max);
         this.removeStripes.setSelectedIndex(removeStripes);
         this.stripeTolerance.setValue(stripeTolerance);
     }
     @Override public Image runPreFilter(Image input, ImageMask mask) {
-        return filter(input, min.getValue().doubleValue(), max.getValue().doubleValue(), removeStripes.getSelectedIndex(), stripeTolerance.getValue().doubleValue());
+        double[] r = range.getValuesAsDouble();
+        return filter(input, r[0], r[1], removeStripes.getSelectedIndex(), stripeTolerance.getValue().doubleValue());
     }
     
     public static Image filter(Image input, double min, double max, int stripes, double stripeTolerance) {
@@ -69,7 +65,8 @@ public class BandPass implements PreFilter, Filter, Hint {
     }
 
     @Override public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        return filter(image, min.getValue().doubleValue(), max.getValue().doubleValue(), removeStripes.getSelectedIndex(), stripeTolerance.getValue().doubleValue());
+        double[] r = range.getValuesAsDouble();
+        return filter(image, r[0], r[1], removeStripes.getSelectedIndex(), stripeTolerance.getValue().doubleValue());
     }
 
     @Override

@@ -77,7 +77,7 @@ public class PythonGateway {
             logger.info("Connection to {}....", dbName);
             GUI.getInstance().openExperiment(dbName, null, false);
             logger.info("Selection tab....");
-            GUI.getInstance().setSelectedTab(2);
+            GUI.getInstance().setSelectedTab(3);
             logger.info("Tab selected");
         }
         GUI.getDBConnection().getSelectionDAO().store(res);

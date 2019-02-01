@@ -71,11 +71,11 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         super(name, allowNoSelection, pluginType, pluginInstance);
     }*/
     private void initInputChannel() {
-        inputChannel = new ChannelImageParameter("Detection Channel", -1);
+        inputChannel = new ChannelImageParameter("Detection Channel", -1).setEmphasized(true);
     }
     private void initOutputChannel(boolean multiple, int... selectedChannels) {
-        if (multiple) outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels);
-        else outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels!=null && selectedChannels.length>=1 ? selectedChannels[0] : -1);
+        if (multiple) outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels).setEmphasized(true);
+        else outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels!=null && selectedChannels.length>=1 ? selectedChannels[0] : -1).setEmphasized(true);
     }
     @Override 
     public TransformationPluginParameter<T> setPlugin(T pluginInstance) {

@@ -28,9 +28,7 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
-import bacmman.plugins.MultiThreaded;
-import bacmman.plugins.SimpleThresholder;
-import bacmman.plugins.ThresholderHisto;
+import bacmman.plugins.*;
 import bacmman.utils.DoubleStatistics;
 
 /**
@@ -43,14 +41,25 @@ import bacmman.utils.DoubleStatistics;
  * Variation : added final sigma for final threshold computation
  * @author Jean Ollion
  */
-public class BackgroundThresholder implements SimpleThresholder, ThresholderHisto, MultiThreaded {
+public class BackgroundThresholder implements HintSimple, SimpleThresholder, ThresholderHisto, MultiThreaded {
     public static boolean debug = false;
     NumberParameter sigmaFactor = new BoundedNumberParameter("Sigma factor", 2, 2.5, 0.01, null);
-    NumberParameter finalSigmaFactor = new BoundedNumberParameter("Final Sigma factor", 2, 4, 0.01, null);
+    NumberParameter finalSigmaFactor = new BoundedNumberParameter("Final Sigma factor", 2, 4, 0.01, null).setHint("Sigma factor for last threshold computation");
     NumberParameter iterations = new BoundedNumberParameter("Iteration number", 0, 2, 1, null);
-    PluginParameter<SimpleThresholder> startingPoint = new PluginParameter<>("Starting value", SimpleThresholder.class, true);
+    PluginParameter<SimpleThresholder> startingPoint = new PluginParameter<>("Starting value", SimpleThresholder.class, true).setHint("This value limits the threshold computed at first iteration. Use this parameter when the image contains pixel with high values");
     Parameter[] parameters = new Parameter[]{sigmaFactor, finalSigmaFactor, iterations, startingPoint};
-    
+
+    public static String simpleHint = "This algorithm estimates the mean (µ) and standard deviation (σ) values of the background, and use this two parameters to select the pixels significantly different of the background"
+            +"<br />This method works only on images in which most pixels are background pixels"
+            +"<br />Adapted from Implementation of <em>Kappa Sigma Clipping</em> algorithm by Gaëtan Lehmann, <a href='http://www.insight-journal.org/browse/publication/132'>http://www.insight-journal.org/browse/publication/132</a>";
+
+
+    @Override
+    public String getSimpleHintText() {
+        return simpleHint;
+    }
+
+
     public BackgroundThresholder() {}
     
     public BackgroundThresholder(double sigmaFactor, double finalSigmaFactor, int iterations) {

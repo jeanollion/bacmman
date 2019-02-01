@@ -62,9 +62,9 @@ public class ImageFeature implements PreFilter, Hint {
             return Utils.getFirst(Arrays.asList(Feature.values()), f->f.name.equals(name));
         }
     }
-    ChoiceParameter feature = new ChoiceParameter("Feature", Utils.transform(Feature.values(), new String[Feature.values().length], f->f.name), Feature.GAUSS.name, false);
-    ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setHint("Scale of the operation in pixels");
-    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true);
+    ChoiceParameter feature = new ChoiceParameter("Feature", Utils.transform(Feature.values(), new String[Feature.values().length], f->f.name), Feature.GAUSS.name, false).setEmphasized(true);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setHint("Scale of the operation in pixels").setEmphasized(true);
+    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true).setEmphasized(true);
     ConditionalParameter cond = new ConditionalParameter(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, new Parameter[]{scale, smoothScale});
 
     public ImageFeature() {}

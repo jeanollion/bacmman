@@ -132,7 +132,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
 
     @Override
     public String toString() {
-        return name +(name.length()>0?" :":"")+  Utils.toStringArray(values, "[",  "]", "; ", n-> NumberParameter.trimDecimalPlaces(n, decimalPlaces));
+        return name +(name.length()>0?": ":"")+  Utils.toStringArray(values, "[",  "]", "; ", n-> NumberParameter.trimDecimalPlaces(n, decimalPlaces));
     }
 
     public static int compare(Number a, Number b){

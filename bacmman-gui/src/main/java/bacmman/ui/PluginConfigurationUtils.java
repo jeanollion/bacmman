@@ -55,13 +55,15 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class PluginConfigurationUtils {
-
+    static Logger logger = LoggerFactory.getLogger(PluginConfigurationUtils.class);
     private static TrackLinkEditor getEditor(int objectClassIdx) {
         try {
             Constructor<TrackLinkEditor> constructor = TrackLinkEditor.class.getDeclaredConstructor(int.class, Set.class, boolean.class);
@@ -100,8 +102,8 @@ public class PluginConfigurationUtils {
         parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
 
 
-        Parameter.logger.debug("test processing: sel {}", parentSelection);
-        Parameter.logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
+        logger.debug("test processing: sel {}", parentSelection);
+        logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
         if (plugin instanceof Segmenter) { // case segmenter -> segment only & call to test method
 
             // run pre-filters on whole track -> some track preFilters need whole track to be effective. todo : parameter to limit ? 
@@ -109,7 +111,7 @@ public class PluginConfigurationUtils {
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
-            Parameter.logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
+            logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
             TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, (Segmenter)plugin);
             SegmentOnly so;
             if (psc instanceof SegmentOnly) {
@@ -121,7 +123,7 @@ public class PluginConfigurationUtils {
             if (segParentStrutureIdx!=parentStrutureIdx && o.getStructureIdx()==segParentStrutureIdx) { // when selected objects are segmentation parent -> remove all others
                 Set<SegmentedObject> selectedObjects = parentSelection.stream().map(s->dupMap.get(s.getId())).collect(Collectors.toSet());
                 parentTrackDup.forEach(p->accessor.getDirectChildren(p, segParentStrutureIdx).removeIf(c->!selectedObjects.contains(c)));
-                Parameter.logger.debug("remaining segmentation parents: {}", Utils.toStringList(parentTrackDup, p->p.getChildren(segParentStrutureIdx)));
+                logger.debug("remaining segmentation parents: {}", Utils.toStringList(parentTrackDup, p->p.getChildren(segParentStrutureIdx)));
             }
             TrackConfigurer  apply = (p, s)-> {
                 if (s instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)s).setTestDataStore(stores);
@@ -261,12 +263,15 @@ public class PluginConfigurationUtils {
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
                         Transformation transfo = tpp.instanciatePlugin();
-                        if (transfo instanceof TestableOperation && i==transfoIdx) ((TestableOperation)transfo).setTestMode(testMode);
-                        Parameter.logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
+                        logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
+                        if (transfo instanceof TestableOperation && i==transfoIdx) {
+                            ((TestableOperation)transfo).setTestMode(testMode);
+                            logger.debug("set test mode: {} to transformation", testMode);
+                        }
                         try{
                             if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
                         } catch (Throwable t) {
-                            Parameter.logger.error("error while configuring transformation:", t);
+                            logger.error("error while configuring transformation:", t);
                             if (pcb!=null) pcb.log("Error while configuring transformation: "+t.getLocalizedMessage());
                         }
                         images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
@@ -299,14 +304,14 @@ public class PluginConfigurationUtils {
                 TestableOperation.TEST_MODE testMode = expertMode ? TestableOperation.TEST_MODE.TEST_EXPERT : TestableOperation.TEST_MODE.TEST_SIMPLE;
                 Image[][] imCT = getImageManager().getDisplayer().getCurrentImageCT();
                 if (imCT==null) {
-                    Parameter.logger.warn("No active image");
+                    logger.warn("No active image");
                     return;
                 }
-                Parameter.logger.debug("current image has: {} frames, {} channels, {} slices", imCT[0].length, imCT.length, imCT[0][0].sizeZ());
+                logger.debug("current image has: {} frames, {} channels, {} slices", imCT[0].length, imCT.length, imCT[0][0].sizeZ());
                 MemoryImageContainer cont = new MemoryImageContainer(imCT);
-                Parameter.logger.debug("container: {} frames, {} channels", cont.getFrameNumber(), cont.getChannelNumber());
+                logger.debug("container: {} frames, {} channels", cont.getFrameNumber(), cont.getChannelNumber());
                 InputImagesImpl images = cont.getInputImages(position.getName());
-                Parameter.logger.debug("images: {} frames, {} channels", images.getFrameNumber(), images.getChannelNumber());
+                logger.debug("images: {} frames, {} channels", images.getFrameNumber(), images.getChannelNumber());
                 
                 PreProcessingChain ppc = position.getPreProcessingChain();
                 List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
@@ -317,7 +322,7 @@ public class PluginConfigurationUtils {
                 if (images.getChannelNumber()<=input) {
                     if (images.getChannelNumber()==1) input=0;
                     else {
-                        Parameter.logger.debug("transformation need to be applied on channel: {}, be only {} channels in current image", input, images.getChannelNumber());
+                        logger.debug("transformation need to be applied on channel: {}, be only {} channels in current image", input, images.getChannelNumber());
                         return;
                     }
                 }
@@ -331,7 +336,7 @@ public class PluginConfigurationUtils {
                     else output = new int[]{input};
                 }
 
-                Parameter.logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}, isConfigured?: {}", transfo, transfo.getClass(), position.getName(), input, output);
+                logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}, isConfigured?: {}", transfo, transfo.getClass(), position.getName(), input, output);
                 if (transfo instanceof TestableOperation) ((TestableOperation)transfo).setTestMode(testMode);
                 if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
                       

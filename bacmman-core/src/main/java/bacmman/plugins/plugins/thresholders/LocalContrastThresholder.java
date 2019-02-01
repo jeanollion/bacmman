@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
 import static bacmman.image.BoundingBox.loop;
 import bacmman.image.Image;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Thresholder;
 import bacmman.processing.ImageFeatures;
 
@@ -30,7 +31,7 @@ import bacmman.processing.ImageFeatures;
  *
  * @author Jean Ollion
  */
-public class LocalContrastThresholder implements Thresholder {
+public class LocalContrastThresholder implements Thresholder, DevPlugin {
     BoundedNumberParameter scale = new BoundedNumberParameter("Contrast Scale", 1, 2, 1, null);
     BoundedNumberParameter constrastThreshold = new BoundedNumberParameter("Contrast Threshold", 3, 0.02,  0.001, 0.2);
     Parameter[] parameters = new Parameter[]{scale, constrastThreshold};

@@ -21,17 +21,20 @@ package bacmman.plugins.plugins.thresholders;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.Histogram;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.Thresholder;
+import bacmman.plugins.ThresholderHisto;
 
 /**
  *
  * @author Jean Ollion
  */
-public class ConstantValue implements SimpleThresholder, Thresholder {
-    NumberParameter value = new NumberParameter("Value:", 8, 1);
+public class ConstantValue implements SimpleThresholder, Thresholder, ThresholderHisto, HintSimple {
+    NumberParameter value = new NumberParameter<>("Value:", 8, 1).setEmphasized(true);
     
     public ConstantValue() {}
     public ConstantValue(double value) {
@@ -52,5 +55,15 @@ public class ConstantValue implements SimpleThresholder, Thresholder {
     @Override
     public double runSimpleThresholder(Image input, ImageMask mask) {
         return value.getValue().doubleValue();
+    }
+
+    @Override
+    public double runThresholderHisto(Histogram histo) {
+        return value.getValue().doubleValue();
+    }
+
+    @Override
+    public String getSimpleHintText() {
+        return "Returns a constant user-defined value";
     }
 }

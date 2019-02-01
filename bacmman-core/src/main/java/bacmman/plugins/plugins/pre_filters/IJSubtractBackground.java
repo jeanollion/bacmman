@@ -45,11 +45,11 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class IJSubtractBackground implements PreFilter, Filter, Hint {
-    BooleanParameter method = new BooleanParameter("Method", "Rolling Ball", "Sliding Paraboloid", true);
-    BooleanParameter imageType = new BooleanParameter("Image Background", "Dark", "Light", true);
+    BooleanParameter method = new BooleanParameter("Method", "Rolling Ball", "Sliding Paraboloid", true).setEmphasized(true);
+    BooleanParameter imageType = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);
     BooleanParameter smooth = new BooleanParameter("Perform Smoothing", true);
     BooleanParameter corners = new BooleanParameter("Correct corners", true);
-    NumberParameter radius = new BoundedNumberParameter("Radius", 2, 20, 0.01, null);
+    NumberParameter radius = new BoundedNumberParameter("Radius", 2, 20, 0.01, null).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{radius, method, imageType, smooth, corners};
     
     public IJSubtractBackground(double radius, boolean doSlidingParaboloid, boolean lightBackground, boolean smooth, boolean corners) {

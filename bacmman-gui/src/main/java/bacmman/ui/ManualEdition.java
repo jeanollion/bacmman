@@ -163,8 +163,9 @@ public class ManualEdition {
             tmi.addObjects(map);
             //double meanLength = allObjects.stream().mapToDouble( s->GeometricalMeasurements.getFeretMax(s.getRegion())).average().getAsDouble();
             //logger.debug("Mean size: {}", meanLength);
-            tmi.processFTF(Math.sqrt(Double.MAX_VALUE)/100); // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared.. 
-            tmi.processGC(Math.sqrt(Double.MAX_VALUE)/100, 0, split, merge);
+            double dMax = Math.sqrt(Double.MAX_VALUE)/100;
+            tmi.processFTF(dMax); // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
+            tmi.processGC(dMax, 0, split, merge);
             logger.debug("link objects: {}", allObjects);
             tmi.setTrackLinks(map, editor);
             modifiedObjects.addAll(allObjects);
