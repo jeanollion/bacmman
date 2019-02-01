@@ -75,7 +75,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
             return null;
         }
     }
-    String toolTip = "Methods for flipping image along Y-axis in order to set the close-end of channel at the top of the image. <br />Microchannels must be aligned with the Y-axis (use for instance <em>AutorotationXY</em>)";
+    String toolTip = "Flips the image along the Y-axis if the closed-end of the microchannels is below the open-end. Microchannels must first be aligned along the Y-axis (use for instance <em>AutorotationXY</em> module)";
     ChoiceParameter method = new ChoiceParameter("Method", Utils.transform(AutoFlipMethod.values(), new String[AutoFlipMethod.values().length], f->f.name), FLUO_HALF_IMAGE.name, false);
     PluginParameter<SimpleThresholder> fluoThld = new PluginParameter<>("Threshold for bacteria Segmentation", SimpleThresholder.class, new BackgroundThresholder(3, 6, 3), false);
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");

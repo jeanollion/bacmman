@@ -55,15 +55,15 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, TestableOperation {
-    protected NumberParameter channelHeight = new BoundedNumberParameter("Channel Height", 0, 410, 0, null);
+    protected NumberParameter channelLength = new BoundedNumberParameter("Channel Length", 0, 410, 0, null).setHint("Length of microchannels, in pixels. This length will determine the y-size of the cropped image");
     NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setHint(SIZE_TOOL_TIP);
     NumberParameter fillingProportion = new BoundedNumberParameter("Filling proportion of Microchannel", 2, 0.5, 0.05, 1).setHint(FILL_TOOL_TIP);
     PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setHint(THLD_TOOL_TIP);
     
-    Parameter[] parameters = new Parameter[]{channelHeight, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup};
+    Parameter[] parameters = new Parameter[]{channelLength, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup};
     double threshold = Double.NaN;
     public CropMicrochannelsFluo2D(int channelHeight, int cropMargin, int minObjectSize, double fillingProportion, int FrameNumber) {
-        this.channelHeight.setValue(channelHeight);
+        this.channelLength.setValue(channelHeight);
         this.cropMarginY.setValue(cropMargin);
         this.minObjectSize.setValue(minObjectSize);
         this.fillingProportion.setValue(fillingProportion);
@@ -74,9 +74,9 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     
     @Override
     public String getHintText() {
-        return "<b>Automatic crop of the image around microchannels in fluorescence images</b><br />" +
-                "Supposes that microchannels are aligned with Y-axis and that closed-end is located at the top of the image. (for instance use AutorotationXY and AutoFlip)<br />" +
-                "Microchannels are detected as follow:<br />"+TOOL_TIP;
+        return "<b>Automatically crops the image around the microchannels in fluorescence images</b><br />" +
+                "The microchannels should be aligned along the Y-axis, with their closed-end up (for instance use <em>AutorotationXY</em> and <em>AutoFlip</em> modules)<br />" +
+                "The microchannels are detected as follows:<br />"+TOOL_TIP;
     }
     
     public CropMicrochannelsFluo2D() {
@@ -87,7 +87,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         return this;
     }
     public CropMicrochannelsFluo2D setChannelDim(int channelHeight, double fillingProportion) {
-        this.channelHeight.setValue(channelHeight);
+        this.channelLength.setValue(channelHeight);
         this.fillingProportion.setValue(fillingProportion);
         return this;
     }
@@ -117,7 +117,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
         Consumer<Image> dispImage = testMode.testSimple() ? i-> Core.showImage(i) : null;
         BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testSimple() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
-        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 0, this.channelHeight.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), dispImage, miscDisp);
+        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 0, this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), dispImage, miscDisp);
         if (r == null) return null;
         
         int xStart = this.xStart.getValue().intValue();
@@ -129,7 +129,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         if (xStop==0) xStop = image.sizeX()-1;
         int cropMargin = this.cropMarginY.getValue().intValue();
         yStart = Math.max(yMin-cropMargin, yStart);
-        yStop = Math.min(yStop, yMin+channelHeight.getValue().intValue()-1);
+        yStop = Math.min(yStop, yMin+channelLength.getValue().intValue()-1);
         
         //xStart = Math.max(xStart, r.getXMin()-cropMargin);
         //xStop = Math.min(xStop, r.getXMax() + cropMargin);

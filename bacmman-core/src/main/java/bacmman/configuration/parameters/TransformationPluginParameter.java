@@ -71,7 +71,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         super(name, allowNoSelection, pluginType, pluginInstance);
     }*/
     private void initInputChannel() {
-        inputChannel = new ChannelImageParameter("Configuration Channel", -1);
+        inputChannel = new ChannelImageParameter("Detection Channel", -1);
     }
     private void initOutputChannel(boolean multiple, int... selectedChannels) {
         if (multiple) outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels);
