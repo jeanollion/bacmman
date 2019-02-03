@@ -18,12 +18,12 @@
  */
 package bacmman.ui.gui.configuration;
 
-import bacmman.configuration.parameters.ContainerParameter;
-import bacmman.configuration.parameters.InvisibleNode;
-import bacmman.configuration.parameters.ListParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.function.Consumer;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.MutableTreeNode;
@@ -35,13 +35,30 @@ import javax.swing.tree.TreePath;
  * @author Jean Ollion
  */
 public class ConfigurationTreeModel extends DefaultTreeModel {
+    public static final Logger logger = LoggerFactory.getLogger(ConfigurationTreeModel.class);
     protected JTree tree;
     private final Runnable update;
     private boolean expertMode = true;
-    public ConfigurationTreeModel(ContainerParameter root, Runnable update) {
+    private Consumer<PluginParameter> setHint;
+    public ConfigurationTreeModel(ContainerParameter root, Runnable updateConfigurationValidity, Consumer<PluginParameter> setHint) {
         super(root);
-        this.update=update;
+        this.update=updateConfigurationValidity;
+        this.setHint=setHint;
     }
+
+    @Override
+    public void nodeStructureChanged(TreeNode node) {
+        if (setHint!=null && (node instanceof PluginParameter)) {
+            // if selected, also update hint
+            TreePath path = tree.getSelectionPath();
+            if (path != null && node.equals(path.getLastPathComponent())) {
+                setHint.accept((PluginParameter) node);
+                tree.expandPath(path);
+            }
+        }
+        super.nodeStructureChanged(node);
+    }
+
     public void setJTree(JTree tree) {
         this.tree=tree;
     }

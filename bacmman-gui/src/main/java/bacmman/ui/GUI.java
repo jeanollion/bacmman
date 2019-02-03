@@ -26,6 +26,10 @@ import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.plugins.Hint;
+import bacmman.plugins.HintSimple;
+import bacmman.plugins.Plugin;
+import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -82,17 +86,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
-import javax.swing.AbstractAction;
-import javax.swing.Action;
-import javax.swing.ButtonGroup;
-import javax.swing.DefaultListModel;
-import javax.swing.JFrame;
-import javax.swing.JMenu;
-import javax.swing.JOptionPane;
-import javax.swing.JPopupMenu;
-import javax.swing.JTree;
-import javax.swing.KeyStroke;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
 
@@ -115,12 +109,8 @@ import bacmman.utils.Utils;
 import ij.IJ;
 
 import java.util.function.Consumer;
-import javax.swing.ToolTipManager;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JSeparator;
 
 
 /**
@@ -783,6 +773,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             configurationJSP.setViewportView(null);
             setConfigurationTabValid.accept(true);
             for (ListSelectionListener ll : moduleList.getListSelectionListeners()) moduleList.removeListSelectionListener(ll);
+            for (MouseListener ll : moduleList.getMouseListeners()) moduleList.removeMouseListener(ll);
         } else {
             Consumer<String> setHint = hint -> {
                 hintTextPane.setText(hint);
@@ -799,6 +790,22 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     moduleSelectionCallBack.accept(moduleList.getSelectedValue());
+                }
+            });
+            moduleList.addMouseMotionListener(new MouseMotionAdapter() {
+                String defTT = moduleList.getToolTipText();
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    JList l = (JList)e.getSource();
+                    ListModel m = l.getModel();
+                    int index = l.locationToIndex(e.getPoint());
+                    if( index>-1 ) {
+                        Plugin p = PluginFactory.getPlugin(m.getElementAt(index).toString());
+                        if (p!=null && (p instanceof Hint || p instanceof HintSimple)) {
+                            if (p instanceof HintSimple) l.setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
+                            else l.setToolTipText(formatHint(((Hint)p).getHintText()));
+                        } else l.setToolTipText("");
+                    } else l.setToolTipText(defTT);
                 }
             });
         }
@@ -4191,6 +4198,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             testConfigurationTreeGenerator=null;
             testConfigurationJSP.setViewportView(null);
             for (ListSelectionListener ll : testModuleList.getListSelectionListeners()) testModuleList.removeListSelectionListener(ll);
+            for (MouseListener ll : moduleList.getMouseListeners()) moduleList.removeMouseListener(ll);
         } else {
             Consumer<String> setHint = hint -> {
                 testHintTextPane.setText(hint);
@@ -4207,6 +4215,22 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     moduleSelectionCallBack.accept(testModuleList.getSelectedValue());
+                }
+            });
+            testModuleList.addMouseMotionListener(new MouseMotionAdapter() {
+                String defTT = testModuleList.getToolTipText();
+                @Override
+                public void mouseMoved(MouseEvent e) {
+                    JList l = (JList)e.getSource();
+                    ListModel m = l.getModel();
+                    int index = l.locationToIndex(e.getPoint());
+                    if( index>-1 ) {
+                        Plugin p = PluginFactory.getPlugin(m.getElementAt(index).toString());
+                        if (p!=null && (p instanceof Hint || p instanceof HintSimple)) {
+                            if (p instanceof HintSimple) l.setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
+                            else l.setToolTipText(formatHint(((Hint)p).getHintText()));
+                        } else l.setToolTipText("");
+                    } else l.setToolTipText(defTT);
                 }
             });
         }

@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.Parameter;
 import com.itextpdf.text.Font;
 import java.awt.Color;
 import java.awt.Component;
+import java.util.function.BooleanSupplier;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
@@ -30,7 +31,9 @@ import javax.swing.tree.DefaultTreeCellRenderer;
  * @author jean ollion
  */
 public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
-    public TransparentTreeCellRenderer() {
+    final BooleanSupplier isExpertMode;
+    public TransparentTreeCellRenderer(BooleanSupplier isExpertMode) {
+        this.isExpertMode=isExpertMode;
         setLeafIcon(null);
         setClosedIcon(null);
         setOpenIcon(null);
@@ -56,9 +59,11 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
         if (value instanceof Parameter) {
             boolean isValid = ((Parameter)value).isValid();
             if (!isValid) ret.setForeground(Color.RED);
-            boolean isEmphasized = ((Parameter)value).isEmphasized();
-            if (isEmphasized) ret.setFont(ret.getFont().deriveFont(Font.BOLD));
-            else ret.setFont(ret.getFont().deriveFont(Font.NORMAL));
+            if (isExpertMode.getAsBoolean()) { // bold parameter only in expert mode
+                boolean isEmphasized = ((Parameter) value).isEmphasized();
+                if (isEmphasized) ret.setFont(ret.getFont().deriveFont(Font.BOLD));
+                else ret.setFont(ret.getFont().deriveFont(Font.NORMAL));
+            }
         }
         
         return ret;

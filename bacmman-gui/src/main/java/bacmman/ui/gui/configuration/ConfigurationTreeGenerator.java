@@ -113,6 +113,7 @@ public class ConfigurationTreeGenerator {
                 tree.expandPath(path);
             }
             treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
+            logger.debug("changing module ... : {}, hint: {}", pp, getHint(pp, false));
             setHint.accept(getHint(pp, false));
         };
     }
@@ -187,7 +188,11 @@ public class ConfigurationTreeGenerator {
     }
 
     private void generateTree() {
-        treeModel = new ConfigurationTreeModel(rootParameter, () -> xpChanged());
+        treeModel = new ConfigurationTreeModel(rootParameter, () -> xpChanged(), p->{
+            // called when update a tree node that is a plugin parameter
+            setHint.accept(getHint(p, false));
+            setModules.accept(p.getPluginName(), p.getPluginNames()); // in order to select module in list
+        });
         treeModel.setExpertMode(expertMode);
         tree = new JTree(treeModel) {
             @Override
@@ -201,7 +206,7 @@ public class ConfigurationTreeGenerator {
         tree.setShowsRootHandles(true);
         tree.setRootVisible(false);
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer();
+        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode);
         Icon icon = null;
         renderer.setLeafIcon(icon);
         renderer.setClosedIcon(icon);
@@ -255,7 +260,7 @@ public class ConfigurationTreeGenerator {
                     String hint = getHint(tree.getSelectionPath().getLastPathComponent(), false);
                     if (hint==null) setHint.accept("No hint available");
                     else setHint.accept(hint);
-                    //logger.debug("set modules. hint: {}", hint);
+                    logger.debug("set modules for : {}. hint: {}", tree.getSelectionPath().getLastPathComponent(),hint);
                     break;
                 default:
                     setModules.accept(null, Collections.emptyList());

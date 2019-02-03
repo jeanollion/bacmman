@@ -72,7 +72,7 @@ public class StructureObjectTreeGenerator {
         tree=new JTree(treeModel);
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION);
         tree.setOpaque(false);
-        tree.setCellRenderer(new TransparentTreeCellRenderer());
+        tree.setCellRenderer(new TransparentTreeCellRenderer(()->false));
         tree.setScrollsOnExpand(true);
         tree.addMouseListener(new MouseAdapter() {
             @Override

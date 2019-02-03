@@ -96,7 +96,7 @@ public class StructureSelectorTree {
         tree.setRootVisible(false);
         tree.getSelectionModel().setSelectionMode(treeSelectionMode);
         tree.setOpaque(false);
-        tree.setCellRenderer(new TransparentTreeCellRenderer());
+        tree.setCellRenderer(new TransparentTreeCellRenderer(()->false));
         tree.setScrollsOnExpand(true);
         
         tree.addMouseListener(new MouseAdapter() {
