@@ -95,7 +95,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         this.splitThreshold.setHint("Threshold used for merging partition after splitting foreground on hessian map. Criterion is defined by the <em/>Interface Value</em> parameter. <br />A lower value will lead to more separation of bacteria. <br /><br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged<br />This parameter should be carefully calibrated for each experimental setup");
         this.splitThreshold.setValue(0.115); // 0.15 for hessian scale = 3
         this.hessianScale.setValue(2);
-        this.edgeMap.removeAll().add(new StandardDeviation(3).setMedianRadius(2)).setEmphasized(true);
+        this.edgeMap.removeAll().add(new StandardDeviation(3).setMedianRadius(2));
         localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this factor will yield in smaller cells.<br />This threshold should be calibrated for each new experimental setup. <br />Threshold = mean_w - sigma_w * (this factor), <br />with mean_w = weighted mean of signal weighted by edge image, sigma_w = standard deviation of signal weighted by edge image. <br />Refer to images: <em>Local Threshold edge map</em> and <em>Local Threshold intensity map</em>");
         localThresholdFactor.setValue(1);
     }

@@ -56,15 +56,17 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
     public static String Edge_Hint = "Several operation allowing to detect edges:" +
             "<ul><li>Max Eigenvalue of Structure tensor (located in the <em>ImageFeatures</em> module)</li>" +
             "<li>StandardDeviation is more suitable for noisy images (involve less derivation)</li>" +
-            "<li>Gradient magnitude (located in the <em>ImageFeatures</em> module)</li><ul>" +
+            "<li>Gradient magnitude (located in the <em>ImageFeatures</em> module)</li></ul>" +
             "Those operation should be preceded by a de-noising operation such as: " +
             "<ul><li>Gaussian Smooth (located in the <em>ImageFeatures</em> module)</li>" +
             "<li>Median</li>" +
+            "<li>BandPass</li>" +
             "<li>NonLocalMeansDenoising</li></ul>";
     protected final int MIN_SIZE_PROPAGATION = 20;
     protected PreFilterSequence edgeMap = new PreFilterSequence("Edge Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(1.5), new StandardDeviation(2).setMedianRadius(0)).setHint("List of operations used to compute the edge map used in first watershed step.<br />Configuration hint: the <em>Edge Map for partitioning</em> (displayed in test mode) is the result of those operations. Set operations so that edges of bacteria are best detected, several operations can be added through right-click menu. Also refer to <em>Region values after partitioning</em>: regions should be either within background OR foreground but not overlap both. <br />"+Edge_Hint);  // min scale = 1 (noisy signal:1.5), max = 2 min smooth scale = 1.5 (noisy / out of focus: 2) //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(2)
     protected NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 0, 5).setHint("Scale (pixels) for gaussian filtering for the local thresholding step");
-    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null).setEmphasized(true).setSimpleHint("Lower value of this factor will yield in smaller cells.<br />This threshold should be calibrated for each new experimental setup");
+    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null).setEmphasized(true)
+            .setSimpleHint("Lower value of this factor will yield in smaller cells.<br /><br /><b>This threshold should be calibrated for each new experimental setup</b>");
 
     //segmentation-related attributes (kept for split and merge methods)
     protected EdgeDetector edgeDetector;

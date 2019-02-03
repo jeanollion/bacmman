@@ -22,10 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.measurement.GeometricalMeasurements;
-import bacmman.plugins.Hint;
-import bacmman.plugins.SegmenterSplitAndMerge;
-import bacmman.plugins.TrackConfigurable;
-import bacmman.plugins.TrackerSegmenter;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
@@ -57,12 +54,12 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class BacteriaClosedMicrochannelTrackerLocalCorrections implements TrackerSegmenter, Hint {
+public class BacteriaClosedMicrochannelTrackerLocalCorrections implements TrackerSegmenter, Hint, HintSimple {
     public final static Logger logger = LoggerFactory.getLogger(BacteriaClosedMicrochannelTrackerLocalCorrections.class);
     
-    protected PluginParameter<SegmenterSplitAndMerge> segmenter = new PluginParameter<>("Segmentation algorithm", SegmenterSplitAndMerge.class, false);
-    IntervalParameter sizeRatio = new IntervalParameter("Size Ratio", 2, 0.5, 3, 0.8, 1.5).setHint("Typical range of ratio of size between two frames");
-    ChoiceParameter sizeFeature = new ChoiceParameter("Feature used for Size", new String[]{"Size", "Length"}, "Size", false).setHint("Object feature used to compute the size ratio. <ul><li><em>Size</em> : number of pixels</li><li><em>Length</em> : Feret distance (max distance between two points of contour)</li></ul>");
+    protected PluginParameter<SegmenterSplitAndMerge> segmenter = new PluginParameter<>("Segmentation algorithm", SegmenterSplitAndMerge.class, false).setEmphasized(true);
+    IntervalParameter sizeRatio = new IntervalParameter("Size Ratio", 2, 0.5, 3, 0.8, 1.5).setHint("Typical range of ratio of bacteria size between two frames");
+    ChoiceParameter sizeFeature = new ChoiceParameter("Feature used for Size", new String[]{"Size", "Length"}, "Size", false).setEmphasized(true).setHint("Bacteria feature used to estimate growth rate. <ul><li><em>Size</em> : number of pixels</li><li><em>Length</em> : Feret distance (maximal distance between two points of the segmented contour)</li></ul>");
     
     BoundedNumberParameter costLimit = new BoundedNumberParameter("Correction: operation cost limit", 3, 1.5, 0, null).setHint("Limits the cost of each single correction operation (merge/split). <br />Cost value is the difference between the interface value (as computed by the segmenter) and the split threshold parameter of the segmenter. For a merge operation the interface between the 2 regions to be merged is considered. For a split operation: a region is split in two and the interface between the 2 new regions is considered.<br />When an correction operation (split / merge) yields to a cost superior to this parameter, it is not performed");
     BoundedNumberParameter cumCostLimit = new BoundedNumberParameter("Correction: cumulative cost limit", 3, 5, 0, null).setHint("Limits the sum of costs for a correction over multiple frames <br />(see <em>operation cost limit</em> parameter for details on cost computation");
@@ -70,16 +67,18 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     Parameter[] parameters = new Parameter[]{segmenter, sizeFeature, sizeRatio, costLimit, cumCostLimit, endOfChannelContactThreshold};
 
     // tooltip interface
-    String toolTip = "<b>Bacteria Tracker in closed-end channel</b> "
-            + "<ul><li>Tracking is done only using rank and growth rate information (no localization within microchannel), and is thus adapted to moving cells, but detects poorly cell death</li>"
+    static String simpleTT = "<b>Tracker for bacteria in closed-end microchannels</b>";
+    static String toolTip = "<ul><li>Tracking is done only using rank and growth rate information (no localization within microchannel), and is thus adapted to moving cells, but detects poorly cell death</li>"
             + "<li>Assignment is done rank-wise between two successive frames starting from the cells located towards the closed-end of microchannel</li>"
             + "<li>First assignment is the minimal that verify the growth inequality: given Sf = sum(size)@Frame=F Sf-1 = sum(size)@Frame=F-1 : Sf-1 * minGrowthRate <= Sf <= Sf-1 * maxGrowthRate </li>"
             + "<li>In order to take into account a wide range of growth rate, when possible the size ratio between Frames F & F-1 is compared to the median size ratio of the 20 last observations of the same line, and the difference is minimized</li>"
             + "<li>In order to take into account cells exiting microchannels no errors are counted to assignment of cells close to the microchannel open-end</li>"
             + "<li>When tracking errors are detected (e.g two bacteria merging at next frame), a local correction is tried, comparing the scenario(s) of merging cells at previous frames and splitting cells at next frames. The scenario that minimizes firstly tracking error number and secondly correction cost (defined by the segmenter) will be chosen if its cost is under the thresholds defined by parameters <em>Correction: operation cost limit</em> and <em>Correction: cumulative cost limit</em></li></ul>";
 
-    @Override public String getHintText() {return toolTip;}
-    
+    @Override public String getSimpleHintText() {return simpleTT;}
+
+    @Override public String getHintText() {return simpleTT + toolTip;}
+
     @Override public SegmenterSplitAndMerge getSegmenter() {
         return segmenter.instanciatePlugin();
     }
