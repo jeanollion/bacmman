@@ -78,7 +78,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
 
     @Override
     public String getHintText() {
-        return  simpleHint + "<br />The microchannels are detected as follows:<br />"+TOOL_TIP + testModeDisp + "<li><em>Microchannel Fill proportion:</em>Plot representing the proportion of filled length of detected microchannels. Microchannels with a low value are excluded (see module description)</li></ul>";
+        return  simpleHint + "<br />The microchannels are detected as follows:<br />"+TOOL_TIP + testModeDisp + "<li><em>Microchannel Fill proportion:</em>Plot representing the proportion of filled length of detected microchannels. See module description and help for parameter <em>Filling proportion of Microchannel</em></li></ul>";
     }
     @Override
     public String getSimpleHintText() {

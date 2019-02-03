@@ -60,14 +60,14 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
     
     @Override
     public String getHintText() {
-        return "Subtract background on a whole microchannel track at once. "
-                + "<br />Builds an image with all microchannel images next to each other from top to bottom. "
-                + "<br />To avoid border effect, each microchannel image is mirrored on the x-axis and the whole image is also mirrored on the x-axis"
-                + "<br />Allows homogeneous background subtraction on the whole track, effective to remove border effect on some phase-contrast image of microchannels";
+        return "Subtracts background on a whole microchannel track at once. "
+                + "<br />Builds an image with all microchannel images pasted head to tail. "
+                + "<br />To avoid any border effects, each microchannel image is mirrored in the x-axis, as well as  the whole image"
+                + "<br />Allows homogeneous background subtraction on the whole track";
     }
     @Override
     public String getSimpleHintText() {
-        return "Subtract background adapted to microchannel track";
+        return "Subtract-background algorithm adapted to microchannel track";
     }
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {

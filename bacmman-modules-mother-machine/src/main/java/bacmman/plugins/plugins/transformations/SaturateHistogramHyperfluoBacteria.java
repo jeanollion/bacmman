@@ -38,8 +38,8 @@ import java.util.Arrays;
  * @author Jean Ollion
  */
 public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransformation, Hint {
-    NumberParameter maxSignalProportion = new BoundedNumberParameter("Maximum Saturated Signal Amount Proportion", 5, 0.02, 0, 1).setHint("Condition on amount of signal for detection of hyperfluo. bacteria: <br />Total amount of foreground signal / amount of Hyperfluo signal &lt; this threshold");
-    NumberParameter minSignalRatio = new BoundedNumberParameter("Minimum Signal Ratio", 2, 10, 2, null).setHint("Condition on signal value for detection of hyperfluo. bacteria: <br />Mean Hyperfluo signal / Mean Foreground signal > this threshold");
+    NumberParameter maxSignalProportion = new BoundedNumberParameter("Maximum Saturated Signal Amount Proportion", 5, 0.02, 0, 1).setHint("Condition on amount of signal for detection of hyper-fluorescent bacteria: <br />Total amount of foreground signal / amount of hyper-fluorescent signal &lt; this threshold");
+    NumberParameter minSignalRatio = new BoundedNumberParameter("Minimum Signal Ratio", 2, 10, 2, null).setHint("Condition on signal value for detection of hyper-fluorescent bacteria: <br />Mean Hyper-fluorescent signal / Mean Foreground signal > this threshold");
     
     Parameter[] parameters = new Parameter[]{maxSignalProportion, minSignalRatio};
     double saturateValue= Double.NaN;
@@ -52,7 +52,7 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
     }
     @Override
     public String getHintText() {
-        return "Automatically detected presence of images containing very high signal compared to median signal, and saturates all images of the channel";
+        return "Automatically detects presence of bacteria with very high fluorescence expression, and saturates the images containing those bacteria (i.e. sets the pixels with values above an automatically computed threshold to the value of the threshold).";
     }
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {

@@ -21,13 +21,15 @@ package bacmman.plugins.plugins.pre_filters;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Hint;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.PreFilter;
 
 /**
  *
  * @author Jean Ollion
  */
-public class Invert implements PreFilter {
+public class Invert implements PreFilter, Hint, HintSimple {
 
     public Image runPreFilter(Image input, ImageMask mask) {
         input = input.duplicate("inverted");
@@ -38,5 +40,14 @@ public class Invert implements PreFilter {
     public Parameter[] getParameters() {
         return new Parameter[0];
     }
-    
+    public static String hintSimple = "Creates a reversed image, similar to a photographic negative.";
+    @Override
+    public String getHintText() {
+        return hintSimple + "<br /><ul><li>For 16-bit and 32-bit images, performs: I -> max(I) - I</li><li>For 8-bit images, performs: I -> 255 - I</li></ul>";
+    }
+
+    @Override
+    public String getSimpleHintText() {
+        return hintSimple;
+    }
 }

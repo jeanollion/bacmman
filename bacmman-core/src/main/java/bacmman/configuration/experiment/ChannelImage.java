@@ -43,7 +43,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         } else return true;
     };
     TextParameter importKeyWord = new TextParameter("Channel keyword", "", true).addValidationFunction(kwValid).setHint("Keyword allowing to distinguish the file containing channel during image import, when dataset is composed of several files per position. <br />"
-            + "For a given position, the name of the file containing the channel image must contain this keyword and all the files from the same position must differ only by this keyword (and eventually by frame number if each frame is in a separate file). "
+            + "For a given position, the name of the file containing the detection channel must contain this keyword and all the files from the same position must differ only by this keyword (and eventually by frame number if each frame is in a separate file). "
             + "<br />First channel must have a non-null keyword is import method is <em>"+ONE_FILE_PER_CHANNEL_POSITION.getMethod()+"</em> and that there are several channels. "
             + "<br />All keywords should be distinct.");
     

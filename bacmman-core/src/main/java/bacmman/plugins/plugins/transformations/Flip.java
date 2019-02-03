@@ -41,7 +41,7 @@ public class Flip implements MultichannelTransformation, Hint {
     }
     @Override
     public String getHintText() {
-        return "Filp all images along a user-defined axis";
+        return "Flip all images along a user-defined axis";
     }
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {

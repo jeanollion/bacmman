@@ -115,7 +115,7 @@ public class SimpleCrop implements MultichannelTransformation, Hint {
 
     @Override
     public String getHintText() {
-        return "Crop All preprocessed image within a constant bounding box.";
+        return "Crop All preprocessed images within a constant bounding box.";
     }
 
     

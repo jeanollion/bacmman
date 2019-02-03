@@ -93,7 +93,7 @@ public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
 
     @Override
     public String getHintText() {
-        return "Non local means denosing<br /> " +
+        return "Non local means denoising<br /> " +
                 "To use this plugin, activate the update site: <em>biomedgroup</em><br />"+
                 "<a href='https://imagej.net/Non_Local_Means_Denoise'>https://imagej.net/Non_Local_Means_Denoise</a><br />" +
                 "Method: Antoni Buades, Bartomeu Coll, and Jean-Michel Morel, Non-Local Means Denoising, Image Processing On Line, vol. 2011.<br />" +

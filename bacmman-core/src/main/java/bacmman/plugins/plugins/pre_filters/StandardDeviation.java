@@ -80,6 +80,6 @@ public class StandardDeviation implements PreFilter, Filter, Hint {
     }
     @Override
     public String getHintText() {
-        return "Computes the local Standard Deviation of the image within an Elipsoidal neighborhood defined in the <em>Radius</em> parameter. Optionally a performs a median filtering before in order to reduce noise";
+        return "Computes the local Standard Deviation of the image within an Ellipsoidal neighborhood defined by the <em>Radius</em> parameter. Optionally it can perform a median filtering before, in order to reduce noise";
     }
 }

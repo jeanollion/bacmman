@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.plugins.Hint;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
@@ -40,10 +41,10 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class SelectBestFocusPlane implements ConfigurableTransformation, Autofocus {
+public class SelectBestFocusPlane implements ConfigurableTransformation, Autofocus, Hint {
     ArrayList<Integer> bestFocusPlaneIdxT = new ArrayList<Integer>();
     NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 0, 3, 1, 10);
-    PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(2.5, 3, 3), true); //new ConstantValue(150)    Parameter[] parameters = new Parameter[]{gradientScale};
+    PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(2.5, 3, 3), true).setHint("Gradient magnitude maximization is performed among pixels with value over this threshold"); //new ConstantValue(150)    Parameter[] parameters = new Parameter[]{gradientScale};
     Parameter[] parameters = new Parameter[]{gradientScale, signalExclusionThreshold};
     public SelectBestFocusPlane() {}
     public SelectBestFocusPlane(double gradientScale) {
@@ -126,4 +127,8 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
         return bestFocusPlaneIdxT !=null && bestFocusPlaneIdxT.size() == totalTimePointNumber;
     }
 
+    @Override
+    public String getHintText() {
+        return "Selects the plane with best focus among planes of a 3D-stack, by maximizing gradient magnitude";
+    }
 }

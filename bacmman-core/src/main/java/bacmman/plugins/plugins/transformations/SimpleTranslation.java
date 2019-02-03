@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Image;
 import bacmman.image.TypeConverter;
+import bacmman.plugins.Hint;
 import bacmman.processing.ImageTransformation;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.utils.Utils;
@@ -31,7 +32,7 @@ import bacmman.utils.Utils;
  *
  * @author Jean Ollion
  */
-public class SimpleTranslation implements MultichannelTransformation {
+public class SimpleTranslation implements MultichannelTransformation, Hint {
     NumberParameter X = new NumberParameter("dX", 3, 0);
     NumberParameter Y = new NumberParameter("dY", 3, 0);
     NumberParameter Z = new NumberParameter("dZ", 3, 0);
@@ -63,5 +64,10 @@ public class SimpleTranslation implements MultichannelTransformation {
     @Override
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
         return OUTPUT_SELECTION_MODE.MULTIPLE;
+    }
+
+    @Override
+    public String getHintText() {
+        return "Translate one or several detection channel by a constant user-defined vector";
     }
 }
