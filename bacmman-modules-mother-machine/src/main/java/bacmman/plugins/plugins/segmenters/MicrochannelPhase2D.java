@@ -22,12 +22,9 @@ import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.plugins.Hint;
+import bacmman.plugins.*;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
-import bacmman.plugins.MicrochannelSegmenter;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
@@ -54,7 +51,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProcessingPlugin, Hint, TrackConfigurable<MicrochannelPhase2D> {
+public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProcessingPlugin, Hint, HintSimple, TrackConfigurable<MicrochannelPhase2D> {
 
     
     public enum X_DER_METHOD {CONSTANT, RELATIVE_TO_INTENSITY_RANGE}
@@ -73,21 +70,33 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     public final static double PEAK_RELATIVE_THLD = 0.6;
     public static boolean debug = false;
     public static int debugIdx = -1;
-    protected String toolTip = "<b>Microchannel Segmentation in phase-contrast images:</b>"
-            + "This algorithm requires that microchannels are aligned along Y-axis, with the closed end on the top side, and that no bright line or other structure are visible"
-            + "Main steps:"
+    protected static String simpleToolTip = "<b>Microchannel Segmentation in phase-contrast images:</b>"
+            + "This algorithm requires that microchannels are aligned along Y-axis, with the closed end on the top side, and that no bright line or other structure are visible";
+    protected static String toolTip =
+            "<br />Main steps:"
             + "<ol><li>Search for global closed-end y-coordinate of Microchannels: global maximum of the projection of the first-order y-derivative along the Y-axis</li>"
             + "<li>Search of x-positions of microchannel sides:  using projection of the first-order x-derivative along X-axis: <br />"
             + "Positive and negative peaks that verify the criterion defined in the <em>X-Derivative Threshold Method</em> parameter are detected <br />"
             + "Among those peaks, those that are separated by a distance as close as possible to a typical width and within a range defined in the <em>Microchannel Width</em> parameter are selected and considered as the sides of the microchannels</li>"
-            + "<li>Adjust yStart for each channel: first local max of d/dy image in the range [yEnd-  AdjustWindow ; yEnd+ AdjustWindow]</li></ol>"
-            + "<br /> <em>Test mode</em>: after run the Test command, select one viewfield or one segmented microchannel (set the <em>interactive objects</em> from <em>Data Browsing</em> tab), and right click on the image to display intermediate images"
+            + "<li>The y-coordinate of each microchannel is then adjusted to the first local maximum of the 1srt-order y-derivative in a window defined by the parameter <em>AdjustWindow</em></li></ol>"
+            + "<br /> <em>Test mode</em>: after running the Test command, select one viewfield or one segmented microchannel (set the <em>interactive objects</em> from <em>Data Browsing</em> tab), and right click on the image to display intermediate images"
             + "<br />List of displayed graphs:"
             + "<ul><li><em>Closed-end detection image</em>: image used to detect closed-end of microchannels (first-order y-derivative)</li>"
             + "<li><em>Closed-end detection graph</em>: mean intensity profile of the <em>Closed-end detection image</em> used  to detect closed-end of microchannels. The peak of maximal intensity should correspond to the closed end. If not, adjust the pre-processing (cropping step) so that no other structure disturbing the detection is visible </li>"
             + "<li><em>Side detection graph</em>: Mean intensity profile of the <em>Side detection image</em> used for detection of microchannel sides<br />Refer to <em>X-Derivative Threshold Method</em> and <em>Microchannel Width</em> parameters</li>"
-            + "<li><em>Side detection image</em>: Image used for detection of microchannel sides (corresponding to a 1st-order derivate in the X-axis). In this image the bright line is removed. </li>"
+            + "<li><em>Side detection image</em>: Image used for detection of microchannel sides (corresponding to a 1st-order x-derivative).</li>"
             + "</ul>" ;
+
+
+    // tooltip interface
+    @Override
+    public String getHintText() {
+        return simpleToolTip+toolTip;
+    }
+    @Override
+    public String getSimpleHintText() {
+        return simpleToolTip;
+    }
 
     public MicrochannelPhase2D() {}
 
@@ -321,10 +330,6 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
         }
         return -1;
     }
-    // tooltip interface
-    @Override
-    public String getHintText() {
-        return toolTip;
-    }
+
     
 }

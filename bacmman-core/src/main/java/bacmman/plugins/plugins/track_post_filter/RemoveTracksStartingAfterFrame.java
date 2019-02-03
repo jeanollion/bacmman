@@ -44,7 +44,7 @@ public class RemoveTracksStartingAfterFrame implements TrackPostFilter, Hint {
     
     @Override
     public String getHintText() {
-        return "Remove tracks that start after a user-defined frame";
+        return "Removes tracks starting after a user-defined frame";
     }
     
     public RemoveTracksStartingAfterFrame() {}

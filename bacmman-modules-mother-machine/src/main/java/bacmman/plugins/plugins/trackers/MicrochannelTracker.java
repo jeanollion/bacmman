@@ -19,11 +19,8 @@
 package bacmman.plugins.plugins.trackers;
 
 import bacmman.data_structure.*;
-import bacmman.plugins.Hint;
+import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
-import bacmman.plugins.MicrochannelSegmenter;
-import bacmman.plugins.TrackConfigurable;
-import bacmman.plugins.TrackerSegmenter;
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.ConditionalParameter;
@@ -60,16 +57,16 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class MicrochannelTracker implements TrackerSegmenter, Hint {
+public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     protected PluginParameter<MicrochannelSegmenter> segmenter = new PluginParameter<>("Segmentation algorithm", MicrochannelSegmenter.class, new MicrochannelPhase2D(), false).setEmphasized(true);
     NumberParameter maxShiftGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 0, 100, 1, null).setHint("<html>Maximal Distance (in pixels) used for for the gap-closing step<br /> Increase the value to take into account XY-shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels</html>");
     NumberParameter maxDistanceFTFWidthFactor = new BoundedNumberParameter("Maximal Distance Factor for Frame-to-Frame Tracking", 1, 1, 0, null).setHint("<html>The distance threshold for Frame-to-Frame tracking procedure will be this value multiplied by the mean width of microchannels.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into acound XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels</html>");
-    NumberParameter yShiftQuantile = new BoundedNumberParameter("Y-shift Quantile", 2, 0.5, 0, 1).setHint("After Tracking, microchannel region relative y-shift (compared to the base line) are standardized per-track, for each track: the y-shift is replaced by the quantile of all y-shift");
-    NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel width  are standardized per-track, for each track: the with of every object is replaced by the quantile of all width");;
+    NumberParameter yShiftQuantile = new BoundedNumberParameter("Y-shift Quantile", 2, 0.5, 0, 1).setHint("After Tracking, microchannel region relative y-shift (compared to the base line) are normalized per-track, for each track: the y-shift is replaced by the quantile of all y-shift");
+    NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel width  are normalized per-track, for each track: the with of every object is replaced by the quantile of all width");;
     BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", true).setHint("If a frame contains no microchannels (tipically when focus is lost), allow to connect microchannels track prior to the gap with thoses after the gap. This will result in microchannel tracks containing gaps. If false tracks will be disconnected");
-    BooleanParameter normalizeWidths = new BooleanParameter("Normalize Widths", false);
+    BooleanParameter normalizeWidths = new BooleanParameter("Normalize Widths", false).setHint("If set to <em>true</em>, width of segmented microchannels will be normalized for the whole track");
     ConditionalParameter widthCond = new ConditionalParameter(normalizeWidths).setActionParameters("true", new Parameter[]{widthQuantile});
-    BooleanParameter normalizeYshift = new BooleanParameter("Normalize Y-shifts", false);
+    BooleanParameter normalizeYshift = new BooleanParameter("Normalize Y-shifts", false).setHint("<em>y-shift</em> refers to the difference between the y-coordinate of the closed-end of a microchannel and the mean y-coordinate of the closed-end of all microchannels.<br />If set to <em>true</em>, the y-shift of segmented microchannels will be normalized for the whole track");;
     ConditionalParameter shiftCond = new ConditionalParameter(normalizeYshift).setActionParameters("true", new Parameter[]{yShiftQuantile});
     Parameter[] parameters = new Parameter[]{segmenter, maxShiftGC, maxDistanceFTFWidthFactor, shiftCond, widthCond, allowGaps};
     public static boolean debug = false;
@@ -83,11 +80,22 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint {
             + "<p><em>Gap-filling procedure:</em>"
             + "<ul><li>If a track contains a gap, tries to fill it by creating microchannels with the same dimensions as microchannels before and after the gap, and the same relative position to another reference track that exists throughout the gap</li>"
             + "<li>If no reference exist throughout the gap, ie when there are frames that contain no microchannel (typically occurs when focus is lost), gap cannot be filled, in this case if <em>Allow Gaps</em> is set to false, tracks will be disconnected</li></ul></p>"
-            + "<p><em>Track-wise standardization of microchannel regions:</em>"
-            + "<ul><li>Standardization of Y-shift (relative to base line). See <em>Y-shift Quantile</em> parameter</li>"
-            + "<li>Standardization of width. See <em>With Quantile</em> parameter </li></ul></p>"
-            + "<br />Based on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
-    
+            + "<p><em>Track-wise normalization of microchannel regions:</em>"
+            + "<ul><li>Normalization of Y-shift (relative to base line). See <em>Y-shift Quantile</em> parameter</li>"
+            + "<li>Normalization of width. See <em>With Quantile</em> parameter </li></ul></p>"
+            + "<br />Linking procedures are using on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
+
+    // tool tip interface
+    @Override
+    public String getHintText() {
+        return toolTip;
+    }
+
+    @Override
+    public String getSimpleHintText() {
+        return "Algorithm for tracking microchannels";
+    }
+
     public MicrochannelTracker setSegmenter(MicrochannelSegmenter s) {
         this.segmenter.setPlugin(s);
         return this;
@@ -455,11 +463,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint {
         return parameters;
     }
     
-    // tool tip interface
-    @Override
-    public String getHintText() {
-        return toolTip;
-    }
+
     
     
 }

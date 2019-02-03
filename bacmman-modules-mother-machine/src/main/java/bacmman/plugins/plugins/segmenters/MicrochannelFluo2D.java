@@ -27,13 +27,13 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
+import bacmman.plugins.*;
+import bacmman.plugins.SimpleThresholder;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
-import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.utils.Utils;
-import bacmman.plugins.MicrochannelSegmenter;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
@@ -43,25 +43,20 @@ import bacmman.image.ImageLabeller;
 
 import java.util.*;
 
-import bacmman.plugins.Plugin;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.Hint;
-
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import bacmman.plugins.TrackConfigurable;
 
 /**
  *
  * @author Jean Ollion
  */
-public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigurable<MicrochannelFluo2D>, Hint, TestableProcessingPlugin {
+public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigurable<MicrochannelFluo2D>, Hint, HintSimple, TestableProcessingPlugin {
     
-    NumberParameter channelLength = new BoundedNumberParameter("Microchannel Length", 0, 320, 5, null).setHint("Length of microchannels, in pixels. This parameter will determine the length of segmented microchannels along the y-axis");
-    NumberParameter channelWidth = new BoundedNumberParameter("Microchannel Width", 0, 60, 5, null).setHint("Width of microchannels in pixels");
+    NumberParameter channelLength = new BoundedNumberParameter("Microchannel Length", 0, 320, 5, null).setEmphasized(true).setHint("Length of microchannels, in pixels. This parameter will determine the length of segmented microchannels along the y-axis");
+    NumberParameter channelWidth = new BoundedNumberParameter("Microchannel Width", 0, 60, 5, null).setEmphasized(true).setHint("Width of microchannels in pixels. This parameter will determine the width of segmented microchannels");
     NumberParameter yShift = new BoundedNumberParameter("y-Start Shift", 0, 20, 0, null).setHint("Y-coordinate of the closed-end of microchannels will be translated of this value (in pixels) towards upper direction");
     public final static  String THLD_TOOL_TIP = "Threshold to segment bacteria. <br />Configuration hint: result of segmentation is the image <em>Thresholded Bacteria</em> displayed in test mode. Method should be chosen so that most bacteria and not background are detected. <br />If background pixels are segmented and background intensity is non-uniform, a background correction operation (such as <em>NonLocalMeansDenoising</em>) should be added at a previous step";
-    PluginParameter<SimpleThresholder> threshold= new PluginParameter<>("Threshold", SimpleThresholder.class, new BackgroundFit(10), false).setEmphasized(true).setHint(THLD_TOOL_TIP); //new BackgroundThresholder(3, 6, 3) when background is removed and images saved in 16b, half of background is trimmed -> higher values
+    PluginParameter<SimpleThresholder> threshold= new PluginParameter<>("Threshold", SimpleThresholder.class, new BackgroundFit(10), false).setHint(THLD_TOOL_TIP); //new BackgroundThresholder(3, 6, 3) when background is removed and images saved in 16b, half of background is trimmed -> higher values
     public final static  String FILL_TOOL_TIP = "If the ratio  <em>length of bacteria / length of microchannel</em> is smaller than this value, the object won't be segmented. This procedure allows avoiding segmenting isolated bacteria in the main channel.<br /> Configuration Hint: Refer to plot <em>Microchannel Fill proportion</em> displayed in test mode: peaks over the filling proportion value are segmented. Decrease the value to include lower peaks";
     NumberParameter fillingProportion = new BoundedNumberParameter("Microchannel filling proportion", 2, 0.3, 0.05, 1).setHint(FILL_TOOL_TIP);
     public final static String SIZE_TOOL_TIP = "After cell segmentation step (see help of the module, step 1), objects whose size in pixels is smaller than <em>Object Size Filter</em> are removed.<br />Configuration Hint: Refer to the <em>Thresholded Bacteria</em> image displayed in test mode in order to estimate the size of bacteria";
@@ -71,6 +66,22 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public static final String TOOL_TIP = "<ol><li>A rough segmentation of the cells is performed, using the <em>Threshold</em> parameter computed on all frames</li>"
     + "<li>Empty microchannels are discarded: the microchannel is discarded if the length of the segmented objects at step 1 (in X-direction) is smaller than the product of two user-defined parameters : <em>Microchannel Length</em> x <em>Microchannel Filling proportion</em></li>"
     + "<li>The y-coordinate of all microchannels closed-end (Y start) is computed, as the minimum value of y-coordinates of all the microchannels selected at step 2.</li></ol>";
+
+    // hint interface
+    private static String simpleHint = "<b>Detection of microchannel using bacteria fluorescence</b><br />";
+    private static String dispImageSimple = "Displayed images in test mode:" +
+            "<ul><li><em>Thresholded Bacteria</em>: Rough segmentation of bacteria by simple thresholding. No other structures than bacteria should be segmented. See <em>Threshold</em> parameter available in advanced mode for details</li>";
+    private static String dispImageAdvanced = "<li><em>Microchannel Fill proportion</em>: Plot representing the proportion of filled length of detected microchannels, available upon right-click on an image with a selected object (microchannel or viewfield). See module description and help for parameter <em>Filling proportion of Microchannel</em></li></ul>";
+    @Override
+    public String getHintText() {
+        return simpleHint + TOOL_TIP+dispImageSimple+dispImageAdvanced;
+    }
+
+    @Override
+    public String getSimpleHintText() {
+        return simpleHint + dispImageSimple+"</ul>";
+    }
+
     public MicrochannelFluo2D() {}
     public MicrochannelFluo2D(int channelHeight, int channelWidth, int yMargin, double fillingProportion, int minObjectSize) {
         this.channelLength.setValue(channelHeight);
@@ -152,7 +163,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         ImageOperations.affineOperation(imProjX, imProjX, (double) (image.sizeY() * image.sizeZ()) / channelLength, 0);
         ImageByte projXThlded = ImageOperations.threshold(imProjX, fillingProportion, true, false);
         if (imageTestDisplayer!=null) imageTestDisplayer.accept(mask.setName("Thresholded Bacteria"));
-        if (miscDataDisplayer!=null) miscDataDisplayer.accept("Display Microchanenl Fill proportion", l -> Utils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
+        if (miscDataDisplayer!=null) miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> Utils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
         
         List<Region> xObjectList = ImageLabeller.labelImageList(projXThlded);
         if (xObjectList.isEmpty()) {
@@ -239,9 +250,5 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         return new Result(sortedMinMaxYShiftList, yMin-shift, yMin + channelLength - 1);
     }
 
-    @Override
-    public String getHintText() {
-        return "<b>Detection of microchannel using bacteria fluorescence:</b>" + TOOL_TIP;
-    }
 
 }
