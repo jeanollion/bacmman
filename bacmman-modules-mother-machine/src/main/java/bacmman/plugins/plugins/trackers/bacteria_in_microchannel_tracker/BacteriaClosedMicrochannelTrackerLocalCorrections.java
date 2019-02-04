@@ -67,9 +67,12 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     Parameter[] parameters = new Parameter[]{segmenter, sizeFeature, sizeRatio, costLimit, cumCostLimit, endOfChannelContactThreshold};
 
     // tooltip interface
-    static String simpleTT = "<b>Tracker for bacteria in closed-end microchannels</b>";
-    static String toolTip = "<ul><li>Tracking is done only using rank and growth rate information (no localization within microchannel), and is thus adapted to moving cells, but detects poorly cell death</li>"
-            + "<li>Assignment is done rank-wise between two successive frames starting from the cells located towards the closed-end of microchannel</li>"
+    static String simpleTT = "<b>Tracker for bacteria located in closed-end microchannels</b><br />Computes bacteria lineage";
+    static String toolTip = " by taking into account the information of bacteria size and of their rank within microchannels<br />" +
+            "This algorithm is not sensitive to cell motion, but is not able to take into account cell lysis.<br />" +
+            "This algorithm is able to correct segmentation errors locally when there are not too numerous. Refer to the parameters <em>Correction: operation cost limit</em> and <em>Correction: cumulative cost limit</em>";
+    static String toolTipDetails = "<ul><li>Tracking is done only using rank and growth rate information (no localization within microchannel), and is thus adapted to moving cells, but detects poorly cell death</li>"
+            + "<li>Assignment is performed rank-wise between two successive frames starting from the cells located towards the closed-end of microchannel</li>"
             + "<li>First assignment is the minimal that verify the growth inequality: given Sf = sum(size)@Frame=F Sf-1 = sum(size)@Frame=F-1 : Sf-1 * minGrowthRate <= Sf <= Sf-1 * maxGrowthRate </li>"
             + "<li>In order to take into account a wide range of growth rate, when possible the size ratio between Frames F & F-1 is compared to the median size ratio of the 20 last observations of the same line, and the difference is minimized</li>"
             + "<li>In order to take into account cells exiting microchannels no errors are counted to assignment of cells close to the microchannel open-end</li>"

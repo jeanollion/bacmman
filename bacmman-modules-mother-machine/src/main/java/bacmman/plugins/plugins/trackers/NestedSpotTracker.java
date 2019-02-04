@@ -19,14 +19,12 @@
 package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.*;
-import bacmman.plugins.Hint;
+import bacmman.plugins.*;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
 import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
 import bacmman.measurement.MeasurementExtractor;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.TrackerSegmenter;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
@@ -59,12 +57,12 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPlugin, Hint {
+public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPlugin, HintSimple {
     private static final String CONF_HINT = "<br />Configuration hint: to display distance between two spots, select the two spots on test images and choose <em>Display Spine</em> from right-click menu. Distance will be logged in the console and projection of source spot to destination bacteria displayed";
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false).setEmphasized(true);
     ObjectClassParameter compartmentStructure = new ObjectClassParameter("Compartment Structure", -1, false, false).setEmphasized(true).setHint("Object class for bacteria (containing spots to be segmented).");
-    NumberParameter spotQualityThreshold = new NumberParameter<>("Spot Quality Threshold", 3, 3.5).setEmphasized(true).setHint("Spot with quality parameter over this threshold are considered as high quality spots, others as low quality spots");
-    NumberParameter maxGap = new BoundedNumberParameter("Maximum frame gap", 0, 1, 0, null).setEmphasized(true).setHint("Maximum frame gap for spot linking: if two spots are separated by more frame than this value they cannot be linked together directly");
+    NumberParameter spotQualityThreshold = new NumberParameter<>("Spot Quality Threshold", 3, 3.5).setEmphasized(true).setHint("Spot with quality parameter over this threshold are considered as high quality spots (HQ), others as low quality spots (LQ).<br />LQ that cannot be linked to HQ spots are removed");
+    NumberParameter maxGap = new BoundedNumberParameter("Maximum frame gap", 0, 1, 0, null).setEmphasized(true).setHint("Maximum frame gap for spot linking: if two spots are separated by a gap with more frames than this value they cannot be linked together directly");
     NumberParameter maxLinkingDistance = new BoundedNumberParameter("Maximum Linking Distance (FTF)", 2, 0.4, 0, null).setHint("Maximum linking distance for frame-to-frame linking, in unit (microns). If two spots are separated by a distance superior to this value, they cannot be linked together."+CONF_HINT);
     NumberParameter maxLinkingDistanceGC = new BoundedNumberParameter("Maximum Linking Distance", 2, 0.75, 0, null).setHint("Maximum linking distance for the gap-closing linking, in unit (microns). If two spots are separated by a distance superior to this value, they cannot be linked together. An additional cost proportional to the gap is added to the distance between spots (see <em>gap penalty</em>"+CONF_HINT);
     NumberParameter gapPenalty = new BoundedNumberParameter("Gap Distance Penalty", 2, 0.15, 0, null).setHint("When two spots are separated by a gap, an additional distance is added to their distance: this value x number of frame of the gap");
@@ -73,14 +71,29 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     BooleanParameter allowSplitting = new BooleanParameter("Allow splitting", false).setHint("If set to <em>true</em>, a spot can be link to two other spots observed afterwards");
     BooleanParameter allowMerging = new BooleanParameter("Allow merging", false).setHint("If set to <em>true</em>, two spots can be link to the same spot observed afterwards");
     Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, spotQualityThreshold, allowSplitting, allowMerging};
-    String toolTip = "<b>Tracker for spots moving within bacteria</b><br />"
+
+    static String toolTipSimple = "<b>Tracker for spots moving within bacteria</b><br />" +
+            "Algorithm allowing tracking of spots located within bacteria, by correcting for bacteria motion and growth";
+    static String toolTip = "<br />";
+    static String toolTipAlgo = "<b>Tracker for spots moving within bacteria</b><br />"
             + "<ul><li>Distance between spots is computed using spine coordinates in order to take into account bacteria growth and movements</li>"
             + "<li>Bacteria lineage is honoured: two spots can only be linked if they are contained in bacteria from the same track or connected tracks (after division events)</li>"
             + "<li>If segmentation and tracking are performed jointly, a first step of removal of low-quality (LQ) spots (spot that can be either false-negative or true-positive) will be applied: only LQ spots that can be linked (directly or indirectly) to high-quality (HQ) spots (ie spots that are true-positives) are kept, allowing a better selection of true-positives spots of low intensity. HQ/LQ definition depends on the parameter <em>Spot Quality Threshold</em> and depends on the quality parameter defined by the segmenter</li>"
-            + "<li>linking procedure frame-to-frame then - allowing gaps (if <em>Maximum frame gap</em> is superior to 0) - is applied among remaining spots</li></ul>"
-            + "<br />Linking is based on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
-    // multithreaded interface
-        
+            + "<li>linking procedure frame-to-frame then - allowing gaps (if <em>Maximum frame gap</em> is superior to 0) - is applied among remaining spots</li></ul>";
+
+    static String aknwoledge = "<br />Linking is based on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
+
+    @Override
+    public String getSimpleHintText() {
+        return toolTipSimple+aknwoledge;
+    }
+
+    //@Override
+    /*public String getHintText() {
+        return toolTipSimple + toolTip+aknwoledge;
+    }*/
+
+
     public NestedSpotTracker setCompartimentStructure(int compartimentStructureIdx) {
         this.compartmentStructure.setSelectedClassIdx(compartimentStructureIdx);
         return this;
@@ -250,12 +263,16 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         
         long t3 = System.currentTimeMillis();
         
-        // relabel
-        for (SegmentedObject p: parentTrack) {
-            Collections.sort(factory.getChildren(p), ObjectIdxTracker.getComparator(ObjectIdxTracker.IndexingOrder.YXZ));
-            factory.relabelChildren(p);
+        if (factory!=null) {
+            // relabel
+            for (SegmentedObject p : parentTrack) {
+                List<SegmentedObject> children = factory.getChildren(p);
+                if (children != null) {
+                    Collections.sort(children, ObjectIdxTracker.getComparator(ObjectIdxTracker.IndexingOrder.YXZ));
+                    factory.relabelChildren(p);
+                }
+            }
         }
-
         logger.debug("Mutation Tracker: {}, total processing time: {}, create spots: {}, remove LQ: {}, link: {}", parentTrack.get(0), t3-t0, t1-t0, t2-t1, t3-t2);
         
         // DISPLAY SPINE ON TEST IMAGE THROUGH RIGHT-CLICK
@@ -265,12 +282,12 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                     Collections.sort(l);
                     SegmentedObject b1 = mutationMapParentBacteria.get(l.get(0).getRegion());
                     if (b1==null) {
-                        logger.info("parent bacteria not found for mutation: "+l.get(0));
+                        Core.userLog("parent bacteria not found for mutation: "+l.get(0));
                         return;
                     }
                     BacteriaSpineLocalizer bsl1 = localizerMap.get(b1);
                     if (bsl1==null) {
-                        logger.info("bacteria spine localizer not computable for bacteria: "+b1);
+                        Core.userLog("bacteria spine localizer not computable for bacteria: " + b1);
                         return;
                     }
                     bsl1.setTestMode(true);
@@ -280,13 +297,13 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                     logger.info("spot: {} center: {} bact coords: {} (other : {})", l.get(0), l.get(0).getRegion().getCenter().duplicate().translateRev(l.get(0).getBounds()), bsl1.getSpineCoord(l.get(0).getRegion().getCenter()));
                     SegmentedObject b2 = mutationMapParentBacteria.get(l.get(1).getRegion());
                     if (b2==null) {
-                        logger.info("parent bacteria not found for mutation: "+l.get(1));
+                        Core.userLog("parent bacteria not found for mutation: "+l.get(1));
                         return;
                     }
                     BacteriaSpineLocalizer bsl2 = localizerMap.get(b2);
                     bsl2.setTestMode(true);
                     if (bsl2==null) {
-                        logger.info("bacteria spine localizer not computable for bacteria: "+b2);
+                        Core.userLog("bacteria spine localizer not computable for bacteria: "+b2);
                         return;
                     }
                     
@@ -323,9 +340,8 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                     
                     // log distance
                     if (proj!=null) {
-                        
                         double nDist =  Math.sqrt(s1.squareDistanceTo(s2));
-                        //Core.userLog("Distance "+l.get(0)+"->"+l.get(1)+"="+proj.dist(l.get(1).getRegion().getCenter())*l.get(0).getScaleXY()+"µm"+ " (with corrections: "+nDist+"µm)");
+                        Core.userLog("Distance "+l.get(0)+"->"+l.get(1)+"="+proj.dist(l.get(1).getRegion().getCenter())*l.get(0).getScaleXY()+"µm"+ " (with corrections: "+nDist+"µm)");
                         logger.info("Distance {} -> {} = {} µm. Nested Spot distance: {}", l.get(0), l.get(1), proj.dist(l.get(1).getRegion().getCenter())*l.get(0).getScaleXY(),nDist);
                         if (Double.isInfinite(nDist)) {
                             logger.debug("2 LQ: {}", !distParams.includeLQ && (s1.isLowQuality() || s2.isLowQuality()));
@@ -333,7 +349,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                             
                         }
                     } else {
-                        //Core.userLog("Point could not be projected");
+                        Core.userLog("Point could not be projected");
                         logger.info("Point could not be projected");
                     }
                     
@@ -517,10 +533,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     }
     
 
-    @Override
-    public String getHintText() {
-        return toolTip;
-    }
+
 
     // testable
     Map<SegmentedObject, TestDataStore> stores;
