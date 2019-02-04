@@ -59,18 +59,15 @@ public class NumberParameterUI implements ParameterUI {
                 sliderCoeff = Math.pow(10, parameter.getDecimalPlaceNumber());
                 slider = new JSlider((int)(lowerBound.doubleValue()*sliderCoeff), getSliderValue(upperBound), getSliderValue(upperBound));
                 if (parameter.getValue()!=null) slider.setValue(getSliderValue(parameter.getValue()));
-                slider.addChangeListener(new ChangeListener() {
-                    @Override
-                    public void stateChanged(ChangeEvent e) {
-                        //if (slider.getValueIsAdjusting()) return;
-                        if (editing) return;
-                        double d = (slider.getValue()+0.0)/sliderCoeff;
-                        number.setNumber(d);
-                        if (parameter.getValue().doubleValue()!=d) {
-                            parameter.setValue(d);
-                        }
-                        updateNode();
+                slider.addChangeListener(e -> {
+                    //if (slider.getValueIsAdjusting()) return;
+                    if (editing) return;
+                    double d = (slider.getValue()+0.0)/sliderCoeff;
+                    number.setNumber(d);
+                    if (parameter.getValue().doubleValue()!=d) {
+                        parameter.setValue(d);
                     }
+                    updateNode();
                 });
             }
         }
@@ -129,7 +126,7 @@ public class NumberParameterUI implements ParameterUI {
         }
         editing = false;
         if (modif) {
-            number.setPreferredSize(new Dimension(Math.max(componentMinWith, number.getText().length() * 9), number.getPreferredSize().height)); 
+            number.setPreferredSize(new Dimension(Math.max(componentMinWith, number.getText().length() * 10), number.getPreferredSize().height));
             updateNode();
             //parameter.fireListeners(); // fired when set value
         }

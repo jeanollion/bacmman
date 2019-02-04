@@ -79,7 +79,7 @@ import bacmman.plugins.TrackConfigurable;
  */
 public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint {
     public static boolean debug = false;
-    ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setEmphasized(true).setHint("Scale for lapalcian transform. <br />Configuration hint: <em>Laplacian</em> image");
+    ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setEmphasized(true).setHint("Scale for Laplacian transform. <br />Configuration hint: <em>Laplacian</em> image");
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: <em>smooth & scaled</em> image");
     NumberParameter minSpotSize = new BoundedNumberParameter("Min. Spot Size", 0, 5, 1, null).setHint("Spots under this size (in voxel number) will be removed");
     NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian Threshold for seed selection.<br />Higher values tend increase false negative and decrease false positives.<br /> Configuration hint: corresponds to values in <em>Laplacian</em> image"); // was 2.25
@@ -90,12 +90,12 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     ProcessingVariables pv = new ProcessingVariables();
     protected String toolTip = "<b>Spot Detection</b>. <br /> "
             + "<ul><li>Input image is scaled by removing the mean value and dividing by the standard-deviation value of the background signal within the segmentation parent</li>"
-            + "<li>Spots are detected using a seeded watershed algorithm in the laplacian transform.</li> "
-            + "<li>Seeds are set on regional maxima of the laplacian transform, within the mask of the segmentation parent, with laplacian value superior to <em>Seed Threshold</em> and gaussian value superior to <em>Seed Threshold</em></li>"
-            + "<li>If several scales are provided, the laplacian scale space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
-            + "<li>Watershed propagation is done within the segmentation parent mask until laplacian values reach <em>Propagation Threshold</em></li>"
-            + "<li>A quality parameter defined as √(laplacian x gaussian) at the center of the spot is computed</li><ul>";
-    
+            + "<li>Spots are detected using a seeded watershed algorithm in the Laplacian transform.</li> "
+            + "<li>Seeds are set on regional maxima of the Laplacian transform, within the mask of the segmentation parent, with Laplacian value superior to <em>Seed Threshold</em> and gaussian value superior to <em>Seed Threshold</em></li>"
+            + "<li>If several scales are provided, the Laplacian scale space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
+            + "<li>Watershed propagation is done within the segmentation parent mask until Laplacian values reach <em>Propagation Threshold</em></li>"
+            + "<li>A quality parameter defined as √(Laplacian x gaussian) at the center of the spot is computed (used in <em>Nested Spot Tracker</em>)</li><ul>";
+
     public SpotSegmenter() {}
     
     public SpotSegmenter(double thresholdSeeds, double thresholdPropagation, double thresholdIntensity) {

@@ -37,8 +37,10 @@ public class PreFilterSequence extends PluginParameterList<PreFilter, PreFilterS
     
     public Image filter(Image input, ImageMask mask) {
         ImageProperties prop = input.getProperties();
+        boolean first = true;
         for (PreFilter p : get()) {
-            input = p.runPreFilter(input, mask);
+            input = p.runPreFilter(input, mask, !first);
+            first = false;
             //logger.debug("prefilter: {}", p.getClass().getSimpleName());
         }
         input.setCalibration(prop);

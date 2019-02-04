@@ -63,7 +63,7 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
                 boolean isEmphasized = ((Parameter) value).isEmphasized();
                 if (isEmphasized) ret.setFont(ret.getFont().deriveFont(Font.BOLD));
                 else ret.setFont(ret.getFont().deriveFont(Font.NORMAL));
-            }
+            } else ret.setFont(ret.getFont().deriveFont(Font.NORMAL));
         }
         
         return ret;

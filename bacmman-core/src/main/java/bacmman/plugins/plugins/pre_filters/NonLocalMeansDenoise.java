@@ -54,10 +54,11 @@ public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
     });
     Parameter[] parameters = new Parameter[]{autoEstimateCond};
     // TODO in Filter mode + autoestimate sigma -> configuration compute mean sigma on whole track
-    public Image runPreFilter(Image input, ImageMask mask) {
-        return run(input);
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+        return run(input, !canModifyImage);
     }
-    private Image run(Image input) {
+    private Image run(Image input, boolean duplicate) {
+        if (duplicate) input = input.duplicate();
         try {
             double smooth = this.smoothingFactor.getValue().doubleValue();
             List<Image> planes = input.splitZPlanes();
@@ -88,7 +89,7 @@ public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
 
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        return run(image);
+        return run(image, false);
     }
 
     @Override

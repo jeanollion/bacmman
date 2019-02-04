@@ -30,7 +30,6 @@ import bacmman.plugins.PostFilter;
  * @author Jean Ollion
  */
 public class PostFilterSequence extends PluginParameterList<PostFilter, PostFilterSequence> {
-    Boolean configured = false;
     
     public PostFilterSequence(String name) {
         super(name, "Post-Filter", PostFilter.class);
@@ -38,11 +37,6 @@ public class PostFilterSequence extends PluginParameterList<PostFilter, PostFilt
     
     public RegionPopulation filter(RegionPopulation objectPopulation, int objectClassIdx, SegmentedObject parent) {
         if (objectPopulation == null) return null;
-        if (!configured) {
-            synchronized(configured) {
-                if (!configured) ParameterUtils.configureStructureParameters(objectClassIdx, this);
-            }
-        }
         ImageProperties prop = new SimpleImageProperties(objectPopulation.getImageProperties());
         for (PostFilter p : this.get()) objectPopulation = p.runPostFilter(parent, objectClassIdx, objectPopulation);
         objectPopulation.setProperties(prop, true);

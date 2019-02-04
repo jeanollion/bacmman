@@ -7,10 +7,7 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.core.ProgressCallback;
-import bacmman.plugins.ImageProcessingPlugin;
-import bacmman.plugins.Plugin;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.Tracker;
+import bacmman.plugins.*;
 import bacmman.ui.PluginConfigurationUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import org.slf4j.Logger;
@@ -41,8 +38,22 @@ public class ParameterUIBinder {
                 Structure s = bacmman.configuration.parameters.ParameterUtils.getFirstParameterFromParents(Structure.class, pp, false);
                 if (s!=null) {
                     Plugin pl = pp.instanciatePlugin();
-                    if (pl instanceof Segmenter || pl instanceof Tracker) {
-                        List<JMenuItem> testCommands = PluginConfigurationUtils.getTestCommand((ImageProcessingPlugin)pl, ParameterUtils.getExperiment(pp), s.getIndex(), expertMode);
+                    boolean pf = pl instanceof PreFilter || pl instanceof TrackPreFilter;
+                    if (pl instanceof Segmenter || pl instanceof Tracker || pl instanceof PreFilter || pl instanceof TrackPreFilter || pl instanceof PostFilter || pl instanceof TrackPostFilter) { //
+                        int idx = 0;
+                        if (pf) {
+                            idx = pp.getParent().getIndex(pp);
+                            if (pl instanceof TrackPreFilter) { // also add pre-filters count to index
+                                try {
+                                    Parameter preFilters = ((PluginParameter<ProcessingPipeline>)pp.getParent().getParent()).getParameters().stream().filter(pre-> (pre instanceof PluginParameter) && ((PluginParameter)pre).getPluginType().equals(PreFilter.class)).findFirst().get();
+                                    logger.debug("track preFilter idx: {} : preFilters: {} , final index: {}", idx, preFilters.getChildCount(), idx+preFilters.getChildCount());
+                                    idx += preFilters.getChildCount();
+
+                                } catch(Exception|Error e) {}
+                            }
+                        }
+                        if (pl instanceof PostFilter || pl instanceof TrackPostFilter) idx = pp.getParent().getIndex(pp);
+                        List<JMenuItem> testCommands = PluginConfigurationUtils.getTestCommand((ImageProcessingPlugin)pl, idx, ParameterUtils.getExperiment(pp), s.getIndex(), expertMode);
                         for (int i = 0; i<testCommands.size(); ++i) ui.addActions(testCommands.get(i), i==0);
                     }
                 }

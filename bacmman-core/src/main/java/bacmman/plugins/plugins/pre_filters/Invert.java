@@ -31,8 +31,8 @@ import bacmman.plugins.PreFilter;
  */
 public class Invert implements PreFilter, Hint, HintSimple {
 
-    public Image runPreFilter(Image input, ImageMask mask) {
-        input = input.duplicate("inverted");
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+        if (!canModifyImage) input = input.duplicate("inverted");
         input.invert();
         return input;
     }

@@ -20,9 +20,7 @@ package bacmman.ui;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.TrackPostFilterSequence;
-import bacmman.configuration.parameters.TransformationPluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.*;
@@ -83,7 +81,7 @@ public class PluginConfigurationUtils {
         }
     }
 
-    public static Map<SegmentedObject, TestDataStore> testImageProcessingPlugin(final ImageProcessingPlugin plugin, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean trackOnly, boolean expertMode) {
+    public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode) {
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
         SegmentedObjectAccessor accessor = getAccessor();
         // get parent objects -> create graph cut
@@ -99,64 +97,171 @@ public class PluginConfigurationUtils {
         // generate data store for test images
         Map<SegmentedObject, TestDataStore> stores = HashMapGetCreate.getRedirectedMap(so->new TestDataStore(so, i-> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
-        parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
-
+        List<Map<SegmentedObject, TestDataStore>> storeList = new ArrayList<>(2);
+        storeList.add(stores);
 
         logger.debug("test processing: sel {}", parentSelection);
         logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
-        if (plugin instanceof Segmenter) { // case segmenter -> segment only & call to test method
-
+        if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
+            boolean pf = plugin instanceof PostFilter;
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
+            Segmenter segmenter = pf ? psc.getSegmenter() : (Segmenter)plugin;
             // run pre-filters on whole track -> some track preFilters need whole track to be effective. todo : parameter to limit ? 
             boolean runPreFiltersOnWholeTrack = !psc.getTrackPreFilters(false).isEmpty() || plugin instanceof TrackConfigurable; 
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
-            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
+            if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
             logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
-            TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, (Segmenter)plugin);
-            SegmentOnly so;
-            if (psc instanceof SegmentOnly) {
+            TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, segmenter);
+            SegmentOnly so = new SegmentOnly(segmenter); // no post-filters
+            /*if (psc instanceof SegmentOnly) {
                 so = (SegmentOnly)psc;
             } else {
                 so = new SegmentOnly((Segmenter)plugin).setPostFilters(psc.getPostFilters());
-            }
-            
+            }*/
             if (segParentStrutureIdx!=parentStrutureIdx && o.getStructureIdx()==segParentStrutureIdx) { // when selected objects are segmentation parent -> remove all others
                 Set<SegmentedObject> selectedObjects = parentSelection.stream().map(s->dupMap.get(s.getId())).collect(Collectors.toSet());
                 parentTrackDup.forEach(p->accessor.getDirectChildren(p, segParentStrutureIdx).removeIf(c->!selectedObjects.contains(c)));
                 logger.debug("remaining segmentation parents: {}", Utils.toStringList(parentTrackDup, p->p.getChildren(segParentStrutureIdx)));
             }
             TrackConfigurer  apply = (p, s)-> {
-                if (s instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)s).setTestDataStore(stores);
+                if (!pf && s instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)s).setTestDataStore(stores);
                 if (applyToSeg!=null) applyToSeg.apply(p, s); 
             };
             so.segmentAndTrack(structureIdx, parentTrackDup, apply, getFactory(structureIdx)); // won't run pre-filters
 
+            if (pf) { // perform test of post-filters
+
+                // converting post-filters in track post filters
+                Function<PostFilter, TrackPostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
+                SegmentedObjectFactory factory = getFactory(structureIdx);
+                TrackLinkEditor editor = getEditor(structureIdx);
+                List<TrackPostFilter> tpfBefore = psc.getPostFilters().getChildren().subList(0, pluginIdx).stream().filter(pp->pp.isActivated()).map(pp->pfTotpfMapper.apply(pp.instanciatePlugin())).collect(Collectors.toList());
+
+                if (!tpfBefore.isEmpty()) {
+                    // at this point, need to duplicate another time the parent track to get an independent point
+                    Map<String, SegmentedObject> dupMap1 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+                    List<SegmentedObject> parentTrackDup1 = parentTrackDup.stream().map(getParent).distinct().map(p -> dupMap1.get(p.getId())).sorted().collect(Collectors.toList());
+                    Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, i -> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                    parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected post-filter", p.getRawImage(structureIdx))); // add input image
+                    storeList.add(stores1);
+
+                    tpfBefore.forEach(tpf -> {
+                        tpf.filter(structureIdx, parentTrackDup1, factory, editor);
+                        logger.debug("executing post-filter: {}", tpf.toString());
+                    });
+                    wholeParentTrackDup = wholeParentTrackDup.stream().map(p->dupMap1.get(p.getId())).collect(Collectors.toList()); // for next step
+                    parentTrackDup = parentTrackDup1;
+                }
+                // at this point, need to duplicate another time the parent track to get the second point
+                Map<String, SegmentedObject> dupMap2 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+                List<SegmentedObject> parentTrackDup2 = parentTrackDup.stream().map(getParent).distinct().map(p->dupMap2.get(p.getId())).sorted().collect(Collectors.toList());
+                Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, i-> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected post-filter", p.getRawImage(structureIdx))); // add input image
+                storeList.add(stores2);
+
+                TrackPostFilter tpf = pfTotpfMapper.apply((PostFilter)plugin);
+                logger.debug("executing TEST post-filter: {}", tpf.toString());
+                tpf.filter(structureIdx, parentTrackDup2, factory, editor);
+            }
+
         } else if (plugin instanceof Tracker) {
-            
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
             // get continuous parent track
             int minF = parentTrackDup.stream().mapToInt(p->p.getFrame()).min().getAsInt();
             int maxF = parentTrackDup.stream().mapToInt(p->p.getFrame()).max().getAsInt();
             parentTrackDup = wholeParentTrackDup.stream().filter(p->p.getFrame()>=minF && p.getFrame()<=maxF).collect(Collectors.toList());
 
+            if (psc instanceof ProcessingPipelineWithTracking) ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll();
+
             // run testing
-            if (!trackOnly) {
+            if (!usePresentSegmentedObjects) {
                 if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ? 
                     psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
                     psc.getTrackPreFilters(false).removeAll();
                 }
-                // need to be able to run track-parametrizable on while parentTrack....
+                // need to be able to run track-parametrizable on whole parentTrack....
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
                 //((TrackerSegmenter)plugin).segmentAndTrack(structureIdx, parentTrackDup, psc.getTrackPreFilters(true), psc.getPostFilters());
-            } else {
+            } else { // track only
                 ((Tracker)plugin).track(structureIdx, parentTrackDup, getEditor(structureIdx));
-                TrackPostFilterSequence tpf= (psc instanceof ProcessingPipelineWithTracking) ? ((ProcessingPipelineWithTracking)psc).getTrackPostFilters() : null;
-                if (tpf!=null) tpf.filter(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
+                //TrackPostFilterSequence tpf= (psc instanceof ProcessingPipelineWithTracking) ? ((ProcessingPipelineWithTracking)psc).getTrackPostFilters() : null;
+                //if (tpf!=null) tpf.filter(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
             }
-            
+        } else if (plugin instanceof TrackPostFilter) {
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after segmentation and post-filters", p.getRawImage(structureIdx))); // add input image
+
+            // get continuous parent track
+            int minF = parentTrackDup.stream().mapToInt(p->p.getFrame()).min().getAsInt();
+            int maxF = parentTrackDup.stream().mapToInt(p->p.getFrame()).max().getAsInt();
+            parentTrackDup = wholeParentTrackDup.stream().filter(p->p.getFrame()>=minF && p.getFrame()<=maxF).collect(Collectors.toList());
+
+            TrackPostFilterSequence tpfs =((ProcessingPipelineWithTracking)psc).getTrackPostFilters();
+            List<TrackPostFilter> tpfBefore = tpfs.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instanciatePlugin()).collect(Collectors.toList());
+            SegmentedObjectFactory factory = getFactory(structureIdx);
+            TrackLinkEditor editor = getEditor(structureIdx);
+
+            if (!usePresentSegmentedObjects) { // perform segmentation and tracking
+                ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll();
+                if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ?
+                    psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
+                    psc.getTrackPreFilters(false).removeAll();
+                }
+                // need to be able to run track-parametrizable on whole parentTrack....
+                psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
+            }
+
+            if (!tpfBefore.isEmpty()) {
+                // at this point, need to duplicate another time the parent track to get an independent point
+                Map<String, SegmentedObject> dupMap1 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+                List<SegmentedObject> parentTrackDup1 = parentTrackDup.stream().map(getParent).distinct().map(p -> dupMap1.get(p.getId())).sorted().collect(Collectors.toList());
+                Map<SegmentedObject, TestDataStore> stores1 = HashMapGetCreate.getRedirectedMap(soo -> new TestDataStore(soo, i -> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+                parentTrackDup1.forEach(p -> stores1.get(p).addIntermediateImage("before selected track post-filter", p.getRawImage(structureIdx))); // add input image
+                storeList.add(stores1);
+
+                tpfBefore.forEach(tpf -> {
+                    tpf.filter(structureIdx, parentTrackDup1, factory, editor);
+                    logger.debug("executing track post-filter");
+                });
+                wholeParentTrackDup = wholeParentTrackDup.stream().map(p->dupMap1.get(p.getId())).collect(Collectors.toList()); // for next step
+                parentTrackDup = parentTrackDup1;
+            }
+            // at this point, need to duplicate another time the parent track to get the second point
+            Map<String, SegmentedObject> dupMap2 = SegmentedObjectUtils.createGraphCut(wholeParentTrackDup, true, true); // whole parent track ?
+            List<SegmentedObject> parentTrackDup2 = parentTrackDup.stream().map(getParent).distinct().map(p->dupMap2.get(p.getId())).sorted().collect(Collectors.toList());
+            Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, i-> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+            parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected track post-filter", p.getRawImage(structureIdx))); // add input image
+            storeList.add(stores2);
+
+            TrackPostFilter tpf = (TrackPostFilter)plugin;
+            logger.debug("executing TEST track post-filter");
+            tpf.filter(structureIdx, parentTrackDup2, factory, editor);
+
+
+        } else if (plugin instanceof PreFilter || plugin instanceof TrackPreFilter) {
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
+            List<SegmentedObject> parentTrack = (plugin instanceof PreFilter) ? parentTrackDup : wholeParentTrackDup; // if track pre-filters need to compute on whole parent track
+            // remove children of structureIdx
+            SegmentedObjectFactory facto = getFactory(structureIdx);
+            parentTrack.forEach(p->facto.setChildren(p, null));
+
+            TrackPreFilterSequence seq = psc.getTrackPreFilters(true);
+            List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instanciatePlugin()).collect(Collectors.toList());
+            boolean first = true;
+            TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(oo->oo, oo->oo.getRawImage(structureIdx))));
+            for (TrackPreFilter p : before) {
+                p.filter(structureIdx, images, !first);
+                first = false;
+            }
+            if (pluginIdx>0) parentTrack.forEach(p->stores.get(p).addIntermediateImage("before selected filter", images.get(p).duplicate())); // add images before processing
+            TrackPreFilter current = seq.getChildAt(pluginIdx).instanciatePlugin();
+            if (current instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)current).setTestDataStore(stores);
+            current.filter(structureIdx, images, !first);
+            parentTrack.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
         }
-        return stores;
+        return storeList;
     }
-    public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, Experiment xp, int objectClassIdx, boolean expertMode) {
+    public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int objectClassIdx, boolean expertMode) {
         Consumer<Boolean> performTest = b-> {
             List<SegmentedObject> sel;
             if (GUI.hasInstance()) {
@@ -171,8 +276,8 @@ public class PluginConfigurationUtils {
             //if (sel==null) sel = new ArrayList<>(1);
             //if (sel.isEmpty()) sel.add(GUI.getDBConnection().getDao(pos).getRoot(0));
 
-            Map<SegmentedObject, TestDataStore> stores = testImageProcessingPlugin(plugin, xp, objectClassIdx, sel, b, expertMode);
-            if (stores!=null) displayIntermediateImages(stores, objectClassIdx);
+            List<Map<SegmentedObject, TestDataStore>> stores = testImageProcessingPlugin(plugin, pluginIdx, xp, objectClassIdx, sel, b, expertMode);
+            if (stores!=null) stores.forEach(s -> displayIntermediateImages(s, objectClassIdx, plugin instanceof PreFilter || plugin instanceof TrackPreFilter));
         };
         List<JMenuItem> res = new ArrayList<>();
         if (plugin instanceof Tracker) {
@@ -197,15 +302,59 @@ public class PluginConfigurationUtils {
             item.setAction(new AbstractAction(item.getActionCommand()) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
-                    performTest.accept(true);
+                    performTest.accept(false);
                 }
             });
             res.add(item);
+        } else if (plugin instanceof PreFilter) {
+            JMenuItem item = new JMenuItem("Test Pre-Filter");
+            item.setAction(new AbstractAction(item.getActionCommand()) {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    performTest.accept(false);
+                }
+            });
+            res.add(item);
+        } else if (plugin instanceof TrackPreFilter) {
+            JMenuItem item = new JMenuItem("Test Track Pre-Filter");
+            item.setAction(new AbstractAction(item.getActionCommand()) {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    performTest.accept(false);
+                }
+            });
+            res.add(item);
+        } else if (plugin instanceof PostFilter) {
+            JMenuItem item = new JMenuItem("Test Post-Filter");
+            item.setAction(new AbstractAction(item.getActionCommand()) {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    performTest.accept(false);
+                }
+            });
+            res.add(item);
+        } else if (plugin instanceof TrackPostFilter) {
+            JMenuItem segTrack = new JMenuItem("Test Track Post-Filter");
+            segTrack.setAction(new AbstractAction(segTrack.getActionCommand()) {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    performTest.accept(false);
+                }
+            });
+            res.add(segTrack);
+            JMenuItem trackOnly = new JMenuItem("Test Track Post-Filter (on existing segmented objects)");
+            trackOnly.setAction(new AbstractAction(trackOnly.getActionCommand()) {
+                @Override
+                public void actionPerformed(ActionEvent ae) {
+                    performTest.accept(true);
+                }
+            });
+            res.add(trackOnly);
         } else throw new IllegalArgumentException("Processing plugin not supported for testing");
         return res;
     }
     
-    public static void displayIntermediateImages(Map<SegmentedObject, TestDataStore> stores, int structureIdx) {
+    public static void displayIntermediateImages(Map<SegmentedObject, TestDataStore> stores, int structureIdx, boolean preFilterStep) {
         ImageWindowManager iwm = getImageManager();
         int parentStructureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getParentObjectClassIdx(structureIdx);
         int segParentStrutureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
@@ -216,8 +365,8 @@ public class PluginConfigurationUtils {
             iwm.addImage(image, res.key, structureIdx, true);
             iwm.addTestData(image, stores.values());
         });
-        if (parentStructureIdx!=segParentStrutureIdx) { // add a selection to diplay the segmentation parent on the intermediate image
-            List<SegmentedObject> parentTrack = stores.values().stream().map(s->((SegmentedObject)(s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());
+        if (!preFilterStep && parentStructureIdx!=segParentStrutureIdx) { // add a selection to display the segmentation parent on the intermediate image
+            List<SegmentedObject> parentTrack = stores.values().stream().map(s->((s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());
             Collection<SegmentedObject> bact = Utils.flattenMap(SegmentedObjectUtils.getChildrenByFrame(parentTrack, segParentStrutureIdx));
             //Selection bactS = parentTrack.get(0).getDAO().getMasterDAO().getSelectionDAO().getOrCreate("testTrackerSelection", true);
             Selection bactS = new Selection("testTrackerSelection", accessor.getDAO(parentTrack.get(0)).getMasterDAO());

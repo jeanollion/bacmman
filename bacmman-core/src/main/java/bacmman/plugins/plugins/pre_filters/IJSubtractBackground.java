@@ -63,8 +63,8 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
     public IJSubtractBackground(){}
     
     @Override
-    public Image runPreFilter(Image input, ImageMask mask) {
-        return filter(input, radius.getValue().doubleValue(), !method.getSelected(), !imageType.getSelected(), smooth.getSelected(), corners.getSelected());
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
+        return filter(input, radius.getValue().doubleValue(), !method.getSelected(), !imageType.getSelected(), smooth.getSelected(), corners.getSelected(), !canModifyImage);
     }
     /**
      * IJ's subtract background {@link ij.plugin.filter.BackgroundSubtracter#rollingBallBackground(ij.process.ImageProcessor, double, boolean, boolean, boolean, boolean, boolean) }

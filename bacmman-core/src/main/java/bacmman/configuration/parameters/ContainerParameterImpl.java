@@ -231,7 +231,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
 
     @Override
     public int getIndex(TreeNode node) {
-        return getChildren().indexOf((Parameter)node);
+        return getChildren().indexOf(node);
     }
 
     @Override

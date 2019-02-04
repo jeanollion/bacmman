@@ -23,6 +23,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.function.Consumer;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeModel;
@@ -92,7 +93,18 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
     
     @Override
     public void removeNodeFromParent(MutableTreeNode node) {
-        super.removeNodeFromParent(node);
+        if (isExpertMode()) super.removeNodeFromParent(node);
+        else {
+            MutableTreeNode parent = (MutableTreeNode)node.getParent();
+            if(parent == null)
+                throw new IllegalArgumentException("node does not have a parent.");
+            int[] childIndex = new int[1];
+            Object[] removedArray = new Object[1];
+            childIndex[0] = getIndexOfChild(parent, node); // THIS INDEX IS WRONG IN INVISIBLE MODE
+            parent.remove(childIndex[0]);
+            removedArray[0] = node;
+            nodesWereRemoved(parent, childIndex, removedArray);
+        }
         if (tree!=null) tree.updateUI();
         update.run();
     }
@@ -148,5 +160,45 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             }
         }
         return ((TreeNode) parent).getChildCount();
+    }
+
+    /**
+     * Invoke this method after you've changed how node is to be
+     * represented in the tree.
+     */
+    @Override
+    public void nodeChanged(TreeNode node) {
+        if (isExpertMode()) super.nodeChanged(node);
+        else {
+            if (listenerList != null && node != null) {
+                TreeNode parent = node.getParent();
+                if (parent != null) {
+                    int anIndex = getIndexOfChild(parent, node); // THIS INDEX IS WRONG IN INVISIBLE MODE!
+                    if (anIndex != -1) {
+                        int[] cIndexs = new int[1];
+                        cIndexs[0] = anIndex;
+                        nodesChanged(parent, cIndexs);
+                    }
+                } else if (node == getRoot()) {
+                    nodesChanged(node, null);
+                }
+            }
+        }
+    }
+
+    @Override
+    public int getIndexOfChild(Object parent, Object child) {
+        if(parent == null || child == null) return -1;
+        if (isExpertMode() || parent.equals(root) || !(parent instanceof InvisibleNode)) return ((TreeNode)parent).getIndex((TreeNode)child);
+        else {
+            int count = 0;
+            Enumeration<TreeNode> children = ((TreeNode)parent).children();
+            while(children.hasMoreElements()) {
+                TreeNode c = children.nextElement();
+                if (c.equals(child)) return count;
+                if (((Parameter)c).isEmphasized()) ++count;
+            }
+            return -1;
+        }
     }
 }

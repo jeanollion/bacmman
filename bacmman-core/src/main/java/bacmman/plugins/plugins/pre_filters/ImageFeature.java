@@ -95,7 +95,7 @@ public class ImageFeature implements PreFilter, Hint {
     }
     
     @Override
-    public Image runPreFilter(Image input, ImageMask mask) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
         //logger.debug("ImageFeature: feature equasl: {}, scale equals: {}, normScale equals: {}", feature==cond.getActionableParameter(), scale == cond.getCurrentParameters().get(0), normScale == cond.getParameters("Normalized Hessian Max").get(1));
         //logger.debug("ImageFeauture: feature: {}, scale: {}, scaleZ: {} (from image: {}) normScale: {}", feature.getSelectedItem(), scale.getScaleXY(), scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), scale.getUseImageCalibration(), normScale.getValue());
         Feature f = Feature.getFeature(feature.getSelectedItem());
@@ -103,22 +103,22 @@ public class ImageFeature implements PreFilter, Hint {
         double scaleZ = scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ());
         switch(f) {
             case GAUSS:
-                return ImageFeatures.gaussianSmooth(input, scaleXY, scaleZ, false);
+                return ImageFeatures.gaussianSmooth(input, scaleXY, scaleZ, canModifyImage);
             case GRAD: 
-                return ImageFeatures.getGradientMagnitude(input, scaleXY, false);
+                return ImageFeatures.getGradientMagnitude(input, scaleXY, canModifyImage);
             case LoG:
-                return ImageFeatures.getLaplacian(input, scaleXY, true, false);
+                return ImageFeatures.getLaplacian(input, scaleXY, true, canModifyImage);
             case HessianDet:
-                return ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, false)[1];
+                return ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, canModifyImage)[1];
             case HessianMax:
-                return ImageFeatures.getHessian(input, scaleXY, false)[0];
+                return ImageFeatures.getHessian(input, scaleXY, canModifyImage)[0];
             case HessianMin:
-                ImageFloat[] hess = ImageFeatures.getHessian(input, scaleXY, false);
+                ImageFloat[] hess = ImageFeatures.getHessian(input, scaleXY, canModifyImage);
                 return hess[hess.length-1];
             case StructureMax:
-                return ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), false)[0];
+                return ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[0];
             case StructureDet:
-                return ImageFeatures.getStructureMaxAndDeterminant(input, smoothScale.getScaleXY(), scale.getScaleXY(), false)[1];
+                return ImageFeatures.getStructureMaxAndDeterminant(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[1];
             default:
                 throw new IllegalArgumentException("Feature "+feature.getSelectedItem()+"not supported");
         }

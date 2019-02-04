@@ -44,7 +44,7 @@ public class Median implements PreFilter, Filter, Hint {
         this.radius.setScaleZ(radiusZ);
     }
     @Override
-    public Image runPreFilter(Image input, ImageMask mask) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
         return filter(input, radius.getScaleXY(), radius.getScaleZ(input.getScaleXY(), input.getScaleZ()), false);
     }
     

@@ -28,6 +28,8 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
+
+import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.Hint;
 import bacmman.utils.HashMapGetCreate;
@@ -89,11 +91,10 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
             Image input = globalParent.getPreFilteredImage(structureIdx);
             if (subSegmentation) input = input.cropWithOffset(ref2D?new MutableBoundingBox(subParent.getBounds()).copyZ(input):subParent.getBounds());
             RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
-            pop = postFilters.filter(pop, structureIdx, subParent);
             if (subSegmentation && pop!=null) pop.translate(subParent.getBounds(), true);
             return pop;
         }).collect(Collectors.toList()); 
-        
+        boolean hasPostFilters = !postFilters.get().isEmpty();
         long t3 = System.currentTimeMillis();
         if (subSegmentation) { // collect if necessary and set to parent
             HashMapGetCreate<SegmentedObject, List<Region>> parentObjectMap = new HashMapGetCreate<>(parentTrack.size(), new HashMapGetCreate.ListFactory());
@@ -115,6 +116,10 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
             RegionPopulation pop=null;
             for (Entry<SegmentedObject, List<Region>> e : parentObjectMap.entrySet()) {
                 pop = new RegionPopulation(e.getValue(), e.getKey().getRawImage(structureIdx));
+                if (hasPostFilters) {
+                    pop.translate(new SimpleBoundingBox(e.getKey().getBounds()).reverseOffset(), false); // go to relative landmark to parent
+                    pop = postFilters.filter(pop, structureIdx, e.getKey());
+                }
                 factory.setChildObjects(e.getKey(), pop);
             }
             if (singleFrame) {
@@ -128,7 +133,10 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 for (SegmentedObject p : parentsWithNoChildren)  factory.setChildObjects(p, null);
             }
         } else {
-           for (int i = 0; i<pops.size(); ++i) factory.setChildObjects(allParents.get(i), pops.get(i));
+           for (int i = 0; i<pops.size(); ++i) {
+               RegionPopulation pop = postFilters.filter(pops.get(i), structureIdx, allParents.get(i));
+               factory.setChildObjects(allParents.get(i), pop);
+           }
            if (singleFrame) {
                if (pops.size()>1) logger.error("Segmentation of structure: {} from track: {}, single frame but several populations", structureIdx, parentTrack.get(0));
                else for (SegmentedObject parent : parentTrack.subList(1, parentTrack.size())) factory.setChildObjects(parent, pops.get(0)!=null ? pops.get(0).duplicate(): null);

@@ -47,7 +47,7 @@ public class BandPass implements PreFilter, Filter, Hint {
         this.removeStripes.setSelectedIndex(removeStripes);
         this.stripeTolerance.setValue(stripeTolerance);
     }
-    @Override public Image runPreFilter(Image input, ImageMask mask) {
+    @Override public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
         double[] r = range.getValuesAsDouble();
         return filter(input, r[0], r[1], removeStripes.getSelectedIndex(), stripeTolerance.getValue().doubleValue());
     }

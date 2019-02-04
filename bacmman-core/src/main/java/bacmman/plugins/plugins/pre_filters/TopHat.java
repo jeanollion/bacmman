@@ -50,7 +50,7 @@ public class TopHat implements PreFilter, Filter, Hint {
     }
     public TopHat() { }
     @Override
-    public Image runPreFilter(Image input, ImageMask mask) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
         return filter(input, radius.getScaleXY(), radius.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), darkBackground.getSelected(), smooth.getSelected(), false);
     }
     

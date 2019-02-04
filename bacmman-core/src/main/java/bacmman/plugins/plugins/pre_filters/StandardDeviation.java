@@ -58,7 +58,7 @@ public class StandardDeviation implements PreFilter, Filter, Hint {
         return this;
     }
     @Override
-    public Image runPreFilter(Image input, ImageMask mask) {
+    public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
         return filter(input, mask, radius.getScaleXY(), radius.getScaleZ(input.getScaleXY(), input.getScaleZ()), medianRadius.getScaleXY(), medianRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), false);
     }
     

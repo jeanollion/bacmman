@@ -65,6 +65,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
             accessor.setPreFilteredImage(en.getKey(), structureIdx,en.getValue());
         }
     }
+
     @Override public TrackPreFilterSequence addAtFirst(TrackPreFilter... instances) {
         super.add(instances);
         return this;

@@ -53,7 +53,7 @@ public class PreFilter implements TrackPreFilter, Hint {
     }
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
-        Consumer<Map.Entry<SegmentedObject, Image>> c  = e->e.setValue(filter.instanciatePlugin().runPreFilter(e.getValue(), e.getKey().getMask()));
+        Consumer<Map.Entry<SegmentedObject, Image>> c  = e->e.setValue(filter.instanciatePlugin().runPreFilter(e.getValue(), e.getKey().getMask(), canModifyImages));
         parallele(preFilteredImages.entrySet().stream(), true).forEach(c);
     }
 
