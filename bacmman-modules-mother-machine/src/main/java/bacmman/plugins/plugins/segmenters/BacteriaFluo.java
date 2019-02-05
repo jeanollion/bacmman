@@ -157,13 +157,20 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             case SIMPLE_THRESHOLDING:
                 ensureThresholds(parent, structureIdx, true, false);
                 pop.filter(r->valueFunction(parent.getPreFilteredImage(structureIdx)).apply(r)>bckThld);
-                return pop;
+                break;
             case HYSTERESIS_THRESHOLDING:
-                return filterRegionsAfterEdgeDetectorHysteresis(parent, structureIdx, pop);
+                pop = filterRegionsAfterEdgeDetectorHysteresis(parent, structureIdx, pop);
+                break;
             case EDGE_FUSION:
             default:
-                return filterRegionsAfterEdgeDetectorEdgeFusion(parent, structureIdx, pop);
+                pop = filterRegionsAfterEdgeDetectorEdgeFusion(parent, structureIdx, pop);
+                break;
         }
+        if (stores!=null && stores.get(parent).isExpertMode()) {
+            Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
+            imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Region Values after Filtering of Partitions"));
+        }
+        return pop;
     }
     protected RegionPopulation filterRegionsAfterEdgeDetectorEdgeFusion(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent);

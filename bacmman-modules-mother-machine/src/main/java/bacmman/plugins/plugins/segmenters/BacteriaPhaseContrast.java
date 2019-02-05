@@ -58,7 +58,7 @@ import java.util.stream.Stream;
  */
 public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPhaseContrast> implements HintSimple {
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
-    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection (step 2). Computed on the whole parent track (all frames). <br /><em>Configuration Hint</em>: Refer to the image <em>Region Values after filtering of partitions</em>: background but not foreground regions should have been erased");
+    PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection (step 2). Computed on the whole parent track (all frames). <br /><em>Configuration Hint</em>: Refer to the image <em>Foreground mask</em>: background but not foreground regions should have been erased");
 
     BooleanParameter filterBorderArtifacts = new BooleanParameter("Filter border Artifacts", true).setHint("In some phase-contrast images, an important intensity gradient is present at border of microchannels, and thus lead to false-positive segmentation. If this option is set to true, thin objects touching sides of microchannels will be removed");
     BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", true).setHint("In some experimental setups, cell poles touching the closed-end of microchannel have significant lower intensity than the rest of the cell.<br />If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell.");
@@ -110,22 +110,21 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         return filterBorderArtifacts(parent, objectClassIdx, pop);
     }
     final private static String toolTip = "<b>Bacteria segmentation within microchannels</b><br />"
-            + "This algorithm is similar to <em>BacteriaIntensity</em><br />"
-            + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the Track-pre-filter: <em>SubtractBackgroundMicrochannels</em><br />"
-            + "Main steps:"
-            + "<ol><li>Partitioning of the image using watershed transform on the edges defined by the <em>Edge Map</em> parameter</li>"
-            + "<li>In order to define the foreground mask, background partitions are removed, based on comparison of their median intensity with the threshold defined by the <em>Threshold</em> parameter. Optionally thin partitions located at border of microchannels are removed (See <em>Filter border Artifacts</em> parameter).</li>"
-            + "<li>Split/Merge strategy to separate touching cells: foreground mask is split by applying a watershed transform on the Hessian transform. Partitions are then merged using a criterion defined by the <em>Interface value</em> parameter</li>"
-            + "<li>A local threshold step is performed on each bacteria. Threshold value is described in the <em>local threshold factor</em> parameter</li></ol>"
-            + "Intermediate images displayed in test mode for each of the previous steps. In order to display the different partitions after a partitioning step, we use an image displaying median intensity value of each partition, referred to as MIP"
+            + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the <em>SubtractBackgroundMicrochannels</em> Track pre-filter<br />"
+            + "Main steps of the algorithm:"
+            + "<ol><li>Partitioning of the image using watershed transform on the edge map (see <em>Edge Map</em> parameter)</li>"
+            + "<li>Generation of the foreground mask. To create this mask background partitions are removed, based on comparison of their median intensity with the threshold defined by the <em>Threshold parameter</em>. Optionally, thin partitions located at the border of microchannels are removed (See <em>Filter border Artifacts</em> parameter).</li>"
+            + "<li>Split/Merge strategy to separate touching cells: the foreground mask is split by applying a watershed transform on the Hessian transform. Partitions are then merged using a criterion defined by the <em>Interface value</em> parameter</li>"
+            + "<li>Contour of bacteria is adjusted using a threshold computed for each bacterium. The threshold value is described in the <em>local threshold factor</em> parameter</li></ol>"
+            + "Intermediate images are displayed in test mode for each of the steps described above. In order to display the different partitions after a partitioning step, we use an image displaying the median intensity value of each partition, referred to as MIP"
             + "<ul><li><em>Edge Map for partitioning</em>: image of edges used for watershed partitioning (<em>used in step 1</em>)</li> " +
-            "<li><em>Region values after partitioning</em>: MIP after partitioning step (<em>used in step 1</em>). Importantly regions should be either located in foreground or in background but not overlap both areas</li>"
-            + "<li><em>Region Values after filtering of partitions</em>: MIP after the filtering step (<em>used in step 2</em>)</li>"
-            + "<li><em>Hessian</em>: max Eigenvalue of the hessian matrix used for the partitioning of the foreground mask in order to separate cells. Its intensity should be as high as possible at the interface between touching cells and as low as possible within cells (<em>used in step 3</em>)</li> " +
-            " <li><em>Region values before merge by hessian</em>: MIP after partitioning on <em>Hessian</em> image (<em>used in step 3</em>)</li> " +
-            " <li><em>Interface values before merge by hessian</em>: Each segment represents the area of contact between two partitions (referred to as interface) and its value is the criterion, to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between cells and as low as possible within cells (<em>used in step 3</em>)</li> " +
+            "<li><em>Region values after partitioning</em>: MIP after partitioning step (<em>used in step 1</em>). Importantly, on this image regions should be either located in the foreground or in the background, but should not overlap both areas</li>"
+            + "<li><em>Foreground mask</em>: binary mask obtained after the filtering step (<em>used in step 2</em>)</li>"
+            + "<li><em>Hessian</em>: maximal Eigenvalue of the Hessian matrix used for the partitioning of the foreground mask in order to separate the cells. Pixel intensity should be as high as possible at the interface between touching cells and as low as possible within cells (<em>used in step 3</em>)</li> " +
+            " <li><em>Region values before merge by hessian</em>: MIP after partitioning the foreground mask generated in step 2 (see <em>Foreground mask</em> image) using the <em>Hessian</em> image for the watershed algorithm (<em>see step 3</em>)</li> " +
+            " <li><em>Interface values before merge by hessian</em>: Each segment represents the area of contact between two partitions (referred to as interface) of the <em>Region values before merge by hessian</em> image. The intensity of such a segment is compared to the <em>Split Threshold</em> Parameter for split/merge decisions. Interface values should be as high as possible between cells and as low as possible within cells (<em>used in step 3</em>)</li> " +
             " <li><em>Region values after merge by hessian</em>: MIP after merging using the Split/Merge criterion (<em>used in step 3</em>)</li>"
-            + "<li><em>Local Threshold intensity map</em> & <em>Local threshold edge map</em>: images used for local thresholding (see description of <em>Local Threshold Factor</em> parameter)(<em>used in step 4</em>) </li></ul>";
+            + "<li><em>Local Threshold intensity map</em> & <em>Local threshold edge map</em>: images used for contour adjustment (see description of <em>Local Threshold Factor</em> parameter)(<em>used in step 4</em>) </li></ul>";
 
     final private static String toolTipSimple = "<b>Bacteria segmentation within microchannels</b><br />"
             + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the Track-pre-filter: <em>SubtractBackgroundMicrochannels</em><br />"
@@ -294,6 +293,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         if (!relabeled) pop.relabel(true);
         
         if (stores!=null && verbosePlus) imageDisp.accept(pop.getLabelMap().duplicate("after fore & back & intertermined fusion"));
+        if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Foreground mask"));
         return pop;
     }
     /**

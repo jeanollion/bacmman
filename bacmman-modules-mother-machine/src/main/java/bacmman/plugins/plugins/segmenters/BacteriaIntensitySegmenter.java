@@ -120,9 +120,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         splitPop.smoothRegions(1, true, parent.getMask());
         if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(edgeDetector.getWsMap(parent.getPreFilteredImage(objectClassIdx), parent.getMask()).setName("Edge Map for Partitioning"));
         if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Partitioning"));
-        splitPop = filterRegionsAfterEdgeDetector(parent, objectClassIdx, splitPop);
-        if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(splitPop, parent.getPreFilteredImage(objectClassIdx)).setName("Region Values After Filtering of Partitions"));
-        
+        splitPop = filterRegionsAfterEdgeDetector(parent, objectClassIdx, splitPop); // displays test image in expert mode
 
         RegionPopulation split = splitAndMerge.split(splitPop.getLabelMap(), MIN_SIZE_PROPAGATION);
         if (stores!=null) {
