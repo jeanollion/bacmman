@@ -243,7 +243,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 "<li>Selections can also be generated from R or Python. After generating a selection from R, click on <em>Reload Selections</em> to display it in the list</li>" +
                 "</ul>"));
         // tool tips for test panel
-        this.testNormalModeToggleButton.setToolTipText(formatHint("Switch between <em>Beginner</em> and <em>Advanced</em> mode. In <em>Advanced</em> mode, more technical information and more parameters are available"));
+        this.testModePanel.setToolTipText(formatHint("Switch between <em>Simplified</em> and <em>Advanced</em> mode. <ul><li>The <em>simplified</em> mode is intended for new users, and is in fact sufficient for most usages</li><li>In <em>Advanced</em> mode, more technical information and more parameters are available</li></ul>"));
         this.testStepPanel.setToolTipText(formatHint("Select the step to configure and test"));
         this.testPositionPanel.setToolTipText(formatHint("Select the position on which tests will be performed"));
         this.testFramePanel.setToolTipText(formatHint("Set frame range on which tests will be performed in order to limit processing time"));
@@ -1225,7 +1225,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testParentTrackJCB = new javax.swing.JComboBox<>();
         closeAllWindowsButton = new javax.swing.JButton();
         testCopyToTemplateButton = new javax.swing.JButton();
-        testNormalModeToggleButton = new javax.swing.JToggleButton();
+        testModePanel = new javax.swing.JPanel();
+        testModeJCB = new javax.swing.JComboBox<>();
         dataPanel = new javax.swing.JPanel();
         trackPanel = new javax.swing.JPanel();
         TimeJSP = new javax.swing.JScrollPane();
@@ -1514,7 +1515,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         testSplitPane.setRightComponent(testSplitPaneRight);
 
-        testSplitPaneLeft.setDividerLocation(200);
+        testSplitPaneLeft.setDividerLocation(215);
         testSplitPaneLeft.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
         testConfigurationJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Configuration"));
@@ -1565,7 +1566,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         testStepPanel.setLayout(testStepPanelLayout);
         testStepPanelLayout.setHorizontalGroup(
             testStepPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-            .addComponent(testStepJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+            .addComponent(testStepJCB, 0, 127, Short.MAX_VALUE)
         );
         testStepPanelLayout.setVerticalGroup(
             testStepPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
@@ -1645,24 +1646,34 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
 
-        testNormalModeToggleButton.setSelected(true);
-        testNormalModeToggleButton.setText("Normal");
-        testNormalModeToggleButton.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                testNormalModeToggleButtonActionPerformed(evt);
+        testModePanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Test Mode"));
+
+        testModeJCB.setModel(new javax.swing.DefaultComboBoxModel<>(new String[] { "Simplified", "Advanced" }));
+        testModeJCB.addItemListener(new java.awt.event.ItemListener() {
+            public void itemStateChanged(java.awt.event.ItemEvent evt) {
+                testModeJCBItemStateChanged(evt);
             }
         });
+
+        javax.swing.GroupLayout testModePanelLayout = new javax.swing.GroupLayout(testModePanel);
+        testModePanel.setLayout(testModePanelLayout);
+        testModePanelLayout.setHorizontalGroup(
+            testModePanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addComponent(testModeJCB, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+        );
+        testModePanelLayout.setVerticalGroup(
+            testModePanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, testModePanelLayout.createSequentialGroup()
+                .addGap(0, 0, Short.MAX_VALUE)
+                .addComponent(testModeJCB, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+        );
 
         javax.swing.GroupLayout testControlPanelLayout = new javax.swing.GroupLayout(testControlPanel);
         testControlPanel.setLayout(testControlPanelLayout);
         testControlPanelLayout.setHorizontalGroup(
             testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(testControlPanelLayout.createSequentialGroup()
-                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
-                    .addGroup(testControlPanelLayout.createSequentialGroup()
-                        .addComponent(testStepPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                        .addComponent(testPositionPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                     .addGroup(testControlPanelLayout.createSequentialGroup()
                         .addComponent(testFramePanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
@@ -1670,21 +1681,26 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(testParentTrackPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                     .addGroup(testControlPanelLayout.createSequentialGroup()
-                        .addComponent(testNormalModeToggleButton)
-                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(closeAllWindowsButton)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(testCopyButton)
                         .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                         .addComponent(testCopyToTemplateButton)))
                 .addGap(0, 61, Short.MAX_VALUE))
+            .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, testControlPanelLayout.createSequentialGroup()
+                .addComponent(testModePanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(testStepPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                .addComponent(testPositionPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
         );
         testControlPanelLayout.setVerticalGroup(
             testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addGroup(testControlPanelLayout.createSequentialGroup()
-                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING, false)
-                    .addComponent(testPositionPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addComponent(testStepPanel, javax.swing.GroupLayout.Alignment.LEADING, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(testPositionPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(testStepPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(testModePanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
                 .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.TRAILING)
                     .addComponent(testParentTrackPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
@@ -1694,8 +1710,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 .addGroup(testControlPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(testCopyButton)
                     .addComponent(closeAllWindowsButton)
-                    .addComponent(testCopyToTemplateButton)
-                    .addComponent(testNormalModeToggleButton)))
+                    .addComponent(testCopyToTemplateButton))
+                .addContainerGap(50, Short.MAX_VALUE))
         );
 
         testControlJSP.setViewportView(testControlPanel);
@@ -4029,14 +4045,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (configurationTreeGenerator!=null) configurationTreeGenerator.nodeStructureChanged(db.getExperiment().getPreProcessingTemplate().getTransformations());
     }//GEN-LAST:event_testCopyToTemplateButtonActionPerformed
 
-    private void testNormalModeToggleButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testNormalModeToggleButtonActionPerformed
-        if (testNormalModeToggleButton.isSelected()) testNormalModeToggleButton.setText("Beginner");
-        else testNormalModeToggleButton.setText("Advanced");
+    private void testModeJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testModeJCBItemStateChanged
+        boolean simplified = this.testModeJCB.getSelectedIndex()==0;
         if (testConfigurationTreeGenerator!=null) {
-            testConfigurationTreeGenerator.setExpertMode(!testNormalModeToggleButton.isSelected());
-            testConfigurationTreeGenerator.nodeStructureChanged(testConfigurationTreeGenerator.getRoot());
+            testConfigurationTreeGenerator.setExpertMode(!simplified);
+            testConfigurationTreeGenerator.nodeStructureChanged(testConfigurationTreeGenerator.getRoot()); // TODO unfold as it was in the other test mode
         }
-    }//GEN-LAST:event_testNormalModeToggleButtonActionPerformed
+    }//GEN-LAST:event_testModeJCBItemStateChanged
     public void updateSelectionListUI() {
         selectionList.updateUI();
     }
@@ -4208,7 +4223,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }); // set text will set the scroll bar at the end. This should be invoked afterwards to reset the scollview
             };
             testConfigurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), pp?db.getExperiment().getPosition(positionIdx).getPreProcessingChain().getTransformations():db.getExperiment().getStructure(objectClassIdx).getProcessingPipelineParameter(), b->{}, (selectedModule, modules) -> populateModuleList(testModuleModel, testModuleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
-            testConfigurationTreeGenerator.setExpertMode(!testNormalModeToggleButton.isSelected());
+            testConfigurationTreeGenerator.setExpertMode(testModeJCB.getSelectedIndex()==1);
             testConfigurationJSP.setViewportView(testConfigurationTreeGenerator.getTree());
             final Consumer<String> moduleSelectionCallBack = testConfigurationTreeGenerator.getModuleChangeCallBack();
             testModuleList.addMouseListener(new MouseAdapter() {
@@ -4452,9 +4467,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JScrollPane testHintJSP;
     private javax.swing.JTextPane testHintTextPane;
     private javax.swing.JButton testManualSegmentationButton;
+    private javax.swing.JComboBox<String> testModeJCB;
+    private javax.swing.JPanel testModePanel;
     private javax.swing.JScrollPane testModuleJSP;
     private javax.swing.JList<String> testModuleList;
-    private javax.swing.JToggleButton testNormalModeToggleButton;
     private javax.swing.JComboBox<String> testObjectClassJCB;
     private javax.swing.JPanel testObjectClassPanel;
     private javax.swing.JPanel testPanel;
