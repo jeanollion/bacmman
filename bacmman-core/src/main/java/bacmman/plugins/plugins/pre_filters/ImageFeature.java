@@ -42,10 +42,10 @@ public class ImageFeature implements PreFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "Collection of image features frequently used in image analysis" +
-                "<ul><li><em>Gaussian Smooth</em>: blurring by a Gaussian function, typically reduces noise and details</li>" +
-                "<li><em>Gradient Magnitude</em>: detects the amplitude edges at which pixels change their gray-level suddenly</li>" +
-                "<li><em>Laplacian</em>: The Laplacian is an isotropic measure of the 2nd spatial derivative of an image. The Laplacian of an image highlights regions of rapid intensity change and is therefore often used for edge detection or spot-like structure detection</li>" +
+        return "Collection of image transformations frequently used in image analysis" +
+                "<ul><li><em>Gaussian Smooth</em>: blurs the image using a Gaussian function, typically reduces the noise and the details</li>" +
+                "<li><em>Gradient Magnitude</em>: detects the amplitude edges, where the pixel grey levels change abruptly</li>" +
+                "<li><em>Laplacian</em>: The Laplacian is an isotropic measure of the 2nd spatial derivative of an image. It highlights the regions of rapid intensity change and is therefore often used for edge detection or spot-like structure detection</li>" +
                 "<li><em>Hessian</em>: Hessian matrix or Hessian is a square matrix of second-order partial derivatives of the image intensity. It describes its local curvature. <em>Hessian Max</em> is the maximum eigenvalue, <em>Hessian Min</em> is the minimum eigenvalue and <em>Hessian Det</em> is the determinant</li>" +
                 "<li><em>Structure</em>: The structure tensor, also referred to as the second-moment matrix, is a matrix derived from the gradient of the image. <em>Structure Max</em> is the maximum eigenvalue of the structure matrix. <em>Structure Det</em> is the determinant of the structure matrix.</li></ul>" +
                 "Using <em>ImageScience</em> library: <a href='https://imagescience.org/meijering/software/featurej/'>https://imagescience.org/meijering/software/featurej/</a>";

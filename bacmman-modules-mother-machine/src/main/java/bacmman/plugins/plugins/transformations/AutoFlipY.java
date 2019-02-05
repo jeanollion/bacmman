@@ -61,9 +61,9 @@ import java.util.Arrays;
 public class AutoFlipY implements ConfigurableTransformation, MultichannelTransformation, Hint, TestableOperation {
     
     public enum AutoFlipMethod {
-        FLUO("Bacteria Fluo", "Flips the image so that the side where bacteria are more aligned (corresponding to the closed-end) is the upper side"),
-        FLUO_HALF_IMAGE("Bacteria Fluo: Upper Half of Image", "Flips the image so that Bacteria are present in the upper half of the image"),
-        PHASE("Phase Contrast Optical Aberration", "Optical Aberration (bright line corresponding to the shadow of the main channel in phase contrast images) is detected. Then, the image is flipped so that the side where variance along X-axis is maximal is the upper side. In case the optical aberration is closer to one side on the image than microchannel height the image is flipped to that the other side is the upper side");
+        FLUO("Bacteria Fluo", "Bacteria poles touching the closed-end of microchannels form a line parallel to the main channel. Estimates the alignment of bacteria at the top and the bottom of the image. If bacteria are more aligned at the bottom, image is flipped."),
+        FLUO_HALF_IMAGE("Bacteria Fluo: Upper Half of Image", "This methods supposes that Flips the image so that bacteria are mostly located in the upper half of the image"),
+        PHASE("Phase Contrast Optical Aberration", "The optical aberration (i.e. the bright line corresponding to the sides shadow of the main channel in phase contrast images) is detected. Then, the variance of the projection of the image along the X-axis is computed above and below the bright line. The image is flipped so that the variance is maximal above the bright line. <br />In case the distance above the bright line is smaller than the value of the <em>Microchannel Length</em> parameter, the image is always flipped");
         final String name;
         final String toolTip;
         AutoFlipMethod(String name, String toolTip) {
@@ -79,7 +79,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     ChoiceParameter method = new ChoiceParameter("Method", Utils.transform(AutoFlipMethod.values(), new String[AutoFlipMethod.values().length], f->f.name), FLUO_HALF_IMAGE.name, false).setEmphasized(true);
     PluginParameter<SimpleThresholder> fluoThld = new PluginParameter<>("Threshold for bacteria Segmentation", SimpleThresholder.class, new BackgroundThresholder(3, 6, 3), false);
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");
-    NumberParameter microchannelLength = new BoundedNumberParameter("Microchannel Length", 0, 400, 100, null).setHint("Typical Microchannel Length");
+    NumberParameter microchannelLength = new BoundedNumberParameter("Microchannel Length", 0, 400, 100, null).setEmphasized(true).setHint("Minimal Length of Microchannels");
     ConditionalParameter cond = new ConditionalParameter(method).setActionParameters("Bacteria Fluo", new Parameter[]{fluoThld, minObjectSize}).setActionParameters("Phase Contrast Optical Aberration", new Parameter[]{microchannelLength});
     Boolean flip = null;
     public AutoFlipY() {

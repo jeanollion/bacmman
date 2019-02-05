@@ -33,7 +33,7 @@ import bacmman.plugins.Tracker;
  * @param <T>
  */
 public abstract class SegmentationAndTrackingProcessingPipeline<T extends SegmentationAndTrackingProcessingPipeline> extends SegmentationProcessingPipeline<T> implements ProcessingPipelineWithTracking<T> {
-    protected TrackPostFilterSequence trackPostFilters = new TrackPostFilterSequence("Track Post-Filters").setHint("Track Post-filters are performed after tracking. In contrast to the pre-filters, they are not applied on each single frame but on all segmented objects of all frames of the parent track");
+    protected TrackPostFilterSequence trackPostFilters = new TrackPostFilterSequence("Track Post-Filters").setHint("Track Post-filters are performed after tracking. In contrast to the post-filters, they are not applied on each single frame but on all segmented objects of all frames of the parent track");
 
     public <T extends ProcessingPipelineWithTracking> T addTrackPostFilters(TrackPostFilter... postFilter) {
         trackPostFilters.add(postFilter);

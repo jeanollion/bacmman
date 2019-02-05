@@ -33,7 +33,7 @@ import bacmman.plugins.ProcessingPipeline;
  * @param <T>
  */
 public abstract class SegmentationProcessingPipeline<T extends SegmentationProcessingPipeline> implements ProcessingPipeline<T> {
-    protected PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("Pre-filters are applied to each single image of the parent object class. For bacteria or spots, pre-filters are applied only to the segmented microchannel, not to the whole viewfield image");
+    protected PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("Pre-filters are applied to each single image of the parent object class (i.e. for bacteria or spots, pre-filters are applied only to the segmented microchannel, not to the whole viewfield image)");
     protected TrackPreFilterSequence trackPreFilters = new TrackPreFilterSequence("Track Pre-Filters").setHint("Track-Pre-filters are performed after pre-filters. In contrast to the pre-filters, they are not applied on each single image but on the whole track of the parent object class (for instance for bacteria they are performed on the time series of segmented microchannels)");
     protected PostFilterSequence postFilters = new PostFilterSequence("Post-Filters").setHint("Post-filters are applied on all segmented objects of a single frame, after segmentation and before tracking");
     @Override public  T addPreFilters(bacmman.plugins.PreFilter... preFilter) {

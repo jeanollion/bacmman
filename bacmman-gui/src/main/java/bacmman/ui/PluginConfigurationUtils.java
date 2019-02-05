@@ -253,11 +253,11 @@ public class PluginConfigurationUtils {
                 p.filter(structureIdx, images, !first);
                 first = false;
             }
-            if (pluginIdx>0) parentTrack.forEach(p->stores.get(p).addIntermediateImage("before selected filter", images.get(p).duplicate())); // add images before processing
+            if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", images.get(p).duplicate())); // add images before processing
             TrackPreFilter current = seq.getChildAt(pluginIdx).instanciatePlugin();
             if (current instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)current).setTestDataStore(stores);
             current.filter(structureIdx, images, !first);
-            parentTrack.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
+            parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
         }
         return storeList;
     }

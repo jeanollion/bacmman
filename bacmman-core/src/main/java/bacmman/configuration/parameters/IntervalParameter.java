@@ -85,7 +85,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
 
     public IntervalParameter setValues(Number... values) {
         this.values = Arrays.stream(values).map(v->v.doubleValue()).sorted().toArray(l->new Number[l]);
-        checkBounds();
+        //checkBounds();
         this.fireListeners();
         return this;
     }
@@ -96,9 +96,9 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
     public IntervalParameter setValue(Number value, int index) {
         if (index<0 || index>=values.length) throw new IllegalArgumentException("invalid index");
         values[index] = value;
-        if (index>0 && compare(values[index], values[index-1])<0) values[index] = values[index-1].doubleValue();
-        if (index<values.length-1 && compare(values[index], values[index+1])>0) values[index] = values[index+1].doubleValue();
-        checkBounds();
+        //if (index>0 && compare(values[index], values[index-1])<0) values[index] = values[index-1].doubleValue();
+        //if (index<values.length-1 && compare(values[index], values[index+1])>0) values[index] = values[index+1].doubleValue();
+        //checkBounds();
         this.fireListeners();
         return this;
     }

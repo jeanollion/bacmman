@@ -54,10 +54,10 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
-    protected PreFilterSequence watershedMap = new PreFilterSequence("Watershed Map").add(new StandardDeviation(3).setMedianRadius(2)).setHint("Watershed map, separation between regions are at area of maximal intensity of this map"); //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(1.5)
+    protected PreFilterSequence watershedMap = new PreFilterSequence("Watershed Map").add(new StandardDeviation(3).setMedianRadius(2)).setHint("Watershed map defining the edges of microchannels."); //new ImageFeature().setFeature(ImageFeature.Feature.StructureMax).setScale(1.5).setSmoothScale(1.5)
     BoundedNumberParameter trimUpperPixels = new BoundedNumberParameter("Trim Upper Pixels", 0, 0, 0, null).setHint("Erase Pixels N upper pixels of each regions");
     BoundedNumberParameter fitMargin = new BoundedNumberParameter("Fit margin", 0, 9, 5, null).setHint("Fit will be done in a window around segmented microchannel, with this margin on the left , right & upper sides");
-    BoundedNumberParameter morphoRadius = new BoundedNumberParameter("Open / close radius", 1, 4, 0, null).setHint("Radius for morpholical close (remove small invaginations) and open (remove small protuberances) <br /> 0 for no close & no open <br />Must but inferior to half of the width of channels");
+    BoundedNumberParameter morphoRadius = new BoundedNumberParameter("Open / close radius", 1, 4, 0, null).setHint("Radius for morphological close (remove small invaginations) and open (remove small protuberances) operations<br /> 0 for no close & no open operations<br />Must be inferior to half of the width of the microchannels");
     BooleanParameter resetBounds = new BooleanParameter("Reset Bounds", true).setHint("Set the bounds of microchannel to the bounds of fitted object<br />If average mask track-post-filter is set afterwards, bounds should not be reset so that regions can be aligned on their top-left-corner");
     Parameter[] parameters = new Parameter[]{watershedMap, fitMargin, morphoRadius}; //trimUpperPixels, resetBounds
     public static boolean debug = false;
@@ -66,9 +66,9 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
     
     @Override
     public String getHintText() {
-        return "Fits an existing region to edges. "
-                + "<br /> it first performs a watershed partitioning in a window around each region defined by <em>Fit margin</em>. "
-                + "<br / >Partition  whose seeds are not included in the microchannel regions are removed ";
+        return "Fits a segmented microchannel to its edges (edges are defined in the parameter <em>Watershed Map</em>"
+                + "<br />First performs a watershed partitioning in a window around each microchannel defined by <em>Fit margin</em>. "
+                + "<br />The Partitions whose seeds are not included in the microchannel regions are removed";
     }
     
     public FitMicrochannelsToEdges setResetBounds(boolean resetBounds) {

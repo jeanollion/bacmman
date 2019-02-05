@@ -129,6 +129,6 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
 
     @Override
     public String getHintText() {
-        return "Selects the plane with best focus among planes of a 3D-stack, by maximizing gradient magnitude";
+        return "Selects the plane of best focus in a 3D stack, which is defined as the plane with the maximal gradient magnitude";
     }
 }

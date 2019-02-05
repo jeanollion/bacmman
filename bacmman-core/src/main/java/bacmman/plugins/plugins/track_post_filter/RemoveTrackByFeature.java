@@ -56,7 +56,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
     
     @Override
     public String getHintText() {
-        return "Compute a feature on each object of a track, then a statistic on the distribution, and compare it to a threshold, in order to decided if the track should be removed or not";
+        return "<b>Removes tracks according to a user-defined criterion</b><br />Computes a user-defined feature (e.g. max, mean… see the <em>Feature</em> parameter) for each object of a track, then computes a user-defined statistics (e.g. mean, median… see the <em>Statistics</em> parameter) on the distribution of the objects’ feature, and compares it to a threshold (see the <em>Threshold</em> parameter), in order to decide if the track should be removed or not ";
     }
     
     

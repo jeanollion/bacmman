@@ -58,7 +58,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     public final static Logger logger = LoggerFactory.getLogger(BacteriaClosedMicrochannelTrackerLocalCorrections.class);
     
     protected PluginParameter<SegmenterSplitAndMerge> segmenter = new PluginParameter<>("Segmentation algorithm", SegmenterSplitAndMerge.class, false).setEmphasized(true);
-    IntervalParameter sizeRatio = new IntervalParameter("Size Ratio", 2, 0.5, 3, 0.8, 1.5).setHint("Typical range of ratio of bacteria size between two frames");
+    IntervalParameter sizeRatio = new IntervalParameter("Size Ratio", 2, 0.5, 3, 0.8, 1.5).setHint("Defines a typical range for the ratio of sizes of bacteria at two successive frames");
     ChoiceParameter sizeFeature = new ChoiceParameter("Feature used for Size", new String[]{"Size", "Length"}, "Size", false).setEmphasized(true).setHint("Bacteria feature used to estimate growth rate. <ul><li><em>Size</em> : number of pixels</li><li><em>Length</em> : Feret distance (maximal distance between two points of the segmented contour)</li></ul>");
     
     BoundedNumberParameter costLimit = new BoundedNumberParameter("Correction: operation cost limit", 3, 1.5, 0, null).setHint("Limits the cost of each single correction operation (merge/split). <br />Cost value is the difference between the interface value (as computed by the segmenter) and the split threshold parameter of the segmenter. For a merge operation the interface between the 2 regions to be merged is considered. For a split operation: a region is split in two and the interface between the 2 new regions is considered.<br />When an correction operation (split / merge) yields to a cost superior to this parameter, it is not performed");
@@ -67,11 +67,15 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     Parameter[] parameters = new Parameter[]{segmenter, sizeFeature, sizeRatio, costLimit, cumCostLimit, endOfChannelContactThreshold};
 
     // tooltip interface
-    static String simpleTT = "<b>Tracker for bacteria located in closed-end microchannels</b><br />Computes bacteria lineage";
-    static String toolTip = " by taking into account the information of bacteria size and of their rank within microchannels<br />" +
-            "This algorithm is not sensitive to cell motion, but is not able to take into account cell lysis.<br />" +
+    static String simpleTT = "<b>Tracker for bacteria located in closed-end microchannels</b><br />Computes the lineage of bacteria";
+    static String toolTip = ", based on the size of the cells and their rank within the microchannels<br />" +
+            "This algorithm is robust to cell motion, but may generate errors in case of cell lysis.<br />" +
             "This algorithm is able to correct segmentation errors locally when there are not too numerous. Refer to the parameters <em>Correction: operation cost limit</em> and <em>Correction: cumulative cost limit</em>";
-    static String toolTipDetails = "<ul><li>Tracking is done only using rank and growth rate information (no localization within microchannel), and is thus adapted to moving cells, but detects poorly cell death</li>"
+
+    static String toolTipAlgo = "<br /><br /><em>Description of the algorithm</em>:<br />In the dead-end microchannels, the rank of the cells within one channel is directly linked to their position in the lineage (cells can only get out of the channel from the opened end and two cells cannot exchange position), with the old pole mother cell abutting the dead end. Tracking is performed based on the rank of the cell and on its size ratio (SR) between successive frames. <br />When segmentation is error-free, one cell at frame F can be either linked to one cell at frame F+1 or to two cells, if division occurred between F and F+1. In order to decide between these two scenarios, we compute the SR  in both cases, where SR is defined as the sum of the sizes of the daughter cells divided by the size of the mother cell in the case of a division event. Then we choose the scenario in which the SR is the closest to its expected value, which is defined as the median of the 20 previous SR values in the cell lineage (with the exception of the first frames, for which a constant range defined in the <em>Size Ratio</em> parameter is used).<br />" +
+            "However, segmentation strategy can lead to errors when a cell is in the middle of the division process and the two daughter cells are not clearly separated yet. In this case, the two daughter cells may be identified as separated at frame F and fused at frame F+1. This segmentation error also leads to a tracking error. This algorithm allows correcting both the segmentation and tracking errors in such cases. To do so, more than one cell at F is allowed to be linked to more than two cells at F+1 to optimize the SR. When tracking errors are present, i.e. more than one cell  at frame F are linked to a single cell at F+1 or a single cell at F is linked to more than two cells at F+1, different correction scenarios are compared. For instance if two cells at F are linked to one cell at F+1, the cells are either merged on previous frame(s) (until previous division) or split on next frame(s) (until next division). In some scenarios, some residual tracking errors may remain. A scenario is accepted only if it reduces the number of errors compared to the initial situation. When two scenarios lead to the same number of errors, a cost is computed for each of them, which sums the cost of each merge/split operation that is performed. Only scenarios with a cost smaller than a constant threshold are compared, and the scenario with the smallest cost is then chosen.The cost of a  merge / split operation is the difference between the SC criterion and its predefined threshold (see the <em>Split Threshold</em> parameter in bacteria segmentation algorithms).";
+
+    static String toolTipDetails = "<ul>"
             + "<li>Assignment is performed rank-wise between two successive frames starting from the cells located towards the closed-end of microchannel</li>"
             + "<li>First assignment is the minimal that verify the growth inequality: given Sf = sum(size)@Frame=F Sf-1 = sum(size)@Frame=F-1 : Sf-1 * minGrowthRate <= Sf <= Sf-1 * maxGrowthRate </li>"
             + "<li>In order to take into account a wide range of growth rate, when possible the size ratio between Frames F & F-1 is compared to the median size ratio of the 20 last observations of the same line, and the difference is minimized</li>"
@@ -80,7 +84,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
 
     @Override public String getSimpleHintText() {return simpleTT;}
 
-    @Override public String getHintText() {return simpleTT + toolTip;}
+    @Override public String getHintText() {return simpleTT + toolTip + toolTipAlgo;}
 
     @Override public SegmenterSplitAndMerge getSegmenter() {
         return segmenter.instanciatePlugin();

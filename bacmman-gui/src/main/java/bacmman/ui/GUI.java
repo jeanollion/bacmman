@@ -570,6 +570,52 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         hintTextPane.addHyperlinkListener(hl);
         testHintTextPane.addHyperlinkListener(hl);
         console.addHyperlinkListener(hl);
+
+        moduleList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (moduleSelectionCallBack!=null) moduleSelectionCallBack.accept(moduleList.getSelectedValue());
+            }
+        });
+        moduleList.addMouseMotionListener(new MouseMotionAdapter() {
+            String defTT = moduleList.getToolTipText();
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                JList l = (JList)e.getSource();
+                ListModel m = l.getModel();
+                int index = l.locationToIndex(e.getPoint());
+                if( index>-1 ) {
+                    Plugin p = PluginFactory.getPlugin(m.getElementAt(index).toString());
+                    if (p!=null && (p instanceof Hint || p instanceof HintSimple)) {
+                        if (p instanceof HintSimple) l.setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
+                        else l.setToolTipText(formatHint(((Hint)p).getHintText()));
+                    } else l.setToolTipText("");
+                } else l.setToolTipText(defTT);
+            }
+        });
+        testModuleList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (testModuleSelectionCallBack!=null) testModuleSelectionCallBack.accept(testModuleList.getSelectedValue());
+            }
+        });
+        testModuleList.addMouseMotionListener(new MouseMotionAdapter() {
+            String defTT = testModuleList.getToolTipText();
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                JList l = (JList)e.getSource();
+                ListModel m = l.getModel();
+                int index = l.locationToIndex(e.getPoint());
+                if( index>-1 ) {
+                    Plugin p = PluginFactory.getPlugin(m.getElementAt(index).toString());
+                    if (p!=null && (p instanceof Hint || p instanceof HintSimple)) {
+                        if (p instanceof HintSimple) l.setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
+                        else l.setToolTipText(formatHint(((Hint)p).getHintText()));
+                    } else l.setToolTipText("");
+                } else l.setToolTipText(defTT);
+            }
+        });
+
     }
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
@@ -766,14 +812,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
 
     }
-    
+    Consumer<String> moduleSelectionCallBack;
     private void updateConfigurationTree() {
         if (db==null) {
             configurationTreeGenerator=null;
             configurationJSP.setViewportView(null);
             setConfigurationTabValid.accept(true);
-            for (ListSelectionListener ll : moduleList.getListSelectionListeners()) moduleList.removeListSelectionListener(ll);
-            for (MouseListener ll : moduleList.getMouseListeners()) moduleList.removeMouseListener(ll);
         } else {
             Consumer<String> setHint = hint -> {
                 hintTextPane.setText(hint);
@@ -785,29 +829,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), db.getExperiment(),setConfigurationTabValid, (selectedModule, modules) -> populateModuleList(moduleModel, moduleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
             configurationJSP.setViewportView(configurationTreeGenerator.getTree());
             setConfigurationTabValid.accept(db.getExperiment().isValid());
-            final Consumer<String> moduleSelectionCallBack = configurationTreeGenerator.getModuleChangeCallBack();
-            moduleList.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    moduleSelectionCallBack.accept(moduleList.getSelectedValue());
-                }
-            });
-            moduleList.addMouseMotionListener(new MouseMotionAdapter() {
-                String defTT = moduleList.getToolTipText();
-                @Override
-                public void mouseMoved(MouseEvent e) {
-                    JList l = (JList)e.getSource();
-                    ListModel m = l.getModel();
-                    int index = l.locationToIndex(e.getPoint());
-                    if( index>-1 ) {
-                        Plugin p = PluginFactory.getPlugin(m.getElementAt(index).toString());
-                        if (p!=null && (p instanceof Hint || p instanceof HintSimple)) {
-                            if (p instanceof HintSimple) l.setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
-                            else l.setToolTipText(formatHint(((Hint)p).getHintText()));
-                        } else l.setToolTipText("");
-                    } else l.setToolTipText(defTT);
-                }
-            });
+            moduleSelectionCallBack = configurationTreeGenerator.getModuleChangeCallBack();
         }
     }
 
@@ -4202,9 +4224,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         freezeTestObjectClassListener = false;
         if (noSel != testObjectClassJCB.getSelectedIndex()<0) this.testObjectClassJCBItemStateChanged(null);
     }
-    
-    
-    
+
+
+    Consumer<String> testModuleSelectionCallBack;
     private void updateTestConfigurationTree() {
         boolean pp = this.testStepJCB.getSelectedIndex()==0;
         int objectClassIdx = this.testObjectClassJCB.getSelectedIndex();
@@ -4212,8 +4234,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (db==null || (!pp && objectClassIdx<0) || (pp && positionIdx<0)) {
             testConfigurationTreeGenerator=null;
             testConfigurationJSP.setViewportView(null);
-            for (ListSelectionListener ll : testModuleList.getListSelectionListeners()) testModuleList.removeListSelectionListener(ll);
-            for (MouseListener ll : moduleList.getMouseListeners()) moduleList.removeMouseListener(ll);
         } else {
             Consumer<String> setHint = hint -> {
                 testHintTextPane.setText(hint);
@@ -4225,29 +4245,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             testConfigurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), pp?db.getExperiment().getPosition(positionIdx).getPreProcessingChain().getTransformations():db.getExperiment().getStructure(objectClassIdx).getProcessingPipelineParameter(), b->{}, (selectedModule, modules) -> populateModuleList(testModuleModel, testModuleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
             testConfigurationTreeGenerator.setExpertMode(testModeJCB.getSelectedIndex()==1);
             testConfigurationJSP.setViewportView(testConfigurationTreeGenerator.getTree());
-            final Consumer<String> moduleSelectionCallBack = testConfigurationTreeGenerator.getModuleChangeCallBack();
-            testModuleList.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent e) {
-                    moduleSelectionCallBack.accept(testModuleList.getSelectedValue());
-                }
-            });
-            testModuleList.addMouseMotionListener(new MouseMotionAdapter() {
-                String defTT = testModuleList.getToolTipText();
-                @Override
-                public void mouseMoved(MouseEvent e) {
-                    JList l = (JList)e.getSource();
-                    ListModel m = l.getModel();
-                    int index = l.locationToIndex(e.getPoint());
-                    if( index>-1 ) {
-                        Plugin p = PluginFactory.getPlugin(m.getElementAt(index).toString());
-                        if (p!=null && (p instanceof Hint || p instanceof HintSimple)) {
-                            if (p instanceof HintSimple) l.setToolTipText(formatHint(((HintSimple)p).getSimpleHintText()));
-                            else l.setToolTipText(formatHint(((Hint)p).getHintText()));
-                        } else l.setToolTipText("");
-                    } else l.setToolTipText(defTT);
-                }
-            });
+            testModuleSelectionCallBack = testConfigurationTreeGenerator.getModuleChangeCallBack();
         }
     }
     

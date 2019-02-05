@@ -106,7 +106,7 @@ public class ConfigurationTreeGenerator {
             TreePath path = tree.getSelectionPath();
             if (!(path.getLastPathComponent() instanceof PluginParameter)) return;
             PluginParameter pp = (PluginParameter)path.getLastPathComponent();
-            //logger.debug("setting : {} to pp: {}", selModule, pp);
+            logger.debug("setting : {} to pp: {}", selModule, pp);
             pp.setPlugin(selModule);
             if (pp.isOnePluginSet() && !pp.isValid()) {
                 //logger.debug("checking validation for : {}", pp.toString());

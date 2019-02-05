@@ -69,12 +69,20 @@ public class IntervalParameterUI implements ParameterUI {
                     if (editing) return;
                     double d = (slider[ii].getValue() + 0.0) / sliderCoeff;
                     double[] vs = parameter.getValuesAsDouble();
+                    /*if (vs[ii] != d) {
+                        number[ii].setNumber(d);
+                        parameter.setValue(d, ii); // only set if different
+                        updateNode();
+                    }*/
                     double low = ii==0 ? parameter.getLowerBound().doubleValue() : vs[ii-1];
                     double high = ii==vs.length-1 ? parameter.getUpperBound().doubleValue() : vs[ii+1];
                     if (d >=low && d<=high) { // valid value
-                        number[ii].setNumber(d);
-                        if (vs[ii] != d) parameter.setValue(d, ii); // only set if different
-                        updateNode();
+                        if (vs[ii] != d) {
+                            number[ii].setNumber(d);
+                            parameter.setValue(d, ii); // only set if different
+                            updateNode();
+                        }
+
                     } else if (d<low) slider[ii].setValue(getSliderValue(low));
                     else slider[ii].setValue(getSliderValue(high));
                 });
@@ -134,10 +142,10 @@ public class IntervalParameterUI implements ParameterUI {
         if (n != null) {
             double d = n.doubleValue();
             double[] vs = parameter.getValuesAsDouble();
-            double low = index==0 ? (parameter.getLowerBound()==null ? Double.NEGATIVE_INFINITY : parameter.getLowerBound().doubleValue()) : vs[index-1];
+            /*double low = index==0 ? (parameter.getLowerBound()==null ? Double.NEGATIVE_INFINITY : parameter.getLowerBound().doubleValue()) : vs[index-1];
             double high = index==vs.length-1 ? (parameter.getUpperBound()==null ? Double.POSITIVE_INFINITY : parameter.getUpperBound().doubleValue())  : vs[index+1];
             if (d<low) d=low;
-            if (d>high) d = high;
+            if (d>high) d = high;*/
             if (slider != null) slider[index].setValue(getSliderValue(d));
             if (vs[index]!=d) {
                 modif = true;

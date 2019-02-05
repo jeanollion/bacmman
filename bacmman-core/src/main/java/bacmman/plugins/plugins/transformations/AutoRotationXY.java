@@ -20,7 +20,7 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
-import bacmman.plugins.Filter;
+import bacmman.plugins.*;
 
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
@@ -29,16 +29,12 @@ import bacmman.image.TypeConverter;
 import java.util.ArrayList;
 import java.util.List;
 
-import bacmman.plugins.TestableOperation;
 import bacmman.processing.ImageTransformation;
 import bacmman.processing.ImageTransformation.InterpolationScheme;
 import bacmman.processing.RadonProjection;
 import static bacmman.processing.RadonProjection.getAngleArray;
 import static bacmman.processing.RadonProjection.radonProject;
 
-import bacmman.plugins.ConfigurableTransformation;
-import bacmman.plugins.MultichannelTransformation;
-import bacmman.plugins.Hint;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import java.util.stream.Collectors;
@@ -47,7 +43,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class AutoRotationXY implements MultichannelTransformation, ConfigurableTransformation, TestableOperation, Hint {
+public class AutoRotationXY implements MultichannelTransformation, ConfigurableTransformation, TestableOperation, Hint, HintSimple {
     IntervalParameter angleRange = new IntervalParameter("Angle range search", 2, -90, 90, -10, 10).setHint("Rotation angle search will be limited to this range (in degree) ");
     NumberParameter precision1 = new BoundedNumberParameter("Angular Precision of first search", 2, 1, 0, null).setHint("The algorithm performs a first angle search within the range defined in the <em>Angle range search</em> with a lower precision defined by this parameter. A second search is then performed as described in the <em>Angular precision</em> parameter.<br /> If this value is too low the computation time will increase significantly, and if it's too high the algorithm may miss the global optimum");
     NumberParameter precision2 = new BoundedNumberParameter("Angular Precision", 2, 0.1, 0, 1).setHint("After the first angle search performed with the precision defined in <em>Angular Precision of first search</em>, an optimal angle is found. To refine the precision, a second search is then performed around this angle with the precision defined by this parameter");
@@ -210,6 +206,10 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
 
     @Override
     public String getHintText() {
+        return getSimpleHintText() + "<br /><br />In test mode, sinograms are displayed for first (rough) and second (precise) angle search. In a sinogram, each line in the y-direction represents the result of the Radon projection for a given projection angle";
+    }
+    @Override
+    public String getSimpleHintText() {
         return "Align Microchannel sides along the Y-axis<br />Based on Radon Transform implementation by Damien Farrel: <a href='https://imagej.nih.gov/ij/plugins/radon-transform.html'>https://imagej.nih.gov/ij/plugins/radon-transform.html</a>";
     }
     

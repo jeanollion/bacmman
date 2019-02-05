@@ -46,10 +46,10 @@ public class PostFilter implements TrackPostFilter, Hint {
     PluginParameter<bacmman.plugins.PostFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PostFilter.class, false).setEmphasized(true);
     final static String[] METHODS = new String[]{"Delete single objects", "Delete whole track", "Prune Track"};
     ChoiceParameter deleteMethod = new ChoiceParameter("Delete method", METHODS, METHODS[0], false)
-            .setHint("How to cope with lineage break when post-filter deletes objects. <ol>"
-                    + "<li><em>Delete single objects</em>: will delete only the objects deleted by the post-filter, create a new branch starting from next object (if exist).</li>"
-                    + "<li><em>Delete whole track</em>: deleted every previous and next tracks</li>"
-                    + "<li><em>Prune Track</em>: delete the track from objects to be deleted plus the following connected tracks</li></ol>");
+            .setHint("How to cope with lineage breaks when the post-filter deletes one or several objects.<ol>"
+                    + "<li><em>Delete single objects</em>: deletes only the objects deleted by the post-filter. If the deleted object was linked to another object in the next frame, a new track is created.</li>"
+                    + "<li><em>Delete whole track</em>: deletes every object of the track from the deleted object as well as the connected tracks in subsequent frames</li>"
+                    + "<li><em>Prune Track</em>: deletes the track from the deleted objects as well as the connected tracks in subsequent frames</li></ol>");
 
     public enum MERGE_POLICY {
         NERVER_MERGE(SegmentedObjectEditor.NERVE_MERGE),
@@ -60,11 +60,11 @@ public class PostFilter implements TrackPostFilter, Hint {
             this.mergePredicate=mergePredicate; 
         }
     }
-    public final static String MERGE_POLICY_TT = "When removing an object/track that has a previous object (p) that was linked to this object and one other object (n). p is now linked to one single object n. This parameter controls whether / in which conditions should p's track and n's track be merged.<br/><ul><li>NEVER_MERGE: never merge tracks</li><li>ALWAYS_MERGE: always merge tracks</li><li>MERGE_TRACKS_SIZE_COND: merge tracks only if size(n)>0.8 * size(p) (useful for bacteria linking)</li></ul>";
+    public final static String MERGE_POLICY_TT = "When an object p is linked to two objects n and m at the next frame (for instance for dividing bacteria), if the object m is removed by this post-filter p is then linked to one single object n at the next frame. This parameter controls whether the tracks of the objects p and n should be merged.<br/><ul><li>NEVER_MERGE: never merge tracks</li><li>ALWAYS_MERGE: always merge tracks</li><li>MERGE_TRACKS_SIZE_COND: merge tracks only if size(n) > 0.8 x size(p) (this criterion is useful for bacteria linking: if the size of p is too low, a division occurred and tracks should not be merged)</li></ul>";
     EnumChoiceParameter<MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",MERGE_POLICY.values(), MERGE_POLICY.ALWAYS_MERGE, false).setHint(MERGE_POLICY_TT);
     @Override 
     public String getHintText() {
-        return "Performs regular post-filter frame-by-frame. In the case the post-filter removes segmented objects, lineage breaks is managed as defined in <em>Delete method</em> parameter";
+        return "Performs regular post-filter (frame-by-frame). If the post-filter removes segmented objects, lineage breaks are managed as defined in <em>Delete method</em> parameter";
     }
     public PostFilter setMergePolicy(PostFilter.MERGE_POLICY policy) {
         mergePolicy.setSelectedItem(policy.toString());
