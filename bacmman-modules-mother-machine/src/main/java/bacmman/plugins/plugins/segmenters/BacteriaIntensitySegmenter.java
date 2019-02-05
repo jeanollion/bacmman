@@ -53,11 +53,11 @@ import bacmman.plugins.TrackConfigurable;
  * @param <T>
  */
 public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegmenter<T>> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter, Hint {
-    public static String Edge_Hint = "Several operation allowing to detect edges:" +
+    public static String Edge_Hint = "<br />Several operations allowing to detect edges:" +
             "<ul><li>Max Eigenvalue of Structure tensor (located in the <em>ImageFeatures</em> module)</li>" +
             "<li>StandardDeviation is more suitable for noisy images (involve less derivation)</li>" +
             "<li>Gradient magnitude (located in the <em>ImageFeatures</em> module)</li></ul>" +
-            "Those operation should be preceded by a de-noising operation such as: " +
+            "Those operations should be preceded by a de-noising operation such as: " +
             "<ul><li>Gaussian Smooth (located in the <em>ImageFeatures</em> module)</li>" +
             "<li>Median</li>" +
             "<li>BandPass</li>" +

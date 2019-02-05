@@ -61,8 +61,8 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     private static final String CONF_HINT = "<br />Configuration hint: to display distance between two spots, select the two spots on test images and choose <em>Display Spine</em> from right-click menu. Distance will be logged in the console and projection of source spot to destination bacteria displayed";
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false).setEmphasized(true);
     ObjectClassParameter compartmentStructure = new ObjectClassParameter("Compartment Structure", -1, false, false).setEmphasized(true).setHint("Object class for bacteria (containing spots to be segmented).");
-    NumberParameter spotQualityThreshold = new NumberParameter<>("Spot Quality Threshold", 3, 3.5).setEmphasized(true).setHint("Spot with quality parameter over this threshold are considered as high quality spots (HQ), others as low quality spots (LQ).<br />LQ that cannot be linked to HQ spots are removed");
-    NumberParameter maxGap = new BoundedNumberParameter("Maximum frame gap", 0, 1, 0, null).setEmphasized(true).setHint("Maximum frame gap for spot linking: if two spots are separated by a gap with more frames than this value they cannot be linked together directly");
+    NumberParameter spotQualityThreshold = new NumberParameter<>("Spot Quality Threshold", 3, 3.5).setEmphasized(true).setHint("Spot with quality parameter over this threshold are considered as high quality spots (HQ), others as low quality spots (LQ).<br />LQ that cannot be linked to HQ spots are removed<br />Lower this threshold to include spots of lower intensity");
+    NumberParameter maxGap = new BoundedNumberParameter("Maximum frame gap", 0, 1, 0, null).setEmphasized(true).setHint("Maximum frame gap for spot linking: if two spots are separated by a gap in frames larger than this value, they cannot be linked");
     NumberParameter maxLinkingDistance = new BoundedNumberParameter("Maximum Linking Distance (FTF)", 2, 0.4, 0, null).setHint("Maximum linking distance for frame-to-frame linking, in unit (microns). If two spots are separated by a distance superior to this value, they cannot be linked together."+CONF_HINT);
     NumberParameter maxLinkingDistanceGC = new BoundedNumberParameter("Maximum Linking Distance", 2, 0.75, 0, null).setHint("Maximum linking distance for the gap-closing linking, in unit (microns). If two spots are separated by a distance superior to this value, they cannot be linked together. An additional cost proportional to the gap is added to the distance between spots (see <em>gap penalty</em>"+CONF_HINT);
     NumberParameter gapPenalty = new BoundedNumberParameter("Gap Distance Penalty", 2, 0.15, 0, null).setHint("When two spots are separated by a gap, an additional distance is added to their distance: this value x number of frame of the gap");
@@ -73,7 +73,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, spotQualityThreshold, allowSplitting, allowMerging};
 
     static String toolTipSimple = "<b>Tracker for spots moving within bacteria</b><br />" +
-            "Algorithm allowing tracking of spots located within bacteria, by correcting for bacteria motion and growth";
+            "Algorithm allowing tracking of spots located within bacteria, that provide a correction for bacteria motion and growth";
     static String toolTip = "<br />";
     static String toolTipAlgo = "<b>Tracker for spots moving within bacteria</b><br />"
             + "<ul><li>Distance between spots is computed using spine coordinates in order to take into account bacteria growth and movements</li>"

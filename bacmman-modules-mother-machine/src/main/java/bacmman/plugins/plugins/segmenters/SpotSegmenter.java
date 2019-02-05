@@ -24,6 +24,7 @@ import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.core.Core;
 import bacmman.image.*;
+import bacmman.plugins.*;
 import bacmman.processing.*;
 import bacmman.processing.neighborhood.ConicalNeighborhood;
 import bacmman.processing.neighborhood.CylindricalNeighborhood;
@@ -58,43 +59,53 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import bacmman.plugins.ManualSegmenter;
-import bacmman.plugins.ObjectSplitter;
-import bacmman.plugins.Segmenter;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.SubPixelLocalizator;
 
 import static bacmman.processing.watershed.WatershedTransform.watershed;
 
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.Hint;
-
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
-import bacmman.plugins.TrackConfigurable;
 
 /**
  *
  * @author Jean Ollion
  */
-public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint {
+public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple {
     public static boolean debug = false;
-    ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setEmphasized(true).setHint("Scale for Laplacian transform. <br />Configuration hint: <em>Laplacian</em> image");
-    NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: <em>smooth & scaled</em> image");
+    ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setHint("Scale (in pixels) for Laplacian transform. <br />Configuration hint: determines the <em>Laplacian</em> image displayed in test mode");
+    NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     NumberParameter minSpotSize = new BoundedNumberParameter("Min. Spot Size", 0, 5, 1, null).setHint("Spots under this size (in voxel number) will be removed");
-    NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian Threshold for seed selection.<br />Higher values tend increase false negative and decrease false positives.<br /> Configuration hint: corresponds to values in <em>Laplacian</em> image"); // was 2.25
-    NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian Threshold for watershed propagation: propagation stops at this value. <br />Lower value will yield in larger spots.<br />Configuration hint: corresponds to values in <em>Laplacian</em> image");
-    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Intensity threshold for seed selection.<br /> Higher values tend to increase false negative and decrease false positives.<br />Configuration hint: corresponds to values of <em>smooth & scaled</em> image"); // was 1.6
+    NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend increase false negative and decrease false positives.<br /> Configuration hint: corresponds to values in <em>Laplacian</em> image displayed in test mode"); // was 2.25
+    NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian threshold for watershed propagation: propagation stops at this value. <br />Lower value will yield in larger spots.<br />Configuration hint: corresponds to values in <em>Laplacian</em> image displayed in test mode");
+    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Intensity threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative and decrease false positives.<br />Configuration hint: corresponds to values of <em>Gaussian</em> image displayed in test mode"); // was 1.6
     boolean planeByPlane = false;
     Parameter[] parameters = new Parameter[]{scale, smoothScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold};
     ProcessingVariables pv = new ProcessingVariables();
-    protected String toolTip = "<b>Spot Detection</b>. <br /> "
-            + "<ul><li>Input image is scaled by removing the mean value and dividing by the standard-deviation value of the background signal within the segmentation parent</li>"
+    protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected using a seeded watershed algorithm in the Laplacian transform.</li> "
-            + "<li>Seeds are set on regional maxima of the Laplacian transform, within the mask of the segmentation parent, with Laplacian value superior to <em>Seed Threshold</em> and gaussian value superior to <em>Seed Threshold</em></li>"
-            + "<li>If several scales are provided, the Laplacian scale space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
-            + "<li>Watershed propagation is done within the segmentation parent mask until Laplacian values reach <em>Propagation Threshold</em></li>"
-            + "<li>A quality parameter defined as √(Laplacian x gaussian) at the center of the spot is computed (used in <em>Nested Spot Tracker</em>)</li><ul>";
+            + "<li>Seeds are set on regional maxima of the Laplacian transform, within the mask of the segmentation parent. Selected seeds have a Laplacian value superior to <em>Seed Threshold</em> an intensity value superior to <em>Seed Threshold</em></li>"
+            + "<li>If several scales are provided, the Laplacian scale-space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
+            + "<li>Watershed propagation is done within the segmentation parent mask until Laplacian values reaches the threshold defined in the <em>Propagation Threshold</em> parameter</li>"
+            + "<li>A quality parameter defined as √(Laplacian x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
+            "<br />In order to increase robustness to variation in background fluorescence in bacteria, the input image is first scaled by removing the mean value and dividing by the standard-deviation value of the background signal within the segmentation parent. Laplacian & Gaussian transform are then computed on the scaled image.";
+    protected static String toolTipDispImage = "<br /><br />Images displayed in test mode:" +
+            "<ul><li><em>Gaussian</em>: Gaussian transform on the scaled input image.</li>" +
+            "<li><em>Laplacian</em>: Laplacian transform on the scaled input image.</li>";
+    protected static String toolTipDispImageAdvanced = "<li><em>Seeds</em>: Selected seeds for the seeded-watershed transform</li></ul>";
+    protected static String toolTipSimple ="<b>Fluorescence Spot Detection</b>.<br />" +
+            "Segments spot-like object in fluorescence image using a criterion on Intensity and on Laplacian transform";
+
+    // tool tip interface
+    @Override
+    public String getHintText() {
+        return toolTipSimple+toolTipAlgo+toolTipDispImage+toolTipDispImageAdvanced;
+    }
+
+    @Override
+    public String getSimpleHintText() {
+        return toolTipSimple + toolTipDispImage+ "</ul>";
+    }
 
     public SpotSegmenter() {}
     
@@ -269,26 +280,26 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         pop.filter(new RegionPopulation.RemoveFlatObjects(false));
         pop.filter(new RegionPopulation.Size().setMin(minSpotSize));
         if (stores!=null) {
-            stores.get(parent).addIntermediateImage("smoothed & scaled", smooth);
+            stores.get(parent).addIntermediateImage("Gaussian", smooth);
             if (planeByPlane) {
                 if (scale.length>1) {
                     for (int z = 0; z<seedsSPZ.length; ++z) {
-                        stores.get(parent).addIntermediateImage("Seeds: Scale-space z="+z, seedsSPZ[z]);
+                        if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds: Scale-space z="+z, seedsSPZ[z]);
                         stores.get(parent).addIntermediateImage("Laplacian: Scale-space z="+z, lapSPZ[z]);
                     }
                 } else {
-                    stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedsSPZ));
+                    if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedsSPZ));
                     stores.get(parent).addIntermediateImage("Laplacian", Image.mergeZPlanes(lapSPZ));
                 }
             } else {
                 if (seedMaps[0].sizeZ()>1) {
                     for (int sp = 0; sp<wsMap.length; ++sp) {
-                        stores.get(parent).addIntermediateImage("seed sp"+sp, seedMaps[sp]);
-                        stores.get(parent).addIntermediateImage("Laplacian sp"+sp, wsMap[sp]);
+                        if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds Scale-space="+sp, seedMaps[sp]);
+                        stores.get(parent).addIntermediateImage("Laplacian Scale-space="+sp, wsMap[sp]);
                     }
                 } else {
-                    stores.get(parent).addIntermediateImage("Seeds Scale-space", Image.mergeZPlanes(seedMaps));
-                    stores.get(parent).addIntermediateImage("Laplacian Scale-space", Image.mergeZPlanes(wsMap));
+                    if (stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedMaps));
+                    stores.get(parent).addIntermediateImage("Laplacian", Image.mergeZPlanes(wsMap));
                 }
             }
         }
@@ -409,11 +420,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public void setSplitVerboseMode(boolean verbose) {
         manualSplitVerbose=verbose;
     }
-    // tool tip interface
-    @Override
-    public String getHintText() {
-       return toolTip;
-    }
+
     // track parametrizable
     /**
      * Compute Maps on parent image 
