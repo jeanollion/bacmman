@@ -49,7 +49,7 @@ public class ThresholderWithOperation implements ThresholderHisto, SimpleThresho
     
     @Override
     public String getHintText() {
-        return "First computes a threshold using <em>Thresholder<em> method. Resulting threshold is a statistics (defined in <em>Statistics</em> parameter) computed on pixels values above (if <em>Perform stat over threshold</em> is set to <em>true</em>) or under this threshold (if <em>Perform stat over threshold</em> is set to <em>false</em>)";
+        return "First computes a threshold using the <em>Thresholder<em> method. Resulting threshold is a statistics (defined in the <em>Statistics</em> parameter) computed on pixels values above (if <em>Perform stat over threshold</em> is set to <em>true</em>) or under this threshold (if <em>Perform stat over threshold</em> is set to <em>false</em>)";
     }
     
     @Override

@@ -76,25 +76,25 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setHint("Scale (in pixels) for Laplacian transform. <br />Configuration hint: determines the <em>Laplacian</em> image displayed in test mode");
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     NumberParameter minSpotSize = new BoundedNumberParameter("Min. Spot Size", 0, 5, 1, null).setHint("Spots under this size (in voxel number) will be removed");
-    NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend increase false negative and decrease false positives.<br /> Configuration hint: corresponds to values in <em>Laplacian</em> image displayed in test mode"); // was 2.25
-    NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian threshold for watershed propagation: propagation stops at this value. <br />Lower value will yield in larger spots.<br />Configuration hint: corresponds to values in <em>Laplacian</em> image displayed in test mode");
-    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Intensity threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative and decrease false positives.<br />Configuration hint: corresponds to values of <em>Gaussian</em> image displayed in test mode"); // was 1.6
+    NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
+    NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode");
+    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     boolean planeByPlane = false;
     Parameter[] parameters = new Parameter[]{scale, smoothScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold};
     ProcessingVariables pv = new ProcessingVariables();
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
-            + "<li>Spots are detected using a seeded watershed algorithm in the Laplacian transform.</li> "
-            + "<li>Seeds are set on regional maxima of the Laplacian transform, within the mask of the segmentation parent. Selected seeds have a Laplacian value superior to <em>Seed Threshold</em> an intensity value superior to <em>Seed Threshold</em></li>"
+            + "<li>Spots are detected using a seeded watershed algorithm applied on the Laplacian transform.</li> "
+            + "<li>Seeds are set on the regional maxima of the Laplacian transform, within the mask of the segmentation parent. Selected seeds have a Laplacian value larger than <em>Seed Laplacian Threshold</em> and a Gaussian value superior to <em>Seed Threshold</em></li>"
             + "<li>If several scales are provided, the Laplacian scale-space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
-            + "<li>Watershed propagation is done within the segmentation parent mask until Laplacian values reaches the threshold defined in the <em>Propagation Threshold</em> parameter</li>"
+            + "<li>Watershed propagation is done within the segmentation parent mask until Laplacian values reach the threshold defined in the <em>Propagation Threshold</em> parameter</li>"
             + "<li>A quality parameter defined as √(Laplacian x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
-            "<br />In order to increase robustness to variation in background fluorescence in bacteria, the input image is first scaled by removing the mean value and dividing by the standard-deviation value of the background signal within the segmentation parent. Laplacian & Gaussian transform are then computed on the scaled image.";
+            "<br />In order to increase robustness to variation in the background fluorescence in bacteria, the input image is first normalized by subtracting the mean value and dividing by the standard-deviation value of the background signal within the cell. Laplacian & Gaussian transforms are then computed on the normalized image.";
     protected static String toolTipDispImage = "<br /><br />Images displayed in test mode:" +
-            "<ul><li><em>Gaussian</em>: Gaussian transform on the scaled input image.</li>" +
-            "<li><em>Laplacian</em>: Laplacian transform on the scaled input image.</li>";
+            "<ul><li><em>Gaussian</em>: Gaussian transform applied to the normalized input image.</li>" +
+            "<li><em>Laplacian</em>: Laplacian transform applied to the normalized input image.</li>";
     protected static String toolTipDispImageAdvanced = "<li><em>Seeds</em>: Selected seeds for the seeded-watershed transform</li></ul>";
     protected static String toolTipSimple ="<b>Fluorescence Spot Detection</b>.<br />" +
-            "Segments spot-like object in fluorescence image using a criterion on Intensity and on Laplacian transform";
+            "Segments spot-like object in fluorescence images using a criterion on Gaussian and on Laplacian transforms";
 
     // tool tip interface
     @Override

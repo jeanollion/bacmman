@@ -56,10 +56,10 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     }
     @Override
     public String getHintText() {
-        return "This method estimates the background two first moments: Mean (µ) & Standard deviation (σ) by fitting a gaussian on the lower half of the mode's peak of the histogram" +
+        return "This method estimates the two first moments of the background pixel intensity: Mean (µ) and Standard deviation (σ), by fitting a half-gaussian on the lower half of the mode of the distribution of pixel intensity" +
                 "<br />Resulting Threshold = µ + <em>Sigma Factor</em> * σ<br />" +
-                "<br />Assumes that the mode corresponds to the background values and that the lower half of the background peak is not too far from a gaussian distribution" +
-                "<br >Caution: this assumption is wrong in particular after a rotation with many null values added on sides in images where background values are not centered on 0." +
+                "<br />This method assumes that the mode of the pixel intensity distribution corresponds to the background values and that the lower half of the background peak is not too far from a gaussian distribution" +
+                "<br >Caution: this assumption can be wrong if a rotation added many null values on the sides of the images." +
                 "<br />Adapted from: T. Panier et al., “Fast functional imaging of multiple brain regions in intact zebrafish larvae using selective plane illumination microscopy” Frontiers in neural circuits, vol. 7. p. 65, 2013";
     }
     

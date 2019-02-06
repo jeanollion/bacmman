@@ -49,7 +49,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     PluginParameter<SimpleThresholder> startingPoint = new PluginParameter<>("Starting value", SimpleThresholder.class, true).setHint("This value limits the threshold computed at first iteration. Use this parameter when the image contains pixel with high values");
     Parameter[] parameters = new Parameter[]{sigmaFactor, finalSigmaFactor, iterations, startingPoint};
 
-    public static String simpleHint = "This algorithm estimates the mean (µ) and standard deviation (σ) values of the background, and use this two parameters to select the pixels significantly different of the background"
+    public static String simpleHint = "This algorithm estimates the mean (µ) and standard deviation (σ) of the background pixel intensity, and use these two parameters to select the pixels significantly different from the background"
             +"<br />This method works only on images in which most pixels are background pixels"
             +"<br />Adapted from Implementation of <em>Kappa Sigma Clipping</em> algorithm by Gaëtan Lehmann, <a href='http://www.insight-journal.org/browse/publication/132'>http://www.insight-journal.org/browse/publication/132</a>";
 

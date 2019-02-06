@@ -54,9 +54,9 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
-    NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions A and B are merged if mean(hessian) @ interface(A-B) / mean(intensity) @ interface(A-B)  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Interface Values before merge by Hessian</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
+    NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions A and B are merged if mean(hessian) @ interface(A-B) / mean(intensity) @ interface(A-B)  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Split cells: Interface values</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
 
-    protected NumberParameter localThresholdFactorHess = new BoundedNumberParameter("Local Threshold Factor (Hessian)", 2, 0, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit hessian. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the hessian values - standard-deviation of intensity * this factor. Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
+    protected NumberParameter localThresholdFactorHess = new BoundedNumberParameter("Local Threshold Factor (Hessian)", 2, 0, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit hessian. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the hessian values - standard-deviation of intensity * this threshold. Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
     BooleanParameter upperCellCorrectionHess = new BooleanParameter("Upper Cell Correction (Hessian)", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
     NumberParameter upperCellLocalThresholdFactorHess = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinateHess = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
@@ -68,7 +68,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
     ConditionalParameter upperCellCorrectionCond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
-    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit edges. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this factor (edges as defined by <em>Edge Map</em>). Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
+    protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit edges. A lower value yield in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this threshold (edges as defined by <em>Edge Map</em>). Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment");
     ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, upperCellCorrectionCond);
 
@@ -78,8 +78,8 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
 
     // attributes parametrized during track parametrization
     double filterThld=Double.NaN;
-    final String operationSequenceHint = "<ol><li>Partition of the whole microchannel using seeded watershed algorithm on maximal hessian eigenvalue transform</li>"
-            +"<li>Merging of partition using a criterion on hessian value at interface see hint of parameter <em>Merge Threshold</em></li>"
+    final String operationSequenceHint = "<ol><li>Partitioning of the whole microchannel using seeded watershed algorithm on maximal hessian eigenvalue transform</li>"
+            +"<li>Merging of regions using a criterion on hessian value at interface see hint of parameter <em>Merge Threshold</em></li>"
             +"<li>Local Threshold of regions <em>Hessian</em>, see hint of <em>Contour Adjustment (hessian)</em> and sub-parameters for details</li>"
             +"<li>Local Threshold of regions to fit contour on <em>Edge Map</em>, see hint of <em>Contour Adjustment</em> and sub-parameters for details</li>"
             +"<li>Region of intensity inferior to <em>Threshold</em> are erased</li>"
@@ -93,7 +93,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     public BacteriaHessian() {
         this.hessianScale.setValue(2);
         this.splitThreshold.setValue(0.13);
-        //localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this factor will yield in smaller cells. <br />Threshold = mean_w - sigma_w * (this factor), <br />with mean_w = weigthed mean of raw pahse image weighted by edge image, sigma_w = sigma weighted by edge image. Refer to images: <em>Local Threshold edge map</em> and <em>Local Threshold intensity map</em>");
+        //localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this threshold will yield in smaller cells. <br />Threshold = mean_w - sigma_w * (this threshold), <br />with mean_w = weigthed mean of raw pahse image weighted by edge image, sigma_w = sigma weighted by edge image. Refer to images: <em>Contour adjustment: edge map</em> and <em>Contour adjustment: intensity map</em>");
         //localThresholdFactor.setValue(1);
         
     }
@@ -110,13 +110,13 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         RegionPopulation pop = splitAndMerge.split(parent.getMask(), 5); // partition the whole parent mask
         if (stores!=null) {
             imageDisp.accept(splitAndMerge.getHessian().setName("Hessian"));
-            imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after partitioning"));
+            imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Foreground detection: Region values after partitioning"));
             imageDisp.accept(splitAndMerge.drawInterfaceValues(pop).setName("Interface values after partitioning (HINT: use to set merge threshold)"));
         }
 
         pop = splitAndMerge.merge(pop, null);
 
-        if (stores!=null)  imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after merge partitions"));
+        if (stores!=null)  imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after merge regions"));
 
         // step 2 adjust regions to edges
         localThreshold(pop, parent, objectClassIdx);
