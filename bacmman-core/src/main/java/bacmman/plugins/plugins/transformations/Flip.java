@@ -32,7 +32,7 @@ import bacmman.plugins.MultichannelTransformation;
  */
 public class Flip implements MultichannelTransformation, Hint {
     
-    ChoiceParameter direction = new ChoiceParameter("Flip Axis Direction", new String[]{Axis.X.toString(), Axis.Y.toString(), Axis.Z.toString()}, Axis.Y.toString(), false);
+    ChoiceParameter direction = new ChoiceParameter("Flip Axis Direction", new String[]{Axis.X.toString(), Axis.Y.toString(), Axis.Z.toString()}, Axis.Y.toString(), false).setEmphasized(true);
     Parameter[] p = new Parameter[]{direction};
     public Flip() {}
     

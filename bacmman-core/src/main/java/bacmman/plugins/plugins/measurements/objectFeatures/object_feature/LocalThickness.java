@@ -35,7 +35,7 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
  * @author Jean Ollion
  */
 public class LocalThickness implements GeometricalFeature, Hint {
-    protected BooleanParameter scaled = new BooleanParameter("Scale", "Unit", "Pixel", true).setHint(SCALED_TT);
+    protected BooleanParameter scaled = new BooleanParameter("Scale", "Unit", "Pixel", true).setEmphasized(true).setHint(SCALED_TT);
     public LocalThickness setScale(boolean unit) {
         this.scaled.setSelected(unit);
         return this;
@@ -64,7 +64,7 @@ public class LocalThickness implements GeometricalFeature, Hint {
 
     @Override
     public String getHintText() {
-        return "Estimation of thickness: median value of local thickness within object. <br />Local thickness at a given voxel is the radius of the largest circle (sphere) center on this voxel that can fit within the object<br />Based on implementation by Bob Dougherty  <a href='https://imagej.net/Local_Thickness'>https://imagej.net/Local_Thickness</a>";
+        return "Estimation of the thickness: median value of the local thickness within object. <br />The local thickness at a given voxel is the radius of the largest circle (sphere) centered on this voxel that can fit within the object<br />Based on the implementation by Bob Dougherty  <a href='https://imagej.net/Local_Thickness'>https://imagej.net/Local_Thickness</a>";
     }
     
 }

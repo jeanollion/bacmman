@@ -48,13 +48,13 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class RemoveStripesSignalExclusion implements ConfigurableTransformation, TestableOperation, Hint {
-    ChannelImageParameter signalExclusion = new ChannelImageParameter("Channel for Signal Exclusion", -1, true);
-    PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundFit(5), false); //new ConstantValue(150)
+    ChannelImageParameter signalExclusion = new ChannelImageParameter("Channel for Signal Exclusion", -1, true).setEmphasized(true);
+    PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundFit(5), false).setEmphasized(true); //new ConstantValue(150)
     BooleanParameter signalExclusionBool2 = new BooleanParameter("Second Signal Exclusion", false);
     ChannelImageParameter signalExclusion2 = new ChannelImageParameter("Channel for Signal Exclusion 2", -1, false);
     PluginParameter<SimpleThresholder> signalExclusionThreshold2 = new PluginParameter<>("Signal Exclusion Threshold 2", SimpleThresholder.class, new BackgroundFit(5), false);
     ConditionalParameter signalExclusionCond = new ConditionalParameter(signalExclusionBool2).setActionParameters("true", new Parameter[]{signalExclusion2, signalExclusionThreshold2});
-    BooleanParameter addGlobalMean = new BooleanParameter("Add global mean (avoid negative values)", false);
+    BooleanParameter addGlobalMean = new BooleanParameter("Add global mean", false).setEmphasized(true).setHint("If this option is set to <em>true</em>, the global mean value of pixel intensities is added to all pixels. This option ensures that this operation will not set negative values to pixels");
     BooleanParameter trimNegativeValues = new BooleanParameter("Set Negative values to Zero", false);
     ConditionalParameter addGMCond = new ConditionalParameter(addGlobalMean).setActionParameters("false", new Parameter[]{trimNegativeValues});
     Parameter[] parameters = new Parameter[]{signalExclusion, signalExclusionThreshold, signalExclusionCond, addGMCond};

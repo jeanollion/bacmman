@@ -33,7 +33,7 @@ import bacmman.plugins.ObjectFeature;
  */
 public class Size implements GeometricalFeature, Hint {
     public final static String SCALED_TT = "When Unit is chosen, the size is multiplied by the size of a voxel in unit, depending on the calibration of the image";
-    protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", true).setHint(SCALED_TT);
+    protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", true).setEmphasized(true).setHint(SCALED_TT);
     public Size setScaled(boolean unit) {
         scaled.setSelected(unit);
         return this;

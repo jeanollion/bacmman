@@ -64,13 +64,13 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     Parameter[] parameters = new Parameter[]{channelLength, channelWidth, yShift, threshold, fillingProportion, minObjectSize};
     public static boolean debug = false;
     public static final String TOOL_TIP = "<ol><li>A rough segmentation of the cells is performed, using the <em>Threshold</em> parameter computed on all frames</li>"
-    + "<li>Empty microchannels are discarded: the microchannel is discarded if the length of the segmented objects at step 1 (in X-direction) is smaller than the product of two user-defined parameters : <em>Microchannel Length</em> x <em>Microchannel Filling proportion</em></li>"
+    + "<li>Empty microchannels are discarded: the microchannel is discarded if the length of the segmented objects at step 1 (in Y-direction) is smaller than the product of two user-defined parameters : <em>Microchannel Length</em> x <em>Microchannel Filling proportion</em></li>"
     + "<li>The y-coordinate of all microchannels closed-end (Y start) is computed, as the minimum value of y-coordinates of all the microchannels selected at step 2.</li></ol>";
 
     // hint interface
     private static String simpleHint = "<b>Detection of microchannel using bacteria fluorescence</b><br />";
     private static String dispImageSimple = "Displayed images in test mode:" +
-            "<ul><li><em>Thresholded Bacteria</em>: Rough segmentation of bacteria by simple thresholding. No other structures than bacteria should be segmented. See <em>Threshold</em> parameter available in advanced mode for details</li>";
+            "<ul><li><em>Thresholded Bacteria</em>: Rough segmentation of bacteria by simple thresholding. No other structures than bacteria should be segmented. See the <em>Threshold</em> parameter available in advanced mode for details</li>";
     private static String dispImageAdvanced = "<li><em>Microchannel Fill proportion</em>: Plot representing the proportion of filled length of detected microchannels, available upon right-click on an image with a selected object (microchannel or viewfield). See module description and help for parameter <em>Filling proportion of Microchannel</em></li></ul>";
     @Override
     public String getHintText() {

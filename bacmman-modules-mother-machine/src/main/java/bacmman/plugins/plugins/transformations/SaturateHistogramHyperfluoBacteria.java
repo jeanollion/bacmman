@@ -52,7 +52,7 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
     }
     @Override
     public String getHintText() {
-        return "Automatically detects presence of bacteria with very high fluorescence expression, and saturates the images containing those bacteria (i.e. sets the pixels with values above an automatically computed threshold to the value of the threshold).";
+        return "Automatically detects the presence of bacteria with very high fluorescence intensity, and saturates the images containing those bacteria (i.e. sets the pixels with values above an automatically computed threshold to the value of the threshold).";
     }
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {

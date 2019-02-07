@@ -32,12 +32,12 @@ import bacmman.plugins.MultichannelTransformation;
  * @author Jean Ollion
  */
 public class SimpleCrop implements MultichannelTransformation, Hint {
-    NumberParameter xMin = new NumberParameter("X-Min", 0, 0);
-    NumberParameter yMin = new NumberParameter("Y-Min", 0, 0);
-    NumberParameter zMin = new NumberParameter("Z-Min", 0, 0);
-    NumberParameter xLength = new NumberParameter("X-Length", 0, 0);
-    NumberParameter yLength = new NumberParameter("Y-Length", 0, 0);
-    NumberParameter zLength = new NumberParameter("Z-Length", 0, 0);
+    NumberParameter xMin = new NumberParameter<>("X-Min", 0, 0).setEmphasized(true);
+    NumberParameter yMin = new NumberParameter<>("Y-Min", 0, 0).setEmphasized(true);
+    NumberParameter zMin = new NumberParameter<>("Z-Min", 0, 0).setEmphasized(true);
+    NumberParameter xLength = new NumberParameter<>("X-Length", 0, 0).setEmphasized(true);
+    NumberParameter yLength = new NumberParameter<>("Y-Length", 0, 0).setEmphasized(true);
+    NumberParameter zLength = new NumberParameter<>("Z-Length", 0, 0).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{xMin, xLength, yMin, yLength, zMin, zLength};
     MutableBoundingBox bounds;
     public SimpleCrop(){}

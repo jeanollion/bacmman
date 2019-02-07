@@ -71,7 +71,8 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     public static boolean debug = false;
     public static int debugIdx = -1;
     protected static String simpleToolTip = "<b>Microchannel Segmentation in phase-contrast images:</b>"
-            + "This algorithm requires that microchannels are aligned along the Y-axis, with their closed-end up. At this stage no bright line (or other strong intensity perturbation) should be visible";
+            + "This algorithm requires that microchannels are aligned along the Y-axis, with their closed-end up. At this stage no bright line (or other strong intensity perturbation) should be visible. " +
+            "<br /><b>The microchannel width should be indicated in the corresponding parameter. If the width parameter is incorrect, some microchannels may not be segmented</b><br />";
     protected static String toolTip =
             "<br />Main steps of the algorithm:"
             + "<ol><li>Searches for global closed-end y-coordinate of Microchannels: computes the first-order y-derivative and finds the maximum of its projection onto the Y-axis</li>"

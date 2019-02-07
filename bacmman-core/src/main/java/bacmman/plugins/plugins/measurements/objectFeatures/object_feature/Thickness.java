@@ -24,6 +24,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.measurement.GeometricalMeasurements;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.GeometricalFeature;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.Hint;

@@ -46,11 +46,11 @@ import java.util.List;
  * @author Jean Ollion
  */
 public class SNR extends IntensityMeasurement implements Hint {
-    protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Structure");//.setAutoConfiguration(true);
-    protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null).setHint("Dilated foreground object will be excluded from background mask");
-    protected BoundedNumberParameter erodeBorders = new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null).setHint("Background mask will be erored in order to avoid border effects");
-    protected ChoiceParameter formula = new ChoiceParameter("Formula", new String[]{"(F-B)/std(B)", "F-B"}, "(F-B)/std(B)", false).setHint("formula for SNR computation. F = Foreground, B = background, std = standard-deviation");
-    protected ChoiceParameter foregroundFormula = new ChoiceParameter("Foreground", new String[]{"mean", "max", "value at center"}, "mean", false).setHint("Forground computation");
+    protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class").setEmphasized(true);
+    protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null).setHint("Dilated foreground objects will be excluded from background mask");
+    protected BoundedNumberParameter erodeBorders = new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null).setHint("Background mask will be eroded in order to avoid border effects");
+    protected ChoiceParameter formula = new ChoiceParameter("Formula", new String[]{"(F-B)/std(B)", "F-B"}, "(F-B)/std(B)", false).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
+    protected ChoiceParameter foregroundFormula = new ChoiceParameter("Foreground", new String[]{"mean", "max", "value at center"}, "mean", false).setEmphasized(true).setHint("Foreground estimation method");
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, dilateExcluded, erodeBorders};}
     HashMap<Region, Region> foregroundMapBackground;
     Offset foregorundOffset;
@@ -159,7 +159,7 @@ public class SNR extends IntensityMeasurement implements Hint {
 
     @Override
     public String getHintText() {
-        return "Estimation of Signal-to-noise ratio within the object, with different available formula";
+        return "Estimation of the signal-to-noise ratio of a segmented object, with different available formula";
     }
     
 }

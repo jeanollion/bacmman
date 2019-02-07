@@ -33,9 +33,9 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  */
 public class SimpleTranslation implements MultichannelTransformation, Hint {
-    NumberParameter X = new NumberParameter("dX", 3, 0);
-    NumberParameter Y = new NumberParameter("dY", 3, 0);
-    NumberParameter Z = new NumberParameter("dZ", 3, 0);
+    NumberParameter X = new NumberParameter<>("dX", 3, 0).setEmphasized(true);
+    NumberParameter Y = new NumberParameter<>("dY", 3, 0).setEmphasized(true);
+    NumberParameter Z = new NumberParameter<>("dZ", 3, 0).setEmphasized(true);
     ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.BSPLINE5.toString(), false);
     Parameter[] parameters = new Parameter[]{X, Y, Z, interpolation};
 

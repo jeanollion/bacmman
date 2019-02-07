@@ -77,5 +77,10 @@ public class LocalSNR extends SNR {
     public String getDefaultName() {
         return "LocalSNR";
     }
-    
+
+
+    @Override
+    public String getHintText() {
+        return "Estimation of the signal-to-noise ratio of an object with different available formula, and by using the local background";
+    }
 }

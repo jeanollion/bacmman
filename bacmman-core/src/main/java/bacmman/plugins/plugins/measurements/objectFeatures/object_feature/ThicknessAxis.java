@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.ChoiceParameter;
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -35,11 +36,11 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  */
 public class ThicknessAxis implements GeometricalFeature, Hint {
-    ChoiceParameter axis = new ChoiceParameter("Axis", Utils.toStringArray(ImageTransformation.MainAxis.values()), null, false);
-    ChoiceParameter statistics = new ChoiceParameter("Statistics", new String[]{"Mean", "Median", "Max"}, "Mean", false);
-    String toolTip = "Estimates the thickness of a region along a given axis (X, Y or Z)";
+    EnumChoiceParameter<ImageTransformation.MainAxis> axis = new EnumChoiceParameter<>("Axis", ImageTransformation.MainAxis.values(), null, false);
+    ChoiceParameter statistics = new ChoiceParameter("Statistics", new String[]{"Mean", "Median", "Max"}, "Mean", false).setEmphasized(true);
+    String toolTip = "Estimates the thickness of a region along a given axis (X, Y or Z) using a user-defined statistics";
     public ThicknessAxis setAxis(ImageTransformation.MainAxis axis) {
-        this.axis.setSelectedItem(axis.name());
+        this.axis.setSelectedEnum(axis);
         return this;
     }
     @Override
@@ -54,8 +55,7 @@ public class ThicknessAxis implements GeometricalFeature, Hint {
 
     @Override
     public double performMeasurement(Region region) {
-        ImageTransformation.MainAxis ax = ImageTransformation.MainAxis.valueOf(axis.getSelectedItem());
-        switch(ax) {
+        switch(axis.getSelectedEnum()) {
             case X:
             default:
                 switch (statistics.getSelectedIndex()) {

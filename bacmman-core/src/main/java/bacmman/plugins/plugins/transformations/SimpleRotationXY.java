@@ -35,7 +35,7 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  */
 public class SimpleRotationXY implements MultichannelTransformation, Hint {
-    NumberParameter angle = new BoundedNumberParameter("Angle (degree)", 4, 0, -180, 180);
+    NumberParameter angle = new BoundedNumberParameter("Angle (degree)", 4, 0, -180, 180).setEmphasized(true);
     ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.LINEAR.toString(), false).setHint("The interpolation scheme to be used"+ImageTransformation.INTERPOLATION_HINT);
     BooleanParameter removeIncomplete = new BooleanParameter("Remove incomplete rows and columns", false).setHint("If this option is not selected, the rotated image will be inscribed in a larger image filled with zeros");
     Parameter[] parameters = new Parameter[]{angle, interpolation, removeIncomplete};

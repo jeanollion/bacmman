@@ -33,7 +33,7 @@ import bacmman.plugins.Hint;
  * @author Jean Ollion
  */
 public class FeretMax implements GeometricalFeature, Hint {
-    protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", true).setHint(Size.SCALED_TT);
+    protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", true).setEmphasized(true).setHint(Size.SCALED_TT);
     public FeretMax setScaled(boolean unit) {
         scaled.setSelected(unit);
         return this;

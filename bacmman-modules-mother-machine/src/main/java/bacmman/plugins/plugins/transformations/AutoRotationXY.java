@@ -55,6 +55,17 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
     BooleanParameter maintainMaximum = new BooleanParameter("Maintain Maximum Value", false).setHint("When interpolating with a polynomial of degree>1, pixels can be assigned values above the maximal value of the initial image. <br />This option will saturate the rotated image to the old maximal value.<br />This option is useful if the image's histogram has been saturated, in order to preserve the saturation value");
     Parameter[] parameters = new Parameter[]{searchMethod, angleRange, precision1, precision2, interpolation, frameNumber, removeIncompleteRowsAndColumns, maintainMaximum, prefilters}; //
     double rotationAngle = Double.NaN;
+
+    @Override
+    public String getHintText() {
+        return getSimpleHintText() + "<br /><br />In test mode, sinograms are displayed for first (rough) and second (precise) angle search. In a sinogram, each line in the y-direction represents the result of the Radon projection for a given projection angle";
+    }
+    @Override
+    public String getSimpleHintText() {
+        return "Aligns Microchannel sides along the Y-axis<br />Based on Radon Transform implementation by Damien Farrel: <a href='https://imagej.nih.gov/ij/plugins/radon-transform.html'>https://imagej.nih.gov/ij/plugins/radon-transform.html</a>";
+    }
+
+
     public AutoRotationXY(double minAngle, double maxAngle, double precision1, double precision2, InterpolationScheme interpolation, SearchMethod method) {
         angleRange.setValues(minAngle, maxAngle);
         this.precision1.setValue(precision1);
@@ -204,14 +215,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
         for (int y = 0; y<proj.length; ++y) image.setPixel(x, y, 0, proj[y]);
     }
 
-    @Override
-    public String getHintText() {
-        return getSimpleHintText() + "<br /><br />In test mode, sinograms are displayed for first (rough) and second (precise) angle search. In a sinogram, each line in the y-direction represents the result of the Radon projection for a given projection angle";
-    }
-    @Override
-    public String getSimpleHintText() {
-        return "Align Microchannel sides along the Y-axis<br />Based on Radon Transform implementation by Damien Farrel: <a href='https://imagej.nih.gov/ij/plugins/radon-transform.html'>https://imagej.nih.gov/ij/plugins/radon-transform.html</a>";
-    }
+
     
     public enum SearchMethod {
         MAXVAR("Fluo Microchannel"),

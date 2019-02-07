@@ -42,5 +42,9 @@ public class IntensityRatio extends SNR {
     @Override public String getDefaultName() {
         return "IntensityRatio";
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "Estimation of the intensity ratio between an object and another object that contains it";
+    }
 }

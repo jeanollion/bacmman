@@ -45,7 +45,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     public Duplicate() {} // for plugin instanciation
     @Override
     public String getHintText() {
-        return "Duplicates the segmented objects of another Structure. Tracker and post-filter can be applied. If no tracker is set, source lineage is also duplicated";
+        return "Duplicates the segmented objects of another object class. Tracker and post-filter can be applied. If no tracker is set, the lineage is also duplicated";
     }
     public Tracker getTracker() {return tracker.instanciatePlugin();}
     @Override
