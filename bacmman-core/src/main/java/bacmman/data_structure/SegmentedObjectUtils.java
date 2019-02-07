@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.dao.BasicObjectDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.BasicMasterDAO;
@@ -33,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.StreamConcatenation;
@@ -514,20 +516,20 @@ public class SegmentedObjectUtils {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
-        List<SegmentedObject> objectsWithParentsAndChildren = new ArrayList<>();
-        objectsWithParentsAndChildren.addAll(track);
+        Experiment xp = track.get(0).getExperiment();
+        Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap((Integer s) -> xp.experimentStructure.getAllDirectChildStructures(s), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        Consumer<SegmentedObject> openTrackImages = so -> directChildren.get(so.getStructureIdx()).forEach(cIdx -> so.getTrackImage(cIdx));
         for (SegmentedObject o : track) {
+            openTrackImages.accept(o);
             SegmentedObject p = o.getParent();
-            while(p!=null) {objectsWithParentsAndChildren.add(p); p=p.getParent();}
+            while(p!=null) {openTrackImages.accept(p); p=p.getParent();}
             if (includeChildren) {
-                for (int sIdx : o.getExperiment().experimentStructure.getAllChildStructures(o.getStructureIdx())) objectsWithParentsAndChildren.addAll(o.getDirectChildren(sIdx));
+                for (int sIdx : o.getExperiment().experimentStructure.getAllChildStructures(o.getStructureIdx())) {
+                    o.getChildren(sIdx).forEach(openTrackImages);
+                }
             }
         }
-        if (includeChildren) {
-            for (SegmentedObject o : objectsWithParentsAndChildren) {
-                for (int sIdx : o.getExperiment().experimentStructure.getAllDirectChildStructures(o.getStructureIdx())) o.getTrackImage(sIdx);
-            }
-        }
+
         // create basic dao for duplicated objects
         Map<String, SegmentedObject> dupMap = new HashMap<>();
         BasicMasterDAO mDAO = new BasicMasterDAO(new SegmentedObjectAccessor());

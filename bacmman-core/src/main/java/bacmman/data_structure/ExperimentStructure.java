@@ -35,13 +35,12 @@ public class ExperimentStructure {
 
     public boolean isDirectChildOf(int parentStructureIdx, int childStructureIdx) {
         if (childStructureIdx<=parentStructureIdx) return false;
-        else if (childStructureIdx==-1) return false;
         return xp.getStructure(childStructureIdx).getParentStructure()==parentStructureIdx;
     }
 
     public boolean isChildOf(int parentStructureIdx, int childStructureIdx) {
         if (childStructureIdx<=parentStructureIdx) return false;
-        else if (parentStructureIdx==-1) return true;
+        else if (parentStructureIdx==-1) return true; // all object classes are child classes of root
         Structure child = xp.getStructure(childStructureIdx);
         while(true) {
             int p = child.getParentStructure();
