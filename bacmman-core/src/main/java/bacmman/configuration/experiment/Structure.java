@@ -36,14 +36,14 @@ import java.util.function.Consumer;
  */
 
 public class Structure extends ContainerParameterImpl<Structure> {
-    ParentObjectClassParameter parentStructure =  new ParentObjectClassParameter("Parent Object Class", -1, -1).setHint("Each Object Class has a <em>parent</em> object class, which is used during processing : pre-filters, segmentation, tracking and post-filters will be run within each track of the parent class. <br />For instance bacteria are segmented and tracked within a given microchannel. Typically, the parent class of microchannel is <em>viewfield</em> and the parent class of bacteria (or spots) is microchannel");
-    ParentObjectClassParameter segmentationParent =  new ParentObjectClassParameter("Segmentation Parent", -1, -1).setHint("If different from parent structure, allows to perform segmentation from objects of another structure contained in the object of the parent structure. Pre-filters, tracking and post-filters will still be run from the track of the parent structure.");
+    ParentObjectClassParameter parentStructure =  new ParentObjectClassParameter("Parent Object Class", -1, -1).setHint("Some object classes are located within another object class called <em>parent</em> object class. The <em>Parent Object Class</em> is used during processing : pre-filters, segmentation, tracking and post-filters will be run within each track of the parent class. <br />For instance bacteria are segmented and tracked within a given microchannel. Typically, the <em>Parent Object Class</em> of microchannel is <em>viewfield</em> and the parent class of bacteria (or spots) is microchannel");
+    ParentObjectClassParameter segmentationParent =  new ParentObjectClassParameter("Segmentation Parent Object Class", -1, -1).setHint("Choose here the object class from which segmentation will be performed. <em>Segmentation Parent Object class</em> needs to be contain in the <em>Parent Object Class</em>. Pre-filters, tracking and post-filters will still be run from the track of the <em>Parent Object Class</em>.<br />Typically, the <em>Parent Object Class</em> of Spots is <em>Microchannels</em> but their <em>Segmentation Object Class</em> is <em>Bacteria</em>");
     ChannelImageParameter channelImage = new ChannelImageParameter("Detection Channel", -1).setHint("Detection channel on which processing pipeline will be applied");
-    PluginParameter<ObjectSplitter> objectSplitter = new PluginParameter<>("Object Splitter", ObjectSplitter.class, true).setEmphasized(false).setHint("Split algorithm used in split command in manual edition. <br />If no algorith is defined here and segmenter is able to split objects, segmenter will be used instead");
-    PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Segmentation algorithm used in create object command in manual edition<br />If no algorith is defined here and segmenter is able to segment objects from user-defined points, segmenter will be used instead");
+    PluginParameter<ObjectSplitter> objectSplitter = new PluginParameter<>("Object Splitter", ObjectSplitter.class, true).setEmphasized(false).setHint("Algorithm used to split segmented in manual edition. <br />If no algorithm is defined here and the segmenter is able to split objects, the segmenter will be used instead");
+    PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
     PluginParameter<ProcessingPipeline> processingPipeline = new PluginParameter<>("Processing Pipeline", ProcessingPipeline.class, true).setEmphasized(false);
-    BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("Whether tracks can divide in several tracks");
-    BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("Whether several tracks can merge in one single track");
+    BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>true</em> is set, a track can divide in several tracks");
+    BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
     
     @Override
     public JSONObject toJSONEntry() {
@@ -55,7 +55,6 @@ public class Structure extends ContainerParameterImpl<Structure> {
         res.put("objectSplitter", objectSplitter.toJSONEntry());
         res.put("manualSegmenter", manualSegmenter.toJSONEntry());
         res.put("processingScheme", processingPipeline.toJSONEntry());
-        //res.put("brightObject", brightObject.toJSONEntry());
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
         return res;

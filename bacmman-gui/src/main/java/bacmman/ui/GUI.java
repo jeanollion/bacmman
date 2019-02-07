@@ -21,6 +21,7 @@ package bacmman.ui;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
+import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
@@ -2302,7 +2303,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         importMenu.add(importConfigurationForSelectedPositionsMenuItem);
 
-        importConfigurationForSelectedStructuresMenuItem.setText("Configuration for Selected Object type(s)");
+        importConfigurationForSelectedStructuresMenuItem.setText("Configuration for Selected Object Class");
         importConfigurationForSelectedStructuresMenuItem.setEnabled(false);
         importConfigurationForSelectedStructuresMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -2994,17 +2995,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void importConfigurationForSelectedPositionsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationForSelectedPositionsMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
-        File f = Utils.chooseFile("Choose config file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
+        File f = Utils.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.isFile()) return;
-        Experiment xp = ImportExportJSON.readConfig(f);
-        if (xp==null) return;
-        if (!Utils.promptBoolean("This will erase configutation on current xp. Continue?", this)) return;
-        for (String p : getSelectedPositions(true)) {
-            Position m = xp.getPosition(p);
-            if (m!=null) {
-                db.getExperiment().getPosition(p).setPreProcessingChains(m.getPreProcessingChain());
-            }
+        Experiment sourceXP = ImportExportJSON.readConfig(f);
+        if (sourceXP==null) {
+            setMessage("Selected configuration file could not be read");
+            return;
         }
+        if (!Utils.promptBoolean("This will overwrite configuration on selected position (all if none is selected), using the template of the selected configuration file. Continue?", this)) return;
+        for (String p : getSelectedPositions(true)) db.getExperiment().getPosition(p).setPreProcessingChains(sourceXP.getPreProcessingTemplate());
         db.updateExperiment();
         updateConfigurationTree();
     }//GEN-LAST:event_importConfigurationForSelectedPositionsMenuItemActionPerformed
@@ -3012,15 +3011,31 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void importConfigurationForSelectedStructuresMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationForSelectedStructuresMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
-        File f = Utils.chooseFile("Choose config file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
-        if (f==null || !f.isFile()) return;
-        Experiment xp = ImportExportJSON.readConfig(f);
-        if (xp==null) return;
-        if (xp.getStructureCount()!=db.getExperiment().getStructureCount()) logger.error("Selected config to import should have same object class number as current xp");
-        if (!Utils.promptBoolean("This will erase configutation on current xp. Continue?", this)) return;
-        for (int s : getSelectedStructures(true)) {
-            db.getExperiment().getStructure(s).setContentFrom(xp.getStructure(s));
+        int [] destObjectClass = this.getSelectedStructures(false);
+        if (destObjectClass.length!=1) {
+            setMessage("Select only one destination object class");
+            return;
         }
+        File f = Utils.chooseFile("Choose configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
+        if (f==null || !f.isFile()) return;
+        Experiment sourceXP = ImportExportJSON.readConfig(f);
+        if (sourceXP==null) {
+            setMessage("Configuration file could not be read");
+            return;
+        }
+        // ask to choose one object class in the imported config
+        String[] sourceObjectClasses = sourceXP.experimentStructure.getObjectClassesAsString();
+        if (sourceObjectClasses.length==0) {
+            setMessage("No object class found in selected dataset configuration");
+            return;
+        }
+        String input = (String) JOptionPane.showInputDialog(null, "Processing pipeline will be overwritten to: "+db.getExperiment().getStructure(destObjectClass[0]).getName()+" on current dataset.",
+                "Choose source object class", JOptionPane.QUESTION_MESSAGE, null,
+                sourceObjectClasses, // Array of choices
+                destObjectClass[0]<destObjectClass.length?destObjectClass[destObjectClass[0]]:destObjectClass[0]); // Initial choice
+        if (input ==null) return;
+        Structure dest = sourceXP.getStructures().getChildren().stream().filter(s->input.equals(s.getName())).findFirst().get();
+        db.getExperiment().getStructure(destObjectClass[0]).getProcessingPipelineParameter().setContentFrom(dest.getProcessingPipelineParameter());
         db.updateExperiment();
         updateConfigurationTree();
     }//GEN-LAST:event_importConfigurationForSelectedStructuresMenuItemActionPerformed
@@ -3358,42 +3373,39 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         } else closeExperiment();
         
         log("dumping: "+xps.size()+ " Dataset"+(xps.size()>1?"s":""));
-        DefaultWorker.WorkerTask t= new DefaultWorker.WorkerTask() {
-            @Override
-            public String run(int i) {
-                if (i==0) GUI.getInstance().setRunning(true);
-                String xp = xps.get(i);
-                log("exporting: "+xp+ " config:"+config+" selections: "+selections+ " objects: "+objects+ " pp images: "+preProcessedImages+ " trackImages: "+trackImages);
-                MasterDAO mDAO = positions.isEmpty() ? new Task(xp).getDB() : db;
-                logger.debug("dao ok");
-                String file = mDAO.getDir()+File.separator+mDAO.getDBName()+"_dump.zip";
-                boolean error = false;
-                try {
-                    ZipWriter w = new ZipWriter(file);
-                    if (objects || preProcessedImages || trackImages) {
-                        if (positions.isEmpty()) ImportExportJSON.exportPositions(w, mDAO, objects, preProcessedImages, trackImages ,  ProgressCallback.get(INSTANCE, mDAO.getExperiment().getPositionCount()));
-                        else ImportExportJSON.exportPositions(w, mDAO, objects, preProcessedImages, trackImages , positions, ProgressCallback.get(INSTANCE, positions.size()));
-                    }
-                    if (config) ImportExportJSON.exportConfig(w, mDAO);
-                    if (selections) ImportExportJSON.exportSelections(w, mDAO);
-                    w.close();
-                } catch (Exception e) {
-                    logger.error("Error while dumping");
-                    error = true;
+        DefaultWorker.WorkerTask t= i -> {
+            if (i==0) GUI.getInstance().setRunning(true);
+            String xp = xps.get(i);
+            log("exporting: "+xp+ " config:"+config+" selections: "+selections+ " objects: "+objects+ " pp images: "+preProcessedImages+ " trackImages: "+trackImages);
+            MasterDAO mDAO = positions.isEmpty() ? new Task(xp).getDB() : db;
+            logger.debug("dao ok");
+            String file = mDAO.getDir()+File.separator+mDAO.getDBName()+"_dump.zip";
+            boolean error = false;
+            try {
+                ZipWriter w = new ZipWriter(file);
+                if (objects || preProcessedImages || trackImages) {
+                    if (positions.isEmpty()) ImportExportJSON.exportPositions(w, mDAO, objects, preProcessedImages, trackImages ,  ProgressCallback.get(INSTANCE, mDAO.getExperiment().getPositionCount()));
+                    else ImportExportJSON.exportPositions(w, mDAO, objects, preProcessedImages, trackImages , positions, ProgressCallback.get(INSTANCE, positions.size()));
                 }
-                if (error) new File(file).delete();
-                if (!error && eraseXP) { // eraseAll config & objects
-                    MasterDAO.deleteObjectsAndSelectionAndXP(mDAO);
-                    logger.debug("delete ok");
-                } 
-                mDAO.clearCache();
-                if (i==xps.size()-1) {
-                    GUI.getInstance().setRunning(false);
-                    GUI.getInstance().populateExperimentList();
-                    log("exporting done!");
-                }
-                return error ? xp+" NOT DUMPED : error": xp+" dumped!";
-            };
+                if (config) ImportExportJSON.exportConfig(w, mDAO);
+                if (selections) ImportExportJSON.exportSelections(w, mDAO);
+                w.close();
+            } catch (Exception e) {
+                logger.error("Error while dumping");
+                error = true;
+            }
+            if (error) new File(file).delete();
+            if (!error && eraseXP) { // eraseAll config & objects
+                MasterDAO.deleteObjectsAndSelectionAndXP(mDAO);
+                logger.debug("delete ok");
+            }
+            mDAO.clearCache();
+            if (i==xps.size()-1) {
+                GUI.getInstance().setRunning(false);
+                GUI.getInstance().populateExperimentList();
+                log("exporting done!");
+            }
+            return error ? xp+" NOT DUMPED : error": xp+" dumped!";
         };
         DefaultWorker.execute(t, xps.size());
     }
@@ -3406,28 +3418,25 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         dumpedFiles.removeIf(f->dbFiles.containsValue(f.getParentFile()));
         log("undumping: "+dumpedFiles.size()+ " Experiment"+(dumpedFiles.size()>1?"s":""));
         
-        DefaultWorker.WorkerTask t= new DefaultWorker.WorkerTask() {
-            @Override
-            public String run(int i) {
-                if (i==0) GUI.getInstance().setRunning(true);
-                File dump = dumpedFiles.get(i);
-                String dbName = dump.getName().replace("_dump.zip", "");
-                log("undumpig: "+dbName);
-                logger.debug("dumped file: {}, parent: {}", dump.getAbsolutePath(), dump.getParent());
-                MasterDAO dao = new Task(dbName, dump.getParent()).getDB();
-                dao.setConfigurationReadOnly(false);
-                dao.lockPositions();
-                ImportExportJSON.importFromZip(dump.getAbsolutePath(), dao, true, true, true, false, false, ProgressCallback.get(INSTANCE));
-                if (i==dumpedFiles.size()-1) {
-                    GUI.getInstance().setRunning(false);
-                    GUI.getInstance().populateExperimentList();
-                    log("undumping done!");
-                }
-                dao.unlockPositions();
-                dao.unlockConfiguration();
-                return dbName+" undumped!";
-                
-            };
+        DefaultWorker.WorkerTask t= i -> {
+            if (i==0) GUI.getInstance().setRunning(true);
+            File dump = dumpedFiles.get(i);
+            String dbName = dump.getName().replace("_dump.zip", "");
+            log("undumpig: "+dbName);
+            logger.debug("dumped file: {}, parent: {}", dump.getAbsolutePath(), dump.getParent());
+            MasterDAO dao = new Task(dbName, dump.getParent()).getDB();
+            dao.setConfigurationReadOnly(false);
+            dao.lockPositions();
+            ImportExportJSON.importFromZip(dump.getAbsolutePath(), dao, true, true, true, false, false, ProgressCallback.get(INSTANCE));
+            if (i==dumpedFiles.size()-1) {
+                GUI.getInstance().setRunning(false);
+                GUI.getInstance().populateExperimentList();
+                log("undumping done!");
+            }
+            dao.unlockPositions();
+            dao.unlockConfiguration();
+            return dbName+" undumped!";
+
         };
         DefaultWorker.execute(t, dumpedFiles.size());
     }//GEN-LAST:event_unDumpObjectsMenuItemActionPerformed

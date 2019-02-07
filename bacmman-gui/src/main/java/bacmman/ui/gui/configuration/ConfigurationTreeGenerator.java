@@ -204,7 +204,7 @@ public class ConfigurationTreeGenerator {
         };
         treeModel.setJTree(tree);
         tree.setShowsRootHandles(true);
-        tree.setRootVisible(false);
+        tree.setRootVisible(!(rootParameter instanceof Experiment));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode);
         Icon icon = null;

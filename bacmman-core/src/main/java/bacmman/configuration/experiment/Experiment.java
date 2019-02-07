@@ -54,7 +54,7 @@ import java.util.stream.Stream;
  */
 
 public class Experiment extends ContainerParameterImpl<Experiment> {
-    SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels", 0 , ChannelImage.class).setNewInstanceNameFunction(i->"channel"+i).setHint("Channel of input images");
+    SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels", 0 , ChannelImage.class).setNewInstanceNameFunction(i->"channel"+i).setHint("Define here the different channels of input images");
     SimpleListParameter<Structure> structures= new SimpleListParameter<>("Object Classes", -1 , Structure.class).setNewInstanceNameFunction(i->"object class"+i).setHint("Types of objects to be analysed in this dataset. The processing pipeline (segmentation, tracking…) is defined in this part of the configuration tree, and can be configured from the <em>Configuration Test</em> tab (by selecting the <em>Processing</em> step)");
     SimpleListParameter<PluginParameter<Measurement>> measurements = new SimpleListParameter<>("Measurements", -1 , new PluginParameter<>("Measurements", Measurement.class, false))
             .addValidationFunctionToChildren(ppm -> {

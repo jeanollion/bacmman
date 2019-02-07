@@ -217,7 +217,7 @@
             </MenuItem>
             <MenuItem class="javax.swing.JMenuItem" name="importConfigurationForSelectedStructuresMenuItem">
               <Properties>
-                <Property name="text" type="java.lang.String" value="Configuration for Selected Object type(s)"/>
+                <Property name="text" type="java.lang.String" value="Configuration for Selected Object Class"/>
                 <Property name="enabled" type="boolean" value="false"/>
               </Properties>
               <Events>
