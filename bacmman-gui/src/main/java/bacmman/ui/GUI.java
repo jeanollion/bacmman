@@ -210,7 +210,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         toFront();
         
         // tool tips
-        ToolTipManager.sharedInstance().setInitialDelay(100);
+        ToolTipManager.sharedInstance().setInitialDelay(150);
         ToolTipManager.sharedInstance().setDismissDelay(Integer.MAX_VALUE);
         trackPanel.setToolTipText(formatHint("Segmented tracks for each object class are listed in this panel. Right click to display kymograph, run segmentation/tracking etc..."));
         trackTreeStructureJSP.setToolTipText(formatHint("Object class to be displayed in the <em>Segmentation & Tracking Results</em> panel"));
@@ -4080,7 +4080,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         boolean simplified = this.testModeJCB.getSelectedIndex()==0;
         if (testConfigurationTreeGenerator!=null) {
             testConfigurationTreeGenerator.setExpertMode(!simplified);
-            testConfigurationTreeGenerator.nodeStructureChanged(testConfigurationTreeGenerator.getRoot()); // TODO unfold as it was in the other test mode
+            testConfigurationTreeGenerator.nodeStructureChanged(testConfigurationTreeGenerator.getRoot());
         }
     }//GEN-LAST:event_testModeJCBItemStateChanged
     public void updateSelectionListUI() {

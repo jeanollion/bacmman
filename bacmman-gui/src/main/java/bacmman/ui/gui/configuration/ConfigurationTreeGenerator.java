@@ -38,9 +38,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static bacmman.plugins.Hint.formatHint;
-import java.awt.Component;
-import java.awt.FlowLayout;
-import java.awt.Rectangle;
+
+import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
@@ -201,6 +200,13 @@ public class ConfigurationTreeGenerator {
                 TreePath curPath = getPathForLocation(evt.getX(), evt.getY());
                 return getHint(curPath.getLastPathComponent(), true);
             }
+            @Override
+            public Point getToolTipLocation(MouseEvent evt) {
+                int row = getRowForLocation(evt.getX(), evt.getY());
+                Rectangle r = getRowBounds(row);
+                if (r==null) return null;
+                return new Point(r.width, r.y);
+            }
         };
         treeModel.setJTree(tree);
         tree.setShowsRootHandles(true);
@@ -260,7 +266,7 @@ public class ConfigurationTreeGenerator {
                     String hint = getHint(tree.getSelectionPath().getLastPathComponent(), false);
                     if (hint==null) setHint.accept("No hint available");
                     else setHint.accept(hint);
-                    logger.debug("set modules for : {}. hint: {}", tree.getSelectionPath().getLastPathComponent(),hint);
+                    //logger.debug("set modules for : {}. hint: {}", tree.getSelectionPath().getLastPathComponent(),hint);
                     break;
                 default:
                     setModules.accept(null, Collections.emptyList());
@@ -274,7 +280,7 @@ public class ConfigurationTreeGenerator {
                 (TreeNode n) -> ((Parameter)n).duplicate(), 
                 (TreePath p)-> (p!=null && p.getLastPathComponent() instanceof ListParameter && ((ListParameter)p.getLastPathComponent()).allowMoveChildren())
         ));
-        
+        // add tool tips to the tree
         ToolTipManager.sharedInstance().registerComponent(tree);
 
         // configure call back for structures (update display)
@@ -319,6 +325,8 @@ public class ConfigurationTreeGenerator {
     }
     public void nodeStructureChanged(Parameter node) {
         if (treeModel==null) return;
+        TreePath[] sel = tree.getSelectionPaths();
         treeModel.nodeStructureChanged(node);
+        if (sel!=null) tree.setSelectionPaths(sel);
     }
 }
