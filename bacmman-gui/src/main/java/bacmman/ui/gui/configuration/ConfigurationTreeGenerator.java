@@ -205,7 +205,7 @@ public class ConfigurationTreeGenerator {
                 int row = getRowForLocation(evt.getX(), evt.getY());
                 Rectangle r = getRowBounds(row);
                 if (r==null) return null;
-                return new Point(r.width, r.y);
+                return new Point(r.x + r.width, r.y);
             }
         };
         treeModel.setJTree(tree);
@@ -282,7 +282,6 @@ public class ConfigurationTreeGenerator {
         ));
         // add tool tips to the tree
         ToolTipManager.sharedInstance().registerComponent(tree);
-
         // configure call back for structures (update display)
         experiment.getStructures().addNewInstanceConfiguration(s->s.setParameterChangeCallBack( p -> treeModel.nodeChanged(p)));
         // configure call back for position (delete position from DAO)
