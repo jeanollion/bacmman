@@ -82,10 +82,15 @@ public class ChoiceParameterUI implements ArmableUI {
                         choice.setSelectedItem(ae.getActionCommand());
                         //choice.fireListeners(); //fired by setSelectedItem
                         if (cond!=null) {
-                            model.nodeStructureChanged(cond);
-                            logger.debug("path: {}", Utils.toStringArray(model.getPathToRoot(cond), s->s.toString()));
+                            if (model!=null) {
+                                model.nodeStructureChanged(cond);
+                                model.expandNode(cond);
+                                //logger.debug("path: {}", Utils.toStringArray(model.getPathToRoot(cond), s->s.toString()));
+                            }
+                        } else if (model!=null) {
+                            model.nodeStructureChanged(choice);
+                            model.expandNode(choice);
                         }
-                        else if (model!=null) model.nodeStructureChanged(choice);
                     }
                 }
             );

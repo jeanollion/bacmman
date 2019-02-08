@@ -57,6 +57,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                 public void actionPerformed(ActionEvent ae) {
                     Parameter p = list.createChildInstance();
                     model.insertNodeInto(p, list);
+                    model.expandNode(p);
                 }
             }
         );
