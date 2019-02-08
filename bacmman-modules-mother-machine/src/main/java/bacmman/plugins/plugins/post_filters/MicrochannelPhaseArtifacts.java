@@ -24,6 +24,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.measurement.GeometricalMeasurements;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
 
@@ -31,7 +32,7 @@ import bacmman.plugins.Hint;
  *
  * @author Jean Ollion
  */
-public class MicrochannelPhaseArtifacts implements PostFilter, Hint {
+public class MicrochannelPhaseArtifacts implements PostFilter, Hint, DevPlugin {
     BoundedNumberParameter XThickness = new BoundedNumberParameter("X-thickness", 1, 7, 0, null).setHint("Thickness along X-axis should be under this threshold to erase object");
     BoundedNumberParameter XContactFraction = new BoundedNumberParameter("Minimum X contact", 2, 0.75, 0, 1).setHint("Contact with X-border of channel divided by length should be higher than this value to erase object");
     BoundedNumberParameter YContactFraction = new BoundedNumberParameter("Minimum Y contact", 2, 0.90, 0, 1).setHint("Contact with upper Y-border of channel divided by X-thickness should be higher than this value to erase object");
@@ -40,7 +41,7 @@ public class MicrochannelPhaseArtifacts implements PostFilter, Hint {
     
     @Override
     public String getHintText() {
-        return "Filter border artefacts usually generated in phase-contrast microscopy images in microchannels: thin regions touching microchannel borders";
+        return "Filter border artifacts usually generated in phase-contrast microscopy images in microchannels: thin regions touching microchannel borders";
     }
     
     public MicrochannelPhaseArtifacts(){}

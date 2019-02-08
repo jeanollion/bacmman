@@ -24,6 +24,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.plugins.GeometricalFeature;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.Hint;
 
@@ -34,7 +35,8 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
  *
  * @author Jean Ollion
  */
-public class SpineLength implements GeometricalFeature, Hint {
+public class SpineLength implements GeometricalFeature, Hint, HintSimple {
+    public static String SPINE_DEF = "The <em>spine</em> of a bacterium is defined as the central line crossing it from one pole to the other. Each point of the spine is equidistant from the two closest points of the contour located on each side of the spine";
     protected BooleanParameter scaled = new BooleanParameter("Scale", "Unit", "Pixel", true).setHint(SCALED_TT);
     @Override
     public Parameter[] getParameters() {
@@ -63,7 +65,11 @@ public class SpineLength implements GeometricalFeature, Hint {
 
     @Override
     public String getHintText() {
-        return "Length of the spine (skeleton): takes into acount rippling deformation. Only valid for rod shaped regions";
+        return getSimpleHintText() + "<br />Computation details: the value of the measurement is the length of the spine. <br />"+SPINE_DEF;
     }
-    
+
+    @Override
+    public String getSimpleHintText() {
+        return "Curvilinear length of a bacterium from one pole to the other. This measurement is only valid for rod-shaped objects. It takes into account rippling deformations.";
+    }
 }

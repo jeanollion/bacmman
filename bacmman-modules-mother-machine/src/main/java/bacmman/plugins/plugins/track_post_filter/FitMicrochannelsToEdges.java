@@ -66,9 +66,9 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
     
     @Override
     public String getHintText() {
-        return "Fits a segmented microchannel to its edges (edges are defined in the parameter <em>Watershed Map</em>"
-                + "<br />First performs a watershed partitioning in a window around each microchannel defined by <em>Fit margin</em>. "
-                + "<br />The Partitions whose seeds are not included in the microchannel regions are removed";
+        return "Fits a segmented microchannel to its edges (edges are defined in the parameter <em>Watershed Map</em> (available in advanced mode)"
+                + "<br />First performs a watershed partitioning within a window around each microchannel defined by <em>Fit margin</em> according to the edges."
+                + "<br />The regions whose seeds are not included in the microchannel are removed";
     }
     
     public FitMicrochannelsToEdges setResetBounds(boolean resetBounds) {

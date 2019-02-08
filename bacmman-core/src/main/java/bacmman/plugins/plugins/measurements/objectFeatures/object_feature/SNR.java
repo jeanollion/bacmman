@@ -159,7 +159,7 @@ public class SNR extends IntensityMeasurement implements Hint {
 
     @Override
     public String getHintText() {
-        return "Estimation of the signal-to-noise ratio of a segmented object, with different available formula";
+        return "Estimation of the signal-to-noise ratio on the area of a segmented object";
     }
     
 }

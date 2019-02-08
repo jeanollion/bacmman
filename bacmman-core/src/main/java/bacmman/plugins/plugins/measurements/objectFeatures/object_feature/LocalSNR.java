@@ -81,6 +81,6 @@ public class LocalSNR extends SNR {
 
     @Override
     public String getHintText() {
-        return "Estimation of the signal-to-noise ratio of an object with different available formula, and by using the local background";
+        return "Estimation of the signal-to-noise ratio on the area of a segmented object, using the local background in an area around the segmented object";
     }
 }

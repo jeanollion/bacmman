@@ -134,7 +134,7 @@ public class Filters {
     /**
      * ATTENTION: bug en dimension 1 !!
      * @param image input image
-     * @param output image to store the result in. if {@param output} is null or {@param output}=={@param image} or {@param output} does not have the same dimensions as {@param image}, a new image of the type of {@param output} will be created
+     * @param output image to store the results in. if {@param output} is null or {@param output}=={@param image} or {@param output} does not have the same dimensions as {@param image}, a new image of the type of {@param output} will be created
      * @param maxLocal if true the local maximum transform of the image is return, if false the local minimum of the image is returned
      * @param neighborhood 2D/3D neighborhood in which the local extrema is computed
      * @return an image of same type as output (that can be output). Each pixel value is 0 if the current pixel is not an extrema, or has the value of the original image if it is an extrema
@@ -150,7 +150,7 @@ public class Filters {
         /**
      * ATTENTION: bug en dimension 1 !!
      * @param image input image
-     * @param output image to store the result in. if {@param output} is null or {@param output}=={@param image} or {@param output} does not have the same dimensions as {@param image}, a new image of the type of {@param output} will be created
+     * @param output image to store the results in. if {@param output} is null or {@param output}=={@param image} or {@param output} does not have the same dimensions as {@param image}, a new image of the type of {@param output} will be created
      * @param maxLocal if true the local maximum transform of the image is return, if false the local minimum of the image is returned
      * @param threshold supplemental condition: to be a local extrema, the pixel value must be superior to {@param threshold} if {@param maxLocal}==true, otherwise inferior to {@param threshold}
      * @param neighborhood 2D/3D neighborhood in which the local extrema is computed

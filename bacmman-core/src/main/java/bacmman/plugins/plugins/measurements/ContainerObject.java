@@ -40,13 +40,13 @@ import java.util.List;
  */
 public class ContainerObject implements Measurement, Hint {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
-    protected ObjectClassParameter reference = new ObjectClassParameter("Container Object", -1, false, false).setHint("Objects type that contain <em>Objects</em>");
+    protected ObjectClassParameter reference = new ObjectClassParameter("Container Object", -1, false, false).setHint("Objects class that contain <em>Objects</em>");
     protected MultipleChoiceParameter returnAttributes = new MultipleChoiceParameter("Attribute of container to return", new String[]{"Simple Index", "Indices"}, true);
     TextParameter key = new TextParameter("Key Name: ", "ContainerObject", false);
     protected Parameter[] parameters = new Parameter[]{objects, reference, key, returnAttributes};
     @Override
     public String getHintText() {
-        return "For each object A of type defined in <em>Objects</em>, looks for the the object B of type defined in <em>Container Object</em> that contains A. If B exists, return its index and/or full indice";
+        return "For each object A of class defined in <em>Objects</em>, this method searches for the the object B of class defined in <em>Container Object</em> that contains A. If B exists, return its index and/or its full barcode (index and index af parent objects)";
     }
     
     public ContainerObject() {

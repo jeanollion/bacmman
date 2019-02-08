@@ -60,7 +60,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
     protected final int MIN_SIZE_PROPAGATION = 20; // TODO add as parameter ?
     protected NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 2, 0, 5).setHint("Scale (pixels) for gaussian filtering for the local thresholding step");
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 1.25, 0, null).setEmphasized(true)
-            .setSimpleHint("Lower value of this threshold will yield in smaller cells.<br /><br /><b>This threshold should be calibrated for each new experimental setup</b>");
+            .setSimpleHint("Lower value of this threshold will results in smaller cells.<br /><br /><b>This threshold should be calibrated for each new experimental setup</b>");
 
     //segmentation-related attributes (kept for split and merge methods)
     protected EdgeDetector edgeDetector;

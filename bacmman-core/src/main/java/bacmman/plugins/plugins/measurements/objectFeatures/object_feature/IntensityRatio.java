@@ -19,13 +19,14 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.data_structure.Region;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
 
 /**
  *
  * @author Jean Ollion
  */
-public class IntensityRatio extends SNR {
+public class IntensityRatio extends SNR implements DevPlugin {
     
     
     @Override public double performMeasurement(Region object) {

@@ -1063,7 +1063,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
      * 
      * @param scenarios
      * @param verboseLevel
-     * @return Best scenario among {@param scenarios}: first minimizes error number, minimal error number should be inferior to current error number, second minimize correction score among scenarios that yield in the same error number
+     * @return Best scenario among {@param scenarios}: first minimizes error number, minimal error number should be inferior to current error number, second minimize correction score among scenarios that results in the same error number
      */
     private FrameRange getBestScenario(Collection<CorrectionScenario> scenarios, int verboseLevel) {
         scenarios.removeIf(c ->((c instanceof MultipleScenario) && ((MultipleScenario)c).scenarios.isEmpty()) || c.cost > ((c instanceof MultipleScenario)? cumCostLim : costLim));

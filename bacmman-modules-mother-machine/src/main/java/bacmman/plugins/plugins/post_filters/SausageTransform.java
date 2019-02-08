@@ -76,7 +76,7 @@ public class SausageTransform implements PostFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "Modify the contour of segmented objects so that it has the shape of a sausage (potentially bended rod): constant width in the middle with hemicircular ends. Based on the spine.";
+        return "Modifies the contour of segmented objects so that it has the shape of a sausage (potentially bent rod): constant width in the middle with hemicircular caps.";
     }
     
 }

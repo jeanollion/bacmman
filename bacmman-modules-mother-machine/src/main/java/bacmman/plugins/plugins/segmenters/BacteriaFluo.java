@@ -109,45 +109,49 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     }
     @Override
     public String getHintText() {
-        return "<b>Intensity-based 2D segmentation of bacteria within microchannels:</b><br />"
-            +"<br />Empty microchannels are detected prior to segmentation step, using information on the whole microchannel track. See <em>Variation coefficient threshold</em> parameter"
+        return "<b>Intensity-based 2D segmentation of fluorescent bacteria within microchannels:</b><br />"
+            +"<br />Empty microchannels are detected prior to segmentation, using information on the whole microchannel track. See <em>Variation coefficient threshold</em> parameter"
             +"<br />Segmentation steps:"
             + "<ol><li>Detection of foreground: the image is first partitioned by performing a watershed according to the edge map (see <em>Edge Map</em> parameter)"
             + "<br />Regions corresponding to the foreground are then selected depending on the method chosen in <em>Foreground detection Method</em></li>"
             + "<li>In order to separate touching cells, the foreground region is split by applying a watershed transform on the maximal Eigenvalue of the Hessian. Regions are then merged, using a criterion described in the help of the <em>Split Threshold</em> parameter</li>"
-            + "<li>Contour of bacteria is adjusted using a threshold computed for each bacterium. This threshold is set as described in the <em>Local Threshold Factor</em> parameter."
+            + "<li>The contour of bacteria is adjusted using a threshold computed for each bacterium. This threshold is set as described in the <em>Local Threshold Factor</em> parameter."
             //+ "Propagating from contour voxels, all voxels with value on the smoothed image (<em>Smooth scale</em> parameter) under the local threshold is removed</li>"
             + "</ol>"
-            + "Intermediate images are displayed in test mode for each of the steps described above. In order to display the different regions after a partitioning step, we use an image displaying median intensity value of each region, referred to as MIP"
-            + "<ul><li><em>Foreground detection: edge map</em>: image of edges used for watershed partitioning (<em>see step 1</em>)</li>"
-            + "<li><em>Foreground detection: Region values after partitioning</em>: MIP after watershed-based partitioning according to the edge map (see <em>step 1</em>). Importantly, regions should be either located in the foreground or in the background but not overlap both areas</li>"
-            + "<li><em>Foreground detection: Interface Values</em>: Each segment represents the area of contact between two regions of the partition (referred to as interface). The intensity of each segment is the value of the criterion (see help of the <em>Background Edge Fusion Threshold</em>, located in the <em>Foreground selection method</em> parameter). <br />Interface values should be as high as possible between foreground and background, and as low as possible between background regions (<em>used in step 1</em>)<br />Only displayed when the <em>Foreground selection method</em> parameter is set to <em>EDGE_FUSION</em></li>"
+            + "Intermediate images are displayed in test mode for each of the steps described above. In order to display the different regions after a partitioning step, we use an image displaying the median intensity value of each region, referred to as MIP"
+            + "<ul><li><em>Foreground detection: edge map</em>: image of edges used for watershed partitioning. Can be modified by changing the <em>Edge map</em> parameter. (<em>see step 1</em>)</li>"
+            + "<li><em>Foreground detection: Region values after partitioning</em>: MIP after watershed-based partitioning according to the edge map (see <em>step 1</em>). Importantly, regions should be either located in the foreground or in the background but not overlap both areas. If some regions overlap both foreground and background, try modifying the <em>Edge map</em> parameter</li>"
+            + "<li><em>Foreground detection: Interface Values</em>: Each segment represents the area of contact between two regions of the partition (referred to as interface). The intensity of each segment is the value of a criterion used for merging decisions (see help of the <em>Background Edge Fusion Threshold</em>, located in the <em>Foreground selection method</em> parameter). <br />Interface values should be as high as possible between foreground and background, and as low as possible between background regions (<em>used in step 1</em>)<br />Only displayed when the <em>Foreground selection method</em> parameter is set to <em>EDGE_FUSION</em></li>"
             + "<li><em>Foreground detection: Region values after fusion</em>: MIP after merging background regions. No foreground regions should be merged with the background. Some background regions located between close cells may remain. (<em>used in step 1</em>)<br />Only displayed when the <em>Foreground selection method</em> parameter is set to <em>EDGE_FUSION</em></li>"
             + "<li><em>Foreground detection: interface values (foreground fusion)</em>: Interface values for merging foreground regions before removing background regions. <br />Refer to the help of parameter <em>Foreground Edge Fusion Threshold</em>, located in the <em>Foreground selection Method<em> &gt; <em>Background Removal</em> parameter<br />Only displayed when the <em>Foreground selection method</em> parameter is set to <em>EDGE_FUSION</em> and the <em>Background Removal</em> parameter is set to <em>THRESHOLDING</em> or <em>BORDER_CONTACT_AND_THRESHOLDING</em></li>"
             + "<li><em>Foreground mask</em>: binary mask obtained after the filtering step (<em>obtained at end of step 1</em>)</li>"
-            + "<li><em>Hessian</em>: max Eigenvalue of the hessian matrix used for the partitioning of the foreground mask in order to separate the cells. Its intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian</em> parameter (<em>see step 2</em>)</li> "
+            + "<li><em>Hessian</em>: max Eigenvalue of the hessian matrix used for the partitioning of the foreground mask in order to separate the cells. Its intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian scale</em> parameter (<em>see step 2</em>)</li> "
             //+ "<li><em>Split cells: Region values before merge</em>: MIP after watershed-based partitioning of the Foreground mask according to the <em>Hessian</em> image(<em>used in step 2</em>)</li> "
-            + "<li><em>Split cells: Interface values</em>: Each segment represents the area of contact between two regions (referred to as interface) after a watershed-based partitioning of the foreground mask according the <em>Hessian</em> image. The value of each segment is the merge criterion (see help of the <em>Split Threshold</em>), to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between cells and as low as possible within cells (<em>see step 2</em>)</li> "
+            + "<li><em>Split cells: Interface values</em>: Each segment represents the area of contact between two regions (referred to as interface) after a watershed-based partitioning of the foreground mask according the <em>Hessian</em> image. The value of each segment is the merge criterion (see help of the <em>Split Threshold</em>), to be compared with the parameter <em>Split Threshold</em>. Interface values should be as high as possible between cells and as low as possible within cells (influenced by the <em>Hessian scale</em> parameter) (<em>see step 2</em>)</li> "
             + "<li><em>Split cells: Region values after merge</em>: MIP after merging using the Split/Merge criterion (<em>used in step 2</em>)</li>"
             +"</ul>";
     }
     @Override
     public String getSimpleHintText() {
-        return "<b>Intensity-based 2D segmentation of bacteria within microchannels</b><br />"
-                + "Intermediate images displayed in test mode:"
+        return "<b>Intensity-based 2D segmentation of fluorescent bacteria within microchannels</b><br />"
+                + "<br />If objects are segmented in empty microchannels or if filled microchannels appear as empty, tune the <em>Variation coefficient threshold</em> parameter. "
+                + "<br />If bacteria are over-segmented or touching bacteria are merged, tune the <em>Split Threshold</em> parameter"
+                + "<br />The contour of bacteria can be adjusted by tuning the <em>Local Threshold Factor parameter</em> (in the <em>Contour adjustment</em> parameter)"
+                + "<br /><br />Intermediate images displayed in test mode:"
                 + "<ul>"
-                + "<li><em>Foreground detection: Interface Values</em>: Set the parameter <em>Background Edge Fusion Threshold</em> so that all segments contained in the background region have a value inferior to its value. Interface values should be as high as possible between foreground and background, and as low as possible between background regions</li>"
-                + "<li><em>Foreground detection: Region values after fusion</em>: On this image, no foreground regions should be merged with background regions</li>"
-                + "<li><em>Hessian</em>: In this image, the intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian</em> parameter</li> "
-                + "<li><em>Split cells: Interface values</em>: Bacteria will be cut where displayed segments on this image have a value larger than the parameter <em>Split Threshold</em>. Segment values should be as high as possible between cells and as low as possible within cells</li> "
+                + "<li><em>Foreground detection: Interface Values</em>: On this image, segment intensities should be high between foreground (inside bacteria) and background (outside bacteria), and low between background regions (influenced by the <em>Edge map</em> parameter, available in the advanced mode). This image can be used to tune the <em>Background Edge Fusion Threshold<em> parameter. This threshold should be larger than the intensity of  all the segments contained in the background region of the image.</li>"
+                + "<li><em>Foreground detection: Region values after fusion</em>: On this image, no foreground regions should be merged with background regions. If some regions overlap both background  and foreground, decrease the <em>Background Edge Fusion Threshold</em> parameter.</li>"
+                + "<li><em>Hessian</em>: In this image, the intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian scale</em> parameter</li> "
+                + "<li><em>Split cells: Interface values</em>: Segment intensity should be as high as possible between cells and as low as possible within cells (influenced by the <em>Hessian scale</em> parameter). This image can be used to tune the <em>Split Threshold</em> parameter : bacteria will be cut where the segments displayed on this image have an intensity larger than the <em>Split Threshold</em></li> "
                 +"</ul>";
 
     }
     
     public BacteriaFluo() {
         super();
-        localThresholdFactor.setHint("Factor defining the local threshold used in step 3.<br /> Lower value of this threshold will yield in smaller cells.<br /><b>This threshold should be calibrated for each new experimental setup</b>"
-                + "<br /><br />Algoritmic details: Let be Med(PF)@Region the median value of the prefiltered image within the region, IQ(PF)@Region the inter-quartile of the prefiltered image within the region. <br />Threshold = Med(PF)@Region - IQ(PF)@Region * (this threshold).");
+        localThresholdFactor.setHint("Factor defining the local threshold used in step 3.<br /> Lower value of this threshold will results in smaller cells.<br /><b>This threshold should be calibrated for each new experimental setup</b>"
+                + "<br /><br />Algorithmic details: Let be Med(PF)@Region the median value of the pre-filtered image within the region, IQ(PF)@Region the inter-quartile of the pre-filtered image within the region. <br />Threshold = Med(PF)@Region - IQ(PF)@Region * (this threshold).");
+        splitThreshold.setHint(splitThreshold.getHintText()+"<br /><br /><em>Algorithmic Details: </em>Let's call <em>interface</em> the contact area between two regions, <em>mean(H)@Inter</em> the mean hessian value at the interface and <em>mean(PF)@Inter</em> the mean value of the pre-filtered image at the interface, and <em>BCK</em> an estimation of the background value. <be />Criterion is:  mean(H)@Inter / ( mean(PF)@Inter - BCK )<br />");
     }
     
     @Override

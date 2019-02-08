@@ -288,8 +288,8 @@ public final class StreamConcatenation {
       //
       // We assume that all other characteristics not listed here (that do not
       // exist yet at the time of this writing) are *not* safe to inherit.
-      // False negatives generally result in degraded performance, while false
-      // positives generally result in incorrect behavior.
+      // False negatives generally results in degraded performance, while false
+      // positives generally results in incorrect behavior.
       //
       int characteristics = Spliterator.ORDERED
           | Spliterator.SIZED

@@ -57,9 +57,9 @@ import java.util.function.Consumer;
  */
 public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, HintSimple, TestableOperation {
     protected NumberParameter channelLength = new BoundedNumberParameter("Channel Length", 0, 410, 0, null).setEmphasized(true).setHint("Length of microchannels, in pixels. This length will determine the y-size of the cropped image");
-    NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setHint(SIZE_TOOL_TIP);
+    NumberParameter minObjectSize = new BoundedNumberParameter("Object Size Filter", 0, 200, 1, null).setEmphasized(true).setHint(SIZE_TOOL_TIP);
     NumberParameter fillingProportion = new BoundedNumberParameter("Filling proportion of Microchannel", 2, 0.5, 0.05, 1).setHint(FILL_TOOL_TIP);
-    PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setHint(THLD_TOOL_TIP);
+    PluginParameter<ThresholderHisto> thresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new BackgroundThresholder(3, 6, 3), false).setEmphasized(true).setHint(THLD_TOOL_TIP);
     
     Parameter[] parameters = new Parameter[]{channelLength, cropMarginY, minObjectSize, thresholder, fillingProportion, boundGroup};
     double threshold = Double.NaN;
@@ -74,12 +74,12 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     }
     private static String simpleHint = "<b>Automatically crops the image around the microchannels in fluorescence images</b><br />" +
             "The microchannels should be aligned along the Y-axis, with their closed-end up (for instance use <em>AutorotationXY</em> and <em>AutoFlip</em> modules)";
-    private static String testModeDisp = "Displayed image and graphs in test mode:<ul><li><em>Thresholded Bacteria:</em> Result of bacteria thresholding (using the threshold method defined in the <em>Threshold</em> parameter, available in advanced mode), after filtering of small objects (see the <em>Object Size Filter</em> parameter, available in advanced mode).</li>";
+    private static String testModeDisp = "Displayed image and graphs in test mode:<ul><li><em>Thresholded Bacteria:</em> Result of bacteria thresholding (using the threshold method defined in the <em>Threshold</em> parameter), after filtering of small objects (see the <em>Object Size Filter</em> parameter).</li>";
 
     @Override
     public String getHintText() {
         return  simpleHint + "<br />The microchannels are detected as follows:<br />"+TOOL_TIP + testModeDisp
-                + "<li><em>Microchannel Fill proportion:</em>Plot representing the proportion of filled length of detected microchannels. See module description and help for parameter <em>Filling proportion of Microchannel</em></li></ul>";
+                + "<li><em>Microchannel Fill proportion:</em>Plot representing the proportion of filled length of detected microchannels. See module description and help for the <em>Filling proportion of Microchannel</em> parameter</li></ul>";
     }
     @Override
     public String getSimpleHintText() {

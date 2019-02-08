@@ -41,7 +41,7 @@ import bacmman.plugins.TrackPostFilter;
 public class RemoveSaturatedMicrochannels implements TrackPostFilter, Hint {
     @Override
     public String getHintText() {
-        return "Removes microchannel tracks that contain saturated pixels (defined by the  <em>Min percentage of saturated pixel</em> parameter).<br />Only valid if preprocessed images were subject to a saturation transformation on the detection channel where microchannels are segmented.";
+        return "Removes microchannel tracks that contain saturated pixels (defined by the  <em>Min percentage of saturated pixel</em> parameter, available in the advanced mode).<br />Only valid if preprocessed images were subject to a saturation transformation on the detection channel where microchannels are segmented.";
     }
     BoundedNumberParameter minPercentageOfSaturatedObjects = new BoundedNumberParameter("Min. percentage of track", 0, 10, 0, 100).setHint("If the track has more than this proportion of saturated objects, it will be removed");
     BoundedNumberParameter minPercentageOfSaturatedPixels = new BoundedNumberParameter("Min. percentage of saturated pixel", 0, 10, 1, 100).setHint("If an object has more than this proportion of saturated pixel it will be considered as a saturated object (see <em>Min percentage of track</em> parameter)");

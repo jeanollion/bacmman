@@ -93,11 +93,11 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     }
     public BacteriaPhaseContrast() {
         super();
-        this.splitThreshold.setHint("Threshold used for splitting touching bacteria (see step 2 in the help of the segmentation module). The criterion in which this threshold is used is defined by the <em>Interface Value</em> parameter (see help of the <emInterface value</em> parameter).<br />If the value is too low, it leads to over-segmentation; if it's too high, distinct bacteria touching each other may be fused<br /><br />Configuration Hint: Tune the value using the <em>Split cells: Interface values</em> intermediate image. The interfaces with a value over this threshold will not be merged<br /><br /><b>This parameter should be carefully calibrated for each experimental setup</b>");
+        this.splitThreshold.setHint(splitThreshold.getHintText() + "<br /><br />The criterion in which this threshold is used is defined by the <em>Interface Value</em> parameter (see help of the <emInterface value</em> parameter)");
         this.splitThreshold.setValue(0.115); // 0.15 for hessian scale = 3
         this.hessianScale.setValue(2);
         this.edgeMap.removeAll().add(new StandardDeviation(3).setMedianRadius(2));
-        localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this threshold will yield in smaller cells.<br />This threshold should be calibrated for each new experimental setup. <br />Threshold = mean_w - sigma_w * (this threshold), <br />with mean_w = weighted mean of signal weighted by edge image, sigma_w = standard deviation of signal weighted by edge image. <br />Refer to images: <em>Contour adjustment: edge map</em> and <em>Contour adjustment: intensity map</em><br /><b>This threshold should be calibrated for each new experimental setup</b>");
+        localThresholdFactor.setHint("Factor defining the local threshold. <br />Lower value of this threshold will results in smaller cells.<br />This threshold should be calibrated for each new experimental setup. <br />Threshold = mean_w - sigma_w * (this threshold), <br />with mean_w = weighted mean of signal weighted by edge image, sigma_w = standard deviation of signal weighted by edge image. <br />Refer to images: <em>Contour adjustment: edge map</em> and <em>Contour adjustment: intensity map</em><br /><b>This threshold should be calibrated for each new experimental setup</b>");
         localThresholdFactor.setValue(1);
     }
     public BacteriaPhaseContrast setMinSize(int minSize) {
@@ -109,7 +109,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         RegionPopulation pop = super.runSegmenter(input, objectClassIdx, parent);
         return filterBorderArtifacts(parent, objectClassIdx, pop);
     }
-    final private static String toolTip = "<b>Bacteria segmentation within microchannels</b><br />"
+    final private static String toolTip = "<b>Bacteria segmentation within microchannels in phase-contrast images</b><br />"
             + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the <em>SubtractBackgroundMicrochannels</em> Track pre-filter<br />"
             + "<br />Empty microchannels are detected prior to segmentation step, using information on the whole microchannel track. See <em>Variation coefficient threshold</em> parameter."
             + "<br />Main steps of the algorithm:"
@@ -119,21 +119,26 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             + "<li>Contour of bacteria is adjusted using a threshold computed for each bacterium. The threshold value is described in the <em>local threshold factor</em> parameter</li></ol>"
             + "Intermediate images are displayed in test mode for each of the steps described above. In order to display the different regions after a partitioning step, we use an image displaying the median intensity value of each region, referred to as MIP"
             + "<ul><li><em>Foreground detection: edge map</em>: image of edges used for watershed partitioning (<em>used in step 1</em>)</li> " +
-            "<li><em>Foreground detection: Region values after partitioning</em>: MIP after watershed partitioning according to the Edge Map (<em>used in step 1</em>). Importantly, on this image regions should be either located in the foreground or in the background, but should not overlap both areas</li>"
+            "<li><em>Foreground detection: Region values after partitioning</em>: MIP after watershed partitioning according to the Edge Map (<em>used in step 1</em>). Importantly, on this image regions should be either located in the foreground or in the background, but should not overlap both areas. If some regions overlap both foreground and background, try modifying the <em>Edge map</em> parameter</li>"
             + "<li><em>Foreground mask</em>: binary mask obtained after the foreground detection step (<em>step 1</em>)</li>"
-            + "<li><em>Hessian</em>: maximal Eigenvalue of the Hessian matrix used for the partitioning of the foreground mask in order to separate the cells. Pixel intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian</em> parameter. (<em>used in step 2</em>)</li> " +
+            + "<li><em>Hessian</em>: maximal Eigenvalue of the Hessian matrix used for the partitioning of the foreground mask in order to separate the cells. Pixel intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian scale</em> parameter. (<em>used in step 2</em>)</li> " +
             //" <li><em>Split cells: Region values before merge</em>: MIP after partitioning the foreground mask generated in step 1 (see <em>Foreground mask</em> image) using the <em>Hessian</em> image for the watershed algorithm (<em>see step 2</em>)</li> " +
-            " <li><em>Split cells: Interface values</em>: Each segment represents the area of contact between two regions (referred to as interface) after a watershed partitioning of the foreground mask according the <em>Hessian</em> image. The intensity of each segment is compared to the <em>Split Threshold</em> Parameter for split/merge decisions. Interface values should be as high as possible between cells and as low as possible within cells (<em>used in step 2</em>)</li> " +
+            " <li><em>Split cells: Interface values</em>: Each segment represents the area of contact between two regions (referred to as interface) after a watershed partitioning of the foreground mask according the <em>Hessian</em> image. The intensity of each segment (computation of this intensity is explained in the help of the <em>Interface value</em> parameter) is compared to the <em>Split Threshold</em> Parameter for merge decisions. Interface values should be as high as possible between cells and as low as possible within cells (influenced by the <em>Hessian scale</em> parameter) (<em>used in step 2</em>)</li> " +
             " <li><em>Split cells: Region values after merge</em>: MIP after merging using the Split/Merge criterion (<em>used in step 2</em>)</li>"
             + "<li><em>Contour adjustment: intensity map</em> & <em>Contour adjustment: edge map</em>: images used for contour adjustment (see description of <em>Local Threshold Factor</em> parameter)(<em>used in step 3</em>) </li></ul>";
 
-    final private static String toolTipSimple = "<b>Bacteria segmentation within microchannels</b><br />"
-            + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the Track-pre-filter: <em>SubtractBackgroundMicrochannels</em><br />"
-            + "<br />Intermediate images displayed in test mode:"
+    final private static String toolTipSimple = "<b>Bacteria segmentation within microchannels in phase-contrast images</b><br />"
+            + "This algorithm is designed to work on inverted (foreground is bright) and normalized phase-contrast images, and usually filtered with the <em>SubtractBackgroundMicrochannels</em> track pre-filter<br />"
+            + "<br />If objects are segmented in empty microchannels or if filled microchannels appear as empty, tune the <em>Variation coefficient threshold</em> parameter. "
+            + "<br />If bacteria are over-segmented or touching bacteria are merged, tune the <em>Split Threshold</em> parameter"
+            + "<br />The contour of bacteria can be adjusted by tuning the <em>Local Threshold Factor parameter</em> (in the <em>Contour adjustment</em> parameter)"
+            + "<br /><br />Intermediate images displayed in test mode:"
             + "<ul>"
-            + "<li><em>Hessian</em>: In this image, the intensity should be as high as possible at the interface between touching cells and as low as possible within cells. It is influenced by the <em>Hessian</em> parameter</li> "
-            + " <li><em>Split cells: Interface values</em>: Bacteria will be cut where displayed segments on this image have a value larger than the parameter <em>Split Threshold</em>. Segment values should be as high as possible between cells and as low as possible within cells</li> "
+            + "<li><em>Hessian</em>: In this image, the intensity should be at the interface between touching cells and low within cells. It is influenced by the <em>Hessian scale</em> parameter</li> "
+            + " <li><em>Split cells: Interface values</em>: Segment intensity should be as high as possible between cells and as low as possible within cells (influenced by the <em>Hessian scale</em> parameter). This image can be used to tune the <em>Split Threshold</em> parameter : bacteria will be cut where the segments displayed on this image have an intensity larger than the <em>Split Threshold</em></li> "
             + "</ul>";
+
+
 
 
     @Override public String getHintText() {return toolTip;}

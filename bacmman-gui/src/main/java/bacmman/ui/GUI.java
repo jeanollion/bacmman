@@ -1480,7 +1480,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         configurationSplitPane.setDividerLocation(500);
 
-        configurationSplitPaneRight.setDividerLocation(250);
+        configurationSplitPaneRight.setDividerLocation(150);
         configurationSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
         moduleListJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Available Modules"));
@@ -1519,7 +1519,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         testSplitPane.setDividerLocation(500);
 
-        testSplitPaneRight.setDividerLocation(250);
+        testSplitPaneRight.setDividerLocation(150);
         testSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
         testModuleJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Available Modules"));

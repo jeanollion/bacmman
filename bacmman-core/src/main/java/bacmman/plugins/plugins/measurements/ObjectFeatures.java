@@ -113,7 +113,7 @@ public class ObjectFeatures implements Measurement, Hint {
         for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {
             ObjectFeature f = ofp.instanciatePlugin();
             if (f!=null) {
-                f.setUp(parent, structureIdx, ((SegmentedObject)parent).getChildRegionPopulation(structureIdx));
+                f.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
                 if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(cores, preFilters);
                 parent.getChildren(structureIdx).forEach(o-> {
                     double m = f.performMeasurement(o.getRegion()); 

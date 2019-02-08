@@ -55,7 +55,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     protected NumberParameter yStart = new BoundedNumberParameter("Y start", 0, 0, 0, null);
     protected NumberParameter yStop = new BoundedNumberParameter("Y stop (0 for image heigth)", 0, 0, 0, null);
     protected GroupParameter boundGroup = new GroupParameter("Bound constraint", xStart, xStop, yStart, yStop).setHint("Parameters to crop the image according to constant bounds. <br />If needed, a constant crop should be set here rather than in a separate module at a previous step, because of possible XY-drift.");
-    protected BoundedNumberParameter cropMarginY = new BoundedNumberParameter("Crop Margin", 0, 45, 0, null).setHint("The y-coordinate of the microchannels closed-end used to crop the image is defined as: <em>Y start</em> - <em>Crop margin</em> (for definition of <em>Y start</em> see help of the module)<br />A positive value will yield in larger microchannels.");
+    protected BoundedNumberParameter cropMarginY = new BoundedNumberParameter("Crop Margin", 0, 45, 0, null).setHint("The y-coordinate of the microchannels closed-end used to crop the image is defined as: <em>Y start</em> - <em>Crop margin</em> (for definition of <em>Y start</em> see help of the module)<br />A positive value will results in larger microchannels.");
     protected NumberParameter frameNumber = new BoundedNumberParameter("Frame Number", 0, 0, 0, null); // not used anymore -> both implementations compute bounds on every image -> value = 0
     
     ChoiceParameter referencePoint = new ChoiceParameter("Reference point", new String[]{"Top", "Bottom"}, "Top", false);

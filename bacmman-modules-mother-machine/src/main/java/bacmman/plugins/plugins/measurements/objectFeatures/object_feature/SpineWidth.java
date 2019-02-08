@@ -24,9 +24,11 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.plugins.GeometricalFeature;
+import bacmman.plugins.HintSimple;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.Hint;
 
+import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineLength.SPINE_DEF;
 import static bacmman.processing.bacteria_spine.BacteriaSpineFactory.getSpineLengthAndWidth;
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size.SCALED_TT;
 
@@ -34,7 +36,7 @@ import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature
  *
  * @author Jean Ollion
  */
-public class SpineWidth implements GeometricalFeature, Hint {
+public class SpineWidth implements GeometricalFeature, Hint, HintSimple {
     protected BooleanParameter scaled = new BooleanParameter("Scale", "Unit", "Pixel", true).setHint(SCALED_TT);
     @Override
     public Parameter[] getParameters() {
@@ -60,8 +62,16 @@ public class SpineWidth implements GeometricalFeature, Hint {
     public String getDefaultName() {
         return "SpineWidth";
     }
+
     @Override
     public String getHintText() {
-        return "Median value of the spine radii. Only valid for rod shaped regions";
+        return getSimpleHintText() + "<br />Computation details: for each point of the spine (see definition below), the distance between the two closest points of the contour on each side of the spine is computed. The value of the measurement is the median value of those distances. <br />"+SPINE_DEF;
     }
+
+    @Override
+    public String getSimpleHintText() {
+        return "Estimation of the thickness of a bacterium. This measurement is only valid for rod-shaped objects.";
+    }
+
+
 }
