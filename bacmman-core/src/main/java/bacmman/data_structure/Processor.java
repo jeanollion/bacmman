@@ -330,9 +330,9 @@ public class Processor {
                 globE.addExceptions(me.getExceptions());
             }
             
-            // parallele measurement on tracks -> give all ressources to the measurement and perform track by track
-            int paralleleMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count(); 
-            if (pcb!=null && paralleleMeasCount>0) pcb.log("Executing: #"+ paralleleMeasCount * allParentTracks.size()+" multithreaded track measurements");
+            // parallel measurement on tracks -> give all ressources to the measurement and perform track by track
+            int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
+            if (pcb!=null && parallelMeasCount>0) pcb.log("Executing: #"+ parallelMeasCount * allParentTracks.size()+" multithreaded track measurements");
             try {
                 ThreadRunner.executeAndThrowErrors(allParentTracks.keySet().stream(), pt->{
                     dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()

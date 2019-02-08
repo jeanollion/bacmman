@@ -65,13 +65,14 @@ public class SpineWidth implements GeometricalFeature, Hint, HintSimple {
 
     @Override
     public String getHintText() {
-        return getSimpleHintText() + "<br />Computation details: for each point of the spine (see definition below), the distance between the two closest points of the contour on each side of the spine is computed. The value of the measurement is the median value of those distances. <br />"+SPINE_DEF;
+        return spineWidthTT + validTT + spineWidthAlgo +SPINE_DEF;
     }
 
     @Override
     public String getSimpleHintText() {
-        return "Estimation of the thickness of a bacterium. This measurement is only valid for rod-shaped objects.";
+        return  spineWidthTT + validTT;
     }
-
-
+    public static String validTT = "This measurement is only valid for rod-shaped objects";
+    public static String spineWidthTT = "Estimation of the thickness of a bacterium.";
+    public static String spineWidthAlgo = "<br />Computation details: for each point of the spine (see definition below), the distance between the two closest points of the contour on each side of the spine is computed. The value of the measurement is the median value of those distances. <br />";
 }

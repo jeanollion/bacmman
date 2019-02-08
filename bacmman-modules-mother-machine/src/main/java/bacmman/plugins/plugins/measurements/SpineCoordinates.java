@@ -30,10 +30,12 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.MultiThreaded;
 import bacmman.plugins.Hint;
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 
 import static bacmman.data_structure.SegmentedObjectUtils.getContainer;
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size.SCALED_TT;
+import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineLength.SPINE_DEF;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -60,7 +62,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     }
     @Override
     public String getHintText() {
-        return "Project the spot center in the spine (skeleton) coordinate system of the bacteria that contains the spot (if exists) and return the spine coordinates<br />To compute the spine, <em>Bacteria</em> must correspond to objects with rod shapes<br />Spot center is by default the center defined by the segmenter, if no center is defined, the mass center is used<br /><ol><li><em>SpineCoord</em> is the coordinate along the bacteria axis</li><li><em>SpineRadialCoord is the coordinate perpendicular to the radial axis (negative on the left side)</em></li><li><em>SpineLength is the total spine length</em></li><li><em>SpineRadiius is the width of the bacteria at the position of the spot</em></li></ol><>";
+        return "Computes the spine coordinates (see spine definition below) of a spot (of class defined in the <em>Spot</em> parameter) in a bacteria (of class defined in the <em>Bacteria</em> parameter). <ul><li><em>SpineCurvilinearCoord</em> is the coordinate along the bacteria longitudinal axis</li><li><em>SpineRadialCoord is the coordinate perpendicular to the longitudinal axis (negative on the left side)</em></li><li><em>SpineLength is the total spine length between the two pole</em></li><li><em>SpineRadius is the width of the bacteria at the position of the spot</em></li></ul><br />The center of the Spot object is by default the center defined by the segmenter, if no center was defined, the mass center will used<br />The object class defined in the <em>Bacteria</em> parameter must correspond to rod-shaped objects<br /><br />"+SPINE_DEF;
     }
     public SpineCoordinates setScaled(boolean scaled) {
         this.scaled.setSelected(scaled);
@@ -79,10 +81,10 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        res.add(new MeasurementKeyObject("SpineCoord", spot.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject("SpineCurvilinearCoord", spot.getSelectedClassIdx()));
         res.add(new MeasurementKeyObject("SpineRadialCoord", spot.getSelectedClassIdx()));
         res.add(new MeasurementKeyObject("SpineLength", spot.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("SpineLength", bacteria.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject("SpineLength", bacteria.getSelectedClassIdx())); // also set to bacteria
         res.add(new MeasurementKeyObject("SpineRadius", spot.getSelectedClassIdx()));
         return res;
     }
@@ -97,7 +99,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
             spotMapBacteria.putAll(sMb);
         });
         Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = new HashSet<>(spotMapBacteria.values()).parallelStream().collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()) ));
-        spotMapBacteria.entrySet().parallelStream().forEach(e-> {
+        Utils.parallele(spotMapBacteria.entrySet().stream(), parallel).forEach(e-> {
             Point center = e.getKey().getRegion().getCenter();
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
             BacteriaSpineCoord coord = bacteriaMapLocalizer.get(e.getValue()).getSpineCoord(center);
@@ -105,11 +107,13 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
                 e.getKey().getMeasurements().setValue("SpineCoord", null);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", null);
                 e.getKey().getMeasurements().setValue("SpineLength", null);
+                e.getValue().getMeasurements().setValue("SpineLength", null); // also set to bacteria
                 e.getKey().getMeasurements().setValue("SpineRadius", null);
             } else {
                 e.getKey().getMeasurements().setValue("SpineCoord", coord.curvilinearCoord(false)*scale);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", coord.radialCoord(false)*scale);
                 e.getKey().getMeasurements().setValue("SpineLength", coord.spineLength()*scale);
+                e.getValue().getMeasurements().setValue("SpineLength", coord.spineLength()*scale); // also set to bacteria
                 e.getKey().getMeasurements().setValue("SpineRadius", coord.spineLength()*scale); // radius at spot position
             }
         });
@@ -120,9 +124,10 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
         return parameters;
     }
 
+    boolean parallel;
     @Override
     public void setMultiThread(boolean parallel) {
-        
+        this.parallel = parallel;
     }
 
     

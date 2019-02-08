@@ -28,6 +28,7 @@ import bacmman.plugins.HintSimple;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.Hint;
 
+import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineWidth.validTT;
 import static bacmman.processing.bacteria_spine.BacteriaSpineFactory.getSpineLength;
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size.SCALED_TT;
 
@@ -65,11 +66,12 @@ public class SpineLength implements GeometricalFeature, Hint, HintSimple {
 
     @Override
     public String getHintText() {
-        return getSimpleHintText() + "<br />Computation details: the value of the measurement is the length of the spine. <br />"+SPINE_DEF;
+        return spineLengthTT + validTT + spineLengthAlgo +SPINE_DEF;
     }
-
+    public static String spineLengthTT= "Curvilinear length of a bacterium from one pole to the other (taking into account rippling deformations).";
+    public static String spineLengthAlgo = "<br />Computation details: the value of the measurement is the length of the spine (see definition below). <br />";
     @Override
     public String getSimpleHintText() {
-        return "Curvilinear length of a bacterium from one pole to the other. This measurement is only valid for rod-shaped objects. It takes into account rippling deformations.";
+        return spineLengthTT + validTT;
     }
 }

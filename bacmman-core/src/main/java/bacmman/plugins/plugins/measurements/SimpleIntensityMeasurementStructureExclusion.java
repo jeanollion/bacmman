@@ -45,7 +45,7 @@ public class SimpleIntensityMeasurementStructureExclusion implements Measurement
     protected ObjectClassParameter structureObject = new ObjectClassParameter("Object", -1, false, false);
     protected ObjectClassParameter excludedStructure = new ObjectClassParameter("Excluded Structure", -1, false, false);
     protected ObjectClassParameter structureImage = new ObjectClassParameter("Image", -1, false, false);
-    protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Radius for excluded structure dillatation", 1, 2, 0, null);
+    protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Radius for excluded structure dilatation", 1, 2, 0, null);
     protected BoundedNumberParameter erodeBorders = new BoundedNumberParameter("Radius for border erosion", 1, 2, 0, null);
     protected BooleanParameter addMeasurementToExcludedStructure = new BooleanParameter("set Measurement to excluded structure", false);
     TextParameter prefix = new TextParameter("Prefix", "Intensity", false);
@@ -114,7 +114,6 @@ public class SimpleIntensityMeasurementStructureExclusion implements Measurement
             }
             ob.draw(m, 0, null);
         });
-        //ImageWindowManagerFactory.showImage(mask);
         return m;
     }
 

@@ -43,15 +43,15 @@ import java.util.List;
  * @author Jean Ollion
  */
 public class ObjectFeatures implements Measurement, Hint {
-    ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, false, false).setHint("Class of objects to apply feature on");
-    PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false).setAdditionalParameters(new TextParameter("Key", "", false));
-    SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", 0, def);
-    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("Pre-Filters that will be used by all intensity measurement");
+    ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Class of objects to compute feature(s) on");
+    PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false).setAdditionalParameters(new TextParameter("Name", "", false));
+    SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", 0, def).setEmphasized(true);
+    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");
     Parameter[] parameters = new Parameter[]{structure, preFilters, features};
     
     @Override
     public String getHintText() {
-        return "Collection of features (scalar value) computed on single objects, such as intensity measurement (mean, min..) or geometrical features (length, size..).";
+        return "Collection of features (scalar values) computed on single objects, such as intensity measurement (mean, min..) or geometrical features (length, size..).";
     }
     
     

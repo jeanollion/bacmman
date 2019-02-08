@@ -38,17 +38,17 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class ObjectInclusionCount implements Measurement, Hint {
-    protected ObjectClassParameter structureContainer = new ObjectClassParameter("Containing Objects", -1, false, false).setHint("Objects to perform measurement on");
-    protected ObjectClassParameter structureToCount = new ObjectClassParameter("Objects to count", -1, false, false).setHint("Objects to count when included in <em>Containing Objects</em>");
-    protected BooleanParameter onlyTrackHeads = new BooleanParameter("Count Only TrackHeads", false).setHint("Whether only head of tracks or all objects should be counted");
-    protected BoundedNumberParameter percentageInclusion = new BoundedNumberParameter("Minimum percentage of inclusion", 0, 100, 0, 100).setHint("Inclusion criterion: minimal percentage of volume of objects to count that should be included in the container to consider it is included");
-    protected TextParameter inclusionText = new TextParameter("Inclusion Key Name", "ObjectCount", false);
+    protected ObjectClassParameter structureContainer = new ObjectClassParameter("Containing Objects", -1, false, false).setEmphasized(true).setHint("Objects to perform measurement on");
+    protected ObjectClassParameter structureToCount = new ObjectClassParameter("Objects to count", -1, false, false).setEmphasized(true).setHint("Objects to count when included in <em>Containing Objects</em>");
+    protected BooleanParameter onlyTrackHeads = new BooleanParameter("Count Only TrackHeads", false).setHint("<ul><li>If set to <em>true</em>, only first element of tracks will be counted</li><li>If set to <em>false</em> all objects will be counted</li></ul>");
+    protected BoundedNumberParameter percentageInclusion = new BoundedNumberParameter("Minimum percentage of inclusion", 0, 100, 0, 100).setHint("An object A is considered to be included in another object B if the overlap volume A∩B divided by the volume of A is larger than this threshold");
+    protected TextParameter inclusionText = new TextParameter("Measurement Name", "ObjectCount", false);
     protected Parameter[] parameters = new Parameter[]{structureContainer, structureToCount, percentageInclusion, onlyTrackHeads, inclusionText};
     
     
     @Override
     public String getHintText() {
-        return "Counts the number of included objects";
+        return "Counts the number of included objects (of class defined in the <em>Objects to count</em> parameter) located within each objects of class defined in the <em>Containing Objects</em> parameter";
     }
     
     public ObjectInclusionCount() {}

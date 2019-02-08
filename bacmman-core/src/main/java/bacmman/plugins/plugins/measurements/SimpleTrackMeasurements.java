@@ -87,7 +87,7 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
 
     @Override
     public String getHintText() {
-        return "Measures <ul><li>the track length (frame of last object - frame of first object + 1 )</li><li>the number of object in the track (that can differ from track length if there are gaps</li><li>the indices of the track head</li><li>The indices of the parent track head (e.g. first element of track)</li><li>For each object of the track, the tracking errors on link with previous / next elements (according to the tracker)</li></ul>";
+        return "Collection of measurement on object tracks. <br />Measures: <ul><li>the track length (frame of last object - frame of first object + 1 )</li><li>the number of object in the track (that can differ from track length if there are gaps</li><li>the indices of the track head</li><li>The indices of the parent track head (e.g. first element of track)</li><li>For each object of the track, the tracking errors on link with previous / next elements (according to the tracker)</li></ul>";
     }
         
 }

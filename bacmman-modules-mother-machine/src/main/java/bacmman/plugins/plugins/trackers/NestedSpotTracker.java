@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPlugin, HintSimple {
+public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPlugin, Hint, HintSimple {
     private static final String CONF_HINT = "<br />Configuration hint: to display distance between two spots, select the two spots on test images and choose <em>Display Spine</em> from right-click menu. Distance will be logged in the console and projection of source spot to destination bacteria displayed";
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false).setEmphasized(true);
     ObjectClassParameter compartmentStructure = new ObjectClassParameter("Bacteria Object Class", -1, false, false).setEmphasized(true).setHint("Indicate the name of the object class corresponding to bacteria, i.e. containing the spots to be tracked.");
@@ -73,25 +73,28 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, spotQualityThreshold, allowSplitting, allowMerging};
 
     static String toolTipSimple = "<b>Tracker for intracellular spots</b><br />" +
-            "Algorithm allowing tracking spots located within bacteria. This algorithm provides a correction for bacteria motion and growth.";
+            "Algorithm allowing tracking spots located within bacteria. This algorithm provides a correction for bacteria motion and growth." +
+            "<br />This algorithm can perform gap-closing, i.e. a spot at frame n can be linked to a spot at frame n+2 (or n+3…) without being linked at any spot at frame n+1. The maximum size of the allowed gap can be set in the <em>Maximum Frame Gap</em> parameter." +
+            "<br />This algorithm also allows minimizing false positive spot detection events by removing some spots based on their computed quality parameter (see help of the <em>SpotSegmenter</em> module in advanced mode). The spots are divided into two categories of high quality or low quality (depending on the value of the <em>Spot quality Threshold</em> parameter). Frame-to-frame linking is first performed only with high quality spots. Low quality spots are then kept only if they can be linked to a high quality spot.";
     static String toolTip = "<br />";
+    static String corrDesc = "<br /><br />Details of the method for correction of bacteria motion and growth: <br />Between two successive frames, a spot is subject to 3 sources of motion : <ol><li>its intrinsic motion within the cell</li><li>the motion of the cell containing the spot, when it swims within the microchannel or when it is pushed by growing cells that are closer to the dead-end</li><li>the growth of the cell containing the spot</li></ol>In order to remove sources 2 and 3, the position of the spot is expressed in an appropriate coordinate system, described below. <br />We define the <em>spine</em> of the bacterium as the central line crossing it from one pole to the other. Each point of the spine is equidistant from the two closest points of the contour located on each side of the spine. The distance between the two poles along the spine is referred to as spine length, and is larger than the euclidean distance if the cell is not straight. The spine coordinate system is composed of the curvilinear distance along the spine and the distance from the spine in the direction perpendicular to the spine, referred to as radial distance. This coordinate system allows suppressing the source 2) of motion. To compute the distance between a spot (S<sub>F</sub>) contained in a cell (C<sub>F</sub>) at frame F and a spot (S<sub>F+1</sub>) contained in a cell  at frame F+1 (C<sub>F+1</sub>), SF is projected in C<sub>F+1</sub> and the euclidean distance between S<sub>F+1</sub> and the projection of S<sub>F</sub> is computed. To project S<sub>F</sub> in C<sub>F+1</sub>, we assume homogeneous growth and calculate the curvilinear coordinate as the curvilinear coordinate of S<sub>F</sub> multiplied by the ratio of spine lengths of the two cells C<sub>F</sub> and C<sub>F+1</sub>. In case of division, the spine length at F+1 is the sum of the spine lengths of the two daughter cells.";
     static String toolTipAlgo = "<b>Tracker for intracellular spots</b><br />"
             + "<ul><li>Distance between spots is computed using spine coordinates in order to take into account bacteria growth and movements</li>"
             + "<li>Bacteria lineage is honoured: two spots can only be linked if they are contained in bacteria from the same track or connected tracks (after division events)</li>"
             + "<li>If segmentation and tracking are performed jointly, a first step of removal of low-quality (LQ) spots (spot that can be either false-negative or true-positive) will be applied: only LQ spots that can be linked (directly or indirectly) to high-quality (HQ) spots (ie spots that are true-positives) are kept, allowing a better selection of true-positives spots of low intensity. HQ/LQ definition depends on the parameter <em>Spot Quality Threshold</em> and depends on the quality parameter defined by the segmenter</li>"
             + "<li>linking procedure frame-to-frame then - allowing gaps (if <em>Maximum frame gap</em> is superior to 0) - is applied among remaining spots</li></ul>";
 
-    static String aknwoledge = "<br />Linking is based on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
+    static String aknwoledge = "<br /><br />Linking is based on TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
 
     @Override
     public String getSimpleHintText() {
         return toolTipSimple+aknwoledge;
     }
 
-    //@Override
-    /*public String getHintText() {
-        return toolTipSimple + toolTip+aknwoledge;
-    }*/
+    @Override
+    public String getHintText() {
+        return toolTipSimple + corrDesc+aknwoledge;
+    }
 
 
     public NestedSpotTracker setCompartimentStructure(int compartimentStructureIdx) {

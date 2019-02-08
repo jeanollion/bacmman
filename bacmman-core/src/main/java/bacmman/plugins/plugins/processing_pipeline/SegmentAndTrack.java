@@ -48,7 +48,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
     
     @Override
     public String getHintText() {
-        return "Performs the segmentation and Tracking steps jointly";
+        return "Performs the segmentation and Tracking steps jointly. Allows some tracker correcting segmentation errors.";
     }
     
     public TrackerSegmenter getTracker() {

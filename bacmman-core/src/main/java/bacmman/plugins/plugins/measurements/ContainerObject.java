@@ -46,7 +46,7 @@ public class ContainerObject implements Measurement, Hint {
     protected Parameter[] parameters = new Parameter[]{objects, reference, key, returnAttributes};
     @Override
     public String getHintText() {
-        return "For each object A of class defined in <em>Objects</em>, this method searches for the the object B of class defined in <em>Container Object</em> that contains A. If B exists, return its index and/or its full barcode (index and index af parent objects)";
+        return "For each object A (of class defined in <em>Objects</em>), this method searches for the the object B (of class defined in <em>Container Object</em>) that contains A. If B exists, return its index and/or its full barcode (index and index af parent objects)";
     }
     
     public ContainerObject() {

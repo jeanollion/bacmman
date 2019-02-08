@@ -170,8 +170,9 @@ public class ConfigurationTreeGenerator {
                 List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
                 if (!keys.isEmpty()) {
                     if (t.length()>0) t= t+"<br /> <br />";
-                    t = t+ "<b>Measurement Name (for each output measurement, the list displays column names in extracted table and associated object class in brackets):</b><br />";
-                    for (MeasurementKey k : keys) t=t+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<experiment.getStructureCount() ? " ("+experiment.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"<br />";
+                    t = t+ "<b>Measurement Names</b> (column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears):<br /><ul>";
+                    for (MeasurementKey k : keys) t=t+"<li>"+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<experiment.getStructureCount() ? " ("+experiment.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"</li>";
+                    t = t+"</ul>";
                 }
             }
         } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter

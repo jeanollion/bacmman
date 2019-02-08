@@ -88,13 +88,13 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             + "<li>If several scales are provided, the Laplacian scale-space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
             + "<li>Watershed propagation is done within the segmentation parent mask until Laplacian values reach the threshold defined in the <em>Propagation Threshold</em> parameter</li>"
             + "<li>A quality parameter defined as √(Laplacian x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
-            "<br />In order to increase robustness to variation in the background fluorescence in bacteria, the input image is first normalized by subtracting the mean value and dividing by the standard-deviation value of the background signal within the cell. Laplacian & Gaussian transforms are then computed on the normalized image.";
+            "<br />In order to increase robustness to variations in the background fluorescence in bacteria, the input image is first normalized by subtracting the mean value and dividing by the standard-deviation value of the background signal within the cell. Laplacian & Gaussian transforms are then computed on the normalized image.";
     protected static String toolTipDispImage = "<br /><br />Images displayed in test mode:" +
-            "<ul><li><em>Gaussian</em>: Gaussian transform applied to the normalized input image.</li>" +
-            "<li><em>Laplacian</em>: Laplacian transform applied to the normalized input image.</li>";
+            "<ul><li><em>Gaussian</em>: Gaussian transform applied to the normalized input image.<br />This image can be used to tune the <em>Seed Threshold</em> parameter, which should be lower than the intensity of the center of the spots and larger than the background intracellular fluorescence on the <em>Gaussian</em> transformed image.</li>" +
+            "<li><em>Laplacian</em>: Laplacian transform applied to the normalized input image.<br />This image can be used to tune the <em>Seed Laplacian Threshold</em> parameter, which should be lower than the intensity of the center of the spots and larger than the background intracellular fluorescence on the <em>Laplacian</em> transformed image.<br />This image can also be used to tune the <em>Propagation Threshold</em> parameter, which value should be lower than the intensity inside the spots and larger than the background intracellular fluorescence on the <em>Laplacian</em> transformed image</li>";
     protected static String toolTipDispImageAdvanced = "<li><em>Seeds</em>: Selected seeds for the seeded-watershed transform</li></ul>";
     protected static String toolTipSimple ="<b>Fluorescence Spot Detection</b>.<br />" +
-            "Segments spot-like object in fluorescence images using a criterion on Gaussian and on Laplacian transforms";
+            "Segments spot-like objects in fluorescence images using a criterion on the Gaussian and the Laplacian transforms. <br />If spot detection is not satisfying try changing the <em>Seed Threshold</em> and/or <em>Seed Laplacian Threshold</em>. If spots are too big or too small, try changing the <em>Propagation Threshold</em> parameter. ";
 
     // tool tip interface
     @Override

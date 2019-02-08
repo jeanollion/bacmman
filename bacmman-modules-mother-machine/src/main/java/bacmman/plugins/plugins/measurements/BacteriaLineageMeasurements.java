@@ -43,7 +43,7 @@ import java.util.stream.Collectors;
  */
 public class BacteriaLineageMeasurements implements Measurement, Hint {
     protected ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false).setHint("Select object class corresponding to bacteria");
-    protected TextParameter keyName = new TextParameter("Lineage Index Name", "BacteriaLineage", false);
+    protected TextParameter keyName = new TextParameter("Lineage Index Name", "BacteriaLineage", false).setHint("Name of the measurement");
     protected Parameter[] parameters = new Parameter[]{structure, keyName};
     public static char[] lineageName = new char[]{'H', 'T'};
     public static char[] lineageError = new char[]{'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S'};
@@ -61,7 +61,7 @@ public class BacteriaLineageMeasurements implements Measurement, Hint {
     
     @Override
     public String getHintText() {
-        return "Lineage Index for Bacteria.<br />Index starts with any letter except H and T. At each division, H is added to the upper daughter cell track and T to the lower daugther cell track.<br />In case of division with more than 2 cells, letter I to S are added track of other daughter cell<br />This measurement also computes the frame of previous and next divisions";
+        return "Computes an index representing the lineage history of each bacterium. <br />This index starts with any letter except 'H' and 'T'. At each division, 'H' is added to the index of upper daughter cell and 'T' to the index of the lower daughter cell.<br />If a mother cell has more than two daughter cells (in case of segmentation error or when the cell divides several times between two successive frames), letters 'I' to 'S' are added to the index of the other daughter cells<br />This measurement module also computes the frame of previous and next divisions.";
     }
     
     @Override
