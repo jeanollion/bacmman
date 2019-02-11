@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.MultichannelTransformation;
 
@@ -72,10 +73,17 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     }*/
     private void initInputChannel() {
         inputChannel = new ChannelImageParameter("Detection Channel", -1).setEmphasized(true);
+        if (onlyOneChannel()) inputChannel.setSelectedIndex(0);
     }
     private void initOutputChannel(boolean multiple, int... selectedChannels) {
         if (multiple) outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels).setEmphasized(true);
         else outputChannel = new ChannelImageParameter("Channels on which apply transformation", selectedChannels!=null && selectedChannels.length>=1 ? selectedChannels[0] : -1).setEmphasized(true);
+        if ((selectedChannels==null || selectedChannels.length==0 || (selectedChannels.length==1 && selectedChannels[0]==-1)) && onlyOneChannel()) outputChannel.setSelectedIndex(0);
+    }
+    private boolean onlyOneChannel() {
+        Experiment xp = ParameterUtils.getExperiment(this);
+        if (xp==null) return false;
+        else return xp.getChannelImageCount()==1;
     }
     @Override 
     public TransformationPluginParameter<T> setPlugin(T pluginInstance) {

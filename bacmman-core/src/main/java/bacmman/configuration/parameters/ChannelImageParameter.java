@@ -49,7 +49,7 @@ public class ChannelImageParameter extends ObjectClassOrChannelParameter<Channel
         if (getXP()!=null) {
             return getXP().getChannelImagesAsString();
         } else {
-            return new String[]{"error: no xp found in tree"};
+            return new String[0];
         }
     }
 
