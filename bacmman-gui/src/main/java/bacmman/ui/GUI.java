@@ -203,6 +203,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     db.unlockConfiguration();
                     db.clearCache();
                 }
+                INSTANCE = null;
                 logger.debug("Closed successfully");
             }
         });
@@ -1059,7 +1060,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     
     public static GUI getInstance() {
-        if (INSTANCE==null) INSTANCE=new GUI();
+        //if (INSTANCE==null) INSTANCE=new GUI();
         return INSTANCE;
     }
     

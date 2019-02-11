@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
  */
 public class IJ1 implements PlugIn {
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
-
+    private static Object LOCK = new Object();
     public static void initCore() {
         IJImageDisplayer disp = new IJImageDisplayer();
         IJImageWindowManager man = new IJImageWindowManager(null, disp);
@@ -67,59 +67,69 @@ public class IJ1 implements PlugIn {
     // IJ1 plugin method
     @Override
     public void run(String string) {
+        if (!GUI.hasInstance()) {
+            synchronized(LOCK) {
+                if (!GUI.hasInstance()) {
+                    String lookAndFeel = null;
+                    Map<String, LookAndFeelInfo> lafMap = Arrays.asList(UIManager.getInstalledLookAndFeels()).stream().collect(Collectors.toMap(LookAndFeelInfo::getName, Function.identity()));
+                    logger.info("LookAndFeels {}", lafMap.keySet());
+                    if (lafMap.keySet().contains("Mac OS X")) lookAndFeel="Mac OS X";
+                    else if (lafMap.keySet().contains("Quaqua")) lookAndFeel="Quaqua";
+                    else if (lafMap.keySet().contains("Seaglass")) lookAndFeel="Seaglass";
+                    else if (lafMap.keySet().contains("Nimbus")) lookAndFeel="Nimbus";
+                    else if (lafMap.keySet().contains("Metal")) lookAndFeel="Metal";
+                    /*
+                    String OS_NAME = System.getProperty("os.name");
+                    if ("Linux".equals(OS_NAME)) {
+                        if (uiNames.contains("Nimbus")) lookAndFeel="Nimbus";
+                    }*/
+                    if (lookAndFeel!=null) {
+                        logger.info("set LookAndFeel: {}", lookAndFeel);
+                        try {
+                            // Set cross-platform Java L&F (also called "Metal")
+                            UIManager.setLookAndFeel( lafMap.get(lookAndFeel).getClassName());
+                        }
+                        catch (UnsupportedLookAndFeelException e) {
+                            // handle exception
+                        }
+                        catch (ClassNotFoundException e) {
+                            // handle exception
+                        }
+                        catch (InstantiationException e) {
+                            // handle exception
+                        }
+                        catch (IllegalAccessException e) {
+                            // handle exception
+                        }
+                    }
 
-        String lookAndFeel = null;
+                    /*
 
-        Map<String, LookAndFeelInfo> lafMap = Arrays.asList(UIManager.getInstalledLookAndFeels()).stream().collect(Collectors.toMap(LookAndFeelInfo::getName, Function.identity()));
-        logger.info("LookAndFeels {}", lafMap.keySet());
-        if (lafMap.keySet().contains("Mac OS X")) lookAndFeel="Mac OS X";
-        else if (lafMap.keySet().contains("Quaqua")) lookAndFeel="Quaqua";
-        else if (lafMap.keySet().contains("Seaglass")) lookAndFeel="Seaglass";
-        else if (lafMap.keySet().contains("Nimbus")) lookAndFeel="Nimbus";
-        else if (lafMap.keySet().contains("Metal")) lookAndFeel="Metal";
-        /*
-        String OS_NAME = System.getProperty("os.name");
-        if ("Linux".equals(OS_NAME)) {
-            if (uiNames.contains("Nimbus")) lookAndFeel="Nimbus";
-        }*/
-        if (lookAndFeel!=null) {
-            logger.info("set LookAndFeel: {}", lookAndFeel);
-            try {
-                // Set cross-platform Java L&F (also called "Metal")
-                UIManager.setLookAndFeel( lafMap.get(lookAndFeel).getClassName());
+                     */
+                    //System.setProperty("scijava.log.level", "error");
+                    //DebugTools.enableIJLogging(false);
+                    //DebugTools.enableLogging("ERROR");
+                    //((Logger)LoggerFactory.getLogger(FormatHandler.class)).setLevel(Level.OFF);
+                    System.setProperty("scijava.log.level", "error");
+
+
+                    // TODO find other IJ1&2 plugins & ops...
+                    initCore();
+                    GUI gui = new GUI();
+                    gui.setVisible(true);
+                    gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                    IJ.setTool("freeline");
+                    IJ.setTool("rect");
+                    Core.setUserLogger(gui);
+
+                } else {
+                    IJ.log("Another instance of BACMMAN is already running");
+                    return;
+                }
             }
-            catch (UnsupportedLookAndFeelException e) {
-                // handle exception
-            }
-            catch (ClassNotFoundException e) {
-                // handle exception
-            }
-            catch (InstantiationException e) {
-                // handle exception
-            }
-            catch (IllegalAccessException e) {
-                // handle exception
-            }
-        }
-
-        /*
-
-         */
-        //System.setProperty("scijava.log.level", "error");
-        //DebugTools.enableIJLogging(false);
-        //DebugTools.enableLogging("ERROR");
-        //((Logger)LoggerFactory.getLogger(FormatHandler.class)).setLevel(Level.OFF);
-        System.setProperty("scijava.log.level", "error");
+        } else IJ.log("Another instance of BACMMAN is already running");
 
 
-        // TODO find other IJ1&2 plugins & ops...
-        initCore();
-        GUI gui = new GUI();
-        gui.setVisible(true);
-        gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        IJ.setTool("freeline");
-        IJ.setTool("rect");
-        Core.setUserLogger(gui);
     }
 
 }
