@@ -66,7 +66,7 @@ public class InputImagesImpl implements InputImages {
     public InputImagesImpl duplicate(int frameMin, int frameMaxExcluded) {
         if (frameMin<0) throw new IllegalArgumentException("Frame min must be >=0");
         if (frameMin>=frameNumber) throw new IllegalArgumentException("Frame min must be < to frame number");
-        if (frameMaxExcluded>frameNumber) throw new IllegalArgumentException("Frame min must be <= to frame number");
+        if (frameMaxExcluded>frameNumber) throw new IllegalArgumentException("Frame max must be <= to frame number ("+frameMaxExcluded+">"+frameNumber+")");
         InputImage[][] imageCTDup = new InputImage[imageCT.length][];
         for (int i = 0; i<imageCT.length; ++i) { //channel
             if (singleFrameChannel(i)) {

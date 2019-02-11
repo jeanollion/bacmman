@@ -53,7 +53,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.imglib2.algorithm.MultiThreaded;
-import org.jgrapht.UndirectedGraph;
+import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
 /**
@@ -77,7 +77,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 	private List< Spot > uniqueTargets;
 
-	private final UndirectedGraph< Spot, DefaultWeightedEdge > graph;
+	private final Graph< Spot, DefaultWeightedEdge > graph;
 
 	private double alternativeCost = -1;
 
@@ -89,7 +89,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 	 * segment linking cost matrix.
 	 * 
 	 */
-	public JaqamanSegmentCostMatrixCreator( final UndirectedGraph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings, final CostThreshold<Spot, Spot> gcCostThreshold, final double alternativeCost )
+	public JaqamanSegmentCostMatrixCreator( final Graph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings, final CostThreshold<Spot, Spot> gcCostThreshold, final double alternativeCost )
 	{
 		this.graph = graph;
 		this.settings = settings;
