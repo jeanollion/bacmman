@@ -4196,7 +4196,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (positionIdx<0) { // unset frame range
                 testFrameRange.setUpperBound(null);
             } else {
-                testFrameRange.setUpperBound(db.getExperiment().getPosition(positionIdx).getFrameNumber(false));
+                testFrameRange.setUpperBound(db.getExperiment().getPosition(positionIdx).getFrameNumber(false)-1);
                 logger.debug("position: {} frame number: {}, frame min: {} frame max: {}", positionIdx, db.getExperiment().getPosition(positionIdx).getFrameNumber(false), db.getExperiment().getPosition(positionIdx).getStartTrimFrame(), db.getExperiment().getPosition(positionIdx).getEndTrimFrame());
             }
         } else {
@@ -4268,6 +4268,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (testObjectClassIdx>=0 && positionIdx>=0) {
             String position = db.getExperiment().getPosition(positionIdx).getName();
             int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
+            if (parentObjectClassIdx<0) Processor.getOrCreateRootTrack(db.getDao(position)); // ensures root track is created
             SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(so -> so.isTrackHead()).map(o->Selection.indicesString(o)).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
             /*if (parentObjectClassIdx<0) {
                 testParentTrackJCB.addItem(position);
