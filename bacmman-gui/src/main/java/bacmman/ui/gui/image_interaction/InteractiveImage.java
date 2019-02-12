@@ -66,7 +66,6 @@ public abstract class InteractiveImage {
     public abstract ImageInteger generateLabelImage();
     public abstract void drawObjects(ImageInteger image);
     public abstract Image generatemage(int structureIdx, boolean executeInBackground);
-    public abstract boolean isTimeImage();
     public int getChildStructureIdx() {return childStructureIdx;}
     public abstract List<Pair<SegmentedObject, BoundingBox>> getObjects();
     public List<Pair<SegmentedObject, BoundingBox>> pairWithOffset(Collection<SegmentedObject> objects) {

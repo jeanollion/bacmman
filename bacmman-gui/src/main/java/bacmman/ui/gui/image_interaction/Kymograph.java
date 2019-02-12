@@ -74,7 +74,7 @@ public abstract class Kymograph extends InteractiveImage {
     }
     
     @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, childStructureIdx, true);
+        return new InteractiveImageKey(parents, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH);
     }
     
     @Override
@@ -227,11 +227,6 @@ public abstract class Kymograph extends InteractiveImage {
     public boolean containsTrack(SegmentedObject trackHead) {
         if (childStructureIdx==parentStructureIdx) return trackHead.getStructureIdx()==this.childStructureIdx && trackHead.getTrackHeadId().equals(this.parents.get(0).getId());
         else return trackHead.getStructureIdx()==this.childStructureIdx && trackHead.getParentTrackHeadId().equals(this.parents.get(0).getId());
-    }
-
-    @Override
-    public boolean isTimeImage() {
-        return true;
     }
 
     @Override

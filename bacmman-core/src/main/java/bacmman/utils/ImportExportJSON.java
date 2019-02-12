@@ -264,6 +264,7 @@ public class ImportExportJSON {
                 if (xp.size()==1) {
                     xp.get(0).setOutputDirectory(dao.getDir()+File.separator+"Output");
                     xp.get(0).setOutputImageDirectory(xp.get(0).getOutputDirectory());
+                    xp.get(0).getPositionParameter().removeAllElements();
                     dao.setExperiment(xp.get(0));
                     logger.debug("Dataset: {} from file: {} set to db: {}", dao.getExperiment().getName(), path, dao.getDBName());
                     dao.clearCache(); // avoid lock issues
@@ -284,6 +285,7 @@ public class ImportExportJSON {
                 } else {
                     Experiment xp = r.readFirstObject("config.json", o->JSONUtils.parse(Experiment.class, o));
                     if (xp!=null) {
+                        xp.getPositionParameter().removeAllElements();
                         if (dao.getDir()!=null) {
                             xp.setOutputDirectory(dao.getDir()+File.separator+"Output");
                             xp.setOutputImageDirectory(xp.getOutputDirectory());

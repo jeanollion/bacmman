@@ -14,7 +14,7 @@ public class KymographFactory {
         int maxParentSizeZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
         int currentOffset=0;
-        if (bb.sizeY() >= bb.sizeX()) { // X direction
+        if (!parentTrack.get(0).isRoot() && bb.sizeY() >= bb.sizeX()) { // X direction. Root parent is always in Y direction
             int maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
             for (int i = 0; i<parentTrack.size(); ++i) {
                 if (middle) trackOffset[i].translate(new SimpleOffset(currentOffset, (int)((maxParentSizeY-1)/2.0-(trackOffset[i].sizeY()-1)/2.0), (int)((maxParentSizeZ-1)/2.0-(trackOffset[i].sizeZ()-1)/2.0))); // Y & Z middle of parent track

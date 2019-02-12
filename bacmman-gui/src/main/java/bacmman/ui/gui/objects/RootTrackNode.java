@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.objects;
 
+import bacmman.data_structure.Processor;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -221,6 +222,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         IJVirtualStack.openVirtual(generator.getExperiment(), position, false);
                     } catch(Throwable t) {
                         generator.pcb.log("Could no open input images for position: "+position+". If their location moved, used the re-link command");
+                        GUI.logger.debug("Error while opening file position", t);
                     }
                 }
             }
@@ -254,10 +256,17 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         public void actionPerformed(ActionEvent ae) {
                             int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
                             if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
-                            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(generator.db.getDao(position).getRoots(), structureIdx);
-                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generatemage(structureIdx, true), i, structureIdx, true);
-                            GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                            GUI.getInstance().setTrackStructureIdx(structureIdx);
+                            List<SegmentedObject> rootTrack=null;
+                            try {
+                                rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+                            } catch (Exception e) { }
+                            if (rootTrack!=null) {
+                                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx);
+                                if (i != null)
+                                    ImageWindowManagerFactory.getImageManager().addImage(i.generatemage(structureIdx, true), i, structureIdx, true);
+                                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                                GUI.getInstance().setTrackStructureIdx(structureIdx);
+                            }
                         }
                     }
                 );

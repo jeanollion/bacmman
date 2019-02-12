@@ -146,15 +146,15 @@ public class IJImageWrapper {
         int sizeC = imageTC[0].length;
         ImageStack is = new ImageStack(imageTC[0][0].sizeX(), imageTC[0][0].sizeY(), sizeZ * imageTC.length * sizeC);
         int count = 1;
-        for (int z = 0; z < sizeZ; ++z) {
-            for (int t = 0; t < imageTC.length; ++t) {
+        for (int t = 0; t < imageTC.length; ++t) {
+            for (int z = 0; z < sizeZ; ++z) {
                 for (int c = 0; c < imageTC[0].length; ++c) {
                     is.setPixels(imageTC[t][c].getPixelArray()[z], count++);
                 }
             }
         }
         ImagePlus ip = new ImagePlus();
-        
+
         ip.setStack(is, imageTC[0].length, imageTC[0][0].sizeZ(), imageTC.length);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();

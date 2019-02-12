@@ -22,53 +22,46 @@ import bacmman.data_structure.SegmentedObject;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
  * @author Jean Ollion
  */
 public class InteractiveImageKey {
-    public final boolean timeImage;
+    public enum IMAGE_TYPE {SINGLE_FRAME, KYMOGRAPH, FRAME_STACK}
+    public final IMAGE_TYPE imageType;
     public final List<SegmentedObject> parent;
     public final int displayedStructureIdx;
 
-    public InteractiveImageKey(List<SegmentedObject> parent, int displayedStructureIdx, boolean timeImage) {
-        this.timeImage = timeImage;
+    public InteractiveImageKey(List<SegmentedObject> parent, int displayedStructureIdx, IMAGE_TYPE imageType) {
+        this.imageType = imageType;
         this.parent = parent;
         this.displayedStructureIdx = displayedStructureIdx;
     }
     
     public InteractiveImageKey getKey(int childStructureIdx) {
-        return new InteractiveImageKey(parent, childStructureIdx, timeImage);
+        return new InteractiveImageKey(parent, childStructureIdx, imageType);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        InteractiveImageKey that = (InteractiveImageKey) o;
+        return displayedStructureIdx == that.displayedStructureIdx &&
+                imageType == that.imageType &&
+                Objects.equals(parent, that.parent);
     }
 
     @Override
     public int hashCode() {
-        int hash = 7;
-        hash = 71 * hash + (this.timeImage ? 1 : 0);
-        hash = 71 * hash + (this.parent != null ? this.parent.hashCode() : 0);
-        hash = 71 * hash + this.displayedStructureIdx;
-        return hash;
-    }
-
-    
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final InteractiveImageKey other = (InteractiveImageKey) obj;
-        if (this.timeImage != other.timeImage) return false;
-        if (this.displayedStructureIdx!=other.displayedStructureIdx) return false;
-        return !(this.parent != other.parent && (this.parent == null || !this.parent.equals(other.parent)));
+        return Objects.hash(imageType, parent, displayedStructureIdx);
     }
     
     @Override
     public String toString() {
-        return parent.toString()+"/S="+displayedStructureIdx+"/Track="+timeImage;
+        return parent.toString()+"/S="+displayedStructureIdx+"/Type="+imageType;
     }
     
     public boolean equalsIgnoreStructure(Object obj) {
@@ -79,7 +72,7 @@ public class InteractiveImageKey {
             return false;
         }
         final InteractiveImageKey other = (InteractiveImageKey) obj;
-        if (this.timeImage != other.timeImage) {
+        if (this.imageType != other.imageType) {
             return false;
         }
         if (this.parent != other.parent && (this.parent == null || !this.parent.equals(other.parent))) {

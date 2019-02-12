@@ -2,6 +2,7 @@ package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.experiment.Position;
 import bacmman.core.ProgressCallback;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.IJVirtualStack;
 
 import javax.swing.*;
@@ -26,6 +27,7 @@ public class PositionUI implements ParameterUI {
                                                IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), false);
                                            } catch(Throwable t) {
                                                if (pcb!=null) pcb.log("Could no open input images for position: "+p.getName()+". If their location moved, used the re-link command");
+                                               GUI.logger.debug("Error while opening file position", t);
                                            }
                                        }
                                    }

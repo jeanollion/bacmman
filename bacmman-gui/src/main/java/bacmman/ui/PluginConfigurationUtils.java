@@ -29,14 +29,12 @@ import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
-import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
-import bacmman.ui.gui.image_interaction.InteractiveImage;
-import bacmman.ui.gui.image_interaction.ImageWindowManager;
+import bacmman.ui.gui.image_interaction.*;
+
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 
 import bacmman.image.Image;
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
-import bacmman.ui.gui.image_interaction.Kymograph;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -408,7 +406,7 @@ public class PluginConfigurationUtils {
 
                             }
                             Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
-                            ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
+                            ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate())); // duplicate all images so that further transformations are not shown
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
                         Transformation transfo = tpp.instanciatePlugin();

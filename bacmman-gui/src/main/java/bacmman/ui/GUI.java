@@ -1029,7 +1029,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     public List<String> getSelectedPositions(boolean returnAllIfNoneSelected) {
         if (returnAllIfNoneSelected && microscopyFieldList.getSelectedIndex()<0) return new ArrayList<String>(Arrays.asList(db.getExperiment().getPositionsAsString()));
-        else return Utils.transform((List<String>)microscopyFieldList.getSelectedValuesList(), s->s.substring(0, s.indexOf(" ")));
+        else return Utils.transform((List<String>)microscopyFieldList.getSelectedValuesList(), s->s.substring(0, s.indexOf(" (#")));
     }
     
     private int lastSelTab=0;
@@ -2586,7 +2586,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (activeImage == null) return;
         ImageWindowManager.RegisteredImageType imageType = ImageWindowManagerFactory.getImageManager().getRegisterType(activeImage);
         logger.debug("active image type: {}", imageType);
-        if (ImageWindowManager.RegisteredImageType.PreProcessed.equals(imageType) || ImageWindowManager.RegisteredImageType.RawInput.equals(imageType)) { // input image ?
+        if (ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType) || ImageWindowManager.RegisteredImageType.RAW_INPUT.equals(imageType)) { // input image ?
             String position = ImageWindowManagerFactory.getImageManager().getPositionOfInputImage(activeImage);
             if (position == null) return;
             else {
@@ -2595,7 +2595,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (nIdx<0) return;
                 if (nIdx>=db.getExperiment().getPositionCount()) return;
                 String nextPosition = db.getExperiment().getPosition(nIdx).getName();
-                boolean pp = ImageWindowManager.RegisteredImageType.PreProcessed.equals(imageType);
+                boolean pp = ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType);
                 db.getExperiment().flushImages(true, true, nextPosition);
                 IJVirtualStack.openVirtual(db.getExperiment(), nextPosition, pp);
             }
@@ -3799,6 +3799,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             IJVirtualStack.openVirtual(db.getExperiment(), position, false);
                         } catch(Throwable t) {
                             setMessage("Could no open input images for position: "+position+". If their location moved, used the re-link command");
+                            logger.debug("Error while opening file position", t);
                         }
                     }
                 };
@@ -4269,7 +4270,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (testObjectClassIdx>=0 && positionIdx>=0) {
             String position = db.getExperiment().getPosition(positionIdx).getName();
             int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
-            if (parentObjectClassIdx<0) Processor.getOrCreateRootTrack(db.getDao(position)); // ensures root track is created
+            try {
+                if (parentObjectClassIdx<0) Processor.getOrCreateRootTrack(db.getDao(position)); // ensures root track is created
+            } catch (Exception e) {}
             SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(so -> so.isTrackHead()).map(o->Selection.indicesString(o)).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
             /*if (parentObjectClassIdx<0) {
                 testParentTrackJCB.addItem(position);

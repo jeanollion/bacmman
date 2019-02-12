@@ -82,7 +82,7 @@ import java.util.stream.Collectors;
  * @param <V> track ROI class
  */
 public abstract class ImageWindowManager<I, U, V> {
-    public static enum RegisteredImageType { Interactive, RawInput, PreProcessed; }
+    public enum RegisteredImageType {KYMOGRAPH, RAW_INPUT, PRE_PROCESSED}
     public static boolean displayTrackMode;
     public final static Color[] palette = new Color[]{new Color(166, 206, 227, 150), new Color(31,120,180, 150), new Color(178,223,138, 150), new Color(51,160,44, 150), new Color(251,154,153, 150), new Color(253,191,111, 150), new Color(255,127,0, 150), new Color(255,255,153, 150), new Color(177,89,40, 150)};
     public final static Color defaultRoiColor = new Color(255, 0, 255, 150);
@@ -131,14 +131,14 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     public RegisteredImageType getRegisterType(Object image) {
         if (image instanceof Image) {
-            if (displayedInteractiveImages.contains((Image)image)) return RegisteredImageType.Interactive;
+            if (displayedInteractiveImages.contains(image)) return RegisteredImageType.KYMOGRAPH;
             else return null;
         }
-        if (this.displayedRawInputFrames.values().contains(image)) return RegisteredImageType.RawInput;
-        if (this.displayedPrePocessedFrames.values().contains(image)) return RegisteredImageType.PreProcessed;
+        if (this.displayedRawInputFrames.values().contains(image)) return RegisteredImageType.RAW_INPUT;
+        if (this.displayedPrePocessedFrames.values().contains(image)) return RegisteredImageType.PRE_PROCESSED;
         try {
             I im = (I) image;
-            if (displayedInteractiveImages.contains(getDisplayer().getImage(im))) return RegisteredImageType.Interactive;
+            if (displayedInteractiveImages.contains(getDisplayer().getImage(im))) return RegisteredImageType.KYMOGRAPH;
         } catch(Exception e) {}
         
         return null;
@@ -233,12 +233,12 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.error("cannot get image if IOI null");
             return null;
         }
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i.childStructureIdx, i.isTimeImage()));
+        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i.childStructureIdx, i instanceof Kymograph ? InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH : InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
     public Image getImage(InteractiveImage i, int displayStructureIdx) {
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, displayStructureIdx, i.isTimeImage()));
+        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, displayStructureIdx, i instanceof Kymograph ? InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH : InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
@@ -257,7 +257,7 @@ public abstract class ImageWindowManager<I, U, V> {
             imageObjectInterfaces.put(i.getKey(), i);
         }
         //T dispImage = getImage(image);
-        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, displayedStructureIdx, i.isTimeImage()));
+        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, displayedStructureIdx, i instanceof Kymograph ? InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH : InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
         if (displayImage) {
             displayImage(image, i);
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
@@ -339,11 +339,11 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     
     public void resetImageObjectInterface(SegmentedObject parent, int childStructureIdx) {
-        imageObjectInterfaces.remove(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx, false));
+        for (InteractiveImageKey.IMAGE_TYPE it : InteractiveImageKey.IMAGE_TYPE.values()) imageObjectInterfaces.remove(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx, it));
     }
     
     public InteractiveImage getImageObjectInterface(SegmentedObject parent, int childStructureIdx, boolean createIfNotExisting) {
-        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx, false));
+        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
         if (i==null && createIfNotExisting) {
             i= new SimpleInteractiveImage(parent, childStructureIdx);
             imageObjectInterfaces.put(i.getKey(), i);
@@ -353,11 +353,11 @@ public abstract class ImageWindowManager<I, U, V> {
     public InteractiveImage getImageTrackObjectInterface(List<SegmentedObject> parentTrack, int childStructureIdx) {
         
         if (parentTrack.isEmpty()) {
-            GUI.logger.warn("cannot kymograph of length == 0" );
+            GUI.logger.warn("cannot create kymograph with parent track of length == 0" );
             return null;
         }
-        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(parentTrack, childStructureIdx, true));
-        GUI.logger.debug("getIOI: hash: {} ({}), exists: {}, trackHeadTrackMap: {}", parentTrack.hashCode(), new InteractiveImageKey(parentTrack, childStructureIdx, true).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
+        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(parentTrack, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH));
+        GUI.logger.debug("getIOI: hash: {} ({}), exists: {}, trackHeadTrackMap: {}", parentTrack.hashCode(), new InteractiveImageKey(parentTrack, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
         if (i==null) {
             long t0 = System.currentTimeMillis();
             i = Kymograph.generateKymograph(parentTrack, childStructureIdx);
@@ -370,54 +370,23 @@ public abstract class ImageWindowManager<I, U, V> {
         } 
         return i;
     }
-    
-    /*public ImageObjectInterface getImageTrackObjectInterfaceIfExisting(StructureObject parentTrackHead, int childStructureIdx) {
-        List<StructureObject> track = getTrack(parentTrackHead);
-        if (track==null) return null;
-        return imageObjectInterfaces.get(new ImageObjectInterfaceKey(track, childStructureIdx, true));
-    }
-    
-    private List<StructureObject> getTrack(StructureObject trackHead) {
-        List<List<StructureObject>> tracks = this.trackHeadTrackMap.get(trackHead);
-        if (tracks==null || tracks.isEmpty()) return null;
-        if (tracks.size()>1) {
-            for (List<StructureObject> track : tracks) {
-                for (StructureObject o : track) {
-                    if (o.getTrackHead()!=trackHead) break; // not a real track
-                }
-                return track;
-            }
-        }
-        return null;
-    }*/
-    protected void reloadObjects__(InteractiveImageKey key, boolean track) {
+
+    protected void reloadObjects__(InteractiveImageKey key) {
         
         InteractiveImage i = imageObjectInterfaces.get(key);
         if (i!=null) {
             GUI.logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.displayedStructureIdx);
             i.reloadObjects();
-            /*
-            // also reload all label images!!
-            for (Entry<Image, ImageObjectInterfaceKey> e : imageObjectInterfaceMap.entrySet()) if (e.getValue().equals(key)) {
-                //logger.debug("updating image: {}", e.getKey().getName());
-                if (isLabelImage.get(e.getKey())) {
-                    ImageOperations.fill(((ImageInteger)e.getKey()), 0, null);
-                    i.drawObjects((ImageInteger)e.getKey());
-                }
-                hideAllRois(null, true, true);
-                if (!track) getDisplayer().updateImageDisplay(e.getKey());
-            }
-            */
         }
     }
     protected void reloadObjects_(SegmentedObject parent, int childStructureIdx, boolean track) {
         if (track) parent=parent.getTrackHead();
         if (!trackHeadTrackMap.containsKey(parent)) {
             final SegmentedObject p = parent;
-            reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, childStructureIdx, track), track);
+            reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
         } else {
             for (List<SegmentedObject> l : trackHeadTrackMap.get(parent)) {
-                reloadObjects__(new InteractiveImageKey(l, childStructureIdx, track), track);
+                for (InteractiveImageKey.IMAGE_TYPE it : InteractiveImageKey.IMAGE_TYPE.values()) reloadObjects__ (new InteractiveImageKey(l, childStructureIdx, it));
             }
         }
         
@@ -475,7 +444,7 @@ public abstract class ImageWindowManager<I, U, V> {
             if (ref==null) GUI.logger.error("IOI not found: ref: {} ({}), all IOI: {}", key, key.getKey(-1), imageObjectInterfaces.keySet());
             else GUI.logger.debug("creating IOI: ref: {}", ref);
             // create imageObjectInterface
-            if (ref.isTimeImage()) i = this.getImageTrackObjectInterface(((Kymograph)ref).parents, structureIdx);
+            if (ref instanceof Kymograph) i = this.getImageTrackObjectInterface(((Kymograph)ref).parents, structureIdx);
             else i = this.getImageObjectInterface(ref.parents.get(0), structureIdx, true);
             this.imageObjectInterfaces.put(i.getKey(), i);
         } 
@@ -927,7 +896,7 @@ public abstract class ImageWindowManager<I, U, V> {
             if (trackImage==null) return;
         }
         InteractiveImage i = this.getImageObjectInterface(trackImage);
-        if (i==null || !i.isTimeImage()) {
+        if (i==null || i instanceof SimpleInteractiveImage) {
             GUI.logger.warn("selected image is not a track image");
             return;
         }
@@ -990,7 +959,7 @@ public abstract class ImageWindowManager<I, U, V> {
             trackImage = displayer.getImage(selectedImage);
         }
         InteractiveImage i = this.getImageObjectInterface(trackImage);
-        if (!i.isTimeImage()) {
+        if (i instanceof SimpleInteractiveImage) {
             GUI.logger.warn("selected image is not a track image");
             return false;
         }

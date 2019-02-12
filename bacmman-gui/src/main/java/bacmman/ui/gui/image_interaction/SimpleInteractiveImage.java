@@ -58,7 +58,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, childStructureIdx, false);
+        return new InteractiveImageKey(parents, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME);
     }
 
     public BoundingBox[] getOffsets() {
@@ -169,12 +169,5 @@ public class SimpleInteractiveImage extends InteractiveImage {
         }
         return maxLabel;
     }
-
-    @Override
-    public boolean isTimeImage() {
-        return false;
-    }
-
-
 
 }
