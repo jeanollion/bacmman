@@ -812,7 +812,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 d.clearCache(false, true, true);
             }
         });
-
     }
     Consumer<String> moduleSelectionCallBack;
     private void updateConfigurationTree() {
@@ -4272,6 +4271,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
             try {
                 if (parentObjectClassIdx<0) Processor.getOrCreateRootTrack(db.getDao(position)); // ensures root track is created
+                logger.debug("parent track: {}", Processor.getOrCreateRootTrack(db.getDao(position)).size());
             } catch (Exception e) {}
             SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentObjectClassIdx).filter(so -> so.isTrackHead()).map(o->Selection.indicesString(o)).forEachOrdered(idx -> testParentTrackJCB.addItem(idx));
             /*if (parentObjectClassIdx<0) {

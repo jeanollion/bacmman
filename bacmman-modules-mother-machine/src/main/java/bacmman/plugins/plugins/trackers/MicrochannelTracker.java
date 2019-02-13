@@ -30,6 +30,7 @@ import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.PostFilterSequence;
 import bacmman.configuration.parameters.TrackPreFilterSequence;
 
+import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
@@ -60,7 +61,7 @@ import java.util.stream.IntStream;
 public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     protected PluginParameter<MicrochannelSegmenter> segmenter = new PluginParameter<>("Segmentation algorithm", MicrochannelSegmenter.class, new MicrochannelPhase2D(), false).setEmphasized(true);
     NumberParameter maxShiftGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 0, 100, 1, null).setHint("Maximal Distance (in pixels) used for for the gap-closing step<br /> Increase the value to take into account XY-shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
-    NumberParameter maxDistanceFTFWidthFactor = new BoundedNumberParameter("Maximal Distance Factor for Frame-to-Frame Tracking", 1, 1, 0, null).setHint("The distance threshold for Frame-to-Frame tracking procedure will be this value multiplied by the mean width of microchannels.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into acound XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
+    NumberParameter maxDistanceFTFWidthFactor = new BoundedNumberParameter("Maximal Distance Factor for Frame-to-Frame Tracking", 1, 1, 0.5, null).setHint("The distance threshold for Frame-to-Frame tracking procedure will be this value multiplied by the mean width of microchannels.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into acound XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
     NumberParameter yShiftQuantile = new BoundedNumberParameter("Y-shift Quantile", 2, 0.5, 0, 1).setHint("After Tracking, the y-shift of microchannels are normalized for each track: the y-shift of a given microchannel at a given frame is replaced by the quantile of the distribution of the y-shift of this microchannel at all frames");
     NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel widths are normalized for each track: the width of a given microchannel at a given frame is replaced by the quantile of the distribution of the width of this microchannel at all frames");
     BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", true).setHint("If a frame contains no microchannels (typically when the focus is lost), allows connecting the microchannel track before and after the gap. This will results in microchannel tracks containing gaps. This will results in microchannel tracks containing gaps. If this parameter is set to false, the tracks will be cut");
@@ -83,6 +84,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             + "<p><em>Track-wise normalization of microchannel regions:</em>"
             + "<ul><li>Normalization of Y-shift (relative to base line). See <em>Normalize Y-shifts</em> parameter</li>"
             + "<li>Normalization of width. See <em>Normalize Widths</em> parameter </li></ul></p>"
+            + "<br />Note that this tracker performs Post-filters after tracking when performing joint segmentation and tracking task"
             + "<br /><br />Linking and gap-closing procedures are using TrackMate's implementation (<a href='https://imagej.net/TrackMate'>https://imagej.net/TrackMate</a>) of u-track software (<a href='https://www.utsouthwestern.edu/labs/jaqaman/software/'>https://www.utsouthwestern.edu/labs/jaqaman/software/</a>)";
 
     // tool tip interface
@@ -130,7 +132,24 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
      */
     @Override public  void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
-        TrackMateInterface<Spot> tmi = new TrackMateInterface(TrackMateInterface.defaultFactory());
+        TrackMateInterface<Spot> tmi = new TrackMateInterface(new TrackMateInterface.SpotFactory() {
+            @Override
+            public Spot toSpot(Region o, int frame) {
+                Point center = o.getCenter();
+                if (center==null) center = o.getGeomCenter(true);
+                Spot s = new Spot(center.get(0), 0, 0, 1, 1); // tracking only using X position
+                s.getFeatures().put(Spot.FRAME, (double)frame);
+                //logger.debug("Frame={} x={}, y={} ([{};{}])", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax());
+                return s;
+            }
+
+            @Override
+            public Spot duplicate(Spot s) {
+                Spot res =  new Spot(s.getFeature(Spot.POSITION_X), s.getFeature(Spot.POSITION_Y), s.getFeature(Spot.POSITION_Z), s.getFeature(Spot.RADIUS), s.getFeature(Spot.QUALITY));
+                res.getFeatures().put(Spot.FRAME, s.getFeature(Spot.FRAME));
+                return res;
+            }
+        });
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         List<SegmentedObject> allChildren = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx).collect(Collectors.toList());
         logger.debug("tracking: {}", Utils.toStringList(map.entrySet(), e->"t:"+e.getKey()+"->"+e.getValue().size()));
@@ -157,8 +176,8 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
      * 4) Track-Wise Normalization of microchannels width and relative y position 
      * @param structureIdx microchannel structure index
      * @param parentTrack microchannel parent track
-     * @param trackPreFilters optional track pre-filters to be applied prio to segmentation step
-     * @param postFilters  optinal post filters to be applied after segmentation and before tracking
+     * @param trackPreFilters optional track pre-filters to be applied prior to segmentation step
+     * @param postFilters  optional post filters to be applied after segmentation and before tracking
      */
     @Override
     public void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
