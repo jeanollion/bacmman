@@ -132,6 +132,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                         res[c] = sourceImages.singleFrame(c) ? new InputImage[1] : new InputImage[tpNp];
                         for (int t = 0; t<res[c].length; ++t) {
                             res[c][t] = new InputImage(c, t+tpOff, t, name, sourceImages, dao);
+                            if (preProcessingChain.useCustomScale()) res[c][t].overwriteCalibration(preProcessingChain.getScaleXY(), preProcessingChain.getScaleZ());
                         } 
                     }
                     int defTp = defaultTimePoint.getValue().intValue()-tpOff;

@@ -42,7 +42,7 @@ public class InputImage {
     Image image;
     boolean intermediateImageSavedToDAO=false, modified=false;
     ArrayList<Transformation> transformationsToApply;
-    
+    double scaleXY=Double.NaN, scaleZ= Double.NaN;
     public InputImage(int channelIdx, int inputTimePoint, int timePoint, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao) {
         this.imageSources = imageSources;
         this.dao = dao;
@@ -52,11 +52,16 @@ public class InputImage {
         this.microscopyFieldName = microscopyFieldName;
         transformationsToApply=new ArrayList<>();
     }
+    public void overwriteCalibration(double scaleXY, double scaleZ) {
+        this.scaleXY=scaleXY;
+        this.scaleZ=scaleZ;
+    }
     public boolean modified() {
         return modified;
     }
     public InputImage duplicate() {
         InputImage res = new InputImage(channelIdx, inputTimePoint, frame, microscopyFieldName, imageSources, dao);
+        res.overwriteCalibration(scaleXY, scaleZ);
         if (image!=null) {
             res.image = image.duplicate();
             res.originalImageType=originalImageType.duplicate();
@@ -82,6 +87,7 @@ public class InputImage {
                     if (image==null) {
                         image = imageSources.getImage(inputTimePoint, channelIdx);
                         if (image==null) throw new RuntimeException("Image not found: position:"+microscopyFieldName+" channel:"+channelIdx+" frame:"+frame);
+                        if (!Double.isNaN(scaleXY)) image.setCalibration(scaleXY, scaleZ);
                         originalImageType = Image.createEmptyImage("source Type", image, new BlankMask( 0, 0, 0));
                     }
                 }
