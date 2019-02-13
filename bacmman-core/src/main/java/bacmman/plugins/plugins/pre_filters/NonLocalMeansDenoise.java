@@ -41,7 +41,7 @@ import java.util.List;
  * @author Jean Ollion
  */
 public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
-    BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 0, 15, 0, null).setHint("Estimation of standard deviation of noise.").setEmphasized(true);
+    BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 0, 5, 0, null).setHint("Estimation of standard deviation of noise.").setEmphasized(true);
     BoundedNumberParameter smoothingFactor = new BoundedNumberParameter("Smoothing factor", 2, 1, 0.1, null);
     BooleanParameter autoEstimateSigma = new BooleanParameter("Auto Estimate Sigma", false);
     ConditionalParameter autoEstimateCond = new ConditionalParameter(autoEstimateSigma).setActionParameters("true", smoothingFactor).setActionParameters("false", sigma, smoothingFactor).setEmphasized(true).setHint("This parameter will appear as invalid if not installed").addValidationFunction(p -> {

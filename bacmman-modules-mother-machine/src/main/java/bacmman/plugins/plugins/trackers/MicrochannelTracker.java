@@ -18,17 +18,10 @@
  */
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.PostFilterSequence;
-import bacmman.configuration.parameters.TrackPreFilterSequence;
 
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
@@ -60,8 +53,9 @@ import java.util.stream.IntStream;
  */
 public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     protected PluginParameter<MicrochannelSegmenter> segmenter = new PluginParameter<>("Segmentation algorithm", MicrochannelSegmenter.class, new MicrochannelPhase2D(), false).setEmphasized(true);
-    NumberParameter maxShiftGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 0, 100, 1, null).setHint("Maximal Distance (in pixels) used for for the gap-closing step<br /> Increase the value to take into account XY-shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
-    NumberParameter maxDistanceFTFWidthFactor = new BoundedNumberParameter("Maximal Distance Factor for Frame-to-Frame Tracking", 1, 1, 0.5, null).setHint("The distance threshold for Frame-to-Frame tracking procedure will be this value multiplied by the mean width of microchannels.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into acound XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
+    NumberParameter maxShiftGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 0, 100, 1, null).setHint("Maximal distance (in pixels) used for for the gap-closing step<br /> Increase the value to take into account XY-shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
+    NumberParameter maxGapGC = new BoundedNumberParameter("Maximum Frame Gap", 0, 10, 0, null).setHint("Maximum frame gap for microchannel linking during gap-closing procedure: if two segmented microchannels are separated by a gap in frames larger than this value, they cannot be linked");
+    NumberParameter maxDistanceFTF = new BoundedNumberParameter("Maximal Distance for Frame-to-Frame Tracking", 0, 50, 10, null).setHint("Maximal distance (in pixels) used for Frame-to-Frame tracking procedure.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into account XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
     NumberParameter yShiftQuantile = new BoundedNumberParameter("Y-shift Quantile", 2, 0.5, 0, 1).setHint("After Tracking, the y-shift of microchannels are normalized for each track: the y-shift of a given microchannel at a given frame is replaced by the quantile of the distribution of the y-shift of this microchannel at all frames");
     NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel widths are normalized for each track: the width of a given microchannel at a given frame is replaced by the quantile of the distribution of the width of this microchannel at all frames");
     BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", true).setHint("If a frame contains no microchannels (typically when the focus is lost), allows connecting the microchannel track before and after the gap. This will results in microchannel tracks containing gaps. This will results in microchannel tracks containing gaps. If this parameter is set to false, the tracks will be cut");
@@ -69,7 +63,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     ConditionalParameter widthCond = new ConditionalParameter(normalizeWidths).setActionParameters("true", new Parameter[]{widthQuantile});
     BooleanParameter normalizeYshift = new BooleanParameter("Normalize Y-shifts", false).setHint("the term <em>y-shift</em> refers to the difference between the y-coordinate of the closed-end of a microchannel and the mean y-coordinate of the closed-end of all microchannels.<br />If set to <em>true</em>, the y-shift of segmented microchannels will be normalized for the whole track (i.e. a given microchannel has the same y-shift for all frames)");
     ConditionalParameter shiftCond = new ConditionalParameter(normalizeYshift).setActionParameters("true", new Parameter[]{yShiftQuantile});
-    Parameter[] parameters = new Parameter[]{segmenter, maxShiftGC, maxDistanceFTFWidthFactor, shiftCond, widthCond, allowGaps};
+    Parameter[] parameters = new Parameter[]{segmenter, maxDistanceFTF, maxShiftGC, maxGapGC, shiftCond, widthCond, allowGaps};
     public static boolean debug = false;
     
     String toolTip = "<b>Microchannel tracker</b>"
@@ -118,7 +112,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     }
     public MicrochannelTracker setTrackingParameters(int maxShift, double maxDistanceWidthFactor) {
         this.maxShiftGC.setValue(maxShift);
-        this.maxDistanceFTFWidthFactor.setValue(maxDistanceWidthFactor);
+        this.maxDistanceFTF.setValue(maxDistanceWidthFactor);
         return this;
     }
     /**
@@ -152,6 +146,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         });
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         List<SegmentedObject> allChildren = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx).collect(Collectors.toList());
+        logger.debug("tracking: total number of objects: {}", allChildren.size());
         logger.debug("tracking: {}", Utils.toStringList(map.entrySet(), e->"t:"+e.getKey()+"->"+e.getValue().size()));
         tmi.addObjects(allChildren.stream());
         if (tmi.objectSpotMap.isEmpty()) {
@@ -161,12 +156,15 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         double meanWidth =allChildren.stream().mapToDouble(o->o.getBounds().sizeX()).average().getAsDouble()*parentTrack.get(0).getScaleXY();
         if (debug) logger.debug("mean width {}", meanWidth );
         double maxDistance = maxShiftGC.getValue().doubleValue()*parentTrack.get(0).getScaleXY();
-        double ftfDistance = maxDistanceFTFWidthFactor.getValue().doubleValue() *meanWidth;
+        double ftfDistance = maxDistanceFTF.getValue().doubleValue()*parentTrack.get(0).getScaleXY();
         logger.debug("ftfDistance: {}", ftfDistance);
         boolean ok = tmi.processFTF(ftfDistance);
-        if (ok) ok = tmi.processGC(maxDistance, parentTrack.size(), false, false);
-        if (ok) tmi.removeCrossingLinksFromGraph(meanWidth/4); 
-        if (ok) ok = tmi.processGC(maxDistance, parentTrack.size(), false, false); // second GC for crossing links!
+        int maxGap = this.maxGapGC.getValue().intValue()+1;
+        if (maxGap>1) {
+            if (ok) ok = tmi.processGC(maxDistance, maxGap, false, false);
+            if (ok) tmi.removeCrossingLinksFromGraph(meanWidth / 4);
+            if (ok) ok = tmi.processGC(maxDistance, maxGap, false, false); // second GC for crossing links!
+        }
         tmi.setTrackLinks(map, editor);
     }
     /**
@@ -195,8 +193,9 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             //else parent.setChildrenObjects(postFilters.filter(boundingBoxes[idx].getObjectPopulation(inputImages[idx], false), structureIdx, parent), structureIdx); // no Y - shift here because the mean shift is added afterwards // TODO if post filter remove objects or modify -> how to link with result object??
             else factory.setChildObjects(parent, boundingBoxes[idx].getObjectPopulation(parent.getPreFilteredImage(structureIdx), false)); // no Y - shift here because the mean shift is added afterwards
             //parent.setPreFilteredImage(null, structureIdx); // save memory
+            // TODO perform post-filters at this step and remove the use of boundingBoxes array.. or update the bounding box array by matching each object ...
         };
-        ThreadRunner.executeAndThrowErrors(Utils.parallele(IntStream.range(0, parentTrack.size()).mapToObj(i->(Integer)i), true), exe);
+        ThreadRunner.executeAndThrowErrors(Utils.parallele(IntStream.range(0, parentTrack.size()).mapToObj(i->i), true), exe);
         Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = new HashMap<>(boundingBoxes.length);
         for (int i = 0; i<boundingBoxes.length; ++i) parentBBMap.put(parentTrack.get(i), boundingBoxes[i]);
         
@@ -325,6 +324,12 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         }
         
         if (debug) logger.debug("mc end: {}", Utils.toStringList(parentTrack, p->"t:"+p.getFrame()+"->"+p.getChildren(structureIdx).count()));
+        // post-filters are run as track post-filters
+        if (!postFilters.isEmpty()) {
+            TrackPostFilterSequence tpfs = new TrackPostFilterSequence("");
+            for (PostFilter pf : postFilters.get()) tpfs.add(new bacmman.plugins.plugins.track_post_filter.PostFilter(pf).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.ALWAYS_MERGE).setDeleteMethod(bacmman.plugins.plugins.track_post_filter.PostFilter.DELETE_METHOD.PRUNE_TRACK));
+            tpfs.filter(structureIdx, parentTrack, factory, editor);
+        }
     }
 
     /**

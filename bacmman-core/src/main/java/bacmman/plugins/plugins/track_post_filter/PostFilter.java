@@ -26,10 +26,8 @@ import bacmman.data_structure.*;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
 import bacmman.plugins.TrackPostFilter;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
@@ -44,8 +42,17 @@ import java.util.stream.Collectors;
  */
 public class PostFilter implements TrackPostFilter, Hint {
     PluginParameter<bacmman.plugins.PostFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PostFilter.class, false).setEmphasized(true);
-    final static String[] METHODS = new String[]{"Delete single objects", "Delete whole track", "Prune Track"};
-    ChoiceParameter deleteMethod = new ChoiceParameter("Delete method", METHODS, METHODS[0], false)
+    public enum DELETE_METHOD {
+        SINGLE_OBJECTS("Delete single objects"),
+        DELETE_TRACK("Delete whole track"),
+        PRUNE_TRACK("Prune Track");
+        private final String name;
+        DELETE_METHOD(String name) {this.name=name;}
+        static DELETE_METHOD getMethod(String name) {
+            return Arrays.stream(DELETE_METHOD.values()).filter(dm->dm.name.equals(name)).findFirst().orElseThrow(()->new RuntimeException("Invalid delete method name"));
+        }
+    }
+    ChoiceParameter deleteMethod = new ChoiceParameter("Delete method", Utils.transform(DELETE_METHOD.values(), new String[DELETE_METHOD.values().length], dm->dm.name), DELETE_METHOD.SINGLE_OBJECTS.name, false)
             .setHint("How to cope with lineage breaks when the post-filter deletes one or several objects.<ol>"
                     + "<li><em>Delete single objects</em>: deletes only the objects deleted by the post-filter. If the deleted object was linked to another object in the next frame, a new track is created.</li>"
                     + "<li><em>Delete whole track</em>: deletes every object of the track from the deleted object as well as the connected tracks in subsequent frames</li>"
@@ -75,8 +82,8 @@ public class PostFilter implements TrackPostFilter, Hint {
     public PostFilter(bacmman.plugins.PostFilter filter) {
         this.filter.setPlugin(filter);
     }
-    public PostFilter setDeleteMethod(int method) {
-        this.deleteMethod.setSelectedIndex(method);
+    public PostFilter setDeleteMethod(DELETE_METHOD method) {
+        this.deleteMethod.setSelectedItem(method.name);
         return this;
     }
     
@@ -120,14 +127,14 @@ public class PostFilter implements TrackPostFilter, Hint {
         if (!objectsToRemove.isEmpty()) { 
             //logger.debug("delete method: {}, objects to delete: {}", this.deleteMethod.getSelectedItem(), objectsToRemove.size());
             BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
-            switch (this.deleteMethod.getSelectedIndex()) {
-                case 0:
+            switch (DELETE_METHOD.getMethod(deleteMethod.getSelectedItem())) {
+                case SINGLE_OBJECTS:
                     SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor); // only delete
                     break;
-                case 2:
+                case PRUNE_TRACK:
                     SegmentedObjectEditor.prune(null, objectsToRemove, mergePredicate, factory, editor); // prune tracks
                     break;
-                case 1:
+                case DELETE_TRACK:
                     Set<SegmentedObject> trackHeads = new HashSet<>(Utils.transform(objectsToRemove, o->o.getTrackHead()));
                     objectsToRemove.clear();
                     for (SegmentedObject th : trackHeads) objectsToRemove.addAll(SegmentedObjectUtils.getTrack(th, false));
