@@ -53,11 +53,18 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
     }
     public void filter(int structureIdx, List<SegmentedObject> parentTrack) throws MultipleException {
         if (parentTrack.isEmpty()) return;
-        if (isEmpty() && allPFImagesAreSet(parentTrack, structureIdx)) return; // if no preFilters &  only add raw images if no prefiltered image is present
+        if (isEmpty() && allPFImagesAreSet(parentTrack, structureIdx)) { // if no preFilters &  only add raw images if no prefiltered image is present
+            return;
+        }
         boolean first = true;
         TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getRawImage(structureIdx))));
+        double scaleXY = parentTrack.get(0).getScaleXY();
+        double scaleZ = parentTrack.get(0).getScaleZ();
+        Runnable setScale = () -> images.values().forEach(i->i.setCalibration(scaleXY, scaleZ));
+        setScale.run();
         for (TrackPreFilter p : this.get()) {
             p.filter(structureIdx, images, !first);
+            setScale.run();
             first = false;
         }
         SegmentedObjectAccessor accessor = getAccessor();

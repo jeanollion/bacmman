@@ -38,16 +38,8 @@ import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_FRA
 import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_LINKING_MAX_DISTANCE;
 import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_MERGING_MAX_DISTANCE;
 import static fiji.plugin.trackmate.tracking.TrackerKeys.KEY_SPLITTING_MAX_DISTANCE;
-import java.util.HashMap;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
+
+import java.util.*;
 import java.util.stream.Stream;
 
 import org.jgrapht.graph.DefaultWeightedEdge;
@@ -98,6 +90,13 @@ public class TrackMateInterface<S extends Spot> {
 
     public  void addObjects(Stream<SegmentedObject> objects) {
         objects.forEach(o->addObject(o.getRegion(), o.getFrame()));
+        /*Iterator<Spot> spots = collection.iterator(false);
+        int count = 0;
+        while(spots.hasNext()) {
+            spots.next();
+            ++count;
+        }
+        logger.debug("added spots: {}", count);*/
     }
 
     public void  addObjects(Map<Integer, List<SegmentedObject>> objectsF) {

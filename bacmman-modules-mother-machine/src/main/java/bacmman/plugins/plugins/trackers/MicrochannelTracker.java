@@ -133,7 +133,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
                 if (center==null) center = o.getGeomCenter(true);
                 Spot s = new Spot(center.get(0), 0, 0, 1, 1); // tracking only using X position
                 s.getFeatures().put(Spot.FRAME, (double)frame);
-                //logger.debug("Frame={} x={}, y={} ([{};{}])", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax());
+                //if (frame<2) logger.debug("Frame={} x={}, y={} ([{};{}]), scale: {}", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax(), o.getScaleXY());
                 return s;
             }
 
@@ -144,6 +144,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
                 return res;
             }
         });
+
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         List<SegmentedObject> allChildren = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx).collect(Collectors.toList());
         logger.debug("tracking: total number of objects: {}", allChildren.size());

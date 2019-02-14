@@ -158,7 +158,7 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 		int frame1;
 		while ( frameIterator.hasNext() ) { // ascending order
 			frame1 = frameIterator.next();
-			if (frame1-frame0==1) framePairs.add( new int[] { frame0, frame1 } ); // limit to adjascent frames
+			if (frame1-frame0==1) framePairs.add( new int[] { frame0, frame1 } ); // limit to adjacent frames
 			frame0 = frame1;
 		}
 
