@@ -133,12 +133,11 @@ public class ConfigurationTreeGenerator {
     private String getParameterHint(Parameter p) {
         if (expertMode) {
             String hint = p.getHintText();
-            if (hint == null) return p.getSimpleHintText();
+            if (hint == null || hint.length()==0) return p.getSimpleHintText();
             else return hint;
-        }
-        else {
+        } else {
             String hint = p.getSimpleHintText();
-            if (hint == null) return p.getHintText();
+            if (hint == null || hint.length()==0) return p.getHintText();
             else return hint;
         }
     }
@@ -160,27 +159,25 @@ public class ConfigurationTreeGenerator {
         if (parameter instanceof PluginParameter) {
             Plugin p = ((PluginParameter)parameter).instanciatePlugin();
             String t2 = getPluginHint(p);
-            if (t2!=null) {
-                if (t2.length()>0) {
-                    if (t.length()>0) t = t+"<br /> <br />";
-                    t = t+"<b>Current Module:</b><br />"+t2;
-                }
+            if (t2!=null && t2.length()>0) {
+                if (t.length()>0) t = t+"<br /><br />";
+                t = t+"<b>Current Module:</b><br />"+t2;
             }
             if (p instanceof Measurement) { // also display measurement keys
                 List<MeasurementKey> keys = ((Measurement)p).getMeasurementKeys();
                 if (!keys.isEmpty()) {
-                    if (t.length()>0) t= t+"<br /> <br />";
-                    t = t+ "<b>Measurement Names</b> (column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears):<br /><ul>";
+                    if (t.length()>0) t= t+"<br /><br />";
+                    t = t+ "<b>Measurement Names:</b><ul>";
                     for (MeasurementKey k : keys) t=t+"<li>"+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<experiment.getStructureCount() ? " ("+experiment.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"</li>";
-                    t = t+"</ul>";
+                    t = t+"</ul>(list of column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears)";
                 }
             }
         } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter
             Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
-            if (t=="") return getHint(action, limitWidth);
-            else {
-                String t2 = getHint(action, false);
-                if (t2!=null && t2.length()>0) t = t+"<br /> <br />"+ t2;
+            String t2 = getParameterHint(action);
+            if (t2!=null && t2.length()>0) {
+                if (t.length()>0) t = t+"<br /><br />";
+                t = t+t2;
             }
         }
         if (t!=null && t.length()>0) return formatHint(t, limitWidth);
