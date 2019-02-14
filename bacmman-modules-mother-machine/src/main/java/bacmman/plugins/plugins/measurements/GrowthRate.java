@@ -80,7 +80,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         return this;
     }
     
-    public GrowthRate saveSizeAtDivision(boolean save) {
+    public GrowthRate saveSizeAtBirth(boolean save) {
         saveSizeAtDiv.setSelected(save);
         return this;
     }
@@ -130,7 +130,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
                 double[] length = new double[frame.length];
                 int idx = 0;
                 for (SegmentedObject b : l) {
-                    frame[idx] = b.getCalibratedTimePoint() - frame[0]; // so that beta represents the estimation of the size at division
+                    frame[idx] = b.getCalibratedTimePoint() - frame[0]; // so that beta represents the estimation of the size at birth
                     length[idx++] =   logLengthMap.get(b);
                 }
                 frame[0] = 0;
@@ -158,7 +158,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         ArrayList<MeasurementKey> res = new ArrayList<>(3);
         String suffix = this.suffix.getValue();
         res.add(new MeasurementKeyObject("GrowthRate"+suffix, structure.getSelectedIndex()));
-        if (saveSizeAtDiv.getSelected()) res.add(new MeasurementKeyObject("SizeAtDivision"+suffix, structure.getSelectedIndex()));
+        if (saveSizeAtDiv.getSelected()) res.add(new MeasurementKeyObject("SizeAtBirth"+suffix, structure.getSelectedIndex()));
         if (this.saveFeature.getSelected()) res.add(new MeasurementKeyObject(featureKey.getValue(), structure.getSelectedIndex()));
         return res;
     }
@@ -197,6 +197,6 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
 
     @Override
     public String getHintText() {
-        return "Computes the growth rate of bacteria per generation by fitting an exponential function on the estimated size of bacteria (as defined in the parameter <em>Feature</em>). <br />St = S0 * exp(µt) where µ is the growth rate, S0 is the size at birth, St is the size at time t";
+        return "Computes the growth rate of bacteria per generation by fitting an exponential function on the estimated size of bacteria (as defined in the parameter <em>Feature</em>). <br />St = S0 * exp(µt) where µ is the growth rate, S0 is the size at birth, t is the time elapsed since birth, St is the size at time t. <br />Note that this modules uses calibrated time and not frame index. If input images do not contain the calibrated time for each frame, frame duration should be set in the <em>Time Step</em> parameter of the <em>Pre-processing</em> parameter of each position.";
     }
 }
