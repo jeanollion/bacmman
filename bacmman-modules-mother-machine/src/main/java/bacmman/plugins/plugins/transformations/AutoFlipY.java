@@ -40,11 +40,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.processing.ImageOperations;
 import bacmman.image.ThresholdMask;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.FLUO_HALF_IMAGE;
@@ -52,7 +48,6 @@ import bacmman.processing.ImageTransformation;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
-import java.util.Arrays;
 
 /**
  *
@@ -109,7 +104,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     lowerObjectsTest=new ArrayList<>();
                 }
                 // rough segmentation and get side where cells are better aligned
-                List<Integer> frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, 5);
+                List<Integer> frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, 200);
                 List<Boolean> flips = frames.stream().parallel().map(f->{
                     Image<? extends Image> image = inputImages.getImage(channelIdx, f);
                     if (image.sizeZ()>1) {
@@ -122,8 +117,8 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
                 if (testMode.testExpert()) {
-                    Core.showImage(Image.mergeZPlanes(upperObjectsTest).setName("Upper Objects"));
-                    Core.showImage(Image.mergeZPlanes(lowerObjectsTest).setName("Lower Objects"));
+                    if (!upperObjectsTest.isEmpty()) Core.showImage(Image.mergeZPlanes(upperObjectsTest).setName("Upper Objects"));
+                    if (!lowerObjectsTest.isEmpty()) Core.showImage(Image.mergeZPlanes(lowerObjectsTest).setName("Lower Objects"));
                     upperObjectsTest.clear();
                     lowerObjectsTest.clear();
                 }
@@ -240,17 +235,18 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
             Region o = it.next();
             List<Region> inter = new ArrayList<>(objects);
             inter.removeIf(oo->!intersect2D(xBounds.get(oo), xBounds.get(o)));
-            yMinOs.add(Collections.min(inter, (o1, o2)->Integer.compare(o1.getBounds().yMin(), o2.getBounds().yMin())));
-            yMaxOs.add(Collections.max(inter, (o1, o2)->Integer.compare(o1.getBounds().yMax(), o2.getBounds().yMax())));
+            yMinOs.add(Collections.min(inter, Comparator.comparingInt(o3 -> o3.getBounds().yMin())));
+            yMaxOs.add(Collections.max(inter, Comparator.comparingInt(o2 -> o2.getBounds().yMax())));
             objects.removeAll(inter);
             it = objects.iterator();
         }
+
         // filter outliers with distance to median value
         double yMinMed = ArrayUtil.medianInt(Utils.transform(yMinOs, o->o.getBounds().yMin()));
         yMinOs.removeIf(o->Math.abs(o.getBounds().yMin()-yMinMed)>o.getBounds().sizeY()/4);
         double yMaxMed = ArrayUtil.medianInt(Utils.transform(yMaxOs, o->o.getBounds().yMax()));
         yMaxOs.removeIf(o->Math.abs(o.getBounds().yMax()-yMaxMed)>o.getBounds().sizeY()/4);
-        
+        if (yMinOs.size()<=2 || yMaxOs.size()<=2) return null;
         if (testMode.testExpert()) {
             //ImageWindowManagerFactory.showImage(TypeConverter.toByteMask(mask, null, 1).setName("Segmentation mask"));
             this.upperObjectsTest.add(new RegionPopulation(yMinOs, image).getLabelMap().setName("Upper Objects"));
@@ -273,12 +269,15 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         for (Pair<Integer, Integer> p : l) mean +=p.key;
         mean/=(double)l.size();
         double mean2 = 0;
-        double count = 0;
-        for (Pair<Integer, Integer> p : l) {
+        /*double count = 0;
+        for (Pair<Integer, Integer> p : l) { // ponderation with y-size of the object...
             mean2 += Math.pow(p.key-mean, 2) * p.value;
             count+=p.value;
+        }*/
+        for (Pair<Integer, Integer> p : l) {
+            mean2 += Math.pow(p.key-mean, 2);
         }
-        return mean2/count;
+        return mean2/l.size();
     }
     
     @Override

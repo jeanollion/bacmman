@@ -655,8 +655,17 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.microscopyFieldList.setEnabled(!running);
         
         //config tab
-        this.configurationPanel.setEnabled(!running);
+
         if (configurationTreeGenerator!=null && configurationTreeGenerator.getTree()!=null) this.configurationTreeGenerator.getTree().setEnabled(!running);
+        this.moduleList.setEnabled(!running);
+
+        // config test tab
+        tabs.setEnabledAt(2, !running);
+        if (testConfigurationTreeGenerator!=null && testConfigurationTreeGenerator.getTree()!=null) this.testConfigurationTreeGenerator.getTree().setEnabled(!running);
+        this.testCopyButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
+        this.testCopyToTemplateButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
+        this.testModuleList.setEnabled(!running);
+
         // browsing tab
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);

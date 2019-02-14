@@ -144,7 +144,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
                 return res;
             }
         });
-
+        //tmi.setNumThreads(ThreadRunner.getMaxCPUs());
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         List<SegmentedObject> allChildren = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx).collect(Collectors.toList());
         logger.debug("tracking: total number of objects: {}", allChildren.size());
