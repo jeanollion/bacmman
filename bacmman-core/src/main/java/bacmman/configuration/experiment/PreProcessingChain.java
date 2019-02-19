@@ -73,6 +73,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
                 Position pos = ParameterUtils.getMicroscopyField(sourceParameter);
                 if (pos != null) {
                     pos.flushImages(true, true);
+                    pos.setDefaultTimePointBounds();
                 }
             };
             trimFrames.addListener(pl);

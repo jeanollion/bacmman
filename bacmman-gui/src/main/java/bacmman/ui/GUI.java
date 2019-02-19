@@ -1023,7 +1023,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             this.microscopyFieldList.setModel(actionMicroscopyFieldModel);
         } else actionMicroscopyFieldModel.removeAllElements();
         if (db!=null) {
-            for (int i =0; i<db.getExperiment().getPositionCount(); ++i) actionMicroscopyFieldModel.addElement(db.getExperiment().getPosition(i).getName()+" (#"+i+")");
+            for (int i =0; i<db.getExperiment().getPositionCount(); ++i) actionMicroscopyFieldModel.addElement(db.getExperiment().getPosition(i).toString());
             Utils.setSelectedValues(sel, microscopyFieldList, actionMicroscopyFieldModel);
         }
     }

@@ -65,12 +65,13 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public void initFromJSONEntry(Object jsonEntry) {
         JSONObject jsonO = (JSONObject)jsonEntry;
         name = (String)jsonO.get("name");
+        preProcessingChain.initFromJSONEntry(jsonO.get("preProcessingChain"));
+        defaultTimePoint.initFromJSONEntry(jsonO.get("defaultFrame"));
         if (jsonO.containsKey("images")) {
             sourceImages = MultipleImageContainer.createImageContainerFromJSON((JSONObject)jsonO.get("images"));
             initFrameParameters();
         }
-        preProcessingChain.initFromJSONEntry(jsonO.get("preProcessingChain"));
-        defaultTimePoint.initFromJSONEntry(jsonO.get("defaultFrame"));
+
     }
     
     public Position(String name) {
@@ -246,7 +247,17 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             preProcessingChain.trimFrames.setUpperBound(frameNb-1);
             if (preProcessingChain.trimFrames.getValuesAsInt()[1]<=0 || preProcessingChain.trimFrames.getValuesAsInt()[1]>=frameNb) preProcessingChain.trimFrames.setValue(frameNb-1, 1);
             defaultTimePoint.setUpperBound(frameNb-1);
-            if (defaultTimePoint.getValue().intValue()>frameNb-1) defaultTimePoint.setValue(frameNb/2);
+            if (defaultTimePoint.getValue().intValue()>frameNb-1) defaultTimePoint.setValue(frameNb-1);
+        }
+    }
+    void setDefaultTimePointBounds() {
+        int[] bds = preProcessingChain.trimFrames.getValuesAsInt();
+        defaultTimePoint.setLowerBound(bds[0]);
+        defaultTimePoint.setUpperBound(bds[1]);
+        if (!defaultTimePoint.isValid()) {
+            int dTP = defaultTimePoint.getValue().intValue();
+            if (dTP<bds[0]) defaultTimePoint.setValue(bds[0]);
+            else defaultTimePoint.setValue(bds[1]);
         }
     }
     
@@ -259,8 +270,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     
     @Override
     public String toString() {
-        if (sourceImages!=null) return name+ "(#"+getIndex()+")";// + " number of time points: "+images.getTimePointNumber();
-        return name + " no selected images";
+        if (sourceImages!=null) return name+ " [#"+getIndex()+ ("][#frames:"+getFrameNumber(false)) +"]";
+        return name + " [no images]";
     }
     
     @Override
