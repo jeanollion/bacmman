@@ -1037,7 +1037,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     public List<String> getSelectedPositions(boolean returnAllIfNoneSelected) {
         if (returnAllIfNoneSelected && microscopyFieldList.getSelectedIndex()<0) return new ArrayList<String>(Arrays.asList(db.getExperiment().getPositionsAsString()));
-        else return Utils.transform((List<String>)microscopyFieldList.getSelectedValuesList(), s->s.substring(0, s.indexOf(" (#")));
+        else return Utils.transform((List<String>)microscopyFieldList.getSelectedValuesList(), s->s.substring(0, s.indexOf(" [#")));
     }
     
     private int lastSelTab=0;
