@@ -167,7 +167,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
      * Creates new form GUI
      */
     public GUI() {
-        //logger.info("DBMaker: {}", checkClass("org.mapdb.DBMaker"));
         logger.info("Creating GUI instance...");
         this.INSTANCE=this;
         initComponents();
