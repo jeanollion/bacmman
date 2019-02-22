@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<form xmlns="http://www.intellij.com/uidesigner/form/" version="1" bind-to-class="bacmman.ui.gui.configurationIO.ConfigurationIO">
+  <grid id="27dc6" layout-manager="GridLayoutManager" row-count="4" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+    <margin top="0" left="0" bottom="0" right="0"/>
+    <constraints>
+      <xy x="20" y="20" width="500" height="400"/>
+    </constraints>
+    <properties/>
+    <border type="none"/>
+    <children>
+      <grid id="9b1d0" binding="nodePanel" layout-manager="GridLayoutManager" row-count="1" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+        <margin top="0" left="0" bottom="0" right="0"/>
+        <constraints>
+          <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+        </constraints>
+        <properties/>
+        <border type="none" title="Step"/>
+        <children>
+          <component id="20a9a" class="javax.swing.JComboBox" binding="nodeJCB">
+            <constraints>
+              <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <model>
+                <item value="Whole Configuration"/>
+                <item value="Pre-processing"/>
+                <item value="Processing"/>
+              </model>
+            </properties>
+          </component>
+        </children>
+      </grid>
+      <splitpane id="d402d" binding="mainSP">
+        <constraints>
+          <grid row="3" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false">
+            <preferred-size width="200" height="200"/>
+          </grid>
+        </constraints>
+        <properties>
+          <orientation value="0"/>
+        </properties>
+        <border type="none"/>
+        <children>
+          <splitpane id="3ea20" binding="configSP">
+            <constraints>
+              <splitpane position="right"/>
+            </constraints>
+            <properties>
+              <dividerLocation value="242"/>
+            </properties>
+            <border type="none"/>
+            <children>
+              <scrollpane id="747c2" binding="localConfigJSP">
+                <constraints>
+                  <splitpane position="left"/>
+                </constraints>
+                <properties/>
+                <border type="none" title="Local Configuration"/>
+                <children/>
+              </scrollpane>
+              <scrollpane id="f1d27" binding="remoteConfigJSP">
+                <constraints>
+                  <splitpane position="right"/>
+                </constraints>
+                <properties/>
+                <border type="none" title="Remote Configuration"/>
+                <children/>
+              </scrollpane>
+            </children>
+          </splitpane>
+          <splitpane id="a7f5d" binding="selectorSP">
+            <constraints>
+              <splitpane position="left"/>
+            </constraints>
+            <properties>
+              <dividerLocation value="102"/>
+            </properties>
+            <border type="none"/>
+            <children>
+              <scrollpane id="3024" binding="remoteSelectorJSP">
+                <constraints>
+                  <splitpane position="right"/>
+                </constraints>
+                <properties/>
+                <border type="none" title="Remote"/>
+                <children/>
+              </scrollpane>
+              <grid id="ef17c" binding="localSelectorPanel" layout-manager="GridLayoutManager" row-count="1" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+                <margin top="0" left="0" bottom="0" right="0"/>
+                <constraints>
+                  <splitpane position="left"/>
+                </constraints>
+                <properties/>
+                <border type="none" title="Local Item"/>
+                <children>
+                  <component id="3920a" class="javax.swing.JComboBox" binding="localSelectorJCB">
+                    <constraints>
+                      <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="8" fill="1" indent="0" use-parent-layout="false"/>
+                    </constraints>
+                    <properties/>
+                  </component>
+                </children>
+              </grid>
+            </children>
+          </splitpane>
+        </children>
+      </splitpane>
+      <grid id="54903" binding="actionPanel" layout-manager="GridLayoutManager" row-count="1" column-count="3" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+        <margin top="0" left="0" bottom="0" right="0"/>
+        <constraints>
+          <grid row="2" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+        </constraints>
+        <properties/>
+        <border type="none"/>
+        <children>
+          <component id="1325e" class="javax.swing.JButton" binding="copyToLocal">
+            <constraints>
+              <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Copy to local"/>
+            </properties>
+          </component>
+          <component id="baf45" class="javax.swing.JButton" binding="updateRemote">
+            <constraints>
+              <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Update remote"/>
+            </properties>
+          </component>
+          <component id="eee45" class="javax.swing.JButton" binding="saveToRemote">
+            <constraints>
+              <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Save to remote"/>
+            </properties>
+          </component>
+        </children>
+      </grid>
+      <grid id="2f467" layout-manager="GridLayoutManager" row-count="1" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+        <margin top="0" left="0" bottom="0" right="0"/>
+        <constraints>
+          <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+        </constraints>
+        <properties/>
+        <border type="none" title="Github credentials"/>
+        <children>
+          <component id="a9ef9" class="javax.swing.JPasswordField" binding="password">
+            <constraints>
+              <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
+                <preferred-size width="150" height="-1"/>
+              </grid>
+            </constraints>
+            <properties>
+              <toolTipText value="Enter the password associated to the github account. If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible."/>
+            </properties>
+          </component>
+          <component id="93c29" class="javax.swing.JTextField" binding="username">
+            <constraints>
+              <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
+                <preferred-size width="150" height="-1"/>
+              </grid>
+            </constraints>
+            <properties>
+              <text value="bacmman"/>
+            </properties>
+          </component>
+        </children>
+      </grid>
+    </children>
+  </grid>
+</form>

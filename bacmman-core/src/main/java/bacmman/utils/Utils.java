@@ -187,7 +187,7 @@ public class Utils {
         sb.append(ms);
         return sb.toString();
     }
-    private final static Pattern p = Pattern.compile("[^a-z0-9_-]", Pattern.CASE_INSENSITIVE);
+    public final static Pattern SPECIAL_CHAR = Pattern.compile("[^a-z0-9_-]", Pattern.CASE_INSENSITIVE);
     public static String getStringArrayAsString(String... stringArray) {
         if (stringArray==null) return "[]";
         String res="[";
@@ -216,7 +216,7 @@ public class Utils {
     public static boolean isValid(String s, boolean allowSpecialCharacters) {
         if (s==null || s.length()==0) return false;
         if (allowSpecialCharacters) return true;
-        Matcher m = p.matcher(s);
+        Matcher m = SPECIAL_CHAR.matcher(s);
         return !m.find();
     }
     public static String getSelectedString(JComboBox jcb) {

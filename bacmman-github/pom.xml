@@ -21,15 +21,20 @@
     </licenses>
 
     <dependencies>
-        <!--dependency>
+        <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-core</artifactId>
             <version>2.2.5</version>
-        </dependency-->
+        </dependency>
         <dependency>
             <groupId>com.jcabi</groupId>
             <artifactId>jcabi-github</artifactId>
             <version>1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.glassfish</groupId>
+            <artifactId>javax.json</artifactId>
+            <version>1.0.4</version>
         </dependency>
     </dependencies>
 </project>

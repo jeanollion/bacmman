@@ -1,13 +1,12 @@
 package bacmman.github;
 
-/*import bacmman.utils.JSONUtils;
 import bacmman.utils.Pair;
-import ch.systemsx.cisd.base.annotation.JsonObject;
 import com.jcabi.github.*;
 import com.jcabi.http.Request;
 import com.jcabi.http.Response;
 import com.jcabi.http.response.JsonResponse;
 import com.jcabi.http.response.RestResponse;
+import ij.IJ;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -21,29 +20,39 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;*/
+import java.util.stream.Stream;
 
 
-public class TestGists {
-    //public static final Logger logger = LoggerFactory.getLogger(TestGists.class);
+import ij.plugin.PlugIn;
+
+public class TestGists implements PlugIn {
+    public static final Logger logger = LoggerFactory.getLogger(TestGists.class);
     public static void main(String[] args) {
-        //Github github = new RtGithub();
+        Github github = new RtGithub();
         // list all public gists from a repo
         //listAllGists(github).forEach(p->logger.debug("{} -> {}", p.key, p.value));
 
         // create gist
         //testCreateGist(github); // needs credentials
     }
-    /*public static void testCreateGist(Github github) {
+
+    @Override
+    public void run(String s) {
+        Github github = new RtGithub();
+        listAllGists(github).forEach(p-> IJ.log(p.key+" ->"+ p.value));
+        github = new RtGithub("jeanollion", "anus2satan!g");
+        testCreateGist(github);
+    }
+    public static void testCreateGist(Github github) {
         Map<String, String> files = new HashMap<String, String>(){{put("Test3.json", "{\"content\":\"Test3\"}");}};
         try {
             Gist g = github.gists().create(files, true);
-            logger.debug("new gist content : {}", g.read("Test3.json"));
+            logger.info("new gist content : {}", g.read("Test3.json"));
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }*/
-    /*public static List<Pair<String, String>> listAllGists(Github github) {
+    }
+    public static List<Pair<String, String>> listAllGists(Github github) {
         try {
             Response response = github.entry()
                     .uri().path("/users/jeanollion/gists").back()
@@ -72,5 +81,5 @@ public class TestGists {
         } catch (Exception e) {
             return Collections.emptyList();
         }
-    }*/
+    }
 }
