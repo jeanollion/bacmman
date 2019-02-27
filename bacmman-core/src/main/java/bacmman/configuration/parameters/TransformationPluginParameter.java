@@ -176,11 +176,11 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         if (other instanceof TransformationPluginParameter) {
             TransformationPluginParameter otherPP = (TransformationPluginParameter) other;
             if ((outputChannel==null && otherPP.outputChannel!=null) || (outputChannel!=null && !outputChannel.sameContent(otherPP.outputChannel))) {
-                logger.debug("transformationPP {}!={} differ in output channel: {} vs {}", name, otherPP.name, outputChannel, otherPP.outputChannel);
+                logger.trace("transformationPP {}!={} differ in output channel: {} vs {}", name, otherPP.name, outputChannel, otherPP.outputChannel);
                 return false;
             }
             if ((inputChannel==null && otherPP.inputChannel!=null) || (inputChannel!=null && !inputChannel.sameContent(otherPP.inputChannel))) {
-                logger.debug("transformationPP {}!={} differ in input channel: {} vs {}", name, otherPP.name, inputChannel, otherPP.inputChannel);
+                logger.trace("transformationPP {}!={} differ in input channel: {} vs {}", name, otherPP.name, inputChannel, otherPP.inputChannel);
                 return false;
             }
             return true;

@@ -27,10 +27,12 @@ import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.github.gist.GistConfiguration;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
+import bacmman.ui.gui.configurationIO.ConfigurationIO;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -617,6 +619,21 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
 
+        // remote configuration
+        boolean hasGitubModule = true;
+        try {
+            new GistConfiguration(null, "", null, null, null, null);
+        } catch (NoClassDefFoundError e) {
+            hasGitubModule = false;
+        }
+        if (hasGitubModule) {
+            JMenuItem remoteIO = new JMenuItem("Remote Import/Export");
+            this.importMenu.add(remoteIO);
+            remoteIO.addActionListener(e -> { // TODO: block GUI while open
+                if (!checkConnection()) return;
+                new ConfigurationIO(db).display(this);
+            });
+        }
     }
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");

@@ -43,6 +43,7 @@ import static bacmman.plugins.Hint.formatHint;
 public class ConfigurationGistTreeGenerator {
     public static final Logger logger = LoggerFactory.getLogger(ConfigurationGistTreeGenerator.class);
     protected JTree tree;
+    protected DefaultTreeModel treeModel;
     List<GistConfiguration> gists;
     GistConfiguration.TYPE type;
     final Consumer<GistTreeNode> setSelectedConfiguration;
@@ -51,7 +52,7 @@ public class ConfigurationGistTreeGenerator {
         this.type = type;
         this.gists = gists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
         if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
-            Predicate<GistConfiguration> notPresent = g -> ! gists.stream().anyMatch(gg->gg.account.equals(g.account)&&gg.folder.equals(g.folder)&&gg.name.equals(g.name));
+            Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg->gg.account.equals(g.account) && gg.folder.equals(g.folder) && gg.name.equals(g.name));
             this.gists.addAll(gists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
         }
 
@@ -64,10 +65,24 @@ public class ConfigurationGistTreeGenerator {
 
     public String getSelectedFolder() {
         if (tree==null) return null;
-        if (tree.getSelectionCount()<0) return null;
         TreePath path = tree.getSelectionPath();
+        if (path==null) return null;
         if (path.getPathCount()<2) return null;
         return path.getPath()[1].toString();
+    }
+    public GistConfiguration getSelectedGist() {
+        if (tree==null) return null;
+        TreePath path = tree.getSelectionPath();
+        if (path==null) return null;
+        if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent()).gist;
+        else return null;
+    }
+    public GistTreeNode getSelectedGistNode() {
+        if (tree==null) return null;
+        TreePath path = tree.getSelectionPath();
+        if (path==null) return null;
+        if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent());
+        else return null;
     }
 
     public void setSelectedGist(GistConfiguration gist) {
@@ -81,6 +96,7 @@ public class ConfigurationGistTreeGenerator {
 
     private void generateTree() {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode(type.name());
+
         // folder nodes
         gists.stream().map(gc -> gc.folder).distinct().sorted().map(f->new DefaultMutableTreeNode(f)).forEach(f -> {
             root.add(f);
@@ -92,50 +108,35 @@ public class ConfigurationGistTreeGenerator {
             });
         });
 
-
-        tree = new JTree() {
+        treeModel = new DefaultTreeModel(root);
+        tree = new JTree(treeModel) {
             @Override
             public String getToolTipText(MouseEvent evt) {
                 if (getRowForLocation(evt.getX(), evt.getY()) == -1) return null;
                 TreePath curPath = getPathForLocation(evt.getX(), evt.getY());
+
                 if (curPath==null) return null;
                 if (curPath.getLastPathComponent() instanceof GistTreeNode) {
-                    return ((GistTreeNode)curPath.getLastPathComponent()).gist.description;
-                } else {
-                    switch (curPath.getPathCount()) {
-                        default:
-                            return null;
-                        case 2:
-                            return "Folder containing configuration files";
-                    }
-                }
+                    return formatHint(((GistTreeNode)curPath.getLastPathComponent()).gist.getHintText());
+                } else return "Folder containing configuration files";
             }
             @Override
             public Point getToolTipLocation(MouseEvent evt) {
                 int row = getRowForLocation(evt.getX(), evt.getY());
+                if (row==-1) return null;
                 Rectangle r = getRowBounds(row);
                 if (r==null) return null;
                 return new Point(r.x + r.width, r.y);
             }
         };
-        tree.addTreeSelectionListener(e -> {
-            switch (tree.getSelectionCount()) {
-                case 1:
-                    Object lastO = tree.getSelectionPath().getLastPathComponent();
-                    if (lastO instanceof GistTreeNode) {
-                        setSelectedConfiguration.accept(((GistTreeNode)lastO));
-                        return;
-                    }
-                default:
-                    setSelectedConfiguration.accept(null);
-            }
-        });
+        ToolTipManager.sharedInstance().registerComponent(tree); // add tool tips to the tree
 
+        tree.addTreeSelectionListener(e -> displaySelectedConfiguration());
 
         tree.setShowsRootHandles(true);
         tree.setRootVisible(false);
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->false);
+        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->false, p->false);
         Icon icon = null;
         renderer.setLeafIcon(icon);
         renderer.setClosedIcon(icon);
@@ -143,6 +144,18 @@ public class ConfigurationGistTreeGenerator {
         tree.setCellRenderer(renderer);
         tree.setOpaque(false);
 
+    }
+    public void displaySelectedConfiguration() {
+        switch (tree.getSelectionCount()) {
+            case 1:
+                Object lastO = tree.getSelectionPath().getLastPathComponent();
+                if (lastO instanceof GistTreeNode) {
+                    setSelectedConfiguration.accept(((GistTreeNode)lastO));
+                    return;
+                }
+            default:
+                setSelectedConfiguration.accept(null);
+        }
     }
     class GistTreeNode extends DefaultMutableTreeNode {
         public final GistConfiguration gist;
@@ -166,5 +179,7 @@ public class ConfigurationGistTreeGenerator {
             return objectClassIdx;
         }
     }
-
+    public void flush() {
+        if (tree!=null) ToolTipManager.sharedInstance().unregisterComponent(tree);
+    }
 }

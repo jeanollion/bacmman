@@ -295,7 +295,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             Position otherP = (Position) other;
             if (otherP.sourceImages!=null && sourceImages!=null) {
                 if (!sourceImages.sameContent(otherP.sourceImages)) {
-                    logger.debug("Position: {}!={} content differs at images");
+                    logger.trace("Position: {}!={} content differs at images");
                     return true; // just warn, do not concerns configuration
                 } else return true;
             } else if (otherP.sourceImages==null && sourceImages==null) return true;

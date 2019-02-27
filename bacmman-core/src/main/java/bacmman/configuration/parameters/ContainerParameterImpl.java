@@ -36,7 +36,7 @@ import java.util.function.Predicate;
  * @param <P>
  */
 
-public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<P>, InvisibleNode {
+public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<Parameter, P>, InvisibleNode {
     protected String name;
     protected ContainerParameter parent;
     protected List<Parameter> children;
@@ -163,13 +163,13 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
             if (otherLP.getChildCount()==this.getChildCount()) {
                 for (int i = 0; i<getChildCount(); i++) {
                     if (!(this.getChildAt(i)).sameContent((Parameter)otherLP.getChildAt(i))) {
-                        logger.debug("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), ((Parameter)otherLP.getChildAt(i)).toString());
+                        logger.trace("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), ((Parameter)otherLP.getChildAt(i)).toString());
                         return false;
                     }
                 }
                 return true;
             } else {
-                logger.debug("{} != {} class {}, child number: {} vs {}", name, other.getName(), getClass().getSimpleName(), getChildCount(), other.getChildCount());
+                logger.trace("{} != {} class {}, child number: {} vs {}", name, other.getName(), getClass().getSimpleName(), getChildCount(), other.getChildCount());
                 return false;
             }
         } else return false;
@@ -238,7 +238,8 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     public Enumeration children() {
         return Collections.enumeration(getChildren());
     }
-    
+
+    @Override
     public List<Parameter> getChildren() {
         if (children==null) this.initChildList();
         return children;

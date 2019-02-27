@@ -292,13 +292,13 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
             if (otherLP.getChildCount()==this.getChildCount()) {
                 for (int i = 0; i<getChildCount(); i++) {
                     if (!(this.getChildAt(i)).sameContent((Parameter)otherLP.getChildAt(i))) {
-                        logger.debug("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), ((Parameter)otherLP.getChildAt(i)).toString());
+                        logger.trace("{}!={} class {}, children differ at {} ({} != {})", name, other.getName(), getClass().getSimpleName(), i, getChildAt(i).toString(), (otherLP.getChildAt(i)).toString());
                         return false;
                     }
                 }
                 return true;
             } else {
-                logger.debug("{}!={} class {}, child number: {} vs {}", name, other.getName(), getClass().getSimpleName(), getChildCount(), other.getChildCount());
+                logger.trace("{}!={} class {}, child number: {} vs {}", name, other.getName(), getClass().getSimpleName(), getChildCount(), other.getChildCount());
                 return false;
             }
         } else return false;

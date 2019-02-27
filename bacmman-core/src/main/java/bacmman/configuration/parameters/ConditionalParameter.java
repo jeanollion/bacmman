@@ -120,7 +120,7 @@ public class ConditionalParameter extends ContainerParameterImpl<ConditionalPara
     public boolean sameContent(Parameter other) {
         if (other instanceof ConditionalParameter) {
             if (!((ConditionalParameter)other).getActionableParameter().sameContent(getActionableParameter())) {
-                logger.debug("ConditionalParam: {} != {} action parameter differ", this, other);
+                logger.trace("ConditionalParam: {} != {} action parameter differ", this, other);
                 return false;
             }
             return super.sameContent(other);

@@ -111,7 +111,7 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
         if (other instanceof SiblingObjectClassParameter) {
             SiblingObjectClassParameter otherP = (SiblingObjectClassParameter) other;
             if (selectedStructureIdx!=otherP.selectedStructureIdx) {
-                logger.debug("SiblingStructureParameter {}!={}, selected structure idx: {} vs {}", name, otherP.name, selectedStructureIdx, otherP.selectedStructureIdx);
+                logger.trace("SiblingStructureParameter {}!={}, selected structure idx: {} vs {}", name, otherP.name, selectedStructureIdx, otherP.selectedStructureIdx);
                 return false;
             }
             return true;

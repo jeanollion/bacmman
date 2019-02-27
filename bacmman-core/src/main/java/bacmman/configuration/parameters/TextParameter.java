@@ -62,7 +62,7 @@ public class TextParameter extends ParameterImpl<TextParameter> {
     public boolean sameContent(Parameter other) {
         if (other instanceof TextParameter) {
             if (!this.value.equals(((TextParameter)other).getValue())) {
-                logger.debug("TextParameter: {}!={} value: {} vs {}", this, other, getValue(), ((TextParameter)other).getValue());
+                logger.trace("TextParameter: {}!={} value: {} vs {}", this, other, getValue(), ((TextParameter)other).getValue());
                 return false;
             } else return true;
         } else return false;

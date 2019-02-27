@@ -93,7 +93,7 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
     public boolean sameContent(Parameter other) { // checks only indicies
         if (other instanceof ChoosableParameterMultiple) {
             if (!ParameterUtils.arraysEqual(getSelectedItems(), ((ChoosableParameterMultiple)other).getSelectedItems())) {
-                logger.debug("MultipleChoiceParameter: {}!={} {} vs {}", this, other ,getSelectedItems(),((ChoosableParameterMultiple)other).getSelectedItems());
+                logger.trace("MultipleChoiceParameter: {}!={} {} vs {}", this, other ,getSelectedItems(),((ChoosableParameterMultiple)other).getSelectedItems());
                 return false;
             } else return true;
         } else return false;

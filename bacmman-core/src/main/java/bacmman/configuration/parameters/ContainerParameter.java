@@ -18,10 +18,12 @@
  */
 package bacmman.configuration.parameters;
 
+import java.util.List;
+
 /**
  *
  * @author Jean Ollion
  */
-public interface ContainerParameter<P extends ContainerParameter<P>> extends Parameter<P> {
-    
+public interface ContainerParameter<T extends Parameter, P extends ContainerParameter<T, P>> extends Parameter<P> {
+    List<T> getChildren();
 }

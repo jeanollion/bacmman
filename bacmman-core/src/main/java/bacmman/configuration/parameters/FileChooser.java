@@ -74,13 +74,13 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             if (((FileChooser)other).selectedFiles.length==selectedFiles.length) {
                 for (int i =0; i<selectedFiles.length; i++) { 
                     if ((selectedFiles[i] ==null && ((FileChooser)other).selectedFiles[i]!=null) || ( selectedFiles[i] !=null && !selectedFiles[i].equals(((FileChooser)other).selectedFiles[i]))) {
-                        logger.debug("FileChoose {}!={}: difference in selected files : {} vs {}", this, other, selectedFiles, ((FileChooser)other).selectedFiles);
+                        logger.trace("FileChoose {}!={}: difference in selected files : {} vs {}", this, other, selectedFiles, ((FileChooser)other).selectedFiles);
                         return false;
                     }
                 }
                 return true;
             } else {
-                logger.debug("FileChoose {}!={}: # of files : {} vs {}", this, other, selectedFiles.length, ((FileChooser)other).selectedFiles.length);
+                logger.trace("FileChoose {}!={}: # of files : {} vs {}", this, other, selectedFiles.length, ((FileChooser)other).selectedFiles.length);
                 return false;
             }
         } else return false;

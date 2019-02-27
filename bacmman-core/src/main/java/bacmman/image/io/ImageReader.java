@@ -335,7 +335,9 @@ public class ImageReader {
         }
         if (timePoints!=null) {
             //logger.debug("timePoints: {}", timePoints);
-            return timePoints.get(getIndex(c, t, z));
+            int idx = getIndex(c, t, z);
+            if (idx<timePoints.size()) return timePoints.get(idx);
+            else return Double.NaN;
         } else return Double.NaN;
     }
     

@@ -113,6 +113,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
+        if (jsonEntry==null) throw new IllegalArgumentException("Cannot init xp with null content!");
         JSONObject jsonO = (JSONObject)jsonEntry;
         imagePath.initFromJSONEntry(jsonO.get("imagePath"));
         outputPath.initFromJSONEntry(jsonO.get("outputPath"));
@@ -132,7 +133,6 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     
     public Experiment(String name) {
         super(name);
-
         structures.addListener(source -> source.getChildren().stream().forEachOrdered((s) -> s.setMaxStructureIdx()));
         initChildList();
     }
@@ -152,7 +152,15 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
 
     public void setImportImageMethod(IMPORT_METHOD method) {this.importMethod.setValue(method.getMethod());}
-    
+
+    public ChoiceParameter getImportMethodParameter() {
+        return importMethod;
+    }
+
+    public GroupParameter getBestFocusPlaneParameter() {
+        return bestFocusPlane;
+    }
+
     public void setImageDAOType(ImageDAOTypes type) {
         this.imageDAOType=type;
     }

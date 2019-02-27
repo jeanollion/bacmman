@@ -39,7 +39,7 @@ import javax.swing.tree.TreePath;
  */
 public class ConfigurationTreeModel extends DefaultTreeModel {
     public static final Logger logger = LoggerFactory.getLogger(ConfigurationTreeModel.class);
-    protected JTree tree;
+    protected JTree tree, compareTree;
     private final Runnable update;
     private boolean expertMode = true;
     private Consumer<PluginParameter> setHint;
@@ -48,21 +48,10 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         this.update=updateConfigurationValidity;
         this.setHint=setHint;
     }
-
-    @Override
-    public void nodeStructureChanged(TreeNode node) {
-        SaveExpandState exp = new SaveExpandState(node);
-        super.nodeStructureChanged(node);
-        if (setHint!=null && (node instanceof PluginParameter)) {
-            // if selected, also update hint
-            TreePath path = tree.getSelectionPath();
-            if (path != null && node.equals(path.getLastPathComponent())) {
-                setHint.accept((PluginParameter) node);
-                //tree.expandPath(path);
-            }
-        }
-        exp.restoreExpandedPaths();
+    protected void setCompareTree(JTree otherTree) {
+        this.compareTree = otherTree;
     }
+
     public void expandNode(TreeNode node) {
         TreeNode[] path = getPathToRoot(node);
         if (path==null) return;
@@ -129,6 +118,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         super.insertNodeInto(newChild, parent, index);
         newChild.setParent(parent);
         if (tree!=null) tree.updateUI();
+        if (compareTree!=null) compareTree.updateUI();
         update.run();
     }
     public void insertNodeInto(Parameter newChild, ListParameter parent) {
@@ -137,6 +127,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             if (parent.getChildCount()==1) tree.expandPath(getPath(parent));
             tree.updateUI();
         }
+        if (compareTree!=null) compareTree.updateUI();
         update.run();
     }
     
@@ -155,6 +146,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             nodesWereRemoved(parent, childIndex, removedArray);
         }
         if (tree!=null) tree.updateUI();
+        if (compareTree!=null) compareTree.updateUI();
         update.run();
     }
     
@@ -165,6 +157,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             super.insertNodeInto(p, list, idx-1);
         }
         if (tree!=null) tree.updateUI();
+        if (compareTree!=null) compareTree.updateUI();
         update.run();
     }
 
@@ -175,6 +168,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             super.insertNodeInto(p, list, idx+1);
         }
         if (tree!=null) tree.updateUI();
+        if (compareTree!=null) compareTree.updateUI();
         update.run();
     }
 
@@ -232,6 +226,29 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
                     nodesChanged(node, null);
                 }
             }
+        }
+        if (compareTree!=null) {
+            compareTree.updateUI();
+            if (tree!=null) tree.updateUI();
+        }
+    }
+
+    @Override
+    public void nodeStructureChanged(TreeNode node) {
+        SaveExpandState exp = new SaveExpandState(node);
+        super.nodeStructureChanged(node);
+        if (setHint!=null && (node instanceof PluginParameter)) {
+            // if selected, also update hint
+            TreePath path = tree.getSelectionPath();
+            if (path != null && node.equals(path.getLastPathComponent())) {
+                setHint.accept((PluginParameter) node);
+                //tree.expandPath(path);
+            }
+        }
+        exp.restoreExpandedPaths();
+        if (compareTree!=null) {
+            compareTree.updateUI();
+            if (tree!=null) tree.updateUI();
         }
     }
 

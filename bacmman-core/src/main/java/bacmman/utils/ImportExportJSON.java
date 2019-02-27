@@ -234,17 +234,22 @@ public class ImportExportJSON {
             List<Experiment> xp = FileIO.readFromFile(path, o->JSONUtils.parse(Experiment.class, o));
             if (xp.size()==1) {
                 Experiment source = xp.get(0);
-                if (source.getStructureCount()!=dao.getExperiment().getStructureCount()) {
+                if (structures && source.getStructureCount()!=dao.getExperiment().getStructureCount()) {
                     if (pcb!=null) pcb.log("Configuration file should have same object class number. Source has: {}"+source.getStructureCount()+" instead of "+dao.getExperiment().getStructureCount());
                     logger.error("Configuration file should have same object class number. Source has: {} instead of {}", source.getStructureCount(), dao.getExperiment().getStructureCount());
                     return;
                 }
                 // set structures
-                dao.getExperiment().getStructures().setContentFrom(source.getStructures());
+                if (structures) dao.getExperiment().getStructures().setContentFrom(source.getStructures());
                 // set preprocessing template
-                dao.getExperiment().getPreProcessingTemplate().setContentFrom(source.getPreProcessingTemplate());
+                if (preProcessingTemplate) dao.getExperiment().getPreProcessingTemplate().setContentFrom(source.getPreProcessingTemplate());
                 // set measurements
                 dao.getExperiment().getMeasurements().setContentFrom(source.getMeasurements());
+                // set other import image
+                dao.getExperiment().getImportMethodParameter().setContentFrom(source.getImportMethodParameter());
+                // set detection channels
+                dao.getExperiment().getChannelImages().setContentFrom(source.getChannelImages());
+                dao.getExperiment().getBestFocusPlaneParameter().setContentFrom(source.getBestFocusPlaneParameter());
                 dao.updateExperiment();
                 logger.debug("Dataset: {} from file: {} set to db: {}", dao.getExperiment().getName(), path, dao.getDBName());
             }

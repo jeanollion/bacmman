@@ -24,9 +24,7 @@ import bacmman.configuration.experiment.Structure;
 
 import static bacmman.configuration.parameters.Parameter.logger;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import bacmman.utils.Utils;
@@ -85,21 +83,21 @@ public class ParameterUtils {
     public static boolean sameContent(List<Parameter> destination, List<Parameter> source) {return sameContent(destination, source, null);}
     public static boolean sameContent(List<Parameter> destination, List<Parameter> source, String message) {
         if (destination==null && source!=null) {
-            if (message!=null) logger.debug(message+" 1st null");
+            if (message!=null) logger.trace(message+" 1st null");
             return false;
         }
         if (destination!=null && source==null) {
-            if (message!=null) logger.debug(message+" 2nd null");
+            if (message!=null) logger.trace(message+" 2nd null");
             return false;
         }
         if (destination==null && source==null) return true;
         if (destination.size()!=source.size()) {
-            if (message!=null) logger.debug(message+" differ in size: {} vs {}", destination.size(), source.size());
+            if (message!=null) logger.trace(message+" differ in size: {} vs {}", destination.size(), source.size());
             return false;
         }
         for (int i = 0; i < destination.size(); i++) {
             if (!destination.get(i).sameContent(source.get(i))) {
-                if (message!=null) logger.debug(message+" differ at index: {}. source: {} vs destination: {}", i, source.get(i), destination.get(i));
+                if (message!=null) logger.trace(message+" differ at index: {}. source: {} vs destination: {}", i, source.get(i), destination.get(i));
                 return false;
             }
         }
@@ -290,5 +288,34 @@ public class ParameterUtils {
     public interface ParameterConfiguration {
         public void configure(Parameter p);
         public boolean isConfigurable(Parameter p);
+    }
+    public static List<Integer> getPath(Parameter parent, Parameter child) {
+        List<Integer> path = new ArrayList<>();
+        if (child.getParent()==null || parent.equals(child)) return Collections.emptyList();
+        path.add(child.getParent().getIndex(child));
+        Parameter p = child;
+        while(p.getParent()!=null) {
+            p = (Parameter)p.getParent();
+            if (parent.equals(p)) return Utils.reverseOrder(path);
+            if (p.getParent()!=null) {
+                int idx = p.getParent().getIndex(p);
+                if (idx<0) logger.debug("parameter : {} not in its parents. parent: {}", p, p.getParent());
+                else path.add(p.getParent().getIndex(p));
+            }
+        }
+        return null;
+    }
+    public static Parameter getParameterByPath(Parameter source, List<Integer> pathToParameter) {
+        Iterator<Integer> it = pathToParameter.iterator();
+        while (it.hasNext()) {
+            Integer next = it.next();
+            // look for equivalent of next into source's children
+            if (source instanceof ContainerParameter) {
+                List<Parameter> children = ((ContainerParameter)source).getChildren();
+                if (next>=children.size()) return null;
+                source = children.get(next);
+            } else return null;
+        }
+        return source;
     }
 }

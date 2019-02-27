@@ -8,6 +8,7 @@ import com.jcabi.github.Github;
 import com.jcabi.github.RtGithub;
 import com.jcabi.http.Request;
 import com.jcabi.http.Response;
+import com.jcabi.http.response.JsonResponse;
 import com.jcabi.http.response.RestResponse;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -26,6 +27,7 @@ import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.hamcrest.CustomMatcher;
 
 public class GistConfiguration implements Hint {
     public static final Logger logger = LoggerFactory.getLogger(GistConfiguration.class);
@@ -41,7 +43,9 @@ public class GistConfiguration implements Hint {
             return Arrays.stream(TYPE.values()).filter(t->fileName.startsWith(PREFIX+t.name)).findAny().orElse(null);
         }
     }
-    public final String name, account, folder, description;
+    public final String name, account, folder;
+    String description;
+    boolean visible=true;
     private String fileURL;
     private JSONObject jsonContent;
     private Supplier<String> contentRetriever;
@@ -50,24 +54,33 @@ public class GistConfiguration implements Hint {
     public final TYPE type;
     String id;
     Experiment xp;
-    int objectClassIdx=-1;
+
     public GistConfiguration(JSONObject gist, Response query) {
         description = (String)gist.get("description");
-        JSONObject file = ((JSONObject) ((JSONObject) gist.get("files")).values().iterator().next()); // supposes there is only one file
-        fileURL = (String) file.get("raw_url");
-        String fileName = (String)file.get("filename");
         id = (String)gist.get("id");
-        // parse file name:
-        type = TYPE.fromFileName(fileName);
-        if (type!=null) { // not a configuration file
-            int folderIdx = fileName.indexOf("_");
-            if (folderIdx < 0) throw new IllegalArgumentException("Invalid config file name");
-            int configNameIdx = fileName.indexOf("_", folderIdx + 1);
-            if (configNameIdx < 0) throw new IllegalArgumentException("Invalid config file name");
-            folder = fileName.substring(folderIdx + 1, configNameIdx);
-            name = fileName.substring(configNameIdx, fileName.length() - 5);
-            account = (String) ((JSONObject) gist.get("owner")).get("login");
+        visible = (Boolean)gist.get("public");
+        Object files = gist.get("files");
+        if (files!=null) {
+            JSONObject file = ((JSONObject) ((JSONObject) files).values().iterator().next()); // supposes there is only one file
+            fileURL = (String) file.get("raw_url");
+            String fileName = (String) file.get("filename");
+            // parse file name:
+            type = TYPE.fromFileName(fileName);
+            if (type!=null) { // not a configuration file
+                int folderIdx = fileName.indexOf("_");
+                if (folderIdx < 0) throw new IllegalArgumentException("Invalid config file name");
+                int configNameIdx = fileName.indexOf("_", folderIdx + 1);
+                if (configNameIdx < 0) throw new IllegalArgumentException("Invalid config file name");
+                folder = fileName.substring(folderIdx + 1, configNameIdx);
+                name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
+                account = (String) ((JSONObject) gist.get("owner")).get("login");
+            } else {
+                folder = null;
+                name = null;
+                account = null;
+            }
         } else {
+            type =null;
             folder = null;
             name = null;
             account = null;
@@ -79,9 +92,10 @@ public class GistConfiguration implements Hint {
                         .jump(URI.create(fileURL))
                         .fetch()
                         .as(RestResponse.class)
-                        .assertStatus(HttpURLConnection.HTTP_OK)
+                        //.assertStatus(HttpURLConnection.HTTP_OK)
                         .body();
             } catch (IOException e) {
+                logger.debug("error while retrieving gist: {}", e);
                 return null;
             }
         };
@@ -96,31 +110,77 @@ public class GistConfiguration implements Hint {
         this.type=type;
     }
 
-    public void createNewGist(Github github, boolean visible) {
-        Map<String, String> files = new HashMap<String, String>(){{put(getFileName(), jsonContent.toJSONString());}};
-        try {
-            Gist g = github.gists().create(files, visible);
-            id = g.identifier();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+    public boolean isVisible() {
+        return visible;
     }
 
+    public GistConfiguration setVisible(boolean visible) {
+        this.visible = visible;
+        return this;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public GistConfiguration setDescription(String description) {
+        this.description = description;
+        return this;
+    }
+
+    public void createNewGist(Github github) {
+        //Map<String, String> files = new HashMap<String, String>(){{put(, );}};
+        try {
+            //Gist g = github.gists().create(files, visible);
+            //id = g.identifier();
+            JsonObjectBuilder builder = Json.createObjectBuilder()
+                    .add(getFileName(), Json.createObjectBuilder().add("content", jsonContent.toJSONString()));
+            final JsonStructure json = Json.createObjectBuilder().add("files", builder).add("public", visible).add("description", description).build();
+
+            id = github.entry().uri()
+                .path("/gists").back().method(Request.POST)
+                .body().set(json).back()
+                .fetch().as(RestResponse.class)
+                //.assertStatus(HttpURLConnection.HTTP_CREATED)
+                .as(JsonResponse.class)
+                .json().readObject().getString("id");
+            logger.info("created new gist: id: {}", id);
+        } catch (IOException e) {
+            logger.error("Gist could not be created {}", e);
+        }
+    }
+    public void delete(Github github) {
+        try {
+            github.entry().uri()
+                    .path("/gists/"+id).back()
+                    .method(Request.DELETE)
+                    .fetch();
+            logger.debug("Gist: {} deleted successfully", name);
+        } catch (IOException e) {
+            logger.error("Could not delete gist: {}", e);
+        }
+    }
     private String getFileName() {
         return PREFIX+type.name+"_"+folder+"_"+name+".json";
     }
-    public void updateContent(Github github, JSONObject newContent) {
-        this.jsonContent=newContent;
+
+    public GistConfiguration setJsonContent(JSONObject jsonContent) {
+        this.jsonContent = jsonContent;
+        return this;
+    }
+
+    public void updateContent(Github github) {
         JsonObjectBuilder builder = Json.createObjectBuilder();
-        builder = builder.add( getHintText(), Json.createObjectBuilder().add("content", jsonContent.toJSONString()));
-        final JsonStructure json = Json.createObjectBuilder().add("files", builder).build();
+        builder = builder.add(getFileName(), Json.createObjectBuilder().add("content", jsonContent.toJSONString()));
+        final JsonStructure json = Json.createObjectBuilder().add("files", builder).add("public", visible).add("description", description).build();
         try {
             github.entry().uri()
                 .path("/gists/"+id).back().method(Request.PATCH)
                 .body().set(json).back()
                 .fetch();
+            logger.info("Gist updated!");
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Gist could not be updated {}", e);
         }
     }
 
@@ -134,63 +194,71 @@ public class GistConfiguration implements Hint {
     }
 
     public static List<GistConfiguration> getPublicConfigurations(String... accounts) {
-        List<GistConfiguration> res = new ArrayList<>();
         Github github = new RtGithub();
         for (String account : accounts) {
             try {
                 Response response = github.entry()
                         .uri().path("/users/"+account+"/gists").back()
                         .method(Request.GET).fetch();
-                String jsonArray = response.body();
-                JSONArray gistsRequest = (JSONArray)new JSONParser().parse(jsonArray);
-                res.addAll(((Stream<JSONObject>)gistsRequest.stream()).map(body -> new GistConfiguration(body, response)).filter(gc -> gc.type!=null).collect(Collectors.toList()));
+                return parseJSON(response);
             } catch (IOException e) {
-
-            } catch (ParseException e) {
 
             }
 
         }
-        return res;
+        return Collections.emptyList();
     }
+
     public static List<GistConfiguration> getConfigurations(String account, String password) {
         Github github = new RtGithub(account, password);
         try {
             Response response = github.entry()
                     .uri().path("/gists").back()
                     .method(Request.GET).fetch();
-            String jsonArray = response.body();
-            JSONArray gistsRequest = (JSONArray)new JSONParser().parse(jsonArray);
-            return ((Stream<JSONObject>)gistsRequest.stream()).map(body -> new GistConfiguration(body, response)).filter(gc -> gc.type!=null).collect(Collectors.toList());
+            return parseJSON(response);
         } catch (IOException e) {
-
-        } catch (ParseException e) {
 
         }
         return Collections.emptyList();
     }
+    private static List<GistConfiguration> parseJSON(Response response) {
+        List<GistConfiguration> res = new ArrayList<>();
+        try {
+            Object json = new JSONParser().parse(response.body());
+            if (json instanceof JSONArray) {
+                JSONArray gistsRequest = (JSONArray)json;
+                res.addAll(((Stream<JSONObject>) gistsRequest.stream()).map(body -> new GistConfiguration(body, response)).filter(gc -> gc.type != null).collect(Collectors.toList()));
+            } else {
+                GistConfiguration gc = new GistConfiguration((JSONObject)json, response);
+                if (gc.type!=null) res.add(gc);
+            }
+        } catch (ParseException e) {
+
+        }
+        return res;
+    }
     public Experiment getExperiment() {
         if (xp==null) {
-            Experiment xp = new Experiment();
-            switch (type) {
-                case WHOLE:
-                    xp.initFromJSONEntry(jsonContent);
-                    break;
-                case PRE_PROCESSING:
-                    xp.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
-                    break;
-                case PROCESSING:
-                    xp.getChannelImages().insert(xp.getChannelImages().createChildInstance());
-                    xp.getStructures().insert(xp.getStructures().createChildInstance());
-                    xp.getStructure(0).getProcessingPipelineParameter().initFromJSONEntry(jsonContent);
-                    objectClassIdx=0;
-                    break;
-            }
+            xp = getExperiment(getContent(), type);
         }
         return xp;
     }
-
-    public int getObjectClassIdx() {
-        return objectClassIdx;
+    public static Experiment getExperiment(JSONObject jsonContent, TYPE type) {
+        Experiment res = new Experiment("");
+        switch (type) {
+            case WHOLE:
+                res.initFromJSONEntry(jsonContent);
+                break;
+            case PRE_PROCESSING:
+                res.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
+                break;
+            case PROCESSING:
+                res.getChannelImages().insert(res.getChannelImages().createChildInstance());
+                res.getStructures().insert(res.getStructures().createChildInstance());
+                res.getStructure(0).getProcessingPipelineParameter().initFromJSONEntry(jsonContent);
+                break;
+        }
+        return res;
     }
+
 }

@@ -189,17 +189,17 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         if (other instanceof PluginParameter) {
             PluginParameter otherPP = (PluginParameter) other;
             if (!otherPP.getPluginType().equals(getPluginType())) {
-                logger.debug("PluginParameter: {}!={} differ in plugin type: {} vs {}", this, other, getPluginType(), otherPP.getPluginType());
+                logger.trace("PluginParameter: {}!={} differ in plugin type: {} vs {}", this, other, getPluginType(), otherPP.getPluginType());
                 return false;
             }
             if ((getPluginName()==null && otherPP.getPluginName()!=null) || (getPluginName()!=null && !getPluginName().equals(otherPP.getPluginName()))) {
-                logger.debug("PluginParameter: {}!={} differ in plugin name: {} vs {}", this, other, getPluginName(), otherPP.getPluginName());
+                logger.trace("PluginParameter: {}!={} differ in plugin name: {} vs {}", this, other, getPluginName(), otherPP.getPluginName());
                 return false;
             }
             if (!ParameterUtils.sameContent(additionalParameters, otherPP.additionalParameters, "PluginParameter: "+name+"!="+otherPP.name+ " Additional Parameters")) return false;
             if (!ParameterUtils.sameContent(children, otherPP.children, "PluginParameter: "+this.toString()+"!="+otherPP.toString()+ " Parameters")) return false;
             if (activated!=otherPP.activated) {
-                logger.debug("PluginParameter: {}!={} differ in activation : {} vs {}", this, other, activated, otherPP.activated);
+                logger.trace("PluginParameter: {}!={} differ in activation : {} vs {}", this, other, activated, otherPP.activated);
                 return false;
             }
             return true;

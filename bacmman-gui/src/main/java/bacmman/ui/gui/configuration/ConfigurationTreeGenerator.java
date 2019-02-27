@@ -20,11 +20,7 @@ package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.ContainerParameter;
-import bacmman.configuration.parameters.ListParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.*;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.MasterDAO;
@@ -74,7 +70,7 @@ public class ConfigurationTreeGenerator {
     protected Experiment experiment;
     protected ContainerParameter rootParameter;
     protected ConfigurationTreeModel treeModel;
-    protected JTree tree;
+    protected JTree tree, compareTree;
     private final Consumer<Boolean> xpIsValidCallBack;
     private final Consumer<String> setHint;
     private final BiConsumer<String, List<String>> setModules;
@@ -82,6 +78,8 @@ public class ConfigurationTreeGenerator {
     private final ProgressCallback pcb;
     private boolean expertMode = true;
     public ConfigurationTreeGenerator(Experiment xp, ContainerParameter root, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
+        if (xp==null) throw new IllegalArgumentException("Experiment cannot be null");
+        if (root == null) throw new IllegalArgumentException("Root cannot be null");
         rootParameter = root;
         experiment = xp;
         this.xpIsValidCallBack = xpIsValidCallBack;
@@ -190,6 +188,7 @@ public class ConfigurationTreeGenerator {
             setHint.accept(getHint(p, false));
             setModules.accept(p.getPluginName(), p.getPluginNames()); // in order to select module in list
         });
+        treeModel.setCompareTree(compareTree);
         treeModel.setExpertMode(expertMode);
         tree = new JTree(treeModel) {
             @Override
@@ -206,11 +205,21 @@ public class ConfigurationTreeGenerator {
                 return new Point(r.x + r.width, r.y);
             }
         };
+        ToolTipManager.sharedInstance().registerComponent(tree); // add tool tips to the tree
+
         treeModel.setJTree(tree);
         tree.setShowsRootHandles(true);
         tree.setRootVisible(!(rootParameter instanceof Experiment));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode);
+        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> {
+            if (compareTree==null) return false;
+            List<Integer> path = ParameterUtils.getPath(rootParameter, p); // path from root parameter to p
+            if (path==null) return false;
+            //if (true) return true;
+            Parameter pp = ParameterUtils.getParameterByPath((ContainerParameter)compareTree.getModel().getRoot(), path);// get equivalent parameter going through that path and compare it if existing
+            if (pp==null) return true;
+            else return !p.sameContent(pp);
+        });
         Icon icon = null;
         renderer.setLeafIcon(icon);
         renderer.setClosedIcon(icon);
@@ -278,14 +287,13 @@ public class ConfigurationTreeGenerator {
                 (TreeNode n) -> ((Parameter)n).duplicate(), 
                 (TreePath p)-> (p!=null && p.getLastPathComponent() instanceof ListParameter && ((ListParameter)p.getLastPathComponent()).allowMoveChildren())
         ));
-        // add tool tips to the tree
-        ToolTipManager.sharedInstance().registerComponent(tree);
+
         // configure call back for structures (update display)
         experiment.getStructures().addNewInstanceConfiguration(s->s.setParameterChangeCallBack( p -> treeModel.nodeChanged(p)));
         // configure call back for position (delete position from DAO)
         Predicate<Position> erasePosition = p -> {
             logger.debug("erase position: {}", p.getName());
-            mDAO.getDao(p.getName()).deleteAllObjects();
+            if (mDAO!=null) mDAO.getDao(p.getName()).deleteAllObjects();
             if (p.getInputImages()!=null) p.getInputImages().deleteFromDAO();
             for (int s =0; s<experiment.getStructureCount(); ++s) experiment.getImageDAO().deleteTrackImages(p.getName(), s);
             Utils.deleteDirectory(experiment.getOutputDirectory()+ File.separator+p.getName());
@@ -297,7 +305,11 @@ public class ConfigurationTreeGenerator {
     public void xpChanged() {
         xpIsValidCallBack.accept(rootParameter.isValid());
     }
-    
+    public void setCompareTree(JTree otherTree) {
+        this.compareTree=otherTree;
+        if (treeModel!=null) treeModel.setCompareTree(otherTree);
+        if (tree!=null) tree.updateUI();
+    }
     public static void addToMenu(Object[] UIElements, JPopupMenu menu) {
         for (Object o : UIElements) {
             if (o instanceof Action) menu.add((Action)o);

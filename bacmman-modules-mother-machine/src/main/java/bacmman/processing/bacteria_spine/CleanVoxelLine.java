@@ -89,7 +89,7 @@ public class CleanVoxelLine {
             skeleton = cl.cleanSkeleton();
             // order from upper-left end point
             Voxel endPoint = cl.voxMapNeighAndLabels.entrySet().stream().filter(e->e.getValue()[0]==1).map(e->e.getKey()).min(comp).orElseThrow(()->new RuntimeException("No end point in skeleton"));
-            List<Voxel> res = cl.segments.values().stream().map(s->(Edge)s).max(Edge::compareTo).get().getOrderdVoxelList(endPoint);
+            List<Voxel> res = cl.segments.values().stream().map(s->(Edge)s).max(Edge::compareTo).get().getOrderdVoxelList(endPoint); //TODO P:8/S:1/I:1414-2-3 150219 Vertex cannot be cast to edge
             //res.sort((v1, v2)->Double.compare(endPoint.getDistanceSquareXY(v1), endPoint.getDistanceSquareXY(v2))); // distance to end point mayu not work for curved lines. 
             return res;
         } else {

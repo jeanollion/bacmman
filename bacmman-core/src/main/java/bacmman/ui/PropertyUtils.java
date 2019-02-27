@@ -22,9 +22,14 @@ import bacmman.configuration.parameters.ChoiceParameter;
 import bacmman.configuration.parameters.Listenable;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.data_structure.MasterDAOFactory;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -35,9 +40,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
-import javax.swing.AbstractButton;
-import javax.swing.ButtonGroup;
-import javax.swing.JMenuItem;
+import javax.swing.*;
 
 /**
  *
@@ -179,6 +182,47 @@ public class PropertyUtils {
     public static void setPersistant(JMenuItem item, String key, boolean defaultValue) {
         item.setSelected(PropertyUtils.get(key, defaultValue));
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
+    }
+    public static void setPersistant(JTextField item, String key, String defaultValue, boolean multiple) {
+        item.setText(PropertyUtils.get(key, defaultValue));
+        if (!multiple) item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.getText());PropertyUtils.set(key, item.getText()); });
+        else {
+            item.addActionListener((java.awt.event.ActionEvent evt) -> {
+                logger.debug("item: {} persistSelMultiple {}", key, item.getText());
+                PropertyUtils.set(key, item.getText());
+                PropertyUtils.addFirstStringToList(key, item.getText());
+            });
+            item.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent evt) {
+                    if (SwingUtilities.isRightMouseButton(evt)) {
+                        JPopupMenu menu = new JPopupMenu();
+                        JMenu recentFiles = new JMenu("Recent");
+                        menu.add(recentFiles);
+                        List<String> recent = PropertyUtils.getStrings(key);
+                        for (String s : recent) {
+                            Action setRecent = new AbstractAction(s) {
+                                @Override
+                                public void actionPerformed(ActionEvent e) {
+                                    item.setText(s);
+                                    for (ActionListener al : item.getActionListeners()) al.actionPerformed(e);
+                                }
+                            };
+                            recentFiles.add(setRecent);
+                        }
+                        if (recent.isEmpty()) recentFiles.setEnabled(false);
+                        Action delRecent = new AbstractAction("Delete recent list") {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                PropertyUtils.setStrings(key, null);
+                            }
+                        };
+                        recentFiles.add(delRecent);
+                        menu.show(item, evt.getX(), evt.getY());
+                    }
+                }
+            });
+        }
     }
     public static int setPersistant(ButtonGroup group, String key, int defaultSelectedIdx) {
         Enumeration<AbstractButton> enume = group.getElements();

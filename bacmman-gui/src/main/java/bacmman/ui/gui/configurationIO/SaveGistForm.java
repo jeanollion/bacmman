@@ -1,5 +1,7 @@
 package bacmman.ui.gui.configurationIO;
 
+import org.slf4j.LoggerFactory;
+
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
@@ -18,33 +20,28 @@ public class SaveGistForm {
     private JButton OK;
     private JPanel panelMain;
     boolean canceled = false;
+    private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SaveGistForm.class);
     public SaveGistForm() {
         // unable special chars
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
-                if ( !SPECIAL_CHAR.matcher(String.valueOf(c)).find()) {
+                if (SPECIAL_CHAR.matcher(String.valueOf(c)).find()) {
                     e.consume();  // ignore event
                 }
             }
         };
+        logger.debug("name field null: {}", name==null);
         name.addKeyListener(ke);
         folder.addKeyListener(ke);
-
     }
     public void display(JFrame parent, String title) {
         JDialog dia = new Dial(parent, title);
         dia.setVisible(true);
-        dia.dispose();
-        /*JFrame frame = new JFrame("SaveGistForm");
-        frame.setContentPane(new SaveGistForm().panelMain);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.pack();
-        frame.setVisible(true);*/
     }
     private class Dial extends JDialog {
         Dial(JFrame parent, String title) {
-            super(parent,title);
+            super(parent, title, true);
             getContentPane().add(panelMain);
             setDefaultCloseOperation(DISPOSE_ON_CLOSE);
             pack();
@@ -69,6 +66,18 @@ public class SaveGistForm {
     }
     public SaveGistForm setName(String name) {
         this.name.setText(name);
+        return this;
+    }
+    public SaveGistForm disableNameField() {
+        this.name.setEnabled(false);
+        return this;
+    }
+    public SaveGistForm disableFolderField() {
+        this.folder.setEnabled(false);
+        return this;
+    }
+    public SaveGistForm disableVisibleField() {
+        this.publicJCB.setEnabled(false);
         return this;
     }
     public SaveGistForm setDescription(String description) {

@@ -23,6 +23,7 @@ import com.itextpdf.text.Font;
 import java.awt.Color;
 import java.awt.Component;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeCellRenderer;
 
@@ -32,8 +33,10 @@ import javax.swing.tree.DefaultTreeCellRenderer;
  */
 public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
     final BooleanSupplier isExpertMode;
-    public TransparentTreeCellRenderer(BooleanSupplier isExpertMode) {
+    final Predicate<Parameter> isDifferent;
+    public TransparentTreeCellRenderer(BooleanSupplier isExpertMode, Predicate<Parameter> isDifferent) {
         this.isExpertMode=isExpertMode;
+        this.isDifferent = isDifferent;
         setLeafIcon(null);
         setClosedIcon(null);
         setOpenIcon(null);
@@ -59,6 +62,7 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
         if (value instanceof Parameter) {
             boolean isValid = ((Parameter)value).isValid();
             if (!isValid) ret.setForeground(Color.RED);
+            else if (isDifferent.test(((Parameter)value))) ret.setForeground(Color.BLUE);
             if (isExpertMode.getAsBoolean()) { // bold parameter only in expert mode
                 boolean isEmphasized = ((Parameter) value).isEmphasized();
                 if (isEmphasized) ret.setFont(ret.getFont().deriveFont(Font.BOLD));

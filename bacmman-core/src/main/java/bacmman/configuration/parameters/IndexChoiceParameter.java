@@ -66,7 +66,7 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
         if (other instanceof IndexChoiceParameter) {
             IndexChoiceParameter otherP = (IndexChoiceParameter) other;
             if (!ParameterUtils.arraysEqual(selectedIndices, otherP.selectedIndices)) {
-                logger.debug("IndexChoiceParameter: {}!={} : {} vs {}", this, other, selectedIndices, otherP.selectedIndices);
+                logger.trace("IndexChoiceParameter: {}!={} : {} vs {}", this, other, selectedIndices, otherP.selectedIndices);
                 return false;
             } else return true;
         } else return false;

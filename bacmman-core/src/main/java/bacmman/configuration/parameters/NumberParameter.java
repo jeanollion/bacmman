@@ -71,7 +71,7 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     public boolean sameContent(Parameter other) {
         if (other instanceof NumberParameter) {
             if (((NumberParameter)other).getValue().doubleValue()!=getValue().doubleValue()) {
-                logger.debug("Number: {}!={} value: {} vs {}", this, other, getValue(), ((NumberParameter)other).getValue() );
+                logger.trace("Number: {}!={} value: {} vs {}", this, other, getValue(), ((NumberParameter)other).getValue() );
                 return false;
             } else return true;
         }
