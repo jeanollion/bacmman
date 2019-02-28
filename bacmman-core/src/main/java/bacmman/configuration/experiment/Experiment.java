@@ -91,7 +91,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     ChannelImageParameter bestFocusPlaneChannel = new ChannelImageParameter("Channel", 0, true).setHint("Detection Channel for best focus plane computation");
     PluginParameter<Autofocus> autofocus = new PluginParameter<>("Algorithm", Autofocus.class, new SelectBestFocusPlane(), true);
     GroupParameter bestFocusPlane = new GroupParameter("Best Focus plane computation", new Parameter[]{bestFocusPlaneChannel, autofocus}).setHint("This algorithm can be used to transform 3-D images (Z-stacks) into 2-D images. For each Z-stack the algorithm will select the plane corresponding to the best focalized image.");
-    
+    NoteParameter note = new NoteParameter("Note");
     public enum ImageDAOTypes {LocalFileSystem};
     ImageDAOTypes imageDAOType=ImageDAOTypes.LocalFileSystem;
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
@@ -108,6 +108,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         res.put("template", template.toJSONEntry());
         res.put("importMethod", importCond.toJSONEntry());
         res.put("bestFocusPlane", bestFocusPlane.toJSONEntry());
+        res.put("note", note.toJSONEntry());
         return res;
     }
 
@@ -126,6 +127,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         else importMethod.initFromJSONEntry(jsonO.get("importMethod")); // RETRO COMPATIBILITY
         bestFocusPlane.initFromJSONEntry(jsonO.get("bestFocusPlane"));
         this.name="Configuration";
+        if (jsonO.containsKey("note")) note.initFromJSONEntry(jsonO.get("note"));
     }
     public Experiment(){
         this("");
@@ -169,7 +171,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
     
     protected void initChildList() {
-        super.initChildren(importCond, channelImages, template, positions, structures, measurements, outputPath, imagePath, bestFocusPlane);
+        super.initChildren(importCond, channelImages, template, positions, structures, measurements, outputPath, imagePath, bestFocusPlane, note);
     }
     
     public PreProcessingChain getPreProcessingTemplate() {

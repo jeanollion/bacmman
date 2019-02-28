@@ -74,6 +74,7 @@ import bacmman.image.Image;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
@@ -254,6 +255,38 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.testParentTrackPanel.setToolTipText(formatHint("Select parent on which test will be performed"));
         this.testCopyButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to all other positions"));
         this.testCopyToTemplateButton.setToolTipText(formatHint("Overwrite current edited pre-processing chain to template"));
+
+
+        // tool tips for experiments: note is displayed
+        datasetList.addMouseMotionListener(new MouseMotionListener() {
+
+            @Override
+            public void mouseDragged(MouseEvent e) {
+                // no-op
+            }
+
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                JList l = (JList) e.getSource();
+                ListModel m = l.getModel();
+                int index = l.locationToIndex(e.getPoint());
+                if (index > -1) {
+                    // read conf file and get note if existing
+                    String dbName = m.getElementAt(index).toString();
+                    File f = dbFiles.get(dbName);
+                    if (f==null) l.setToolTipText(null);
+                    else {
+                        String dir = f.getAbsolutePath() + File.separator + dbName + "_config.json"; // TODO if other DAO -> modify this
+                        List<JSONObject> list = FileIO.readFromFile(dir, s->JSONUtils.parse(s));
+                        if (list.size()!=1) l.setToolTipText(null);
+                        else {
+                            JSONObject json = list.get(0);
+                            l.setToolTipText((String) json.get("note"));
+                        }
+                    }
+                }
+            }
+        });
 
         // disable components when run action
         actionPoolList.setModel(actionPoolListModel);

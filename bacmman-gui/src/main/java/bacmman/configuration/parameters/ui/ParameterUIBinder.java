@@ -72,6 +72,7 @@ public class ParameterUIBinder {
         }
         if (p instanceof AbstractChoiceParameter) return new ChoiceParameterUI((AbstractChoiceParameter)p, model);
         if (p instanceof ListParameter) return new SimpleListParameterUI((ListParameter)p, model);
+        if (p instanceof NoteParameter) return new NoteEditorUI((NoteParameter)p, model);
         if (p instanceof TextParameter) return new TextEditorUI((TextParameter)p, model);
         if (p instanceof FileChooser) return new FileChooserUI((FileChooser)p, model);
         if (p instanceof ConditionalParameter) return getUI(((ConditionalParameter)p).getActionableParameter(), model, pcb);

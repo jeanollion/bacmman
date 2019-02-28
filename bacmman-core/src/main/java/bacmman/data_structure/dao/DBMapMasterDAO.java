@@ -206,12 +206,12 @@ public class DBMapMasterDAO implements MasterDAO {
     private synchronized void unlockXP() {
         if (this.xpFileLock!=null) {
             try {
-                logger.debug("realising lock: {}", xpFileLock);
+                logger.debug("releasing lock: {}", xpFileLock);
                 xpFileLock.release();
-                logger.debug("lock realeased: {} ", !xpFileLock.isValid());
+                logger.debug("lock released: {} ", !xpFileLock.isValid());
                 xpFileLock = null;
             } catch (IOException ex) {
-                logger.debug("error realeasing cfg lock", ex);
+                logger.debug("error releasing cfg lock", ex);
             }
         }
         if (cfg!=null) {
