@@ -3,13 +3,6 @@ package bacmman.github.gist;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.plugins.Hint;
 import bacmman.utils.JSONUtils;
-import com.jcabi.github.Gist;
-import com.jcabi.github.Github;
-import com.jcabi.github.RtGithub;
-import com.jcabi.http.Request;
-import com.jcabi.http.Response;
-import com.jcabi.http.response.JsonResponse;
-import com.jcabi.http.response.RestResponse;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -17,17 +10,10 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.json.Json;
-import javax.json.JsonObjectBuilder;
-import javax.json.JsonStructure;
-import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.URI;
 import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.hamcrest.CustomMatcher;
 
 public class GistConfiguration implements Hint {
     public static final Logger logger = LoggerFactory.getLogger(GistConfiguration.class);
@@ -54,8 +40,8 @@ public class GistConfiguration implements Hint {
     public final TYPE type;
     String id;
     Experiment xp;
-
-    public GistConfiguration(JSONObject gist, Response query) {
+    public static String BASE_URL = "https://api.github.com";
+    public GistConfiguration(JSONObject gist) {
         description = (String)gist.get("description");
         id = (String)gist.get("id");
         visible = (Boolean)gist.get("public");
@@ -85,20 +71,7 @@ public class GistConfiguration implements Hint {
             name = null;
             account = null;
         }
-        contentRetriever = () -> {
-            try {
-                return query
-                        .as(RestResponse.class)
-                        .jump(URI.create(fileURL))
-                        .fetch()
-                        .as(RestResponse.class)
-                        //.assertStatus(HttpURLConnection.HTTP_OK)
-                        .body();
-            } catch (IOException e) {
-                logger.debug("error while retrieving gist: {}", e);
-                return null;
-            }
-        };
+        contentRetriever = () -> new JSONQuery(fileURL).fetch();
     }
     public GistConfiguration(String account, String folder, String name, String description, JSONObject content, TYPE type) {
         this.account=account;
@@ -128,37 +101,22 @@ public class GistConfiguration implements Hint {
         return this;
     }
 
-    public void createNewGist(Github github) {
-        //Map<String, String> files = new HashMap<String, String>(){{put(, );}};
-        try {
-            //Gist g = github.gists().create(files, visible);
-            //id = g.identifier();
-            JsonObjectBuilder builder = Json.createObjectBuilder()
-                    .add(getFileName(), Json.createObjectBuilder().add("content", jsonContent.toJSONString()));
-            final JsonStructure json = Json.createObjectBuilder().add("files", builder).add("public", visible).add("description", description).build();
-
-            id = github.entry().uri()
-                .path("/gists").back().method(Request.POST)
-                .body().set(json).back()
-                .fetch().as(RestResponse.class)
-                //.assertStatus(HttpURLConnection.HTTP_CREATED)
-                .as(JsonResponse.class)
-                .json().readObject().getString("id");
-            logger.info("created new gist: id: {}", id);
-        } catch (IOException e) {
-            logger.error("Gist could not be created {}", e);
-        }
+    public void createNewGist(UserAuth auth) {
+        JSONObject files = new JSONObject();
+        JSONObject file = new JSONObject();
+        files.put(getFileName(), file);
+        file.put("content", jsonContent.toJSONString());
+        JSONObject gist = new JSONObject();
+        gist.put("files", files);
+        gist.put("description", description);
+        gist.put("public", visible);
+        String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetch();
+        JSONObject json = JSONUtils.parse(res);
+        if (json!=null) id = (String)json.get("id");
+        else logger.error("Could not create configuration file");
     }
-    public void delete(Github github) {
-        try {
-            github.entry().uri()
-                    .path("/gists/"+id).back()
-                    .method(Request.DELETE)
-                    .fetch();
-            logger.debug("Gist: {} deleted successfully", name);
-        } catch (IOException e) {
-            logger.error("Could not delete gist: {}", e);
-        }
+    public void delete(UserAuth auth) {
+        new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetch();
     }
     private String getFileName() {
         return PREFIX+type.name+"_"+folder+"_"+name+".json";
@@ -169,19 +127,15 @@ public class GistConfiguration implements Hint {
         return this;
     }
 
-    public void updateContent(Github github) {
-        JsonObjectBuilder builder = Json.createObjectBuilder();
-        builder = builder.add(getFileName(), Json.createObjectBuilder().add("content", jsonContent.toJSONString()));
-        final JsonStructure json = Json.createObjectBuilder().add("files", builder).add("public", visible).add("description", description).build();
-        try {
-            github.entry().uri()
-                .path("/gists/"+id).back().method(Request.PATCH)
-                .body().set(json).back()
-                .fetch();
-            logger.info("Gist updated!");
-        } catch (IOException e) {
-            logger.error("Gist could not be updated {}", e);
-        }
+    public void updateContent(UserAuth auth) {
+        JSONObject files = new JSONObject();
+        JSONObject file = new JSONObject();
+        files.put(getFileName(), file);
+        file.put("content", jsonContent.toJSONString());
+        JSONObject gist = new JSONObject();
+        gist.put("files", files);
+        gist.put("description", description);
+        new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetch();
     }
 
     public JSONObject getContent() {
@@ -193,43 +147,22 @@ public class GistConfiguration implements Hint {
         return jsonContent;
     }
 
-    public static List<GistConfiguration> getPublicConfigurations(String... accounts) {
-        Github github = new RtGithub();
-        for (String account : accounts) {
-            try {
-                Response response = github.entry()
-                        .uri().path("/users/"+account+"/gists").back()
-                        .method(Request.GET).fetch();
-                return parseJSON(response);
-            } catch (IOException e) {
-
-            }
-
-        }
-        return Collections.emptyList();
+    public static List<GistConfiguration> getPublicConfigurations(String account) {
+        return parseJSON(new JSONQuery(BASE_URL+"/users/"+account+"/gists").method(JSONQuery.METHOD.GET).fetch());
     }
 
-    public static List<GistConfiguration> getConfigurations(String account, String password) {
-        Github github = new RtGithub(account, password);
-        try {
-            Response response = github.entry()
-                    .uri().path("/gists").back()
-                    .method(Request.GET).fetch();
-            return parseJSON(response);
-        } catch (IOException e) {
-
-        }
-        return Collections.emptyList();
+    public static List<GistConfiguration> getConfigurations(UserAuth auth) {
+        return parseJSON(new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.GET).authenticate(auth).fetch());
     }
-    private static List<GistConfiguration> parseJSON(Response response) {
+    private static List<GistConfiguration> parseJSON(String response) {
         List<GistConfiguration> res = new ArrayList<>();
         try {
-            Object json = new JSONParser().parse(response.body());
+            Object json = new JSONParser().parse(response);
             if (json instanceof JSONArray) {
                 JSONArray gistsRequest = (JSONArray)json;
-                res.addAll(((Stream<JSONObject>) gistsRequest.stream()).map(body -> new GistConfiguration(body, response)).filter(gc -> gc.type != null).collect(Collectors.toList()));
+                res.addAll(((Stream<JSONObject>) gistsRequest.stream()).map(body -> new GistConfiguration(body)).filter(gc -> gc.type != null).collect(Collectors.toList()));
             } else {
-                GistConfiguration gc = new GistConfiguration((JSONObject)json, response);
+                GistConfiguration gc = new GistConfiguration((JSONObject)json);
                 if (gc.type!=null) res.add(gc);
             }
         } catch (ParseException e) {

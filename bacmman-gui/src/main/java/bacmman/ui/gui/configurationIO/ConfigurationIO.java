@@ -5,7 +5,10 @@ import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.ContainerParameter;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.github.gist.BasicAuth;
 import bacmman.github.gist.GistConfiguration;
+import bacmman.github.gist.NoAuth;
+import bacmman.github.gist.UserAuth;
 import bacmman.plugins.Hint;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
@@ -18,6 +21,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import java.awt.event.FocusEvent;
+import java.awt.event.FocusListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Collections;
@@ -108,6 +113,30 @@ public class ConfigurationIO {
             fetchGists();
             updateRemoteSelector();
         });
+        /*username.addFocusListener(new FocusListener() {
+            @Override
+            public void focusGained(FocusEvent e) {
+
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                fetchGists();
+                updateRemoteSelector();
+            }
+        });
+        password.addFocusListener(new FocusListener() {
+            @Override
+            public void focusGained(FocusEvent e) {
+
+            }
+
+            @Override
+            public void focusLost(FocusEvent e) {
+                fetchGists();
+                updateRemoteSelector();
+            }
+        });*/
         saveToRemote.addActionListener(e -> {
             if (remoteSelector==null || !loggedIn) return;
             // check if a folder is selected
@@ -137,7 +166,7 @@ public class ConfigurationIO {
                 content = xp.toJSONEntry();
             } else content = (JSONObject)localConfig.getRoot().toJSONEntry();
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-            toSave.createNewGist(new RtGithub(username.getText(), String.valueOf(password.getPassword())));
+            toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateRemoteSelector();
             remoteSelector.setSelectedGist(toSave);
@@ -145,14 +174,13 @@ public class ConfigurationIO {
         deleteRemote.addActionListener(e->{
             if (remoteSelector==null || !loggedIn) return;
             GistConfiguration gist = remoteSelector.getSelectedGist();
-            Github github = new RtGithub(username.getText(), String.valueOf(password.getPassword()));
             if (gist==null) {
                 String folder = remoteSelector.getSelectedFolder();
                 if (folder==null) return;
                 if (!Utils.promptBoolean("Delete all configuration files from selected folder ? ", mainPanel)) return;
-                gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {gists.remove(g);g.delete(github);});
+                gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {gists.remove(g);g.delete(getAuth());});
             } else {
-                gist.delete(github);
+                gist.delete(getAuth());
                 gists.remove(gist);
             }
             updateRemoteSelector();
@@ -168,7 +196,6 @@ public class ConfigurationIO {
             form.display(displayingFrame, "Update remote configuration...");
             if (form.canceled) return;
             gist.setDescription(form.description()); // only those fields can be modified
-            Github github = new RtGithub(username.getText(), String.valueOf(password.getPassword()));
             JSONObject content = (JSONObject)remoteConfig.getRoot().toJSONEntry();
             if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
                 switch (currentMode) {
@@ -188,7 +215,7 @@ public class ConfigurationIO {
                     default:
                 }
             }
-            gist.setJsonContent(content).updateContent(github);
+            gist.setJsonContent(content).updateContent(getAuth());
         });
         copyToLocal.addActionListener(e -> {
             if (remoteConfig==null) return;
@@ -249,7 +276,7 @@ public class ConfigurationIO {
                 return;
             }
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-            toSave.createNewGist(new RtGithub(username.getText(), String.valueOf(password.getPassword())));
+            toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateRemoteSelector();
             remoteSelector.setSelectedGist(toSave);
@@ -394,12 +421,12 @@ public class ConfigurationIO {
             loggedIn = false;
         }
         else {
-            if (password.getPassword().length == 0) {
+            UserAuth auth = getAuth();
+            if (auth instanceof NoAuth) {
                 gists = GistConfiguration.getPublicConfigurations(account);
                 loggedIn = false;
             } else {
-                String pass = String.valueOf(password.getPassword());
-                gists = GistConfiguration.getConfigurations(account, pass);
+                gists = GistConfiguration.getConfigurations(auth);
                 loggedIn = true;
             }
         }
@@ -423,5 +450,9 @@ public class ConfigurationIO {
             localConfig.setCompareTree(remoteConfig.getTree());
             remoteConfig.setCompareTree(localConfig.getTree());
         }
+    }
+    private UserAuth getAuth() {
+        if (password.getPassword().length==0) return new NoAuth();
+        else return new BasicAuth(username.getText(), String.valueOf(password.getPassword()));
     }
 }
