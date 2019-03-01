@@ -20,9 +20,8 @@ public class JSONQuery {
         try {
             serverUrl = new URL(url);
             urlConnection = (HttpURLConnection) serverUrl.openConnection();
-
-            urlConnection.setRequestProperty("Content-Type", "application/json");
-            //urlConnection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            //urlConnection.setRequestProperty("Content-Type", "application/json");
+            urlConnection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
         } catch (MalformedURLException e) {
             logger.error("query url error", e);
         } catch (IOException e) {
