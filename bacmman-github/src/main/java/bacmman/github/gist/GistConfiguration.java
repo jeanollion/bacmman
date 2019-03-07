@@ -47,12 +47,12 @@ public class GistConfiguration implements Hint {
         visible = (Boolean)gist.get("public");
         Object files = gist.get("files");
         if (files!=null) {
-            JSONObject file = ((JSONObject) ((JSONObject) files).values().iterator().next()); // supposes there is only one file
-            fileURL = (String) file.get("raw_url");
-            String fileName = (String) file.get("filename");
-            // parse file name:
-            type = TYPE.fromFileName(fileName);
-            if (type!=null) { // not a configuration file
+            JSONObject file = ((JSONObject) ((JSONObject) files).values().stream().filter(f-> ((String)((JSONObject)f).get("filename")).endsWith(".json") && TYPE.fromFileName((String) (((JSONObject)f).get("filename")))!=null).findFirst().orElse(null)); // supposes there is only one file that corresponds to a configuration file according to its name
+            if (file!=null) {
+                fileURL = (String) file.get("raw_url");
+                String fileName = (String) file.get("filename");
+                // parse file name:
+                type = TYPE.fromFileName(fileName);
                 int folderIdx = fileName.indexOf("_");
                 if (folderIdx < 0) throw new IllegalArgumentException("Invalid config file name");
                 int configNameIdx = fileName.indexOf("_", folderIdx + 1);
@@ -60,10 +60,11 @@ public class GistConfiguration implements Hint {
                 folder = fileName.substring(folderIdx + 1, configNameIdx);
                 name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
                 account = (String) ((JSONObject) gist.get("owner")).get("login");
-            } else {
+            } else { // not a configuration file
                 folder = null;
                 name = null;
                 account = null;
+                type = null;
             }
         } else {
             type =null;
