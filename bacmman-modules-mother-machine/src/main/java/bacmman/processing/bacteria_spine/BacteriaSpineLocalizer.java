@@ -113,7 +113,7 @@ public class BacteriaSpineLocalizer {
             if (idx==1 && Math.abs(source.dist(v)-source.dist(vPrev))<=0.05) { // when point is close to both first & 2nd vertebra -> imprecision on
                 c1 = getSpineCoord(source, vPrev, v);
             } else if (idx == spine.spine.length-2 && Math.abs(source.dist(v)-source.dist(vNext))<=0.05) {
-                getSpineCoord(source, vNext, v);
+                c2 = getSpineCoord(source, vNext, v);
             }
             if (testMode) logger.debug("no coord found with nearest vertebra");
             int idxPrev = idx-2;
@@ -193,28 +193,28 @@ public class BacteriaSpineLocalizer {
             return null;
         }
         
-        if (v0.equals(v1, precision)) { // colinear vertebra: simple intersection of p & dir // IMPORTANT TO SET ACCURACY IF NOT MAY BE CONSIDERED AS GENERAL CASE AND MAY HAVE NO SOLUTION
-            Point intersection = Point.intersect2D(source, source.duplicate().translateRev(v0), r0, r1);
+        if (v0.equals(v1, precision)) { // collinear vertebra: simple intersection of p & dir // IMPORTANT TO SET ACCURACY IF NOT MAY BE CONSIDERED AS GENERAL CASE AND MAY HAVE NO SOLUTION
+            Vector dir = v0.duplicate().averageWith(v1);
+            Point intersection = Point.intersect2D(source, source.duplicate().translateRev(dir), r0, r1);
             Vector sourceDir = Vector.vector(intersection, source);
             Vector r0_inter = Vector.vector(r0, intersection);
-            if (r0_inter.dotProduct(Vector.vector(r1, intersection))>precision) { // case where intersection is not between 2 vertebra: only allow if there are no vertebra afterwards
+            if (r0_inter.dotProduct(Vector.vector(r1, intersection))>2*precision) { // case where intersection is not between 2 vertebra: only allow if there are no vertebra afterwards
                 /*Image d = draw(7);
                 drawPoint(source, d, 7, 1000);
                 ImageWindowManagerFactory.showImage(d);
                 throw new IllegalArgumentException("out-of-segment case should have been handled with cross-product tests! dp:"+r0_inter.dotProduct(Vector.vector(r1, intersection))+" point: "+source+" v1:"+r0+" v2:"+r1);
                 */
-                return null;
-            } else {
-                double alpha = r0_inter.norm() / Vector.vector(r0, r1).norm();
-                double w = 1-alpha;
-                Vector spineDir = r0.getContent1().duplicate().weightedSum(r1.getContent1(), w, 1-w);
-                res.setSpineRadius(spineDir.norm());
-                double sign = Math.signum(sourceDir.dotProduct(spineDir));
-                res.setRadialCoord(sourceDir.norm() * sign);
-                res.setCurvilinearCoord(w * r0.getContent2() + (1-w)*r1.getContent2());
-                if (testMode) logger.debug("vertabra with colinear direction case weight: {}, intersection: {} res -> {}", w, intersection, res);
-                return res;
+                if (testMode) logger.debug("case where intersection is not between 2 vertebra: r0-inter: {}, r1-inter: {}", r0_inter, Vector.vector(r1, intersection));
             }
+            double alpha = r0_inter.norm() / Vector.vector(r0, r1).norm();
+            double w = 1-alpha;
+            Vector spineDir = r0.getContent1().duplicate().weightedSum(r1.getContent1(), w, 1-w);
+            res.setSpineRadius(spineDir.norm());
+            double sign = Math.signum(sourceDir.dotProduct(spineDir));
+            res.setRadialCoord(sourceDir.norm() * sign);
+            res.setCurvilinearCoord(w * r0.getContent2() + (1-w)*r1.getContent2());
+            if (testMode) logger.debug("vertebra with collinear direction case weight: {}, intersection: {} res -> {}", w, intersection, res);
+            return res;
         }
         
         // need to solve alpha & d = distanceSq from spine in the direction spineDir = weighted sum of v0 & v1
@@ -251,7 +251,7 @@ public class BacteriaSpineLocalizer {
         return res;
         
     }
-    public final static Comparator<PointContainer2<Vector, Double>> SPINE_COMPARATOR = (p1, p2)->Double.compare(p1.getContent2(), p2.getContent2());
+    public final static Comparator<PointContainer2<Vector, Double>> SPINE_COMPARATOR = Comparator.comparingDouble(PointContainer2::getContent2);
     /**
      * 
      * @param coord coordinate to project on this spine
