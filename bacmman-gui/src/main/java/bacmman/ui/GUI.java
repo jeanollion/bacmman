@@ -277,12 +277,20 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     if (f==null) l.setToolTipText(null);
                     else {
                         String dir = f.getAbsolutePath() + File.separator + dbName + "_config.json"; // TODO if other DAO -> modify this
-                        List<JSONObject> list = FileIO.readFromFile(dir, s->JSONUtils.parse(s));
-                        if (list.size()!=1) l.setToolTipText(null);
-                        else {
-                            JSONObject json = list.get(0);
-                            l.setToolTipText((String) json.get("note"));
+                        try {
+                            RandomAccessFile raf = new RandomAccessFile(dir, "r");
+                            String xpString = raf.readLine();
+                            raf.close();
+                            JSONObject json = JSONUtils.parse(xpString);
+                            if (json==null) l.setToolTipText(null);
+                            else {
+                                l.setToolTipText(Hint.formatHint((String)json.get("note"), true));
+                            }
+                        } catch (Exception ex) {
+                            l.setToolTipText(null);
+                            logger.debug("read xp note", ex);
                         }
+
                     }
                 }
             }
