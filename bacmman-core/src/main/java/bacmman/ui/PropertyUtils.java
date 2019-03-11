@@ -185,6 +185,7 @@ public class PropertyUtils {
     }
     public static void setPersistant(JTextField item, String key, String defaultValue, boolean multiple) {
         item.setText(PropertyUtils.get(key, defaultValue));
+        for (ActionListener al : item.getActionListeners()) al.actionPerformed(null); // perform action after having set default value
         if (!multiple) item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.getText());PropertyUtils.set(key, item.getText()); });
         else {
             item.addActionListener((java.awt.event.ActionEvent evt) -> {

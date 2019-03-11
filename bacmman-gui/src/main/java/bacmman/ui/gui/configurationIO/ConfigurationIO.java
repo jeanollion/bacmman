@@ -21,7 +21,9 @@ import javax.swing.border.TitledBorder;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static bacmman.plugins.Hint.formatHint;
@@ -56,9 +58,11 @@ public class ConfigurationIO {
     List<GistConfiguration> gists;
     JFrame displayingFrame;
     boolean loggedIn = false;
-    public ConfigurationIO (MasterDAO db) {
+    Map<String, char[]> savedPassword;
+    public ConfigurationIO (MasterDAO db, Map<String, char[]> savedPassword) {
         this.db = db;
         this.xp = db.getExperiment();
+        this.savedPassword = savedPassword;
         nodeJCB.addItemListener(e -> {
             switch (nodeJCB.getSelectedIndex()) {
                 case 0:
@@ -101,37 +105,16 @@ public class ConfigurationIO {
             logger.debug("set local tree: {}", currentMode);
         });
         username.addActionListener(e -> {
+            if (password.getPassword().length==0 && savedPassword.containsKey(username.getText())) password.setText(String.valueOf(savedPassword.get(username.getText())));
             fetchGists();
             updateRemoteSelector();
         });
         password.addActionListener(e-> {
+            savedPassword.put(username.getText(), password.getPassword());
             fetchGists();
             updateRemoteSelector();
         });
-        /*username.addFocusListener(new FocusListener() {
-            @Override
-            public void focusGained(FocusEvent e) {
 
-            }
-
-            @Override
-            public void focusLost(FocusEvent e) {
-                fetchGists();
-                updateRemoteSelector();
-            }
-        });
-        password.addFocusListener(new FocusListener() {
-            @Override
-            public void focusGained(FocusEvent e) {
-
-            }
-
-            @Override
-            public void focusLost(FocusEvent e) {
-                fetchGists();
-                updateRemoteSelector();
-            }
-        });*/
         saveToRemote.addActionListener(e -> {
             if (remoteSelector==null || !loggedIn) return;
             // check if a folder is selected

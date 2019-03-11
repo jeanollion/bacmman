@@ -167,6 +167,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
 
+    final private Map<String, char[]> githubPasswords = new HashMap<>();
+
     /**
      * Creates new form GUI
      */
@@ -673,7 +675,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             this.importMenu.add(remoteIO);
             remoteIO.addActionListener(e -> { // TODO: block GUI while open
                 if (!checkConnection()) return;
-                new ConfigurationIO(db).display(this);
+                new ConfigurationIO(db, githubPasswords).display(this);
             });
         }
     }
