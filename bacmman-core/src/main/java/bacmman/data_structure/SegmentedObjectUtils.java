@@ -581,6 +581,7 @@ public class SegmentedObjectUtils {
      * @return return all the objects of same object class as {@param object} contained in the {@param object} 's parent
      */
     public static  Stream<SegmentedObject> getSiblings(SegmentedObject object) {
+        if (object.isRoot()) return Stream.of(object);
         Stream<SegmentedObject> res= object.getParent().getChildren(object.getStructureIdx());
         if (res==null) return Stream.empty();
         return res;

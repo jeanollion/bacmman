@@ -89,6 +89,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.swing.*;
 import javax.swing.event.*;
@@ -288,7 +289,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             }
                         } catch (Exception ex) {
                             l.setToolTipText(null);
-                            logger.debug("read xp note", ex);
+                            logger.debug("error reading dataset note for file: "+dir, ex);
                         }
 
                     }
@@ -2665,35 +2666,41 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 IJVirtualStack.openVirtual(db.getExperiment(), nextPosition, pp);
             }
         } else  { // interactive: if IOI found
-            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
+            final InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
             if (i==null) return;
             // get next parent
             SegmentedObject nextParent = null;
-            if (i.getParent().isRoot()) return;
+            //if (i.getParent().isRoot()) return;
             List<SegmentedObject> siblings = getSiblings(i.getParent()).collect(Collectors.toList());
             int idx = siblings.indexOf(i.getParent());
             // current image structure: 
             InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2());
             int currentImageStructure = key ==null ? i.getChildStructureIdx() : key.displayedStructureIdx;
             if (i.getChildStructureIdx() == currentImageStructure) idx += (next ? 1 : -1) ; // only increment if same structure
-            logger.debug("current inter: {}, current image child: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure);
+            logger.debug("current inter object class: {}, current image child: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure);
             if (siblings.size()==idx || idx<0) { // next position
                 List<String> positions = Arrays.asList(db.getExperiment().getPositionsAsString());
-                int idxP = positions.indexOf(i.getParent().getPositionName()) + (next ? 1 : -1);
-                if (idxP<0 || idxP==positions.size()) return;
-                String nextPos = positions.get(idxP);
-                ObjectDAO dao = db.getDao(nextPos);
-                List<SegmentedObject> allObjects = SegmentedObjectUtils.getAllObjectsAsStream(dao, i.getParent().getStructureIdx()).filter(o->o.isTrackHead()).collect(Collectors.toList());
-                if (allObjects.isEmpty()) return;
-                Collections.sort(allObjects);
-                nextParent = next ? allObjects.get(0) : allObjects.get(allObjects.size()-1);
+                Function<String, Pair<String, SegmentedObject>> getNextPositionAndParent = curPosition -> {
+                    int idxP = positions.indexOf(curPosition) + (next ? 1 : -1);
+                    if (idxP < 0 || idxP == positions.size()) return null;
+                    String nextPos = positions.get(idxP);
+                    ObjectDAO dao = db.getDao(nextPos);
+                    List<SegmentedObject> allObjects = SegmentedObjectUtils.getAllObjectsAsStream(dao, i.getParent().getStructureIdx()).filter(o -> o.isTrackHead()).collect(Collectors.toList());
+                    if (allObjects.isEmpty()) return new Pair<>(nextPos, null);
+                    Collections.sort(allObjects);
+                    return new Pair<>(nextPos,  next ? allObjects.get(0) : allObjects.get(allObjects.size() - 1));
+                };
+                Pair<String, SegmentedObject> n = getNextPositionAndParent.apply(i.getParent().getPositionName());
+                while(n!=null && n.value==null) n = getNextPositionAndParent.apply(n.key);
+                if (n==null || n.key==null) return;
+                nextParent = n.value;
             } else nextParent = siblings.get(idx);
             logger.debug("open next Image : next parent: {}", nextParent);
             if (nextParent==null) return;
             List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent, false);
-            i= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx());
-            Image im = ImageWindowManagerFactory.getImageManager().getImage(i, i.getChildStructureIdx());
-            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(i.generatemage(i.getChildStructureIdx(), true), i, i.getChildStructureIdx(), true);
+            InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx());
+            Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, ii.getChildStructureIdx());
+            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(ii.generatemage(ii.getChildStructureIdx(), true), ii, ii.getChildStructureIdx(), true);
             else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
