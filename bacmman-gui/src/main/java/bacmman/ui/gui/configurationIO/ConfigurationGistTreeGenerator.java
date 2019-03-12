@@ -28,6 +28,7 @@ import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -101,10 +102,10 @@ public class ConfigurationGistTreeGenerator {
         gists.stream().map(gc -> gc.folder).distinct().sorted().map(f->new DefaultMutableTreeNode(f)).forEach(f -> {
             root.add(f);
             // actual configuration element
-            gists.stream().filter(g -> g.folder.equals(f.getUserObject())).forEach(g -> {
+            gists.stream().filter(g -> g.folder.equals(f.getUserObject())).sorted(Comparator.comparing(g->g.name)).forEach(g -> {
                 if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.type.equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
                     for (int oIdx = 0; oIdx<g.getExperiment().getStructureCount(); ++oIdx) f.add(new GistTreeNode(g).setObjectClassIdx(oIdx));
-                } else   f.add(new GistTreeNode(g));
+                } else f.add(new GistTreeNode(g));
             });
         });
 

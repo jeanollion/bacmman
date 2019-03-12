@@ -200,6 +200,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.selectionList.setModel(selectionModel);
         this.selectionList.setCellRenderer(new SelectionRenderer());
         SelectionUtils.setMouseAdapter(selectionList);
+
         // CLOSE -> clear cache properly
         addWindowListener(new WindowAdapter() {
             @Override 
@@ -209,6 +210,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     db.unlockConfiguration();
                     db.clearCache();
                 }
+                githubPasswords.clear();
                 INSTANCE = null;
                 logger.debug("Closed successfully");
             }
