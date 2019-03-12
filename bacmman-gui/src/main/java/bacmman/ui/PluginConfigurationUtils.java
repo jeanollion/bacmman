@@ -131,7 +131,7 @@ public class PluginConfigurationUtils {
             if (pf) { // perform test of post-filters
 
                 // converting post-filters in track post filters
-                Function<PostFilter, TrackPostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
+                Function<PostFilter, bacmman.plugins.plugins.track_post_filter.PostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
                 SegmentedObjectFactory factory = getFactory(structureIdx);
                 TrackLinkEditor editor = getEditor(structureIdx);
                 List<TrackPostFilter> tpfBefore = psc.getPostFilters().getChildren().subList(0, pluginIdx).stream().filter(pp->pp.isActivated()).map(pp->pfTotpfMapper.apply(pp.instanciatePlugin())).collect(Collectors.toList());
@@ -157,8 +157,8 @@ public class PluginConfigurationUtils {
                 Map<SegmentedObject, TestDataStore> stores2 = HashMapGetCreate.getRedirectedMap(soo->new TestDataStore(soo, i-> ImageWindowManagerFactory.showImage(i), expertMode), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
                 parentTrackDup2.forEach(p->stores2.get(p).addIntermediateImage("after selected post-filter", p.getRawImage(structureIdx))); // add input image
                 storeList.add(stores2);
-
-                TrackPostFilter tpf = pfTotpfMapper.apply((PostFilter)plugin);
+                bacmman.plugins.plugins.track_post_filter.PostFilter tpf = pfTotpfMapper.apply((PostFilter)plugin);
+                tpf.setTestDataStore(stores2);
                 logger.debug("executing TEST post-filter: {}", tpf.toString());
                 tpf.filter(structureIdx, parentTrackDup2, factory, editor);
             }
@@ -232,6 +232,7 @@ public class PluginConfigurationUtils {
             storeList.add(stores2);
 
             TrackPostFilter tpf = (TrackPostFilter)plugin;
+            if (tpf instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)tpf).setTestDataStore(stores2);
             logger.debug("executing TEST track post-filter");
             tpf.filter(structureIdx, parentTrackDup2, factory, editor);
 

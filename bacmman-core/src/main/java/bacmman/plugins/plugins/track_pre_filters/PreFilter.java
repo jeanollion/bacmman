@@ -24,7 +24,10 @@ import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.plugins.Hint;
+import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPreFilter;
+import org.junit.Test;
+
 import static bacmman.utils.Utils.parallele;
 import java.util.Map;
 import java.util.TreeMap;
@@ -34,7 +37,7 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class PreFilter implements TrackPreFilter, Hint {
+public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin {
     
     PluginParameter<bacmman.plugins.PreFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PreFilter.class, false).setEmphasized(true).setHint("Pre-filter that will be applied on each frame independently");
 
@@ -53,7 +56,11 @@ public class PreFilter implements TrackPreFilter, Hint {
     }
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
-        Consumer<Map.Entry<SegmentedObject, Image>> c  = e->e.setValue(filter.instanciatePlugin().runPreFilter(e.getValue(), e.getKey().getMask(), canModifyImages));
+        Consumer<Map.Entry<SegmentedObject, Image>> c  = e->{
+            bacmman.plugins.PreFilter instance=  filter.instanciatePlugin();
+            if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
+            e.setValue(instance.runPreFilter(e.getValue(), e.getKey().getMask(), canModifyImages));
+        };
         parallele(preFilteredImages.entrySet().stream(), true).forEach(c);
     }
 
@@ -66,5 +73,11 @@ public class PreFilter implements TrackPreFilter, Hint {
     public String getHintText() {
         return "Performs regular pre-filter at each frame of the track";
     }
-    
+
+
+    Map<SegmentedObject, TestDataStore> stores;
+    @Override
+    public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
+        this.stores=stores;
+    }
 }

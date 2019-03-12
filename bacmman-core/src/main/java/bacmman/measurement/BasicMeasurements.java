@@ -170,5 +170,4 @@ public class BasicMeasurements {
         stream = stream.sorted();
         return ArrayUtil.quantiles(stream.toArray(), quantiles);
     }
-    
 }

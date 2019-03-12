@@ -62,6 +62,7 @@ import bacmman.utils.geom.Vector;
 
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 /**
  * 
@@ -434,7 +435,14 @@ public class Region {
         }
         return voxels;
     }
-    
+
+    public DoubleStream getValues(Image image) {
+        if (voxelsCreated()) {
+            if (isAbsoluteLandMark()) return getVoxels().stream().mapToDouble(v->image.getPixelWithOffset(v.x, v.y, v.z));
+            else return getVoxels().stream().mapToDouble(v->image.getPixel(v.x, v.y, v.z));
+        } else return image.stream(getMask(), isAbsoluteLandMark()).sorted();
+    }
+
     public boolean voxelsCreated() {
         return voxels!=null;
     }

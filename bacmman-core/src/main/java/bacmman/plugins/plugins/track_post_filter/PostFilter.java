@@ -28,9 +28,14 @@ import bacmman.plugins.Hint;
 
 import java.util.*;
 
+import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPostFilter;
+import bacmman.utils.MultipleException;
+import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+import org.junit.Test;
+
 import static bacmman.utils.Utils.parallele;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -40,8 +45,16 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class PostFilter implements TrackPostFilter, Hint {
+public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlugin {
     PluginParameter<bacmman.plugins.PostFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PostFilter.class, false).setEmphasized(true);
+
+
+    Map<SegmentedObject, TestDataStore> stores;
+    @Override
+    public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
+        this.stores=stores;
+    }
+
     public enum DELETE_METHOD {
         SINGLE_OBJECTS("Delete single objects"),
         DELETE_TRACK("Delete whole track"),
@@ -97,7 +110,9 @@ public class PostFilter implements TrackPostFilter, Hint {
             //logger.debug("seg post-filter: {}", parent);
             if (!rootParent) pop.translate(new SimpleBoundingBox(parent.getBounds()).reverseOffset(), false); // go back to relative landmark for post-filter
             //if(parent.getFrame()==858) postFilters.set
-            pop=filter.instanciatePlugin().runPostFilter(parent, structureIdx, pop);
+            bacmman.plugins.PostFilter instance = filter.instanciatePlugin();
+            if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
+            pop=instance.runPostFilter(parent, structureIdx, pop);
             List<SegmentedObject> toRemove=null;
             if (parent.getChildren(structureIdx)!=null) {
                 List<SegmentedObject> children = parent.getChildren(structureIdx).collect(Collectors.toList());;
@@ -123,7 +138,11 @@ public class PostFilter implements TrackPostFilter, Hint {
              // TODO ABLE TO INCLUDE POST-FILTERS THAT CREATE NEW OBJECTS -> CHECK INTERSECTION INSTEAD OF OBJECT EQUALITY
             
         };
-        ThreadRunner.executeAndThrowErrors(parallele(parentTrack.stream(), true), exe);
+        try {
+            ThreadRunner.executeAndThrowErrors(parallele(parentTrack.stream(), true), exe);
+        } catch (MultipleException me) {
+            for (Pair<String, Throwable> p : me.getExceptions()) logger.debug(p.key, p.value);
+        }
         if (!objectsToRemove.isEmpty()) { 
             //logger.debug("delete method: {}, objects to delete: {}", this.deleteMethod.getSelectedItem(), objectsToRemove.size());
             BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
