@@ -174,7 +174,7 @@ public class ConfigurationIO {
             form.display(displayingFrame, "Update remote configuration...");
             if (form.canceled) return;
             gist.setDescription(form.description()); // only those fields can be modified
-            JSONObject content = (JSONObject)remoteConfig.getRoot().toJSONEntry();
+            JSONObject content = (JSONObject)localConfig.getRoot().toJSONEntry();
             if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
                 switch (currentMode) {
                     case PROCESSING: {
@@ -194,6 +194,7 @@ public class ConfigurationIO {
                 }
             }
             gist.setJsonContent(content).updateContent(getAuth());
+            updateRemoteSelector();
         });
         copyToLocal.addActionListener(e -> {
             if (remoteConfig==null) return;
@@ -242,7 +243,7 @@ public class ConfigurationIO {
             // check that name does not already exists
             boolean exists = gists.stream().anyMatch(g->g.folder.equals(form.folder())&& g.name.equals(form.name())&&g.type.equals(currentMode));
             if (exists) {
-                GUI.log("Gist already exists.");
+                GUI.log("Configuration already exists.");
                 return;
             }
             if (!Utils.isValid(form.name(), false)) {

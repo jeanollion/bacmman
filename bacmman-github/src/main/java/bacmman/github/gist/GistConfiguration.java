@@ -125,6 +125,7 @@ public class GistConfiguration implements Hint {
 
     public GistConfiguration setJsonContent(JSONObject jsonContent) {
         this.jsonContent = jsonContent;
+        this.xp=null;
         return this;
     }
 
