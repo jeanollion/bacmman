@@ -351,7 +351,7 @@ public class RegionPopulation {
     public RegionPopulation localThreshold(Image erodeMap, Function<Region, Double> thresholdFunction, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
         //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
         List<Region> addedObjects = new ArrayList<>();
-        Map<Integer, Double> labelMapThld = Utils.toMapWithNullValues(getRegions().stream(), r->r.getLabel(), thresholdFunction, false);
+        Map<Integer, Double> labelMapThld = Utils.toMapWithNullValues(getRegions().stream(), Region::getLabel, thresholdFunction, false);
         if (dilateRegionRadius>0) {
             labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
             constructObjects();

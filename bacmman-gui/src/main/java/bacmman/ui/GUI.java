@@ -32,6 +32,7 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
+import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.configurationIO.ConfigurationIO;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
@@ -74,7 +75,6 @@ import bacmman.image.Image;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
@@ -176,6 +176,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.info("Creating GUI instance...");
         this.INSTANCE=this;
         initComponents();
+
+
         this.testStepJCBItemStateChanged(null);
         this.moduleList.setModel(moduleModel);
         this.testModuleList.setModel(testModuleModel);
@@ -184,7 +186,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             testFrameRangeLabel.setText(testFrameRange.toString());
             testFrameRangeLabel.setForeground(testFrameRange.isValid() ? Color.BLACK : Color.red);
         });
-        Color backgroundColor = Color.CYAN;
         JLabel configurationTabTitle = new JLabel("Configuration");
         configurationTabTitle.setForeground(Color.gray); // at startup, configuration tab is not enabled
         tabs.setTabComponentAt(1, configurationTabTitle); // so that it can be colorized in red when configuration is not valid
@@ -299,9 +300,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
 
-        // disable components when run action
+
         actionPoolList.setModel(actionPoolListModel);
+        JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         datasetList.setModel(experimentModel);
+        // disable components when run action
         relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         
@@ -671,9 +674,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             hasGitubModule = false;
         }
         if (hasGitubModule) {
-            JMenuItem remoteIO = new JMenuItem("Remote Import/Export");
+            JMenuItem remoteIO = new JMenuItem("Import/Export configuration from Github server");
             this.importMenu.add(remoteIO);
-            remoteIO.addActionListener(e -> { // TODO: block GUI while open
+            remoteIO.addActionListener(e -> {
+                if (!checkConnection()) return;
+                new ConfigurationIO(db, githubPasswords).display(this);
+            });
+            JMenuItem remoteIO2 = new JMenuItem("Import/Export configuration from Github server");
+            this.exportMenu.add(remoteIO2);
+            remoteIO2.addActionListener(e -> {
                 if (!checkConnection()) return;
                 new ConfigurationIO(db, githubPasswords).display(this);
             });
@@ -1500,7 +1509,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionPoolList.setOpaque(false);
         actionPoolList.setSelectionBackground(new java.awt.Color(57, 105, 138));
         actionPoolList.setSelectionForeground(new java.awt.Color(255, 255, 254));
-        setTransferHandler(new ListTransferHandler());
+        //setTransferHandler(new ListTransferHandler());
         actionPoolList.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mousePressed(java.awt.event.MouseEvent evt) {
                 actionPoolListMousePressed(evt);
@@ -3593,7 +3602,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             deleteSelected.setEnabled(!sel.isEmpty());
             menu.add(deleteSelected);
-            Action up = new AbstractAction("Move Up") {
+            /*Action up = new AbstractAction("Move Up") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     int[] newIndices = new int[sel.size()];
@@ -3628,7 +3637,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             down.setEnabled(!sel.isEmpty() && sel.size()<actionPoolListModel.size());
-            menu.add(down);
+            menu.add(down);*/
             Action clearAll = new AbstractAction("Clear All") {
                 @Override
                 public void actionPerformed(ActionEvent e) {

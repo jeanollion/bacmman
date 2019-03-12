@@ -35,11 +35,8 @@ import bacmman.utils.geom.Point;
 import static bacmman.data_structure.SegmentedObjectUtils.getDivisionSiblings;
 import static bacmman.processing.bacteria_spine.BacteriaSpineLocalizer.project;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+
 import org.jgrapht.graph.DefaultWeightedEdge;
 import bacmman.plugins.plugins.segmenters.SpotSegmenter;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.DistanceComputationParameters;
@@ -47,8 +44,8 @@ import bacmman.plugins.plugins.trackers.nested_spot_tracker.NestedSpot;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing.MutationTrackPostProcessing;
 import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
 import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface.SpotFactory;
-
-import static bacmman.utils.Utils.parallele;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
@@ -58,6 +55,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPlugin, Hint, HintSimple {
+    final static Logger logger = LoggerFactory.getLogger(NestedSpotTracker.class);
     private static final String CONF_HINT = "<br />Configuration hint: to display distance between two spots, select the two spots on test images and choose <em>Display Spine</em> from right-click menu. Distance will be logged in the console and projection of source spot to destination bacteria displayed";
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, new SpotSegmenter(), false).setEmphasized(true);
     ObjectClassParameter compartmentStructure = new ObjectClassParameter("Bacteria Object Class", -1, false, false).setEmphasized(true).setHint("Indicate the name of the object class corresponding to bacteria, i.e. containing the spots to be tracked.");
@@ -160,11 +158,10 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                 .setProjOnSameSide(this.projectOnSameSide.getSelected());
         
         logger.debug("distanceFTF: {}, distance GC: {}, gapP: {}", maxLinkingDistance, maxLinkingDistanceGC, gapPenalty);
-        
-        final Map<Region, SegmentedObject> mutationMapParentBacteria = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx)
-                .collect(Collectors.toMap(m->m.getRegion(), m->SegmentedObjectUtils.getContainer(m.getRegion(), m.getParent().getChildren(compartmentStructure), null)));
+        Map<Region, SegmentedObject> mutationMapParentBacteria = Utils.toMapWithNullValues(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx), e->e.getRegion(), e->SegmentedObjectUtils.getContainer(e.getRegion(), e.getParent().getChildren(compartmentStructure), null), false);
         final Map<SegmentedObject, List<Region>> bacteriaMapMutation = mutationMapParentBacteria.keySet().stream().collect(Collectors.groupingBy(m->mutationMapParentBacteria.get(m)));
-        // get all potential spine localizer: for each bacteria with mutation look if there are bacteria with mutations in previous bacteria within gap range
+
+        // get all potential spine localizers: for each bacteria with mutation look if there are bacteria with mutations in previous bacteria within gap range
         Set<SegmentedObject> parentWithSpine = new HashSet<>();
         parentWithSpine.addAll(bacteriaMapMutation.keySet());
         bacteriaMapMutation.keySet().forEach(b-> {
@@ -186,7 +183,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         });
         //Map<SegmentedObject, BacteriaSpineLocalizer> lMap = parallele(parentWithSpine.stream(), true).collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()))); // spine are long to compute: better performance when computed all at once
         MultipleException me = new MultipleException();
-        Map<SegmentedObject, BacteriaSpineLocalizer> lMap = Utils.toMapWithNullValues(Utils.parallele(parentWithSpine.stream(), true), b->b, b->new BacteriaSpineLocalizer(b.getRegion()), true, me);  // spine are long to compute: better performance when computed all at once
+        Map<SegmentedObject, BacteriaSpineLocalizer> lMap = Utils.toMapWithNullValues(Utils.parallele(parentWithSpine.stream(), true), b->b, b->new BacteriaSpineLocalizer(b.getRegion()), true, me);  // spine are long to compute: better performances when computed all at once
         final HashMapGetCreate<SegmentedObject, BacteriaSpineLocalizer> localizerMap = HashMapGetCreate.getRedirectedMap((SegmentedObject s) -> {
             try {
                 return new BacteriaSpineLocalizer(s.getRegion());
@@ -202,11 +199,12 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             public NestedSpot toSpot(Region o, int frame) {
                 SegmentedObject b = mutationMapParentBacteria.get(o);
                 if (b==null) {
-                    me.addExceptions(new Pair<>(parentTrack.stream().filter(p->p.getFrame()==frame).findAny()+"-spot#"+o.getLabel(), new RuntimeException("Mutation's parent bacteria not found")));
+                    // if exception is thrown -> all objects are removed...
+                    //me.addExceptions(new Pair<>(parentTrack.stream().filter(p->p.getFrame()==frame).findAny().get()+"-spot#"+o.getLabel(), new RuntimeException("Mutation's parent bacteria not found")));
                     return null;
                 }
                 if (localizerMap.get(b)==null) {
-                    me.addExceptions(new Pair<>(b+"-spot#"+o.getLabel(), new RuntimeException("Mutation's parent bacteria spine not found")));
+                    //me.addExceptions(new Pair<>(b.toString(), new RuntimeException("Mutation's parent bacteria spine could not be computed")));
                     return null;
                 }
                 if (o.getCenter()==null) o.setCenter(o.getGeomCenter(false));
