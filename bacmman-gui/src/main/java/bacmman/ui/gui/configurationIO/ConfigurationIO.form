@@ -173,7 +173,7 @@
               </grid>
             </constraints>
             <properties>
-              <toolTipText value="Enter the password associated to the github account. If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible."/>
+              <toolTipText value="Enter the password associated to the github account. If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk."/>
             </properties>
           </component>
           <component id="93c29" class="javax.swing.JTextField" binding="username">
