@@ -49,12 +49,12 @@ import java.util.stream.IntStream;
  *
  * @author Jean Ollion
  */
-public class RemoveDeadPixels implements ConfigurableTransformation, TestableOperation, Hint {
-    NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higer than this threshold pixel is considered as dead and will be replaced by the median value");
+public class RemoveHotPixels implements ConfigurableTransformation, TestableOperation, Hint {
+    NumberParameter threshold = new BoundedNumberParameter("Local Threshold", 5, 30, 0, null).setHint("Difference between pixels and median of the direct neighbors is computed. If difference is higher than this threshold pixel is considered as dead and will be replaced by the median value");
     NumberParameter frameRadius = new BoundedNumberParameter("Frame Radius", 0, 4, 1, null).setHint("Number of frame to average. Set 1 to perform transformation Frame by Frame. A higher value will average previous frames");
     HashMapGetCreate<Integer, Set<Voxel>> configMapF;
-    public RemoveDeadPixels(){}
-    public RemoveDeadPixels(double threshold, int frameRadius) {
+    public RemoveHotPixels(){}
+    public RemoveHotPixels(double threshold, int frameRadius) {
         this.threshold.setValue(threshold);
         this.frameRadius.setValue(frameRadius);
     }
@@ -172,7 +172,7 @@ public class RemoveDeadPixels implements ConfigurableTransformation, TestableOpe
 
     @Override
     public String getHintText() {
-        return "Removes pixels that have much higer values than their surroundings (in space & time)";
+        return "Removes pixels that have much higher values than their surroundings (in space & time)";
     }
     
 }
