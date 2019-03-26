@@ -34,6 +34,7 @@ import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.configurationIO.ConfigurationIO;
+import bacmman.ui.gui.configurationIO.NewDatasetFromGithub;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -909,9 +910,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             configurationTreeGenerator = new ConfigurationTreeGenerator(db.getExperiment(), db.getExperiment(),setConfigurationTabValid, (selectedModule, modules) -> populateModuleList(moduleModel, moduleList, selectedModule, modules), setHint, db, ProgressCallback.get(this));
             configurationJSP.setViewportView(configurationTreeGenerator.getTree());
-            setConfigurationTabValid.accept(db.getExperiment().isValid());
+            updateConfigurationTabValidity();
             moduleSelectionCallBack = configurationTreeGenerator.getModuleChangeCallBack();
         }
+    }
+
+    public void updateConfigurationTabValidity() {
+        if (db==null) setConfigurationTabValid.accept(true);
+        else setConfigurationTabValid.accept(db.getExperiment().isValid());
     }
 
     private void populateModuleList(DefaultListModel<String> moduleModel, javax.swing.JList<String> moduleList, String selectedModule, List<String> modules) {
@@ -1370,6 +1376,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setSelectedExperimentMenuItem = new javax.swing.JMenuItem();
         newXPMenuItem = new javax.swing.JMenuItem();
         newXPFromTemplateMenuItem = new javax.swing.JMenuItem();
+        newDatasetFromGithubMenuItem = new javax.swing.JMenuItem();
         deleteXPMenuItem = new javax.swing.JMenuItem();
         duplicateXPMenuItem = new javax.swing.JMenuItem();
         saveConfigMenuItem = new javax.swing.JMenuItem();
@@ -1511,7 +1518,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionPoolList.setOpaque(false);
         actionPoolList.setSelectionBackground(new java.awt.Color(57, 105, 138));
         actionPoolList.setSelectionForeground(new java.awt.Color(255, 255, 254));
-        //setTransferHandler(new ListTransferHandler());
+        setTransferHandler(new ListTransferHandler());
         actionPoolList.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mousePressed(java.awt.event.MouseEvent evt) {
                 actionPoolListMousePressed(evt);
@@ -1560,7 +1567,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         configurationSplitPane.setDividerLocation(500);
 
-        configurationSplitPaneRight.setDividerLocation(150);
+        configurationSplitPaneRight.setDividerLocation(250);
         configurationSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
         moduleListJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Available Modules"));
@@ -1599,7 +1606,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         testSplitPane.setDividerLocation(500);
 
-        testSplitPaneRight.setDividerLocation(150);
+        testSplitPaneRight.setDividerLocation(250);
         testSplitPaneRight.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
 
         testModuleJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Available Modules"));
@@ -2232,6 +2239,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         experimentMenu.add(newXPFromTemplateMenuItem);
+
+        newDatasetFromGithubMenuItem.setText("New dataset from Github");
+        newDatasetFromGithubMenuItem.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                newDatasetFromGithubMenuItemActionPerformed(evt);
+            }
+        });
+        experimentMenu.add(newDatasetFromGithubMenuItem);
 
         deleteXPMenuItem.setText("Delete");
         deleteXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2881,24 +2896,30 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
     }//GEN-LAST:event_setSelectedExperimentMenuItemActionPerformed
 
-    private void newXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPMenuItemActionPerformed
+    private boolean newXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPMenuItemActionPerformed
         String name = JOptionPane.showInputDialog("New Dataset name:");
-        if (name==null) return;
+        if (name==null) return false;
         name = ExperimentSearchUtils.addPrefix(name, currentDBPrefix);
-        if (!Utils.isValid(name, false)) logger.error("Name should not contain special characters");
-        else if (getDBNames().contains(name)) logger.error("Dataset name already exists");
+        if (!Utils.isValid(name, false)) {
+            logger.error("Name should not contain special characters");
+            return false;
+        }
+        else if (getDBNames().contains(name)) {
+            logger.error("Dataset name already exists");
+            return false;
+        }
         else {
             String adress = null;
             if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) { // create directory
                 File dir = new File(workingDirectory.getText());
                 adress = createSubdir(dir.getAbsolutePath(), name);
                 logger.debug("new dataset dir: {}", adress);
-                if (adress==null) return;
+                if (adress==null) return false;
             }
             MasterDAO db2 = MasterDAOFactory.createDAO(name, adress);
             if (!db2.setConfigurationReadOnly(false)) {
                 this.setMessage("Could not modify dataset "+name+" @ "+  adress);
-                return;
+                return false;
             }
             Experiment xp2 = new Experiment(name);
             xp2.setName(name);
@@ -2910,6 +2931,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             populateExperimentList();
             openExperiment(name, null, false);
             if (this.db!=null) setSelectedExperiment(name);
+            return db!=null;
         }
     }//GEN-LAST:event_newXPMenuItemActionPerformed
 
@@ -4170,6 +4192,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             testConfigurationTreeGenerator.nodeStructureChanged(testConfigurationTreeGenerator.getRoot());
         }
     }//GEN-LAST:event_testModeJCBItemStateChanged
+
+    private void newDatasetFromGithubMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newDatasetFromGithubMenuItemActionPerformed
+        JSONObject xp = NewDatasetFromGithub.promptExperiment(githubPasswords);
+        if (xp==null) return;
+        if (!newXPMenuItemActionPerformed(evt)) return;
+
+        String outputPath = db.getExperiment().getOutputDirectory();
+        String outputImagePath = db.getExperiment().getOutputImageDirectory();
+        db.getExperiment().initFromJSONEntry(xp);
+        db.getExperiment().setOutputDirectory(outputPath);
+        db.getExperiment().setOutputImageDirectory(outputImagePath);
+        this.updateConfigurationTabValidity();
+    }//GEN-LAST:event_newDatasetFromGithubMenuItemActionPerformed
     public void updateSelectionListUI() {
         selectionList.updateUI();
     }
@@ -4527,6 +4562,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu miscMenu;
     private javax.swing.JList<String> moduleList;
     private javax.swing.JScrollPane moduleListJSP;
+    private javax.swing.JMenuItem newDatasetFromGithubMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;

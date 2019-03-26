@@ -262,7 +262,7 @@ public class ConfigurationIO {
         });
 
         // persistence of username account:
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "bacmman", true);
+        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true);
 
         setWholeConfig();
 
@@ -296,6 +296,7 @@ public class ConfigurationIO {
                 if (db.experimentChangedFromFile()) {
                     if (Utils.promptBoolean("Local configuration has changed, save changes ?", mainPanel)) {
                         db.updateExperiment();
+                        if (GUI.hasInstance()) GUI.getInstance().updateConfigurationTabValidity(); // also update configuration tab display
                     }
                 }
                 logger.debug("Github IO Closed successfully");
