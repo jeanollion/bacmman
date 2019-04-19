@@ -17,8 +17,8 @@ public class FastRadialSymetryTransformUtil {
      * @param smallGradientThreshold proportion of  discarded gradients (lower than this value)
      * @return
      */
-    public static Image runTransform(Image input, double[] radii, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double alpha, double smallGradientThreshold){
-        ImageFloat[] grad = ImageFeatures.getGradient(input, 1, 1, false); // which gradient scale should be chosen ? should sobel filter be chosen as in the origial publication ?
+    public static Image runTransform(Image input, double[] radii, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double gradientScale, double alpha, double smallGradientThreshold){
+        ImageFloat[] grad = ImageFeatures.getGradient(input, gradientScale, gradientScale, false); // which gradient scale should be chosen ? should sobel filter be chosen as in the origial publication ?
         Image gradX = grad[0];
         Image gradY = grad[1];
         Image gradM = new ImageFloat("", input).resetOffset();
@@ -31,6 +31,10 @@ public class FastRadialSymetryTransformUtil {
         Image output = new ImageFloat("", input);
         // over all radii that are in the set
         for (int i = 0; i < radii.length; i++) {
+            if (i>0) {
+                ImageOperations.fill(Omap, 0, null);
+                if (Mmap!=null) ImageOperations.fill(Mmap, 0, null);
+            }
             double radius = radii[i];
             float kappa = (Math.round(radius) <= 1) ? 8 : 9.9f;
             // get the O and M maps
@@ -55,17 +59,23 @@ public class FastRadialSymetryTransformUtil {
 
                 // compute the 'positively' and/or 'negatively' affected pixels
                 if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
-                    int posx = correctRange(x + xg,Omap.sizeX()-1);
-                    int posy = correctRange(y + yg,Omap.sizeY()-1);
-                    Omap.setPixel(posx, posy, z, (Omap.getPixel(posx, posy, z)+1 > kappa) ? kappa : Omap.getPixel(posx, posy, z)+1);
-                    if (Mmap != null) Mmap.setPixel(posx, posy, z, Mmap.getPixel(posx, posy, z)+gradM.getPixel(x, y, z));
+                    int posx = x+xg, posy = y+yg;
+                    //int posx = correctRange(x + xg,Omap.sizeX()-1);
+                    //int posy = correctRange(y + yg,Omap.sizeY()-1);
+                    if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0) {
+                        Omap.setPixel(posx, posy, z, (Omap.getPixel(posx, posy, z) + 1 > kappa) ? kappa : Omap.getPixel(posx, posy, z) + 1);
+                        if (Mmap != null)  Mmap.setPixel(posx, posy, z, Mmap.getPixel(posx, posy, z) + gradM.getPixel(x, y, z));
+                    }
                 }
 
                 if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
-                    int negx = correctRange(x - xg,Omap.sizeX()-1);
-                    int negy = correctRange(y - yg,Omap.sizeY()-1);
-                    Omap.setPixel(negx, negy, z, (Omap.getPixel(negx, negy, z)-1 < -kappa) ? -kappa : Omap.getPixel(negx, negy, z)-1);
-                    if (Mmap != null) Mmap.setPixel(negx, negy, z, Mmap.getPixel(negx, negy, z)-gradM.getPixel(x, y, z));
+                    int negx = x-xg, negy = y-yg;
+                    //int negx = correctRange(x - xg,Omap.sizeX()-1);
+                    //int negy = correctRange(y - yg,Omap.sizeY()-1);
+                    if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0) {
+                        Omap.setPixel(negx, negy, z, (Omap.getPixel(negx, negy, z) - 1 < -kappa) ? -kappa : Omap.getPixel(negx, negy, z) - 1);
+                        if (Mmap != null) Mmap.setPixel(negx, negy, z, Mmap.getPixel(negx, negy, z) - gradM.getPixel(x, y, z));
+                    }
                 }
             },
             (x, y, z)->gradientThld==0 || gradM.getPixel(x, y, z)>gradientThld, // do not consider gradients with too small magnitudes

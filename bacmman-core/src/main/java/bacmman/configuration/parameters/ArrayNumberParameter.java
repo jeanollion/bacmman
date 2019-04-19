@@ -61,7 +61,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
         Collections.sort(children, (n1, n2)->Double.compare(n1.getValue().doubleValue(), n2.getValue().doubleValue()));
     }
     
-    public void setValue(double... values) {
+    public ArrayNumberParameter setValue(double... values) {
         if (unMutableIndex>=0 && values.length<=unMutableIndex) throw new IllegalArgumentException("Min number of values: "+this.unMutableIndex+1);
         synchronized(this) {
             bypassListeners=true;
@@ -70,6 +70,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
             this.fireListeners();
             bypassListeners=false;
         }
+        return this;
     }
     @Override
     public void setContentFrom(Parameter other) { // TODO IS THIS NECESSARY ? 
