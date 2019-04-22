@@ -48,6 +48,7 @@ public class ConfigurationIO {
     private JPanel mainPanel;
     private JButton deleteRemote;
     private JButton duplicateRemote;
+    private JPanel credentialPanel;
 
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(ConfigurationIO.class);
     Experiment xp;

@@ -24,6 +24,9 @@ public class NewDatasetFromGithub extends JDialog {
     private JPasswordField password;
     private JTextField username;
     private JScrollPane remoteSelectorJSP;
+    private JPanel buttonPanel;
+    private JPanel configPanel;
+    private JPanel selectorPanel;
     Map<String, char[]> savedPassword;
     JSONObject selectedXP;
     List<GistConfiguration> gists;

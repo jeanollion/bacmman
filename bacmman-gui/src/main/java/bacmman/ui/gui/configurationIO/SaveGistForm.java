@@ -19,6 +19,8 @@ public class SaveGistForm {
     private JButton cancel;
     private JButton OK;
     private JPanel panelMain;
+    private JPanel buttonPanl;
+    private JPanel folderPanel;
     boolean canceled = false;
     private static final org.slf4j.Logger logger = LoggerFactory.getLogger(SaveGistForm.class);
     public SaveGistForm() {
