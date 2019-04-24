@@ -86,18 +86,6 @@ public class RegionContainerVoxels extends RegionContainer {
     public Region getRegion() {
         return new Region(getVoxels(), structureObject.getIdx() + 1, bounds, is2D, structureObject.getScaleXY(), structureObject.getScaleZ());
     }
-
-    @Override
-    public void deleteRegion() {
-        bounds = null;
-        x = null;
-        y = null;
-        z = null;
-    }
-
-    @Override
-    public void relabelRegion(int newIdx) {
-    }
     
     @Override 
     public JSONObject toJSON() {

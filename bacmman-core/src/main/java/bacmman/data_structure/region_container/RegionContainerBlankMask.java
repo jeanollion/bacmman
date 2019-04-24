@@ -41,12 +41,6 @@ public class RegionContainerBlankMask extends RegionContainer {
     public Region getRegion() {
         return new Region(getImage(), structureObject.getIdx()+1, is2D);
     }
-    
-    @Override public void deleteRegion(){bounds=null;}
 
-    @Override
-    public void relabelRegion(int newIdx) {
-        
-    }
     protected RegionContainerBlankMask() {}
 }

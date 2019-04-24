@@ -379,7 +379,7 @@ public class Region {
         this.mask=mask_;
     }
 
-    private void createVoxels() {
+    protected void createVoxels() {
         //logger.debug("create voxels: mask offset: {}", mask.getBoundingBox());
         HashSet<Voxel> voxels_=new HashSet<>();
         ImageMask.loopWithOffset(mask, (x, y, z)->voxels_.add(new Voxel(x, y, z)));
@@ -392,11 +392,11 @@ public class Region {
     }
     /**
      * 
-     * @return an image conatining only the object: its bounds are the one of the object and pixel values >0 where the objects has a voxel. The offset of the image is this offset of the object. 
+     * @return an image containing only the object: its bounds are the one of the object and pixel values >0 where the objects has a voxel. The offset of the image is this offset of the object.
      */
     public ImageMask<? extends ImageMask> getMask() {
         if (mask==null && voxels!=null) {
-            synchronized(this) { // "Double-Checked Locking"
+            synchronized(this) {
                 if (mask==null) {
                     createMask();
                 }

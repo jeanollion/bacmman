@@ -394,7 +394,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         }
     }
     void setIdx(int idx) {
-        if (regionContainer!=null) regionContainer.relabelRegion(idx);
         if (this.object!=null) object.setLabel(idx+1);
         this.idx=idx;
     }

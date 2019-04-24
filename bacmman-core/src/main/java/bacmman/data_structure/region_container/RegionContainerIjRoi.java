@@ -114,15 +114,6 @@ public class RegionContainerIjRoi extends RegionContainer {
     }
 
     @Override
-    public void deleteRegion() {
-        bounds = null;
-        roiZ = null;
-    }
-
-    @Override
-    public void relabelRegion(int newIdx) {
-    }
-    @Override
     public void initFromJSON(Map json) {
         super.initFromJSON(json);
         if (json.containsKey("roi")) {

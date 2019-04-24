@@ -42,7 +42,7 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
     @Override
     public void performMeasurement(SegmentedObject parent) {
         int oIdx = structure.getSelectedClassIdx();
-        Map<Region, double[]> parameters = GaussianFit.run(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), 4, 300, 0.001, 0.1);
+        Map<Region, double[]> parameters = GaussianFit.run(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), 2, 6, 300, 0.001, 0.1);
         Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(o->o.getRegion(), o->o));
         parameters.forEach((r, p) -> {
             SegmentedObject so = rSMap.get(r);
@@ -54,5 +54,10 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
     @Override
     public Parameter[] getParameters() {
         return parameters;
+    }
+
+    @Override
+    public String getHintText() {
+        return "Estimation of spot fluorescence by gaussian fit. <br />Fit formula: I(xᵢ) = C + A * exp (- 1/(2*σ) * ∑ (xᵢ - x₀ᵢ)² ). <br />Measured parameters: <ul><li>GF_Sigma = σ</li><li>GF_N = 2 * pi * σ * A, estimation of number of fluorescent molecules within spot</li></ul>";
     }
 }

@@ -18,10 +18,7 @@
  */
 package bacmman.ui.gui.image_interaction;
 
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.data_structure.SegmentedObjectFactory;
-import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.*;
 import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.data_structure.region_container.roi.TrackRoi;
@@ -30,12 +27,7 @@ import bacmman.ui.ManualEdition;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
-import ij.gui.Arrow;
-import ij.gui.ImageCanvas;
-import ij.gui.ImageWindow;
-import ij.gui.Overlay;
-import ij.gui.PointRoi;
-import ij.gui.Roi;
+import ij.gui.*;
 import ij.process.FloatPolygon;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
@@ -337,7 +329,19 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
                     .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
             
+        } else if (object.key.getRegion() instanceof Spot) {
+            double x = object.key.getRegion().getCenter().getDoublePosition(0);
+            double y = object.key.getRegion().getCenter().getDoublePosition(1);
+            int z = (int)(object.key.getRegion().getCenter().getWithDimCheck(2)+0.5);
+            double rad = ((Spot)object.key.getRegion()).getRadius();
+            Roi roi = new EllipseRoi(x+0.5, y - 2.3548 * rad / 2 + 0.5, x+0.5, y + 2.3548 * rad / 2 + 0.5, 1);
+            // TODO make 3D ROI with radius that vary with Z
+            r = new Roi3D(1);
+            roi.setLocation(object.value.xMin(), object.value.yMin());
+            roi.setPosition(z +1+ object.value.zMin());
+            r.put(z, roi);
         } else r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
+
         if (object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
             double size = TRACK_ARROW_STROKE_WIDTH*1.5;
             Point p = new Point((float)object.key.getBounds().xMean(), (float)object.key.getBounds().yMean());

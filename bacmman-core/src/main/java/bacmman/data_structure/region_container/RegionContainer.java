@@ -49,9 +49,7 @@ public abstract class RegionContainer {
     protected float getScaleZ() {return structureObject.getScaleZ();}
     public boolean is2D() {return is2D;}
     public abstract Region getRegion();
-    
-    public abstract void deleteRegion();
-    public abstract void relabelRegion(int newIdx);
+
     public void initFromJSON(Map<String, Object> json) {
         JSONArray bds =  (JSONArray)json.get("bounds");
         this.bounds=new MutableBoundingBox();

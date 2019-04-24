@@ -95,8 +95,7 @@ public class GaussianPlusConstant implements FitFunction {
 	}
 
 	@Override
-	public final double hessian(final double[] x, final double[] a, int rIn,
-		int cIn)
+	public final double hessian(final double[] x, final double[] a, int rIn, int cIn)
 	{
 		int r = rIn;
 		int c = cIn;

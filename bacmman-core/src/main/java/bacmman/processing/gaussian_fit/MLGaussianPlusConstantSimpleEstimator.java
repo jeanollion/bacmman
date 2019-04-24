@@ -41,12 +41,12 @@ public class MLGaussianPlusConstantSimpleEstimator extends MLGaussianEstimator {
         
         final double[] start_param = new double[nDims+3];
         for (int j = 0; j < nDims; j++) {
-                start_param[j] = point.getLongPosition(j);
+                start_param[j] = point.getDoublePosition(j);
         }
         double centerValue = getValue(point, data);
         start_param[nDims + 1] = 1/(2 * sigma * sigma);
         double[] meanAndMin = getMeanAndMinValue(point, data, 3 * sigma);
-        start_param[nDims + 2] = (meanAndMin[0]+meanAndMin[1])/2; //C
+        start_param[nDims + 2] = meanAndMin[1]; //C
         start_param[nDims] = centerValue - start_param[nDims + 2]; //A
         logger.debug("startpoint estimation: data: {}, {}", data.I.length, start_param);
         return start_param;
