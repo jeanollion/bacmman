@@ -105,7 +105,7 @@ public interface BoundingBox<T> extends Offset<T> {
      * 
      * @param b1
      * @param b2
-     * @return intersection bounding box in XY dimensions. If the size in one direction is negative => there are no intersection in this direction. Zmin and Zmax are those {@param b1}
+     * @return intersection bounding box in XY dimensions. If the size in one direction is negative => there are no intersection in this direction. Zmin and Zmax are u {@param b1}
      */
     public static SimpleBoundingBox getIntersection2D(BoundingBox b1, BoundingBox b2) {
         return new SimpleBoundingBox(Math.max(b1.xMin(), b2.xMin()), Math.min(b1.xMax(), b2.xMax()), Math.max(b1.yMin(), b2.yMin()), Math.min(b1.yMax(), b2.yMax()), b1.zMin(), b1.zMax());

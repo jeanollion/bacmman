@@ -29,12 +29,8 @@ import bacmman.image.ImageMask;
 import bacmman.image.Offset;
 import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 
 import bacmman.plugins.ObjectSplitter;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
@@ -86,7 +82,7 @@ public class FreeLineSplitter implements ObjectSplitter {
         res.filterAndMergeWithConnected(o->o.size()>1); // connect 1-pixels objects, artifacts of low connectivity labelling
         if (objects.size()>2) { // merge smaller & connected
             // islate bigger object and try to merge others
-            Region biggest = Collections.max(objects, (o1, o2)->Integer.compare(o1.size(), o2.size()));
+            Region biggest = Collections.max(objects, Comparator.comparingDouble(Region::size));
             List<Region> toMerge = new ArrayList<>(objects);
             toMerge.remove(biggest);
             RegionPopulation mergedPop =  new RegionPopulation(toMerge, splitMask);

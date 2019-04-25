@@ -97,7 +97,7 @@ public class ObjectInclusionCount implements Measurement, Hint {
             if (proportionInclusion==0) return true;
             else {
                 if (o.getRegion().getVoxels().isEmpty()) return false;
-                double incl = (double)o.getRegion().getOverlapMaskMask(containerObject, null, null) / (double)o.getRegion().getVoxels().size();
+                double incl = (double)o.getRegion().getOverlapArea(containerObject, null, null) / (double)o.getRegion().getVoxels().size();
                 //logger.debug("inclusion: {}, threshold: {}, container: {}, parent:{}", incl, percentageInclusion, container, o.getParent());
                 return (incl>=proportionInclusion);
             }

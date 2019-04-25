@@ -711,8 +711,14 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (attributes!=null) {
             attributes.remove("Quality");
             attributes.remove("Center");
+            attributes.remove("Intensity");
+            attributes.remove("Radius");
         }
         if (!Double.isNaN(object.getQuality())) setAttribute("Quality", object.getQuality());
+        if (object instanceof Spot) {
+            setAttribute("Radius", ((Spot)object).getRadius());
+            setAttribute("Intensity", ((Spot)object).getIntensity());
+        }
         if (object.getCenter()!=null) {
             Point c = object.getCenter();
             setAttributeList("Center", IntStream.range(0, c.numDimensions()).mapToObj(i->(double)c.get(i)).collect(Collectors.toList()));

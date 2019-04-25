@@ -1043,7 +1043,7 @@ public class Utils {
         return (o1, o2)-> Double.compare(toNumber.apply(o1), toNumber.apply(o2));
     }
     public static <T> Comparator<T> comparatorInt(Function<T, Integer> toNumber) {
-        return (o1, o2)-> Integer.compare(toNumber.apply(o1), toNumber.apply(o2));
+        return Comparator.comparingInt(toNumber::apply);
     }
     /*public static void makeStayOpen(JCheckBoxMenuItem i) {
         UIDefaults uid = UIManager.getDefaults();//.getLookAndFeelDefaults();

@@ -48,7 +48,7 @@ public class MLGaussianPlusConstantSimpleEstimator extends MLGaussianEstimator {
         double[] meanAndMin = getMeanAndMinValue(point, data, 3 * sigma);
         start_param[nDims + 2] = meanAndMin[1]; //C
         start_param[nDims] = centerValue - start_param[nDims + 2]; //A
-        logger.debug("startpoint estimation: data: {}, {}", data.I.length, start_param);
+        //logger.debug("startpoint estimation: data: {}, {}", data.I.length, start_param);
         return start_param;
     }
     

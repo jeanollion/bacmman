@@ -20,23 +20,21 @@ package bacmman.processing.gaussian_fit;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Spot;
-import bacmman.data_structure.Voxel;
-import bacmman.utils.HashMapGetCreate;
+import bacmman.image.ImageProperties;
 import bacmman.utils.geom.Point;
 import bacmman.image.Image;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import net.imglib2.KDTree;
 import net.imglib2.Localizable;
 import net.imglib2.algorithm.localization.*;
 import net.imglib2.img.Img;
-import net.imglib2.neighborsearch.RadiusNeighborSearchOnKDTree;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,26 +47,67 @@ public class GaussianFit {
     public static final Logger logger = LoggerFactory.getLogger(GaussianFit.class);
     /**
      * Fits gaussian on spots as
-     * I(xᵢ) = C + N/(2*pi*σ) * exp (- 1/(2*σ) * ∑ (xᵢ - x₀ᵢ)² )
+     * I(xᵢ) = A * exp (- 1/(2*σ²) * ∑ (xᵢ - x₀ᵢ)² ) + C
      * σ = standard deviation of gaussian
      * x₀ᵢ = coordinate of spot center
      * N = amplitude (number of photons in spot)
      * C = background level
-     * @param image
-     * @param peaks
-     * @param typicalSigma
-     * @param maxIter
-     * @param lambda
-     * @param termEpsilon
-     * @return for each peak array of fitted parameters: coordinates, N/2(pi*sigma), 1/2*sigma^2, C
+     * @param image image on which peaks should be fitted
+     * @param peaks center of spots, will be used as starting point for x₀ᵢ . Coordinates are in the local landmark of {@param image}
+     * @param typicalSigma estimation of σ. Will also be used to compute the area on which the fit will be performed. Radius of this area will be: 2 * {@param typicalSigma} + 1
+     * @param minDistance when several peaks are closer than this distance, they are fitted together, on a area that is the union of area of all close peaks.
+     * @param maxIter see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
+     * @param lambda see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
+     * @param termEpsilon see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
+     * @return for each peak, array of fitted parameters: coordinates, A, σ, C
      */
-    public static Map<Region, double[]> run(Image image, List<Region> peaks, double typicalSigma, double clusterFitDistance, int maxIter, double lambda, double termEpsilon ) {
+    public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalSigma, double minDistance, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
         Img img = ImgLib2ImageWrapper.getImage(image);
         int nDims = is3D?3:2;
         StartPointEstimator estimator = new MLGaussianPlusConstantSimpleEstimator(typicalSigma, nDims);
         GaussianPlusConstant fitFunction = new GaussianPlusConstant();
 
+        // cluster are fit together
+        List<Set<Point>> clusters = getClusters(peaks, minDistance );
+
+        List<Point> fitIndependently = clusters.isEmpty() ? peaks : new ArrayList<>(peaks);
+        clusters.forEach(c -> fitIndependently.removeAll(c));
+
+        LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter, lambda, termEpsilon);
+        PeakFitter fitter = new PeakFitter(img, fitIndependently, solver, fitFunction, estimator);
+        fitter.setNumThreads(1);
+        if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
+
+        Map<Point, double[]> results = fitter.getResult();
+
+        clusters.forEach(c->results.putAll(runPeakCluster(img, c, typicalSigma, maxIter, lambda, termEpsilon)));
+
+        for (Entry<Point, double[]> e : results.entrySet()) {
+            e.getValue()[nDims+1] = 1 / Math.sqrt(2 * e.getValue()[nDims+1]); // compute sigma from parameters
+            // compute error
+            /*Observation data = LocalizationUtils.gatherObservationData(img, e.getKey(), estimator.getDomainSpan());
+            double[] params = new double[e.getValue().length+1];
+            System.arraycopy(e.getValue(), 0, params, 0, e.getValue().length);
+            params[params.length-1] = Math.sqrt(LevenbergMarquardtSolver.chiSquared(data.X, e.getValue(), data.I, fitFunction));
+            */
+        }
+        return results;
+    }
+
+    /**
+     * Calls {@link #run(Image, List, double, double, int, double, double)}, on the centers of {@param peaks}
+     * @param image
+     * @param peaks
+     * @param typicalSigma
+     * @param minDistance
+     * @param maxIter
+     * @param lambda
+     * @param termEpsilon
+     * @return
+     */
+    public static Map<Region, double[]> runOnRegions(Image image, List<Region> peaks, double typicalSigma, double minDistance, int maxIter, double lambda, double termEpsilon ) {
+        int nDims = image.sizeZ()>1 ? 3 : 2;
         Map<Point, Region> locObj = new HashMap<>(peaks.size());
         List<Point> peaksLoc = new ArrayList<>(peaks.size());
         for (Region o : peaks) {
@@ -78,61 +117,32 @@ public class GaussianFit {
             locObj.put(center, o);
         }
 
-        // cluster are fit together
-        List<Set<Point>> clusters = getClusters(peaksLoc, clusterFitDistance );
-        clusters.forEach(c -> peaks.removeAll(c));
-
-        LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter, lambda, termEpsilon);
-        PeakFitter fitter = new PeakFitter(img, peaksLoc, solver, fitFunction, estimator);
-        fitter.setNumThreads(1);
-        if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
-
-        Map<Localizable, double[]> results = fitter.getResult();
-
-        clusters.forEach(c->results.putAll(fitClosePeaks(img, c, typicalSigma, solver)));
+        Map<Point, double[]> results = run(image, peaksLoc, typicalSigma, minDistance, maxIter, lambda, termEpsilon);
 
         Map<Region, double[]> results2 = new HashMap<>(results.size());
-        for (Entry<Localizable, double[]> e : results.entrySet()) {
+        for (Entry<Point, double[]> e : results.entrySet()) {
             Region region = locObj.get(e.getKey());
             if (region.isAbsoluteLandMark()) { // translate coords
                 e.getValue()[0]+=image.xMin();
                 e.getValue()[1]+=image.yMin();
                 if (nDims==3) e.getValue()[2]+=image.zMin();
             }
-            e.getValue()[nDims+1] = 1 / Math.sqrt(2 * e.getValue()[nDims+1]); // compute sigma from parameters
-            //e.getValue()[nDims] = 2 * Math.PI * e.getValue()[nDims+1] * e.getValue()[nDims]; // compute N from parameters
             results2.put(region, e.getValue());
-            if (estimator instanceof GaussianPlusBGEstimator) {
-                /*int offset = nDims  + 2;
-                e.getValue()[offset]+=image.xMin();
-                e.getValue()[offset+1]+=image.yMin();
-                if (nDims==3) e.getValue()[offset+2]+=image.zMin();
-                e.getValue()[offset+nDims+1] = 1 / Math.sqrt(2 * e.getValue()[offset+nDims+1]); // compute sigma from parameters
-                Region bck = new Region(new Voxel((int)(e.getValue()[offset]+0.5), (int)(e.getValue()[offset+1]+0.5), 0), 0, nDims==2, region.getScaleXY(), region.getScaleZ());
-                double[] paramsBCK = new double[nDims+3];
-                System.arraycopy(e.getValue(), nDims+2, paramsBCK, 0, paramsBCK.length);
-                results2.put(bck, paramsBCK);
-                logger.debug("add new bck object: {}", paramsBCK);*/
-
-                /*double[] paramsBCK = new double[2 * nDims+1];
-                System.arraycopy(e.getValue(), nDims+2, paramsBCK, 0, paramsBCK.length);
-                logger.debug("fitted bck : {}", paramsBCK);*/
-                logger.debug("fitted bck : {}", e.getValue()[e.getValue().length-1]);
-            }
-
-            // compute error
-            /*Observation data = LocalizationUtils.gatherObservationData(img, e.getKey(), estimator.getDomainSpan());
-            double[] params = new double[e.getValue().length+1];
-            System.arraycopy(e.getValue(), 0, params, 0, e.getValue().length);
-            params[params.length-1] = Math.sqrt(LevenbergMarquardtSolver.chiSquared(data.X, e.getValue(), data.I, fitFunction));
-            */
-
         }
         return results2;
     }
 
+    /**
+     * Maps a template region (used for is2D, and scale attributes) and fitted parameters to a Spot with label 1)
+     */
+    public static BiFunction<double[], ImageProperties, Spot> spotMapper = (params, props) -> new Spot(new Point((float)params[0], (float)params[1], props.sizeZ()==1 ? props.zMin() : (float)params[2]), params[props.sizeZ()==1 ? 3 : 4], params[props.sizeZ()==1 ? 2 : 3], 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
 
-
+    /**
+     * Return clusters. An element of {@param peaks} belong to a cluster C if there is at least one other point in C with a distance inferior to {@param minDist}
+     * @param peaks points to find clusters in
+     * @param minDist cluster distance
+     * @return clusters as sets of points
+     */
     public static List<Set<Point>> getClusters(List<Point>peaks, double minDist) {
         List<Set<Point>> clusters = new ArrayList<>();
         Function<Point, Set<Point>> getCluster  = p -> clusters.stream().filter(c->c.contains(p)).findFirst().orElse(null);
@@ -161,11 +171,22 @@ public class GaussianFit {
         return clusters;
     }
 
-    private static Map<Localizable, double[]> fitClosePeaks(Img img, Set<Point> closePeaks, double typicalSigma, LevenbergMarquardtSolver solver) {
-        List<Localizable> peaks = new ArrayList<>(closePeaks);
+    /**
+     * Fit several peaks at the same time. See {@link #run(Image, List, double, double, int, double, double)}
+     * @param img image on which peaks should be fitted
+     * @param closePeaks peaks located close to each other
+     * @param typicalSigma see {@link #run(Image, List, double, double, int, double, double)}
+     * @param maxIter see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
+     * @param lambda see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
+     * @param termEpsilon see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
+     * @return
+     */
+    private static <L extends Localizable> Map<L, double[]> runPeakCluster(Img img, Set<L> closePeaks, double typicalSigma, int maxIter, double lambda, double termEpsilon) {
+        List<L> peaks = new ArrayList<>(closePeaks);
         MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks, new MLGaussianPlusConstantSimpleEstimator(typicalSigma, img.numDimensions()));
         MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(img.numDimensions()+3, closePeaks.size(), new GaussianPlusConstant());
 
+        LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter * closePeaks.size(), lambda, termEpsilon/closePeaks.size());
         PeakFitter fitter = new PeakFitter(img, Arrays.asList(estimator.center), solver, fitFunction, estimator);
         fitter.setNumThreads(1);
         if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());

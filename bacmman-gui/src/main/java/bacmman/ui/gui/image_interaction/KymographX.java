@@ -34,13 +34,15 @@ import java.util.Comparator;
 import java.util.List;
 
 import bacmman.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class KymographX extends Kymograph {
-
+    public static final Logger logger = LoggerFactory.getLogger(KymographX.class);
     public KymographX(KymographFactory.KymographData data, int childStructureIdx) {
         super(data, childStructureIdx);
         if (!KymographFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
@@ -64,7 +66,9 @@ public class KymographX extends Kymograph {
         if (iMin<0) iMin=-iMin-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         int iMax = Arrays.binarySearch(trackOffset, new SimpleOffset(selection.xMax(), 0, 0), new OffsetComparatorX());
         if (iMax<0) iMax=-iMax-2; // element inférieur à x puisqu'on compare les xmin des bounding box
-        //logger.debug("looking for objects from time: {} to time: {}", iMin, iMax);
+        //if (iMin<0) logger.debug("looking for objects in time: [{};{}] selection: {}", iMin, iMax, selection);
+        if (iMin<0) iMin=0; // when a selection bounds is outside the image
+        if (iMax>=trackObjects.length) iMax = trackObjects.length-1; // when a selection bounds is outside the image
         for (int i = iMin; i<=iMax; ++i) trackObjects[i].addClickedObjects(selection, list);
     }
     

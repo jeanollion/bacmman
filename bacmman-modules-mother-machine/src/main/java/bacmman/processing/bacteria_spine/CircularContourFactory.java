@@ -23,6 +23,7 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.ImageByte;
 import bacmman.processing.FillHoles2D;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
+import bacmman.utils.MathUtils;
 import bacmman.utils.geom.GeomUtils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.PointSmoother;
@@ -296,7 +297,7 @@ public class CircularContourFactory {
         double A  = dx*dx + dy*dy;
         double B=  2 * (dx*Ox + dy*Oy);
         double C = Ox*Ox + Oy*Oy -radius*radius;
-        double[] roots = BacteriaSpineLocalizer.solveQuadratic(A, B, C);
+        double[] roots = MathUtils.solveQuadratic(A, B, C);
         java.util.function.DoublePredicate isInBC = x->x>0 && x<1;
         double t = 0;
         if (roots.length==2) { // only take the solution that verify 0<t<1

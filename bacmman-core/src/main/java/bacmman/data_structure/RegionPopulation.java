@@ -53,9 +53,7 @@ import static bacmman.utils.Utils.objectsAllHaveSameProperty;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  *
@@ -99,7 +97,7 @@ public class RegionPopulation {
         return this;
     }
 
-    public RegionPopulation(Collection<Region> objects, ImageProperties properties) {
+    public RegionPopulation(Collection<? extends Region> objects, ImageProperties properties) {
         if (properties == null) throw new IllegalArgumentException("ImageProperties should no be null");
         if (objects != null) {
             if (objects instanceof List) this.objects = (List) objects;
@@ -597,7 +595,7 @@ public class RegionPopulation {
             }
         }
         int maxIdx = 0;
-        int maxSize = objects.get(0).size();
+        double maxSize = objects.get(0).size();
         for (int i = 1; i < objects.size(); ++i) {
             if (objects.get(i).getVoxels().size() > maxSize) {
                 maxSize = objects.get(i).size();
@@ -885,21 +883,21 @@ public class RegionPopulation {
     }
     public static class Size implements Filter {
 
-        int min = -1, max = -1;
+        double min = -1, max = -1;
 
-        public Size setMin(int min) {
+        public Size setMin(double min) {
             this.min = min;
             return this;
         }
 
-        public Size setMax(int max) {
+        public Size setMax(double max) {
             this.max = max;
             return this;
         }
         @Override public void init(RegionPopulation population) {}
         @Override
         public boolean keepObject(Region object) {
-            int size = object.size();
+            double size = object.size();
             return (min < 0 || size >= min) && (max < 0 || size < max);
         }
     }
@@ -1119,7 +1117,7 @@ public class RegionPopulation {
             Region maxInterO = null;
             int maxInter = 0;
             for (Region o : other.getRegions()) {
-                int inter = o.getOverlapMaskMask(object, null, null);
+                int inter = o.getOverlapArea(object, null, null);
                 if (inter > maxInter) {
                     maxInter = inter;
                     maxInterO = o;

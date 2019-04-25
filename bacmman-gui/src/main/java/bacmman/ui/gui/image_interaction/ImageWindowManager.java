@@ -70,6 +70,8 @@ import static bacmman.utils.Pair.unpairValues;
 import bacmman.utils.Palette;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -82,6 +84,7 @@ import java.util.stream.Collectors;
  * @param <V> track ROI class
  */
 public abstract class ImageWindowManager<I, U, V> {
+    public static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
     public enum RegisteredImageType {KYMOGRAPH, RAW_INPUT, PRE_PROCESSED}
     public static boolean displayTrackMode;
     public final static Color[] palette = new Color[]{new Color(166, 206, 227, 150), new Color(31,120,180, 150), new Color(178,223,138, 150), new Color(51,160,44, 150), new Color(251,154,153, 150), new Color(253,191,111, 150), new Color(255,127,0, 150), new Color(255,255,153, 150), new Color(177,89,40, 150)};
@@ -193,19 +196,19 @@ public abstract class ImageWindowManager<I, U, V> {
         runningWorkers.clear();
     }
     public void flush() {
-        if (!runningWorkers.isEmpty()) GUI.logger.debug("flush: will stop {} running workers", runningWorkers.size());
+        if (!runningWorkers.isEmpty()) logger.debug("flush: will stop {} running workers", runningWorkers.size());
         stopAllRunningWorkers();
-        if (!objectRoiMap.isEmpty()) GUI.logger.debug("flush: will remove {} rois", objectRoiMap.size());
+        if (!objectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", objectRoiMap.size());
         objectRoiMap.clear();
         parentTrackHeadTrackRoiMap.clear();
-        if (!labileObjectRoiMap.isEmpty()) GUI.logger.debug("flush: will remove {} rois", labileObjectRoiMap.size());
+        if (!labileObjectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", labileObjectRoiMap.size());
         labileObjectRoiMap.clear();
         labileParentTrackHeadTrackRoiMap.clear();
         displayedLabileObjectRois.clear();
         displayedLabileTrackRois.clear();
         displayer.flush();
         imageObjectInterfaces.clear();
-        if (!imageObjectInterfaceMap.isEmpty()) GUI.logger.debug("flush: will remove {} images", imageObjectInterfaceMap.size());
+        if (!imageObjectInterfaceMap.isEmpty()) logger.debug("flush: will remove {} images", imageObjectInterfaceMap.size());
         imageObjectInterfaceMap.clear();
         trackHeadTrackMap.clear();
         displayedRawInputFrames.clear();

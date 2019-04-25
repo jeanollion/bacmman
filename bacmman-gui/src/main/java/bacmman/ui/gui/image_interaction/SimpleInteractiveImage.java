@@ -19,6 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Voxel;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
@@ -29,6 +30,9 @@ import java.util.Collections;
 import java.util.List;
 
 import bacmman.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -38,7 +42,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class SimpleInteractiveImage extends InteractiveImage {
-
+    public static final Logger logger = LoggerFactory.getLogger(SimpleInteractiveImage.class);
     BoundingBox[] offsets;
     List<SegmentedObject> objects;
     final SegmentedObject parent;
@@ -95,12 +99,14 @@ public class SimpleInteractiveImage extends InteractiveImage {
     public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
         if (objects == null) reloadObjects();
         if (is2D()) {
-            z = 0;
+            z = 0; // or parent z min ?
         }
         getOffsets();
+        //logger.debug("get clicked object @ frame = {}, @ point {};{};{}", this.parent.getFrame(), x, y, z);
         for (int i = 0; i < offsets.length; ++i) {
             if (offsets[i].containsWithOffset(x, y, z)) {
-                if (objects.get(i).getMask().insideMask(x - offsets[i].xMin(), y - offsets[i].yMin(), z - offsets[i].zMin())) {
+                if (objects.get(i).getRegion().contains(new Voxel(x - offsets[i].xMin() + objects.get(i).getBounds().xMin(), y - offsets[i].yMin()+ objects.get(i).getBounds().yMin(), z - offsets[i].zMin()+ objects.get(i).getBounds().zMin()))) {
+                //if (objects.get(i).getMask().insideMask(x - offsets[i].xMin(), y - offsets[i].yMin(), z - offsets[i].zMin())) {
                     return new Pair(objects.get(i), offsets[i]);
                 }
             }

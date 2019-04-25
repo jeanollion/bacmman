@@ -19,7 +19,6 @@
 package bacmman.data_structure;
 
 import bacmman.processing.EDT;
-import bacmman.processing.watershed.WatershedTransform;
 import com.google.common.collect.Sets;
 import bacmman.data_structure.region_container.RegionContainer;
 import static bacmman.data_structure.region_container.RegionContainer.MAX_VOX_3D;
@@ -56,7 +55,7 @@ import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.Utils;
 import static bacmman.utils.Utils.comparator;
-import static bacmman.utils.Utils.comparatorInt;
+
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 
@@ -161,46 +160,11 @@ public class Region {
         return scaleZ;
     }
     
-    public int size() {
+    public double size() {
         if (this.voxelsCreated()) return voxels.size();
         else return mask.count();
     }
-    /*public static Voxel getExtremumVoxelValue(Region r, boolean max) {
-        if (r.getVoxels().isEmpty()) return null;
-        Voxel res = r.getVoxels().iterator().next();
-        if (max) {
-            for (Voxel v : r.getVoxels()) if (v.value>res.value) res = v;
-        } else {
-            for (Voxel v : r.getVoxels()) if (v.value<res.value) res = v;
-        }
-        return res;
-    }*/
-    /*public List<Voxel> getExtrema(boolean max) {
-        if (getVoxels().isEmpty()) return null;
-        Iterator<Voxel> it = getVoxels().iterator();
-        Voxel res = it.next();
-        List<Voxel> resList = new ArrayList<>();
-        if (max) {
-            while(it.hasNext()) {
-                Voxel v = it.next();
-                if (v.value>res.value) {
-                    res = v;
-                    resList.clear();
-                } else if (v.value==res.value) resList.add(v);
-            }
-        } else {
-            while(it.hasNext()) {
-                Voxel v = it.next();
-                if (v.value<res.value) {
-                    res = v;
-                    resList.clear();
-                } else if (v.value==res.value) resList.add(v);
-            }
-        }
-        resList.add(res);
-        return resList;
-    }*/
-    
+
     public Region setCenter(Point center) {
         this.center=center;
         return this;
@@ -213,9 +177,9 @@ public class Region {
     public Point getGeomCenter(boolean scaled) {
         float[] center = new float[3];
         if (mask instanceof BlankMask) {
-            center[0] = (float)((BlankMask)mask).xMean();
-            center[1] = (float)((BlankMask)mask).yMean();
-            center[2] = (float)((BlankMask)mask).zMean();
+            center[0] = (float)(mask).xMean();
+            center[1] = (float)(mask).yMean();
+            center[2] = (float)(mask).zMean();
         } else if (voxels!=null) {
             for (Voxel v : getVoxels()) {
                 center[0] += v.x;
@@ -367,7 +331,7 @@ public class Region {
     }
     protected void createMask() {
         ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
-        for (Voxel v : voxels) {
+        for (Voxel v : getVoxels()) {
             if (!mask_.containsWithOffset(v.x, v.y, v.z)) {
                 logger.error("voxel out of bounds: {}, bounds: {}, vox{}", v, mask_.getBoundingBox(), voxels); // can happen if bounds were not updated before the object was saved
                 this.createBoundsFromVoxels();
@@ -556,7 +520,7 @@ public class Region {
             List<Region> objects = ImageLabeller.labelImageListLowConnectivity(mask);
             if (objects.size() > 1) {
                 if (keepOnlyBiggestObject) { // check if 2 objects and erase all but smallest
-                    objects.remove(Collections.max(objects, comparatorInt(o -> o.size())));
+                    objects.remove(Collections.max(objects, Comparator.comparingDouble(o -> o.size())));
                 } else { // erase single pixels
                     objects.removeIf(r->r.size()>1);
                 }
@@ -598,7 +562,7 @@ public class Region {
             List<Region> objects = ImageLabeller.labelImageListLowConnectivity(mask);
             if (objects.size() > 1) {
                 if (keepOnlyBiggestObject) { // check if 2 objects and erase all but smallest
-                    objects.remove(Collections.max(objects, comparatorInt(o -> o.size())));
+                    objects.remove(Collections.max(objects, Comparator.comparingDouble(o -> o.size())));
                 } else { // erase single pixels
                     objects.removeIf(r->r.size()>1);
                 }
@@ -686,7 +650,8 @@ public class Region {
     }
     
     public Set<Voxel> getIntersection(Region other) {
-        if (!intersect(other)) return Collections.emptySet(); 
+        if (other instanceof Spot) return other.getIntersection(this); // spot version is more efficient
+        if (!intersect(other)) return Collections.emptySet();
         if (other.is2D()!=is2D()) { // should not take into acount z for intersection -> cast to voxel2D (even for the 2D object to enshure voxel2D), and return voxels from the 3D objects
             Set s1 = Sets.newHashSet(Utils.transform(getVoxels(), v->v.toVoxel2D()));
             Set s2 = Sets.newHashSet(Utils.transform(other.getVoxels(), v->v.toVoxel2D()));
@@ -711,7 +676,8 @@ public class Region {
      * @param offsetOther offset to add to {@param other} so that is would be in absolute landmark
      * @return overlap (in voxels) between this region and {@param other}
      */
-    public int getOverlapMaskMask(Region other, Offset offset, Offset offsetOther) {
+    public int getOverlapArea(Region other, Offset offset, Offset offsetOther) {
+        if (other instanceof Spot) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
         BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
         BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);
         final boolean inter2D = is2D() || other.is2D();
@@ -756,7 +722,7 @@ public class Region {
         Region currentParent=null;
         int currentIntersection=-1;
         for (Region p : containerCandidates) {
-            int inter = getOverlapMaskMask(p, offset, containerOffset);
+            int inter = getOverlapArea(p, offset, containerOffset);
             if (inter>0) {
                 if (currentParent==null) {
                     currentParent = p;
@@ -915,23 +881,22 @@ public class Region {
             if (bounds!=null) bounds.translate(offset);
             if (voxels!=null) {
                 for (Voxel v : voxels) v.translate(offset);
-                this.voxels = new HashSet<>(voxels); // hash of voxel change
+                this.voxels = new HashSet<>(voxels); // hash of voxel changed
             }
             if (center!=null) center.translate(offset);
         }
         return this;
     }
     
-    public Point translateToFirstPointOutsideRegionInDir(Point start, Vector normedDir) {
+    public void translateToFirstPointOutsideRegionInDir(Point start, Vector normedDir) {
         Voxel v = start.asVoxel();
-        if (!contains(v)) return start;
+        if (!contains(v)) return;
         start.translate(normedDir);
         start.copyLocationToVoxel(v);
         while(contains(v)) {
             start.translate(normedDir);
             start.copyLocationToVoxel(v);
         }
-        return start;
     }
 
     public Region setLabel(int label) {

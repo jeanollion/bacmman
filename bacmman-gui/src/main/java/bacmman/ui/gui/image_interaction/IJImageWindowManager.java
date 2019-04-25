@@ -146,7 +146,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     //logger.debug("Strech: children: {}, current IOI: {}", completionStructureIdx, i.getChildStructureIdx());
                 }
                 if (i==null) {
-                    GUI.logger.trace("no image interface found");
+                    logger.trace("no image interface found");
                     return;
                 }
                 if (!addToSelection) {
@@ -176,12 +176,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         i.addClickedObjects(selection, selectedObjects);
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
-                            selectedObjects.removeIf(p -> !intersectMask(p.key.getMask(), p.value, fPoly));
+                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly));
                         }
                         if (!freeHandSplit || !strechObjects) ip.deleteRoi();
                     }
                 }
-                // get clicked object
+                // simple click : get clicked object
                 if (!fromSelection && !strechObjects) {
                     int offscreenX = canvas.offScreenX(e.getX());
                     int offscreenY = canvas.offScreenY(e.getY());
@@ -244,14 +244,25 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         canvas.addMouseListener(ml);
         for (MouseListener m : mls) canvas.addMouseListener(m);
     }
-    
-    private static boolean intersectMask(ImageMask mask, Offset offsetMask, FloatPolygon selection) {
-        return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
-            int x= Math.round(selection.xpoints[i] - offsetMask.xMin());
-            int y = Math.round(selection.ypoints[i] - offsetMask.yMin());
-            int z = offsetMask.zMin();
-            return mask.contains(x, y, z) && mask.insideMask(x, y, z);
-        });
+    private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection) {
+        if (seg.getRegion() instanceof Spot) {
+            return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
+                double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
+                double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
+                double z = offset.zMin()+seg.getBounds().zMin();
+                Spot s = (Spot)seg.getRegion();
+                if (s.is2D()) return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)<=s.getRadius()*s.getRadius();
+                else return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)+ Math.pow(z-s.getCenter().getDoublePosition(2), 2)<=s.getRadius()*s.getRadius();
+            });
+        } else {
+            ImageMask mask = seg.getMask();
+            return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
+                int x= Math.round(selection.xpoints[i] - offset.xMin());
+                int y = Math.round(selection.ypoints[i] - offset.yMin());
+                int z = offset.zMin();
+                return mask.contains(x, y, z) && mask.insideMask(x, y, z);
+            });
+        }
     }
     
     @Override public void closeNonInteractiveWindows() {
@@ -322,7 +333,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
 
     @Override
     public Roi3D generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color) {
-        if (object.key.getMask().sizeZ()<=0 || object.key.getMask().sizeXY()<=0) GUI.logger.error("wrong object dim: o:{} {}", object.key, object.key.getBounds());
+        if (object.key.getBounds().sizeZ()<=0 || object.key.getBounds().sizeX()<=0 || object.key.getBounds().sizeY()<=0) GUI.logger.error("wrong object dim: o:{} {}", object.key, object.key.getBounds());
         Roi3D r;
         SegmentedObjectAccessor accessor = getAccessor();
         if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI

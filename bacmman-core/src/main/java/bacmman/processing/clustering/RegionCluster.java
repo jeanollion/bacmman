@@ -201,7 +201,7 @@ public class RegionCluster<I extends InterfaceRegion<I>> extends ClusterCollecti
     public void mergeSmallObjects(double sizeLimit, int numberOfObjecsToKeep, BiFunction<Region, Set<Region>, Region> noInterfaceCase) {
         if (numberOfObjecsToKeep<0) numberOfObjecsToKeep=0;
         for (I i : interfaces) i.updateInterface();
-        TreeSet<Region> queue = new TreeSet<>((e1, e2) -> Integer.compare(e1.size(), e2.size()));
+        TreeSet<Region> queue = new TreeSet<>(Comparator.comparingDouble(e -> e.size()));
         queue.addAll(allElements);
         while(queue.size()>numberOfObjecsToKeep) {
             Region s = queue.pollFirst();

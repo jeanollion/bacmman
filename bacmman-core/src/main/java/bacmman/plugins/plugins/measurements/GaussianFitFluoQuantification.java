@@ -1,9 +1,11 @@
 package bacmman.plugins.plugins.measurements;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Spot;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
@@ -18,6 +20,7 @@ import java.util.stream.Collectors;
 public class GaussianFitFluoQuantification implements Measurement, Hint {
 
     protected ObjectClassParameter structure = new ObjectClassParameter("Objects", -1, false, false);
+    protected BooleanParameter forceCompute = new BooleanParameter("Force compute if spot", false).setHint("If set to false and selected segmented objects are spots, instead of performing a gaussian on spots, their radius and intensity will be extracted");
     protected Parameter[] parameters = new Parameter[]{structure};
 
     @Override
@@ -42,13 +45,20 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
     @Override
     public void performMeasurement(SegmentedObject parent) {
         int oIdx = structure.getSelectedClassIdx();
-        Map<Region, double[]> parameters = GaussianFit.run(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), 2, 6, 300, 0.001, 0.1);
-        Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(o->o.getRegion(), o->o));
-        parameters.forEach((r, p) -> {
-            SegmentedObject so = rSMap.get(r);
-            so.setAttribute("GF_Sigma", p[p.length-2]);
-            so.setAttribute("GF_N", p[p.length-3]);
-        });
+        if (!forceCompute.getSelected() && parent.getChildRegionPopulation(oIdx).getRegions().stream().allMatch(r->r instanceof Spot)) { // simply use spot parameters
+            parent.getChildren(oIdx).forEach(so -> {
+                so.setAttribute("GF_Sigma", ((Spot)so.getRegion()).getRadius());
+                so.setAttribute("GF_N", ((Spot)so.getRegion()).getIntensity());
+            });
+        } else {
+            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), 2, 6, 300, 0.001, 0.1);
+            Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(o -> o.getRegion(), o -> o));
+            parameters.forEach((r, p) -> {
+                SegmentedObject so = rSMap.get(r);
+                so.setAttribute("GF_Sigma", p[p.length - 2]);
+                so.setAttribute("GF_N", p[p.length - 3]);
+            });
+        }
     }
 
     @Override

@@ -15,15 +15,11 @@ import java.util.*;
 public class SpotGaussianFit implements PostFilter, Hint {
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        Map<Region, double[]> parameters = GaussianFit.run(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), 2, 6, 300, 0.001, 0.1);
+        Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), 2, 6, 300, 0.001, 0.1);
         List<Region> regions = new ArrayList<>(childPopulation.getRegions().size());
-        parameters.forEach((r, p)-> {
-            Point center = !r.is2D() ? new Point((float)p[0], (float)p[1], (float)p[2]) : new Point((float)p[0], (float)p[1], 0);
-            r.setCenter(center);
-            regions.add(Spot.fromRegion(r, p[r.is2D()?3:4]));
-        });
+        parameters.forEach((r, p)-> regions.add(GaussianFit.spotMapper.apply(p, childPopulation.getImageProperties()).setLabel(r.getLabel())));
         Collections.sort(regions, Comparator.comparingInt(Region::getLabel));
-        return new RegionPopulation(regions, parent.getRawImage(childStructureIdx));
+        return new RegionPopulation(regions,  childPopulation.getImageProperties());
     }
 
     @Override

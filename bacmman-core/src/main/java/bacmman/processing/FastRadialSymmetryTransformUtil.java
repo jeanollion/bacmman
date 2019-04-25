@@ -11,6 +11,10 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+/**
+ * @author Jean Ollion
+ * Adapted for spot detection from : Loy, G., & Zelinsky, A. (2003). Fast radial symmetry for detecting points of interest. IEEE Transactions on Pattern Analysis and Machine Intelligence, 25(8), 959-973.
+ */
 public class FastRadialSymmetryTransformUtil {
     public enum GRADIENT_SIGN {POSITIVE_ONLY, NEGATIVE_ONLY, BOTH}
     public static class Kappa {
@@ -167,28 +171,4 @@ public class FastRadialSymmetryTransformUtil {
         }
         return res;
     }
-
-
-    public String getBibtexCitation() {
-        return "@article{Loy2003," +
-                "abstract = {A new transform is presented that utilizes local radial symmetry to highlight points of interest within a scene. Its low-computational complexity and fast runtimes makes this method well-suited for real-time vision applications. The performance of the transform is demonstrated on a wide variety of images and compared with leading techniques from the literature. Both as a facial feature detector and as a generic region of interest detector the new transform is seen to offer equal or superior performance to contemporary techniques at a relatively low-computational cost. A real-time implementation of the transform is presented running at over 60 frames per second on a standard Pentium III PC.}," +
-                "author = {Loy, G. and Zelinsky, A.}," +
-                "doi = {10.1109/TPAMI.2003.1217601}," +
-                "issn = {0162-8828}," +
-                "journal = {IEEE Transactions on Pattern Analysis and Machine Intelligence}," +
-                "keywords = {Computer vision,Costs,Detectors,Eyes,Face detection,Facial features,Humans,Layout,Pentium III PC,Psychology,Runtime,computational complexity,facial feature detector,fast radial symmetry,feature extraction,local radial symmetry,performance,point of interest detection,real-time systems,real-time vision applications,transform,transforms}," +
-                "month = Aug," +
-                "number = {8}," +
-                "pages = {959--973}," +
-                "title = {{Fast radial symmetry for detecting points of interest}}," +
-                "volume = {25}," +
-                "year = {2003}" +
-                "}";
-    }
-
-
-    public String getMedlineCitation() {
-        return "Loy, G., & Zelinsky, A. (2003). Fast radial symmetry for detecting points of interest. IEEE Transactions on Pattern Analysis and Machine Intelligence, 25(8), 959�973.";
-    }
-
 }

@@ -12,11 +12,11 @@ import java.util.List;
 
 public class MultipleIdenticalEstimator implements StartPointEstimator {
     public static final Logger logger = LoggerFactory.getLogger(MultipleIdenticalEstimator.class);
-    final protected List<Localizable> peaks;
+    final protected List<? extends Localizable> peaks;
     final protected StartPointEstimator pointEstimator;
     final protected Localizable center;
     final long[] span;
-    public MultipleIdenticalEstimator(List<Localizable> peaks, StartPointEstimator pointEstimator) {
+    public MultipleIdenticalEstimator(List<? extends Localizable> peaks, StartPointEstimator pointEstimator) {
         this.peaks = peaks;
         this.pointEstimator = pointEstimator;
         if (peaks.isEmpty()) throw new IllegalArgumentException("Needs at least one peak");

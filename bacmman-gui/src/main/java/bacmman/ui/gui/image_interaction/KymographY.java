@@ -66,6 +66,8 @@ public class KymographY extends Kymograph {
         int iMax = Arrays.binarySearch(trackOffset, new SimpleOffset(0,selection.yMax(), 0), new OffsetComparatorY());
         if (iMax<0) iMax=-iMax-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         //logger.debug("looking for objects from time: {} to time: {}", iMin, iMax);
+        if (iMin<0) iMin=0; // when a selection bounds is outside the image
+        if (iMax>=trackObjects.length) iMax = trackObjects.length-1; // when a selection bounds is outside the image
         for (int i = iMin; i<=iMax; ++i) trackObjects[i].addClickedObjects(selection, list);
     }
     
