@@ -58,25 +58,24 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth scale", 1, 1.5, 1, 5).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null);
     ArrayNumberParameter radii = new ArrayNumberParameter("Radial Symmetry Radii", 0, radius).setSorted(true).setValue(2, 3, 4).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
+    NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
+
 
     NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 0.3).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    Parameter[] parameters = new Parameter[]{radii, smoothScale, symmetryThreshold, intensityThreshold};
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, radii, smoothScale, typicalSigma};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false;
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
-            + "<li>Spots are detected using a seeded watershed algorithm applied on the Radial Symmetry transform.</li> "
-            + "<li>Seeds are set on the regional maxima of the Radial Symmetry transform, within the mask of the segmentation parent. Selected seeds have a Radial Symmetry value larger than <em>Radial Symmetry Seed Threshold</em> and a Gaussian value superior to <em>Seed Threshold</em></li>"
-            + "<li>If several scales are provided, the Radial Symmetry scale-space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization</li>"
-            + "<li>Watershed propagation is done within the segmentation parent mask until Radial Symmetry values reach the threshold defined in the <em>Propagation Threshold</em> parameter</li>"
+            + "<li>Spots are detected by performing a gaussian fit on raw intensity at the location of <em>seeds</em>, defined as the regional maxima of the Radial Symmetry transform, within the mask of the segmentation parent. Selected seeds have a Radial Symmetry value larger than <em>Radial Symmetry Seed Threshold</em> and a Gaussian value superior to <em>Seed Threshold</em></li>"
             + "<li>A quality parameter defined as √(Radial Symmetry x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
             "<br />In order to increase robustness to variations in the background fluorescence in bacteria, the input image is first normalized by subtracting the mean value and dividing by the standard-deviation value of the background signal within the cell. Radial Symmetry & Gaussian transforms are then computed on the normalized image.";
     protected static String toolTipDispImage = "<br /><br />Images displayed in test mode:" +
             "<ul><li><em>Gaussian</em>: Gaussian transform applied to the normalized input image.<br />This image can be used to tune the <em>Seed Threshold</em> parameter, which should be lower than the intensity of the center of the spots and larger than the background intracellular fluorescence on the <em>Gaussian</em> transformed image.</li>" +
             "<li><em>Radial Symmetry</em>: Radial Symmetry transform applied to the normalized input image.<br />This image can be used to tune the <em>Radial Symmetry Seed Threshold</em> parameter, which should be lower than the intensity of the center of the spots and larger than the background intracellular fluorescence on the <em>Radial Symmetry</em> transformed image.<br />This image can also be used to tune the <em>Propagation Threshold</em> parameter, which value should be lower than the intensity inside the spots and larger than the background intracellular fluorescence on the <em>Radial Symmetry</em> transformed image</li>";
-    protected static String toolTipDispImageAdvanced = "<li><em>Seeds</em>: Selected seeds for the seeded-watershed transform</li></ul>";
+    protected static String toolTipDispImageAdvanced = "<li><em>Seeds</em>: Selected seeds for gaussian fit</li></ul>";
     protected static String toolTipSimple ="<b>Fluorescence Spot Detection</b>.<br />" +
-            "Segments spot-like objects in fluorescence images using a criterion on the Gaussian and the Radial Symmetry transforms. <br />If spot detection is not satisfying try changing the <em>Seed Threshold</em> and/or <em>Radial Symmetry Seed Threshold</em>. If spots are too big or too small, try changing the <em>Propagation Threshold</em> parameter. ";
+            "Segments spot-like objects in fluorescence images using a criterion on the Gaussian and the Radial Symmetry transforms. <br />If spot detection is not satisfying try changing the <em>Seed Threshold</em> and/or <em>Radial Symmetry Seed Threshold</em>. ";
 
     // tool tip interface
     @Override
@@ -201,14 +200,14 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             stores.get(parent).addIntermediateImage("RadialSymmetryTransform", radSym);
         }
 
-        List<Spot> segmentedSpots = fitAndSetQuality(radSym, smooth, parent.getRawImage(objectClassIdx), seeds, seeds);
+        List<Spot> segmentedSpots = fitAndSetQuality(radSym, smooth, parent.getRawImage(objectClassIdx), seeds, seeds, typicalSigma.getValue().doubleValue());
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         return pop;
     }
     
-    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image rawIntensity, List<Point> allSeeds, List<Point> seedsToSpots) {
-        Map<Point, double[]> fit = GaussianFit.run(rawIntensity, allSeeds, 2, 8, 300, 0.001, 0.01);
+    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image rawIntensity, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma) {
+        Map<Point, double[]> fit = GaussianFit.run(rawIntensity, allSeeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
 
         List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, rawIntensity)).collect(Collectors.toList());
 
@@ -247,7 +246,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         logger.debug("other objects: {}", allObjects);
         allObjects.addAll(seedObjects);
 
-        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, parent.getRawImage(objectClassIdx), allObjects, seedObjects);
+        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, parent.getRawImage(objectClassIdx), allObjects, seedObjects, typicalSigma.getValue().doubleValue());
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
 

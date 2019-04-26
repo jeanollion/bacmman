@@ -1,8 +1,6 @@
 package bacmman.plugins.plugins.measurements;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Spot;
@@ -20,8 +18,10 @@ import java.util.stream.Collectors;
 public class GaussianFitFluoQuantification implements Measurement, Hint {
 
     protected ObjectClassParameter structure = new ObjectClassParameter("Objects", -1, false, false);
-    protected BooleanParameter forceCompute = new BooleanParameter("Force compute if spot", false).setHint("If set to false and selected segmented objects are spots, instead of performing a gaussian on spots, their radius and intensity will be extracted");
-    protected Parameter[] parameters = new Parameter[]{structure};
+    protected BooleanParameter forceCompute = new BooleanParameter("Force computation", false).setHint("If set to false and selected segmented objects are already gaussian-fitted spots, instead of performing a gaussian fit on centers, the radius and intensity of spots will be extracted");
+    NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
+
+    protected Parameter[] parameters = new Parameter[]{structure, forceCompute, typicalSigma};
 
     @Override
     public int getCallObjectClassIdx() {
@@ -51,7 +51,7 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
                 so.setAttribute("GF_N", ((Spot)so.getRegion()).getIntensity());
             });
         } else {
-            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), 2, 6, 300, 0.001, 0.1);
+            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, 300, 0.001, 0.01);
             Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(o -> o.getRegion(), o -> o));
             parameters.forEach((r, p) -> {
                 SegmentedObject so = rSMap.get(r);
@@ -68,6 +68,6 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
 
     @Override
     public String getHintText() {
-        return "Estimation of spot fluorescence by gaussian fit. <br />Fit formula: I(xᵢ) = C + A * exp (- 1/(2*σ) * ∑ (xᵢ - x₀ᵢ)² ). <br />Measured parameters: <ul><li>GF_Sigma = σ</li><li>GF_N = 2 * pi * σ * A, estimation of number of fluorescent molecules within spot</li></ul>";
+        return "Estimation of spot fluorescence by gaussian fit. <br />Fit formula: I(xᵢ) = C + A * exp (- 1/(2*σ) * ∑ (xᵢ - x₀ᵢ)² ). Fit starts at center of segmented objects. <br />Measured parameters: <ul><li>GF_Sigma = σ</li><li>GF_N = 2 * pi * σ * A, estimation of number of fluorescent molecules within spot</li></ul>";
     }
 }
