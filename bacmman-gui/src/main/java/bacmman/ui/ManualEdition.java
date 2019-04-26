@@ -31,6 +31,7 @@ import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
@@ -314,7 +315,7 @@ public class ManualEdition {
             return;
         }
         
-        Map<SegmentedObject, List<int[]>> points = iwm.getParentSelectedPointsMap(image, segmentationParentStructureIdx);
+        Map<SegmentedObject, List<Point>> points = iwm.getParentSelectedPointsMap(image, segmentationParentStructureIdx);
         if (points!=null && !points.isEmpty()) {
             String[] positions = points.keySet().stream().map(p->p.getPositionName()).distinct().toArray(i->new String[i]);
             if (positions.length>1) throw new IllegalArgumentException("All points should come from same parent");
@@ -329,7 +330,7 @@ public class ManualEdition {
             logger.debug("manual segment: {} distinct parents. Segmentation structure: {}, parent structure: {}", points.size(), structureIdx, segmentationParentStructureIdx);
             List<SegmentedObject> segmentedObjects = new ArrayList<>();
             
-            for (Map.Entry<SegmentedObject, List<int[]>> e : points.entrySet()) {
+            for (Map.Entry<SegmentedObject, List<Point>> e : points.entrySet()) {
 
                 ManualSegmenter segmenter = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
                 if (!parentThMapParam.isEmpty()) parentThMapParam.get(e.getKey().getParent(parentStructureIdx).getTrackHead()).apply(e.getKey(), segmenter);
@@ -343,17 +344,17 @@ public class ManualEdition {
                 if (subSegmentation) input = input.cropWithOffset(ref2D?new MutableBoundingBox(subParent.getBounds()).copyZ(input):subParent.getBounds());
                 
                 // generate image mask without old objects
-                ImageByte mask = e.getKey().getMask() instanceof ImageInteger ? TypeConverter.cast((ImageInteger)e.getKey().getMask(), new ImageByte("Manual Segmentation Mask", 0, 0, 0)) : TypeConverter.toByteMask(e.getKey().getMask(), null, 1);
+                ImageByte mask = TypeConverter.toByteMask(e.getKey().getMask(), null, 1); // force creation of a new mask to avoid modification of original mask
                 
                 List<SegmentedObject> oldChildren = e.getKey().getChildren(structureIdx).collect(Collectors.toList());
                 for (SegmentedObject c : oldChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
-                if (test) iwm.getDisplayer().showImage((ImageByte)mask, 0, 1);
-                // remove seeds out of mask
+                if (test) iwm.getDisplayer().showImage(mask, 0, 1);
+                // remove seeds located out of mask
                 ImageMask refMask =  ref2D ? new ImageMask2D(mask) : mask;
-                Iterator<int[]> it=e.getValue().iterator();
+                Iterator<Point> it=e.getValue().iterator();
                 while(it.hasNext()) {
-                    int[] seed = it.next();
-                    if (!refMask.insideMask(seed[0], seed[1], seed[2])) it.remove();
+                    Point seed = it.next();
+                    if (!refMask.insideMask(seed.getIntPosition(0), seed.getIntPosition(1), seed.getIntPosition(2))) it.remove();
                 }
                 RegionPopulation seg = segmenter.manualSegment(input, e.getKey(), refMask, structureIdx, e.getValue());
                 //seg.filter(new RegionPopulation.Size().setMin(2)); // remove seeds

@@ -493,13 +493,13 @@ public abstract class ImageWindowManager<I, U, V> {
      * @param image
      * @return list of coordinates (x, y, z starting from 0) within the image, in voxel unit
      */
-    protected abstract List<int[]> getSelectedPointsOnImage(I image);
+    protected abstract List<Point> getSelectedPointsOnImage(I image);
     /**
      * 
      * @param image
      * @return mapping of containing objects (parents) to relative (to the parent) coordinated of selected point 
      */
-    public Map<SegmentedObject, List<int[]>> getParentSelectedPointsMap(Image image, int parentStructureIdx) {
+    public Map<SegmentedObject, List<Point>> getParentSelectedPointsMap(Image image, int parentStructureIdx) {
         I dispImage;
         if (image==null) {
             dispImage = displayer.getCurrentImage();
@@ -510,15 +510,13 @@ public abstract class ImageWindowManager<I, U, V> {
         InteractiveImage i = this.getImageObjectInterface(image, parentStructureIdx);
         if (i==null) return null;
         
-        List<int[]> rawCoordinates = getSelectedPointsOnImage(dispImage);
-        HashMapGetCreate<SegmentedObject, List<int[]>> map = new HashMapGetCreate<SegmentedObject, List<int[]>>(new HashMapGetCreate.ListFactory<SegmentedObject, int[]>());
-        for (int[] c : rawCoordinates) {
-            Pair<SegmentedObject, BoundingBox> parent = i.getClickedObject(c[0], c[1], c[2]);
+        List<Point> rawCoordinates = getSelectedPointsOnImage(dispImage);
+        HashMapGetCreate<SegmentedObject, List<Point>> map = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
+        for (Point c : rawCoordinates) {
+            Pair<SegmentedObject, BoundingBox> parent = i.getClickedObject(c.getIntPosition(0), c.getIntPosition(1), c.getIntPosition(2));
             if (parent!=null) {
-                c[0]-=parent.value.xMin();
-                c[1]-=parent.value.yMin();
-                c[2]-=parent.value.zMin();
-                List<int[]> children = map.getAndCreateIfNecessary(parent.key);
+                c.translateRev(parent.value);
+                List<Point> children = map.getAndCreateIfNecessary(parent.key);
                 children.add(c);
                 GUI.logger.debug("adding point: {} to parent: {} located: {}", c, parent.key, parent.value);
             }

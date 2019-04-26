@@ -33,6 +33,7 @@ import java.util.List;
 import bacmman.plugins.ManualSegmenter;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.plugins.SimpleThresholder;
+import bacmman.utils.geom.Point;
 
 /**
  *
@@ -44,15 +45,15 @@ public class WatershedManualSegmenter implements ManualSegmenter {
     PluginParameter<SimpleThresholder> stopThreshold = new PluginParameter<>("Stop threshold", SimpleThresholder.class, false);
     Parameter[] parameters=  new Parameter[]{prefilters, decreasingIntensities, stopThreshold};
     boolean verbose;
-    public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int structureIdx, List<int[]> points) {
+    public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int structureIdx, List<Point> points) {
         input = prefilters.filter(input, segmentationMask).setName("preFilteredImage");
         SimpleThresholder t = stopThreshold.instanciatePlugin();
         double threshold = t!=null?t.runSimpleThresholder(input, segmentationMask): Double.NaN;
         WatershedTransform.PropagationCriterion prop = Double.isNaN(threshold) ? null : new WatershedTransform.ThresholdPropagationOnWatershedMap(threshold);
         ImageByte mask = new ImageByte("seeds mask", input);
         int label = 1;
-        for (int[] p : points) {
-            if (segmentationMask.insideMask(p[0], p[1], p[2])) mask.setPixel(p[0], p[1], p[2], label++);
+        for (Point p : points) {
+            if (segmentationMask.insideMask(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2))) mask.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), label++);
         }
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(decreasingIntensities.getSelected()).propagationCriterion(prop);
         RegionPopulation pop =  WatershedTransform.watershed(input, segmentationMask, mask, config);

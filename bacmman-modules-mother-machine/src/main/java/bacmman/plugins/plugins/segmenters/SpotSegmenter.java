@@ -382,7 +382,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     }
     
     @Override
-    public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<int[]> seedsXYZ) {
+    public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
         this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
         if (pv.smooth==null || pv.lap==null) setMaps(computeMaps(input, input));
@@ -396,7 +396,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
-            for (int[] seed : seedsXYZ) seedMap.setPixel(seed[0], seed[1], seed[2], 1);
+            for (Point seed : seedsXYZ) seedMap.setPixel(seed.getIntPosition(0), seed.getIntPosition(1), seed.getIntPosition(2), 1);
             Core.showImage(seedMap);
             Core.showImage(lap.setName("Laplacian (watershedMap). Scale: "+scale.getArrayDouble()[0]));
             Core.showImage(smooth.setName("Smmothed Scale: "+scale.getArrayDouble()[0]));

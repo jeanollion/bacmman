@@ -22,6 +22,7 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
+import bacmman.utils.geom.Point;
 
 import java.util.List;
 
@@ -31,5 +32,5 @@ import java.util.List;
  */
 public interface ManualSegmenter extends ImageProcessingPlugin {
     void setManualSegmentationVerboseMode(boolean verbose);
-    RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<int[]> seedsXYZ);
+    RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ);
 }

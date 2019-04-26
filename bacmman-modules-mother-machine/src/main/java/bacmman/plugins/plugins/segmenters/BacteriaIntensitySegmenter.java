@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 
 import bacmman.plugins.TrackConfigurable;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.geom.Point;
 
 /**
  *
@@ -158,7 +159,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
     @Override public void setManualSegmentationVerboseMode(boolean verbose) {
         this.verboseManualSeg=verbose;
     }
-    @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<int[]> seedsXYZ) {
+    @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
 
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
         EdgeDetector seg = initEdgeDetector(parent, objectClassIdx);

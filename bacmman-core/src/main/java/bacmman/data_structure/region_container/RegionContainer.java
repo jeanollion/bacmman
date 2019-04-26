@@ -23,6 +23,8 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.SimpleBoundingBox;
 import java.util.Map;
+import java.util.function.Supplier;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -68,9 +70,19 @@ public abstract class RegionContainer {
         RegionContainer res;
         if (json.containsKey("x")) res = new RegionContainerVoxels(); // coord list
         else if (json.containsKey("roi")||json.containsKey("roiZ")) res = new RegionContainerIjRoi();
-        else res = new RegionContainerBlankMask(); // only bounds
+        else if (json.containsKey("Type")) res = ANALYTICAL_TYPES.valueOf((String)json.get("Type")).getCreator();
+        else res = new RegionContainerBlankMask(); // retro-compatibility
         res.setStructureObject(o);
         res.initFromJSON(json);
         return res;
+    }
+    public enum ANALYTICAL_TYPES {SPHERE(()->new RegionContainerSpot()), RECTANGLE((()-> new RegionContainerBlankMask()));
+        private final Supplier<RegionContainer> containerCreator;
+        ANALYTICAL_TYPES(Supplier<RegionContainer> containerCreator) {
+            this.containerCreator=containerCreator;
+        }
+        public RegionContainer getCreator() {
+            return containerCreator.get();
+        }
     }
 }

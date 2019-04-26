@@ -232,19 +232,19 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     }
     
     @Override
-    public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<int[]> seedsXYZ) {
+    public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedObjects) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
         this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
         if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(input, input));
         else logger.debug("manual seg: maps already set!");
-        List<Point> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ()).stream()
-                .map(r -> r.getCenter()).collect(Collectors.toList());
         Image radialSymmetryMap = pv.getRadialSymmetryMap();
         Image smooth = pv.getSmoothedMap();
+        logger.debug("seeds: {}", seedObjects);
 
         List<Point> allObjects = parent.getChildren(objectClassIdx)
                 .map(o->o.getRegion().getCenter().duplicate().translateRev(parent.getBounds()))
                 .collect(Collectors.toList());
+        logger.debug("other objects: {}", allObjects);
         allObjects.addAll(seedObjects);
 
         List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, parent.getRawImage(objectClassIdx), allObjects, seedObjects);
@@ -254,7 +254,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
 
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
-            for (int[] seed : seedsXYZ) seedMap.setPixel(seed[0], seed[1], seed[2], 1);
+            for (Point p : seedObjects) seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1);
             Core.showImage(seedMap);
             Core.showImage(radialSymmetryMap.setName("Radial Symmetry (watershedMap). "));
             Core.showImage(smooth.setName("Smmothed Scale: "+smoothScale.getValue().doubleValue()));

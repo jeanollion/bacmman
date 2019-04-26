@@ -290,15 +290,15 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     }
     
     @Override
-    protected List<int[]> getSelectedPointsOnImage(ImagePlus image) {
+    protected List<Point> getSelectedPointsOnImage(ImagePlus image) {
         Roi r = image.getRoi();
         if (r instanceof PointRoi) {
             PointRoi pRoi = (PointRoi)r;
             Polygon p = r.getPolygon();
             
-            List<int[]> res = new ArrayList<>(p.npoints);
+            List<Point> res = new ArrayList<>(p.npoints);
             for (int i = 0; i<p.npoints; ++i) {
-                res.add(new int[]{p.xpoints[i], p.ypoints[i], Math.max(0, pRoi.getPointPosition(i)-1)});
+                res.add(new Point(p.xpoints[i], p.ypoints[i], Math.max(0, pRoi.getPointPosition(i)-1)));
             }
             return res;
         } else return Collections.emptyList();

@@ -36,6 +36,7 @@ import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.geom.Point;
 import ij.process.AutoThresholder;
 
 import java.util.*;
@@ -241,7 +242,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     @Override public void setManualSegmentationVerboseMode(boolean verbose) {
         this.verboseManualSeg=verbose;
     }
-    @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<int[]> seedsXYZ) {
+    @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
 
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
         EdgeDetector seg = initEdgeDetector(parent, objectClassIdx);

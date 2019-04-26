@@ -29,6 +29,8 @@ import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.image.SimpleImageProperties;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.geom.Point;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map.Entry;
@@ -133,10 +135,10 @@ public class RegionFactory {
             ++newLabel;
         }
     }
-    public static List<Region> createSeedObjectsFromSeeds(List<int[]> seedsXYZ, boolean is2D, double scaleXY, double scaleZ) {
+    public static List<Region> createSeedObjectsFromSeeds(List<Point> seedsXYZ, boolean is2D, double scaleXY, double scaleZ) {
         List<Region> seedObjects = new ArrayList<>(seedsXYZ.size());
         int label = 0;
-        for (int[] seed : seedsXYZ) seedObjects.add(new Region(new Voxel(seed), ++label, is2D, (float)scaleXY, (float)scaleZ));
+        for (Point seed : seedsXYZ) seedObjects.add(new Region(seed.asVoxel(), ++label, is2D, (float)scaleXY, (float)scaleZ));
         return seedObjects;
     }
     
