@@ -341,14 +341,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
             
         } else if (object.key.getRegion() instanceof Spot) {
-            double x = object.key.getRegion().getCenter().getDoublePosition(0);
-            double y = object.key.getRegion().getCenter().getDoublePosition(1);
+            double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
+            double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();
             int z = (int)(object.key.getRegion().getCenter().getWithDimCheck(2)+0.5);
             double rad = ((Spot)object.key.getRegion()).getRadius();
-            Roi roi = new EllipseRoi(x+0.5, y - 2.3548 * rad / 2 + 0.5, x+0.5, y + 2.3548 * rad / 2 + 0.5, 1);
+            Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * rad / 2 + 0.5, x+0.5, y + 2.3548 * rad / 2 + 0.5, 1);
             // TODO make 3D ROI with radius that vary with Z
             r = new Roi3D(1);
-            roi.setLocation(object.value.xMin(), object.value.yMin());
+            roi.enableSubPixelResolution();
             roi.setPosition(z +1+ object.value.zMin());
             r.put(z, roi);
         } else r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
