@@ -33,9 +33,7 @@ import bacmman.processing.*;
 import bacmman.processing.gaussian_fit.GaussianFit;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
-import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.StreamConcatenation;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,10 +58,10 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     ArrayNumberParameter radii = new ArrayNumberParameter("Radial Symmetry Radii", 0, radius).setSorted(true).setValue(2, 3, 4).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
 
-
+    NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null).setHint("Spot with a sigma value (from the gaussian fit) inferior to this value will be erased.");
     NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 0.3).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, radii, smoothScale, typicalSigma};
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, radii, smoothScale, typicalSigma, maxSigma};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false;
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
@@ -172,7 +170,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
      * @param input pre-diltered image from wich spots will be detected
      * @param parent segmentation parent
      * @param thresholdSeeds minimal laplacian value to segment a spot
-     * @param intensityThreshold minimal gaussian value to semgent a spot
+     * @param intensityThreshold minimal gaussian value to segment a spot
      * @return segmented spots
      */
     public RegionPopulation run(Image input, int objectClassIdx, SegmentedObject parent, double thresholdSeeds, double intensityThreshold) {
@@ -199,20 +197,23 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             stores.get(parent).addIntermediateImage("Gaussian", smooth);
             stores.get(parent).addIntermediateImage("RadialSymmetryTransform", radSym);
         }
+        //Image fitImage = parent.getRawImage(objectClassIdx);
+        Image fitImage = input;
 
-        List<Spot> segmentedSpots = fitAndSetQuality(radSym, smooth, parent.getRawImage(objectClassIdx), seeds, seeds, typicalSigma.getValue().doubleValue());
+        List<Spot> segmentedSpots = fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getValue().doubleValue());
+        segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         return pop;
     }
     
-    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image rawIntensity, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma) {
-        Map<Point, double[]> fit = GaussianFit.run(rawIntensity, allSeeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
+    private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma) {
+        Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
 
-        List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, rawIntensity)).collect(Collectors.toList());
+        List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage)).collect(Collectors.toList());
 
         for (Spot o : res) { // quality criterion : sqrt (smooth * radSym)
-            o.getCenter().ensureWithinBounds(rawIntensity.getBoundingBox().resetOffset());
+            o.getCenter().ensureWithinBounds(fitImage.getBoundingBox().resetOffset());
             double zz = o.getCenter().numDimensions()>2?o.getCenter().get(2):0;
             o.setQuality(Math.sqrt(radSym.getPixel(o.getCenter().get(0), o.getCenter().get(1), zz) * smoothedIntensity.getPixel(o.getCenter().get(0), o.getCenter().get(1), zz)));
         }
@@ -234,19 +235,18 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedObjects) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
         this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
-        if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(input, input));
+        if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(parent.getRawImage(objectClassIdx), input));
         else logger.debug("manual seg: maps already set!");
         Image radialSymmetryMap = pv.getRadialSymmetryMap();
         Image smooth = pv.getSmoothedMap();
-        logger.debug("seeds: {}", seedObjects);
 
         List<Point> allObjects = parent.getChildren(objectClassIdx)
                 .map(o->o.getRegion().getCenter().duplicate().translateRev(parent.getBounds()))
                 .collect(Collectors.toList());
-        logger.debug("other objects: {}", allObjects);
+
         allObjects.addAll(seedObjects);
 
-        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, parent.getRawImage(objectClassIdx), allObjects, seedObjects, typicalSigma.getValue().doubleValue());
+        List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, input, allObjects, seedObjects, typicalSigma.getValue().doubleValue());
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
 

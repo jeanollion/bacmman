@@ -142,6 +142,9 @@ public class ConfigurationIO {
             if (localConfig.getRoot() instanceof Experiment) {
                 Experiment xp = ((Experiment)localConfig.getRoot()).duplicate();
                 xp.getPositionParameter().removeAllElements();
+                xp.setNote("");
+                xp.setOutputDirectory("");
+                xp.setOutputImageDirectory("");
                 content = xp.toJSONEntry();
             } else content = (JSONObject)localConfig.getRoot().toJSONEntry();
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
@@ -175,7 +178,7 @@ public class ConfigurationIO {
             form.display(displayingFrame, "Update remote configuration...");
             if (form.canceled) return;
             gist.setDescription(form.description()); // only those fields can be modified
-            JSONObject content = (JSONObject)localConfig.getRoot().toJSONEntry();
+            JSONObject content = null;
             if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
                 switch (currentMode) {
                     case PROCESSING: {
@@ -186,13 +189,22 @@ public class ConfigurationIO {
                         break;
                     }
                     case PRE_PROCESSING: {
-                        Experiment xp = gist.getExperiment();
+                        Experiment xp = gist.getExperiment().duplicate();
                         xp.getPreProcessingTemplate().initFromJSONEntry(content);
                         content = xp.toJSONEntry();
                         break;
                     }
-                    default:
                 }
+            }
+            if (content == null) {
+                if (localConfig.getRoot() instanceof Experiment) {
+                    Experiment xp = ((Experiment)localConfig.getRoot()).duplicate();
+                    xp.getPositionParameter().removeAllElements();
+                    xp.setNote("");
+                    xp.setOutputDirectory("");
+                    xp.setOutputImageDirectory("");
+                    content = xp.toJSONEntry();
+                } else content = (JSONObject)localConfig.getRoot().toJSONEntry();
             }
             gist.setJsonContent(content).updateContent(getAuth());
             updateRemoteSelector();
@@ -204,18 +216,24 @@ public class ConfigurationIO {
                 case WHOLE: {
                     String outputPath = xp.getOutputDirectory();
                     String outputImagePath = xp.getOutputImageDirectory();
+                    content.remove("positions");
+                    content.remove("note");
                     xp.initFromJSONEntry(content);
                     xp.setOutputDirectory(outputPath);
                     xp.setOutputImageDirectory(outputImagePath);
+                    boolean differ = xp.getPositions().stream().anyMatch(p->!p.getPreProcessingChain().sameContent(xp.getPreProcessingTemplate()));
+                    if (differ && Utils.promptBoolean("Also copy pre-processing template to all positions ?", this.mainPanel) ) {
+                        xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(xp.getPreProcessingTemplate()));
+                    }
                     break;
                 } case PRE_PROCESSING: {
                     Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
                     int pIdx = this.localSelectorJCB.getSelectedIndex()-1;
                     if (pIdx<0) { // template is selected
                         this.xp.getPreProcessingTemplate().setContentFrom(remoteXP.getPreProcessingTemplate());
-                        boolean differ = remoteXP.getPositions().stream().anyMatch(p->!p.getPreProcessingChain().sameContent(remoteXP.getPreProcessingTemplate()));
+                        boolean differ = xp.getPositions().stream().anyMatch(p->!p.getPreProcessingChain().sameContent(remoteXP.getPreProcessingTemplate()));
                         if (differ && Utils.promptBoolean("Also copy pre-processing to all positions ?", this.mainPanel) ) {
-                            remoteXP.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate()));
+                            xp.getPositions().forEach(p -> p.getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate()));
                         }
                     } else { // one position is selected
                         this.xp.getPosition(pIdx).getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate());

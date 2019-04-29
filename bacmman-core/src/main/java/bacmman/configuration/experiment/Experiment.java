@@ -121,7 +121,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         channelImages.initFromJSONEntry(jsonO.get("channelImages"));
         structures.initFromJSONEntry(jsonO.get("structures"));
         measurements.initFromJSONEntry(jsonO.get("measurements"));
-        positions.initFromJSONEntry(jsonO.get("positions"));
+        if (jsonO.containsKey("positions")) positions.initFromJSONEntry(jsonO.get("positions"));
         template.initFromJSONEntry(jsonO.get("template"));
         if (jsonO.get("importMethod") instanceof JSONObject) importCond.initFromJSONEntry(jsonO.get("importMethod"));
         else importMethod.initFromJSONEntry(jsonO.get("importMethod")); // RETRO COMPATIBILITY
@@ -147,6 +147,15 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         for (Structure s : defaultStructures) structures.insert(s);
         structures.setUnmutableIndex(defaultStructures.length-1);
         initChildList();
+    }
+
+    public Experiment setNote(String note) {
+        this.note.setValue(note);
+        return this;
+    }
+
+    public String getNote() {
+        return note.getValue();
     }
 
     public boolean isImportImageInvertTZ() {
