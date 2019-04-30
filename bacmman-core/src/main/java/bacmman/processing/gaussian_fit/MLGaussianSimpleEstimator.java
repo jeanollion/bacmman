@@ -18,7 +18,6 @@
  */
 package bacmman.processing.gaussian_fit;
 
-import static bacmman.data_structure.Processor.logger;
 import net.imglib2.Localizable;
 import net.imglib2.algorithm.localization.MLGaussianEstimator;
 import net.imglib2.algorithm.localization.Observation;
@@ -29,10 +28,10 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class MLGaussianPlusConstantSimpleEstimator extends MLGaussianEstimator {
+public class MLGaussianSimpleEstimator extends MLGaussianEstimator {
     final protected double sigma;
     final protected int nDims;
-    public MLGaussianPlusConstantSimpleEstimator(double typicalSigma, int nDims) {
+    public MLGaussianSimpleEstimator(double typicalSigma, int nDims) {
         super(typicalSigma, nDims);
         this.sigma= typicalSigma;
         this.nDims=nDims;
@@ -40,15 +39,11 @@ public class MLGaussianPlusConstantSimpleEstimator extends MLGaussianEstimator {
 
     @Override
     public double[] initializeFit(Localizable point, Observation data) {
-        
-        final double[] start_param = new double[nDims+3];
-        for (int j = 0; j < nDims; j++) {
-                start_param[j] = point.getDoublePosition(j);
-        }
-        start_param[nDims + 1] = 1/(2 * sigma * sigma); // start with half of typical sigma
+        final double[] start_param = new double[nDims+2];
+        for (int j = 0; j < nDims; j++) start_param[j] = point.getDoublePosition(j);
+        start_param[nDims + 1] = 1/(2 * sigma * sigma);
         double min = Arrays.stream(data.I).min().getAsDouble();
-        start_param[nDims + 2] = min; //C
-        start_param[nDims] = getValue(point, data) - start_param[nDims + 2]; //A
+        start_param[nDims] = getValue(point, data) - min; //A
         return start_param;
     }
     
@@ -63,22 +58,6 @@ public class MLGaussianPlusConstantSimpleEstimator extends MLGaussianEstimator {
             }
         }
         return res;
-    }
-    
-    private static double[] getMeanAndMinValue(Localizable point, Observation data, double distMax) {
-        double res = 0;
-        double count = 0;
-        distMax = distMax * distMax;
-        double min = Double.POSITIVE_INFINITY;
-        for (int i =0 ; i<data.I.length; ++i) {
-            double d = distSq(data.X[i], point);
-            if (d<distMax) {
-                count++;
-                res += data.I[i];
-                if (data.I[i]<min) min = data.I[i];
-            }
-        }
-        return new double[]{res/count, min};
     }
     
     private static double distSq(double[] p1, Localizable point) {

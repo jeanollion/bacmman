@@ -18,6 +18,8 @@
  */
 package bacmman.image;
 
+import bacmman.utils.geom.Point;
+
 import static bacmman.utils.Utils.parallele;
 
 import java.util.stream.IntStream;
@@ -28,7 +30,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  * @param <T>
  */
-public interface BoundingBox<T> extends Offset<T> {
+public interface BoundingBox<T extends BoundingBox> extends Offset<T> {
     public int xMax();
     public int yMax();
     public int zMax();
@@ -39,7 +41,9 @@ public interface BoundingBox<T> extends Offset<T> {
     public double yMean();
     public double zMean();
     public boolean contains(int x, int y, int z);
+    public boolean contains(Point point);
     public boolean containsWithOffset(int x, int y, int z);
+    public boolean containsWithOffset(Point point);
     public boolean sameBounds(BoundingBox other);
     public boolean sameDimensions(BoundingBox other);
     /**

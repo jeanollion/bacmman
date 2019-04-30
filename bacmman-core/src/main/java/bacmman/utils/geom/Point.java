@@ -226,7 +226,7 @@ public class Point<T extends Point> implements Offset<T>, RealLocalizable, JSONS
         }
         return (T)this;
     }
-    public void ensureWithinBounds(BoundingBox bounds) {
+    public Point ensureWithinBounds(BoundingBox bounds) {
         if (coords[0]<bounds.xMin()) coords[0] = bounds.xMin();
         else if (coords[0]>bounds.xMax()) coords[0] = bounds.xMax();
         if (coords.length>1) {
@@ -237,6 +237,7 @@ public class Point<T extends Point> implements Offset<T>, RealLocalizable, JSONS
                 else if (coords[2]>bounds.zMax()) coords[2] = bounds.zMax();
             }
         }
+        return this;
     }
     // RealLocalizable implementation
     @Override

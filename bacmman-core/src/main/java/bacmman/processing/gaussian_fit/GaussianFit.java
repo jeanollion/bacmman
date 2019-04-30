@@ -21,6 +21,7 @@ package bacmman.processing.gaussian_fit;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Spot;
 import bacmman.image.ImageProperties;
+import bacmman.processing.ImageOperations;
 import bacmman.utils.geom.Point;
 import bacmman.image.Image;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
@@ -45,6 +46,7 @@ import org.slf4j.LoggerFactory;
  */
 public class GaussianFit {
     public static final Logger logger = LoggerFactory.getLogger(GaussianFit.class);
+    private static final boolean fitConstant = true;
     /**
      * Fits gaussian on spots as
      * I(xᵢ) = A * exp (- 1/(2*σ²) * ∑ (xᵢ - x₀ᵢ)² ) + C
@@ -63,10 +65,12 @@ public class GaussianFit {
      */
     public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalSigma, double minDistance, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
+        double min = fitConstant ? Double.NaN : image.getMinAndMax(null)[0];
+        if (!fitConstant) ImageOperations.addValue(image, -min, image);
         Img img = ImgLib2ImageWrapper.getImage(image);
         int nDims = is3D?3:2;
-        StartPointEstimator estimator = new MLGaussianPlusConstantSimpleEstimator(typicalSigma, nDims);
-        GaussianPlusConstant fitFunction = new GaussianPlusConstant();
+        StartPointEstimator estimator = fitConstant ? new MLGaussianPlusConstantSimpleEstimator(typicalSigma, nDims) : new MLGaussianEstimator(typicalSigma, nDims);
+        FitFunction fitFunction = fitConstant?  new GaussianPlusConstant() : new Gaussian();
 
         // cluster are fit together
         List<Set<Point>> clusters = getClusters(peaks, minDistance );
@@ -92,6 +96,7 @@ public class GaussianFit {
             params[params.length-1] = Math.sqrt(LevenbergMarquardtSolver.chiSquared(data.X, e.getValue(), data.I, fitFunction));
             */
         }
+        if (!fitConstant) ImageOperations.addValue(image, min, image);
         return results;
     }
 
@@ -183,9 +188,8 @@ public class GaussianFit {
      */
     private static <L extends Localizable> Map<L, double[]> runPeakCluster(Img img, Set<L> closePeaks, double typicalSigma, int maxIter, double lambda, double termEpsilon) {
         List<L> peaks = new ArrayList<>(closePeaks);
-        MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks, new MLGaussianPlusConstantSimpleEstimator(typicalSigma, img.numDimensions()));
-        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(img.numDimensions()+3, closePeaks.size(), new GaussianPlusConstant());
-
+        MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks,new MLGaussianSimpleEstimator(typicalSigma, img.numDimensions()), fitConstant);
+        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(img.numDimensions()+2, closePeaks.size(), new Gaussian(), fitConstant);
         LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter * closePeaks.size(), lambda, termEpsilon/closePeaks.size());
         PeakFitter fitter = new PeakFitter(img, Arrays.asList(estimator.center), solver, fitFunction, estimator);
         fitter.setNumThreads(1);

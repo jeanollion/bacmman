@@ -315,6 +315,6 @@ public class Spot extends Region {
 
     @Override
     public String toString() {
-        return this.label+this.center.toString()+"R="+radius;
+        return this.label+"C="+this.center.toString()+"R="+radius;
     }
 }

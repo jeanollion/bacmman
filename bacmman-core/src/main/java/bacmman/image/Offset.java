@@ -24,7 +24,7 @@ package bacmman.image;
  * @author Jean Ollion
  * @param <T>
  */
-public interface Offset<T> {
+public interface Offset<T extends Offset> {
     public int xMin();
     public int yMin();
     public int zMin();

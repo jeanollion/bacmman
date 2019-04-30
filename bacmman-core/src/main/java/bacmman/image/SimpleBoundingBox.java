@@ -19,6 +19,7 @@
 package bacmman.image;
 
 import bacmman.utils.JSONSerializable;
+import bacmman.utils.geom.Point;
 import org.json.simple.JSONArray;
 
 /**
@@ -128,13 +129,26 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         return sizeX()<=0 || sizeY()<=0 || sizeZ()<=0;
     }
     @Override
-    public boolean contains(int x, int y, int z) {
-        return 0<=x && xMax-xMin>=x && 0<=y && yMax-yMin>=y && 0<=z && zMax-zMin>=z;
+    public boolean contains(Point point) {
+        return 0<=point.get(0) && xMax-xMin>=point.get(0) &&
+                (point.numDimensions()<=1 || (0<=point.get(1) && yMax-yMin>=point.get(1) &&
+                        (point.numDimensions()<=2 || (0<=point.get(2) && zMax-zMin>=point.get(2)))));
     }
     
     @Override
     public boolean containsWithOffset(int x, int y, int z) {
         return xMin<=x && xMax>=x && yMin<=y && yMax>=y && zMin<=z && zMax>=z;
+    }
+    @Override
+    public boolean contains(int x, int y, int z) {
+        return 0<=x && xMax-xMin>=x && 0<=y && yMax-yMin>=y && 0<=z && zMax-zMin>=z;
+    }
+
+    @Override
+    public boolean containsWithOffset(Point point) {
+        return xMin<=point.get(0) && xMax>=point.get(0) &&
+                (point.numDimensions()<=1 || (yMin<=point.get(1) && yMax>=point.get(1) &&
+                        (point.numDimensions()<=2 || (zMin<=point.get(2) && zMax>=point.get(2)))));
     }
     
     public boolean isOffsetNull() {

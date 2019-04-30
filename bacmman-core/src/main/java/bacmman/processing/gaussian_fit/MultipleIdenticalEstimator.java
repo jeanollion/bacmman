@@ -8,6 +8,7 @@ import net.imglib2.algorithm.localization.StartPointEstimator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.List;
 
 public class MultipleIdenticalEstimator implements StartPointEstimator {
@@ -16,9 +17,11 @@ public class MultipleIdenticalEstimator implements StartPointEstimator {
     final protected StartPointEstimator pointEstimator;
     final protected Localizable center;
     final long[] span;
-    public MultipleIdenticalEstimator(List<? extends Localizable> peaks, StartPointEstimator pointEstimator) {
+    final boolean addConstant;
+    public MultipleIdenticalEstimator(List<? extends Localizable> peaks, StartPointEstimator pointEstimator, boolean addConstant) {
         this.peaks = peaks;
         this.pointEstimator = pointEstimator;
+        this.addConstant=addConstant;
         if (peaks.isEmpty()) throw new IllegalArgumentException("Needs at least one peak");
         if (peaks.size() == 1) {
             span = pointEstimator.getDomainSpan();
@@ -38,6 +41,7 @@ public class MultipleIdenticalEstimator implements StartPointEstimator {
             //logger.debug("union of span: {} at points: {} = {} @ {} (bb: {})", pointEstimator.getDomainSpan(), peaks, span, center, domainSpan);
         }
     }
+
     @Override
     public long[] getDomainSpan() {
         return span;
@@ -46,7 +50,7 @@ public class MultipleIdenticalEstimator implements StartPointEstimator {
     @Override
     public double[] initializeFit(Localizable localizable, Observation observation) {
         double[][] params = new double[peaks.size()][];
-        int NParam=0;
+        int NParam=addConstant ? 1:0;
         for (int i = 0; i<peaks.size(); ++i) {
             params[i] = pointEstimator.initializeFit(peaks.get(i), observation);
             NParam += params[i].length;
@@ -57,6 +61,7 @@ public class MultipleIdenticalEstimator implements StartPointEstimator {
             System.arraycopy(params[i], 0, allParams, curIdx, params[i].length);
             curIdx+=params[i].length;
         }
+        if (addConstant) allParams[NParam-1] = Arrays.stream(observation.I).min().getAsDouble();
         return allParams;
     }
 }
