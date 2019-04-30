@@ -26,6 +26,7 @@ import static bacmman.configuration.parameters.Parameter.logger;
 
 import java.util.*;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import bacmman.utils.Utils;
 
@@ -257,6 +258,16 @@ public class ParameterUtils {
         }
         return null;
     }
+    public static boolean testInParents(Predicate<Parameter> isParent, Parameter parameter) {
+        if (parameter==null) return false;
+        Parameter parent=parameter;
+        while (parent.getParent()!=null) {
+            parent = ((Parameter)parent.getParent());
+            if (isParent.test(parent)) return true;
+        }
+        return false;
+    }
+
     public static void configureStructureParametersFromParent(Parameter parameter) {
         Structure s = getFirstParameterFromParents(Structure.class, parameter, false);
         if (s!=null) configureStructureParameters(s.getIndex(), parameter);
@@ -306,6 +317,7 @@ public class ParameterUtils {
         return null;
     }
     public static Parameter getParameterByPath(Parameter source, List<Integer> pathToParameter) {
+        if (pathToParameter==null) return null;
         Iterator<Integer> it = pathToParameter.iterator();
         while (it.hasNext()) {
             Integer next = it.next();

@@ -443,11 +443,11 @@ public class ConfigurationIO {
     }
     private void updateCompareParameters() {
         if (localConfig==null || remoteConfig == null || !localConfig.getRoot().getClass().equals(remoteConfig.getRoot().getClass())) {
-            if (localConfig!=null) localConfig.setCompareTree(null);
-            if (remoteConfig!=null) remoteConfig.setCompareTree(null);
+            if (localConfig!=null) localConfig.setCompareTree(null, false);
+            if (remoteConfig!=null) remoteConfig.setCompareTree(null, false);
         } else {
-            localConfig.setCompareTree(remoteConfig.getTree());
-            remoteConfig.setCompareTree(localConfig.getTree());
+            localConfig.setCompareTree(remoteConfig.getTree(), true);
+            remoteConfig.setCompareTree(localConfig.getTree(), false);
         }
     }
     private UserAuth getAuth() {

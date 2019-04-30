@@ -20,6 +20,7 @@ package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.*;
 import bacmman.core.ProgressCallback;
@@ -42,6 +43,7 @@ import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import javax.swing.Action;
@@ -71,6 +73,7 @@ public class ConfigurationTreeGenerator {
     protected ContainerParameter rootParameter;
     protected ConfigurationTreeModel treeModel;
     protected JTree tree, compareTree;
+    protected boolean useTemplateForPreProcessingChains;
     private final Consumer<Boolean> xpIsValidCallBack;
     private final Consumer<String> setHint;
     private final BiConsumer<String, List<String>> setModules;
@@ -211,12 +214,40 @@ public class ConfigurationTreeGenerator {
         tree.setShowsRootHandles(true);
         tree.setRootVisible(!(rootParameter instanceof Experiment));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> {
-            if (compareTree==null) return false;
-            List<Integer> path = ParameterUtils.getPath(rootParameter, p); // path from root parameter to p
+        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> { // compare tree
+            Predicate<Parameter> isPositionPredicate = pp->pp instanceof ListParameter && pp.getName().equals("Pre-Processing for all Positions");
+            boolean isPosition = rootParameter instanceof Experiment && ParameterUtils.testInParents(isPositionPredicate, p);
+            BiPredicate<Parameter, Parameter> pipelineDiffers = (pp, template) -> {
+                if (pp instanceof Position) return !((Position)p).getPreProcessingChain().getTransformations().sameContent(template);
+                else if (pp instanceof PreProcessingChain) return !((PreProcessingChain)p).getTransformations().sameContent(template);
+                else if (isPositionPredicate.test(pp)) return ((ListParameter)pp).getActivatedChildren().stream().anyMatch(ppp->!((Position)ppp).getPreProcessingChain().getTransformations().sameContent(template));
+                else return false;
+            };
+
+            if (compareTree==null) {
+                if (isPosition) { // compare position to local template
+                    Parameter template = ((Experiment)rootParameter).getPreProcessingTemplate().getTransformations();
+                    PreProcessingChain ppchain = ParameterUtils.getFirstParameterFromParents(PreProcessingChain.class, p, false);
+                    if (ppchain==null) return pipelineDiffers.test(p, template); // parameter is before pre-processing pipeline
+                    List<Integer> path = ParameterUtils.getPath(ppchain.getTransformations(), p);
+                    if (path==null) return false;
+                    Parameter compare = ParameterUtils.getParameterByPath(template, path);
+                    if (compare==null) return true;
+                    return !p.sameContent(compare);
+                }
+                return false;
+            }
+            Parameter localRoot = rootParameter;
+            Parameter remoteRoot = (ContainerParameter)compareTree.getModel().getRoot();
+            if (useTemplateForPreProcessingChains && isPosition && remoteRoot instanceof Experiment) { // compare local pre-processing chain to remote pre-processing chain
+                remoteRoot = ((Experiment)remoteRoot).getPreProcessingTemplate().getTransformations();
+                localRoot = ParameterUtils.getFirstParameterFromParents(PreProcessingChain.class, p, false);
+                if (localRoot!=null) localRoot = ((PreProcessingChain)localRoot).getTransformations();
+                else return pipelineDiffers.test(p, remoteRoot); // parameter is before pre-processing pipeline
+            }
+            List<Integer> path = ParameterUtils.getPath(localRoot, p); // path from root parameter to p
             if (path==null) return false;
-            //if (true) return true;
-            Parameter pp = ParameterUtils.getParameterByPath((ContainerParameter)compareTree.getModel().getRoot(), path);// get equivalent parameter going through that path and compare it if existing
+            Parameter pp = ParameterUtils.getParameterByPath(remoteRoot, path);// get equivalent parameter going through that path and compare it if existing
             if (pp==null) return true;
             else return !p.sameContent(pp);
         });
@@ -305,7 +336,8 @@ public class ConfigurationTreeGenerator {
     public void xpChanged() {
         xpIsValidCallBack.accept(rootParameter.isValid());
     }
-    public void setCompareTree(JTree otherTree) {
+    public void setCompareTree(JTree otherTree, boolean useTemplateForPreProcessingChains) {
+        this.useTemplateForPreProcessingChains=useTemplateForPreProcessingChains;
         this.compareTree=otherTree;
         if (treeModel!=null) treeModel.setCompareTree(otherTree);
         if (tree!=null) tree.updateUI();
