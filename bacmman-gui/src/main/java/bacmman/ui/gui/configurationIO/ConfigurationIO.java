@@ -294,7 +294,7 @@ public class ConfigurationIO {
         updateRemote.setToolTipText(formatHint("Updates the configuration edited in the <em>Remote Configuration panel</em> to the remote server.<br />A password must be provided to perform this action", true));
         deleteRemote.setToolTipText(formatHint("If a configuration is selected: deletes the configuration on the remote server. If a folder is selected: delete all configuration files contained in the folder on the remote server.<br />A password must be provided to perform this action", true));
         remoteSelectorJSP.setToolTipText(formatHint("Select the configuration file to edit. First level of the tree corresponds to the folders. If no password is provided, only the public configuration files of the account are listed", true));
-        localConfigJSP.setToolTipText(formatHint("Configuration tree of the current dataset. Differences with the selected remote configuration are displayed in blue", true));
+        localConfigJSP.setToolTipText(formatHint("Configuration tree of the current dataset. Differences with the selected remote configuration are displayed in blue (particular case: processing pipeline of each position is compared to the remote processing pipeline template)", true));
         remoteConfigJSP.setToolTipText(formatHint("Configuration tree of the selected remote file. Differences with the configuration of the local current dataset are are displayed in blue", true));
     }
 
