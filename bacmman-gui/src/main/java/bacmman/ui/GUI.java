@@ -371,42 +371,49 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.LINK, new AbstractAction("Link") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 linkObjectsButtonActionPerformed(e);
             }
         });
         actionMap.put(Shortcuts.ACTION.UNLINK, new AbstractAction("Unlink") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 unlinkObjectsButtonActionPerformed(e);
             }
         });
         actionMap.put(Shortcuts.ACTION.RESET_LINKS, new AbstractAction("Reset Links") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 resetLinksButtonActionPerformed(e);
             }
         });
         actionMap.put(Shortcuts.ACTION.RESET_LINKS, new AbstractAction("Reset Links") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 resetLinksButtonActionPerformed(e);
             }
         });
         actionMap.put(Shortcuts.ACTION.DELETE, new AbstractAction("Delete") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 deleteObjectsButtonActionPerformed(e);
             }
         });
         actionMap.put(Shortcuts.ACTION.DELETE_AFTER_FRAME, new AbstractAction("Delete") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 if (Utils.promptBoolean("Delete All Objects after selected Frame ? ", null)) ManualEdition.deleteAllObjectsFromFrame(db, true);
             }
         });
         actionMap.put(Shortcuts.ACTION.PRUNE, new AbstractAction("Create Branch") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 pruneTrackButtonActionPerformed(e);
             }
         });
@@ -414,6 +421,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!checkConnection()) return;
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
                 if (selList.isEmpty()) logger.warn("Select at least one object to Create track from first!");
                 else if (selList.size()<=10 || Utils.promptBoolean("Create "+selList.size()+ " new tracks ? ", null)) ManualEdition.createTracks(db, selList, true);
@@ -422,6 +430,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.MERGE, new AbstractAction("Merge") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 mergeObjectsButtonActionPerformed(e);
                 logger.debug("M pressed: " + e);
             }
@@ -429,6 +438,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.SPLIT, new AbstractAction("Split") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 splitObjectsButtonActionPerformed(e);
                 logger.debug("S pressed: " + e);
             }
@@ -438,6 +448,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                manualSegmentButtonActionPerformed(e);
                 logger.debug("C pressed: " + e);
             }
         });
@@ -454,6 +465,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_OBJECTS, new AbstractAction("Select All Objects") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 selectAllObjectsButtonActionPerformed(e);
                 logger.debug("A pressed: " + e);
             }
@@ -461,6 +473,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_TRACKS, new AbstractAction("Select All Tracks") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 selectAllTracksButtonActionPerformed(e);
                 logger.debug("Q pressed: " + e);
             }
@@ -528,6 +541,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.ADD_TO_SEL0, new AbstractAction("Add to selection 0") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("Z pressed (shift)");
                 addToSelectionActionPerformed(0);
             }
@@ -535,6 +549,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.REM_FROM_SEL0, new AbstractAction("Remove from selection 0") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("Z pressed (alt)");
                 removeFromSelectionActionPerformed(0);
             }
@@ -542,6 +557,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.REM_ALL_FROM_SEL0, new AbstractAction("Remove All from selection 0") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("Z pressed (alt gr)");
                 removeAllFromSelectionActionPerformed(0);
             }
@@ -556,6 +572,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.ADD_TO_SEL1, new AbstractAction("Add to selection 1") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("E pressed (shift)");
                 addToSelectionActionPerformed(1);
             }
@@ -563,6 +580,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.REM_FROM_SEL1, new AbstractAction("Remove from selection 1") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("E pressed (alt)");
                 removeFromSelectionActionPerformed(1);
             }
@@ -570,6 +588,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.REM_ALL_FROM_SEL1, new AbstractAction("Remove All from selection 1") {
             @Override
             public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("E pressed (alt gr)");
                 removeAllFromSelectionActionPerformed(1);
             }
@@ -584,7 +603,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY, false);
         PropertyUtils.setPersistant(shortcutPreset, "shortcut_preset");
         
-        this.shortcuts = new Shortcuts(actionMap, Shortcuts.PRESET.valueOf(shortcutPreset.getValue()));
+        this.shortcuts = new Shortcuts(actionMap, Shortcuts.PRESET.valueOf(shortcutPreset.getValue()), ()->ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage());
         
         Consumer<EnumChoiceParameter<Shortcuts.PRESET>> setShortcut = p->{
             shortcuts.setPreset(p.getSelectedEnum());

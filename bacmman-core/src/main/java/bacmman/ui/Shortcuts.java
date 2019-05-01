@@ -23,6 +23,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.swing.Action;
@@ -81,12 +82,14 @@ public class Shortcuts {
     private final Map<ACTION, Action> actionMap; 
     private final KeyboardFocusManager kfm;
     
-    public Shortcuts(Map<ACTION, Action> actionMap, PRESET preset) {
+    public Shortcuts(Map<ACTION, Action> actionMap, PRESET preset, BooleanSupplier isCurrentFocusOwnerAnImage) {
         this.actionMap = actionMap;
         setPreset(preset);
         kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         kfm.addKeyEventDispatcher((KeyEvent e) -> {
             KeyStroke keyStroke = KeyStroke.getKeyStrokeForEvent(e);
+            if (keyStroke.equals(KeyStroke.getKeyStroke(KeyEvent.VK_TAB, 0)) && !isCurrentFocusOwnerAnImage.getAsBoolean()) return false;
+
             if (e.getSource() instanceof JTextComponent) { // enable copy / paste actions for text components
                 if (keyStroke.equals(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK))) {
                     Action copy = new DefaultEditorKit.CopyAction();
