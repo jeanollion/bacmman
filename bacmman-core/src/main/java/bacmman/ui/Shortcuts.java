@@ -67,11 +67,11 @@ public class Shortcuts {
         ADD_TO_SEL0("Add selected object(s) to active selection group 0"), REM_FROM_SEL0("Remove selected object(s) from active selection group 0"), REM_ALL_FROM_SEL0("Remove all objects contained in active image from active selection group 0"), TOGGLE_DISPLAY_SEL0("Toggle Display Objects for active selection group 0"),
         ADD_TO_SEL1("Add selected object(s) to active selection group 1"), REM_FROM_SEL1("Remove selected object(s) from active selection group 1"), REM_ALL_FROM_SEL1("Remove all objects contained in active image from active selection group 1"), TOGGLE_DISPLAY_SEL1("Toggle Display Objects for active selection group 1");
         public final String description, shortcut;
-        private ACTION(String description) {
+        ACTION(String description) {
             this.description=description;
             this.shortcut=null;
         }
-        private ACTION(String description, String shortcut) {
+        ACTION(String description, String shortcut) {
             this.description=description;
             this.shortcut= shortcut;
         }
