@@ -19,6 +19,7 @@
 package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.parameters.Parameter;
+import bacmman.ui.gui.Utils;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import java.awt.Component;
 import java.awt.Dimension;

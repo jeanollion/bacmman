@@ -2,6 +2,7 @@ package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.parameters.NoteParameter;
 import bacmman.configuration.parameters.TextParameter;
+import bacmman.ui.gui.Utils;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 
 import javax.swing.*;

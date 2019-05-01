@@ -45,6 +45,8 @@ import javax.swing.JTextPane;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
+import javax.swing.text.DefaultEditorKit;
+import javax.swing.text.JTextComponent;
 
 import bacmman.core.Core;
 import org.slf4j.Logger;
@@ -85,6 +87,29 @@ public class Shortcuts {
         kfm = KeyboardFocusManager.getCurrentKeyboardFocusManager();
         kfm.addKeyEventDispatcher((KeyEvent e) -> {
             KeyStroke keyStroke = KeyStroke.getKeyStrokeForEvent(e);
+            if (e.getSource() instanceof JTextComponent) { // enable copy / paste actions for text components
+                if (keyStroke.equals(KeyStroke.getKeyStroke(KeyEvent.VK_C, KeyEvent.CTRL_DOWN_MASK))) {
+                    Action copy = new DefaultEditorKit.CopyAction();
+                    copy.actionPerformed(new ActionEvent(e.getSource(), e.getID(), "Copy" ));
+                    return true;
+                } else if (keyStroke.equals(KeyStroke.getKeyStroke(KeyEvent.VK_A, KeyEvent.CTRL_DOWN_MASK))) {
+                    ((JTextComponent)e.getSource()).selectAll();
+                    e.consume();
+                    return true;
+                } else if (keyStroke.equals(KeyStroke.getKeyStroke(KeyEvent.VK_V, KeyEvent.CTRL_DOWN_MASK))) {
+                    if (((JTextComponent)e.getSource()).isEditable()) {
+                        Action paste = new DefaultEditorKit.PasteAction();
+                        paste.actionPerformed(new ActionEvent(e.getSource(), e.getID(), "Paste"));
+                        return true;
+                    } else return false;
+                } else if (keyStroke.equals(KeyStroke.getKeyStroke(KeyEvent.VK_X, KeyEvent.CTRL_DOWN_MASK))) {
+                    if (((JTextComponent)e.getSource()).isEditable()) {
+                        Action cut = new DefaultEditorKit.CutAction();
+                        cut.actionPerformed(new ActionEvent(e.getSource(), e.getID(), "Cut"));
+                        return true;
+                    } else return false;
+                }
+            }
             if ( this.keyMapAction.containsKey(keyStroke) ) {
                 final ACTION A = this.keyMapAction.get(keyStroke);
                 final Action a = this.actionMap.get(A);

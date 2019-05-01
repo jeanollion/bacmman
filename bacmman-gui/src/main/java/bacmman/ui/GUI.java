@@ -74,6 +74,7 @@ import bacmman.ui.gui.objects.StructureSelectorTree;
 import bacmman.image.Image;
 
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
@@ -432,10 +433,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 logger.debug("S pressed: " + e);
             }
         });
+
         actionMap.put(Shortcuts.ACTION.CREATE, new AbstractAction("Create") {
             @Override
             public void actionPerformed(ActionEvent e) {
-                manualSegmentButtonActionPerformed(e);
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 logger.debug("C pressed: " + e);
             }
         });
@@ -579,15 +581,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 toggleDisplaySelection(1);
             }
         });
-        
-        ChoiceParameter shortcutPreset = new ChoiceParameter("Shortcut preset", Utils.toStringArray(Shortcuts.PRESET.values()), Shortcuts.PRESET.AZERTY.toString(), false);
+        EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY, false);
         PropertyUtils.setPersistant(shortcutPreset, "shortcut_preset");
         
         this.shortcuts = new Shortcuts(actionMap, Shortcuts.PRESET.valueOf(shortcutPreset.getValue()));
         
-        Consumer<ChoiceParameter> setShortcut = p->{
-            int selPreset = p.getSelectedIndex();
-            shortcuts.setPreset(Shortcuts.PRESET.valueOf(((ChoiceParameter)p).getValue()));
+        Consumer<EnumChoiceParameter<Shortcuts.PRESET>> setShortcut = p->{
+            shortcuts.setPreset(p.getSelectedEnum());
             shortcutPresetMenu.removeAll();
             ConfigurationTreeGenerator.addToMenu(shortcutPreset.getName(), ParameterUIBinder.getUI(shortcutPreset).getDisplayComponent(), this.shortcutPresetMenu);
             helpMenu.add(shortcutPresetMenu);
