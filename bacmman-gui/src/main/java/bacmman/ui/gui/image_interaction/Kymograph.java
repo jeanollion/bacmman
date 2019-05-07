@@ -54,8 +54,7 @@ public abstract class Kymograph extends InteractiveImage {
     BoundingBox[] trackOffset;
     SimpleInteractiveImage[] trackObjects;
     static final int updateImageFrequency=50;
-    public static int INTERVAL_PIX=0; 
-    static final float displayMinMaxFraction = 0.9f;
+    public static int INTERVAL_PIX=0;
     final int maxParentSize, maxParentSizeZ;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
     
@@ -124,12 +123,12 @@ public abstract class Kymograph extends InteractiveImage {
         return (T)this;
     }
     
-    @Override public Image generatemage(final int structureIdx, boolean background) {
+    @Override public Image generateImage(final int structureIdx, boolean background) {
         background = false; // imageJ1 -> update display too slow -> better to paste whole image at once
         // use track image only if parent is first element of track image
         //if (trackObjects[0].parent.getOffsetInTrackImage()!=null && trackObjects[0].parent.getOffsetInTrackImage().xMin()==0 && trackObjects[0].parent.getTrackImage(structureIdx)!=null) return trackObjects[0].parent.getTrackImage(structureIdx);
         long t0 = System.currentTimeMillis();
-        Image image0 = trackObjects[0].generatemage(structureIdx, false);
+        Image image0 = trackObjects[0].generateImage(structureIdx, false);
         if (image0==null) return null;
         String structureName;
         if (getParent().getExperimentStructure()!=null) structureName = getParent().getExperimentStructure().getObjectClassName(structureIdx);
@@ -144,7 +143,7 @@ public abstract class Kymograph extends InteractiveImage {
         GUI.logger.debug("generate image: {} for structure: {}, ex in background?{}, time: {}ms", parents.get(0), structureIdx, background, t1-t0);
         if (!background) {
             IntStream.range(0, trackOffset.length).parallel().forEach(i->{
-                Image subImage = trackObjects[i].generatemage(structureIdx, false);
+                Image subImage = trackObjects[i].generateImage(structureIdx, false);
                 Image.pasteImage(subImage, displayImage, trackOffset[i]);
             });
         } else {
@@ -163,7 +162,7 @@ public abstract class Kymograph extends InteractiveImage {
                     if (!pastedImageBck[i]) {
                         synchronized(lock[i]) {
                             if (!pastedImageBck[i]) {
-                                Image subImage = trackObjects[i].generatemage(structureIdx, false);
+                                Image subImage = trackObjects[i].generateImage(structureIdx, false);
                                 Image.pasteImage(subImage, displayImage, trackOffset[i]);
                             }
                         }
@@ -181,7 +180,7 @@ public abstract class Kymograph extends InteractiveImage {
                 if (pastedImage[i] || pastedImageBck[i]) return "";
                 synchronized(lock[i]) {
                     if (pastedImage[i] || pastedImageBck[i]) return "";
-                    Image subImage = trackObjects[i].generatemage(structureIdx, false);
+                    Image subImage = trackObjects[i].generateImage(structureIdx, false);
                     Image.pasteImage(subImage, displayImage, trackOffset[i]);
                     pastedImageBck[i] = true;
                     //logger.debug("past image: {}", i);

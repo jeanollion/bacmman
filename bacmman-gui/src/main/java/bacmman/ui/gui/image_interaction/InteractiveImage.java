@@ -65,7 +65,7 @@ public abstract class InteractiveImage {
     public abstract BoundingBox getObjectOffset(SegmentedObject object);
     public abstract ImageInteger generateLabelImage();
     public abstract void drawObjects(ImageInteger image);
-    public abstract Image generatemage(int structureIdx, boolean executeInBackground);
+    public abstract Image generateImage(int structureIdx, boolean executeInBackground);
     public int getChildStructureIdx() {return childStructureIdx;}
     public abstract List<Pair<SegmentedObject, BoundingBox>> getObjects();
     public List<Pair<SegmentedObject, BoundingBox>> pairWithOffset(Collection<SegmentedObject> objects) {

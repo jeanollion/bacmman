@@ -2,12 +2,14 @@ package bacmman.image.io;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.stream.IntStream;
 
 public class KymographFactory {
-
+    public final static Logger logger = LoggerFactory.getLogger(KymographFactory.class);
     public static KymographData generateKymographData(List<SegmentedObject> parentTrack, boolean middle, int interval) {
         //setAllChildren(parentTrack, childStructureIdx); // if set -> tracking test cannot work ?
         BoundingBox bb = parentTrack.get(0).getBounds();

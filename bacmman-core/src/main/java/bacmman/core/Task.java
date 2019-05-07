@@ -431,9 +431,9 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
                 for (int s : structures) if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Structure: "+ db.getExperiment().getStructure(s).getName())));
             }
             if (measurements) {
-                if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Meausements: ")));
+                if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
             }
-            for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.getLocalizedMessage()));
+            for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
             logger.info("task : {}, isValid: {}", dbName, errors.isEmpty());
             if (!keepDB) {
                 db.clearCache();
@@ -697,7 +697,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
     }
     public static boolean printStackTraceElement(String stackTraceElement) {
         //return true;
-        return !stackTraceElement.startsWith("java.util.")&&!stackTraceElement.startsWith("java.lang.")
+        return !stackTraceElement.startsWith("java.util.")&&!stackTraceElement.startsWith("java.lang.")&&!stackTraceElement.startsWith("java.security.")
                 &&!stackTraceElement.startsWith("java.awt.")&&!stackTraceElement.startsWith("java.lang.")
                 &&!stackTraceElement.startsWith("sun.reflect.")&&!stackTraceElement.startsWith("javax.swing.")
                 &&!stackTraceElement.startsWith("bacmman.core.")&&!stackTraceElement.startsWith("bacmman.utils.");
@@ -727,17 +727,18 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
     public void publishErrors() {
         unrollMultipleExceptions();
         this.publish("Errors: "+this.errors.getExceptions().size()+ " For JOB: "+this.toString());
-        for (Pair<String, ? extends Throwable> e : errors.getExceptions()) {
-            publish("Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
-            publishError(e.value);
-        }
+        for (Pair<String, ? extends Throwable> e : errors.getExceptions()) publishError(e.key, e.value);
     }
-    private void publishError(Throwable t) {
-        for (StackTraceElement s : t.getStackTrace()) {
-            String ss = s.toString();
-            if (printStackTraceElement(ss)) publish(s.toString());
-        }
-        if (t.getCause()!=null) {
+    public void publishError(String localizer, Throwable error) {
+        publish("Error @"+localizer+" "+(error==null?"null":error.toString()));
+        publishError(error);
+    }
+    protected void publishError(Throwable t) {
+        publish(Arrays.stream(t.getStackTrace())
+                .map(st -> st.toString())
+                .filter(s->printStackTraceElement(s))
+                .toArray(l->new String[l]));
+        if (t.getCause()!=null && !t.getCause().equals(t)) {
             publish("caused By");
             publishError(t.getCause());
         }

@@ -263,7 +263,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                             if (rootTrack!=null) {
                                 InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx);
                                 if (i != null)
-                                    ImageWindowManagerFactory.getImageManager().addImage(i.generatemage(structureIdx, true), i, structureIdx, true);
+                                    ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
                                 GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                                 GUI.getInstance().setTrackStructureIdx(structureIdx);
                             }

@@ -39,6 +39,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
@@ -64,7 +65,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, radii, smoothScale, typicalSigma, maxSigma};
     ProcessingVariables pv = new ProcessingVariables();
-    boolean planeByPlane = false;
+    boolean planeByPlane = true; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected by performing a gaussian fit on raw intensity at the location of <em>seeds</em>, defined as the regional maxima of the Radial Symmetry transform, within the mask of the segmentation parent. Selected seeds have a Radial Symmetry value larger than <em>Radial Symmetry Seed Threshold</em> and a Gaussian value superior to <em>Seed Threshold</em></li>"
             + "<li>A quality parameter defined as √(Radial Symmetry x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
@@ -167,8 +168,8 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
      * Seeds are set on regional maxima of the laplacian transform, within the mask of {@param parent}, with laplacian value superior to {@param thresholdSeeds} and gaussian value superior to {@param intensityThreshold}
      * If several scales are provided, the laplacian scale space will be computed (3D for 2D input, and 4D for 3D input) and the seeds will be 3D/4D local extrema in the scale space in order to determine at the same time their scale and spatial localization
      * Watershed propagation is done within the mask of {@param parent} until laplacian values reach {@param thresholdPropagation}
-     * A quality parameter in computed as √(laplacian x gaussian) at the center of the spot
-     * @param input pre-diltered image from wich spots will be detected
+     * A quality parameter in computed as √(radial symmetry x gaussian) at the center of the spot
+     * @param input pre-filtered image from which spots will be detected
      * @param parent segmentation parent
      * @param thresholdSeeds minimal laplacian value to segment a spot
      * @param intensityThreshold minimal gaussian value to segment a spot
@@ -182,8 +183,8 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         
         Image smooth = pv.getSmoothedMap();
         Image radSym = pv.getRadialSymmetryMap();
-        Neighborhood n = new EllipsoidalNeighborhood(1.5, 1, false); // TODO radius as parameter ?
-        ImageByte seedMap = Filters.localExtrema(radSym, null, true, parent.getMask(), n);
+        Neighborhood n = Filters.getNeighborhood(1.5, 1.5, radSym); // TODO radius as parameter ?
+        ImageByte seedMap = Filters.localExtrema(radSym, null, true, parentMask, n);
 
         List<Point> seeds = new ArrayList<>();
         BoundingBox.loop(new SimpleBoundingBox(seedMap).resetOffset(),
@@ -198,15 +199,31 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             stores.get(parent).addIntermediateImage("Gaussian", smooth);
             stores.get(parent).addIntermediateImage("RadialSymmetryTransform", radSym);
         }
-
+        List<Spot> segmentedSpots;
         Image fitImage = getParent(parent, objectClassIdx).getPreFilteredImage(objectClassIdx); // we need full image to fit. In case segmentation is occurring in segmentation parent, then fit will occur in parent
-        List<Spot> segmentedSpots = fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getValue().doubleValue());
 
-        // filter by distance from original seed
-        Map<Spot, Double> distSqFromSeed = IntStream.range(0, segmentedSpots.size()).mapToObj(i->i).collect(Collectors.toMap(i->segmentedSpots.get(i), i->segmentedSpots.get(i).getCenter().distSq(seeds.get((i)))));
-        double maxDistSq = Math.pow(2 * typicalSigma.getValue().doubleValue(), 2);
-        segmentedSpots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq).map(e->e.getKey()).collect(Collectors.toList()));
+        BiConsumer<List<Spot>, List<Point>> removeSpotsFarFromSeeds = (spots, seedList) -> { // filter by distance from original seed
+            Map<Spot, Double> distSqFromSeed = IntStream.range(0, spots.size()).mapToObj(i->i).collect(Collectors.toMap(i->spots.get(i), i->spots.get(i).getCenter().distSq(seedList.get((i)))));
+            double maxDistSq = Math.pow(2 * typicalSigma.getValue().doubleValue(), 2);
+            spots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq).map(e->e.getKey()).collect(Collectors.toList()));
+        };
 
+        if (seedMap.sizeZ()>1 && planeByPlane) {
+            segmentedSpots = new ArrayList<>();
+            List<Image> fitImagePlanes = fitImage.splitZPlanes();
+            List<Image> smoothPlanes = smooth.splitZPlanes();
+            List<Image> radSymPlanes = radSym.splitZPlanes();
+            IntStream.range(0, fitImagePlanes.size()).forEachOrdered(z -> {
+                List<Point> seedsZ = seeds.stream().filter(p -> p.get(2)==z).collect(Collectors.toList());
+                List<Spot> segmentedSpotsZ = fitAndSetQuality(radSymPlanes.get(z), smoothPlanes.get(z), fitImagePlanes.get(z), seedsZ, seedsZ, typicalSigma.getValue().doubleValue());
+                removeSpotsFarFromSeeds.accept(segmentedSpotsZ, seedsZ);
+                segmentedSpots.addAll(segmentedSpotsZ);
+            });
+            segmentedSpots.forEach(s->s.setIs2D(false));
+        } else {
+            segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getValue().doubleValue());
+            removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
+        }
         // filter by radius
         segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
 
@@ -229,7 +246,6 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         BoundingBox bounds = radSym.getBoundingBox().resetOffset();
         for (Spot o : res) { // quality criterion : sqrt (smooth * radSym)
             Point center = bounds.contains(o.getCenter()) ? o.getCenter() : o.getCenter().duplicate().ensureWithinBounds(bounds);
-            //o.getCenter().ensureWithinBounds(radSym.getBoundingBox().resetOffset()); // erase spot if out-of-bound ?
             double zz = center.numDimensions()>2?center.get(2):0;
             o.setQuality(Math.sqrt(radSym.getPixel(center.get(0), center.get(1), zz) * smoothedIntensity.getPixel(center.get(0), center.get(1), zz)));
         }

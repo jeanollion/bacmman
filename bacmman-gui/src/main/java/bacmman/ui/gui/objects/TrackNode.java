@@ -241,7 +241,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             //trackNode.loadAllTrackObjects(path);
                             int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
                             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx);
-                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generatemage(structureIdx, true), i, structureIdx, true);
+                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
                             GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                             GUI.getInstance().setTrackStructureIdx(structureIdx);
                         }
@@ -265,13 +265,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                         Processor.executeProcessingScheme(n.getTrack(), structureIdx, false, true);
                                         GUI.log("Segmentation & Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
                                     } catch (MultipleException me) {
-                                        for (Pair<String, Throwable> pe : me.getExceptions()) {
-                                            GUI.log("Error @ "+pe.key+ " "+pe.value.getMessage());
-                                            Arrays.stream(pe.value.getStackTrace()).map(s->s.toString()).filter(s->Task.printStackTraceElement(s)).forEachOrdered(s->GUI.log(s));
-                                        }
-                                    } catch (Throwable t) {
-                                        GUI.log("Error: "+t.getMessage());
-                                        Arrays.stream(t.getStackTrace()).map(s->s.toString()).filter(s->Task.printStackTraceElement(s)).forEachOrdered(s->GUI.log(s));
+                                        Task t = new Task().setUI(GUI.getInstance());
+                                        for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
+                                    } catch (Throwable tr) {
+                                        Task t = new Task().setUI(GUI.getInstance());
+                                        t.publishError(n.trackHead.toString(), tr);
                                     }
                                 });
                                 if (nodesByPosition.size()>1) root.generator.db.clearCache(p);
@@ -305,11 +303,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                         Processor.executeProcessingScheme(n.getTrack(), structureIdx, true, false);
                                         GUI.log("Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
                                     } catch (MultipleException me) {
-                                        for (Pair<String, Throwable> t : me.getExceptions()) {
-                                            GUI.log("Error @ "+t.key+ " "+t.value.getMessage());
-                                        }
-                                    } catch (Throwable t) {
-                                        GUI.log("Error: "+t.getMessage());
+                                        Task t = new Task().setUI(GUI.getInstance());
+                                        for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
+                                    } catch (Throwable tr) {
+                                        Task t = new Task().setUI(GUI.getInstance());
+                                        t.publishError(n.trackHead.toString(), tr);
                                     }
                                 });
                                 if (nodesByPosition.size()>1) root.generator.db.clearCache(p);

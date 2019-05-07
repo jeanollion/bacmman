@@ -26,6 +26,7 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.*;
 import bacmman.data_structure.image_container.MemoryImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
@@ -102,6 +103,7 @@ public class PluginConfigurationUtils {
         logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
             boolean pf = plugin instanceof PostFilter;
+            logger.debug("raw image for object class: {} = {} dup: {}, root: {}", structureIdx, wholeParentTrack.get(0).getRawImage(structureIdx).getBoundingBox(), wholeParentTrackDup.get(0).getRawImage(structureIdx).getBoundingBox(),  wholeParentTrack.get(0).getRoot().getRawImage(structureIdx).getBoundingBox());
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
             Segmenter segmenter = pf ? psc.getSegmenter() : (Segmenter)plugin;
             // run pre-filters on whole track -> some track preFilters need whole track to be effective. todo : parameter to limit ? 
@@ -110,6 +112,8 @@ public class PluginConfigurationUtils {
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
             if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
             logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
+            logger.debug("pf image : {}", parentTrackDup.get(0).getRawImage(structureIdx).getBoundingBox());
+
             TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, segmenter);
             SegmentOnly so = new SegmentOnly(segmenter); // no post-filters
             /*if (psc instanceof SegmentOnly) {
@@ -509,14 +513,16 @@ public class PluginConfigurationUtils {
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
-            Image image = ioi.generateEmptyImage(name, (Image)Image.createEmptyImage(maxBitDepth)).setName(name);
+            int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
+            Image im = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).findAny().get();
+            Image image = ioi.generateEmptyImage(name, Image.createEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth), new SimpleBoundingBox(0, 0, 0, 0, 0, maxZ-1).getBlankMask((float)im.getScaleXY(), (float)im.getScaleZ()))).setName(name);
             stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset((SegmentedObject)s.parent)));
             images.add(image);
         });
         // get order for each image (all images are not contained in all stores) & store
         Function<String, Double> getOrder = name -> stores.stream().filter(s -> s.nameOrder.containsKey(name)).mapToDouble(s->s.nameOrder.get(name)).max().orElse(Double.POSITIVE_INFINITY);
         Map<String, Double> orderMap = allImageNames.stream().collect(Collectors.toMap(n->n, n->getOrder.apply(n)));
-        Collections.sort(images, (i1, i2)->Double.compare(orderMap.get(i1.getName()), orderMap.get(i2.getName())));
+        Collections.sort(images, Comparator.comparingDouble(i -> orderMap.get(i.getName())));
         return new Pair<>(ioi, images);
     }
 

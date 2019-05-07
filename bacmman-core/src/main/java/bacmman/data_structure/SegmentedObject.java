@@ -754,7 +754,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
      */
     public Image getRawImage(int structureIdx) {
         int channelIdx = getExperiment().getChannelImageIdx(structureIdx);
-        if (rawImagesC.get(channelIdx)==null) { // chercher l'image chez le parent avec les bounds
+        if (rawImagesC.get(channelIdx)==null) {
             synchronized(rawImagesC) {
                 if (rawImagesC.get(channelIdx)==null) {
                     if (isRoot()) {
@@ -772,14 +772,14 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                         if (parentWithImage!=null) {
                             //logger.debug("object: {}, channel: {}, open from parent with open image: {}", this, channelIdx, parentWithImage);
                             BoundingBox bb=getRelativeBoundingBox(parentWithImage);
-                            extendBoundsInZIfNecessary(channelIdx, bb);
+                            bb=extendBoundsInZIfNecessary(channelIdx, bb);
                             rawImagesC.set(parentWithImage.getRawImage(structureIdx).crop(bb), channelIdx);    
                         } else { // check track image
                             Image trackImage = getTrackImage(structureIdx);
                             if (trackImage!=null) {
                                 //logger.debug("object: {}, channel: {}, open from trackImage: offset:{}", this, channelIdx, offsetInTrackImage);
                                 BoundingBox bb = new SimpleBoundingBox(getBounds()).resetOffset().translate(offsetInTrackImage);
-                                extendBoundsInZIfNecessary(channelIdx, bb);
+                                bb=extendBoundsInZIfNecessary(channelIdx, bb);
                                 Image image = trackImage.crop(bb);
                                 image.resetOffset().translate(getBounds());
                                 rawImagesC.set(image, channelIdx);
@@ -788,7 +788,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                                 //logger.debug("object: {}, channel: {}, no trackImage try to open root and crop... null ? {}", this, channelIdx, rootImage==null);
                                 if (rootImage!=null) {
                                     BoundingBox bb = getRelativeBoundingBox(getRoot());
-                                    extendBoundsInZIfNecessary(channelIdx, bb);
+                                    bb=extendBoundsInZIfNecessary(channelIdx, bb);
                                     Image image = rootImage.crop(bb);
                                     rawImagesC.set(image, channelIdx);
                                 } else if (!this.equals(getRoot())) {
@@ -797,7 +797,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                                     //logger.debug("try to open parent image: null?{}", pImage==null);
                                     if (pImage!=null) {
                                         BoundingBox bb = getRelativeBoundingBox(getParent());
-                                        extendBoundsInZIfNecessary(channelIdx, bb);
+                                        bb=extendBoundsInZIfNecessary(channelIdx, bb);
                                         Image image = pImage.crop(bb);
                                         rawImagesC.set(image, channelIdx);
                                     }
@@ -806,7 +806,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                             // no speed gain in opening only tiles
                             /*StructureObject root = getRoot();
                             BoundingBox bb=getRelativeBoundingBox(root);
-                            extendBoundsInZIfNecessary(channelIdx, bb);
+                            bb=extendBoundsInZIfNecessary(channelIdx, bb);
                             rawImagesC.set(root.openRawImage(structureIdx, bb), channelIdx);*/
                         }
                     }
@@ -828,9 +828,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     void setPreFilteredImage(Image image, int structureIdx) {
         if (image!=null) {
-            // test same dimention. allow different z for viewfield only
-            if (isRoot() && (getMask().sizeX()!=image.sizeX() || getMask().sizeY()!=image.sizeY()) || !isRoot() && !image.sameDimensions(getMask())) throw new IllegalArgumentException("PreFiltered Image should have same dimensions as object: image: "+image.getBoundingBox()+ " object: "+new SimpleBoundingBox(getMask()).toString());
-            image.setCalibration(getMask());
+            // test same dimension. allow different z for 2D objects only
+            if (is2D() && (getBounds().sizeX()!=image.sizeX() || getBounds().sizeY()!=image.sizeY()) || !is2D() && !image.sameDimensions(getBounds())) throw new IllegalArgumentException("PreFiltered Image should have same dimensions as object: image: "+image.getBoundingBox()+ " object: "+new SimpleBoundingBox(getMask()).toString());
+            image.setCalibration(getScaleXY(), getScaleZ());
             image.resetOffset().translate(getBounds()); // ensure same offset
         }
         this.preFilteredImagesS.set(image, structureIdx);
@@ -872,7 +872,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (bounds.sizeZ()==1 && is2D() && channelIdx!=this.getExperiment().getChannelImageIdx(structureIdx)) { 
             int sizeZ = getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx); //TODO no reliable if a transformation removes planes -> need to record the dimensions of the preProcessed Images
             if (sizeZ>1) {
-                //logger.debug("extends bounds Z: is2D: {}, bounds: {}, sizeZ of image to open: {}, new bounds: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx), new MutableBoundingBox(bounds).expandZ(sizeZ-1));
+                //logger.debug("extends bounds Z: is2D: {}, bounds: {}, sizeZ of image to open: {}, new bounds: {}", is2D(), bounds, getExperiment().getPosition(getPositionName()).getSizeZ(channelIdx), new MutableBoundingBox(bounds).unionZ(sizeZ-1));
                 if (bounds instanceof MutableBoundingBox) ((MutableBoundingBox)bounds).unionZ(sizeZ-1);
                 else return new MutableBoundingBox(bounds).unionZ(sizeZ-1);
             }

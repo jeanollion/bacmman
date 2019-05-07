@@ -38,6 +38,10 @@ import java.util.stream.Collectors;
 import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import bacmman.utils.MultipleException;
+import bacmman.utils.ThreadRunner;
+import net.imagej.ops.Ops;
+
+import static bacmman.utils.ThreadRunner.safeMap;
 
 /**
  *
@@ -84,16 +88,24 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         long t0 = System.currentTimeMillis();
         long t1 = System.currentTimeMillis();
         long t2 = System.currentTimeMillis();
-        List<RegionPopulation> pops = allParents.stream().parallel().map(subParent -> {
-            SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
-            Segmenter seg = segmenter.instanciatePlugin();
-            if (applyToSegmenter!=null) applyToSegmenter.apply(globalParent, seg);
-            Image input = globalParent.getPreFilteredImage(structureIdx);
-            if (subSegmentation) input = input.cropWithOffset(ref2D?new MutableBoundingBox(subParent.getBounds()).copyZ(input):subParent.getBounds());
-            RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
-            if (subSegmentation && pop!=null) pop.translate(subParent.getBounds(), true);
-            return pop;
-        }).collect(Collectors.toList()); 
+
+        List<RegionPopulation> pops;
+        try {
+            pops = safeMap(allParents.stream().parallel(), subParent -> {
+                SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
+                Segmenter seg = segmenter.instanciatePlugin();
+                if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
+                Image input = globalParent.getPreFilteredImage(structureIdx);
+                if (subSegmentation)
+                    input = input.cropWithOffset(ref2D ? new MutableBoundingBox(subParent.getBounds()).copyZ(input) : subParent.getBounds());
+                RegionPopulation pop = seg.runSegmenter(input, structureIdx, subParent);
+                if (subSegmentation && pop != null) pop.translate(subParent.getBounds(), true);
+                return pop;
+            }).collect(Collectors.toList());
+        } catch (ThreadRunner.TR_RuntimeException ex) {
+            if (ex.getCause() instanceof RuntimeException) throw (RuntimeException)ex.getCause();
+            else throw ex;
+        }
         boolean hasPostFilters = !postFilters.get().isEmpty();
         long t3 = System.currentTimeMillis();
         if (subSegmentation) { // collect if necessary and set to parent

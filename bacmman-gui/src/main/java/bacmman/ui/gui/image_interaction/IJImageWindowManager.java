@@ -97,7 +97,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     public boolean isCurrentFocusOwnerAnImage() {
         Component c = KeyboardFocusManager.getCurrentKeyboardFocusManager().getFocusOwner();
         if (c==null) return false;
-        GUI.logger.debug("current focus owner class: {}", c.getClass());
+        //GUI.logger.debug("current focus owner class: {}", c.getClass());
         return (c instanceof ImageCanvas || c instanceof ImageWindow);
     }
     @Override
@@ -176,7 +176,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         i.addClickedObjects(selection, selectedObjects);
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
-                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly));
+                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, ip.getSlice()-1));
                         }
                         if (!freeHandSplit || !strechObjects) ip.deleteRoi();
                     }
@@ -244,12 +244,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         canvas.addMouseListener(ml);
         for (MouseListener m : mls) canvas.addMouseListener(m);
     }
-    private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection) {
+    private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection, int sliceZ) {
         if (seg.getRegion() instanceof Spot) {
             return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
                 double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
                 double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
-                double z = offset.zMin()+seg.getBounds().zMin();
+                double z = sliceZ - offset.zMin()+seg.getBounds().zMin();
                 Spot s = (Spot)seg.getRegion();
                 if (s.is2D()) return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)<=s.getRadius()*s.getRadius();
                 else return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)+ Math.pow(z-s.getCenter().getDoublePosition(2), 2)<=s.getRadius()*s.getRadius();
@@ -259,7 +259,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
                 int x= Math.round(selection.xpoints[i] - offset.xMin());
                 int y = Math.round(selection.ypoints[i] - offset.yMin());
-                int z = offset.zMin();
+                int z = sliceZ - offset.zMin();
                 return mask.contains(x, y, z) && mask.insideMask(x, y, z);
             });
         }
@@ -343,13 +343,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         } else if (object.key.getRegion() instanceof Spot) {
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
             double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();
-            int z = (int)(object.key.getRegion().getCenter().getWithDimCheck(2)+0.5);
+            int z = (int)(object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin()+0.5);
             double rad = ((Spot)object.key.getRegion()).getRadius();
             Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * rad / 2 + 0.5, x+0.5, y + 2.3548 * rad / 2 + 0.5, 1);
             // TODO make 3D ROI with radius that vary with Z
-            r = new Roi3D(1);
             roi.enableSubPixelResolution();
-            roi.setPosition(z +1+ object.value.zMin());
+            roi.setPosition(z +1);
+            r = new Roi3D(1);
             r.put(z, roi);
         } else r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
 

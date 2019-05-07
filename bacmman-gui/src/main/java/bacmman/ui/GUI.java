@@ -74,7 +74,6 @@ import bacmman.ui.gui.objects.StructureSelectorTree;
 import bacmman.image.Image;
 
 import java.awt.*;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
@@ -2747,7 +2746,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent, false);
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx());
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, ii.getChildStructureIdx());
-            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(ii.generatemage(ii.getChildStructureIdx(), true), ii, ii.getChildStructureIdx(), true);
+            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(ii.getChildStructureIdx(), true), ii, ii.getChildStructureIdx(), true);
             else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
@@ -2832,7 +2831,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     Image im = iwm.getImage(nextI);
                     boolean newImage = im==null;
                     if (im==null) {
-                        im = nextI.generatemage(structureDisplay, true);
+                        im = nextI.generateImage(structureDisplay, true);
                         iwm.addImage(im, nextI, structureDisplay, true);
                         
                     }

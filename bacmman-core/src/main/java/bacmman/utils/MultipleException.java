@@ -18,6 +18,9 @@
  */
 package bacmman.utils;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,6 +32,7 @@ import java.util.function.BiPredicate;
  * @author Jean Ollion
  */
 public class MultipleException extends RuntimeException {
+    public final static Logger logger = LoggerFactory.getLogger(MultipleException.class);
     final private List<Pair<String, Throwable>> exceptions; // localized execption: string = internal source of exception (position, structure object etc...)
     public MultipleException(List<Pair<String, Throwable>> exceptions) {
         this.exceptions= new ArrayList<>();
@@ -54,7 +58,7 @@ public class MultipleException extends RuntimeException {
             added[0] = true;
         });
         if (!added[0]) exceptions.add(ex);
-
+        logger.debug("add ex: {}, total: {}", added[0], exceptions.size());
     }
     
     private final static BiPredicate<Throwable, Throwable> tEq = (t1, t2) -> {

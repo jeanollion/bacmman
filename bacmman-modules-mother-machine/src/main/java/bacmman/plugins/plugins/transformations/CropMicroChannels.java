@@ -61,6 +61,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     ChoiceParameter referencePoint = new ChoiceParameter("Reference point", new String[]{"Top", "Bottom"}, "Top", false);
     Map<Integer, ? extends BoundingBox> cropBounds;
     BoundingBox bounds;
+    boolean ref2D;
     public CropMicroChannels setReferencePoint(boolean top) {
         this.referencePoint.setSelectedIndex(top ? 0 : 1);
         return this;
@@ -84,7 +85,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             yStart.setValue(0);
             yStop.setValue(image.sizeY()-1);
         }
-        
+        ref2D = image.sizeZ()==1;
         int framesN = frameNumber.getValue().intValue();
         List<Integer> frames; 
         switch(framesN) {
@@ -206,7 +207,9 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        return bounds!=null ? image.crop(bounds) : image.crop(cropBounds.get(timePoint));
+        BoundingBox bds = bounds!=null ? bounds : cropBounds.get(timePoint);
+        if (image.sizeZ()>1 && ref2D) bds = new MutableBoundingBox(bds).setzMin(0).setzMax(image.sizeZ()-1);
+        return image.crop(bds);
     }
     TestableOperation.TEST_MODE testMode= TestableOperation.TEST_MODE.NO_TEST;
     @Override

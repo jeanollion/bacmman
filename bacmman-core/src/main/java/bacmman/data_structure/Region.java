@@ -78,7 +78,7 @@ public class Region {
     protected boolean absoluteLandmark=false; // false = coordinates relative to the direct parent
     protected double quality=Double.NaN;
     protected Point center;
-    final protected boolean is2D;
+    protected boolean is2D;
     /**
      * @param mask : image containing only the object, and whose bounding box is the same as the one of the object
      * @param label
@@ -119,6 +119,10 @@ public class Region {
     }
     public boolean is2D() {
         return is2D;
+    }
+    public Region setIs2D(boolean is2D) {
+        this.is2D=is2D;
+        return this;
     }
     public Region setQuality(double quality) {
         this.quality=quality;

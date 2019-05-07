@@ -20,6 +20,9 @@ package bacmman.utils;
 
 import bacmman.data_structure.Processor;
 import bacmman.core.ProgressCallback;
+import net.imagej.ops.Ops;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 /**
@@ -58,7 +62,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 public class ThreadRunner {
-
+    public final static Logger logger = LoggerFactory.getLogger(ThreadRunner.class);
     /** Start all given threads and wait on each of them until all are done.
      * From Stephan Preibisch's Multithreading.java class. See:
      * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
@@ -270,6 +274,21 @@ public class ThreadRunner {
             }
         });
         if (!e.isEmpty()) throw e;
+    }
+    public static <K, V> Stream<V> safeMap(Stream<K> stream, Function<K, V> mapper) {
+        Function<K, V> mapper2 = t -> {
+            try {
+                return mapper.apply(t);
+            } catch(Exception ex) {
+                throw new TR_RuntimeException(ex);
+            }
+        };
+        return stream.map(mapper2);
+    }
+    public static class TR_RuntimeException extends RuntimeException {
+        public TR_RuntimeException(Exception ex) {
+            super(ex);
+        }
     }
     private static <T> String toString(T t) {
         if (t instanceof Collection) return ((Collection)t).iterator().next().toString(); // only one element

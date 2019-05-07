@@ -150,7 +150,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
     }
 
     @Override
-    public Image generatemage(int structureIdx, boolean executeInBackground) {
+    public Image generateImage(int structureIdx, boolean executeInBackground) {
         return displayPreFilteredImages? generateFilteredImage(structureIdx, executeInBackground) : parent.getRawImage(structureIdx);
     }
     public Image generateFilteredImage(int structureIdx, boolean executeInBackground) {
