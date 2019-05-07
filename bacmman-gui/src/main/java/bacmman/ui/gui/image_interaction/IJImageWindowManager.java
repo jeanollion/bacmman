@@ -353,12 +353,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 r = new Roi3D(1);
                 r.put(sliceZ, roi);
             } else {
-                logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
+                //logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
                 r = new Roi3D((int)Math.ceil(rad * 2)+1);
                 double scaleR = object.key.getScaleZ() / object.key.getScaleXY();
                 for (int zz = (int)Math.max(Math.ceil(z-rad), 0); zz<=(int)Math.ceil(z+rad); ++zz) {
-                    double radZ = Math.sqrt(rad*rad - Math.pow((z-zz)*scaleR, 2));
-                    if (radZ<0.1 * rad) continue;
+                    double radZ = Math.sqrt(rad*rad - Math.pow((z-zz), 2)); // *scaleR in order to take into anisotropy into account. but PSF spread in Z increase size in Z.
+                    if (radZ<0.01 * rad) continue;
                     Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * radZ / 2 + 0.5, x + 0.5, y + 2.3548 * radZ / 2 + 0.5, 1);
                     roi.enableSubPixelResolution();
                     roi.setPosition(zz + 1);
