@@ -343,14 +343,28 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         } else if (object.key.getRegion() instanceof Spot) {
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
             double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();
-            int z = (int)(object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin()+0.5);
+            double z = object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin();
+            int sliceZ = (int)(Math.ceil(z));
             double rad = ((Spot)object.key.getRegion()).getRadius();
-            Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * rad / 2 + 0.5, x+0.5, y + 2.3548 * rad / 2 + 0.5, 1);
-            // TODO make 3D ROI with radius that vary with Z
-            roi.enableSubPixelResolution();
-            roi.setPosition(z +1);
-            r = new Roi3D(1);
-            r.put(z, roi);
+            if (object.key.is2D()) {
+                Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * rad / 2 + 0.5, x + 0.5, y + 2.3548 * rad / 2 + 0.5, 1);
+                roi.enableSubPixelResolution();
+                roi.setPosition(sliceZ + 1);
+                r = new Roi3D(1);
+                r.put(sliceZ, roi);
+            } else {
+                logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
+                r = new Roi3D((int)Math.ceil(rad * 2)+1);
+                double scaleR = object.key.getScaleZ() / object.key.getScaleXY();
+                for (int zz = (int)Math.max(Math.ceil(z-rad), 0); zz<=(int)Math.ceil(z+rad); ++zz) {
+                    double radZ = Math.sqrt(rad*rad - Math.pow((z-zz)*scaleR, 2));
+                    if (radZ<0.1 * rad) continue;
+                    Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * radZ / 2 + 0.5, x + 0.5, y + 2.3548 * radZ / 2 + 0.5, 1);
+                    roi.enableSubPixelResolution();
+                    roi.setPosition(zz + 1);
+                    r.put(zz, roi);
+                }
+            }
         } else r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
 
         if (object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited

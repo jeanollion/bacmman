@@ -59,6 +59,19 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
         this.scaleZ.setValue(scaleZ);
         useImageCalibration.setSelected(useCalibration);
     }
+    public ScaleXYZParameter setNumberParameters(Number lowerBound, Number upperBound, int decimalPlaces, boolean toXY, boolean toZ) {
+        if (toXY) {
+            scaleXY.setUpperBound(upperBound);
+            scaleXY.setLowerBound(lowerBound);
+            scaleXY.setDecimalPlaces(decimalPlaces);
+        }
+        if (toZ) {
+            scaleZ.setUpperBound(upperBound);
+            scaleZ.setLowerBound(lowerBound);
+            scaleZ.setDecimalPlaces(decimalPlaces);
+        }
+        return this;
+    }
 
     @Override
     protected void initChildList() {

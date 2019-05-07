@@ -46,7 +46,12 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     public int getDecimalPlaceNumber() {
         return decimalPlaces;
     }
-    
+
+    public P setDecimalPlaces(int decimalPlaces) {
+        this.decimalPlaces=decimalPlaces;
+        return (P)this;
+    }
+
     public Number getValue() {
         return value;
     }

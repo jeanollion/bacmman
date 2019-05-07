@@ -154,7 +154,7 @@ public class RegionContainerIjRoi extends RegionContainer {
             logger.error("ROI creation : offset null for mask: {}", mask.getName());
             return null;
         }
-        Roi3D res = new Roi3D(mask.sizeZ());
+        Roi3D res = new Roi3D(mask.sizeZ()).setIs2D(!is3D);
         if (mask instanceof BlankMask) {
             for (int z = 0; z < mask.sizeZ(); ++z) {
                 Roi rect = new Roi(0, 0, mask.sizeX(), mask.sizeY());

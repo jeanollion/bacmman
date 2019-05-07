@@ -140,7 +140,7 @@ public class GaussianFit {
     /**
      * Maps a template region (used for is2D, and scale attributes) and fitted parameters to a Spot with label 1)
      */
-    public static BiFunction<double[], ImageProperties, Spot> spotMapper = (params, props) -> new Spot(new Point((float)params[0], (float)params[1], props.sizeZ()==1 ? props.zMin() : (float)params[2]), params[props.sizeZ()==1 ? 3 : 4], params[props.sizeZ()==1 ? 2 : 3], 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
+    public static BiFunction<double[], ImageProperties, Spot> spotMapper = (params, props) -> new Spot(new Point((float)params[0], (float)params[1], props.sizeZ()==1 ? props.zMin() : Math.min(Math.max((float)params[2], props.zMin()), props.zMax())), params[props.sizeZ()==1 ? 3 : 4], params[props.sizeZ()==1 ? 2 : 3], 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
 
     /**
      * Return clusters. An element of {@param peaks} belong to a cluster C if there is at least one other point in C with a distance inferior to {@param minDist}

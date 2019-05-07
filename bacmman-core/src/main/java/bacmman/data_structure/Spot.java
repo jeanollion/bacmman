@@ -24,13 +24,21 @@ import static bacmman.image.BoundingBox.intersect2D;
 public class Spot extends Region {
     double radius, radiusSq, intensity;
     public Spot(Point center, double radius, double intensity, int label, boolean is2D, double scaleXY, double scaleZ) {
-        super(null, label, new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius)), (int)Math.ceil(center.get(2)+(is2D?0:radius))), is2D, scaleXY, scaleZ);
+        super(null, label, getBounds(center, radius, is2D), is2D, scaleXY, scaleZ);
         this.center = center;
         this.radius = radius;
         this.radiusSq = radius * radius;
         this.intensity = intensity;
     }
-
+    private static BoundingBox getBounds(Point center, double radius, boolean is2D) {
+        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius)), (int)Math.ceil(center.get(2)+(is2D?0:radius)));
+    }
+    @Override
+    public Spot setIs2D(boolean is2D) {
+        if (is2D!=this.is2D) bounds=getBounds(center, radius, is2D);
+        this.is2D = is2D;
+        return this;
+    }
     public double getRadius() {
         return radius;
     }

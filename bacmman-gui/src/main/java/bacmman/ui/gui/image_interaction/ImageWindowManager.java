@@ -277,7 +277,7 @@ public abstract class ImageWindowManager<I, U, V> {
         addWindowClosedListener(image, e-> {
             DefaultWorker w = runningWorkers.get(image);
             if (w!=null) {
-                GUI.logger.debug("interruptin generation of closed image: {}", image.getName());
+                GUI.logger.debug("interrupting generation of closed image: {}", image.getName());
                 w.cancel(true);
             }
             displayedInteractiveImages.remove(image);

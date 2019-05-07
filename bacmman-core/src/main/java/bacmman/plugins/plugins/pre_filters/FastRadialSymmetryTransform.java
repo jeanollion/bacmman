@@ -18,11 +18,11 @@ public class FastRadialSymmetryTransform implements PreFilter, Hint {
     BoundedNumberParameter alpha = new BoundedNumberParameter("Alpha", 2, 1, 0.1, null).setEmphasized(true).setHint("Radial strictness. This parameter determines how strictly radial the radial symmetry must be for the transform to return a high interest value. A higher value eliminates nonradially symetric features such as lines");
     BooleanParameter useOrientationOnly = new BooleanParameter("Use orientation only", false).setHint("If true, gradient norm will not be used");
     EnumChoiceParameter<FastRadialSymmetryTransformUtil.GRADIENT_SIGN> gradientSign = new EnumChoiceParameter<>("Gradient Sign", FastRadialSymmetryTransformUtil.GRADIENT_SIGN.values(), FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, false);
-    BoundedNumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 2, 1.5, 1, 3).setEmphasized(true).setHint("Scale for gradient computation. A higher value will remove details");
+    ScaleXYZParameter gradientScale = new ScaleXYZParameter("Gradient Scale", 1.5, 1, false).setNumberParameters(1, 3, 2, true, true);
 
     @Override
     public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, useOrientationOnly.getSelected(), gradientSign.getSelectedEnum(), gradientScale.getValue().doubleValue(), alpha.getValue().doubleValue(), 0);
+        return FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, useOrientationOnly.getSelected(), gradientSign.getSelectedEnum(), alpha.getValue().doubleValue(), 0, gradientScale.getScaleXY(), gradientScale.getScaleZ(input.getScaleXY(), input.getScaleZ()));
     }
 
     @Override

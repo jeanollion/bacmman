@@ -103,7 +103,6 @@ public class PluginConfigurationUtils {
         logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
             boolean pf = plugin instanceof PostFilter;
-            logger.debug("raw image for object class: {} = {} dup: {}, root: {}", structureIdx, wholeParentTrack.get(0).getRawImage(structureIdx).getBoundingBox(), wholeParentTrackDup.get(0).getRawImage(structureIdx).getBoundingBox(),  wholeParentTrack.get(0).getRoot().getRawImage(structureIdx).getBoundingBox());
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
             Segmenter segmenter = pf ? psc.getSegmenter() : (Segmenter)plugin;
             // run pre-filters on whole track -> some track preFilters need whole track to be effective. todo : parameter to limit ? 
@@ -112,7 +111,6 @@ public class PluginConfigurationUtils {
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
             if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
             logger.debug("run prefilters on whole parent track: {}", runPreFiltersOnWholeTrack);
-            logger.debug("pf image : {}", parentTrackDup.get(0).getRawImage(structureIdx).getBoundingBox());
 
             TrackConfigurer  applyToSeg = TrackConfigurable.getTrackConfigurer(structureIdx, wholeParentTrackDup, segmenter);
             SegmentOnly so = new SegmentOnly(segmenter); // no post-filters
@@ -424,7 +422,7 @@ public class PluginConfigurationUtils {
                             if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
                         } catch (Throwable t) {
                             logger.error("error while configuring transformation:", t);
-                            if (pcb!=null) pcb.log("Error while configuring transformation: "+t.getLocalizedMessage());
+                            if (pcb!=null) pcb.log("Error while configuring transformation: "+t.toString());
                         }
                         images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
                         

@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
-import bacmman.configuration.parameters.ArrayNumberParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.image.*;
@@ -59,13 +56,15 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null);
     ArrayNumberParameter radii = new ArrayNumberParameter("Radial Symmetry Radii", 0, radius).setSorted(true).setValue(2, 3, 4, 5).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
+    ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 2, 1.5, false).setNumberParameters(1, null, 1, true, true);
+
 
     NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null).setHint("Spot with a sigma value (from the gaussian fit) superior to this value will be erased.");
     NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 0.3).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, radii, smoothScale, typicalSigma, maxSigma};
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, radii, smoothScale, maxLocalRadius, typicalSigma, maxSigma};
     ProcessingVariables pv = new ProcessingVariables();
-    boolean planeByPlane = true; // TODO set as parameter for "true" 3D images
+    boolean planeByPlane = false; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected by performing a gaussian fit on raw intensity at the location of <em>seeds</em>, defined as the regional maxima of the Radial Symmetry transform, within the mask of the segmentation parent. Selected seeds have a Radial Symmetry value larger than <em>Radial Symmetry Seed Threshold</em> and a Gaussian value superior to <em>Seed Threshold</em></li>"
             + "<li>A quality parameter defined as √(Radial Symmetry x Gaussian) at the center of the spot is computed (used in <em>NestedSpotTracker</em>)</li></ul>" +
@@ -183,7 +182,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         
         Image smooth = pv.getSmoothedMap();
         Image radSym = pv.getRadialSymmetryMap();
-        Neighborhood n = Filters.getNeighborhood(1.5, 1.5, radSym); // TODO radius as parameter ?
+        Neighborhood n = Filters.getNeighborhood(maxLocalRadius.getScaleXY(), maxLocalRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), radSym);
         ImageByte seedMap = Filters.localExtrema(radSym, null, true, parentMask, n);
 
         List<Point> seeds = new ArrayList<>();
@@ -208,7 +207,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             spots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq).map(e->e.getKey()).collect(Collectors.toList()));
         };
 
-        if (seedMap.sizeZ()>1 && planeByPlane) {
+        if (seedMap.sizeZ()>1) { // fit 3D not taking into account anisotropy
             segmentedSpots = new ArrayList<>();
             List<Image> fitImagePlanes = fitImage.splitZPlanes();
             List<Image> smoothPlanes = smooth.splitZPlanes();
@@ -233,10 +232,13 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     }
     
     private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma) {
+        if (seedsToSpots.isEmpty()) return Collections.emptyList();
         Offset off = !fitImage.sameDimensions(radSym) ? new SimpleOffset(radSym).translate(fitImage.getBoundingBox().reverseOffset()) : null;
         if (off!=null) allSeeds.forEach(p->p.translate(off)); // translate point to fitImages bounds
+        long t0 = System.currentTimeMillis();
         Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
-
+        long t1 = System.currentTimeMillis();
+        logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
         List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage)).collect(Collectors.toList());
         if (off!=null) {
             allSeeds.forEach(p->p.translateRev(off)); // translate back
@@ -369,9 +371,9 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         double smoothScale = this.smoothScale.getValue().doubleValue();
         Image[] maps = new Image[2];
         Function<Image, Image> gaussF = f->ImageFeatures.gaussianSmooth(f, smoothScale, false).setName("gaussian: "+smoothScale);
-        maps[0] = planeByPlane ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
-        Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 1.5, 1, 0);
-        maps[1] = ImageOperations.applyPlaneByPlane(filteredSource, symF);
+        maps[0] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
+        Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 1, 0, 1.5);
+        maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);
         return maps;
     }
     

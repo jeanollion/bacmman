@@ -1,9 +1,12 @@
 package bacmman.processing;
 
+import bacmman.core.Core;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.utils.DoubleStatistics;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -16,6 +19,7 @@ import java.util.stream.Stream;
  * Adapted for spot detection from : Loy, G., & Zelinsky, A. (2003). Fast radial symmetry for detecting points of interest. IEEE Transactions on Pattern Analysis and Machine Intelligence, 25(8), 959-973.
  */
 public class FastRadialSymmetryTransformUtil {
+    public final static Logger logger = LoggerFactory.getLogger(FastRadialSymmetryTransformUtil.class);
     public enum GRADIENT_SIGN {POSITIVE_ONLY, NEGATIVE_ONLY, BOTH}
     public static class Kappa {
         private final double[] sortedRadii;
@@ -49,13 +53,19 @@ public class FastRadialSymmetryTransformUtil {
      * @param smallGradientThreshold proportion of  discarded gradients (lower than this value)
      * @return
      */
-    public static Image runTransform(Image input, double[] radii, Kappa kappaFunction, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double gradientScale, double alpha, double smallGradientThreshold){
-        ImageFloat[] grad = ImageFeatures.getGradient(input, gradientScale, gradientScale, false);
+    public static Image runTransform(Image input, double[] radii, Kappa kappaFunction, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double alpha, double smallGradientThreshold, double... gradientScale){
+        double scaleZ = gradientScale.length>1?gradientScale[1]:gradientScale[0]*input.getScaleXY()/input.getScaleZ();
+        double ratioZ = (scaleZ / gradientScale[0]);
+        ImageFloat[] grad = ImageFeatures.getGradient(input, gradientScale[0], scaleZ, false);
         Image gradX = grad[0];
         Image gradY = grad[1];
+        Image gradZ = grad.length>2 ? grad[2] : null;
         Image gradM = new ImageFloat("", input).resetOffset();
 
-        BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2))))); // computes gradient magnitude
+        if (gradZ==null) BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2))))); // computes gradient magnitude
+        else {
+            BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2)+Math.pow(gradZ.getPixel(x, y, z), 2)))));
+        }
         double[] mm = gradM.getMinAndMax(null);
         Image Omap = new ImageFloat("", input);
         Image Mmap = useOrientationOnly ? null : new ImageFloat("", input);
@@ -70,73 +80,115 @@ public class FastRadialSymmetryTransformUtil {
             double radius = radii[i];
             double kappa = kappaFunction.getKappa(radius);
             // get the O and M maps
-            computeOandMmapNoSaturation(Omap, Mmap, gradX, gradY, gradM, radius, smallGradientThreshold>0 ? smallGradientThreshold * (mm[1]-mm[0]) + mm[0] : 0, gradientSign);
-            //computeOandMmap(Omap, Mmap, gradX, gradY, gradM, radius, (float)kappa, smallGradientThreshold>0 ? smallGradientThreshold * (mm[1]-mm[0]) + mm[0] : 0, gradientSign);
+            computeOandMmapNoSaturation(Omap, Mmap, gradX, gradY, gradZ, gradM, radius, smallGradientThreshold>0 ? smallGradientThreshold * (mm[1]-mm[0]) + mm[0] : 0, gradientSign);
+            // computeOandMmap(Omap, Mmap, gradX, gradY, gradZ, gradM, radius, (float)kappa, smallGradientThreshold>0 ? smallGradientThreshold * (mm[1]-mm[0]) + mm[0] : 0, gradientSign);
 
             // symmetry measure at this radius value (not smoothed)
             if (Mmap==null) BoundingBox.loop(gradM, (x, y, z) -> F.setPixel(x, y, z, Math.signum(Omap.getPixel(x, y, z)) * Math.pow(Math.abs(Omap.getPixel(x, y, z)/kappa),alpha)));
             else BoundingBox.loop(gradM, (x, y, z) -> F.setPixel(x, y, z, (float)((Mmap.getPixel(x, y, z)/kappa) * Math.pow(Math.abs(Omap.getPixel(x, y, z)/kappa),alpha))));
 
-            Image smoothed = ImageFeatures.gaussianSmooth(F, 0.25*radius, 0.25*radius, true);
+            Image smoothed = ImageFeatures.gaussianSmooth(F, 0.25*radius, 0.25*radius * ratioZ, true);
             ImageOperations.addImage(output, smoothed, output, radius); // multiplied by radius so that sum of all elements of the kernel is radius
         }
         return output;
     }
 
 
-    private static void computeOandMmap(Image Omap, Image Mmap, Image gradX, Image gradY, Image gradM, double radius, float kappa, double gradientThld, GRADIENT_SIGN gradientSign){
+    private static void computeOandMmap(Image Omap, Image Mmap, Image gradX, Image gradY, Image gradZ, Image gradM, double radius, float kappa, double gradientThld, GRADIENT_SIGN gradientSign){
         // go over all pixels and create the O and M maps
-        BoundingBox.loop(gradM,
-            (x, y, z)-> {
-                int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-                int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-
-                // compute the 'positively' and/or 'negatively' affected pixels
-                if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
-                    int posx = x+xg, posy = y+yg;
-                    if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0) {
-                        Omap.setPixel(posx, posy, z, (Omap.getPixel(posx, posy, z) + 1 > kappa) ? kappa : Omap.getPixel(posx, posy, z) + 1);
-                        if (Mmap != null)  Mmap.setPixel(posx, posy, z, Mmap.getPixel(posx, posy, z) + gradM.getPixel(x, y, z));
-                    }
+        BoundingBox.LoopFunction fun3D = (x, y, z)-> {
+            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int zg = Math.round((float)radius*gradZ.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            // compute the 'positively' and/or 'negatively' affected pixels
+            if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
+                int posx = x+xg, posy = y+yg, posz = z+zg;
+                if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0 && posz>=0 && posz<Omap.sizeZ()) {
+                    Omap.setPixel(posx, posy, posz, (Omap.getPixel(posx, posy, posz) + 1 > kappa) ? kappa : Omap.getPixel(posx, posy, z) + 1);
+                    if (Mmap != null)  Mmap.setPixel(posx, posy, posz, Mmap.getPixel(posx, posy, posz) + gradM.getPixel(x, y, z));
                 }
+            }
 
-                if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
-                    int negx = x-xg, negy = y-yg;
-                    if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0) {
-                        Omap.setPixel(negx, negy, z, (Omap.getPixel(negx, negy, z) - 1 < -kappa) ? -kappa : Omap.getPixel(negx, negy, z) - 1);
-                        if (Mmap != null) Mmap.setPixel(negx, negy, z, Mmap.getPixel(negx, negy, z) - gradM.getPixel(x, y, z));
-                    }
+            if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
+                int negx = x-xg, negy = y-yg, negz=z-zg;
+                if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0 && negz>=0 && negz<Omap.sizeZ()) {
+                    Omap.setPixel(negx, negy, z, (Omap.getPixel(negx, negy, negz) - 1 < -kappa) ? -kappa : Omap.getPixel(negx, negy, negz) - 1);
+                    if (Mmap != null) Mmap.setPixel(negx, negy, negz, Mmap.getPixel(negx, negy, negz) - gradM.getPixel(x, y, z));
                 }
-            },
-            (x, y, z)->gradientThld==0 || gradM.getPixel(x, y, z)>gradientThld, // do not consider gradients with too small magnitudes
-            false);
+            }
+        };
+        BoundingBox.LoopFunction fun2D = (x, y, z)-> {
+            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+
+            // compute the 'positively' and/or 'negatively' affected pixels
+            if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
+                int posx = x+xg, posy = y+yg;
+                if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0) {
+                    Omap.setPixel(posx, posy, z, (Omap.getPixel(posx, posy, z) + 1 > kappa) ? kappa : Omap.getPixel(posx, posy, z) + 1);
+                    if (Mmap != null)  Mmap.setPixel(posx, posy, z, Mmap.getPixel(posx, posy, z) + gradM.getPixel(x, y, z));
+                }
+            }
+
+            if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
+                int negx = x-xg, negy = y-yg;
+                if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0) {
+                    Omap.setPixel(negx, negy, z, (Omap.getPixel(negx, negy, z) - 1 < -kappa) ? -kappa : Omap.getPixel(negx, negy, z) - 1);
+                    if (Mmap != null) Mmap.setPixel(negx, negy, z, Mmap.getPixel(negx, negy, z) - gradM.getPixel(x, y, z));
+                }
+            }
+        };
+        if (gradientThld>0) BoundingBox.loop(gradM, gradZ==null ? fun2D: fun3D, (x, y, z)->gradM.getPixel(x, y, z)>gradientThld,false);
+        else BoundingBox.loop(gradM, gradZ==null ? fun2D: fun3D,false);
     }
-    private static void computeOandMmapNoSaturation(Image Omap, Image Mmap, Image gradX, Image gradY, Image gradM, double radius, double gradientThld, GRADIENT_SIGN gradientSign){
+
+    private static void computeOandMmapNoSaturation(Image Omap, Image Mmap, Image gradX, Image gradY, Image gradZ, Image gradM, double radius, double gradientThld, GRADIENT_SIGN gradientSign){
         // go over all pixels and create the O and M maps
-        BoundingBox.loop(gradM,
-                (x, y, z)-> {
-                    int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
-                    int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+        BoundingBox.LoopFunction fun3D = (x, y, z)-> {
+            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int zg = Math.round((float)radius*gradZ.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            // compute the 'positively' and/or 'negatively' affected pixels
+            if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
+                int posx = x+xg, posy = y+yg, posz = z+zg;
+                if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0 && posz>=0 && posz<Omap.sizeZ()) {
+                    Omap.setPixel(posx, posy, posz, Omap.getPixel(posx, posy, posz) + 1);
+                    if (Mmap != null)  Mmap.setPixel(posx, posy, posz, Mmap.getPixel(posx, posy, posz) + gradM.getPixel(x, y, z));
+                }
+            }
 
-                    // compute the 'positively' and/or 'negatively' affected pixels
-                    if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
-                        int posx = x+xg, posy = y+yg;
-                        if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0) {
-                            Omap.setPixel(posx, posy, z, Omap.getPixel(posx, posy, z) + 1);
-                            if (Mmap != null)  Mmap.setPixel(posx, posy, z, Mmap.getPixel(posx, posy, z) + gradM.getPixel(x, y, z));
-                        }
-                    }
+            if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
+                int negx = x-xg, negy = y-yg, negz=z-zg;
+                if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0 && negz>=0 && negz<Omap.sizeZ()) {
+                    Omap.setPixel(negx, negy, negz, Omap.getPixel(negx, negy, negz) - 1);
+                    if (Mmap != null) Mmap.setPixel(negx, negy, negz, Mmap.getPixel(negx, negy, negz) - gradM.getPixel(x, y, z));
+                }
+            }
+        };
+        BoundingBox.LoopFunction fun2D = (x, y, z)-> {
+            int xg = Math.round((float)radius*gradX.getPixel(x, y, z)/gradM.getPixel(x, y, z));
+            int yg = Math.round((float)radius*gradY.getPixel(x, y, z)/gradM.getPixel(x, y, z));
 
-                    if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
-                        int negx = x-xg, negy = y-yg;
-                        if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0) {
-                            Omap.setPixel(negx, negy, z, Omap.getPixel(negx, negy, z) - 1);
-                            if (Mmap != null) Mmap.setPixel(negx, negy, z, Mmap.getPixel(negx, negy, z) - gradM.getPixel(x, y, z));
-                        }
-                    }
-                },
-                (x, y, z)->gradientThld==0 || gradM.getPixel(x, y, z)>gradientThld, // do not consider gradients with too small magnitudes
-                false);
+            // compute the 'positively' and/or 'negatively' affected pixels
+            if (!GRADIENT_SIGN.NEGATIVE_ONLY.equals(gradientSign)){
+                int posx = x+xg, posy = y+yg;
+                if (posx<Omap.sizeX() && posy<Omap.sizeY() && posx>=0 && posy>=0) {
+                    Omap.setPixel(posx, posy, z, Omap.getPixel(posx, posy, z) + 1);
+                    if (Mmap != null)  Mmap.setPixel(posx, posy, z, Mmap.getPixel(posx, posy, z) + gradM.getPixel(x, y, z));
+                }
+            }
+
+            if (!GRADIENT_SIGN.POSITIVE_ONLY.equals(gradientSign)){
+                int negx = x-xg, negy = y-yg;
+                if (negx<Omap.sizeX() && negy<Omap.sizeY() && negx>=0 && negy>=0) {
+                    Omap.setPixel(negx, negy, z, Omap.getPixel(negx, negy, z) - 1);
+                    if (Mmap != null) Mmap.setPixel(negx, negy, z, Mmap.getPixel(negx, negy, z) - gradM.getPixel(x, y, z));
+                }
+            }
+        };
+        // do not consider gradients with too small magnitudes
+        if (gradientThld>0) BoundingBox.loop(gradM, gradZ==null ? fun2D: fun3D, (x, y, z)->gradM.getPixel(x, y, z)>gradientThld,false);
+        else BoundingBox.loop(gradM, gradZ==null ? fun2D: fun3D,false);
     }
 
 
@@ -157,16 +209,17 @@ public class FastRadialSymmetryTransformUtil {
     }
 
     private static double[] computeOrientationMaps(Image input, double[] radii) {
-        ImageFloat[] grad = ImageFeatures.getGradient(input, 1.5, 1.5, false); // which gradient scale should be chosen ? should sobel filter be chosen as in the origial publication ?
+        ImageFloat[] grad = ImageFeatures.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), false); // which gradient scale should be chosen ? should sobel filter be chosen as in the origial publication ?
         Image gradX = grad[0];
         Image gradY = grad[1];
+        Image gradZ = grad.length>2 ? null : grad[2];
         Image gradM = new ImageFloat("", input).resetOffset();
 
         BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2))))); // computes gradient magnitude
         double[] res = new double[radii.length];
         for (int i = 0; i<radii.length; ++i) {
             Image Omap = new ImageFloat("", input);
-            FastRadialSymmetryTransformUtil.computeOandMmap(Omap, null, gradX, gradY, gradM, radii[i], Float.MAX_VALUE, 0, GRADIENT_SIGN.BOTH);
+            FastRadialSymmetryTransformUtil.computeOandMmap(Omap, null, gradX, gradY, gradZ, gradM, radii[i], Float.MAX_VALUE, 0, GRADIENT_SIGN.BOTH);
             res[i] = Omap.getMinAndMax(null)[1];
         }
         return res;
