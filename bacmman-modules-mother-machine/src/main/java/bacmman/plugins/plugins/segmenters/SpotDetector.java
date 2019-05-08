@@ -56,7 +56,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null);
     ArrayNumberParameter radii = new ArrayNumberParameter("Radial Symmetry Radii", 0, radius).setSorted(true).setValue(2, 3, 4, 5).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
-    ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 2, 1.5, false).setNumberParameters(1, null, 1, true, true);
+    ScaleXYZParameter maxLocalRadius = new ScaleXYZParameter("Max local radius", 2, 1.5, false).setNumberParameters(1, null, 1, true, true).setHint("Radius of local maxima filter for seed detection step. Increasing the value will decrease false positive spots but decrease the capacity to segment close spots");
 
 
     NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null).setHint("Spot with a sigma value (from the gaussian fit) superior to this value will be erased.");
@@ -223,6 +223,9 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             segmentedSpots =fitAndSetQuality(radSym, smooth, fitImage, seeds, seeds, typicalSigma.getValue().doubleValue());
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
+        // remove spots with center outside mask
+        segmentedSpots.removeIf(s->!parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5)));
+
         // filter by radius
         segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
 
@@ -230,7 +233,23 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         return pop;
     }
-    
+    public static void removeCloseSpots(List<Region> regions, double minDist) {
+        for (int i = 0; i<regions.size()-1; ++i) {
+            for (int j=i+1; j<regions.size(); ++j) {
+                logger.debug("i: {}, j: {}, dist: {}, would remove last: {}", i, j, regions.get(i).getCenter().dist(regions.get(j).getCenter()), regions.get(i).getQuality()>=regions.get(j).getQuality());
+                if (regions.get(i).getCenter().dist(regions.get(j).getCenter())<=minDist) {
+                    if (regions.get(i).getQuality()>=regions.get(j).getQuality()) {
+                        regions.remove(j);
+                        --j;
+                    } else {
+                        regions.set(i, regions.get(j));
+                        regions.remove(j);
+                        j=i;
+                    }
+                }
+            }
+        }
+    }
     private static List<Spot> fitAndSetQuality(Image radSym, Image smoothedIntensity, Image fitImage, List<Point> allSeeds, List<Point> seedsToSpots, double typicalSigma) {
         if (seedsToSpots.isEmpty()) return Collections.emptyList();
         Offset off = !fitImage.sameDimensions(radSym) ? new SimpleOffset(radSym).translate(fitImage.getBoundingBox().reverseOffset()) : null;
