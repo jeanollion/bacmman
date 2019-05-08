@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.measurements;
 
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.TextParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.measurement.MeasurementKey;
@@ -55,6 +52,7 @@ public class RelativePosition implements Measurement, Hint {
     };
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setEmphasized(true);
     protected ObjectClassParameter reference = new ObjectClassParameter("Reference Objects", -1, true, false).setEmphasized(true).setHint("If no reference structure is selected the reference point will automatically be the upper left corner of the whole viewfield");
+    protected BooleanParameter includeZ = new BooleanParameter("Include Z", true).setHint("If set to false, only X and Y coordinates will be saved");
     private final static String REF_POINT_TT = "<ol>"
             + "<li>"+REF_POINT.UPPER_LEFT_CORNER.toString()+": Upper left corner of the bounding box of the object</li>"
             + "<li>"+REF_POINT.GEOM_CENTER.toString()+": Geometrical center of the object</li>"
@@ -64,7 +62,7 @@ public class RelativePosition implements Measurement, Hint {
     ChoiceParameter refPoint = new ChoiceParameter("Reference Point", REF_POINT.names(), MASS_CENTER.name, false).setEmphasized(true).setHint("Which point of the reference object should be used for distance computation?<br />"+REF_POINT_TT);
     TextParameter key = new TextParameter("Column Name", "RelativeCoord", false).setEmphasized(true).setHint("Set here the prefix of the name of the column in the extracted data table. Final column name for each axis is indicated below.");
     //ConditionalParameter refCond = new ConditionalParameter(reference); structure param not actionable...
-    protected Parameter[] parameters = new Parameter[]{objects, reference, objectCenter, refPoint, key};
+    protected Parameter[] parameters = new Parameter[]{objects, reference, objectCenter, refPoint, key, includeZ};
     
     @Override
     public String getHintText() {
@@ -101,7 +99,7 @@ public class RelativePosition implements Measurement, Hint {
         ArrayList<MeasurementKey> res = new ArrayList<>();
         res.add(new MeasurementKeyObject(getKey("X"), structureIdx));
         res.add(new MeasurementKeyObject(getKey("Y"), structureIdx));
-        res.add(new MeasurementKeyObject(getKey("Z"), structureIdx));
+        if (includeZ.getSelected()) res.add(new MeasurementKeyObject(getKey("Z"), structureIdx));
         return res;
     }
     private String getKey(String coord) {
@@ -112,6 +110,7 @@ public class RelativePosition implements Measurement, Hint {
 
     @Override
     public void performMeasurement(SegmentedObject object) {
+        boolean includeZ = this.includeZ.getSelected();
         SegmentedObject refObject=null;
         if (reference.getSelectedClassIdx()>=0) {
             if (object.getExperimentStructure().isChildOf(reference.getSelectedClassIdx(), objects.getSelectedClassIdx()))  refObject = object.getParent(reference.getSelectedClassIdx());
@@ -141,7 +140,7 @@ public class RelativePosition implements Measurement, Hint {
         if (objectCenter==null) throw new RuntimeException("No center found for object");
         objectCenter.multiplyDim(object.getRegion().getScaleXY(), 0);
         objectCenter.multiplyDim(object.getRegion().getScaleXY(), 1);
-        objectCenter.multiplyDim(object.getRegion().getScaleZ(), 2);
+        if (includeZ) objectCenter.multiplyDim(object.getRegion().getScaleZ(), 2);
         Point refPoint=null;
         if (refObject!=null) {
             switch (this.refPoint.getSelectedIndex()) {
@@ -159,10 +158,10 @@ public class RelativePosition implements Measurement, Hint {
         if (refPoint==null) throw new RuntimeException("No reference point found for ref object");
         refPoint.multiplyDim(object.getRegion().getScaleXY(), 0);
         refPoint.multiplyDim(object.getRegion().getScaleXY(), 1);
-        refPoint.multiplyDim(object.getRegion().getScaleZ(), 2);
+        if (includeZ) refPoint.multiplyDim(object.getRegion().getScaleZ(), 2);
         object.getMeasurements().setValue(getKey("X"), (objectCenter.get(0)-refPoint.get(0)));
         object.getMeasurements().setValue(getKey("Y"), (objectCenter.get(1)-refPoint.get(1)));
-        if (objectCenter.numDimensions()>2) object.getMeasurements().setValue(getKey("Z"), (objectCenter.get(2)-refPoint.getWithDimCheck(2)));
+        if (includeZ && objectCenter.numDimensions()>2) object.getMeasurements().setValue(getKey("Z"), (objectCenter.get(2)-refPoint.getWithDimCheck(2)));
         
     }
 
