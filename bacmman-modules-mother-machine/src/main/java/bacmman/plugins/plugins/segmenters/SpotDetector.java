@@ -181,7 +181,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Image smooth = pv.getSmoothedMap();
         Image radSym = pv.getRadialSymmetryMap();
         Neighborhood n = Filters.getNeighborhood(maxLocalRadius.getScaleXY(), maxLocalRadius.getScaleZ(input.getScaleXY(), input.getScaleZ()), radSym);
-        ImageByte seedMap = Filters.localExtrema(radSym, null, true, parentMask, n);
+        ImageByte seedMap = Filters.localExtrema(smooth, null, true, parentMask, n); // TODO from radialSymetry map of smoothed image ? parameter ?
 
         List<Point> seeds = new ArrayList<>();
         BoundingBox.loop(new SimpleBoundingBox(seedMap).resetOffset(),
@@ -222,7 +222,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
         // remove spots with center outside mask
-        segmentedSpots.removeIf(s->!parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5)));
+        segmentedSpots.removeIf(s->!parentMask.contains(s.getCenter()) || !parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5)));
 
         // filter by radius
         segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
@@ -255,7 +255,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         long t0 = System.currentTimeMillis();
         Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
         long t1 = System.currentTimeMillis();
-        logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
+        //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
         List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage)).collect(Collectors.toList());
         if (off!=null) {
             allSeeds.forEach(p->p.translateRev(off)); // translate back
@@ -313,7 +313,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             for (Point p : seedObjects) seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1);
             Core.showImage(seedMap);
             Core.showImage(radialSymmetryMap.setName("Radial Symmetry (watershedMap). "));
-            Core.showImage(smooth.setName("Smmothed Scale: "+smoothScale.getValue().doubleValue()));
+            Core.showImage(smooth.setName("Smoothed Scale: "+smoothScale.getValue().doubleValue()));
         }
         return pop;
     }
@@ -345,43 +345,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     @Override
     public TrackConfigurer<SpotDetector> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
-        // get scaling per segmentation parent track
-        int segParent = parentTrack.iterator().next().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
-        int parentIdx = parentTrack.iterator().next().getStructureIdx();
-        Map<SegmentedObject, List<SegmentedObject>> segParentTracks = SegmentedObjectUtils.getAllTracks(parentTrack, segParent);
-        Function<List<SegmentedObject>, DoubleStream> valueStream = t -> {
-            DoubleStream[] ds = t.stream().map(so-> so.getParent(parentIdx).getPreFilteredImage(structureIdx).stream(so.getMask(), true)).toArray(s->new DoubleStream[s]);
-            return StreamConcatenation.concat(ds);
-        };
-        /*
-        // compute background per track -> not very effective because background can vary within track. To do -> sliding mean ?
-        Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma = segParentTracks.values().stream().parallel().collect(Collectors.toMap(t->t.get(0), t -> {
-            //DoubleStatistics ds = DoubleStatistics.getStats(valueStream.apply(t));
-            //logger.debug("track: {}: mean: {}, sigma: {}", t.get(0), ds.getAverage(), ds.getStandardDeviation());
-            //return new double[]{ds.getAverage(), ds.getStandardDeviation()}; // get mean & std 
-            // TEST  backgroundFit / background thlder
-            double[] ms = new double[2];
-            if (t.size()>2) {
-                Histogram histo = HistogramFactory.getHistogram(()->valueStream.apply(t), HistogramFactory.BIN_SIZE_METHOD.AUTO);
-                try {
-                    BackgroundFit.backgroundFit(histo, 0, ms);
-                } catch(Throwable e) { }
-                if (stores!=null && t.get(0).getFrame()==0) {
-                    histo.plotIJ1("values of track: "+t.get(0)+" (length: "+t.size()+ " total values: "+valueStream.apply(t).count()+")" + " mean: "+ms[0]+ " std: "+ms[1], true);
-                }
-            }
-            if (ms[1]==0) {
-                DoubleStatistics ds = DoubleStatistics.getStats(valueStream.apply(t));
-                ms[0] = ds.getAverage();
-                ms[1] = ds.getStandardDeviation();
-            }
-            return ms;
-        }));
-        */
-        return (p, s) -> {
-            //s.parentSegTHMapmeanAndSigma = parentSegTHMapmeanAndSigma;
-            s.setMaps(parentMapImages.get(p));
-        };
+        return (p, s) -> s.setMaps(parentMapImages.get(p));
     }
     Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma;
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
@@ -389,7 +353,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Image[] maps = new Image[2];
         Function<Image, Image> gaussF = f->ImageFeatures.gaussianSmooth(f, smoothScale, false).setName("gaussian: "+smoothScale);
         maps[0] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource); //
-        Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 1, 0, 1.5);
+        Function<Image, Image> symF = f->FastRadialSymmetryTransformUtil.runTransform(f, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 0.5,1, 0, 1.5);
         maps[1] = planeByPlane && filteredSource.sizeZ()>1 ? ImageOperations.applyPlaneByPlane(filteredSource, symF) : symF.apply(filteredSource);
         return maps;
     }
