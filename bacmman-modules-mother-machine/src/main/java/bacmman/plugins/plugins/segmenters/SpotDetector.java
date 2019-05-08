@@ -42,8 +42,6 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-import static bacmman.processing.watershed.WatershedTransform.watershed;
-
 /**
  *
  * @author Jean Ollion
