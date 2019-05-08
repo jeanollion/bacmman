@@ -2753,118 +2753,120 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private int navigateCount = 0;
     public void navigateToNextObjects(boolean next, boolean nextPosition, int structureDisplay, boolean setInteractiveStructure) {
         if (trackTreeController==null) this.loadObjectTrees();
-        int displaySIdx = 0;
         Selection sel = getNavigatingSelection();
-        if (sel==null) ImageWindowManagerFactory.getImageManager().goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next);
-        else {
-            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
-            if (structureDisplay==-1 && i!=null) {
-                Image im = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2();
-                if (im!=null) {
-                    InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
-                    if (key!=null) {
-                        structureDisplay = key.displayedStructureIdx;
-                    }
-                }
-            }
-            String position = i==null? null:i.getParent().getPositionName();
-            if (i==null || nextPosition) navigateCount=2;
-            else {
-                i = SelectionUtils.fixIOI(i, sel.getStructureIdx());
-                if (i!=null) displaySIdx = i.getParent().getStructureIdx();
-                List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(i.getObjects(), sel.getElementStrings(position)));
-                logger.debug("#objects from selection on current image: {} (display sIdx: {}, IOI: {}, sel: {})", objects.size(), displaySIdx, i.getChildStructureIdx(), sel.getStructureIdx());
-                boolean move = !objects.isEmpty() && ImageWindowManagerFactory.getImageManager().goToNextObject(null, objects, next);
-                if (move) {
-                    navigateCount=0;
-                }
-                else navigateCount++;
-            }
-            if (navigateCount>1) { // open next/prev image containig objects
-                Collection<String> l;
-                boolean positionChanged = false;
-                if (nextPosition || position==null) {
-                    String selPos = null;
-                    //if (position==null) selPos = this.trackTreeController.getSelectedPosition();
-                    if (selPos!=null) position = selPos;
-                    else position = SelectionUtils.getNextPosition(sel, position, next);
-                    l = position==null ? null : sel.getElementStrings(position);
-                    while (position!=null && (l==null || l.isEmpty())) {
-                        position = SelectionUtils.getNextPosition(sel, position, next); 
-                        l = position==null ? null : sel.getElementStrings(position);
-                    }
-                    i=null;
-                    if (position!=null) {
-                        positionChanged = true;
-                        logger.debug("changing position: next: {}", position);
-                    }
-                } else l = sel.getElementStrings(position);
-                logger.debug("position: {}, #objects: {}, nav: {}, NextPosition? {}", position, position!=null ? l.size() : 0, navigateCount, nextPosition);
-                if (position==null) return;
-                this.trackTreeController.selectPosition(position, sel.getStructureIdx());
-                List<SegmentedObject> parents = SelectionUtils.getParentTrackHeads(sel, position, displaySIdx, db);
-                Collections.sort(parents);
-                logger.debug("parent track heads: {} (sel: {}, displaySIdx: {})", parents.size(), sel.getStructureIdx(), displaySIdx);
-                int nextParentIdx = 0;
-                if (i!=null && !positionChanged) { // look for next parent within parents of current position
-                    int idx = Collections.binarySearch(parents, i.getParent());
-                    if (idx<-1) { // current image's parent is not in selection
-                        if (i.getParent().getPositionName().equals(position)) nextParentIdx = -idx-1 + (next ? 0:-1); // current parent is of same position -> compare to selection parents of this position
-                        else nextParentIdx = next ? 0 : parents.size()-1; // current parent is not from the same position -> start from first or last element
-                    } 
-                    else if (idx==-1) nextParentIdx=-1;
-                    else nextParentIdx = idx + (next ? 1:-1) ;
-                    logger.warn("next parent idx: {} (search idx: {}) parent {} all parents: {}", nextParentIdx, idx, i.getParent(), parents);
-                } else if (positionChanged) {
-                    nextParentIdx = next ? 0 : parents.size()-1;
-                }
-                if (structureDisplay<0) structureDisplay = sel.getStructureIdx();
-                if ((nextParentIdx<0 || nextParentIdx>=parents.size())) {
-                    logger.warn("no next parent found in objects parents: {} -> will change position", parents);
-                    navigateToNextObjects(next, true, structureDisplay, setInteractiveStructure);
-                } else {
-                    SegmentedObject nextParent = parents.get(nextParentIdx);
-                    logger.debug("next parent: {} among: {}", nextParent, parents);
-                    List track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
-                    ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-                    InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx());
-                    Image im = iwm.getImage(nextI);
-                    boolean newImage = im==null;
-                    if (im==null) {
-                        im = nextI.generateImage(structureDisplay, true);
-                        iwm.addImage(im, nextI, structureDisplay, true);
-                        
-                    }
-                    else ImageWindowManagerFactory.getImageManager().setActive(im);
-                    navigateCount=0;
-                    if (newImage && setInteractiveStructure) { // new image open -> set interactive structure & navigate to next object in newly open image
-                        setInteractiveStructureIdx(sel.getStructureIdx());
-                        interactiveStructureActionPerformed(null);
-                    }
-                    List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(nextI.getObjects(), sel.getElementStrings(position)));
-                    logger.debug("#objects from selection on next image: {}/{} (display sIdx: {}, IOI: {}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjects().size(), displaySIdx, nextI.getChildStructureIdx(), sel.getStructureIdx(), im!=null?im.getName():"null", nextParent);
-                    if (!objects.isEmpty()) {
-                        // wait so that new image is displayed -> magnification issue -> window is not well computed
-                        /*if (iwm.getDisplayer() instanceof IJImageDisplayer) {
-                            int timeLimit = 4000;
-                            int time = 0;
-                            if (((IJImageDisplayer)iwm.getDisplayer()).getImage(im)!=null && ((IJImageDisplayer)iwm.getDisplayer()).getImage(im).getCanvas()!=null) {
-                                double m = ((IJImageDisplayer)iwm.getDisplayer()).getImage(im).getCanvas().getMagnification();
-                                while(m<0.5 && time<timeLimit) { 
-                                    try { 
-                                        Thread.sleep(500);
-                                        time+=500;
-                                    } catch (InterruptedException ex) {}
-                                    m = ((IJImageDisplayer)iwm.getDisplayer()).getImage(im).getCanvas().getMagnification();
-                                }
-                            }
-                        }*/
-                        ImageWindowManagerFactory.getImageManager().goToNextObject(im, objects, next);
-                        
-                    }
+        if (sel==null) {
+            ImageWindowManagerFactory.getImageManager().goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next);
+            return;
+        }
+        if (sel.getStructureIdx()==-1) return;
+
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
+        if (structureDisplay==-1 && i!=null) {
+            Image im = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2();
+            if (im!=null) {
+                InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
+                if (key!=null) {
+                    structureDisplay = key.displayedStructureIdx;
                 }
             }
         }
+        if (i==null && setInteractiveStructure) { // set interactive structure & navigate to next object in newly open image
+            setInteractiveStructureIdx(sel.getStructureIdx());
+            interactiveStructureActionPerformed(null);
+        }
+
+        String position = i==null? null:i.getParent().getPositionName();
+        if (i==null || nextPosition) { // no image
+            navigateCount=2;
+        }
+        else { // try to move within current image
+            i = SelectionUtils.fixIOI(i, sel.getStructureIdx());
+            List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(i.getObjects(), sel.getElementStrings(position)));
+            logger.debug("#objects from selection on current image: {} (display sIdx: {}, IOI: {}, sel: {})", objects.size(), structureDisplay, i.getChildStructureIdx(), sel.getStructureIdx());
+            boolean move = !objects.isEmpty() && ImageWindowManagerFactory.getImageManager().goToNextObject(null, objects, next);
+            if (move) navigateCount=0;
+            else navigateCount++;
+        }
+        if (navigateCount>1) { // open next/prev image containing objects
+            Collection<String> l;
+            boolean positionChanged = false;
+            if (nextPosition || position==null) {
+                String selPos = null;
+                //if (position==null) selPos = this.trackTreeController.getSelectedPosition();
+                if (selPos!=null) position = selPos;
+                else position = SelectionUtils.getNextPosition(sel, position, next);
+                l = position==null ? null : sel.getElementStrings(position);
+                while (position!=null && (l==null || l.isEmpty())) {
+                    position = SelectionUtils.getNextPosition(sel, position, next);
+                    l = position==null ? null : sel.getElementStrings(position);
+                }
+                i=null;
+                if (position!=null) {
+                    positionChanged = true;
+                    logger.debug("changing position: next: {}", position);
+                }
+            } else l = sel.getElementStrings(position);
+            logger.debug("position: {}, #objects: {}, nav: {}, NextPosition? {}", position, position!=null ? l.size() : 0, navigateCount, nextPosition);
+            if (position==null) return;
+            this.trackTreeController.selectPosition(position, sel.getStructureIdx());
+            int parentSIdx = sel.getMasterDAO().getExperiment().experimentStructure.getParentObjectClassIdx(sel.getStructureIdx());
+            List<SegmentedObject> parents = SelectionUtils.getParentTrackHeads(sel, position, parentSIdx, db);
+            Collections.sort(parents);
+            logger.debug("parent track heads: {} (sel: {}, displaySIdx: {})", parents.size(), sel.getStructureIdx(), structureDisplay);
+            int nextParentIdx = 0;
+            if (i!=null && !positionChanged) { // look for next parent within parents of current position
+                int idx = Collections.binarySearch(parents, i.getParent());
+                if (idx<-1) { // current image's parent is not in selection
+                    if (i.getParent().getPositionName().equals(position)) nextParentIdx = -idx-1 + (next ? 0:-1); // current parent is of same position -> compare to selection parents of this position
+                    else nextParentIdx = next ? 0 : parents.size()-1; // current parent is not from the same position -> start from first or last element
+                }
+                else if (idx==-1) nextParentIdx=-1;
+                else nextParentIdx = idx + (next ? 1:-1) ;
+                logger.warn("next parent idx: {} (search idx: {}) parent {} all parents: {}", nextParentIdx, idx, i.getParent(), parents);
+            } else if (positionChanged) {
+                nextParentIdx = next ? 0 : parents.size()-1;
+            }
+            if (structureDisplay<0) structureDisplay = sel.getStructureIdx();
+            if ((nextParentIdx<0 || nextParentIdx>=parents.size())) {
+                logger.warn("no next parent found in objects parents: {} -> will change position", parents);
+                navigateToNextObjects(next, true, structureDisplay, setInteractiveStructure);
+            } else {
+                SegmentedObject nextParent = parents.get(nextParentIdx);
+                logger.debug("next parent: {} among: {}", nextParent, parents);
+                List track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
+                ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+                InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx());
+                Image im = iwm.getImage(nextI);
+                boolean newImage = im==null;
+                if (im==null) {
+                    im = nextI.generateImage(structureDisplay, true);
+                    iwm.addImage(im, nextI, structureDisplay, true);
+                } else ImageWindowManagerFactory.getImageManager().setActive(im);
+                navigateCount=0;
+                List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(nextI.getObjects(), sel.getElementStrings(position)));
+                logger.debug("#objects from selection on next image: {}/{} (display sIdx: {}, IOI: {}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjects().size(), structureDisplay, nextI.getChildStructureIdx(), sel.getStructureIdx(), im!=null?im.getName():"null", nextParent);
+                if (!objects.isEmpty()) {
+                    // wait so that new image is displayed -> magnification issue -> window is not well computed
+                    /*if (iwm.getDisplayer() instanceof IJImageDisplayer) {
+                        int timeLimit = 4000;
+                        int time = 0;
+                        if (((IJImageDisplayer)iwm.getDisplayer()).getImage(im)!=null && ((IJImageDisplayer)iwm.getDisplayer()).getImage(im).getCanvas()!=null) {
+                            double m = ((IJImageDisplayer)iwm.getDisplayer()).getImage(im).getCanvas().getMagnification();
+                            while(m<0.5 && time<timeLimit) {
+                                try {
+                                    Thread.sleep(500);
+                                    time+=500;
+                                } catch (InterruptedException ex) {}
+                                m = ((IJImageDisplayer)iwm.getDisplayer()).getImage(im).getCanvas().getMagnification();
+                            }
+                        }
+                    }*/
+                    ImageWindowManagerFactory.getImageManager().goToNextObject(im, objects, next);
+
+                }
+            }
+        }
+
     }
     private Selection getNavigatingSelection() {
         List<Selection> res = getSelections();
