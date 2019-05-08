@@ -89,7 +89,7 @@ public class IJVirtualStack extends VirtualStack {
         BiFunction<Integer, Integer, Image> imageOpenerCT  = preProcessed ? (c, t) -> xp.getImageDAO().openPreProcessedImage(c, t, position) : (c, t) -> f.getInputImages().getImage(c, t);
         IJVirtualStack s = new IJVirtualStack(bdsC[0].sizeX(), bdsC[0].sizeY(), fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
-        ip.setTitle((preProcessed ? "PreProcessed Images of position: " : "Input Images of position: ")+position);
+        ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
         ip.setStack(s, channels,maxZ, frames);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();

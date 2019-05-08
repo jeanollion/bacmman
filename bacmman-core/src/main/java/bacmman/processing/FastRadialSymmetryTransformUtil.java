@@ -53,7 +53,7 @@ public class FastRadialSymmetryTransformUtil {
      * @param smallGradientThreshold proportion of  discarded gradients (lower than this value)
      * @return
      */
-    public static Image runTransform(Image input, double[] radii, Kappa kappaFunction, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double alpha, double smallGradientThreshold, double... gradientScale){
+    public static Image runTransform(Image input, double[] radii, Kappa kappaFunction, boolean useOrientationOnly, GRADIENT_SIGN gradientSign, double smoothFactor, double alpha, double smallGradientThreshold, double... gradientScale){
         double scaleZ = gradientScale.length>1?gradientScale[1]:gradientScale[0]*input.getScaleXY()/input.getScaleZ();
         double ratioZ = (scaleZ / gradientScale[0]);
         ImageFloat[] grad = ImageFeatures.getGradient(input, gradientScale[0], scaleZ, false);
@@ -86,8 +86,7 @@ public class FastRadialSymmetryTransformUtil {
             // symmetry measure at this radius value (not smoothed)
             if (Mmap==null) BoundingBox.loop(gradM, (x, y, z) -> F.setPixel(x, y, z, Math.signum(Omap.getPixel(x, y, z)) * Math.pow(Math.abs(Omap.getPixel(x, y, z)/kappa),alpha)));
             else BoundingBox.loop(gradM, (x, y, z) -> F.setPixel(x, y, z, (float)((Mmap.getPixel(x, y, z)/kappa) * Math.pow(Math.abs(Omap.getPixel(x, y, z)/kappa),alpha))));
-
-            Image smoothed = ImageFeatures.gaussianSmooth(F, 0.25*radius, 0.25*radius * ratioZ, true);
+            Image smoothed = ImageFeatures.gaussianSmooth(F, smoothFactor*radius, smoothFactor*radius * ratioZ, true);
             ImageOperations.addImage(output, smoothed, output, radius); // multiplied by radius so that sum of all elements of the kernel is radius
         }
         return output;
@@ -209,7 +208,7 @@ public class FastRadialSymmetryTransformUtil {
     }
 
     private static double[] computeOrientationMaps(Image input, double[] radii) {
-        ImageFloat[] grad = ImageFeatures.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), false); // which gradient scale should be chosen ? should sobel filter be chosen as in the origial publication ?
+        ImageFloat[] grad = ImageFeatures.getGradient(input, 1.5, 1.5*input.getSizeXY()/input.getScaleZ(), false);
         Image gradX = grad[0];
         Image gradY = grad[1];
         Image gradZ = grad.length>2 ? null : grad[2];

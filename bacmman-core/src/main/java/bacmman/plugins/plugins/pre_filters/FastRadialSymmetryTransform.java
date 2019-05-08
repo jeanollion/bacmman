@@ -13,6 +13,7 @@ import bacmman.processing.FastRadialSymmetryTransformUtil;
  */
 public class FastRadialSymmetryTransform implements PreFilter, Hint {
 
+    BoundedNumberParameter smoothFactor = new BoundedNumberParameter("Smooth Factor", 3, 0.25, 0.25, 1).setEmphasized(true).setHint("A Gaussian smooth of scale (this factor) * radius is applied to the symmetry measure at each radius computation (value = 0.25 in original publication). Increase value will decrease details");
     BoundedNumberParameter radius = new BoundedNumberParameter("Radius", 1, 5, 1, null).setEmphasized(true);
     ArrayNumberParameter radii = new ArrayNumberParameter("Radii", 0, radius).setSorted(true).setValue(2, 3, 4).setEmphasized(true).setHint("Radii used in the transformation. <br />Low values tend to add noise and detect small objects, high values tend to remove details and detect large objects");
     BoundedNumberParameter alpha = new BoundedNumberParameter("Alpha", 2, 1, 0.1, null).setEmphasized(true).setHint("Radial strictness. This parameter determines how strictly radial the radial symmetry must be for the transform to return a high interest value. A higher value eliminates nonradially symetric features such as lines");
@@ -22,12 +23,12 @@ public class FastRadialSymmetryTransform implements PreFilter, Hint {
 
     @Override
     public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, useOrientationOnly.getSelected(), gradientSign.getSelectedEnum(), alpha.getValue().doubleValue(), 0, gradientScale.getScaleXY(), gradientScale.getScaleZ(input.getScaleXY(), input.getScaleZ()));
+        return FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, useOrientationOnly.getSelected(), gradientSign.getSelectedEnum(), smoothFactor.getValue().doubleValue(), alpha.getValue().doubleValue(), 0, gradientScale.getScaleXY(), gradientScale.getScaleZ(input.getScaleXY(), input.getScaleZ()));
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{radii, alpha, gradientSign, gradientScale, useOrientationOnly};
+        return new Parameter[]{radii, alpha, gradientScale,smoothFactor,gradientSign, useOrientationOnly};
     }
 
     @Override
