@@ -121,6 +121,14 @@ public class SelectionUtils {
         for (Entry<String, Set<String>> e : elByPos.entrySet()) res.addElements(e.getKey(), e.getValue());
         return res;
     }
+    public static void removeAll(Selection sel, Selection... selections) {
+        if (sel.getStructureIdx()==-1) return;
+        for (String pos:sel.getAllPositions()) {
+            Arrays.stream(selections)
+                    .filter(s -> s.getStructureIdx() == sel.getStructureIdx() && s.getAllPositions().contains(pos))
+                    .forEach(s -> sel.removeAll(pos, s.getElementStrings(pos)));
+        }
+    }
     
     public static List<String> getElements(List<Selection> selections, String fieldName) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
@@ -456,7 +464,20 @@ public class SelectionUtils {
             list.updateUI();
         });
         menu.add(removeFromParent);
-        
+        JMenuItem duplicate = new JMenuItem("Duplicate");
+        duplicate.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            String name = JOptionPane.showInputDialog("Duplicate Selection name:");
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                Selection dup = selectedValues.get(0).duplicate(name);
+                dup.getMasterDAO().getSelectionDAO().store(dup);
+                GUI.getInstance().populateSelections();
+            }
+            list.updateUI();
+        });
+        menu.add(duplicate);
+        if (selectedValues.size()!=1) duplicate.setEnabled(false);
+
         JMenuItem clear = new JMenuItem("Clear");
         clear.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
@@ -503,6 +524,19 @@ public class SelectionUtils {
                 }
             });
             menu.add(union);
+        }
+        if (selectedValues.size()>=1 && selectedValues.stream().allMatch(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())) {
+            JMenu diffMenu = new JMenu("Remove all from");
+            List<Selection> selDiff = allSelections.stream()
+                    .filter(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())
+                    .filter(s->!selectedValues.contains(s))
+                    .collect(Collectors.toList());
+            for (Selection sel : selDiff) {
+                JMenuItem diff = new JMenuItem(sel.getName());
+                diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->SelectionUtils.removeAll(s, sel)));
+                diffMenu.add(diff);
+            }
+            menu.add(diffMenu);
         }
         return menu;
     }

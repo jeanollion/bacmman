@@ -75,7 +75,13 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     boolean highlightingTracks=false;
     boolean navigate = false;
     int addObjects = -1;
-    
+
+    public Selection duplicate(String name) {
+        Selection dup = new Selection(name, structureIdx, mDAO);
+        elements.forEach((p, e)->dup.addElements(p, e));
+        return dup;
+    }
+
     public void setState(Selection other) {
         if (other == null) return;
         displayingObjects = other.displayingObjects;
@@ -175,6 +181,9 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public Set<String> getElementStrings(String position) {
         if (elements.containsKey(position)) return new HashSet(this.elements.get(position));
         else return Collections.EMPTY_SET;
+    }
+    public void removeAll(String position, Collection<String> toRemove) {
+        if (elements.containsKey(position)) elements.get(position).removeAll(toRemove);
     }
     public Set<String> getElementStrings(Collection<String> positions) {
         Set<String> res = new HashSet<>();
