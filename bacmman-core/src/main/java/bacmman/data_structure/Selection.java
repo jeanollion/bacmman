@@ -183,7 +183,10 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         else return Collections.EMPTY_SET;
     }
     public void removeAll(String position, Collection<String> toRemove) {
-        if (elements.containsKey(position)) elements.get(position).removeAll(toRemove);
+        if (elements.containsKey(position)) {
+            elements.get(position).removeAll(toRemove);
+            if (elements.get(position).isEmpty()) elements.remove(position);
+        }
     }
     public Set<String> getElementStrings(Collection<String> positions) {
         Set<String> res = new HashSet<>();

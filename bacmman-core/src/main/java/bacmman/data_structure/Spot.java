@@ -88,7 +88,7 @@ public class Spot extends Region {
 
     @Override
     public double size() {
-        return 2 * Math.PI * radius * radius;
+        return is2D() ? 2 * Math.PI * radiusSq : 4d/3d * Math.PI * Math.pow(radius, 3);
     }
 
     @Override
@@ -192,23 +192,24 @@ public class Spot extends Region {
     public Set<Voxel> getIntersection(Region other) {
         if (voxelsCreated() && other.voxelsCreated()) return super.getIntersection(other);
         if (!intersect(other)) return Collections.emptySet();
-        BoundingBox.LoopPredicate inside, insideOther;
+        BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
+                : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
+        BoundingBox.LoopPredicate insideOther;
         BoundingBox loopBds;
         if (other.is2D()!=is2D()) { // should not take into account z for intersection
-            loopBds = !is2D() ? BoundingBox.getIntersection2D(other.getBounds(), bounds) : BoundingBox.getIntersection2D(bounds, other.getBounds());
-            inside = (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq;
-            if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
-            else if (other.mask!=null) {
+            loopBds = !is2D() ? BoundingBox.getIntersection2D(bounds, other.getBounds()) : BoundingBox.getIntersection2D(other.getBounds(), bounds) ;
+            if (other instanceof Spot)  {
+                if (other.is2D()) insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
+                else insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
+            } else if (other.mask!=null) {
                 ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask(), other.getMask().zMin()) : other.getMask();
                 insideOther = (x, y, z) -> otherMask.insideMaskWithOffset(x, y, z);
             } else {
                 Set s = Sets.newHashSet(Utils.transform(other.getVoxels(), v->v.toVoxel2D()));
                 insideOther = (x, y, z) -> s.contains(new Voxel2D(x, y));
             }
-
         } else {
             loopBds = BoundingBox.getIntersection(other.getBounds(), bounds);
-            inside = (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
             if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
             else if (other.mask!=null) insideOther = (x, y, z) -> other.mask.insideMaskWithOffset(x, y, z);
             else insideOther = (x, y, z) -> other.getVoxels().contains(new Voxel2D(x, y));
@@ -222,7 +223,7 @@ public class Spot extends Region {
     }
 
     /**
-     * Counts the overlap (in voxels) between this region and {@param other}, using masks of both region (no creation of voxels)
+     * Estimation of the overlap (in voxels number) between this region and {@param other} (no creation of voxels)
      * @param other other region
      * @param offset offset to add to this region so that is would be in absolute landmark
      * @param offsetOther offset to add to {@param other} so that is would be in absolute landmark
@@ -238,19 +239,21 @@ public class Spot extends Region {
         } else {
             if (!BoundingBox.intersect(thisBounds, otherBounds)) return 0;
         }
-        BoundingBox.LoopPredicate inside, insideOther;
+        BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
+                : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
+        BoundingBox.LoopPredicate insideOther;
         BoundingBox loopBds;
-        if (other.is2D()!=is2D()) { // should not take into account z for intersection
-            loopBds = !is2D() ? BoundingBox.getIntersection2D(otherBounds, thisBounds) : BoundingBox.getIntersection2D(thisBounds, otherBounds);
-            inside = (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq;
-            if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
-            else  {
+        if (other.is2D()!=is2D()) { // considers that the 2D object expands in the whole range of the 3D object
+            loopBds = !is2D() ? BoundingBox.getIntersection2D(thisBounds, otherBounds) : BoundingBox.getIntersection2D(otherBounds, thisBounds);
+            if (other instanceof Spot)  {
+                if (other.is2D()) insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
+                else insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
+            } else  {
                 ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
                 insideOther = (x, y, z) -> otherMask.insideMask(x, y, z);
             }
         } else {
             loopBds = BoundingBox.getIntersection(otherBounds, thisBounds);
-            inside = (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
             if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
             else insideOther = (x, y, z) -> other.getMask().insideMask(x, y, z);
         }
