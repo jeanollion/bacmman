@@ -99,7 +99,7 @@ public class DBMapSelectionDAO implements SelectionDAO {
                 }
                 idCache.put(s.getName(), s);
                 store(s);
-                f.delete();
+                if (!readOnly) f.delete();
             }
         }
     }

@@ -123,7 +123,7 @@ public class SelectionUtils {
     }
     public static void removeAll(Selection sel, Selection... selections) {
         if (sel.getStructureIdx()==-1) return;
-        for (String pos:sel.getAllPositions()) {
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
             Arrays.stream(selections)
                     .filter(s -> s.getStructureIdx() == sel.getStructureIdx() && s.getAllPositions().contains(pos))
                     .forEach(s -> sel.removeAll(pos, s.getElementStrings(pos)));
@@ -533,7 +533,10 @@ public class SelectionUtils {
                     .collect(Collectors.toList());
             for (Selection sel : selDiff) {
                 JMenuItem diff = new JMenuItem(sel.getName());
-                diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->SelectionUtils.removeAll(s, sel)));
+                diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
+                    SelectionUtils.removeAll(s, sel);
+                    s.getMasterDAO().getSelectionDAO().store(s);
+                }));
                 diffMenu.add(diff);
             }
             menu.add(diffMenu);

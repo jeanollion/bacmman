@@ -2761,13 +2761,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (sel.getStructureIdx()==-1) return;
 
         InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
-        if (structureDisplay==-1 && i!=null) {
-            Image im = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2();
-            if (im!=null) {
-                InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
-                if (key!=null) {
-                    structureDisplay = key.displayedStructureIdx;
+        if (structureDisplay<0) {
+            if (i != null) {
+                Image im = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2();
+                if (im != null) {
+                    InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
+                    if (key != null) {
+                        structureDisplay = key.displayedStructureIdx;
+                    }
                 }
+            }
+            if (structureDisplay<0) {
+                logger.debug("set structure display to {} IOI null ? {}", sel.getStructureIdx(), i==null);
+                structureDisplay=sel.getStructureIdx();
             }
         }
         if (i==null && setInteractiveStructure) { // set interactive structure & navigate to next object in newly open image
@@ -2826,7 +2832,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             } else if (positionChanged) {
                 nextParentIdx = next ? 0 : parents.size()-1;
             }
-            if (structureDisplay<0) structureDisplay = sel.getStructureIdx();
             if ((nextParentIdx<0 || nextParentIdx>=parents.size())) {
                 logger.warn("no next parent found in objects parents: {} -> will change position", parents);
                 navigateToNextObjects(next, true, structureDisplay, setInteractiveStructure);
@@ -2837,7 +2842,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx());
                 Image im = iwm.getImage(nextI);
-                boolean newImage = im==null;
                 if (im==null) {
                     im = nextI.generateImage(structureDisplay, true);
                     iwm.addImage(im, nextI, structureDisplay, true);

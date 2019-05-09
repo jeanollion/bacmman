@@ -222,7 +222,13 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
         // remove spots with center outside mask
-        segmentedSpots.removeIf(s->!parentMask.contains(s.getCenter()) || !parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5)));
+        segmentedSpots.removeIf(s->{
+            if (!parentMask.contains(s.getCenter())) return true;
+            else if (!parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5))) {
+                logger.debug("spot center outside mask. overlap: {}, size: {}, ratio: {}", s.getOverlapArea(parent.getRegion(), parent.getBounds(), null), s.size(), s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size());
+                return (s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size())<0.4;
+            } return false;
+        });
 
         // filter by radius
         segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());

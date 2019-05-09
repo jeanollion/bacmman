@@ -88,7 +88,7 @@ public class Spot extends Region {
 
     @Override
     public double size() {
-        return is2D() ? 2 * Math.PI * radiusSq : 4d/3d * Math.PI * Math.pow(radius, 3);
+        return is2D() ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3);
     }
 
     @Override
