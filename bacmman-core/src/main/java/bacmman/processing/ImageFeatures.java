@@ -113,7 +113,7 @@ public class ImageFeatures {
             res[i] = (ImageFloat)ImagescienceWrapper.wrap(differentiator.run(dup?is.duplicate():is, scaleXY, i==0?1:0, i==1?1:0, i==2?1:0));
             res[i].setCalibration(image);
             res[i].resetOffset().translate(image);
-            if (i==2 && scaleZ!=scaleXY) ImageOperations.affineOperation(res[2], res[2], scaleXY/scaleZ, 0); // take into account anisotropy
+            if (i==2 && scaleZ!=scaleXY) ImageOperations.affineOperation(res[2], res[2], scaleZ/scaleXY, 0); // take into account anisotropy
         }
         return res;
     }

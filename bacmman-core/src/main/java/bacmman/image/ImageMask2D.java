@@ -18,6 +18,8 @@
  */
 package bacmman.image;
 
+import bacmman.utils.geom.Point;
+
 /**
  * @author Jean Ollion
  */
@@ -72,5 +74,22 @@ public class ImageMask2D extends SimpleImageProperties<ImageMask2D> implements I
     public ImageMask2D duplicateMask() {
         return new ImageMask2D(mask.duplicateMask(), z);
     }
-    
+
+    @Override
+    public boolean contains(Point point) {
+        return 0<=point.get(0) && xMax-xMin>=point.get(0) && 0<=point.get(1) && yMax-yMin>=point.get(1);
+    }
+    @Override
+    public boolean containsWithOffset(Point point) {
+        return xMin<=point.get(0) && xMax>=point.get(0) && yMin<=point.get(1) && yMax>=point.get(1);
+    }
+
+    @Override
+    public boolean containsWithOffset(int x, int y, int z) {
+        return xMin<=x && xMax>=x && yMin<=y && yMax>=y;
+    }
+    @Override
+    public boolean contains(int x, int y, int z) {
+        return 0<=x && xMax-xMin>=x && 0<=y && yMax-yMin>=y;
+    }
 }

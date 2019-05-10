@@ -63,9 +63,7 @@ public class FastRadialSymmetryTransformUtil {
         Image gradM = new ImageFloat("", input).resetOffset();
 
         if (gradZ==null) BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2))))); // computes gradient magnitude
-        else {
-            BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2)+Math.pow(gradZ.getPixel(x, y, z), 2)))));
-        }
+        else BoundingBox.loop(gradM, (x, y, z)->((ImageFloat)gradM).setPixel(x, y, z, (float)(Math.sqrt(Math.pow(gradX.getPixel(x, y, z), 2)+Math.pow(gradY.getPixel(x, y, z), 2)+Math.pow(gradZ.getPixel(x, y, z), 2)))));
         double[] mm = gradM.getMinAndMax(null);
         Image Omap = new ImageFloat("", input);
         Image Mmap = useOrientationOnly ? null : new ImageFloat("", input);
