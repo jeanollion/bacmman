@@ -86,7 +86,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         private List<TreePath> getExpandedPaths(TreePath parent) {
             TreeNode node = (TreeNode)parent.getLastPathComponent();
             if (node.isLeaf()) return Collections.emptyList();
-            Enumeration<TreeNode> children = node.children();
+            Enumeration<? extends TreeNode> children = node.children();
             List<TreePath> next = new ArrayList<>();
             while(children.hasMoreElements()) {
                 TreeNode child = children.nextElement();
@@ -258,7 +258,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         if (isExpertMode() || parent.equals(root) || !(parent instanceof InvisibleNode)) return ((TreeNode)parent).getIndex((TreeNode)child);
         else {
             int count = 0;
-            Enumeration<TreeNode> children = ((TreeNode)parent).children();
+            Enumeration<? extends TreeNode> children = ((TreeNode)parent).children();
             while(children.hasMoreElements()) {
                 TreeNode c = children.nextElement();
                 if (c.equals(child)) return count;
