@@ -40,10 +40,7 @@ import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
 import ij.plugin.filter.ThresholdToSelection;
 import java.awt.Rectangle;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.IntStream;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -55,7 +52,7 @@ import org.json.simple.JSONObject;
 
 public class RegionContainerIjRoi extends RegionContainer {
     List<byte[]> roiZ; // persists
-    Roi3D roi; // convention: location of ROI = location of object & postition starts from 1 // not persistant 
+    Roi3D roi; // convention: location of ROI = location of object & position starts from 1 // not persistant
     public RegionContainerIjRoi(SegmentedObject structureObject) {
         super(structureObject);
         createRoi(structureObject.getRegion());
@@ -67,7 +64,7 @@ public class RegionContainerIjRoi extends RegionContainer {
     }
     private void encodeRoi() {
         roiZ = new ArrayList<>(roi.size());
-        roi.entrySet().stream().sorted((e1, e2)->Integer.compare(e1.getKey(), e2.getKey()))
+        roi.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey))
                 .forEach(e->roiZ.add(RoiEncoder.saveAsByteArray(e.getValue())));
     }
     /**
@@ -79,6 +76,7 @@ public class RegionContainerIjRoi extends RegionContainer {
     }
     private void decodeRoi() {
         roi = new Roi3D(roiZ.size());
+        roi.setIs2D(is2D);
         int z=0;
         for (byte[] b : roiZ) {
             Roi r = RoiDecoder.openFromByteArray(b);
