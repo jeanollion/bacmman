@@ -25,10 +25,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.GUI;
 
 import javax.swing.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  *
@@ -172,6 +169,7 @@ public class TrackTreeController {
     }
     public void selectPosition(String position, int childObjectClassIdx) {
         if (displayedGeneratorS.isEmpty()) return;
+        if (Arrays.stream(db.getExperiment().getPositionsAsString()).noneMatch(p->p.equals(position))) return;
         int parentOCIdx = this.db.getExperiment().experimentStructure.getParentObjectClassIdx(childObjectClassIdx);
         if (!displayedGeneratorS.containsKey(parentOCIdx)) return;
         int count = displayedGeneratorS.get(parentOCIdx).tree.getSelectionCount();

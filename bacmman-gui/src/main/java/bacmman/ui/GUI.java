@@ -91,6 +91,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.swing.*;
 import javax.swing.event.*;
@@ -2794,21 +2795,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             else navigateCount++;
         }
         if (navigateCount>1) { // open next/prev image containing objects
-            Collection<String> l;
+            Collection<String> l=null;
             boolean positionChanged = false;
             if (nextPosition || position==null) {
                 String selPos = null;
                 //if (position==null) selPos = this.trackTreeController.getSelectedPosition();
+                String[] allPos = db.getExperiment().getPositionsAsString();
+                Predicate<String> insideXP = p -> p!=null && Arrays.stream(allPos).anyMatch(pp->pp.equals(p));
                 if (selPos!=null) position = selPos;
-                else position = SelectionUtils.getNextPosition(sel, position, next);
-                l = position==null ? null : sel.getElementStrings(position);
-                while (position!=null && (l==null || l.isEmpty())) {
-                    position = SelectionUtils.getNextPosition(sel, position, next);
-                    l = position==null ? null : sel.getElementStrings(position);
-                }
+                else position = SelectionUtils.getNextPosition(sel, position, next, p->insideXP.test(p) && sel.hasElementsAt(p));
                 i=null;
                 if (position!=null) {
                     positionChanged = true;
+                    l = sel.getElementStrings(position);
                     logger.debug("changing position: next: {}", position);
                 }
             } else l = sel.getElementStrings(position);

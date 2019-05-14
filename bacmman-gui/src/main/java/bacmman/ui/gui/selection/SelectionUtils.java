@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.DefaultListModel;
@@ -167,6 +168,14 @@ public class SelectionUtils {
         Set<String> res = new HashSet<>();
         for (Selection s: selections) res.addAll(s.getAllPositions());
         return res;
+    }
+    public static String getNextPosition(Selection selection, String position, boolean next, Predicate<String> positionValid) {
+        String p = position;
+        while(true) {
+            p = getNextPosition(selection, p, next);
+            if (p==null) return null;
+            if (positionValid.test(p)) return p;
+        }
     }
     public static String getNextPosition(Selection selection, String position, boolean next) {
         List<String> p = new ArrayList<>(selection.getAllPositions());

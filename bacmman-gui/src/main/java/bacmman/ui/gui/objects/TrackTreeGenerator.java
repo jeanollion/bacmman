@@ -223,7 +223,7 @@ public class TrackTreeGenerator {
 
     public void selectTracks(Collection<SegmentedObject> trackHeads, boolean addToSelection) {
         if (!addToSelection) tree.setSelectionRow(-1);
-        if (trackHeads==null) return;
+        if (trackHeads==null || trackHeads.isEmpty()) return;
         List<TreePath> list = new ArrayList<TreePath>(trackHeads.size());
         for (SegmentedObject o : trackHeads) {
             TreePath  p = getTreePath(o);

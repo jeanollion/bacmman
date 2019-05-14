@@ -509,6 +509,7 @@ public class Utils {
         addToSelectionPaths(tree, Arrays.asList(pathToSelect));
     }
     public static void addToSelectionPaths(JTree tree, List<TreePath> pathToSelect) {
+        if (pathToSelect==null || pathToSelect.isEmpty()) return;
         TreePath[] sel = tree.getSelectionPaths();
         if (sel==null) tree.setSelectionPaths(pathToSelect.toArray(new TreePath[pathToSelect.size()]));
         else {
