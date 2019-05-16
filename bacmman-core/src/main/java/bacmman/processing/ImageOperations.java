@@ -556,11 +556,13 @@ public class ImageOperations {
         return res;
     }
     public static float[] meanProjection(Image image, Axis axis, BoundingBox limit, DoublePredicate useValue) {
-        float[] res;
+        return meanProjection(image, axis, limit, useValue, null);
+    }
+    public static float[] meanProjection(Image image, Axis axis, BoundingBox limit, DoublePredicate useValue, float[] output) {
         if (limit==null) limit = new SimpleBoundingBox(image).resetOffset();
         switch (axis) {
             case X:
-                res = new float[limit.sizeX()];
+                output = output==null || output.length!=limit.sizeX() ? new float[limit.sizeX()] : output;
                 for (int x = limit.xMin(); x<=limit.xMax(); ++x) {
                     double sum=0;
                     double count= 0;
@@ -574,10 +576,10 @@ public class ImageOperations {
                             
                         }
                     }
-                    res[x-limit.xMin()]=(float) (sum/count);
+                    output[x-limit.xMin()]=(float) (sum/count);
                 }   break;
             case Y:
-                res = new float[limit.sizeY()];
+                output = output==null || output.length!=limit.sizeY() ? new float[limit.sizeY()] : output;
                 for (int y = limit.yMin(); y<=limit.yMax(); ++y) {
                     double sum=0;
                     double count = 0;
@@ -590,10 +592,10 @@ public class ImageOperations {
                             }
                         }
                     }
-                    res[y-limit.yMin()]=(float) (sum/count);
+                    output[y-limit.yMin()]=(float) (sum/count);
                 }   break;
             default:
-                res = new float[limit.sizeZ()];
+                output = output==null || output.length!=limit.sizeZ() ? new float[limit.sizeZ()] : output;
                 for (int z = limit.zMin(); z<=limit.zMax(); ++z) {
                     double sum=0;
                     double count = 0;
@@ -606,10 +608,10 @@ public class ImageOperations {
                             }
                         }
                     }
-                    res[z-limit.zMin()]=(float) (sum/count);
+                    output[z-limit.zMin()]=(float) (sum/count);
                 }   break;
         }
-        return res;
+        return output;
     }
     
     /**

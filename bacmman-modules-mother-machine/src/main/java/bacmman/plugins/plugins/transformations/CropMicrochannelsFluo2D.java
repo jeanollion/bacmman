@@ -126,7 +126,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
         Consumer<Image> dispImage = testMode.testSimple() ? i-> Core.showImage(i) : null;
         BiConsumer<String, Consumer<List<SegmentedObject>>> miscDisp = testMode.testSimple() ? (s, c)->c.accept(Collections.EMPTY_LIST) : null;
-        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 0, this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), dispImage, miscDisp);
+        Result r = MicrochannelFluo2D.segmentMicroChannels(image, thresholdedImage, 0, 20, this.channelLength.getValue().intValue(), this.fillingProportion.getValue().doubleValue(), threshold, this.minObjectSize.getValue().intValue(), MicrochannelFluo2D.METHOD.PEAK, dispImage, miscDisp);
         if (r == null) return null;
         
         int xStart = this.xStart.getValue().intValue();

@@ -33,6 +33,7 @@ import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
@@ -83,6 +84,8 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         return simpleHint + dispImageSimple;
     }
 
+    public enum METHOD {LEGACY, PEAK}
+
     public MicrochannelFluo2D() {}
     public MicrochannelFluo2D(int channelHeight, int channelWidth, int yMargin, double fillingProportion, int minObjectSize) {
         this.channelLength.setValue(channelHeight);
@@ -100,7 +103,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instanciatePlugin().runThresholder(input, parent) : thresholdValue;
         logger.debug("thresholder: {} : {}", threshold.getPluginName(), threshold.getParameters());
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
         if (r==null) return null;
         else return r.getObjectPopulation(input, true);
     }
@@ -108,7 +111,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     @Override
     public Result segment(Image input, int structureIdx, SegmentedObject parent) {
         double thld = Double.isNaN(thresholdValue) ? this.threshold.instanciatePlugin().runSimpleThresholder(input, null) : thresholdValue;
-        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
+        Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(),METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
         return r;
     }
     
@@ -141,17 +144,17 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
      * @param thld optiona lused for image binarization, can be NaN
      * @return 
      */
-    public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double fillingProportion, double thld, int minObjectSize, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer) {
-        
+    public static Result segmentMicroChannels(Image image, ImageInteger thresholdedImage, int yShift, int channelWidth, int channelLength, double fillingProportion, double thld, int minObjectSize, METHOD method, Consumer<Image> imageTestDisplayer, BiConsumer<String, Consumer<List<SegmentedObject>>> miscDataDisplayer) {
+
         // get thresholded image
         if (Double.isNaN(thld) && thresholdedImage == null) {
             thld = BackgroundThresholder.runThresholder(image, null, 3, 6, 3, Double.MAX_VALUE, null); //IJAutoThresholder.runThresholder(image, null, AutoThresholder.Method.Triangle); // OTSU / TRIANGLE / YEN
         }
-        if (miscDataDisplayer!=null)  {
+        if (miscDataDisplayer != null) {
             double t = thld;
-            miscDataDisplayer.accept("Display Threshold", l->{
+            miscDataDisplayer.accept("Display Threshold", l -> {
                 Plugin.logger.debug("Micochannels segmentation threshold : {}", t);
-                Core.userLog("Microchannel Segmentation threshold: "+t);
+                Core.userLog("Microchannel Segmentation threshold: " + t);
             });
         }
         ImageInteger mask = thresholdedImage == null ? ImageOperations.threshold(image, thld, true, true) : thresholdedImage;
@@ -162,64 +165,96 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         float[] xProj = ImageOperations.meanProjection(mask, ImageOperations.Axis.X, null);
         ImageFloat imProjX = new ImageFloat("Total segmented bacteria length", mask.sizeX(), new float[][]{xProj});
         ImageOperations.affineOperation(imProjX, imProjX, (double) (image.sizeY() * image.sizeZ()) / channelLength, 0);
-        ImageByte projXThlded = ImageOperations.threshold(imProjX, fillingProportion, true, false);
-        if (imageTestDisplayer!=null) imageTestDisplayer.accept(mask.setName("Thresholded Bacteria"));
-        if (miscDataDisplayer!=null) miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> Utils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
-        
-        List<Region> xObjectList = ImageLabeller.labelImageList(projXThlded);
-        if (xObjectList.isEmpty()) {
-            return null;
-        }
-        if (channelWidth <= 1) {
-            channelWidth = (int) xObjectList.stream().mapToInt((Region o) -> o.getBounds().sizeX()).average().getAsDouble();
-        }
-        int leftLimit = channelWidth / 2 + 1;
-        int rightLimit = image.sizeX() - leftLimit;
-        Iterator<Region> it = xObjectList.iterator();
-        while (it.hasNext()) {
-            BoundingBox b = it.next().getBounds();
-            if (b.xMean() < leftLimit || b.xMean() > rightLimit) {
-                it.remove(); //if (b.getxMin()<Xmargin || b.getxMax()>rightLimit) it.remove(); //
-            }
-        }
-        if (xObjectList.isEmpty()) {
-            return null;
-        }
-        // fusion of overlapping objects
-        it = xObjectList.iterator();
-        Region prev = it.next();
-        while (it.hasNext()) {
-            Region next = it.next();
-            if (prev.getBounds().xMax() + 1 > next.getBounds().xMin()) {
-                prev.addVoxels(next.getVoxels());
-                it.remove();
-            } else {
-                prev = next;
-            }
-        }
-        Region[] xObjects = xObjectList.toArray(new Region[xObjectList.size()]);
-        if (xObjects.length == 0) {
-            return null;
-        }
-        if (bacteria.isEmpty()) {
-            return null;
-        }
-        int[] yMins = new int[xObjects.length];
-        Arrays.fill(yMins, Integer.MAX_VALUE);
-        for (Region o : bacteria) {
-            BoundingBox b = o.getBounds();
-            //if (debug) logger.debug("object: {}");
-            X_SEARCH:
-            for (int i = 0; i < xObjects.length; ++i) {
-                BoundingBox inter = BoundingBox.getIntersection(b, xObjects[i].getBounds());
-                if (inter.sizeX() >= 2) {
-                    if (b.yMin() < yMins[i]) {
-                        yMins[i] = b.yMin();
-                    }
-                    break X_SEARCH;
+        if (imageTestDisplayer != null) imageTestDisplayer.accept(mask.setName("Thresholded Bacteria"));
+        if (miscDataDisplayer != null)
+            miscDataDisplayer.accept("Display Microchannel Fill proportion graph", l -> Utils.plotProfile(imProjX.setName("Microchannel Fill proportion"), 0, 0, true, "x", "Total Length of bacteria along Y-axis/Microchannel Expected Width"));
+
+        switch (method) {
+            case LEGACY: {
+                ImageByte projXThlded = ImageOperations.threshold(imProjX, fillingProportion, true, false);
+
+                List<Region> xObjectList = ImageLabeller.labelImageList(projXThlded);
+                if (xObjectList.isEmpty()) {
+                    return null;
                 }
+                if (channelWidth <= 1) {
+                    channelWidth = (int) xObjectList.stream().mapToInt((Region o) -> o.getBounds().sizeX()).average().getAsDouble();
+                }
+                int leftLimit = channelWidth / 2 + 1;
+                int rightLimit = image.sizeX() - leftLimit;
+                Iterator<Region> it = xObjectList.iterator();
+                while (it.hasNext()) {
+                    BoundingBox b = it.next().getBounds();
+                    if (b.xMean() < leftLimit || b.xMean() > rightLimit) {
+                        it.remove(); //if (b.getxMin()<Xmargin || b.getxMax()>rightLimit) it.remove(); //
+                    }
+                }
+                if (xObjectList.isEmpty()) {
+                    return null;
+                }
+
+                // fusion of overlapping objects in X direction
+                it = xObjectList.iterator();
+                Region prev = it.next();
+                while (it.hasNext()) {
+                    Region next = it.next();
+                    if (prev.getBounds().xMax() + 1 > next.getBounds().xMin()) {
+                        prev.addVoxels(next.getVoxels());
+                        it.remove();
+                    } else {
+                        prev = next;
+                    }
+                }
+                Region[] xObjects = xObjectList.toArray(new Region[xObjectList.size()]);
+                if (xObjects.length == 0) {
+                    return null;
+                }
+
+                if (bacteria.isEmpty()) {
+                    return null;
+                }
+                int[] yMins = new int[xObjects.length];
+                Arrays.fill(yMins, Integer.MAX_VALUE);
+                for (Region o : bacteria) {
+                    BoundingBox b = o.getBounds();
+                    //if (debug) logger.debug("object: {}");
+                    X_SEARCH:
+                    for (int i = 0; i < xObjects.length; ++i) {
+                        BoundingBox inter = BoundingBox.getIntersection(b, xObjects[i].getBounds());
+                        if (inter.sizeX() >= 2) {
+                            if (b.yMin() < yMins[i]) {
+                                yMins[i] = b.yMin();
+                            }
+                            break X_SEARCH;
+                        }
+                    }
+                }
+                return getResult(yMins, xObjects, channelWidth, channelLength, yShift, image.sizeX());
+            }
+            default : case PEAK: {
+                if (channelWidth<1) throw new IllegalArgumentException("channel width should be >1");
+                // get center of microchannel: peaks of xProjection
+                ArrayUtil.gaussianSmooth(xProj, Math.max(2, channelWidth/8));
+                List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth, true);
+                //logger.debug("channelWidth: {}, peaks: {}", channelWidth, localMax);
+                int leftLimit = channelWidth / 2 + 1;
+                int rightLimit = image.sizeX() - leftLimit;
+                localMax.removeIf(l -> l<leftLimit || l>rightLimit || xProj[l]<fillingProportion);
+                if (localMax.isEmpty()) return null;
+
+                // for each local max, get yMin
+                float[] yProj = new float[mask.sizeY()];
+                int halfWidth = channelWidth/2;
+                int[] yMins = localMax.stream().mapToInt(l -> {
+                    ImageOperations.meanProjection(mask, ImageOperations.Axis.Y, new SimpleBoundingBox(l-halfWidth, l+halfWidth, 0, mask.sizeY()-1, 0, mask.sizeZ()-1), d->true, yProj);
+                    return ArrayUtil.getFirstOccurence(yProj, 0, yProj.length, d->d>0);
+                }).toArray();
+                Region[] xObjects = localMax.stream().map(l -> new Region(new BlankMask(0, 0, 0, l.intValue(), 0, 0, 1, 1), 1, true)).toArray(r->new Region[r]);
+                return getResult(yMins, xObjects, channelWidth, channelLength, yShift, image.sizeX());
             }
         }
+    }
+    private static Result getResult(int[] yMins, Region[] xObjects, int channelWidth, int channelLength, int yShift, int imageSizeX) {
         // get median yMin
         List<Integer> yMinsList = new ArrayList<>(yMins.length);
         for (int yMin : yMins) {
@@ -240,7 +275,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
             }
             int xMin = (int) (xObjects[i].getBounds().xMean() - channelWidth / 2.0);
             int xMax = (int) (xObjects[i].getBounds().xMean() + channelWidth / 2.0); // mc remains centered
-            if (xMin < 0 || xMax >= image.sizeX()) {
+            if (xMin < 0 || xMax >= imageSizeX) {
                 continue; // exclude outofbounds objects
             }
             int[] minMaxYShift = new int[]{xMin, xMax, yMins[i] - yMin < yShift ? 0 : yMins[i] - yMin};
@@ -248,8 +283,6 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         }
         Collections.sort(sortedMinMaxYShiftList, Comparator.comparingInt((int[] i) -> i[0]));
         int shift = Math.min(yMin, yShift);
-        return new Result(sortedMinMaxYShiftList, yMin-shift, yMin + channelLength - 1);
+        return new Result(sortedMinMaxYShiftList, yMin - shift, yMin + channelLength - 1);
     }
-
-
 }
