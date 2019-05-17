@@ -18,6 +18,10 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.ui.ManualEdition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -37,9 +41,9 @@ import javax.swing.JPanel;
 import javax.swing.JWindow;
 
 public class ZoomPane extends JPanel {
-
+    public static final Logger logger = LoggerFactory.getLogger(ZoomPane.class);
     protected final int ZOOM_AREA;
-
+    protected final float SCALE;
     Component parent;
     private final JWindow popup;
 
@@ -50,11 +54,15 @@ public class ZoomPane extends JPanel {
         this(3f, 25);
     }
     public ZoomPane(double zoomLevel, int zoomArea) {
+        double scale = Double.parseDouble(System.getProperty("sun.java2d.uiScale", "1"));
+        SCALE = (int) scale; // TODO could work with double but it seams java only uses integral scale values....
+        logger.debug("Zoom pane Scale: {}", SCALE);
         ZOOM_AREA=zoomArea;
         this.zoomLevel = (float)zoomLevel;
         popup = new JWindow();
         popup.setLayout(new BorderLayout());
         popup.add(this);
+        popup.setAlwaysOnTop(true);
         popup.pack();
     }
     
@@ -82,14 +90,14 @@ public class ZoomPane extends JPanel {
         popup.setLocation(pos.x + 16, pos.y + 16);
         //repaint();
         if (!popup.isVisible()) popup.setVisible(true);
+
         repaint();
     }
     
 
     protected void updateBuffer(Point p) {
-        int width = Math.round(ZOOM_AREA);
-        int height = Math.round(ZOOM_AREA);
-        buffer = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        int size = Math.round(ZOOM_AREA * SCALE);
+        buffer = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = buffer.createGraphics();
         AffineTransform at = new AffineTransform();
         int xPos = (ZOOM_AREA / 2) - p.x;
@@ -106,7 +114,7 @@ public class ZoomPane extends JPanel {
 
     @Override
     public Dimension getPreferredSize() {
-      return new Dimension(Math.round(ZOOM_AREA * zoomLevel), Math.round(ZOOM_AREA * zoomLevel));
+      return new Dimension(Math.round(ZOOM_AREA * zoomLevel), Math.round(ZOOM_AREA * zoomLevel)); // scale is automatically applied
     }
 
     @Override
@@ -115,7 +123,7 @@ public class ZoomPane extends JPanel {
         Graphics2D g2d = (Graphics2D) g.create();
         if (buffer != null) {
             AffineTransform at = g2d.getTransform();
-            g2d.setTransform(AffineTransform.getScaleInstance(zoomLevel, zoomLevel));
+            g2d.setTransform(AffineTransform.getScaleInstance(zoomLevel * SCALE, zoomLevel * SCALE));
             g2d.drawImage(buffer, 0, 0, this);
             g2d.setTransform(at);
         }
