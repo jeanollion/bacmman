@@ -31,6 +31,7 @@ import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
 import bacmman.image.MutableBoundingBox;
@@ -109,7 +110,7 @@ public class ManualEdition {
         Set<SegmentedObject> modifiedObjects = new HashSet<>();
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
         TreeMap<SegmentedObject, List<SegmentedObject>> objectsByParent = new TreeMap(SegmentedObjectUtils.splitByParent(objects)); // sorted by time point
-        Map<SegmentedObject, SegmentedObject> existingUneditedLinks=null;
+        List<Pair<SegmentedObject, SegmentedObject>> existingUneditedLinks=null;
         SegmentedObject prevParent = null;
         List<SegmentedObject> prev = null;
         //logger.debug("modify: unlink: {}, #objects: {}, #parents: {}", unlink, objects.size(), objectsByParent.keySet().size());
@@ -144,19 +145,28 @@ public class ManualEdition {
                         } else linkObjects(p, current.get(0), false, editor);
                     }
                 } else { // link closest object
-                    if (existingUneditedLinks==null) existingUneditedLinks = new HashMap<>();
+                    if (existingUneditedLinks==null) existingUneditedLinks = new ArrayList<>();
                     map.put(prevParent.getFrame(), prev);
                     map.put(currentParent.getFrame(), current);
-                    // unlink objects
+                    // record existing links
                     for (SegmentedObject n : current) {
                         if (prev.contains(n.getPrevious())) {
-                            if (n.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null || n.getAttribute(SegmentedObject.EDITED_LINK_PREV)==Boolean.FALSE) existingUneditedLinks.put(n.getPrevious(), n);
+                            if (n.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null || n.getAttribute(SegmentedObject.EDITED_LINK_PREV)==Boolean.FALSE) existingUneditedLinks.add(new Pair<>(n.getPrevious(), n));
+                        }
+                    }
+                    for (SegmentedObject p : prev) {
+                        if (current.contains(p.getNext())) {
+                            if (p.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null || p.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==Boolean.FALSE) existingUneditedLinks.add(new Pair<>(p, p.getNext()));
+                        }
+                    }
+                    // unlink
+                    for (SegmentedObject n : current) {
+                        if (prev.contains(n.getPrevious())) {
                             unlinkObjects(n.getPrevious(), n, ALWAYS_MERGE, editor);
                         }
                     }
                     for (SegmentedObject p : prev) {
                         if (current.contains(p.getNext())) {
-                            if (p.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null || p.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==Boolean.FALSE) existingUneditedLinks.put(p, p.getNext());
                             unlinkObjects(p, p.getNext(), ALWAYS_MERGE, editor);
                         }
                     }
@@ -179,9 +189,23 @@ public class ManualEdition {
             tmi.setTrackLinks(map, editor);
             modifiedObjects.addAll(allObjects);
             // unset EDITED flag for links that already existed
-            existingUneditedLinks.forEach((p, n)-> {
-                if (n.equals(p.getNext())) p.setAttribute(SegmentedObject.EDITED_LINK_NEXT, null);
-                if (p.equals(n.getPrevious())) n.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
+            Utils.removeDuplicates(existingUneditedLinks, false);
+            existingUneditedLinks.forEach((p)-> {
+                if (p.value.equals(p.key.getNext())) p.key.setAttribute(SegmentedObject.EDITED_LINK_NEXT, null);
+                if (p.key.equals(p.value.getPrevious())) p.value.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
+            });
+            // for multiple links : edited flat remains
+            existingUneditedLinks.forEach((p)-> {
+                // check split links
+                if (p.key.equals(p.value.getPrevious()) && p.value.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null && Boolean.TRUE.equals(p.key.getAttribute(SegmentedObject.EDITED_LINK_NEXT))) {
+                    // potential inconsistency: check that all next of prev have unedited prev links
+                    if (getNext(p.key).stream().allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null)) p.key.setAttribute(SegmentedObject.EDITED_LINK_NEXT, null);
+                }
+                // check merge links
+                if (p.value.equals(p.key.getNext()) && p.key.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null && Boolean.TRUE.equals(p.value.getAttribute(SegmentedObject.EDITED_LINK_PREV))) {
+                    // potential inconsistency: check that all prev of next have unedited links
+                    if (getPrevious(p.value).stream().allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null)) p.value.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
+                }
             });
         }
         //repairLinkInconsistencies(db, modifiedObjects, modifiedObjects);
