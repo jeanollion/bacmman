@@ -36,9 +36,11 @@ import bacmman.utils.Utils;
  */
 public class SimpleRotationXY implements MultichannelTransformation, Hint {
     NumberParameter angle = new BoundedNumberParameter("Angle (degree)", 4, 0, -180, 180).setEmphasized(true);
-    ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.LINEAR.toString(), false).setHint("The interpolation scheme to be used"+ImageTransformation.INTERPOLATION_HINT);
+    ChoiceParameter interpolation = new ChoiceParameter("Interpolation", Utils.toStringArray(ImageTransformation.InterpolationScheme.values()), ImageTransformation.InterpolationScheme.BSPLINE5.toString(), false).setHint("The interpolation scheme to be used"+ImageTransformation.INTERPOLATION_HINT);
     BooleanParameter removeIncomplete = new BooleanParameter("Remove incomplete rows and columns", false).setHint("If this option is not selected, the rotated image will be inscribed in a larger image filled with zeros");
-    Parameter[] parameters = new Parameter[]{angle, interpolation, removeIncomplete};
+    BooleanParameter maintainMaximum = new BooleanParameter("Maintain Maximum Value", false).setHint("When interpolating with a polynomial of degree>1, pixels can be assigned values above the maximal value of the initial image. <br />This option will saturate the rotated image to the old maximal value.<br />This option is useful if the image's histogram has been saturated, in order to preserve the saturation value");
+
+    Parameter[] parameters = new Parameter[]{angle, interpolation, removeIncomplete, maintainMaximum};
     
     public SimpleRotationXY() {}
     
@@ -53,7 +55,12 @@ public class SimpleRotationXY implements MultichannelTransformation, Hint {
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         if (angle.getValue().doubleValue()%90!=0) image = TypeConverter.toFloat(image, null);
-        return ImageTransformation.rotateXY(image, angle.getValue().floatValue(), ImageTransformation.InterpolationScheme.valueOf(interpolation.getSelectedItem()), removeIncomplete.getSelected());
+        Image res = ImageTransformation.rotateXY(image, angle.getValue().floatValue(), ImageTransformation.InterpolationScheme.valueOf(interpolation.getSelectedItem()), removeIncomplete.getSelected());
+        if (maintainMaximum.getSelected() && interpolation.getSelectedIndex()>1) {
+            double oldMax = image.getMinAndMax(null)[1];
+            SaturateHistogram.saturate(oldMax, oldMax, res);
+        }
+        return res;
     }
     
     @Override
