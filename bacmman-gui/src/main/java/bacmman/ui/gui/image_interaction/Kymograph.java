@@ -53,7 +53,7 @@ public abstract class Kymograph extends InteractiveImage {
     }
     BoundingBox[] trackOffset;
     SimpleInteractiveImage[] trackObjects;
-    static final int updateImageFrequency=50;
+    private static final int updateImageFrequency=50;
     public static int INTERVAL_PIX=0;
     final int maxParentSize, maxParentSizeZ;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
@@ -65,7 +65,7 @@ public abstract class Kymograph extends InteractiveImage {
         GUI.logger.trace("track mask image object: max parent Y-size: {} z-size: {}", maxParentSize, maxParentSizeZ);
         trackOffset = data.trackOffset;
         SegmentedObjectUtils.setAllChildren(data.parentTrack, childStructureIdx);
-        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(m->m.getObjects()).toArray(l->new SimpleInteractiveImage[l]);
+        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(SimpleInteractiveImage::getObjects).toArray(SimpleInteractiveImage[]::new);
     }
     
     @Override public List<SegmentedObject> getParents() {
@@ -133,11 +133,10 @@ public abstract class Kymograph extends InteractiveImage {
         String structureName;
         if (getParent().getExperimentStructure()!=null) structureName = getParent().getExperimentStructure().getObjectClassName(structureIdx);
         else structureName= structureIdx+"";
-        if (image0==null) return null;
         String pStructureName;
         if (getParent().getExperimentStructure()!=null) pStructureName = getParent().getStructureIdx()<0? "": " " + getParent().getExperimentStructure().getObjectClassName(getParent().getStructureIdx());
         else pStructureName= getParent().getStructureIdx()+"";
-        final Image displayImage =  generateEmptyImage("Kymograph of"+pStructureName+" P:"+getParent().getPositionIdx()+" Idx:"+getParent().getIdx()+" Frames ["+getParent().getFrame()+";"+parents.get(parents.size()-1).getFrame()+"]. Displayed image of: "+structureName, image0);
+        final Image displayImage =  generateEmptyImage("Kymograph@"+pStructureName+"/P"+getParent().getPositionIdx()+"/Idx"+getParent().getIdx()+"/F["+getParent().getFrame()+";"+parents.get(parents.size()-1).getFrame()+"]: "+structureName, image0);
         Image.pasteImage(image0, displayImage, trackOffset[0]);
         long t1 = System.currentTimeMillis();
         GUI.logger.debug("generate image: {} for structure: {}, ex in background?{}, time: {}ms", parents.get(0), structureIdx, background, t1-t0);
@@ -149,7 +148,7 @@ public abstract class Kymograph extends InteractiveImage {
         } else {
             boolean[] pastedImage = new boolean[trackOffset.length];
             boolean[] pastedImageBck = new boolean[trackOffset.length];
-            Integer[] lock = IntStream.range(0, trackOffset.length).mapToObj(i->(Integer)i).toArray(l->new Integer[l]);
+            Integer[] lock = IntStream.range(0, trackOffset.length).mapToObj(i->i).toArray(Integer[]::new);
             pastedImage[0] = true;
             int frame0= parents.get(0).getFrame();
             Predicate<BoundingBox> callBack  = bounds -> {
