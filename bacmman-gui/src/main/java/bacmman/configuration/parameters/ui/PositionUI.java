@@ -41,7 +41,7 @@ public class PositionUI implements ParameterUI {
                                                     try {
                                                         IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), true);
                                                     } catch(Throwable t) {
-                                                        pcb.log("Could no pre-processed images for position: "+p.getName()+". Pre-processing already performed?");
+                                                        pcb.log("Could not open pre-processed images for position: "+p.getName()+". Pre-processing already performed?");
                                                     }
                                                 }
                                             }

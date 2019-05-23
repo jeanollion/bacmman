@@ -74,9 +74,9 @@ public class IJVirtualStack extends VirtualStack {
     }
     public static void openVirtual(Experiment xp, String position, boolean preProcessed) {
         Position f = xp.getPosition(position);
-        int channels = xp.getChannelImageCount();
+        int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
-        Image[] bdsC = new Image[xp.getChannelImageCount()];
+        Image[] bdsC = new Image[xp.getChannelImageCount(preProcessed)];
         for (int c = 0; c<bdsC.length; ++c) bdsC[c]= preProcessed ? xp.getImageDAO().openPreProcessedImage(c, 0, position) : f.getInputImages().getImage(c, 0);
         if (bdsC[0]==null) {
             GUI.log("No "+(preProcessed ? "preprocessed " : "input")+" images found for position: "+position);

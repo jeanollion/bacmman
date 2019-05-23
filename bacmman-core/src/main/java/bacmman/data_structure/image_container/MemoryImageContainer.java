@@ -101,7 +101,7 @@ public class MemoryImageContainer extends MultipleImageContainer {
         InputImage[][] inputCT = new InputImage[getChannelNumber()][getFrameNumber()];
         for (int t = 0; t<getFrameNumber(); ++t) {
             for (int c = 0; c<getChannelNumber(); ++c) {
-                inputCT[c][t] = new InputImage(c, t, t, position, this, null);
+                inputCT[c][t] = new InputImage(c, c, t, t, position, this, null);
             }
         }
         return new InputImagesImpl(inputCT, 0, null);

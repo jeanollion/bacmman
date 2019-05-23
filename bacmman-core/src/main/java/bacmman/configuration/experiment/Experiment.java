@@ -55,6 +55,8 @@ import java.util.stream.Stream;
 
 public class Experiment extends ContainerParameterImpl<Experiment> {
     SimpleListParameter<ChannelImage> channelImages= new SimpleListParameter<>("Detection Channels", 0 , ChannelImage.class).setNewInstanceNameFunction(i->"channel"+i).setHint("Define here the different channels of input images");
+    SimpleListParameter<ChannelImageDuplicated> channelImagesDuplicated= new SimpleListParameter<>("Duplicated Detection Channels", -1 , ChannelImageDuplicated.class).setNewInstanceNameFunction(i->"duplicated channel"+i).setHint("Define here duplicated detection channels. Duplicated detection channels allow to perform different transformations pipeline on the same detection channel");
+
     SimpleListParameter<Structure> structures= new SimpleListParameter<>("Object Classes", -1 , Structure.class).setNewInstanceNameFunction(i->"object class"+i).setHint("Types of objects to be analysed in this dataset. The processing pipeline (segmentation, tracking…) is defined in this part of the configuration tree, and can be configured from the <em>Configuration Test</em> tab (by selecting the <em>Processing</em> step)");
     SimpleListParameter<PluginParameter<Measurement>> measurements = new SimpleListParameter<>("Measurements", -1 , new PluginParameter<>("Measurements", Measurement.class, false))
             .addValidationFunctionToChildren(ppm -> {
@@ -102,6 +104,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         res.put("imagePath", imagePath.toJSONEntry());
         res.put("outputPath", outputPath.toJSONEntry());
         res.put("channelImages", channelImages.toJSONEntry());
+        res.put("channelImagesDuplicated", channelImagesDuplicated.toJSONEntry());
         res.put("structures", structures.toJSONEntry());
         res.put("measurements", measurements.toJSONEntry());
         res.put("positions", positions.toJSONEntry());
@@ -119,6 +122,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         imagePath.initFromJSONEntry(jsonO.get("imagePath"));
         outputPath.initFromJSONEntry(jsonO.get("outputPath"));
         channelImages.initFromJSONEntry(jsonO.get("channelImages"));
+        if (jsonO.containsKey("channelImagesDuplicated")) channelImagesDuplicated.initFromJSONEntry(jsonO.get("channelImagesDuplicated"));
         structures.initFromJSONEntry(jsonO.get("structures"));
         measurements.initFromJSONEntry(jsonO.get("measurements"));
         if (jsonO.containsKey("positions")) positions.initFromJSONEntry(jsonO.get("positions"));
@@ -180,7 +184,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
     
     protected void initChildList() {
-        super.initChildren(importCond, channelImages, template, positions, structures, measurements, outputPath, imagePath, bestFocusPlane, note);
+        super.initChildren(importCond, channelImages, channelImagesDuplicated, template, positions, structures, measurements, outputPath, imagePath, bestFocusPlane, note);
     }
     
     public PreProcessingChain getPreProcessingTemplate() {
@@ -228,7 +232,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public SimpleListParameter<ChannelImage> getChannelImages() {
         return channelImages;
     }
-    
+    public SimpleListParameter<ChannelImageDuplicated> getChannelImagesDuplicated() {
+        return channelImagesDuplicated;
+    }
+
+    public int[] getDuplicatedChannelSources() {
+        return channelImagesDuplicated.getChildren().stream().mapToInt(c->c.getSourceChannel()).toArray();
+    }
+
     public IMPORT_METHOD getImportImageMethod() {
         return IMPORT_METHOD.getValueOf(this.importMethod.getSelectedItem());
     }
@@ -314,8 +325,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         return -2;
     }
     
-    public int getChannelImageCount() {
-        return channelImages.getChildCount();
+    public int getChannelImageCount(boolean includeDuplicated) {
+        return channelImages.getChildCount() + (includeDuplicated ? channelImagesDuplicated.getChildCount() : 0);
     }
     
     public int getPositionCount() {
@@ -328,7 +339,10 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     
 
     
-    public String[] getChannelImagesAsString() {return channelImages.getChildrenString();}
+    public String[] getChannelImagesAsString(boolean includeDuplicated) {
+        if (!includeDuplicated) return channelImages.getChildrenString();
+        else return Stream.concat(channelImages.getChildren().stream().map(c->c.getName()), channelImagesDuplicated.getChildren().stream().map(c->c.getName())).toArray(String[]::new);
+    }
     
     public String[] getPositionsAsString() {return positions.getChildrenString();}
     

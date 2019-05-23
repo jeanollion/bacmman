@@ -114,7 +114,12 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     public boolean singleFrameChannel(int channelIdx) {
         if (sourceImages==null) return false;
-        return sourceImages.singleFrame(channelIdx);
+        return sourceImages.singleFrame(getSourceChannel(channelIdx));
+    }
+    public int getSourceChannel(int channelIdx) {
+        int sourceCount = getExperiment().getChannelImageCount(false);
+        if (channelIdx<sourceCount) return channelIdx;
+        else return channelIdx-sourceCount;
     }
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {
@@ -128,11 +133,13 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     if (dao==null || sourceImages==null) return null;
                     int tpOff = getStartTrimFrame();
                     int tpNp = getEndTrimFrame() - tpOff+1;
-                    InputImage[][] res = new InputImage[sourceImages.getChannelNumber()][];
-                    for (int c = 0; c<sourceImages.getChannelNumber(); ++c) {
-                        res[c] = sourceImages.singleFrame(c) ? new InputImage[1] : new InputImage[tpNp];
+                    int[] duplicatedChannelSources = getExperiment().getDuplicatedChannelSources();
+                    InputImage[][] res = new InputImage[sourceImages.getChannelNumber()+duplicatedChannelSources.length][];
+                    for (int c = 0; c<res.length; ++c) {
+                        int inputC = c<sourceImages.getChannelNumber() ? c : duplicatedChannelSources[c-sourceImages.getChannelNumber()];
+                        res[c] = sourceImages.singleFrame(inputC) ? new InputImage[1] : new InputImage[tpNp];
                         for (int t = 0; t<res[c].length; ++t) {
-                            res[c][t] = new InputImage(c, t+tpOff, t, name, sourceImages, dao);
+                            res[c][t] = new InputImage(inputC, c, t+tpOff, t, name, sourceImages, dao);
                             if (preProcessingChain.useCustomScale()) res[c][t].overwriteCalibration(preProcessingChain.getScaleXY(), preProcessingChain.getScaleZ());
                         } 
                     }
@@ -184,7 +191,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public void setOpenedImageToRootTrack(List<SegmentedObject> rootTrack, SegmentedObjectAccessor accessor) {
         if (inputImages ==null) return;
         Map<Integer, List<Integer>> c2s = getExperiment().getChannelToStructureCorrespondance();
-        for (int channelIdx = 0; channelIdx<getExperiment().getChannelImageCount(); ++channelIdx) {
+        for (int channelIdx = 0; channelIdx<getExperiment().getChannelImageCount(true); ++channelIdx) {
             List<Integer> structureIndices =c2s.get(channelIdx);
             final int cIdx = channelIdx;
             if (structureIndices==null) continue; // no structure associated to channel
@@ -232,7 +239,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     
     public int getSizeZ(int channelIdx) {
-        if (sourceImages!=null) return sourceImages.getSizeZ(channelIdx);
+        if (sourceImages!=null) return sourceImages.getSizeZ(getSourceChannel(channelIdx));
         else return -1;
     }
     

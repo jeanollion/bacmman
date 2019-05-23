@@ -133,7 +133,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
         try {
             P p = (P) this.getClass().getDeclaredConstructor(String.class).newInstance(name);
             p.setContentFrom(this);
-            ((ContainerParameterImpl)p).setListeners(listeners);
+            p.setListeners(listeners);
             return p;
         } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             logger.error("duplicate error:", ex);

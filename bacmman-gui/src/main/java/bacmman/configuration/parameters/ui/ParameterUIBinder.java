@@ -1,9 +1,6 @@
 package bacmman.configuration.parameters.ui;
 
-import bacmman.configuration.experiment.ChannelImage;
-import bacmman.configuration.experiment.Position;
-import bacmman.configuration.experiment.PreProcessingChain;
-import bacmman.configuration.experiment.Structure;
+import bacmman.configuration.experiment.*;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.core.ProgressCallback;
@@ -78,7 +75,7 @@ public class ParameterUIBinder {
         if (p instanceof ConditionalParameter) return getUI(((ConditionalParameter)p).getActionableParameter(), model, pcb);
 
         // experiment parameters
-        if (p instanceof ChannelImage || p instanceof Structure) return new NameEditorUI(p, false ,model);
+        if (p instanceof ChannelImage || p instanceof ChannelImageDuplicated || p instanceof Structure) return new NameEditorUI(p, false ,model);
         if (p instanceof Position) return new PositionUI((Position)p, pcb);
         if (p instanceof PreProcessingChain) return new PreProcessingChainUI((PreProcessingChain)p, model);
         if (p instanceof IntervalParameter) return new IntervalParameterUI((IntervalParameter)p, model);

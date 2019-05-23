@@ -298,7 +298,7 @@ public class DBMapMasterDAO implements MasterDAO {
             cfg.seek(0);
             xpString = cfg.readLine();
         } catch (IOException ex) {
-            logger.debug("couldnot read config file: ", ex);
+            logger.debug("could not read config file: ", ex);
             return null;
         }
         if (xpString==null || xpString.length()==0) return null;

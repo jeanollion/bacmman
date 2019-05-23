@@ -48,6 +48,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         this.parent=parent;
         if (intensity.getSelectedIndex()==-1) intensity.setSelectedIndex(childStructureIdx);
         this.intensityMap=parent.getRawImage(intensity.getSelectedIndex());
+        if (this.intensity==null) throw new RuntimeException("Could not open raw image of object class "+intensity.getSelectedIndex()+". Maybe experiment structure was modified after pre-processing was run ? ");
         return this;
     }
     

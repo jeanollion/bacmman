@@ -120,8 +120,8 @@ public class InputImagesImpl implements InputImages {
     @Override public boolean singleFrameChannel(int channelIdx) {
         return imageCT[channelIdx].length==1;
     }
-    public void addTransformation(int inputChannel, int[] channelIndicies, Transformation transfo) {
-        if (channelIndicies!=null) for (int c : channelIndicies) addTransformation(c, transfo);
+    public void addTransformation(int inputChannel, int[] channelIndices, Transformation transfo) {
+        if (channelIndices!=null) for (int c : channelIndices) addTransformation(c, transfo);
         else { // null channel indices either same or all
             if (transfo instanceof MultichannelTransformation) {
                 if (((MultichannelTransformation)transfo).getOutputChannelSelectionMode()==MultichannelTransformation.OUTPUT_SELECTION_MODE.SAME) addTransformation(inputChannel, transfo);

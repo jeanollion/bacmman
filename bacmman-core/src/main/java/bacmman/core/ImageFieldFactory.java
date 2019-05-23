@@ -54,8 +54,8 @@ public class ImageFieldFactory {
                     Processor.logger.debug("import image channel: keywords: {}", (Object)keyWords);
                     long countBlank = Arrays.stream(keyWords).filter(s->"".equals(s)).count();
                     if (countBlank>1) {
-                        if (pcb!=null) pcb.log("When Experiement has several channels, one must specify channel keyword for this import method");
-                        Processor.logger.error("When Experiement has several channels, one must specify channel keyword for this import method");
+                        if (pcb!=null) pcb.log("When Experiment has several channels, one must specify channel keyword for this import method");
+                        Processor.logger.error("When Experiment has several channels, one must specify channel keyword for this import method");
                         return res;
                     }
                     for (String p : path) ImageFieldFactory.importImagesChannel(new File(p), xp, keyWords, res, pcb);
@@ -66,8 +66,8 @@ public class ImageFieldFactory {
                     String[] keyWords = xp.getChannelImages().getChildren().stream().map(c -> c.getImportImageChannelKeyword()).toArray(s->new String[s]);
                     long countBlank = Arrays.stream(keyWords).filter(s->"".equals(s)).count();
                     if (countBlank>1) {
-                        if (pcb!=null) pcb.log("When Experiement has several channels, one must specify channel keyword for this import method");
-                        Processor.logger.error("When Experiement has several channels, one must specify channel keyword for this import method");
+                        if (pcb!=null) pcb.log("When Experiment has several channels, one must specify channel keyword for this import method");
+                        Processor.logger.error("When Experiment has several channels, one must specify channel keyword for this import method");
                         return res;
                     }       
                     for (String p : path) ImageFieldFactory.importImagesCTP(new File(p), xp, keyWords, res, pcb);
@@ -112,14 +112,14 @@ public class ImageFieldFactory {
         for (int[] tc:stc) {
             if (stc.length>1) end = sep+Utils.formatInteger(digits, s);
             else end = Utils.removeExtension(image.getName());
-            if (tc[1]==xp.getChannelImageCount()) {
+            if (tc[1]==xp.getChannelImageCount(false)) {
                 double[] scaleXYZ = reader.getScaleXYZ(1);
                 MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
                 containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
                 Processor.logger.info("image {} imported successfully", image.getAbsolutePath());
             } else {
-                if (pcb!=null) pcb.log("WARNING: Invalid Image: "+image.getAbsolutePath()+" has: "+tc[1]+" channels instead of: "+xp.getChannelImageCount());
-                Processor.logger.warn("Invalid Image: {} has: {} channels instead of: {}", image.getAbsolutePath(), tc[1], xp.getChannelImageCount());
+                if (pcb!=null) pcb.log("WARNING: Invalid Image: "+image.getAbsolutePath()+" has: "+tc[1]+" channels instead of: "+xp.getChannelImageCount(false));
+                Processor.logger.warn("Invalid Image: {} has: {} channels instead of: {}", image.getAbsolutePath(), tc[1], xp.getChannelImageCount(false));
             }
             ++s;
         }

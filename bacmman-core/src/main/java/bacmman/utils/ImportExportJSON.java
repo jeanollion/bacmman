@@ -67,7 +67,7 @@ public class ImportExportJSON {
         writer.write(dao.getPositionName()+"/measurements.txt", allObjects, o -> serialize(o.getMeasurements()));
     }
     public static void exportPreProcessedImages(FileIO.ZipWriter writer, ObjectDAO dao) {
-        int ch = dao.getExperiment().getChannelImageCount();
+        int ch = dao.getExperiment().getChannelImageCount(true);
         int fr = dao.getExperiment().getPosition(dao.getPositionName()).getFrameNumber(false);
         String dir = dao.getPositionName()+"/Images/";
         ImageDAO iDao = dao.getExperiment().getImageDAO();
@@ -249,6 +249,7 @@ public class ImportExportJSON {
                 dao.getExperiment().getImportMethodParameter().setContentFrom(source.getImportMethodParameter());
                 // set detection channels
                 dao.getExperiment().getChannelImages().setContentFrom(source.getChannelImages());
+                dao.getExperiment().getChannelImagesDuplicated().setContentFrom(source.getChannelImagesDuplicated());
                 dao.getExperiment().getBestFocusPlaneParameter().setContentFrom(source.getBestFocusPlaneParameter());
                 dao.updateExperiment();
                 logger.debug("Dataset: {} from file: {} set to db: {}", dao.getExperiment().getName(), path, dao.getDBName());

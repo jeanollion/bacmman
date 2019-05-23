@@ -36,19 +36,20 @@ import bacmman.plugins.Transformation;
 public class InputImage {
     MultipleImageContainer imageSources;
     ImageDAO dao;
-    int channelIdx, frame, inputTimePoint;
+    int inputChannelIdx, channelIdx, frame, inputFrame;
     String microscopyFieldName;
     Image originalImageType;
     Image image;
     boolean intermediateImageSavedToDAO=false, modified=false;
     ArrayList<Transformation> transformationsToApply;
     double scaleXY=Double.NaN, scaleZ= Double.NaN;
-    public InputImage(int channelIdx, int inputTimePoint, int timePoint, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao) {
+    public InputImage(int inputChannelIdx, int channelIdx, int inputFrame, int frame, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao) {
         this.imageSources = imageSources;
         this.dao = dao;
+        this.inputChannelIdx=inputChannelIdx;
         this.channelIdx = channelIdx;
-        this.frame = timePoint;
-        this.inputTimePoint=inputTimePoint;
+        this.frame = frame;
+        this.inputFrame = inputFrame;
         this.microscopyFieldName = microscopyFieldName;
         transformationsToApply=new ArrayList<>();
     }
@@ -60,7 +61,7 @@ public class InputImage {
         return modified;
     }
     public InputImage duplicate() {
-        InputImage res = new InputImage(channelIdx, inputTimePoint, frame, microscopyFieldName, imageSources, dao);
+        InputImage res = new InputImage(inputChannelIdx, channelIdx, inputFrame, frame, microscopyFieldName, imageSources, dao);
         res.overwriteCalibration(scaleXY, scaleZ);
         if (image!=null) {
             res.image = image.duplicate();
@@ -85,8 +86,8 @@ public class InputImage {
                 if (image==null) {
                     if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame, microscopyFieldName); //try to open from DAO
                     if (image==null) {
-                        image = imageSources.getImage(inputTimePoint, channelIdx);
-                        if (image==null) throw new RuntimeException("Image not found: position:"+microscopyFieldName+" channel:"+channelIdx+" frame:"+frame);
+                        image = imageSources.getImage(inputFrame, inputChannelIdx);
+                        if (image==null) throw new RuntimeException("Image not found: position:"+microscopyFieldName+" channel:"+inputChannelIdx+" frame:"+inputFrame);
                         if (!Double.isNaN(scaleXY)) image.setCalibration(scaleXY, scaleZ);
                         originalImageType = Image.createEmptyImage("source Type", image, new BlankMask( 0, 0, 0));
                     }

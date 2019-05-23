@@ -130,7 +130,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     public TransformationPluginParameter<Transformation> addTransformation(int idx, int inputChannel, int[] outputChannel, Transformation transformation) {
         if (inputChannel<-1 && (transformation instanceof ConfigurableTransformation) || (transformation instanceof MultichannelTransformation && ((MultichannelTransformation)transformation).getOutputChannelSelectionMode()==MultichannelTransformation.OUTPUT_SELECTION_MODE.SAME)) throw new IllegalArgumentException("Input channel should be >=0");
         Experiment xp = ParameterUtils.getExperiment(this);
-        if (xp!=null &&  inputChannel>=xp.getChannelImageCount()) throw new IllegalArgumentException("Input channel should be inferior to number of detection channels ("+xp.getChannelImageCount()+")");
+        if (xp!=null &&  inputChannel>=xp.getChannelImageCount(true)) throw new IllegalArgumentException("Input channel should be inferior to number of detection channels ("+xp.getChannelImageCount(true)+")");
         TransformationPluginParameter<Transformation> tpp= new TransformationPluginParameter<>("Transformation", Transformation.class, false);
         transformations.insert(tpp, idx);
         tpp.setPlugin(transformation);

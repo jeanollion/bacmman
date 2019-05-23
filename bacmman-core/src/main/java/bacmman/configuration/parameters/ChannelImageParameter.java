@@ -23,7 +23,8 @@ package bacmman.configuration.parameters;
  * @author Jean Ollion
  */
 public class ChannelImageParameter extends ObjectClassOrChannelParameter<ChannelImageParameter> {
-    
+    boolean includeDuplicated=true;
+
     public ChannelImageParameter() {
         this("");
     }
@@ -43,11 +44,16 @@ public class ChannelImageParameter extends ObjectClassOrChannelParameter<Channel
     public ChannelImageParameter(String name, int[] selectedChannels) {
         super(name, selectedChannels, false);
     }
-    
+
+    public ChannelImageParameter setIncludeDuplicatedChannels(boolean includeDuplicated) {
+        this.includeDuplicated=includeDuplicated;
+        return this;
+    }
+
     @Override
     public String[] getChoiceList() {
         if (getXP()!=null) {
-            return getXP().getChannelImagesAsString();
+            return getXP().getChannelImagesAsString(includeDuplicated);
         } else {
             return new String[0];
         }

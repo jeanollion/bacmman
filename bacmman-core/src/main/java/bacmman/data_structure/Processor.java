@@ -247,6 +247,7 @@ public class Processor {
     
     private static void execute(ProcessingPipeline ps, int structureIdx, List<SegmentedObject> parentTrack, boolean trackOnly, boolean deleteChildren, ObjectDAO dao) {
         if (!trackOnly && deleteChildren) dao.deleteChildren(parentTrack, structureIdx);
+        if (ps==null) return;
         if (trackOnly) ps.trackOnly(structureIdx, parentTrack, new SegmentedObjectFactory(structureIdx), new TrackLinkEditor(structureIdx));
         else {
             try {

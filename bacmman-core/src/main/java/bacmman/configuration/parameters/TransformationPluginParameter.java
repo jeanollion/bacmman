@@ -83,7 +83,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     private boolean onlyOneChannel() {
         Experiment xp = ParameterUtils.getExperiment(this);
         if (xp==null) return false;
-        else return xp.getChannelImageCount()==1;
+        else return xp.getChannelImageCount(true)==1;
     }
     @Override 
     public TransformationPluginParameter<T> setPlugin(T pluginInstance) {
