@@ -62,6 +62,9 @@ public class Core {
         ij = new ImageJ();
         opService = ij.op();
     }
+    public static ImageJ imagej2() {
+        return ij;
+    }
     public static OpService getOpService() {
         return opService;
     }
