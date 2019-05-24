@@ -235,8 +235,8 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
                 if (channelWidth<1) throw new IllegalArgumentException("channel width should be >1");
                 // get center of microchannel: peaks of xProjection
                 ArrayUtil.gaussianSmooth(xProj, Math.max(2, channelWidth/8));
-                List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth, true);
-                //logger.debug("channelWidth: {}, peaks: {}", channelWidth, localMax);
+                List<Integer> localMax = ArrayUtil.getRegionalExtrema(xProj, channelWidth/2, true);
+                logger.debug("channelWidth: {}, peaks: {}", channelWidth, localMax);
                 int leftLimit = channelWidth / 2 + 1;
                 int rightLimit = image.sizeX() - leftLimit;
                 localMax.removeIf(l -> l<leftLimit || l>rightLimit || xProj[l]<fillingProportion);
