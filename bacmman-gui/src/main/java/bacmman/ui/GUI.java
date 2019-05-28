@@ -362,12 +362,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         populateExperimentList();
         updateDisplayRelatedToXPSet();
         
-        
+
         pyGtw = new PythonGateway();
         pyGtw.startGateway();
         
         // KEY shortcuts
         Map<Shortcuts.ACTION, Action> actionMap = new HashMap<>();
+        actionMap.put(Shortcuts.ACTION.SHORTCUT_TABLE, new AbstractAction("Shortcut table") {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                shortcuts.toggleDisplayTable();
+            }
+        });
         actionMap.put(Shortcuts.ACTION.LINK, new AbstractAction("Link") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -2631,7 +2637,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         helpMenu.setText("Help");
 
-        displayShortcutMenuItem.setText("Display Shortcut table");
+        displayShortcutMenuItem.setText("Display Shortcut table (F1)");
         displayShortcutMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 displayShortcutMenuItemActionPerformed(evt);

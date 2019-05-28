@@ -209,7 +209,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     Utils.removeDuplicates(trackHeads, false);
                     for (SegmentedObject th : trackHeads) {
                         List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th, true);
-                        displayTrack(image, i, i.pairWithOffset(track), ImageWindowManager.getColor(), true);
+                        List<Pair<SegmentedObject, BoundingBox>> disp = i.pairWithOffset(track);
+                        Color c = ImageWindowManager.getColor();
+                        displayTrack(image, i, disp, c, true);
+                        displayObjects(image, disp, c, true, false);
                     }
                     if (listener!=null) listener.fireTracksSelected(trackHeads, true);
                 }
