@@ -88,7 +88,7 @@ public class ManualEdition {
         // update display
 
         //Update all open images & objectImageInteraction
-        for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(objects) ) ImageWindowManagerFactory.getImageManager().reloadObjects(p, p.getStructureIdx(), false);
+        for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(objects) ) ImageWindowManagerFactory.getImageManager().reloadObjects(p, objectClassIdx, false);
         GUI.updateRoiDisplayForSelections(null, null);
 
         // update trackTree
@@ -109,7 +109,7 @@ public class ManualEdition {
         
         Set<SegmentedObject> modifiedObjects = new HashSet<>();
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
-        TreeMap<SegmentedObject, List<SegmentedObject>> objectsByParent = new TreeMap(SegmentedObjectUtils.splitByParent(objects)); // sorted by time point
+        TreeMap<SegmentedObject, List<SegmentedObject>> objectsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParent(objects)); // sorted by time point
         List<Pair<SegmentedObject, SegmentedObject>> existingUneditedLinks=null;
         SegmentedObject prevParent = null;
         List<SegmentedObject> prev = null;
