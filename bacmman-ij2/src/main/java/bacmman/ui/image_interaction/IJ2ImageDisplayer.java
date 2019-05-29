@@ -35,6 +35,7 @@ public class IJ2ImageDisplayer implements ImageDisplayer<ImageDisplay> {
         this.ds = ds;
         this.lutService = lutService;
         this.ui = ui;
+
     }
 
     protected HashMap<Image, ImageDisplay> displayedImages=new HashMap<>();
@@ -49,9 +50,8 @@ public class IJ2ImageDisplayer implements ImageDisplayer<ImageDisplay> {
     @Override
     public ImageDisplay showImage(Image image, double... displayRange) {
         Img<RealType> img= ImgLib2ImageWrapper.getImage(image);
-        Dataset dataset = ds.create(img);
-        ImageDisplay disp = (ImageDisplay)displayService.createDisplay(dataset);
-        ui.show(disp);
+        ImageDisplay disp = (ImageDisplay)displayService.createDisplay(img);
+        //ui.getDefaultUI().show(disp); // why
         return disp;
     }
 

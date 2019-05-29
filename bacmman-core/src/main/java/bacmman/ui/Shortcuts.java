@@ -66,7 +66,8 @@ public class Shortcuts {
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + mouse wheel"),
         NAV_NEXT("Navigate to next objects of the selection enabled for navigation"), NAV_PREV("Navigate to previous objects of the selection enabled for navigation"), OPEN_NEXT("Display next image"), OPEN_PREV("Display previous image"),
         ADD_TO_SEL0("Add selected object(s) to active selection group 0"), REM_FROM_SEL0("Remove selected object(s) from active selection group 0"), REM_ALL_FROM_SEL0("Remove all objects contained in active image from active selection group 0"), TOGGLE_DISPLAY_SEL0("Toggle Display Objects for active selection group 0"),
-        ADD_TO_SEL1("Add selected object(s) to active selection group 1"), REM_FROM_SEL1("Remove selected object(s) from active selection group 1"), REM_ALL_FROM_SEL1("Remove all objects contained in active image from active selection group 1"), TOGGLE_DISPLAY_SEL1("Toggle Display Objects for active selection group 1");
+        ADD_TO_SEL1("Add selected object(s) to active selection group 1"), REM_FROM_SEL1("Remove selected object(s) from active selection group 1"), REM_ALL_FROM_SEL1("Remove all objects contained in active image from active selection group 1"), TOGGLE_DISPLAY_SEL1("Toggle Display Objects for active selection group 1"),
+        SHORTCUT_TABLE("Display shortcut table");
         public final String description, shortcut;
         ACTION(String description) {
             this.description=description;
@@ -129,6 +130,7 @@ public class Shortcuts {
     }
     public void setPreset(PRESET preset) {
         keyMapAction.clear();
+        keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_F1, 0), SHORTCUT_TABLE);
         switch(preset) {
             case AZERTY:
             default:
@@ -224,6 +226,11 @@ public class Shortcuts {
         }
         displayedFrame.setVisible(true);
     }
+    public void toggleDisplayTable() {
+        if (displayedFrame==null) displayTable();
+        else if (displayedFrame.isVisible()) displayedFrame.setVisible(false);
+        else displayedFrame.setVisible(true);
+    }
     public void printTable() {
         JFrame displayedFrame = new JFrame("Shortcuts");
         JTable table = generateTable(true);
@@ -257,14 +264,16 @@ public class Shortcuts {
         };
         Function<String, String> formatString = (s) -> "<html>" + s + "</html>";
         Object[] actions = {
-            "<b>Navigation and display</b>",
+            "<b>Display</b>",
+            SELECT_ALL_OBJECTS, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
+            TOGGLE_LOCAL_ZOOM,
+            "<b>Navigation</b>",
             FAST_SCROLL,
-            OPEN_NEXT, 
+            OPEN_NEXT,
             OPEN_PREV,
             "<em>Navigation selection is set through right-click menu on selection</em>",
             NAV_PREV, NAV_NEXT,
-            SELECT_ALL_OBJECTS, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
-            TOGGLE_LOCAL_ZOOM,
+            "<b>Selections</b>",
             "<em>Active selections are set through right-click menu on selections</em>",
             TOGGLE_DISPLAY_SEL0, ADD_TO_SEL0, REM_FROM_SEL0, REM_ALL_FROM_SEL0,
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
@@ -306,7 +315,7 @@ public class Shortcuts {
             if (!isSelected) {
                 if (table.getValueAt(row, 1).toString().contains("<b>")) c.setBackground(HEAD_ROW_COL);
                 else c.setBackground(row%2==0?ROW_COLOR_1 : ROW_COLOR_2);
-                logger.debug("selected: {}, row: {}, col0: {}, fore: {}, back: {}", isSelected, row, table.getValueAt(row, 0).toString(), c.getForeground(), c.getBackground());
+                //logger.debug("selected: {}, row: {}, col0: {}, fore: {}, back: {}", isSelected, row, table.getValueAt(row, 0).toString(), c.getForeground(), c.getBackground());
             }
             
             return c;

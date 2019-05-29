@@ -388,7 +388,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         if (pv.smooth==null || pv.lap==null) setMaps(computeMaps(input, input));
         else logger.debug("manual seg: maps already set!");
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
-        Image lap = pv.getLaplacianMap()[0]; // todo max in scale space for each seed? 
+        Image lap = pv.getLaplacianMap()[0]; // todo max in scale space for each seed?
         Image smooth = pv.getSmoothedMap();
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(this.thresholdLow.getValue().doubleValue())).fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSpotSize.getValue().intValue())).lowConectivity(false);
         RegionPopulation pop =  WatershedTransform.watershed(lap, parentMask, seedObjects, config);
