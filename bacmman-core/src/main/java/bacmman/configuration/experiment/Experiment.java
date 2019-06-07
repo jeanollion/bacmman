@@ -110,9 +110,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         //res.put("outputPath", outputPath.toJSONEntry());
         if (path!=null) {
             String iPath = imagePath.getFirstSelectedFilePath();
-            res.put("imagePath", path.relativize(Paths.get(iPath)).toString());
+            if (iPath!=null) res.put("imagePath", path.relativize(Paths.get(iPath)).toString());
             String oPath = outputPath.getFirstSelectedFilePath();
-            res.put("outputPath", path.relativize(Paths.get(oPath)).toString());
+            if (oPath!=null) res.put("outputPath", path.relativize(Paths.get(oPath)).toString());
         } else {
             res.put("imagePath", imagePath.toJSONEntry());
             res.put("outputPath", outputPath.toJSONEntry());
@@ -135,9 +135,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         if (jsonEntry==null) throw new IllegalArgumentException("Cannot init xp with null content!");
         JSONObject jsonO = (JSONObject)jsonEntry;
         if (jsonO.get("imagePath") instanceof JSONArray) imagePath.initFromJSONEntry(jsonO.get("imagePath"));
-        else imagePath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("imagePath").toString())).normalize().toFile().getAbsolutePath());
+        else if (jsonO.containsKey("imagePath"))  imagePath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("imagePath").toString())).normalize().toFile().getAbsolutePath());
         if (jsonO.get("outputPath") instanceof JSONArray) outputPath.initFromJSONEntry(jsonO.get("outputPath"));
-        else outputPath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("outputPath").toString())).normalize().toFile().getAbsolutePath());
+        else  if (jsonO.containsKey("outputPath")) outputPath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("outputPath").toString())).normalize().toFile().getAbsolutePath());
 
         channelImages.initFromJSONEntry(jsonO.get("channelImages"));
         if (jsonO.containsKey("channelImagesDuplicated")) channelImagesDuplicated.initFromJSONEntry(jsonO.get("channelImagesDuplicated"));

@@ -140,6 +140,7 @@ public class DeleteFromDAOTest {
         File outputDir = testFolder.newFolder();
         //File outputDir = new File("/tmp/testJava");
         //outputDir.mkdir();
+        xp.setPath(outputDir.getParentFile().toPath());
         xp.setOutputDirectory(outputDir.getAbsolutePath());
         // save to db
         masterDAO.setExperiment(xp);

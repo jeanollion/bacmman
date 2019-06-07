@@ -34,6 +34,7 @@ import bacmman.image.ImageByte;
 import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
@@ -109,7 +110,9 @@ public class TestDataStructure {
         // set-up experiment structure
         Experiment xp = new Experiment("test");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
-        xp.setOutputDirectory(testFolder.newFolder("testDB").getAbsolutePath());
+        File base = testFolder.newFolder("testDB");
+        xp.setPath(Paths.get(base.getAbsolutePath()));
+        xp.setOutputDirectory(new File(base, "Output").getAbsolutePath());
         ChannelImage image = new ChannelImage("ChannelImage");
         xp.getChannelImages().insert(image);
         xp.getStructures().removeAllElements();
@@ -134,8 +137,6 @@ public class TestDataStructure {
         File folder = testFolder.newFolder("TestInputImagesStructureObject");
         ImageWriter.writeToFile(folder.getAbsolutePath(), fieldName, ImageFormat.OMETIF, images);
         Processor.importFiles(xp, true, null, folder.getAbsolutePath());
-        File outputFolder = testFolder.newFolder("TestOutputImagesStructureObject");
-        xp.setOutputDirectory(outputFolder.getAbsolutePath());
         //save to db
         
         MasterDAO.deleteObjectsAndSelectionAndXP(db);
