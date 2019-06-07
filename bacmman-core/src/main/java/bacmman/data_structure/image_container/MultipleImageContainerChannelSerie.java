@@ -25,6 +25,8 @@ import bacmman.image.io.ImageReader;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+
+import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.utils.JSONUtils;
@@ -72,7 +74,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         JSONObject res = new JSONObject();
         res.put("scaleXY", scaleXY);
         res.put("scaleZ", scaleZ);
-        res.put("filePathC", JSONUtils.toJSONArray(filePathC));
+        res.put("filePathC", JSONUtils.toJSONArray(Arrays.stream(filePathC).map(s->relativePath(s)).toArray(String[]::new)));
         res.put("name", name);
         res.put("frameNumber", timePointNumber);
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
@@ -89,6 +91,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         scaleXY = ((Number)jsonO.get("scaleXY")).doubleValue();
         scaleZ = ((Number)jsonO.get("scaleZ")).doubleValue();
         filePathC = JSONUtils.fromStringArray((JSONArray)jsonO.get("filePathC"));
+        ArrayUtil.apply(filePathC, s->absolutePath(s));
         name = (String)jsonO.get("name");
         timePointNumber = ((Number)jsonO.get("frameNumber")).intValue();
         sizeZC = JSONUtils.fromIntArray((JSONArray)jsonO.get("sizeZC"));

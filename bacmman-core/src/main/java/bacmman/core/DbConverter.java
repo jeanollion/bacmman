@@ -47,7 +47,7 @@ public class DbConverter {
     public static void copy(MasterDAO source, MasterDAO dest, boolean copyXP) {
         if (copyXP) {
             Experiment xp2 = source.getExperiment().duplicate();
-            if (dest instanceof DBMapMasterDAO) xp2.setOutputDirectory(dest.getDir()+File.separator+"Output");
+            if (dest instanceof DBMapMasterDAO) xp2.setOutputDirectory(dest.getDir().resolve("Output").toString());
             dest.setExperiment(xp2);
         }
         SelectionDAO sourceSelDAO = source.getSelectionDAO();

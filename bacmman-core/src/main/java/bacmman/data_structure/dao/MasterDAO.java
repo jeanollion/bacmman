@@ -21,6 +21,7 @@ package bacmman.data_structure.dao;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.ProgressCallback;
 
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,7 +57,7 @@ public interface MasterDAO {
     public boolean lockPositions(String... positionNames);
     public void unlockPositions(String... positionNames);
     public String getDBName();
-    public String getDir();
+    public Path getDir();
     public void deleteAllObjects();
     public void deleteExperiment();
     public static void deleteObjectsAndSelectionAndXP(MasterDAO dao) {

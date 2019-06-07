@@ -54,7 +54,10 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public Object toJSONEntry() {
         JSONObject res= new JSONObject();
         res.put("name", name);
-        if (sourceImages!=null) res.put("images", sourceImages.toJSONEntry());
+        if (sourceImages!=null) {
+            sourceImages.setPath(getExperiment().getPath());
+            res.put("images", sourceImages.toJSONEntry());
+        }
         this.getEndTrimFrame();
         res.put("preProcessingChain", preProcessingChain.toJSONEntry());
         res.put("defaultFrame", defaultTimePoint.toJSONEntry());
@@ -68,7 +71,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         preProcessingChain.initFromJSONEntry(jsonO.get("preProcessingChain"));
         defaultTimePoint.initFromJSONEntry(jsonO.get("defaultFrame"));
         if (jsonO.containsKey("images")) {
-            sourceImages = MultipleImageContainer.createImageContainerFromJSON((JSONObject)jsonO.get("images"));
+            sourceImages = MultipleImageContainer.createImageContainerFromJSON(getExperiment().getPath(), (JSONObject)jsonO.get("images"));
             initFrameParameters();
         }
 

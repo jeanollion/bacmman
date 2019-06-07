@@ -21,6 +21,7 @@ package bacmman.data_structure.dao;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.SegmentedObjectAccessor;
 
+import java.nio.file.Path;
 import java.util.HashMap;
 
 /**
@@ -62,8 +63,8 @@ public class BasicMasterDAO implements MasterDAO {
         return "VirtualDB";
     }
     @Override
-    public String getDir() {
-        return "VirtualDB";
+    public Path getDir() {
+        return xp.getPath();
     }
 
     public void deleteAllObjects() {

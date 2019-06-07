@@ -259,7 +259,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             setUI(Core.getProgressLogger());
             this.db=db;
             this.dbName=db.getDBName();
-            this.dir=db.getDir();
+            this.dir=db.getDir().toFile().getAbsolutePath();
             keepDB = true;
         }
         public Task(String dbName) {
@@ -414,7 +414,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             }
             // check files
             for (Pair<String, int[]> e : extractMeasurementDir) {
-                String exDir = e.key==null? db.getDir() : e.key;
+                String exDir = e.key==null? db.getDir().toFile().getAbsolutePath() : e.key;
                 File f= new File(exDir);
                 if (!f.exists()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " not found")));
                 else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
@@ -526,7 +526,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
                 publishError(t);
                 publishErrors();
             }
-            for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir():e.key, e.value);
+            for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value);
             if (exportData) exportData();
             if (!keepDB) db.unlockPositions(pos);
             else positions.forEach(p -> db.clearCache(posIdxNameMapper.apply(p)));

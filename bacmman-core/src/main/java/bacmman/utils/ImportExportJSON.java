@@ -28,6 +28,7 @@ import bacmman.data_structure.dao.ObjectDAO;
 
 import java.io.File;
 import java.io.InputStream;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -268,7 +269,7 @@ public class ImportExportJSON {
                 }
                 List<Experiment> xp = FileIO.readFromFile(path, o->JSONUtils.parse(Experiment.class, o));
                 if (xp.size()==1) {
-                    xp.get(0).setOutputDirectory(dao.getDir()+File.separator+"Output");
+                    xp.get(0).setOutputDirectory(Paths.get(path).resolve("Output").toFile().getAbsolutePath());
                     xp.get(0).setOutputImageDirectory(xp.get(0).getOutputDirectory());
                     xp.get(0).getPositionParameter().removeAllElements();
                     dao.setExperiment(xp.get(0));
@@ -293,7 +294,7 @@ public class ImportExportJSON {
                     if (xp!=null) {
                         xp.getPositionParameter().removeAllElements();
                         if (dao.getDir()!=null) {
-                            xp.setOutputDirectory(dao.getDir()+File.separator+"Output");
+                            xp.setOutputDirectory(Paths.get(path).resolve("Output").toFile().getAbsolutePath());
                             xp.setOutputImageDirectory(xp.getOutputDirectory());
                         }
                         dao.setExperiment(xp);

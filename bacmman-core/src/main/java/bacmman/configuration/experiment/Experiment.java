@@ -26,6 +26,10 @@ import bacmman.configuration.parameters.FileChooser.FileChooserOption;
 import bacmman.data_structure.dao.ImageDAO;
 import bacmman.data_structure.dao.ImageDAOFactory;
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -36,6 +40,7 @@ import java.util.Map.Entry;
 
 import bacmman.plugins.plugins.transformations.SelectBestFocusPlane;
 import org.apache.commons.lang.ArrayUtils;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Autofocus;
 import bacmman.plugins.Measurement;
@@ -101,8 +106,18 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
-        res.put("imagePath", imagePath.toJSONEntry());
-        res.put("outputPath", outputPath.toJSONEntry());
+        //res.put("imagePath", imagePath.toJSONEntry());
+        //res.put("outputPath", outputPath.toJSONEntry());
+        if (path!=null) {
+            String iPath = imagePath.getFirstSelectedFilePath();
+            res.put("imagePath", path.relativize(Paths.get(iPath)).toString());
+            String oPath = outputPath.getFirstSelectedFilePath();
+            res.put("outputPath", path.relativize(Paths.get(oPath)).toString());
+        } else {
+            res.put("imagePath", imagePath.toJSONEntry());
+            res.put("outputPath", outputPath.toJSONEntry());
+        }
+
         res.put("channelImages", channelImages.toJSONEntry());
         res.put("channelImagesDuplicated", channelImagesDuplicated.toJSONEntry());
         res.put("structures", structures.toJSONEntry());
@@ -119,12 +134,16 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public void initFromJSONEntry(Object jsonEntry) {
         if (jsonEntry==null) throw new IllegalArgumentException("Cannot init xp with null content!");
         JSONObject jsonO = (JSONObject)jsonEntry;
-        imagePath.initFromJSONEntry(jsonO.get("imagePath"));
-        outputPath.initFromJSONEntry(jsonO.get("outputPath"));
+        if (jsonO.get("imagePath") instanceof JSONArray) imagePath.initFromJSONEntry(jsonO.get("imagePath"));
+        else imagePath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("imagePath").toString())).normalize().toFile().getAbsolutePath());
+        if (jsonO.get("outputPath") instanceof JSONArray) outputPath.initFromJSONEntry(jsonO.get("outputPath"));
+        else outputPath.setSelectedFilePath(path.resolve(Paths.get(jsonO.get("outputPath").toString())).normalize().toFile().getAbsolutePath());
+
         channelImages.initFromJSONEntry(jsonO.get("channelImages"));
         if (jsonO.containsKey("channelImagesDuplicated")) channelImagesDuplicated.initFromJSONEntry(jsonO.get("channelImagesDuplicated"));
         structures.initFromJSONEntry(jsonO.get("structures"));
         measurements.initFromJSONEntry(jsonO.get("measurements"));
+        positions.setParent(this); // positions needs access to experiment in order to initialize
         if (jsonO.containsKey("positions")) positions.initFromJSONEntry(jsonO.get("positions"));
         template.initFromJSONEntry(jsonO.get("template"));
         if (jsonO.get("importMethod") instanceof JSONObject) importCond.initFromJSONEntry(jsonO.get("importMethod"));
@@ -135,6 +154,16 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
     public Experiment(){
         this("");
+    }
+
+    Path path;
+    public Experiment setPath(Path path) {
+        this.path=path;
+        return this;
+    }
+
+    public Path getPath() {
+        return path;
     }
     
     public Experiment(String name) {
@@ -259,8 +288,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public void setOutputDirectory(String outputPath) {
         this.outputPath.setSelectedFilePath(outputPath);
         if (outputPath!=null) {
-            File f = new File(outputPath);
-            f.mkdirs();
+            Path p = Paths.get(outputPath);
+            if (!Files.exists(p)) {
+                try {
+                    Files.createDirectories(p);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
     
@@ -272,8 +307,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public void setOutputImageDirectory(String outputPath) {
         imagePath.setSelectedFilePath(outputPath);
         if (outputPath!=null) {
-            File f = new File(outputPath);
-            f.mkdirs();
+            Path p = Paths.get(outputPath);
+            if (!Files.exists(p)) {
+                try {
+                    Files.createDirectories(p);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
     }
     

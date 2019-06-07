@@ -152,7 +152,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     }
     
     @Override
-    public ArrayList<Parameter> getPath() {
+    public ArrayList<Parameter> getParameterPath() {
         return ParameterImpl.getPath(this);
     }
     

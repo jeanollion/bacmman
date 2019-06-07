@@ -22,13 +22,19 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import org.json.simple.JSONObject;
 import bacmman.utils.JSONSerializable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 /**
  *
  * @author Jean Ollion
  */
 
-public abstract class MultipleImageContainer implements JSONSerializable{
+public abstract class MultipleImageContainer implements JSONSerializable {
+    public static final Logger logger = LoggerFactory.getLogger(MultipleImageContainer.class);
     double scaleXY, scaleZ;
     public abstract int getFrameNumber();
     public abstract int getChannelNumber();
@@ -42,24 +48,36 @@ public abstract class MultipleImageContainer implements JSONSerializable{
     public abstract double getCalibratedTimePoint(int t, int c, int z);
     public abstract MultipleImageContainer duplicate();
     public abstract boolean singleFrame(int channel);
+    protected Path path;
+    public MultipleImageContainer setPath(Path path) {
+        this.path=path;
+        return this;
+    }
+
     public MultipleImageContainer(double scaleXY, double scaleZ) {
         this.scaleXY = scaleXY;
         this.scaleZ = scaleZ;
     }
     public abstract boolean sameContent(MultipleImageContainer other);
-    public static MultipleImageContainer createImageContainerFromJSON(JSONObject jsonEntry) {
+    public static MultipleImageContainer createImageContainerFromJSON(Path path, JSONObject jsonEntry) {
         MultipleImageContainer res=null;
         if (jsonEntry.containsKey("filePathC")) {
-            res = new MultipleImageContainerChannelSerie();
+            res = new MultipleImageContainerChannelSerie().setPath(path);
         } else if (jsonEntry.containsKey("filePath")) {
-            res = new MultipleImageContainerSingleFile();
+            res = new MultipleImageContainerSingleFile().setPath(path);
         } else if (jsonEntry.containsKey("inputDir")) {
-            res = new MultipleImageContainerPositionChannelFrame();
+            res = new MultipleImageContainerPositionChannelFrame().setPath(path);
         }
         if (res!=null) res.initFromJSONEntry(jsonEntry);
         return res;
     }
     public static String getKey(int c, int z, int t) {
         return new StringBuilder(11).append(c).append(";").append(z).append(";").append(t).toString();
+    }
+    protected String relativePath(String absolutePath) {
+        return path.relativize(Paths.get(absolutePath)).toString();
+    }
+    protected String absolutePath(String relativePath) {
+        return path.resolve(relativePath).normalize().toFile().getAbsolutePath();
     }
 }

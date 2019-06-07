@@ -868,7 +868,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public void openExperiment(String dbName, String hostnameOrDir, boolean readOnly) {
         if (db!=null) closeExperiment();
         //long t0 = System.currentTimeMillis();
-        if (hostnameOrDir==null) hostnameOrDir = getHostNameOrDir(dbName);
+        if (hostnameOrDir==null) {
+            hostnameOrDir = getHostNameOrDir(dbName);
+            if (hostnameOrDir==null) return;
+        }
         db = MasterDAOFactory.createDAO(dbName, hostnameOrDir);
         if (db==null) {
             logger.warn("no experiment found in DB: {}", db);
@@ -2686,11 +2689,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (xpName==null) return null;
             File f = this.dbFiles.get(xpName);
             if (f!=null) {
+                if (!f.exists()) {
+                    setMessage("Folder: "+f.toString()+ " doesn't exist anymore");
+                    return null; // folder doesn't exist anymore
+                }
                 host = f.getAbsolutePath();
-                logger.debug("xp: {} fir {}", xpName, host, f.getAbsolutePath());
-            }
-            else {
-                f = new File(host+File.separator+xpName);
+                logger.debug("xp: {} dir {}", xpName, host, f.getAbsolutePath());
+            } else {
+
+                f = new File(host, xpName);
                 f.mkdirs();
                 logger.debug("create dir for xp: {} -> {} (is Dir: {})", xpName, f.getAbsolutePath(), f.isDirectory());
                 dbFiles.put(xpName, f);
@@ -3097,7 +3104,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void importPositionsToCurrentExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importPositionsToCurrentExperimentMenuItemActionPerformed
         if (!checkConnection()) return;
-        String defDir = db.getDir();
+        String defDir = db.getDir().toFile().getAbsolutePath();
         File f = Utils.chooseFile("Select exported archive", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
         
@@ -3307,13 +3314,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             int[] selectedStructures = this.getSelectedStructures(true);
             t = new Task(db);
             t.setStructures(selectedStructures).setPositions(microscopyFields);
-            if (extract) for (int sIdx : selectedStructures) t.addExtractMeasurementDir(db.getDir(), sIdx);
+            if (extract) for (int sIdx : selectedStructures) t.addExtractMeasurementDir(db.getDir().toFile().getAbsolutePath(), sIdx);
         } else if (dbName!=null) {
             
             t = new Task(dbName);
             if (extract && t.getDB()!=null) {
                 int[] selectedStructures = ArrayUtil.generateIntegerArray(t.getDB().getExperiment().getStructureCount());
-                for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDir(), sIdx);
+                for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDir().toFile().getAbsolutePath(), sIdx);
             }
             t.getDB().clearCache(); 
         } else return null;
@@ -3344,7 +3351,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void importImagesMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importImagesMenuItemActionPerformed
         if (!checkConnection()) return;
-        String defDir = db.getDir();
+        String defDir = db.getDir().toFile().getAbsolutePath();
         if (!new File(defDir).exists()) defDir = PropertyUtils.get(PropertyUtils.LAST_IMPORT_IMAGE_DIR);
         File[] selectedFiles = Utils.chooseFiles("Choose images/directories to import (selected import method="+db.getExperiment().getImportImageMethod()+")", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, this);
         if (selectedFiles!=null) {
@@ -3597,7 +3604,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void importDataMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importDataMenuItemActionPerformed
         if (!checkConnection()) return;
-        String defDir = db.getDir(); 
+        String defDir = db.getDir().toFile().getAbsolutePath();
         File f = Utils.chooseFile("Select exported archive", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
         
@@ -3640,7 +3647,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 public void actionPerformed(ActionEvent e) {
                     Task t = getCurrentTask(null);
                     if (t!=null) {
-                        if (db!=null) t.setDBName(db.getDBName()).setDir(db.getDir());
+                        if (db!=null) t.setDBName(db.getDBName()).setDir(db.getDir().toFile().getAbsolutePath());
                         actionPoolListModel.addElement(t);
                     }
                 }

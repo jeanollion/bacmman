@@ -74,7 +74,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         JSONObject res = new JSONObject();
         res.put("scaleXY", scaleXY);
         res.put("scaleZ", scaleZ);
-        res.put("inputDir", inputDir);
+        res.put("inputDir", relativePath(inputDir));
         res.put("extension", extension);
         res.put("positionKey", positionKey);
         res.put("timeKeyword", timeKeyword);
@@ -90,7 +90,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         JSONObject jsonO = (JSONObject)jsonEntry;
         scaleXY = ((Number)jsonO.get("scaleXY")).doubleValue();
         scaleZ = ((Number)jsonO.get("scaleZ")).doubleValue();
-        inputDir = (String)jsonO.get("inputDir");
+        inputDir = absolutePath((String)jsonO.get("inputDir"));
         extension = (String)jsonO.get("extension");
         positionKey = (String)jsonO.get("positionKey");
         timeKeyword = (String)jsonO.get("timeKeyword");

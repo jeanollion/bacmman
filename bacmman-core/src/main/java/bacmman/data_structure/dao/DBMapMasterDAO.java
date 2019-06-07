@@ -25,6 +25,9 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.channels.OverlappingFileLockException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -45,7 +48,7 @@ import static bacmman.core.Core.*;
  */
 public class DBMapMasterDAO implements MasterDAO {
     public static final Logger logger = LoggerFactory.getLogger(DBMapMasterDAO.class);
-    protected final String configDir;
+    protected final Path configDir;
     
     protected final String dbName;
     final HashMap<String, DBMapObjectDAO> DAOs = new HashMap<>();
@@ -61,9 +64,14 @@ public class DBMapMasterDAO implements MasterDAO {
         if (dir==null) throw new IllegalArgumentException("Invalid directory: "+ dir);
         if (dbName==null) throw new IllegalArgumentException("Invalid DbName: "+ dbName);
         logger.debug("create DBMAPMASTERDAO: dir: {}, dbName: {}", dir, dbName);
-        configDir = dir;
-        File conf = new File(configDir);
-        if (!conf.exists()) conf.mkdirs();
+        configDir = Paths.get(dir);
+        if (!Files.exists(configDir)) {
+            try {
+                Files.createDirectories(configDir);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         this.dbName = dbName;
         this.accessor=accessor;
     }
@@ -141,7 +149,7 @@ public class DBMapMasterDAO implements MasterDAO {
         Utils.deleteDirectory(outputPath);
         Utils.deleteDirectory(outputImagePath);
         deleteExperiment();
-        new File(configDir).delete(); // deletes XP directory only if void. 
+        configDir.toFile().delete();// deletes XP directory only if void.
     }
     
     private File getConfigFile(String dbName) {
@@ -166,7 +174,7 @@ public class DBMapMasterDAO implements MasterDAO {
         return dbName;
     }
     @Override
-    public String getDir() {
+    public Path getDir() {
         return this.configDir;
     }
 
@@ -302,7 +310,7 @@ public class DBMapMasterDAO implements MasterDAO {
             return null;
         }
         if (xpString==null || xpString.length()==0) return null;
-        Experiment xp = new Experiment();
+        Experiment xp = new Experiment().setPath(configDir);
         xp.initFromJSONEntry(JSONUtils.parse(xpString));
         return xp;
     }

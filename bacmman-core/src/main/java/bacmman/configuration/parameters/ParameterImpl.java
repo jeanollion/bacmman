@@ -169,7 +169,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     }
 
     @Override
-    public ArrayList<Parameter> getPath() {
+    public ArrayList<Parameter> getParameterPath() {
         return getPath(this);
     }
     
@@ -180,7 +180,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
             return res;
         }
         else {
-            ArrayList<Parameter> path = ((Parameter)p.getParent()).getPath();
+            ArrayList<Parameter> path = ((Parameter)p.getParent()).getParameterPath();
             path.add(p);
             return path;
         }

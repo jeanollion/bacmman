@@ -69,7 +69,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         JSONObject res = new JSONObject();
         res.put("scaleXY", scaleXY);
         res.put("scaleZ", scaleZ);
-        res.put("filePath", filePath);
+        res.put("filePath", relativePath(filePath));
         res.put("name", name);
         res.put("framePointNumber", timePointNumber);
         res.put("channelNumber", channelNumber);
@@ -86,7 +86,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         JSONObject jsonO = (JSONObject)jsonEntry;
         scaleXY = ((Number)jsonO.get("scaleXY")).doubleValue();
         scaleZ = ((Number)jsonO.get("scaleZ")).doubleValue();
-        filePath = (String)jsonO.get("filePath");
+        filePath = absolutePath((String)jsonO.get("filePath"));
         name = (String)jsonO.get("name");
         timePointNumber = ((Number)jsonO.get("framePointNumber")).intValue();
         channelNumber = ((Number)jsonO.get("channelNumber")).intValue();

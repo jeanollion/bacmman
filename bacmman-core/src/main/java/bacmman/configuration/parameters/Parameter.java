@@ -33,7 +33,7 @@ import org.slf4j.Logger;
 
 public interface Parameter<P extends Parameter<P>> extends MutableTreeNode, JSONSerializable, Hint, HintSimple {
     Logger logger = LoggerFactory.getLogger(Parameter.class);
-    ArrayList<Parameter> getPath();
+    ArrayList<Parameter> getParameterPath();
     void setContentFrom(Parameter other);
     boolean sameContent(Parameter other);
     P duplicate();
