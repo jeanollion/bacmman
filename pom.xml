@@ -26,12 +26,13 @@
         <module>bacmman-headless</module>
         <module>bacmman-github</module>
         <module>bacmman-ij2</module>
-        <module>bacmman-rsync</module>
+
 
     </modules>
     <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository (helpers & fluorescence fit)
         <module>bacmman-modules-fluorescence_fit</module>
         <module>bacmman-helpers</module>
+        <module>bacmman-rsync</module>
     -->
 
     <name>BACMMAN</name>
