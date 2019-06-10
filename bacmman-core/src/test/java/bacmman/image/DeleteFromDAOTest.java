@@ -36,6 +36,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -214,7 +215,9 @@ public class DeleteFromDAOTest {
         int[] count = new int[]{10, 10, 10};
         Experiment xp = new Experiment("");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
-        xp.setOutputDirectory(testFolder.newFolder().getAbsolutePath());
+        File output = testFolder.newFolder();
+        xp.setPath(Paths.get(output.getParent()));
+        xp.setOutputDirectory(output.getAbsolutePath());
         xp.createPosition(f);
         xp.getStructures().insert(new Structure("S0", -1, 0), new Structure("Sub1", 0, 0), new Structure("Sub2",1, 0));
         db.setExperiment(xp);
@@ -275,7 +278,9 @@ public class DeleteFromDAOTest {
         
         Experiment xp = new Experiment("");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
-        xp.setOutputDirectory(this.testFolder.newFolder().getPath());
+        File output = testFolder.newFolder();
+        xp.setPath(Paths.get(output.getParent()));
+        xp.setOutputDirectory(output.getAbsolutePath());
         xp.getStructures().insert(new Structure("MicroChannel", -1, 0));
         xp.createPosition(f);
         db.setExperiment(xp);

@@ -108,11 +108,13 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         JSONObject res= new JSONObject();
         //res.put("imagePath", imagePath.toJSONEntry());
         //res.put("outputPath", outputPath.toJSONEntry());
-        String iPath = imagePath.getFirstSelectedFilePath();
-        if (iPath!=null) res.put("imagePath", path.relativize(Paths.get(iPath)).toString());
-        String oPath = outputPath.getFirstSelectedFilePath();
-        if (oPath!=null) res.put("outputPath", path.relativize(Paths.get(oPath)).toString());
-
+        if (path==null && getOutputDirectory()!=null) path = Paths.get(getOutputDirectory()).getParent();
+        if (path!=null) {
+            String iPath = getOutputImageDirectory();
+            if (iPath != null) res.put("imagePath", path.relativize(Paths.get(iPath)).toString());
+            String oPath = getOutputDirectory();
+            if (oPath != null) res.put("outputPath", path.relativize(Paths.get(oPath)).toString());
+        }
         res.put("channelImages", channelImages.toJSONEntry());
         res.put("channelImagesDuplicated", channelImagesDuplicated.toJSONEntry());
         res.put("structures", structures.toJSONEntry());
@@ -291,6 +293,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
                     throw new RuntimeException(e);
                 }
             }
+            if (path==null) path = p.getParent();
         }
     }
     
