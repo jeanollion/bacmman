@@ -8,7 +8,7 @@
     <groupId>com.github.jeanollion.bacmman</groupId>
     <artifactId>bacmman</artifactId>
     <packaging>pom</packaging>
-    <version>2.2.5</version>
+    <version>2.2.6</version>
 
     <licenses>
         <license>
@@ -25,15 +25,8 @@
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-headless</module>
         <module>bacmman-github</module>
-        <module>bacmman-ij2</module>
-
-
     </modules>
-    <!-- in order to build a version (on jitpack OR locally if modules not present) -> remove modules not present on the repository (helpers & fluorescence fit)
-        <module>bacmman-modules-fluorescence_fit</module>
-        <module>bacmman-helpers</module>
-        <module>bacmman-rsync</module>
-    -->
+
 
     <name>BACMMAN</name>
     <description>BACteria in Mother Machine ANalysis software</description>
