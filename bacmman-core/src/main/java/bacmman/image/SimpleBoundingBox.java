@@ -231,4 +231,12 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         return "["+xMin+";"+yMin+";"+zMin+"]";
     }
 
+    public int size(int dim) {
+        switch (dim) {
+            case 0: return sizeX();
+            case 1: return sizeY();
+            case 2: return sizeZ();
+            default: throw new IllegalArgumentException("invalid dimension. must be in range [0;2]");
+        }
+    }
 }

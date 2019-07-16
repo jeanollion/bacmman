@@ -19,6 +19,8 @@
 package bacmman.image;
 
 import java.util.Arrays;
+import java.util.function.DoubleFunction;
+import java.util.function.DoubleToIntFunction;
 
 
 /**
@@ -70,8 +72,17 @@ public class TypeConverter {
      * 
      * @param image input image to be converted
      * @param output image to cast values to. if null, a new image will be created
-     * @return a new ImageShort values casted as short (if values exceed 65535 they will be equal to 65535) 
+     * @return a new ImageByte with values transformed by {@param function} (if values exceed 255 they will be equal to 255)
      */
+    public static ImageByte toByte(Image image, ImageByte output, DoubleToIntFunction function) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageByte(image.getName(), image);
+        for (int z = 0; z<image.sizeZ(); ++z) {
+            for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                output.setPixel(xy, z, (double)function.applyAsInt(image.getPixel(xy, z))); // convert to double in order to trim values
+            }
+        }
+        return output;
+    }
     public static ImageByte toByte(Image image, ImageByte output) {
         if (output==null || !output.sameDimensions(image)) output = new ImageByte(image.getName(), image);
         if (image instanceof ImageByte) Image.pasteImage(image, output, null);
@@ -122,7 +133,7 @@ public class TypeConverter {
     /**
      * 
      * @param image input image
-     * @return an image of type ImageByte, ImageShort or ImageFloat. If {@param image} is of type ImageByte, ImageShort or ImageFloat {@Return}={@param image}. If {@param image} is of type ImageInt, it is cast as a ShortImage {@link TypeConverter#toShort(image.Image) } if its maximum value is inferior to 65535 or a FloatImage {@link TypeConverter#toFloat(image.Image) }. If {@param image} is a mask if will be converted to a mask: {@link TypeConverter#toByteMask(image.ImageMask) }
+     * @return an image of type ImageByte, ImageShort or ImageFloat. If {@param image} is of type ImageByte, ImageShort or ImageFloat {@Return}={@param image}. If {@param image} is of type ImageInt, it is cast as a ShortImage {@link TypeConverter#toShort(Image, ImageShort)}  } if its maximum value is inferior to 65535 or a FloatImage {@link TypeConverter#toFloat(Image, ImageFloat)}  }. If {@param image} is a mask if will be converted to a mask: {@link TypeConverter#toByteMask(ImageMask, ImageByte, int)}  }
      */
     public static Image toCommonImageType(ImageProperties image) {
         if (isCommonImageType(image)) return (Image)image;

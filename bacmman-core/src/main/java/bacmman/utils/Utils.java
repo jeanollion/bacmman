@@ -608,15 +608,17 @@ public class Utils {
         new Plot(title, axisLabels.length>0 ? axisLabels[0] : "coord", axisLabels.length>1 ? axisLabels[1] : "value", x, values).show();
     }
     
-    public static void plotProfile(String title, double[] values, String... axisLabels) {
-        if (values.length<=1) return;
+    public static Plot plotProfile(String title, double[] values, String... axisLabels) {
+        if (values.length<=1) return null;
         double v = values[0];
         int idx = 0; 
         while (idx<values.length && values[idx]==v) ++idx;
-        if (idx==values.length) return; // cannot be ploted if one single value
+        if (idx==values.length) return null; // cannot be ploted if one single value
         double[] x=new double[values.length];
         for (int i = 0; i<x.length; ++i) x[i]=i;
-        new Plot(title, axisLabels.length>0 ? axisLabels[0] : "coord", axisLabels.length>1 ? axisLabels[1] : "value", x, values).show();
+        Plot p  = new Plot(title, axisLabels.length>0 ? axisLabels[0] : "coord", axisLabels.length>1 ? axisLabels[1] : "value", x, values);
+        p.show();
+        return p;
     }
     public static void plotProfile(String title, double[] values1, double[] values2, boolean sort) {
         if (values1.length<=1) return;

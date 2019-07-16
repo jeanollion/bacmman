@@ -147,13 +147,9 @@ public class ImageWriter {
             IFormatWriter writer = new loci.formats.ImageWriter();
             writer.setMetadataRetrieve(generateMetadata(image, 1, 1));
             writer.setId(fullPath);
-            Logger.getLogger(ImageWriter.class.getName()).info("writing file:"+fullPath);
-            Logger.getLogger(ImageWriter.class.getName()).info("image count: "+writer.getMetadataRetrieve().getImageCount());
-            Logger.getLogger(ImageWriter.class.getName()).info("color model==null? "+(writer.getColorModel()==null));
-            Logger.getLogger(ImageWriter.class.getName()).info("compression "+writer.getCompression());
+            logger.trace("writing file: {}, image count: {}, color model null ? {}, compression: {}, format: {}", fullPath, writer.getMetadataRetrieve().getImageCount(), (writer.getColorModel()==null), writer.getCompression(), writer.getFormat());
             boolean littleEndian = !writer.getMetadataRetrieve().getPixelsBinDataBigEndian(0, 0);
             writer.setSeries(0);
-            Logger.getLogger(ImageWriter.class.getName()).info("format: "+writer.getFormat());
             int i=0;
             for (int z = 0; z<image.sizeZ(); z++) {
                 writer.saveBytes(i++, getBytePlane(image, z, littleEndian));
@@ -186,9 +182,14 @@ public class ImageWriter {
         
         MetadataTools.populateMetadata(meta, 0, null, false, "XYZCT", pixelType, image.sizeX(), image.sizeY(), image.sizeZ(), channelNumber, timePointNumber, 1);
         //System.out.println("NTimes:"+timePointNumber+" NChannel:"+channelNumber);
-        meta.setPixelsPhysicalSizeX(new Length(image.getScaleXY(), UNITS.MICROM), 0);
-        meta.setPixelsPhysicalSizeY(new Length(image.getScaleXY(), UNITS.MICROM), 0);
-        meta.setPixelsPhysicalSizeZ(new Length(image.getScaleZ(), UNITS.MICROM), 0);
+        meta.setPixelsPhysicalSizeX(new Length(image.getScaleXY(), UNITS.MICROMETRE), 0);
+        meta.setPixelsPhysicalSizeY(new Length(image.getScaleXY(), UNITS.MICROMETRE), 0);
+        meta.setPixelsPhysicalSizeZ(new Length(image.getScaleZ(), UNITS.MICROMETRE), 0);
+
+        if (meta.getPixelsBinDataCount(0) == 0 || meta.getPixelsBinDataBigEndian(0, 0) == null) {
+            meta.setPixelsBinDataBigEndian(Boolean.TRUE, 0, 0);
+        }
+
         return meta;
     }
     
@@ -196,7 +197,6 @@ public class ImageWriter {
         IMetadata meta = MetadataTools.createOMEXMLMetadata();
         String pixelType;
         for (int series = 0; series < imageSTC.length; ++series) {
-            
             if (imageSTC[series][0][0] instanceof ImageByte) pixelType=FormatTools.getPixelTypeString(FormatTools.UINT8);
             else if (imageSTC[series][0][0] instanceof ImageShort) pixelType=FormatTools.getPixelTypeString(FormatTools.UINT16);
             else if (imageSTC[series][0][0] instanceof ImageFloat) pixelType=FormatTools.getPixelTypeString(FormatTools.FLOAT); //UINT32?
@@ -204,12 +204,11 @@ public class ImageWriter {
 
             MetadataTools.populateMetadata(meta, series, null, false, "XYZCT", pixelType, imageSTC[series][0][0].sizeX(), imageSTC[series][0][0].sizeY(), imageSTC[series][0][0].sizeZ(), imageSTC[series][0].length, imageSTC[series].length, 1);
             //System.out.println("NTimes:"+timePointNumber+" NChannel:"+channelNumber);
-            meta.setPixelsPhysicalSizeX(new Length(imageSTC[series][0][0].getScaleXY(), UNITS.MICROM), 0);
-            meta.setPixelsPhysicalSizeY(new Length(imageSTC[series][0][0].getScaleXY(), UNITS.MICROM), 0);
-            meta.setPixelsPhysicalSizeZ(new Length(imageSTC[series][0][0].getScaleZ(), UNITS.MICROM), 0);
-
+            meta.setPixelsPhysicalSizeX(new Length(imageSTC[series][0][0].getScaleXY(), UNITS.MICROMETRE), 0);
+            meta.setPixelsPhysicalSizeY(new Length(imageSTC[series][0][0].getScaleXY(), UNITS.MICROMETRE), 0);
+            meta.setPixelsPhysicalSizeZ(new Length(imageSTC[series][0][0].getScaleZ(), UNITS.MICROMETRE), 0);
             if (meta.getPixelsBinDataCount(0) == 0 || meta.getPixelsBinDataBigEndian(0, 0) == null) {
-                meta.setPixelsBinDataBigEndian(Boolean.FALSE, 0, 0);
+                meta.setPixelsBinDataBigEndian(Boolean.TRUE, 0, 0);
             }
 
         }

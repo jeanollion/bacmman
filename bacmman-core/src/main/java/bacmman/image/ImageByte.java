@@ -196,12 +196,12 @@ public class ImageByte extends ImageInteger<ImageByte> {
     
     @Override
     public void setPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = value<0?0:(value>255?(byte)255:(byte)value);
+        pixels[z-zMin][x-offsetXY + y * sizeX] = value<=0?0:(value>=255?(byte)255:(byte)value);
     }
 
     @Override
     public void setPixel(int xy, int z, double value) {
-        pixels[z][xy] = value<0?0:(value>255?(byte)255:(byte)value);
+        pixels[z][xy] = value<=0?0:(value>=255?(byte)255:(byte)value);
     }
     
     @Override
@@ -216,7 +216,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
 
     @Override
     public void setPixelWithOffset(int xy, int z, int value) {
-        pixels[z-zMin][xy - offsetXY] = value<0?0:(value>255?(byte)255:(byte)value);
+        pixels[z-zMin][xy - offsetXY] = value<=0?0:(value>=255?(byte)255:(byte)value);
     }
 
     @Override
@@ -231,7 +231,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
 
     @Override
     public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = value<0?0:(value>255?(byte)255:(byte)value);
+        pixels[z-zMin][xy - offsetXY] = value<=0?0:(value>=255?(byte)255:(byte)value);
     }
 
     @Override
