@@ -21,6 +21,7 @@ package bacmman.data_structure;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.GeometricalMeasurements;
+import bacmman.processing.EDT;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.RegionFactory;
 import java.util.ArrayList;
@@ -715,12 +716,30 @@ public class RegionPopulation {
         for (Region r : getRegions()) {
             Image lt = bacmman.processing.localthickness.LocalThickness.localThickness(r.getMask(), getImageProperties().getScaleZ()/getImageProperties().getScaleXY(), true, false);
             ImageMask.loopWithOffset(r.getMask(), (x, y, z)->{
-                ltmap.setPixel(x, y, z, lt.getPixelWithOffset(x, y, z));
+                ltmap.setPixelWithOffset(x, y, z, lt.getPixelWithOffset(x, y, z)); // with offset?
             });
         }
         //Image ltmap = LocalThickness.localThickness(this.getLabelMap(), 1, 1, true, 1);
         return ltmap;
     }
+    public Image getEDM(boolean correctionForObjectsTouchingBorder) {
+        Image edm = new ImageFloat("EDM"+getImageProperties().getScaleXY()+ " z:"+getImageProperties().getScaleZ(), getImageProperties());
+        for (Region r : getRegions()) {
+            EDT edt = new EDT();
+            if (correctionForObjectsTouchingBorder) {
+                boolean[] touchingBorders = BoundingBox.getTouchingBorders(this.properties, r.getBounds());
+                edt.outOfBoundPolicy().setX(!touchingBorders[0], !touchingBorders[1]);
+                edt.outOfBoundPolicy().setY(!touchingBorders[2], !touchingBorders[3]);
+                edt.outOfBoundPolicy().setZ(!touchingBorders[4], !touchingBorders[5]);
+            }
+            Image edmR = edt.run(r.getMask(), true, 1, getImageProperties().getScaleZ()/getImageProperties().getScaleXY(), false);
+            ImageMask.loopWithOffset(r.getMask(), (x, y, z)->{
+                edm.setPixelWithOffset(x, y, z, edmR.getPixelWithOffset(x, y, z));
+            });
+        }
+        return edm;
+    }
+
     
     private static double[] getCenterArray(BoundingBox b) {
         return new double[]{b.xMean(), b.yMean(), b.zMean()};

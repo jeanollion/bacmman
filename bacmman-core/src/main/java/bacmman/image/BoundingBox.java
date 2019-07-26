@@ -139,6 +139,18 @@ public interface BoundingBox<T extends BoundingBox> extends Offset<T> {
         bounds.forEach(b->res.union(b));
         return res;
     }
+
+    public static boolean[] getTouchingBorders(BoundingBox container, BoundingBox other) {
+        boolean[] res = new boolean[6];
+        res[0] = other.xMin()<=container.xMin();
+        res[1] = other.xMax()>=container.xMax();
+        res[2] = other.yMin()<=container.yMin();
+        res[3] = other.yMax()>=container.yMax();
+        res[4] = other.zMin()<=container.zMin();
+        res[5] = other.zMax()>=container.zMax();
+        return res;
+    }
+
     public static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate, boolean parallele) {
         if (!parallele) {
             loop(bb, function, predicate);

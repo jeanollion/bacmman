@@ -72,12 +72,55 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
  */
 public class EDT {
+    public final OutOfBoundPolicy outOfBoundPolicy = new OutOfBoundPolicy();
     public final static org.slf4j.Logger logger = LoggerFactory.getLogger(EDT.class);
     public static ImageFloat transform(ImageMask mask, boolean insideMask, double scaleXY, double scaleZ, boolean multithread) {
         return new EDT().run(mask, insideMask, scaleXY, scaleZ, multithread);
     }
-    
-    protected ImageFloat run(ImageMask mask, boolean insideMask, double scaleXY, double scaleZ , boolean multithread) {
+
+    /**
+     * In case EDT is computed inside the mask, this defines whether out-of-bound is background or foreground for each borders
+     * @return
+     */
+    public OutOfBoundPolicy outOfBoundPolicy() {return outOfBoundPolicy;}
+
+    public class OutOfBoundPolicy {
+        public final boolean[] outOfBoundIsBck =new boolean[]{true, true, true, true, true, true}; // xMin, xMax, yMin, yMax, zMin, zMax
+        public OutOfBoundPolicy setX(boolean minIsBck, boolean maxIsBck) {
+            outOfBoundIsBck[0]=minIsBck;
+            outOfBoundIsBck[1]=maxIsBck;
+            return this;
+        }
+        public OutOfBoundPolicy setY(boolean minIsBck, boolean maxIsBck) {
+            outOfBoundIsBck[2]=minIsBck;
+            outOfBoundIsBck[3]=maxIsBck;
+            return this;
+        }
+        public OutOfBoundPolicy setZ(boolean minIsBck, boolean maxIsBck) {
+            outOfBoundIsBck[4]=minIsBck;
+            outOfBoundIsBck[5]=maxIsBck;
+            return this;
+        }
+        public EDT edt() {
+            return EDT.this;
+        }
+        public int getMinDistBorderX(int i, int size) {
+            if (outOfBoundIsBck[0] && outOfBoundIsBck[1]) return Math.min(i+1, size-i);
+            else if (outOfBoundIsBck[0]) return i+1;
+            else return size-i;
+        }
+        public int getMinDistBorderY(int i, int size) {
+            if (outOfBoundIsBck[2] && outOfBoundIsBck[3]) return Math.min(i+1, size-i);
+            else if (outOfBoundIsBck[2]) return i+1;
+            else return size-i;
+        }
+        public int getMinDistBorderZ(int i, int size) {
+            if (outOfBoundIsBck[4] && outOfBoundIsBck[5]) return Math.min(i+1, size-i);
+            else if (outOfBoundIsBck[4]) return i+1;
+            else return size-i;
+        }
+    }
+    public ImageFloat run(ImageMask mask, boolean insideMask, double scaleXY, double scaleZ , boolean multithread) {
         int w = mask.sizeX();
         int h = mask.sizeY();
         int d = mask.sizeZ();
@@ -181,8 +224,11 @@ public class EDT {
                     else for (int i = 0; i < w; i++) background[i] = mask.insideMask(i + w * j, k);
                     
                     for (int i = 0; i < w; i++) {
-                        if (insideMask) {min = Math.min(i+1, w-i); min*=min;} // si insideMask: distance minimale = distance au bord le plus proche + 1
-                        else min = noResult;
+                        if (insideMask) { // si insideMask: distance minimale = distance au bord le plus proche + 1
+                            //min = Math.min(i+1, w-i);
+                            min = outOfBoundPolicy.getMinDistBorderX(i,w);
+                            min*=min;
+                        } else min = noResult;
                         for (int x = i; x < w; x++) {
                             if (background[x]) {
                                 test = i - x;
@@ -248,8 +294,11 @@ public class EDT {
                     }
                     if (nonempty) {
                         for (int j = 0; j < h; j++) {
-                            if (insideMask) {min = Math.min(j+1, h-j); min*=min;}
-                            else min = noResult;
+                            if (insideMask) {
+                                //min = Math.min(j+1, h-j);
+                                min = outOfBoundPolicy.getMinDistBorderY(j,h);
+                                min*=min;
+                            } else min = noResult;
                             delta = j;
                             for (int y = 0; y < h; y++) {
                                 test = tempS[y] + delta * delta--;
@@ -330,8 +379,11 @@ public class EDT {
                         for (int k = 0; k < d; k++) {
                             //Limit to the non-background to save time,
                             if (insideMask==mask.insideMask(i+w*j, k)) { //!xor
-                                if (insideMask) {min=Math.min(k+1, d-k); min *= min * scaleZ;} //&& d>1
-                                else min = noResult;
+                                if (insideMask) { //&& d>1
+                                    //min=Math.min(k+1, d-k);
+                                    min = outOfBoundPolicy.getMinDistBorderZ(k, d);
+                                    min *= min * scaleZ;
+                                }  else min = noResult;
                                 zBegin = zStart;
                                 zEnd = zStop;
                                 if (zBegin > k) {

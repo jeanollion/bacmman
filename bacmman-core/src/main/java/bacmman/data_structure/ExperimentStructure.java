@@ -15,7 +15,6 @@ public class ExperimentStructure {
     public ExperimentStructure(Experiment xp) {
         this.xp=xp;
     }
-
     public int getParentObjectClassIdx(int objectClassIdx) {
         if (objectClassIdx<0) return objectClassIdx;
         return xp.getStructure(objectClassIdx).getParentStructure();
