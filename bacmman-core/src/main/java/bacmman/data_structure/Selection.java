@@ -206,12 +206,12 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         return res;
     }
     
-    public Set<SegmentedObject> getElements(String fieldName) {
-        Set<SegmentedObject> res =  retrievedElements.get(fieldName);
-        if (res==null && elements.containsKey(fieldName)) {
+    public Set<SegmentedObject> getElements(String position) {
+        Set<SegmentedObject> res =  retrievedElements.get(position);
+        if (res==null && elements.containsKey(position)) {
             synchronized(retrievedElements) {
-                res =  retrievedElements.get(fieldName);
-                if (res==null) return retrieveElements(fieldName);
+                res =  retrievedElements.get(position);
+                if (res==null) return retrieveElements(position);
                 else return res;
             }
         }
