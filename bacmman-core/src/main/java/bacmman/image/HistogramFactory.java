@@ -30,6 +30,7 @@ import java.util.function.ObjDoubleConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.Stream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,27 @@ public class HistogramFactory {
         AUTO, 
         BACKGROUND // a good resolution for background study
     };
+    public static double[] getMinAndMax(Stream<Image> stream) {
+        BiConsumer<double[], double[]> combiner = (mm1, mm2)-> {
+            if (mm1[0]>mm2[0]) mm1[0] = mm2[0];
+            if (mm1[1]<mm2[1]) mm1[1] = mm2[1];
+        };
+        BiConsumer<double[], Image> cons = (double[] mm, Image im) -> {
+            double[] mmIm = im.getMinAndMax(null);
+            combiner.accept(mm, mmIm);
+        };
+        Supplier<double[]> supplier = () -> new double[]{Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+        return stream.collect(supplier ,cons, combiner);
+    }
+    public static Histogram getHistogram(Stream<Image> stream, double binSize, int nBins, double min) {
+        BiConsumer<Histogram, Histogram> combiner = Histogram::add;
+        BiConsumer<Histogram, Image> cons = (Histogram h, Image im) -> {
+            Histogram hh = getHistogram(im.stream(), binSize, nBins, min);
+            combiner.accept(h, hh);
+        };
+        Supplier<Histogram> supplier = () -> new Histogram(new long[nBins], binSize, min);
+        return stream.collect(supplier ,cons, combiner);
+    }
     /**
      * Automatic bin size computation
      * @param streamSupplier value distribution used for the histogram
@@ -140,15 +162,15 @@ public class HistogramFactory {
     }
     public static Histogram getHistogram(DoubleStream stream, double binSize, int nBins, double min) {
         double coeff = 1 / binSize;
-        ObjDoubleConsumer<int[]> fillHisto = (int[] histo, double v) -> {
+        ObjDoubleConsumer<long[]> fillHisto = (long[] histo, double v) -> {
             int idx = (int)((v-min) * coeff);
             if (idx==nBins) histo[nBins-1]++;
             else if (idx>=0 && idx<nBins) histo[idx]++;
         };
-        BiConsumer<int[], int[]> combiner = (int[] h1, int[] h2) -> {
+        BiConsumer<long[], long[]> combiner = (long[] h1, long[] h2) -> {
             for (int i = 0; i<nBins; ++i) h1[i]+=h2[i];
         };
-        int[] histo = stream.collect(()->new int[nBins], fillHisto, combiner);
+        long[] histo = stream.collect(()->new long[nBins], fillHisto, combiner);
         return new Histogram(histo, binSize, min);
     }
     public static double[] getMinAndMax(DoubleStream stream) {

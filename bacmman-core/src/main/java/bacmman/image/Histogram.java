@@ -29,15 +29,21 @@ import java.util.Arrays;
  */
 public class Histogram {
 
-    public final int[] data;
+    public final long[] data;
     public final double  min;
     public final double binSize;
-    public Histogram(int[] data, double[] minAndMax) {
+
+    public Histogram(int[] data, double binSize, double min) {
+        this.data = Arrays.stream(data).mapToLong(i -> i).toArray();
+        this.binSize = binSize;
+        this.min=min;
+    }
+    public Histogram(long[] data, double[] minAndMax) {
         this.data = data;
         this.min = minAndMax[0];
         binSize = ( minAndMax[1] - minAndMax[0]) / (double)data.length;
     }
-    public Histogram(int[] data, double binSize, double min) {
+    public Histogram(long[] data, double binSize, double min) {
         this.data = data;
         this.binSize = binSize;
         this.min=min;
@@ -46,10 +52,10 @@ public class Histogram {
         return duplicate(0, data.length);
     }
     public double getMaxValue() {
-        return getValueFromIdx(getMaxNonNullIdx()+binSize/2);
+        return getValueFromIdx(getMaxNonNullIdx()+1);
     }
     public Histogram duplicate(int fromIdxIncluded, int toIdxExcluded) {
-        int[] dup = new int[data.length];
+        long[] dup = new long[data.length];
         System.arraycopy(data, fromIdxIncluded, dup, fromIdxIncluded, toIdxExcluded-fromIdxIncluded);
         return new Histogram(dup, binSize, min);
     }
@@ -79,14 +85,14 @@ public class Histogram {
         }
         return meanIdx/count;
     }
-    public int count(int fromIncluded, int toExcluded) {
-        int count = 0;
+    public long count(int fromIncluded, int toExcluded) {
+        long count = 0;
         for (int i = fromIncluded; i<toExcluded; ++i) count+=data[i];
         return count;
     }
-    public int count() {
-        int sum = 0;
-        for (int i : data) sum+=i;
+    public long count() {
+        long sum = 0;
+        for (long i : data) sum+=i;
         return sum;
     }
     public int getMaxNonNullIdx() {
@@ -116,10 +122,12 @@ public class Histogram {
     }
     public double[] getQuantiles(double... quantile) {
         int gcount = 0;
-        for (int i : data) gcount += i;
+        for (long i : data) gcount += i;
         double[] res = new double[quantile.length];
         for (int i = 0; i<res.length; ++i) {
-            int count = gcount;
+            if (quantile[i]<0) quantile[i]=0;
+            else if (quantile[i]>1) quantile[i]=1;
+            long count = gcount;
             double limit = count * (1-quantile[i]); // 1- ?
             if (limit >= count) {
                 res[i] = min;

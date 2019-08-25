@@ -133,6 +133,17 @@ public class ArrayUtil {
         for (int i = start+1; i<stopExcluded; ++i) if (array[i]>array[idxMax]) idxMax=i;
         return idxMax;
     }
+    public static int max(long[] array) {
+        return max(array, 0, array.length);
+    }
+    public static int max(long[] array, int start, int stopExcluded) {
+        if (start<0) start=0;
+        if (stopExcluded>array.length) stopExcluded=array.length;
+        if (stopExcluded<start) throw new IllegalArgumentException("Stop before start");
+        int idxMax = start;
+        for (int i = start+1; i<stopExcluded; ++i) if (array[i]>array[idxMax]) idxMax=i;
+        return idxMax;
+    }
     public static int min(float[] array) {
         return min(array, 0, array.length);
     }
@@ -239,7 +250,22 @@ public class ArrayUtil {
             else return -1;
         }
     }
-
+    public static int getFirstOccurence(long[] array, int start, int stop, java.util.function.LongPredicate verify) {
+        if (start<0) start=0;
+        if (stop<0) stop = 0;
+        if (stop>array.length) stop=array.length;
+        if (start>array.length) start = array.length;
+        int i = start;
+        if (start<=stop) {
+            while(i<stop-1 && !verify.test(array[i])) ++i;
+            if (verify.test(array[i])) return i;
+            else return -1;
+        } else {
+            while (i>stop && !verify.test(array[i])) --i;
+            if (verify.test(array[i])) return i;
+            else return -1;
+        }
+    }
     
     public static List<Integer> getRegionalExtrema(float[] array, int scale, boolean max) {
         if (scale<1) scale = 1;

@@ -37,6 +37,8 @@ import net.imagej.ops.threshold.AbstractComputeThresholdHistogram;
 import net.imglib2.histogram.Histogram1d;
 import net.imglib2.type.numeric.RealType;
 
+import java.util.Arrays;
+
 /**
  *
  * @author Jean Ollion
@@ -79,7 +81,7 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, H
         if (histo.data.length!=256) return runThresholderIJ2(method, histo);
         else {
             AutoThresholder at = new AutoThresholder();
-            double thld = at.getThreshold(method, histo.data);
+            double thld = at.getThreshold(method, Arrays.stream(histo.data).mapToInt(i->(int)i).toArray());
             return histo.getValueFromIdx(thld);
         }
         

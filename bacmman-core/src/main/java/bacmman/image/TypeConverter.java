@@ -67,6 +67,15 @@ public class TypeConverter {
         }
         return output;
     }
+    public static ImageShort toShort(Image image, ImageShort output, DoubleToIntFunction function) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageShort(image.getName(), image);
+        for (int z = 0; z<image.sizeZ(); ++z) {
+            for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                output.setPixel(xy, z, (double)function.applyAsInt(image.getPixel(xy, z))); // convert to double in order to trim values
+            }
+        }
+        return output;
+    }
     
     /**
      * 

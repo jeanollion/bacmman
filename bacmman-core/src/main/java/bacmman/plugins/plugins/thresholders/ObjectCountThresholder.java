@@ -72,7 +72,7 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
         boolean bright = descendingIntensities.getSelected();
         if (debug) Core.showImage(seeds);
         int max = maxObjectNumber.getValue().intValue();
-        Histogram objectCountHisto = new Histogram(new int[256], input.getMinAndMax(mask));
+        Histogram objectCountHisto = new Histogram(new long[256], input.getMinAndMax(mask));
         
         FusionCriterion f = new FusionCriterion() {
             WatershedTransform instance;

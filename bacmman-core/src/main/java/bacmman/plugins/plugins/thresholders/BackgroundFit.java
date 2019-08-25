@@ -83,23 +83,23 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     public double runThresholder(Image input, SegmentedObject structureObject) {
         return runSimpleThresholder(input, structureObject.getMask() );
     }
-    public static float[] smooth(int[] data, double scale) {
+    public static float[] smooth(long[] data, double scale) {
         ImageFloat image = new ImageFloat("", data.length, 1, 1);
         for (int i = 0; i<data.length; ++i) image.setPixel(i, 0, 0, data[i]);
         image = ImageFeatures.gaussianSmooth(image, scale, scale, true);
         return image.getPixelArray()[0];
     }
-    public static void smoothInPlace(int[] data, double scale) {
+    public static void smoothInPlace(long[] data, double scale) {
         float[] smoothed = smooth(data, scale);
         for (int i = 0; i<smoothed.length; ++i)  data[i] = Math.round(smoothed[i]);
     }
-    public static void fillZeros(int[] data) {
+    public static void fillZeros(long[] data) {
         for (int i = 1; i<data.length-1; ++i) {
             if (data[i]==0) {
-                int lowerV = data[i-1];
+                long lowerV = data[i-1];
                 int lowerB = i;
                 while(i<data.length-2 && data[i]==0) ++i;
-                int fillV = (lowerV+data[i])/2;
+                long fillV = (lowerV+data[i])/2;
                 for (int j = lowerB; j<i; ++j) data[j]=fillV;
             }
         }
@@ -209,7 +209,7 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
         
     }
     
-    private static int getMinMonoBefore(int[] array, int start) {
+    private static int getMinMonoBefore(long[] array, int start) {
         while(start>0 && array[start]>array[start-1]) --start;
         return start;
     }
