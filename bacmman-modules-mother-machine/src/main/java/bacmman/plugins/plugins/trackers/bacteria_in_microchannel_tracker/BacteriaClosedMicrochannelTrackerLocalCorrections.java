@@ -24,6 +24,7 @@ import bacmman.data_structure.*;
 import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
+import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.SlidingOperator;
@@ -34,6 +35,8 @@ import bacmman.image.Image;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.SimpleOffset;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -227,8 +230,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
         }
         if (debugCorr||debug) logger.debug("Frame range: [{};{}[", minF, maxFExcluded);
         for (int f = minF; f<maxFExcluded; ++f) getObjects(f); // init all objects
-        
-        
+
         // 2) perform corrections idx-wise
         if (correction) {
             List<Double> errorCount = new ArrayList<>(maxFExcluded);
@@ -503,16 +505,38 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
         if (frame<minF || frame>=maxFExcluded) return Collections.EMPTY_LIST;
         if (this.populations.get(frame)==null) {
             SegmentedObject parent = this.parentsByF.get(frame);
-            Stream<SegmentedObject> list = parent!=null ? parent.getChildren(structureIdx) : null;
-            if (list!=null) populations.put(parent.getFrame(), list.map( o-> {
-                if (segment || correction) o.getRegion().translate(new SimpleOffset(parent.getBounds()).reverseOffset()).setIsAbsoluteLandmark(false); // so that segmented objects are in parent referential (for split & merge calls to segmenter)
-                return o.getRegion();
-            }).collect(Collectors.toList()));
-            else populations.put(frame, Collections.EMPTY_LIST); 
+
+
+
+            List<SegmentedObject> list = parent!=null ? parent.getChildren(structureIdx).collect(Collectors.toList()) : null;
+            if (list!=null) {
+                // ensure objects are sorted along Y axis. necessary in case objects where modified manually
+                if (factory==null) factory = getFactory(this.structureIdx); // in case track only mode // todo : very bad !
+                list.sort(ObjectIdxTracker.getComparator(ObjectIdxTracker.IndexingOrder.YXZ));
+                factory.setChildren(parent, list);
+                factory.relabelChildren(parent);
+
+                List<Region> listR = list.stream().map( o-> {
+                    if (segment || correction) o.getRegion().translate(new SimpleOffset(parent.getBounds()).reverseOffset()).setIsAbsoluteLandmark(false); // so that segmented objects are in parent referential (for split & merge calls to segmenter)
+                    return o.getRegion();
+                }).collect(Collectors.toList());
+                populations.put(parent.getFrame(), listR);
+
+            } else populations.put(frame, Collections.EMPTY_LIST);
             //logger.debug("get object @ {}, size: {}", frame, populations.get(frame].size());
             createAttributes(frame);
         }
         return populations.get(frame);
+    }
+
+    private static SegmentedObjectFactory getFactory(int objectClassIdx) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
     }
         
     protected TrackAttribute getAttribute(int frame, int idx) {

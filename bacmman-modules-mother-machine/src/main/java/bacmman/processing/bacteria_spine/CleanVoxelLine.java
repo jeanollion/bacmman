@@ -82,7 +82,7 @@ public class CleanVoxelLine {
         return cleanSkeleton(skeleton, null, null);
     }
     public static List<Voxel> cleanSkeleton(Set<Voxel> skeleton, Consumer<Image> imageDisp, BoundingBox displayBounds) {
-        Comparator<Voxel> comp = (v1,v2)->Integer.compare(v1.x+v1.y, v2.x+v2.y);
+        Comparator<Voxel> comp = Comparator.comparingInt(v -> v.x + v.y);
         if (skeleton.size()>2) {
             CleanVoxelLine cl = new CleanVoxelLine(skeleton, imageDisp);
             cl.displayBounds = displayBounds;
