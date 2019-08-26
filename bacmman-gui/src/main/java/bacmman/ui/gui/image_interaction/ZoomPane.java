@@ -94,7 +94,7 @@ public class ZoomPane extends JPanel {
         repaint();
     }
     
-
+    private static boolean ALLOW_OUTSIDE_AREA = true;
     protected void updateBuffer(Point p) {
         int size = Math.round(ZOOM_AREA * SCALE);
         buffer = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
@@ -102,10 +102,12 @@ public class ZoomPane extends JPanel {
         AffineTransform at = new AffineTransform();
         int xPos = (ZOOM_AREA / 2) - p.x;
         int yPos = (ZOOM_AREA / 2) - p.y;
-        if (xPos > 0) xPos = 0;
-        if (yPos > 0) yPos = 0;
-        if ((xPos * -1) + ZOOM_AREA > parent.getWidth()) xPos = (parent.getWidth() - ZOOM_AREA) * -1;
-        if ((yPos * -1) + ZOOM_AREA > parent.getHeight()) yPos = (parent.getHeight()- ZOOM_AREA) * -1;
+        if (!ALLOW_OUTSIDE_AREA) { // so that center of zoom window always corresponds to cursor location
+            if (xPos > 0) xPos = 0;
+            if (yPos > 0) yPos = 0;
+            if ((xPos * -1) + ZOOM_AREA > parent.getWidth()) xPos = (parent.getWidth() - ZOOM_AREA) * -1;
+            if ((yPos * -1) + ZOOM_AREA > parent.getHeight()) yPos = (parent.getHeight()- ZOOM_AREA) * -1;
+        }
         at.translate(xPos, yPos);
         g2d.setTransform(at);
         parent.paint(g2d);
