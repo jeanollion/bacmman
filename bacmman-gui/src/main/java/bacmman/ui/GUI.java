@@ -284,21 +284,21 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     File f = dbFiles.get(dbName);
                     if (f==null) l.setToolTipText(null);
                     else {
-                        String dir = f.getAbsolutePath() + File.separator + dbName + "_config.json"; // TODO if other DAO -> modify this
-                        try {
-                            RandomAccessFile raf = new RandomAccessFile(dir, "r");
-                            String xpString = raf.readLine();
-                            raf.close();
-                            JSONObject json = JSONUtils.parse(xpString);
-                            if (json==null) l.setToolTipText(null);
-                            else {
-                                l.setToolTipText(Hint.formatHint((String)json.get("note"), true));
+                        String dir = f.getAbsolutePath() + File.separator + dbName + "_config.json"; // TODO use DAO method to get path
+                        if (!new File(dir).exists()) l.setToolTipText(null);
+                        else {
+                            try {
+                                RandomAccessFile raf = new RandomAccessFile(dir, "r");
+                                String xpString = raf.readLine();
+                                raf.close();
+                                JSONObject json = xpString==null ? null : JSONUtils.parse(xpString);
+                                if (json == null) l.setToolTipText(null);
+                                else l.setToolTipText(Hint.formatHint((String) json.get("note"), true));
+                            } catch (Exception ex) {
+                                l.setToolTipText(null);
+                                logger.debug("error reading dataset note for file: " + dir, ex);
                             }
-                        } catch (Exception ex) {
-                            l.setToolTipText(null);
-                            logger.debug("error reading dataset note for file: "+dir, ex);
                         }
-
                     }
                 }
             }

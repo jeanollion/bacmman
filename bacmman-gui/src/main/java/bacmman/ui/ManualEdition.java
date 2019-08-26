@@ -341,7 +341,8 @@ public class ManualEdition {
             logger.warn("Current image is not registered");
             return;
         }
-        int structureIdx = key.displayedStructureIdx;
+        //int structureIdx = key.displayedStructureIdx;
+        int structureIdx = ImageWindowManagerFactory.getImageManager().getInteractiveStructure();
         SegmentedObjectFactory factory = getFactory(structureIdx);
         int segmentationParentStructureIdx = db.getExperiment().getStructure(structureIdx).getSegmentationParentStructure();
         int parentStructureIdx = db.getExperiment().getStructure(structureIdx).getParentStructure();
