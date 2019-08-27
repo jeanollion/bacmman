@@ -215,25 +215,27 @@ public class ConfigurationTreeGenerator {
         tree.setRootVisible(!(rootParameter instanceof Experiment));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> { // compare tree
-            Predicate<Parameter> isPositionPredicate = pp->pp instanceof ListParameter && pp.getName().equals("Pre-Processing for all Positions");
-            boolean isPosition = rootParameter instanceof Experiment && ParameterUtils.testInParents(isPositionPredicate, p);
+            Predicate<Parameter> isPositionListPredicate = pp->pp instanceof ListParameter && pp.getName().equals("Pre-Processing for all Positions");
+            boolean isPosition = rootParameter instanceof Experiment && (ParameterUtils.testInParents(isPositionListPredicate, p, true));
             BiPredicate<Parameter, Parameter> pipelineDiffers = (pp, template) -> {
                 if (pp instanceof Position) return !((Position)p).getPreProcessingChain().getTransformations().sameContent(template);
                 else if (pp instanceof PreProcessingChain) return !((PreProcessingChain)p).getTransformations().sameContent(template);
-                else if (isPositionPredicate.test(pp)) return ((ListParameter)pp).getActivatedChildren().stream().anyMatch(ppp->!((Position)ppp).getPreProcessingChain().getTransformations().sameContent(template));
-                else return false;
-            };
-
-            if (compareTree==null) {
-                if (isPosition) { // compare position to local template
-                    Parameter template = ((Experiment)rootParameter).getPreProcessingTemplate().getTransformations();
+                else if (isPositionListPredicate.test(pp)) return ((ListParameter)pp).getActivatedChildren().stream().anyMatch(ppp->!((Position)ppp).getPreProcessingChain().getTransformations().sameContent(template));
+                else { // element of preprocessing pipeline: look for equivalent in template
                     PreProcessingChain ppchain = ParameterUtils.getFirstParameterFromParents(PreProcessingChain.class, p, false);
-                    if (ppchain==null) return pipelineDiffers.test(p, template); // parameter is before pre-processing pipeline
+                    if (ppchain==null) return false;
                     List<Integer> path = ParameterUtils.getPath(ppchain.getTransformations(), p);
                     if (path==null) return false;
                     Parameter compare = ParameterUtils.getParameterByPath(template, path);
                     if (compare==null) return true;
                     return !p.sameContent(compare);
+                }
+            };
+
+            if (compareTree==null) {
+                if (isPosition) { // compare position to local template
+                    Parameter template = ((Experiment)rootParameter).getPreProcessingTemplate().getTransformations();
+                    return pipelineDiffers.test(p, template);
                 }
                 return false;
             }
