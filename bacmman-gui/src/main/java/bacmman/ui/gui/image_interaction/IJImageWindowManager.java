@@ -217,10 +217,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     if (listener!=null) listener.fireTracksSelected(trackHeads, true);
                 }
                 if (freeHandSplit && r!=null && !selectedObjects.isEmpty()) {
-                    // remove if there are several objects per parent
+                    // if there are several objects per parent keep only to
                     List<SegmentedObject> objects = Pair.unpairKeys(selectedObjects);
-                    Map<SegmentedObject, List<SegmentedObject>> byParent = SegmentedObjectUtils.splitByParent(objects);
-                    objects.removeIf(o -> byParent.get(o.getParent()).size()>1);
+                    //Map<SegmentedObject, List<SegmentedObject>> byParent = SegmentedObjectUtils.splitByParent(objects);
+                    //objects.removeIf(o -> byParent.get(o.getParent()).size()>1);
                     // get line & split
                     FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                     ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
