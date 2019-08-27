@@ -328,6 +328,10 @@ public class Point<T extends Point> implements Offset<T>, RealLocalizable, JSONS
     public int getIntPosition(int d) {
         return (int)(coords[d]+0.5);
     }
+    public int getIntPositionWithDimCheck(int d) {
+        if (d>=coords.length) return 0;
+        return (int)(coords[d]+0.5);
+    }
 
     @Override
     public long getLongPosition(int d) {

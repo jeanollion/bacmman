@@ -258,12 +258,13 @@ public class ParameterUtils {
         }
         return null;
     }
-    public static boolean testInParents(Predicate<Parameter> isParent, Parameter parameter) {
+    public static boolean testInParents(Predicate<Parameter> test, Parameter parameter, boolean alsoTestOnnCurrent) {
         if (parameter==null) return false;
+        if (alsoTestOnnCurrent && test.test(parameter)) return true;
         Parameter parent=parameter;
         while (parent.getParent()!=null) {
             parent = ((Parameter)parent.getParent());
-            if (isParent.test(parent)) return true;
+            if (test.test(parent)) return true;
         }
         return false;
     }

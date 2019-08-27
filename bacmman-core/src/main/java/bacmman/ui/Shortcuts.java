@@ -61,7 +61,7 @@ public class Shortcuts {
     public static final Logger logger = LoggerFactory.getLogger(Shortcuts.class);
     public enum PRESET {QWERTY, AZERTY}
     public enum ACTION {LINK("Link selected objects"), UNLINK("Remove link between selected objects"), RESET_LINKS("Reset lineage of selected object(s)"), CREATE_TRACK("Create track starting from selected object(s)"),
-        DELETE("Delete selected object(s)"), DELETE_AFTER_FRAME("Delete all object(s) after first selected object"), PRUNE("Prune track starting from selected object(s)"), MERGE("Merge selected objects"), SPLIT("Split selected object(s)"), MANUAL_SPLIT("manual split objects", "Ctrl + freehand line"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
+        DELETE("Delete selected object(s)"), DELETE_AFTER_FRAME("Delete all object(s) after first selected object"), PRUNE("Prune track starting from selected object(s)"), MERGE("Merge selected objects"), SPLIT("Split selected object(s)"), MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "Ctrl + line"), MANUAL_CREATE("Creates an object draw with freehand line (use freehand line tool)", "ctrl + shift + line"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
         SELECT_ALL_OBJECTS("Display all objects on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + mouse wheel"),
         NAV_NEXT("Navigate to next objects of the selection enabled for navigation"), NAV_PREV("Navigate to previous objects of the selection enabled for navigation"), OPEN_NEXT("Display next image"), OPEN_PREV("Display previous image"),
@@ -278,11 +278,11 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL0, ADD_TO_SEL0, REM_FROM_SEL0, REM_ALL_FROM_SEL0,
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Object Edition: all action are performed on active image</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MERGE, SPLIT,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_SPLIT, MERGE, SPLIT,
             "<b>Lineage Edition: all action are performed on active image</b>",
             RESET_LINKS, LINK, UNLINK, CREATE_TRACK
         };
-        int shortcutWidth = 140;
+        int shortcutWidth = 165;
         Stream<Object[]> lines = Arrays.stream(actions).map(o-> new Object[]{formatString.apply(getShortcutString.apply(o)), formatString.apply(getDescription.apply(o))});
         
         JTable table = new JTable();

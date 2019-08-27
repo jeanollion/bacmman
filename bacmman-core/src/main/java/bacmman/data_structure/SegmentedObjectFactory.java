@@ -11,6 +11,9 @@ public class SegmentedObjectFactory {
         if (editableObjectClassIdx<0) throw new IllegalArgumentException("Editable object class idx cannot be negative");
         this.editableObjectClassIdx=editableObjectClassIdx;
     }
+    public int getEditableObjectClassIdx() {
+        return editableObjectClassIdx;
+    }
     public SegmentedObject duplicate(SegmentedObject o, boolean generateNewId, boolean duplicateRegion, boolean duplicateImages) {
         return o.duplicate(generateNewId, duplicateRegion, duplicateImages);
     }
