@@ -45,10 +45,7 @@ import java.awt.event.MouseListener;
 import java.awt.event.WindowListener;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 
@@ -58,9 +55,10 @@ import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
+import ij.process.ImageProcessor;
 
 import java.awt.KeyboardFocusManager;
-import java.util.HashSet;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
@@ -131,11 +129,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 //logger.debug("tool : {}", IJ.getToolName());
                 if (IJ.getToolName().equals("zoom") || IJ.getToolName().equals("hand") || IJ.getToolName().equals("multipoint") || IJ.getToolName().equals("point")) return;            
                 boolean ctrl = e.isControlDown();
-                //boolean ctrl = (IJ.isMacOSX() || IJ.isMacintosh()) ? e.isAltDown() : e.isControlDown(); // for mac: ctrl + clik = right click -> alt instead of ctrl
-                boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && ctrl;
+                boolean shift = e.isShiftDown();
+                //boolean ctrl = (IJ.isMacOSX() || IJ.isMacintosh()) ? e.isAltDown() : e.isControlDown(); // for mac: ctrl + click = right click -> alt instead of ctrl
+                boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && ctrl && !shift; //IJ.getToolName().equals("polyline")
+                boolean freeHandDraw = (IJ.getToolName().equals("freeline")) && ctrl && shift;
                 boolean strechObjects = (IJ.getToolName().equals("line")) && ctrl;
                 //logger.debug("ctrl: {}, tool : {}, freeHandSplit: {}", ctrl, IJ.getToolName(), freeHandSplit);
-                boolean addToSelection = e.isShiftDown() && (!freeHandSplit || !strechObjects);
+                boolean addToSelection = shift && (!freeHandSplit || !strechObjects || !freeHandDraw);
                 boolean displayTrack = displayTrackMode;
                 //logger.debug("button ctrl: {}, shift: {}, alt: {}, meta: {}, altGraph: {}, alt: {}", e.isControlDown(), e.isShiftDown(), e.isAltDown(), e.isMetaDown(), e.isAltGraphDown(), displayTrackMode);
                 InteractiveImage i = getImageObjectInterface(image);
@@ -178,7 +178,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
                             selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, ip.getSlice()-1));
                         }
-                        if (!freeHandSplit || !strechObjects) ip.deleteRoi();
+                        if (!freeHandSplit || !strechObjects || !freeHandDraw) ip.deleteRoi();
                     }
                 }
                 // simple click : get clicked object
@@ -225,6 +225,29 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                     ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
                     ManualEdition.splitObjects(GUI.getDBConnection(), objects, true, false, splitter);
+                } else if (freeHandDraw && r!=null) {
+                    logger.debug("freehand draw object class: {}, ", i.getChildStructureIdx());
+                    //if (selectedObjects.size()>1) return;
+                    int parentStructure = i.getParent().getStructureIdx();
+                    List<Pair<SegmentedObject, BoundingBox>> selectedParentObjects = new ArrayList<>();
+                    Rectangle rect = r.getBounds();
+                    MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice());
+                    getImageObjectInterface(image, parentStructure).addClickedObjects(selection, selectedParentObjects);
+                    if (selectedParentObjects.size()>1) {
+                        logger.debug("selection is over several parents: {}", selectedParentObjects.size());
+                        return;
+                    } else if (selectedParentObjects.isEmpty()) {
+                        return;
+                    }
+                    SegmentedObject parent = selectedParentObjects.get(0).key;
+                    FloatPolygon p = r.getInterpolatedPolygon(-1, true);
+                    Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
+                    List<SegmentedObject> seg = FreeLineSegmenter.segment(parent, selectedParentObjects.get(0).value, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx() , store);
+                    if (!seg.isEmpty()) {
+                        reloadObjects_(parent, i.getChildStructureIdx(), true);
+                        displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
+                    }
+
                 }
                 /*if (strechObjects && r!=null && !selectedObjects.isEmpty()) {
                     Structure s = selectedObjects.get(0).key.getExperiment().getStructure(completionStructureIdx);
@@ -248,6 +271,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         for (MouseListener m : mls) canvas.addMouseListener(m);
     }
     private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection, int sliceZ) {
+
         if (seg.getRegion() instanceof Spot) {
             return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
                 double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();

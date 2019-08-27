@@ -46,14 +46,14 @@ import java.util.stream.IntStream;
 public class FreeLineSplitter implements ObjectSplitter {
     final Map<Region, BoundingBox> offsetMap;
     final int[] xPoints, yPoints;
-    public FreeLineSplitter(Collection<Pair<SegmentedObject, BoundingBox>> objects, int[] xPoints, int[] yPoints) {
+    public FreeLineSplitter(Collection<Pair<SegmentedObject, BoundingBox>> touchedObjects, int[] xPoints, int[] yPoints) {
         if (xPoints.length!=yPoints.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
         //logger.debug("xPoints: {}", xPoints);
         //logger.debug("yPoints: {}", yPoints);
         this.xPoints=xPoints;
         this.yPoints=yPoints;
-        offsetMap = new HashMap<>(objects.size());
-        objects.forEach((p) -> {
+        offsetMap = new HashMap<>(touchedObjects.size());
+        touchedObjects.forEach((p) -> {
             offsetMap.put(p.key.getRegion(), p.value);
         });
     }
