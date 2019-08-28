@@ -82,14 +82,18 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (image instanceof Image) image = displayer.getImage((Image)image);
         if (image instanceof ImagePlus) ((ImagePlus)image).getWindow().addWindowListener(wl);
     }
+    String lastTool = "freeline";
     @Override
     public void toggleSetObjectCreationTool() {
         if (IJ.getToolName()=="point"||IJ.getToolName()=="multipoint") {
             ImagePlus imp = this.getDisplayer().getCurrentImage();
             if (imp !=null) imp.deleteRoi();
-            IJ.setTool("rect");
+            IJ.setTool(lastTool);
         }
-        else IJ.setTool("multipoint");
+        else {
+            lastTool = IJ.getToolName();
+            IJ.setTool("multipoint");
+        }
     }
     @Override 
     public boolean isCurrentFocusOwnerAnImage() {
@@ -245,7 +249,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     List<SegmentedObject> seg = FreeLineSegmenter.segment(parent, selectedParentObjects.get(0).value, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx() , store);
                     if (!seg.isEmpty()) {
                         reloadObjects_(parent, i.getChildStructureIdx(), true);
+                        hideLabileObjects(image);
                         displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
+                        displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor , true, false);
                     }
 
                 }
