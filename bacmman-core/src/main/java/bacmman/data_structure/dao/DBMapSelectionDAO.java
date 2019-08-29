@@ -114,7 +114,10 @@ public class DBMapSelectionDAO implements SelectionDAO {
     @Override
     public synchronized void store(Selection s) {
         idCache.put(s.getName(), s);
-        if (readOnly) return;
+        if (readOnly) {
+            logger.warn("Cannot store selection: {} for dataset: {} in read only mode. ", s, dir);
+            return;
+        }
         s.setMasterDAO(this.mDAO);
         if (db.isClosed()) makeDB();
         this.dbMap.put(s.getName(), JSONUtils.serialize(s));
