@@ -177,27 +177,45 @@ public class SegmentedObjectEditor {
         if (objects.isEmpty()) return Collections.EMPTY_LIST;
         Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
         List<SegmentedObject> allNewObjects = new ArrayList<>();
+        boolean merge = db.getExperiment().getStructure(factory.getEditableObjectClassIdx()).allowMerge();
+        boolean split = db.getExperiment().getStructure(factory.getEditableObjectClassIdx()).allowSplit();
         for (Map.Entry<String, List<SegmentedObject>> e : objectsByPosition.entrySet()) {
             ObjectDAO dao = db.getDao(e.getKey());
             Map<SegmentedObject, List<SegmentedObject>> objectsByParent = SegmentedObjectUtils.splitByParent(e.getValue());
+            if (!merge || ! split) { // order is important for links not to be lost by link rules
+                Comparator<SegmentedObject> comp = split ? Comparator.comparingInt(o->o.getFrame()) : Comparator.comparingInt(o->-o.getFrame());
+                Map<SegmentedObject, List<SegmentedObject>> map  = new TreeMap<>(comp);
+                map.putAll(objectsByParent);
+                objectsByParent = map;
+            }
+
             List<SegmentedObject> newObjects = new ArrayList<>();
             for (SegmentedObject parent : objectsByParent.keySet()) {
-                List<SegmentedObject> objectsToMerge = new ArrayList(objectsByParent.get(parent));
+                List<SegmentedObject> objectsToMerge = new ArrayList<>(objectsByParent.get(parent));
+                logger.debug("merge @ {} : {} objects", parent, objectsToMerge.size());
                 if (objectsToMerge.size() <= 1) logger.warn("Merge Objects: select several objects from same parent!");
                 else {
-                    List<SegmentedObject> prev = getPreviousObject(objectsToMerge); // previous object if all objects have same previous object
-                    List<SegmentedObject> next = getNextObject(objectsToMerge); // next object if all objects have same next object
+                    List<SegmentedObject> prev = getPreviousObject(objectsToMerge, merge); // previous objects
+                    List<SegmentedObject> next = getNextObject(objectsToMerge, split); // next objects
+                    // special case: when next is only one but track head: incomplete division -> need to create trackHead
+                    boolean incompleteDivNext = next!=null && next.size()==1 && next.get(0).isTrackHead();
+                    boolean incompleteDivPrev = prev!=null && prev.size()==1 && objectsToMerge.stream().allMatch(o->o.isTrackHead()) && getNextObject(prev, true).size()==1 ;
+                    logger.debug("merge. incomplete prev: {} incomplete next: {}", incompleteDivPrev, incompleteDivNext);
                     for (SegmentedObject o : objectsToMerge) unlinkObject(o, ALWAYS_MERGE, editor);
                     SegmentedObject res = objectsToMerge.remove(0);
                     for (SegmentedObject toMerge : objectsToMerge) res.merge(toMerge);
 
                     if (prev != null) {
-                        if (prev.size()==1)  linkObjects(prev.get(0), res, true, editor);
-                        else prev.forEach(p -> linkObjects(p, res, false, editor));
+                        if (prev.size()==1)  {
+                            linkObjects(prev.get(0), res, true, editor);
+                            if (incompleteDivPrev) res.setTrackHead(res, true, true, editor.getModifiedObjects());
+                        } else prev.forEach(p -> linkObjects(p, res, false, editor));
                     }
                     if (next != null) {
-                        if (next.size()==1) linkObjects(res, next.get(0), true, editor);
-                        else next.forEach(n -> linkObjects(res, n, false, editor));
+                        if (next.size()==1) {
+                            linkObjects(res, next.get(0), true, editor);
+                            if (incompleteDivNext) next.get(0).setTrackHead(next.get(0), true, true, editor.getModifiedObjects());
+                        } else next.forEach(n -> linkObjects(res, n, false, editor));
                     }
                     logger.debug("new object: {}, prev: {}, next: {}", res, prev, next);
                     newObjects.add(res);
@@ -212,11 +230,10 @@ public class SegmentedObjectEditor {
                     parent.relabelChildren(res.getStructureIdx(), editor.getModifiedObjects());
                     editor.getModifiedObjects().removeAll(objectsToMerge);
                     editor.getModifiedObjects().add(res);
-                    //if (prev!=null) editor.getModifiedObjects().addAll(prev);
-                    //if (next!=null) editor.getModifiedObjects().addAll(next);
-                    dao.store(editor.getModifiedObjects()); // todo store at the end to avoid storing several times some objects?
+
                 }
             }
+            dao.store(editor.getModifiedObjects());
             allNewObjects.addAll(newObjects);
         }
         return allNewObjects;
@@ -227,25 +244,31 @@ public class SegmentedObjectEditor {
      * @param list
      * @return previous object if all objects from list have same previous object (or no previous object)
      */
-    private static List<SegmentedObject> getPreviousObject(List<SegmentedObject> list) {
+    private static List<SegmentedObject> getPreviousObject(List<SegmentedObject> list, boolean allowMerge) {
         if (list.isEmpty()) return null;
         List<SegmentedObject> prev = null;
         for (SegmentedObject o : list) {
             List<SegmentedObject> l = getPrevious(o);
             if (l.isEmpty()) continue;
             if (prev==null) prev = l;
-            else if (!l.equals(prev)) return null;
+            else {
+                if (allowMerge) prev.addAll(l);
+                else if (!l.equals(prev)) return null;
+            }
         }
         return prev;
     }
-    private static List<SegmentedObject> getNextObject(List<SegmentedObject> list) {
+    private static List<SegmentedObject> getNextObject(List<SegmentedObject> list, boolean allowSplit) {
         if (list.isEmpty()) return null;
         List<SegmentedObject> next = null;
         for (SegmentedObject o : list) {
             List<SegmentedObject> l = getNext(o);
             if (l.isEmpty()) continue;
             if (next==null) next = l;
-            else if (!l.equals(next)) return null;
+            else {
+                if (allowSplit) next.addAll(l);
+                else if (!l.equals(next)) return null;
+            }
         }
         return next;
     }

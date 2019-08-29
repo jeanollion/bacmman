@@ -44,17 +44,8 @@ import bacmman.image.TypeConverter;
 import java.awt.Color;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
 
 import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.ObjectSplitter;
@@ -98,16 +89,37 @@ public class ManualEdition {
 
     public static void modifyObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean unlink, boolean updateDisplay) {
         SegmentedObjectUtils.keepOnlyObjectsFromSameMicroscopyField(objects);
-        int objectClassIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
-
+        SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.size()<=1) return;
-        
         if (updateDisplay) ImageWindowManagerFactory.getImageManager().removeTracks(SegmentedObjectUtils.getTrackHeads(objects));
         int structureIdx = objects.get(0).getStructureIdx();
         boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
         boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
-        
         Set<SegmentedObject> modifiedObjects = new HashSet<>();
+        modifyObjectLinks(objects, unlink, merge, split, modifiedObjects);
+        if (db!=null) db.getDao(objects.get(0).getPositionName()).store(modifiedObjects);
+        if (updateDisplay) {
+            // reload track-tree and update selection toDelete
+            int parentStructureIdx = objects.get(0).getParent().getStructureIdx();
+            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
+            //List<List<StructureObject>> tracks = this.trackTreeController.getGeneratorS().get(structureIdx).getSelectedTracks(true);
+            // get unique tracks to display
+            Set<SegmentedObject> uniqueTh = new HashSet<>();
+            for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
+            List<List<SegmentedObject>> trackToDisp = new ArrayList<>();
+            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o, true));
+            // update current image
+            ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+            if (!trackToDisp.isEmpty()) {
+                iwm.displayTracks(null, null, trackToDisp, true);
+                //GUI.updateRoiDisplayForSelections(null, null);
+            }
+        }
+    }
+    public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean allowMerge, boolean allowSplit, Set<SegmentedObject> modifiedObjects) {
+        if (objects.size()<=1) return;
+        int objectClassIdx =objects.get(0).getStructureIdx();
+        if (objects.stream().anyMatch(o->o.getStructureIdx()!=objectClassIdx)) throw new IllegalArgumentException("At least 2 object have different object class");
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
         TreeMap<SegmentedObject, List<SegmentedObject>> objectsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParent(objects)); // sorted by time point
         List<Pair<SegmentedObject, SegmentedObject>> existingUneditedLinks=null;
@@ -126,22 +138,22 @@ public class ManualEdition {
                     if (unlink) {
                         if (current.get(0).getPrevious()==prev.get(0) || prev.get(0).getNext()==current) { //unlink the 2 spots
                             unlinkObjects(prev.get(0), current.get(0), ALWAYS_MERGE, editor);
-                        } 
+                        }
                     } else linkObjects(prev.get(0), current.get(0), true, editor);
-                } else if (prev.size()==1 && split && !merge) {
+                } else if (prev.size()==1 && allowSplit && !allowMerge) {
                     for (SegmentedObject c : current) {
                         if (unlink) {
                             if (c.getPrevious()==prev.get(0) || prev.get(0).getNext()==c) { //unlink the 2 spots
                                 unlinkObjects(prev.get(0), c, ALWAYS_MERGE, editor);
-                            } 
+                            }
                         } else linkObjects(prev.get(0), c, false, editor);
                     }
-                } else if (current.size()==1 && !split && merge) {
+                } else if (current.size()==1 && !allowSplit && allowMerge) {
                     for (SegmentedObject p : prev) {
                         if (unlink) {
                             if (current.get(0).getPrevious()==p || p.getNext()==current.get(0)) { //unlink the 2 spots
                                 unlinkObjects(p, current.get(0), ALWAYS_MERGE, editor);
-                            } 
+                            }
                         } else linkObjects(p, current.get(0), false, editor);
                     }
                 } else { // link closest object
@@ -171,8 +183,8 @@ public class ManualEdition {
                         }
                     }
                 }
-                
-            } 
+
+            }
             prevParent=currentParent;
             prev = current;
         }
@@ -184,7 +196,7 @@ public class ManualEdition {
             //logger.debug("Mean size: {}", meanLength);
             double dMax = Math.sqrt(Double.MAX_VALUE)/100;
             tmi.processFTF(dMax); // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
-            tmi.processGC(dMax, 0, split, merge);
+            tmi.processGC(dMax, 0, allowSplit, allowMerge);
             logger.debug("link objects: {}", allObjects);
             tmi.setTrackLinks(map, editor);
             modifiedObjects.addAll(allObjects);
@@ -210,26 +222,7 @@ public class ManualEdition {
         }
         //repairLinkInconsistencies(db, modifiedObjects, modifiedObjects);
         Utils.removeDuplicates(modifiedObjects, false);
-        db.getDao(objects.get(0).getPositionName()).store(modifiedObjects);
-        if (updateDisplay) {
-            // reload track-tree and update selection toDelete
-            int parentStructureIdx = objects.get(0).getParent().getStructureIdx();
-            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
-            //List<List<StructureObject>> tracks = this.trackTreeController.getGeneratorS().get(structureIdx).getSelectedTracks(true);
-            // get unique tracks to display
-            Set<SegmentedObject> uniqueTh = new HashSet<>();
-            for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
-            List<List<SegmentedObject>> trackToDisp = new ArrayList<>();
-            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o, true));
-            // update current image
-            ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-            if (!trackToDisp.isEmpty()) {
-                iwm.displayTracks(null, null, trackToDisp, true);
-                //GUI.updateRoiDisplayForSelections(null, null);
-            }
-        }
     }
-
 
     public static void createTracks(MasterDAO db, Collection<SegmentedObject> futureTrackHeads, boolean updateDisplay) {
         if (futureTrackHeads.isEmpty()) return;
@@ -462,6 +455,8 @@ public class ManualEdition {
             logger.warn("No splitter configured");
             return;
         }
+        boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
+        boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
         SegmentedObjectFactory factory = getFactory(structureIdx);
         Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
         for (String f : objectsByPosition.keySet()) {
@@ -470,7 +465,11 @@ public class ManualEdition {
             TrackLinkEditor editor = getEditor(structureIdx, objectsToStore);
             List<SegmentedObject> newObjects = new ArrayList<>();
             if (!(splitter instanceof FreeLineSplitter)) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(o->o.getParent()), structureIdx, xp, dao);
-            for (SegmentedObject objectToSplit : objectsByPosition.get(f)) {
+            List<SegmentedObject> objectsToSplit = objectsByPosition.get(f);
+            // order is important for links not to be lost by link rules
+            if (split && !merge) Collections.sort(objectsToSplit, Comparator.comparingInt(o->-o.getFrame()));
+            else if (merge && !split) Collections.sort(objectsToSplit);
+            for (SegmentedObject objectToSplit : objectsToSplit) {
                 if (defaultSplitter==null) splitter = xp.getStructure(structureIdx).getObjectSplitter();
                 splitter.setSplitVerboseMode(test);
                 if (test) splitter.splitObject(objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
@@ -485,14 +484,18 @@ public class ManualEdition {
                         for (SegmentedObject n : nexts) unlinkObjects(objectToSplit, n, ALWAYS_MERGE, editor);
                         SegmentedObject next = nexts.size()==1 ? nexts.get(0) : null;
                         factory.relabelChildren(objectToSplit.getParent(), objectsToStore);
-                        /*if (prev!=null && objectToSplit.getExperiment().getStructure(objectToSplit.getStructureIdx()).allowSplit()) {
-                            linkObjects(prev, objectToSplit, objectsToStore);
-                            linkObjects(prev, newObject, objectsToStore);
+                        if (prev!=null && split) {
+                            linkObjects(prev, objectToSplit, false, editor);
+                            linkObjects(prev, newObject, false, editor);
                         }
-                        if (next!=null && objectToSplit.getExperiment().getStructure(objectToSplit.getStructureIdx()).allowMerge()) {
-                            linkObjects(objectToSplit, next, objectsToStore);
-                            linkObjects(newObject, next, objectsToStore);
-                        }*/
+                        if (next!=null && merge) {
+                            linkObjects(objectToSplit, next, false, editor);
+                            linkObjects(newObject, next, false,  editor);
+                        } else if (nexts.size()==2) {
+                            nexts.add(newObject);
+                            nexts.add(objectToSplit);
+                            modifyObjectLinks(nexts, false, merge, split, objectsToStore);
+                        }
                         objectsToStore.add(newObject);
                         objectsToStore.add(objectToSplit);
                     }
