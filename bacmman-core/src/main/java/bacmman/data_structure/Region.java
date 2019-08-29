@@ -261,8 +261,10 @@ public class Region {
             // check if all voxels are within mask
             boolean within = true;
             for (Voxel v : voxelsToAdd) {if (!mask.containsWithOffset(v.x, v.y, v.z)); within=false; break;}
-            if (!within) mask = null;
-            else {
+            if (!within) {
+                if (voxels==null) getVoxels().addAll(voxelsToAdd);
+                mask = null;
+            } else {
                 ensureMaskIsImageInteger();
                 ImageInteger mask = getMaskAsImageInteger();
                 for (Voxel v : voxelsToAdd) mask.setPixelWithOffset(v.x, v.y, v.z, 1);
