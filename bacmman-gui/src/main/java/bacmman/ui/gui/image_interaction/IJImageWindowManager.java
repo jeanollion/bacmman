@@ -246,7 +246,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     SegmentedObject parent = selectedParentObjects.get(0).key;
                     FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                     Consumer<Collection<SegmentedObject>> store = l -> GUI.getDBConnection().getDao(parent.getPositionName()).store(l);
-                    List<SegmentedObject> seg = FreeLineSegmenter.segment(parent, selectedParentObjects.get(0).value, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx() , store);
+                    Collection<SegmentedObject> seg = FreeLineSegmenter.segment(parent, selectedParentObjects.get(0).value, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx() , store);
                     if (!seg.isEmpty()) {
                         reloadObjects_(parent, i.getChildStructureIdx(), true);
                         hideLabileObjects(image);
