@@ -28,10 +28,7 @@ public class FreeLineSegmenter {
     public final static Logger logger = LoggerFactory.getLogger(FreeLineSegmenter.class);
     public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, Collection<SegmentedObject> touchedObjects, int[] xContour, int[] yContour, int objectClassIdx, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (xContour.length!=yContour.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
-
-
         Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
-
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
         boolean isClosed = Math.pow(xContour[0]-xContour[xContour.length-1], 2) + Math.pow(yContour[0]-yContour[xContour.length-1], 2) <=1;
         int modifyObjectLabel;
@@ -52,7 +49,7 @@ public class FreeLineSegmenter {
         } else modifyObjectLabel = 0;
         Set<Voxel> voxels = IntStream.range(0, xContour.length).mapToObj(i->new Voxel(xContour[i], yContour[i], 0)).map(v->v.translate(revOff)).collect(Collectors.toSet());
         if (modifyObjectLabel==0) { // create a new object
-            if (!isClosed) {
+            if (!isClosed) { // close the object by tracing a line between 2 extremities
                 Point start = new Point(xContour[0], yContour[0]).translate(revOff);
                 Point end = new Point(xContour[xContour.length - 1], yContour[xContour.length - 1]).translate(revOff);
                 Vector dir = Vector.vector(start, end).normalize().multiply(0.5);
@@ -67,12 +64,12 @@ public class FreeLineSegmenter {
             //Filters.binaryOpen(r.getMaskAsImageInteger(), (ImageInteger) r.getMaskAsImageInteger(), Filters.getNeighborhood(1, r.getMaskAsImageInteger()), true);
             r.clearVoxels();
 
-            //logger.debug("region size {}", r.size());
+            logger.debug("region size {}", r.size());
             ImageMask parentMask = parent.getMask();
             r.removeVoxels(r.getVoxels().stream().filter(v -> !parentMask.contains(v.x, v.y, v.z) || !parentMask.insideMask(v.x, v.y, v.z)).collect(Collectors.toList()));
-            //logger.debug("region size after overlap with parent {}", r.size());
+            logger.debug("region size after overlap with parent {}", r.size());
             r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z)).collect(Collectors.toList())); // remove points already segmented
-
+            logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
             r.translate(parent.getBounds());
             r.setIsAbsoluteLandmark(true);
@@ -105,7 +102,18 @@ public class FreeLineSegmenter {
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         SegmentedObject so = new SegmentedObject(parent.getFrame(), objectClassIdx, r.getLabel() - 1, r, parent);
         List<SegmentedObject> objects = parent.getChildren(objectClassIdx).collect(Collectors.toList());
-        objects.add(so);
+
+        // HEURISTIC TO FIND INSERTION POINT // todo ALSO USE IN OBJECT CREATOR
+        Point ref = r.getBounds().getCenter();
+        SegmentedObject[] twoClosest = objects.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(o->o.getIdx())).toArray(SegmentedObject[]::new);
+        if (twoClosest.length<2) objects.add(so);
+        else {
+            Vector dir1 = Vector.vector(twoClosest[0].getBounds().getCenter(), twoClosest[1].getBounds().getCenter());
+            Vector dir2 = Vector.vector(twoClosest[1].getBounds().getCenter(), ref);
+            int idx = dir1.dotProduct(dir2)>0 ? twoClosest[1].getIdx() : twoClosest[0].getIdx();
+            objects.add(idx+1, so);
+        }
+
         factory.setChildren(parent, objects);
         Set<SegmentedObject> modified = new HashSet<>();
         factory.relabelChildren(parent, modified);

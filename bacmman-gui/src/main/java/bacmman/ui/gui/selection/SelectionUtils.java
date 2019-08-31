@@ -179,6 +179,7 @@ public class SelectionUtils {
     }
     public static String getNextPosition(Selection selection, String position, boolean next) {
         List<String> p = new ArrayList<>(selection.getAllPositions());
+        if (p.isEmpty()) return null;
         Collections.sort(p);
         int idx = position ==null ? -1 : Collections.binarySearch(p, position);
         logger.debug("getNext pos: {}, cur: {}, idx: {}", p, position, idx);
@@ -233,15 +234,13 @@ public class SelectionUtils {
         int[] path = db.getExperiment().experimentStructure.getPathToStructure(parentStructureIdx, sel.getStructureIdx());
         List<String> parentStrings = parentStructureIdx!=sel.getStructureIdx()?Utils.transform(sel.getElementStrings(position), s->Selection.getParent(s, path.length)):new ArrayList<>(sel.getElementStrings(position));
         Utils.removeDuplicates(parentStrings, false);
+        logger.debug("get parent sel: path: {}, parent strings: {}", path, parentStrings);
         Stream<SegmentedObject> allObjects = SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentStructureIdx);
         return new ArrayList<>(SelectionUtils.filter(allObjects, parentStrings));
     }
     public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
         List<SegmentedObject> parents = SelectionUtils.getParents(sel, position, parentStructureIdx, db);
-        //logger.debug("parents: {}", parents.size());
-        parents = Utils.transform(parents, o -> o.getTrackHead());
-        Utils.removeDuplicates(parents, false);
-        return parents;
+        return parents.stream().map(p->p.getTrackHead()).distinct().collect(Collectors.toList());
     }
     public static InteractiveImage fixIOI(InteractiveImage i, int structureIdx) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();

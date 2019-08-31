@@ -96,7 +96,7 @@ public class PythonGateway {
             if (ids.size()>200) throw new IllegalArgumentException("too many objects in selection");
             SelectionUtils.displaySelection(savedSel, -2, objectClassIdxDisplay);
         } else if (open) {
-            GUI.getInstance().navigateToNextObjects(true, false, objectClassIdxDisplay, interactiveObjectClassIdx<0);
+            GUI.getInstance().navigateToNextObjects(true, null, false, objectClassIdxDisplay, interactiveObjectClassIdx<0);
         }
         if (interactiveObjectClassIdx>=0) GUI.getInstance().setInteractiveStructureIdx(interactiveObjectClassIdx);
     }

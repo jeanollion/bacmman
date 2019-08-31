@@ -2765,7 +2765,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
     }
     private int navigateCount = 0;
-    public void navigateToNextObjects(boolean next, boolean nextPosition, int structureDisplay, boolean setInteractiveStructure) {
+    public void navigateToNextObjects(boolean next, String position, boolean nextPosition, int structureDisplay, boolean setInteractiveStructure) {
         if (trackTreeController==null) this.loadObjectTrees();
         Selection sel = getNavigatingSelection();
         if (sel==null) {
@@ -2794,12 +2794,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             setInteractiveStructureIdx(sel.getStructureIdx());
             interactiveStructureActionPerformed(null);
         }
-
-        String position = i==null? null:i.getParent().getPositionName();
+        if (position==null && i!=null) position = i.getParent().getPositionName();
         if (i==null || nextPosition) { // no image
             navigateCount=2;
-        }
-        else { // try to move within current image
+        } else { // try to move within current image
             i = SelectionUtils.fixIOI(i, sel.getStructureIdx());
             List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(i.getObjects(), sel.getElementStrings(position)));
             logger.debug("#objects from selection on current image: {} (display sIdx: {}, IOI: {}, sel: {})", objects.size(), structureDisplay, i.getChildStructureIdx(), sel.getStructureIdx());
@@ -2811,12 +2809,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Collection<String> l=null;
             boolean positionChanged = false;
             if (nextPosition || position==null) {
-                String selPos = null;
-                //if (position==null) selPos = this.trackTreeController.getSelectedPosition();
                 String[] allPos = db.getExperiment().getPositionsAsString();
                 Predicate<String> insideXP = p -> p!=null && Arrays.stream(allPos).anyMatch(pp->pp.equals(p));
-                if (selPos!=null) position = selPos;
-                else position = SelectionUtils.getNextPosition(sel, position, next, p->insideXP.test(p) && sel.hasElementsAt(p));
+                position = SelectionUtils.getNextPosition(sel, position, next, p->insideXP.test(p) && sel.hasElementsAt(p));
                 i=null;
                 if (position!=null) {
                     positionChanged = true;
@@ -2828,25 +2823,32 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (position==null) return;
             this.trackTreeController.selectPosition(position, sel.getStructureIdx());
             int parentSIdx = sel.getMasterDAO().getExperiment().experimentStructure.getParentObjectClassIdx(sel.getStructureIdx());
+            if (parentSIdx==-1) {
+                if (i!=null && i.getParent().getStructureIdx()!=-1) {
+                    if (i.getParent().getStructureIdx()==sel.getStructureIdx()) parentSIdx = sel.getStructureIdx();
+                    else if (sel.getMasterDAO().getExperiment().experimentStructure.isChildOf(i.getParent().getStructureIdx(), sel.getStructureIdx())) parentSIdx=i.getParent().getStructureIdx();
+                }
+            }
             List<SegmentedObject> parents = SelectionUtils.getParentTrackHeads(sel, position, parentSIdx, db);
             Collections.sort(parents);
-            logger.debug("parent track heads: {} (sel: {}, displaySIdx: {})", parents.size(), sel.getStructureIdx(), structureDisplay);
+            logger.debug("parent track heads: {} (sel object Idx: {}, parent object class: {}, displaySIdx: {})", parents.size(), sel.getStructureIdx(), parentSIdx, structureDisplay);
             int nextParentIdx = 0;
             if (i!=null && !positionChanged) { // look for next parent within parents of current position
                 int idx = Collections.binarySearch(parents, i.getParent());
-                if (idx<-1) { // current image's parent is not in selection
+                if (idx<=-1) { // current image's parent is not in selection
                     if (i.getParent().getPositionName().equals(position)) nextParentIdx = -idx-1 + (next ? 0:-1); // current parent is of same position -> compare to selection parents of this position
                     else nextParentIdx = next ? 0 : parents.size()-1; // current parent is not from the same position -> start from first or last element
                 }
-                else if (idx==-1) nextParentIdx=-1;
+                //else if (idx==-1) nextParentIdx=-1;
                 else nextParentIdx = idx + (next ? 1:-1) ;
                 logger.warn("next parent idx: {} (search idx: {}) parent {} all parents: {}", nextParentIdx, idx, i.getParent(), parents);
             } else if (positionChanged) {
                 nextParentIdx = next ? 0 : parents.size()-1;
             }
             if ((nextParentIdx<0 || nextParentIdx>=parents.size())) {
+                // here check that there is a next position in selection ?
                 logger.warn("no next parent found in objects parents: {} -> will change position", parents);
-                navigateToNextObjects(next, true, structureDisplay, setInteractiveStructure);
+                navigateToNextObjects(next, position, true, structureDisplay, setInteractiveStructure);
             } else {
                 SegmentedObject nextParent = parents.get(nextParentIdx);
                 logger.debug("next parent: {} among: {}", nextParent, parents);
@@ -4105,7 +4107,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void previousTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_previousTrackErrorButtonActionPerformed
         if (!checkConnection()) return;
-        navigateToNextObjects(false, false, -1, true);
+        navigateToNextObjects(false, null, false, -1, true);
     }//GEN-LAST:event_previousTrackErrorButtonActionPerformed
 
     private void mergeObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_mergeObjectsButtonActionPerformed
@@ -4126,7 +4128,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void nextTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed
         if (!checkConnection()) return;
-        navigateToNextObjects(true, false, -1, true);
+        navigateToNextObjects(true, null, false, -1, true);
     }//GEN-LAST:event_nextTrackErrorButtonActionPerformed
 
     private void selectAllTracksButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_selectAllTracksButtonActionPerformed

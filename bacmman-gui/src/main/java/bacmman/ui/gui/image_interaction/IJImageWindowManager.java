@@ -241,6 +241,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         logger.debug("selection is over several parents: {}", selectedParentObjects.size());
                         return;
                     } else if (selectedParentObjects.isEmpty()) {
+                        logger.debug("no parent touched");
                         return;
                     }
                     SegmentedObject parent = selectedParentObjects.get(0).key;
@@ -252,7 +253,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         hideLabileObjects(image);
                         displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
                         displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor , true, false);
-                    }
+                    } else logger.debug("no object could be segmented");
 
                 }
                 /*if (strechObjects && r!=null && !selectedObjects.isEmpty()) {
@@ -371,8 +372,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         SegmentedObjectAccessor accessor = getAccessor();
         if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI
             r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
-                    .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
-            
+                    .translate(new SimpleOffset(object.value)
+                    .translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
+
         } else if (object.key.getRegion() instanceof Spot) {
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
             double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();
