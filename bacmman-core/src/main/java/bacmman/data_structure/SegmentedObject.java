@@ -688,7 +688,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             if (regionContainer==null) return null;
             synchronized(this) {
                 if (object==null) {
-                    object=regionContainer.getRegion().setIsAbsoluteLandmark(true); 
+                    object=regionContainer.getRegion().setIsAbsoluteLandmark(true);
                     if (attributes!=null) {
                         if (attributes.containsKey("Quality")) object.setQuality((Double)attributes.get("Quality"));
                         if (attributes.containsKey("Center")) object.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center")))); 

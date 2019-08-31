@@ -125,6 +125,10 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         if (sizeZ()<=1) return zMin;
         return (zMin+zMax)/2d;
     }
+    @Override
+    public Point getCenter() {
+        return new Point((float)xMean(), (float)yMean(), (float)zMean());
+    }
     public boolean isEmpty() {
         return sizeX()<=0 || sizeY()<=0 || sizeZ()<=0;
     }

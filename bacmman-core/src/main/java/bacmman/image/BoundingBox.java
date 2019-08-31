@@ -46,6 +46,7 @@ public interface BoundingBox<T extends BoundingBox> extends Offset<T> {
     public boolean containsWithOffset(Point point);
     public boolean sameBounds(BoundingBox other);
     public boolean sameDimensions(BoundingBox other);
+    Point getCenter();
     /**
      * 
      * @param b1

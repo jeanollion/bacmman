@@ -162,7 +162,9 @@ public class RegionPopulation {
         }
         return objects;
     }
-
+    public Region getRegion(int label) {
+        return objects.stream().filter(r->r.getLabel()==label).findAny().orElse(null);
+    }
     private void draw(Region o, int label) {
         //if (this.absoluteLandmark) o.draw(labelImage, label, new BoundingBox(0, 0, 0)); // in order to remove the offset of the image
         //else o.draw(labelImage, label);

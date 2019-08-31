@@ -405,7 +405,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     }
     @Override
     public void clearCache() {
-        logger.debug("clearing cache for Dao: {} / objects: {}, measurements: {}", this.positionName, this.dbS.keySet(), this.measurementdbS.keySet());
+        //logger.debug("clearing cache for Dao: {} / objects: {}, measurements: {}", this.positionName, this.dbS.keySet(), this.measurementdbS.keySet());
         applyOnAllOpenedObjects(o->{
             getMasterDAO().getAccess().flushImages(o);
             if (o.hasRegion()) o.getRegion().clearVoxels();

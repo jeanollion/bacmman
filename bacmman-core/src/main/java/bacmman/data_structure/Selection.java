@@ -534,11 +534,11 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public static String getParent(String idx, int n) {
         if (n==0) return idx;
         int[] i = parseIndices(idx);
-        if (i.length==2) {
+        if (false && i.length==2) {
             i[1]=0;
             return indicesToString(i);
         } else {
-            n = Math.min(i.length-2, n);
+            n = Math.min(i.length-1, n);
             int[] ii = new int[i.length-n];
             System.arraycopy(i, 0, ii, 0, ii.length);
             return indicesToString(ii);
