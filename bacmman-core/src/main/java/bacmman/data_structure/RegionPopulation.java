@@ -157,13 +157,14 @@ public class RegionPopulation {
     }
 
     public List<Region> getRegions() {
-        if (objects == null) {
-            constructObjects();
-        }
+        if (objects == null) constructObjects();
         return objects;
     }
     public Region getRegion(int label) {
-        return objects.stream().filter(r->r.getLabel()==label).findAny().orElse(null);
+        if (objects == null) constructObjects();
+        return objects.stream()
+                .filter(r->r.getLabel()==label)
+                .findAny().orElse(null);
     }
     private void draw(Region o, int label) {
         //if (this.absoluteLandmark) o.draw(labelImage, label, new BoundingBox(0, 0, 0)); // in order to remove the offset of the image
