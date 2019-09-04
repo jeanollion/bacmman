@@ -50,13 +50,13 @@ public class ExtractDataset {
         Core.getCore();
         PluginFactory.findPlugins("plugins.plugins");
         final String refSelName = "ds_noError";
-        //String[] selectionNames= new String[]{"ds_seg"};
-        String[] selectionNames= new String[]{"ds_noError"};
+        String[] selectionNames= new String[]{"ds_test"};
+        //String[] selectionNames= new String[]{"ds_noError"};
         //String[] selectionNames= new String[]{"anomalyDS_normal", "anomalyDS_anomaly", "anomalyDS_packed"};
-        String[] datasets = new String[]{"MutH_140115"};
+        String[] datasets = new String[]{"WT_180318_Fluo", "MF1_170511", "MutH_151220"};
         //String[] datasets = new String[]{"MutH_151220", "MutH_150324", "MutH_140115", "WT_150609", "WT_150616", "MutT_150402"};
         Path outputPath = Paths.get("/data/Images/MOP/data_segDis_resampled/");
-        String fileName = "bacteriaSegDis.h5";
+        String fileName = "bacteriaSegTrackToPredict.h5";
         if (!Files.exists(outputPath)) {
             try {
                 Files.createDirectories(outputPath);
@@ -80,8 +80,8 @@ public class ExtractDataset {
                 for (String position : sel.getAllPositions()) {
                     Map<SegmentedObject, RegionPopulation> resampledPop = getResampledPopMap(1, dimensions);
                     String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
-                    extractEDM(outputPath.resolve(fileName), outputName + "edm", sel, position, resampledPop,dimensions);
-                    extractDisplacement(outputPath.resolve(fileName), outputName + "dy", sel, position, 1, resampledPop, dimensions);
+                    //extractEDM(outputPath.resolve(fileName), outputName + "edm", sel, position, resampledPop,dimensions);
+                    //extractDisplacement(outputPath.resolve(fileName), outputName + "dy", sel, position, 1, resampledPop, dimensions);
                     extractRaw(outputPath.resolve(fileName), outputName + "raw", mDAO, sel, position, false, dimensions);
                 }
             }

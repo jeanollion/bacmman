@@ -171,12 +171,13 @@ public class PyDatasetReader {
             res = HDF5IO.readPyDataset(reader, dsName(posName) + "/" + dsName, false, idx);
             //}
             ObjectCoordinates[] coords = this.coords.get(posName);
+            if (idx == null) idx = ArrayUtil.generateIntegerArray(res.length);
             for (int i = 0; i<idx.length; ++i) if (res[i]!=null) res[i].setName(coords[idx[i]].label);
 
             long t2 = System.currentTimeMillis();
             logger.debug("extracted: {} images (#null={}) in {}ms", res.length, Arrays.stream(res).filter(i->i==null).count(), t2-t1);
             if (resampleBack) {
-                if (idx == null) idx = ArrayUtil.generateIntegerArray(res.length);
+
                 int[][] originalDims = this.originalDims.get(posName);
                 logger.debug("original dims: 0={}, 1={} #={}, dim={}", originalDims[0], originalDims[1], originalDims.length, res[0].getBoundingBox());
                 IntStream.range(0, idx.length).filter(i -> res[i] != null)
