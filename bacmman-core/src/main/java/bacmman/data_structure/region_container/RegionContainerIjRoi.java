@@ -95,7 +95,7 @@ public class RegionContainerIjRoi extends RegionContainer {
             ImageProcessor mask = r.getMask();
             if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
                 ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
-                logger.debug("object: {} paste image during ij roi decoding: roi: {} object bounds: {}", structureObject, i.getBoundingBox(), bounds);
+                //logger.debug("object: {} paste image during ij roi decoding: roi: {} object bounds: {}", structureObject, i.getBoundingBox(), bounds);
                 mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds)).getProcessor();
             }
             stack.setProcessor(mask, z-bounds.zMin()+1);
