@@ -184,6 +184,7 @@ public class PluginConfigurationUtils {
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
                 //((TrackerSegmenter)plugin).segmentAndTrack(structureIdx, parentTrackDup, psc.getTrackPreFilters(true), psc.getPostFilters());
             } else { // track only
+                if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
                 ((Tracker)plugin).track(structureIdx, parentTrackDup, getEditor(structureIdx));
                 //TrackPostFilterSequence tpf= (psc instanceof ProcessingPipelineWithTracking) ? ((ProcessingPipelineWithTracking)psc).getTrackPostFilters() : null;
                 //if (tpf!=null) tpf.filter(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));

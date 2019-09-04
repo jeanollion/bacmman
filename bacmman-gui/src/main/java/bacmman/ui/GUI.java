@@ -2960,7 +2960,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 return false;
             }
             Experiment xp2 = new Experiment(name);
-            xp2.setName(name);
             if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) xp2.setOutputDirectory(adress+File.separator+"Output");
             db2.setExperiment(xp2);
             db2.updateExperiment();
