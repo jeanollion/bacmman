@@ -1017,7 +1017,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     
     public String toStringShort() {
         if (isRoot()) return "";
-        else return "S:"+structureIdx+ ",Idx:"+idx+ ",P:["+getParent().toStringShort()+"]" ;
+        else return "S:"+structureIdx+ ",Idx:"+idx+ ",P:["+(getParent()==null?"f"+getFrame()+"-null":getParent().toStringShort())+"]" ;
     }
     
     @Override

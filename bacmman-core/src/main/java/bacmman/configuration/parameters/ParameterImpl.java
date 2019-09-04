@@ -77,8 +77,9 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     }
     
     @Override
-    public void setName(String name) {
+    public P setName(String name) {
         this.name=name;
+        return (P) this;
     }
     
     @Override

@@ -147,8 +147,9 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     }
     
     @Override
-    public void setName(String name) {
+    public P setName(String name) {
         this.name=name;
+        return (P)this;
     }
     
     @Override

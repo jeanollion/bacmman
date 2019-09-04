@@ -310,7 +310,7 @@ public class DBMapMasterDAO implements MasterDAO {
             return null;
         }
         if (xpString==null || xpString.length()==0) return null;
-        Experiment xp = new Experiment().setPath(configDir);
+        Experiment xp = new Experiment(dbName).setPath(configDir);
         xp.initFromJSONEntry(JSONUtils.parse(xpString));
         return xp;
     }

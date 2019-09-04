@@ -131,7 +131,7 @@ public class TrackMateInterface<S extends Spot> {
         return true;
     }
 
-    public boolean processGC(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) {
+    public boolean processGC(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) { // maxFrameGap changed -> now 1= 1 frame gap 4/09/19
         long t0 = System.currentTimeMillis();
         Set<S> unlinkedSpots;
         if (graph == null) {
@@ -154,7 +154,7 @@ public class TrackMateInterface<S extends Spot> {
         // Prepare settings object
         final Map< String, Object > slSettings = new HashMap<>();
 
-        slSettings.put( KEY_ALLOW_GAP_CLOSING, maxFrameGap>1 );
+        slSettings.put( KEY_ALLOW_GAP_CLOSING, maxFrameGap>=1 );
         //slSettings.put( KEY_GAP_CLOSING_FEATURE_PENALTIES, settings.get( KEY_GAP_CLOSING_FEATURE_PENALTIES ) );
         slSettings.put( KEY_GAP_CLOSING_MAX_DISTANCE, distanceThreshold );
         slSettings.put( KEY_GAP_CLOSING_MAX_FRAME_GAP, maxFrameGap );

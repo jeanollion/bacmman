@@ -56,6 +56,7 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
     }
 
     public BiFunction<? super Interface, ? super Interface, Integer> compareMethod=null;
+
     public Image drawInterfaceValues(RegionPopulation pop) {
         return RegionCluster.drawInterfaceValues(new RegionCluster<>(pop, true, getFactory()), i->{i.updateInterface(); return i.value;});
     }

@@ -38,7 +38,7 @@ public interface Parameter<P extends Parameter<P>> extends MutableTreeNode, JSON
     boolean sameContent(Parameter other);
     P duplicate();
     String getName();
-    void setName(String name);
+    <T extends P> T setName(String name);
     String toStringFull();
     <T extends P> T setHint(String tip);
     <T extends P> T setSimpleHint(String simpleHint);

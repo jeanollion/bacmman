@@ -257,8 +257,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     }
     
     @Override
-    public void setName(String name) {
+    public L setName(String name) {
         this.name=name;
+        return (L)this;
     }
     
     @Override

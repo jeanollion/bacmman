@@ -27,9 +27,7 @@ import bacmman.data_structure.SegmentedObjectFactory;
 import java.util.List;
 
 import bacmman.data_structure.TrackLinkEditor;
-import bacmman.plugins.Hint;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.TrackerSegmenter;
+import bacmman.plugins.*;
 
 /**
  *
@@ -50,9 +48,12 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
     public String getHintText() {
         return "Performs the segmentation and Tracking steps jointly. Allows some tracker correcting segmentation errors.";
     }
-    
+
+    @Override
     public TrackerSegmenter getTracker() {
-        return tracker.instanciatePlugin();
+        TrackerSegmenter t =  tracker.instanciatePlugin();
+        if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
+        return t;
     }
     
     @Override
@@ -63,7 +64,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
         }
         if (parentTrack.isEmpty()) return;
         //logger.debug("segmentAndTrack: # prefilters: {}", preFilters.getChildCount());
-        TrackerSegmenter t = tracker.instanciatePlugin();
+        TrackerSegmenter t = getTracker();
         TrackPreFilterSequence tpf = getTrackPreFilters(true);
         t.segmentAndTrack(structureIdx, parentTrack, tpf, postFilters, factory, editor);
         logger.debug("executing #{} trackPostFilters for parents track: {} structure: {}", trackPostFilters.getChildren().size(), parentTrack.get(0), structureIdx);
@@ -81,7 +82,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
             if (parent.getChildren(structureIdx)==null) continue;
             parent.getChildren(structureIdx).forEach( c-> editor.resetTrackLinks(c,true, true, false));
         }
-        TrackerSegmenter t = tracker.instanciatePlugin();
+        TrackerSegmenter t = getTracker();
         t.track(structureIdx, parentTrack, editor);
         trackPostFilters.filter(structureIdx, parentTrack, factory, editor);
     }

@@ -298,6 +298,7 @@ public class ImportExportJSON {
                             xp.setOutputImageDirectory(xp.getOutputDirectory());
                         }
                         dao.setExperiment(xp);
+                        xp.setName(dao.getDBName());
                         logger.debug("XP: {} from file: {} set to db: {}", dao.getExperiment().getName(), path, dao.getDBName());
                     } else {
                         ok = false;

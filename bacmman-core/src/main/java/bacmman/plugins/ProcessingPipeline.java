@@ -27,6 +27,7 @@ import bacmman.data_structure.TrackLinkEditor;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -46,4 +47,5 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
     public Segmenter getSegmenter();
     public void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
     public void trackOnly(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
+    void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores);
 }

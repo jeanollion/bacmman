@@ -62,6 +62,11 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
             else return BasicMeasurements.getQuantileValue(r, intensityMap, 0.5)[0];
         });
     }
+    public SplitAndMerge<I> setMapsProperties(boolean wsMapIsEdgeMap, boolean localMinOnSeedMap) {
+        this.wsMapIsEdgeMap=wsMapIsEdgeMap;
+        this.localMinOnSeedMap=localMinOnSeedMap;
+        return this;
+    }
     /**
      * 
      * @return A map containing median values of a given region within the map {@param intensityMap}, updated when a fusion occurs

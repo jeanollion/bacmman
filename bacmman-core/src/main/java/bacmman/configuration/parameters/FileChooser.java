@@ -111,12 +111,14 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
+
         selectedFiles = JSONUtils.fromStringArray((JSONArray)jsonEntry);
     }
     
     public enum FileChooserOption {
         DIRECTORIES_ONLY(JFileChooser.DIRECTORIES_ONLY, false), 
         FILES_ONLY(JFileChooser.FILES_ONLY, true),
+        FILE_ONLY(JFileChooser.FILES_ONLY, false),
         FILES_AND_DIRECTORIES(JFileChooser.FILES_AND_DIRECTORIES, true),
         FILE_OR_DIRECTORY(JFileChooser.FILES_AND_DIRECTORIES, false);
         private final int option;

@@ -146,7 +146,6 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         if (jsonO.get("importMethod") instanceof JSONObject) importCond.initFromJSONEntry(jsonO.get("importMethod"));
         else importMethod.initFromJSONEntry(jsonO.get("importMethod")); // RETRO COMPATIBILITY
         bestFocusPlane.initFromJSONEntry(jsonO.get("bestFocusPlane"));
-        this.name="Configuration";
         if (jsonO.containsKey("note")) note.initFromJSONEntry(jsonO.get("note"));
     }
     public Experiment(){

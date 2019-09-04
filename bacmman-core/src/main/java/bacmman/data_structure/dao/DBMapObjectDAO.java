@@ -250,7 +250,11 @@ public class DBMapObjectDAO implements ObjectDAO {
                     int parentStructureIdx = mDAO.getExperiment().getStructure(key.value).getParentStructure();
                     Map<String, SegmentedObject> parents = this.getCacheContaining(key.key, parentStructureIdx);
                     if (parents!=null) {
-                        for (SegmentedObject o : objectMap.values()) o.setParent(parents.get(o.getParentId()));
+                        for (SegmentedObject o : objectMap.values()) {
+                            SegmentedObject p = parents.get(o.getParentId());
+                            if (p==null) logger.warn("getChildren: {}, null parent for object: {}", key, o.toStringShort());
+                            else o.setParent(p);
+                        }
                         Map<SegmentedObject, List<SegmentedObject>> byP = SegmentedObjectUtils.splitByParent(objectMap.values());
                         for (SegmentedObject p : byP.keySet()) {
                             List<SegmentedObject> children = byP.get(p);

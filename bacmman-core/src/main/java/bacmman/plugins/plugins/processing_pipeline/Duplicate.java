@@ -22,10 +22,8 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParentObjectClassParameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
-import bacmman.plugins.Hint;
-import bacmman.plugins.PostFilter;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.Tracker;
+import bacmman.plugins.*;
+
 import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -47,7 +45,11 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     public String getHintText() {
         return "Duplicates the segmented objects of another object class. Tracker and post-filter can be applied. If no tracker is set, the lineage is also duplicated";
     }
-    public Tracker getTracker() {return tracker.instanciatePlugin();}
+    public Tracker getTracker() {
+        Tracker t =  tracker.instanciatePlugin();
+        if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
+        return t;
+    }
     @Override
     public Duplicate addPostFilters(PostFilter... postFilter) {
         throw new IllegalArgumentException("No post filters allowed for duplicate processing scheme");
@@ -74,7 +76,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         for (SegmentedObject parent : parentTrack) {
             parent.getChildren(structureIdx).forEach( c-> editor.resetTrackLinks(c,true, true, false));
         }
-        Tracker t = tracker.instanciatePlugin();
+        Tracker t = getTracker();
         t.track(structureIdx, parentTrack, editor);
         
     }

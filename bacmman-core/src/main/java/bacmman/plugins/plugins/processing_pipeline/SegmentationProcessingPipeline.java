@@ -18,6 +18,8 @@
  */
 package bacmman.plugins.plugins.processing_pipeline;
 
+import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.plugins.track_pre_filters.PreFilter;
 import bacmman.configuration.parameters.PostFilterSequence;
 import bacmman.configuration.parameters.PreFilterSequence;
@@ -25,6 +27,8 @@ import bacmman.configuration.parameters.TrackPreFilterSequence;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.TrackPreFilter;
 import java.util.Collection;
+import java.util.Map;
+
 import bacmman.plugins.ProcessingPipeline;
 
 /**
@@ -86,5 +90,11 @@ public abstract class SegmentationProcessingPipeline<T extends SegmentationProce
 
     @Override public PostFilterSequence getPostFilters() {
         return postFilters;
+    }
+
+    Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores;
+    @Override
+    public void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
+        this.stores=  stores;
     }
 }

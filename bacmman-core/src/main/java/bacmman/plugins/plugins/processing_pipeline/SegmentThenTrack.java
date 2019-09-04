@@ -27,6 +27,7 @@ import bacmman.data_structure.SegmentedObjectFactory;
 import bacmman.data_structure.TrackLinkEditor;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.Hint;
+import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Tracker;
 
 /**
@@ -52,7 +53,12 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
     @Override
     public Segmenter getSegmenter() {return segmenter.instanciatePlugin();}
     
-    public Tracker getTracker() {return tracker.instanciatePlugin();}
+    @Override
+    public Tracker getTracker() {
+        Tracker t =  tracker.instanciatePlugin();
+        if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
+        return t;
+    }
 
     @Override
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -93,7 +99,7 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
         for (SegmentedObject parent : parentTrack) {
             parent.getChildren(structureIdx).forEach(c->editor.resetTrackLinks(c,true, true, false));
         }
-        Tracker t = tracker.instanciatePlugin();
+        Tracker t = getTracker();
         t.track(structureIdx, parentTrack, editor);
         
     }
