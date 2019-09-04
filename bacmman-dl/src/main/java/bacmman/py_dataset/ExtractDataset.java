@@ -262,7 +262,7 @@ public class ExtractDataset {
 
                     Point prevC = rPrev.getGeomCenter(false).duplicate().translateRev(c.getPrevious().getParent().getBounds());
                     Point curC = r.getGeomCenter(false).duplicate().translateRev(c.getParent().getBounds());
-                    double delta = curC.get(1) - prevC.get(1); // y displacement
+                    double delta = curC.get(1) - prevC.get(1)==0 ? 0.01 : curC.get(1) - prevC.get(1); // y displacement
                     //logger.debug("displacement: {}", delta);
                     r.getVoxels().forEach(v -> displacement.setPixelWithOffset(v.x, v.y, v.z, delta));
                     if (r.getContour().size() < r.getVoxels().size())
