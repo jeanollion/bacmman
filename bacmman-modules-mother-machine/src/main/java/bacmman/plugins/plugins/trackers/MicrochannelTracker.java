@@ -160,8 +160,8 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         double ftfDistance = maxDistanceFTF.getValue().doubleValue()*parentTrack.get(0).getScaleXY();
         logger.debug("ftfDistance: {}", ftfDistance);
         boolean ok = tmi.processFTF(ftfDistance);
-        int maxGap = this.maxGapGC.getValue().intValue()+1;
-        if (maxGap>1) {
+        int maxGap = this.maxGapGC.getValue().intValue();
+        if (maxGap>=1) {
             if (ok) ok = tmi.processGC(maxDistance, maxGap, false, false);
             if (ok) tmi.removeCrossingLinksFromGraph(meanWidth / 4);
             if (ok) ok = tmi.processGC(maxDistance, maxGap, false, false); // second GC for crossing links!

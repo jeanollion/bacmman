@@ -231,7 +231,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             distParams.includeLQ=true;
             if (ok) ok = tmi.processFTF(maxLinkingDistance); // FTF HQ+LQ
             distParams.includeLQ=true;
-            if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxGap, false, false); // GC HQ+LQ (dist param: no gap closing between LQ spots)
+            if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxGap-1, false, false); // GC HQ+LQ (dist param: no gap closing between LQ spots)
             if (ok) {
                 tmi.setTrackLinks(objectsF, editor);
                 tmi.resetEdges();
@@ -244,7 +244,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         long t2 = System.currentTimeMillis();
         boolean ok = true; 
         ok = tmi.processFTF(maxLinkingDistance);
-        if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxGap, allowSplit, allowMerge);
+        if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxGap-1, allowSplit, allowMerge);
         if (ok && LQSpots) {
             //switchCrossingLinksWithLQBranches(tmi, maxLinkingDistanceGC/Math.sqrt(2), maxLinkingDistanceGC, maxGap); // remove crossing links
             tmi.setTrackLinks(objectsF, editor);
