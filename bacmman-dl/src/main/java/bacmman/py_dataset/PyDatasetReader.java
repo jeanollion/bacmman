@@ -1,9 +1,7 @@
 package bacmman.py_dataset;
 
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
-import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.SimpleImageProperties;
@@ -118,6 +116,12 @@ public class PyDatasetReader {
                 return reader.int32().readMatrix(dsName(position) + "/originalDimensions");
             });
         }
+        public Set<String> getPositions() {
+            return positions;
+        }
+        public int[][] getOriginalDimensions(String position) {
+            return originalDims.get(position);
+        }
 
         private void flush() {
             new ArrayList<>(coords.keySet()).forEach(p -> flushPosition(p));
@@ -181,7 +185,7 @@ public class PyDatasetReader {
                 int[][] originalDims = this.originalDims.get(posName);
                 logger.debug("original dims: 0={}, 1={} #={}, dim={}", originalDims[0], originalDims[1], originalDims.length, res[0].getBoundingBox());
                 IntStream.range(0, idx.length).filter(i -> res[i] != null)
-                        .forEach(i -> res[i] = resampleBack(res[i], new SimpleBoundingBox(0, originalDims[i][0]-1, 0, originalDims[i][1]-1, 0, originalDims[i].length > 2 ? originalDims[i][2]-1 : 0), binary, resampleDims));
+                        .forEach(i -> res[i] = Utils.resampleBack(res[i], new SimpleBoundingBox(0, originalDims[i][0]-1, 0, originalDims[i][1]-1, 0, originalDims[i].length > 2 ? originalDims[i][2]-1 : 0), binary, resampleDims));
                 long t3 = System.currentTimeMillis();
                 logger.debug("resampled: {} images in {}ms", res.length, t3-t2);
             }
@@ -238,13 +242,4 @@ public class PyDatasetReader {
         }
     }
 
-    public static Image resampleBack(Image im, BoundingBox target, boolean binary, int... dimensions) {
-        if (im.sameDimensions(target)) return im;
-        // if resampled dim negative: need to crop to size -> will set zeros!
-        if (Arrays.stream(dimensions).anyMatch(i->i<0)) { // needs cropping
-            BoundingBox cropBB = new SimpleBoundingBox(0, dimensions[0]<0 && im.sizeX()<target.sizeX() ? target.sizeX()-1 : im.sizeX()-1, 0, dimensions.length>1 && dimensions[1]<0 && im.sizeY()<target.sizeY() ? target.sizeY()-1 : im.sizeY()-1, 0, dimensions.length>2 && dimensions[2]<0 && im.sizeZ()<target.sizeZ() ? target.sizeZ()-1 : im.sizeZ()-1);
-            im = im.crop(cropBB);
-        }
-        return ExtractDataset.resampleImage(im, binary, target.sizeX(), target.sizeY(), target.sizeZ());
-    }
 }

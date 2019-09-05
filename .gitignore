@@ -1,4 +1,3 @@
 *.iml
 **/target/
-*.xml
 **/.idea/
