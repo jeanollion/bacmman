@@ -2,6 +2,7 @@ package bacmman.py_dataset;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
+import bacmman.image.Histogram;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.SimpleImageProperties;
@@ -116,6 +117,12 @@ public class PyDatasetReader {
                 return reader.int32().readMatrix(dsName(position) + "/originalDimensions");
             });
         }
+        public Histogram getHistogram(String datasetName) {
+            long[] histoData = reader.int64().getArrayAttr(dsName(), datasetName+"_histogram");
+            double binSize = reader.float64().getAttr(dsName(), datasetName+"_histogram_bin_size");
+            double[] percentiles = reader.float64().getArrayAttr(dsName(), datasetName+"_percentiles");
+            return new Histogram(histoData, binSize, percentiles[0]);
+        }
         public Set<String> getPositions() {
             return positions;
         }
@@ -168,7 +175,7 @@ public class PyDatasetReader {
         public String[] getLabelsForPosition(String posName) {
             return Arrays.stream(coords.get(posName)).map(c->c.label).toArray(String[]::new);
         }
-        private Image[] getImages(String dsName, String posName, int[] idx, boolean resampleBack, boolean binary, int... resampleDims) {
+        public Image[] getImages(String dsName, String posName, int[] idx, boolean resampleBack, boolean binary, int... resampleDims) {
             Image[] res;
             long t1 = System.currentTimeMillis();
             //synchronized (reader) { // TODO check if concurrent access on different datasets is possible
