@@ -25,7 +25,7 @@
         <module>bacmman-modules-mother-machine</module>
         <module>bacmman-headless</module>
         <module>bacmman-github</module>
-        <module>bacmman-dl</module>
+
     </modules>
 
 
