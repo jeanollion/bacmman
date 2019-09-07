@@ -166,7 +166,7 @@ public class DeleteFromDAOTest {
         SegmentedObject r = masterDAO.getDao("field1").getRoot(0);
         SegmentedObject ob = r.getChildren(0).findFirst().get();
         SegmentedObject ob2 = r.getChildren(1).findFirst().get();
-        logger.debug("object {}, {}, 2D?{}, meas {}", ob.getBounds(), ob.getRegion().getVoxels(), ob.is2D(), ob.getMeasurements().getValues());
+        logger.debug("object {}, {}, 2D?{}, meas {}", ob.getBounds(), ob.getRegion().getVoxels(), ob.is2D(), ob.getMeasurements().getKeys());
         logger.debug("object2 {}, {}, 2D? {}", ob2.getBounds(), ob2.getRegion().getVoxels(), ob2.is2D());
 
 
@@ -335,7 +335,7 @@ public class DeleteFromDAOTest {
             if (clazz == SegmentedObject.class) {
                  return allObjects.size();
             } else if (clazz == Measurements.class) {
-                return (int)allObjects.stream().filter(o->!o.getMeasurements().getValues().isEmpty()).count();
+                return (int)allObjects.stream().filter(o->!o.getMeasurements().getKeys().isEmpty()).count();
             }
         } else {
             db.clearCache();

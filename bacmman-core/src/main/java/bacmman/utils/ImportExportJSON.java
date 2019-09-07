@@ -63,7 +63,7 @@ public class ImportExportJSON {
         }
         if (pcb!=null) pcb.log(allObjects.size()+"# objects found");
         writer.write(dao.getPositionName()+"/objects.txt", allObjects, o -> serialize(o));
-        allObjects.removeIf(o -> o.getMeasurements().getValues().isEmpty());
+        allObjects.removeIf(o -> o.getMeasurements().getKeys().isEmpty());
         if (pcb!=null) pcb.log(allObjects.size()+"# measurements found");
         writer.write(dao.getPositionName()+"/measurements.txt", allObjects, o -> serialize(o.getMeasurements()));
     }

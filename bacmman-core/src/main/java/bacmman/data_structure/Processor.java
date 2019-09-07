@@ -29,9 +29,12 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
+import bacmman.image.Histogram;
+import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.image.io.KymographFactory;
 import bacmman.measurement.MeasurementKey;
+import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -191,7 +194,7 @@ public class Processor {
     }
     
     public static void executeProcessingScheme(List<SegmentedObject> parentTrack, final int structureIdx, final boolean trackOnly, final boolean deleteChildren) {
-        if (parentTrack.isEmpty()) return ;
+        if (parentTrack.isEmpty()) return;
         final ObjectDAO dao = parentTrack.get(0).getDAO();
         Experiment xp = parentTrack.get(0).getExperiment();
         final ProcessingPipeline ps = xp.getStructure(structureIdx).getProcessingScheme();
@@ -206,7 +209,8 @@ public class Processor {
             allParentTracks = SegmentedObjectUtils.getAllTracks(parentTrack, directParentStructure);
         }
         logger.debug("ex ps: structure: {}, allParentTracks: {}", structureIdx, allParentTracks.size());
-        
+
+        ensureScalerConfiguration(dao, structureIdx);
         MultipleException me=null;
         try { // execute sequentially, store what has been processed, and throw exception in the end
             ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao));
@@ -244,7 +248,58 @@ public class Processor {
         */
         if (me!=null) throw me;
     }
-    
+    public static void ensureScalerConfiguration(ObjectDAO dao, int objectClassIdx) {
+        HistogramScaler scaler = dao.getExperiment().getStructure(objectClassIdx).getScalerForPosition(dao.getPositionName());
+        if (scaler==null || scaler.isConfigured()) return;
+        // check if there is an histogram in 1st root object
+        SegmentedObject root = dao.getRoot(0);
+        Histogram histogram;
+        int channelIdx = dao.getExperiment().getChannelImageIdx(objectClassIdx);
+        String histoKey = "global_histogram_"+channelIdx;
+        Object histoData = root.getAttribute(histoKey);
+        if (histoData!=null) {
+            histogram=new Histogram(new long[0], 0, 0);
+            histogram.initFromJSONEntry(histoData);
+            logger.debug("global histogram for position : {} channel {} found", dao.getPositionName(), channelIdx);
+        } else { // generate histogram and save
+            long t0 = System.currentTimeMillis();
+            histogram = createHistogramForPosition(dao, objectClassIdx);
+            long t1 = System.currentTimeMillis();
+            logger.info("generating global histogram for position: {}, channel: {}. Ellapsed time: {}ms", dao.getPositionName(), objectClassIdx, t1-t0);
+            root.setAttribute(histoKey, histogram.toJSONEntry().toString());
+            dao.store(root);
+        }
+        scaler.setHistogram(histogram);
+    }
+    public static Histogram createHistogramForPosition(ObjectDAO dao, int objectClassIdx) {
+        int parentClassIdx = dao.getExperiment().experimentStructure.getParentObjectClassIdx(objectClassIdx);
+        List<SegmentedObject> object = SegmentedObjectUtils.getAllObjectsAsStream(dao, parentClassIdx).collect(Collectors.toList());
+        double min, binSize;
+        int nBins;
+        int bitDepth = object.get(0).getRawImage(objectClassIdx).getBitDepth();
+        switch (bitDepth) {
+            case 8:
+                min = 0;
+                binSize = 1;
+                nBins = 256;
+                break;
+            case 16:
+                min = 0;
+                binSize = 1;
+                nBins = 65536;
+                break;
+            case 32: // compute min & max
+                double[] minAndMax = HistogramFactory.getMinAndMax(object.stream().map(o -> o.getRawImage(objectClassIdx)));
+                min = minAndMax[0];
+                nBins = 1000;
+                binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], nBins);
+                break;
+            default:
+                throw new RuntimeException("unsupported image type");
+        }
+        Histogram histo = HistogramFactory.getHistogram(object.stream().map(o -> o.getRawImage(objectClassIdx)), binSize, nBins, min);
+        return histo.getShortenedHistogram();
+    }
     private static void execute(ProcessingPipeline ps, int structureIdx, List<SegmentedObject> parentTrack, boolean trackOnly, boolean deleteChildren, ObjectDAO dao) {
         if (!trackOnly && deleteChildren) dao.deleteChildren(parentTrack, structureIdx);
         if (ps==null) return;
@@ -294,7 +349,7 @@ public class Processor {
         Map<SegmentedObject, List<SegmentedObject>> rootTrack = new HashMap<>(1); rootTrack.put(roots.get(0), roots);
         boolean containsObjects=false;
         BiPredicate<SegmentedObject, Measurement> measurementMissing = (SegmentedObject callObject, Measurement m) -> {
-            return mode!=MEASUREMENT_MODE.ONLY_NEW || m.getMeasurementKeys().stream().anyMatch(k -> callObject.getChildren(k.getStoreStructureIdx()).anyMatch(o -> !o.getMeasurements().getValues().containsKey(k.getKey())));
+            return mode!=MEASUREMENT_MODE.ONLY_NEW || m.getMeasurementKeys().stream().anyMatch(k -> callObject.getChildren(k.getStoreStructureIdx()).anyMatch(o -> !o.getMeasurements().getKeys().contains(k.getKey())));
         };
         if (mode!=MEASUREMENT_MODE.ERASE_ALL) { // retrieve measurements for all objects
             Set<Integer> targetStructures = Utils.flattenMap(measurements).stream()

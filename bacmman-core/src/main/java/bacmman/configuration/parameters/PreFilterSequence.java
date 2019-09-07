@@ -23,6 +23,7 @@ import bacmman.image.ImageMask;
 import bacmman.image.ImageProperties;
 import java.util.Collection;
 import bacmman.plugins.PreFilter;
+import bacmman.plugins.HistogramScaler;
 import bacmman.utils.Utils;
 
 /**
@@ -30,14 +31,22 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  */
 public class PreFilterSequence extends PluginParameterList<PreFilter, PreFilterSequence> {
-
+    HistogramScaler scaler;
     public PreFilterSequence(String name) {
         super(name, "Pre-Filter", PreFilter.class);
     }
-    
+    public PreFilterSequence setScaler(HistogramScaler scaler) {
+        this.scaler = scaler;
+        return this;
+    }
     public Image filter(Image input, ImageMask mask) {
         ImageProperties prop = input.getProperties();
         boolean first = true;
+        if (scaler!=null) {
+            if (scaler.isConfigured()) throw new RuntimeException("Scaler not configured");
+            input = scaler.scale(input);
+            first = false;
+        }
         for (PreFilter p : get()) {
             input = p.runPreFilter(input, mask, !first);
             first = false;

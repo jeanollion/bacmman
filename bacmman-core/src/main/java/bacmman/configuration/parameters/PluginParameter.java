@@ -23,6 +23,13 @@ import static bacmman.configuration.parameters.ChoiceParameter.NO_SELECTION;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.Supplier;
+
+import bacmman.configuration.experiment.Experiment;
+import bacmman.data_structure.DLengineProvider;
+import bacmman.plugins.DLengine;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Plugin;
@@ -170,18 +177,26 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             setPlugin(instance);
         }
     }
-    
+
     public T instanciatePlugin() {
         if (!isOnePluginSet()) return null;
-        T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
-        //Parameter.logger.debug("instanciating plugin: type {}, name {} instance==null? {} current parameters {}", pluginType, pluginName, instance==null, pluginParameters.size());
-        if (instance==null) return null;
-        Parameter[] params = instance.getParameters();
-        if (params !=null) {
-            ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
-            for (Parameter p : params) p.setParent(this);
-        }
-        return instance;
+        Supplier<T> pluginFactory = () -> {
+            T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
+            //Parameter.logger.debug("instanciating plugin: type {}, name {} instance==null? {} current parameters {}", pluginType, pluginName, instance==null, pluginParameters.size());
+            if (instance==null) return null;
+            Parameter[] params = instance.getParameters();
+            if (params !=null) {
+                ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
+                for (Parameter p : params) p.setParent(this);
+            }
+            return instance;
+        };
+        if (DLengine.class.isAssignableFrom(this.getPluginType())) { // shared instance of DL engine in order to avoid re-loading the model each time
+            Experiment xp = ParameterUtils.getExperiment(this);
+            if (xp==null) return pluginFactory.get(); // no xp found in tree -> instance cannot be shared
+            DLengineProvider dlEngineProvider = xp.getDLengineProvider();
+            return (T)dlEngineProvider.getEngine(getPluginType(), pluginParameters, (Supplier<DLengine>)pluginFactory);
+        } else return pluginFactory.get();
     }
     
     @Override

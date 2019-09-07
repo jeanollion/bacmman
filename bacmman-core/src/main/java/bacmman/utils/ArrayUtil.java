@@ -639,4 +639,18 @@ public class ArrayUtil {
         for (int i = 0; i<array.length; ++i) array[i] = func.apply(array[i]);
         return array;
     }
+    public static String toString(Object array) {
+        if (!array.getClass().isArray()) throw new IllegalArgumentException("object is not an array");
+        if (array instanceof int[]) return Arrays.toString((int[])array);
+        if (array instanceof long[]) return Arrays.toString((long[])array);
+        if (array instanceof float[]) return Arrays.toString((float[])array);
+        if (array instanceof double[]) return Arrays.toString((double[])array);
+        if (array instanceof String[]) return Arrays.toString((String[])array);
+        if (array instanceof boolean[]) return Arrays.toString((boolean[])array);
+        if (array instanceof byte[]) return Arrays.toString((byte[])array);
+        if (array instanceof short[]) return Arrays.toString((short[])array);
+        if (array instanceof char[]) return Arrays.toString((char[])array);
+        if (array instanceof Object[]) return Arrays.toString((Object[])array);
+        else throw new IllegalArgumentException("array type not supported");
+    }
 }

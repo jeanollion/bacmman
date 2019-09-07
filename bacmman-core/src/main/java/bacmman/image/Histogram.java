@@ -19,7 +19,12 @@
 package bacmman.image;
 
 import static bacmman.utils.Utils.parallele;
+
+import bacmman.utils.JSONSerializable;
+import bacmman.utils.JSONUtils;
 import ij.gui.Plot;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 import java.util.Arrays;
 
@@ -27,11 +32,11 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class Histogram {
+public class Histogram implements JSONSerializable  {
 
-    public final long[] data;
-    public final double  min;
-    public final double binSize;
+    private long[] data;
+    private double  min;
+    private double binSize;
 
     public Histogram(int[] data, double binSize, double min) {
         this.data = Arrays.stream(data).mapToLong(i -> i).toArray();
@@ -48,6 +53,19 @@ public class Histogram {
         this.binSize = binSize;
         this.min=min;
     }
+
+    public long[] getData() {
+        return data;
+    }
+
+    public double getMin() {
+        return min;
+    }
+
+    public double getBinSize() {
+        return binSize;
+    }
+
     public Histogram duplicate() {
         return duplicate(0, data.length);
     }
@@ -104,6 +122,19 @@ public class Histogram {
         int i = 0;
         if (data[i]==0) while(i<data.length-1 && data[i+1]==0) ++i;
         return i;
+    }
+    // removed leading and trailing zeros if any
+
+    /**
+     *
+     * @return new histogram instance without leading & trailing zeros if any, same instance else.
+     */
+    public Histogram getShortenedHistogram() {
+        int minIdx = getMinNonNullIdx();
+        int maxIdx = getMaxNonNullIdx();
+        if (minIdx>0 || maxIdx<data.length-1) {
+            return new Histogram(Arrays.copyOfRange(data, minIdx, maxIdx+1), binSize, getValueFromIdx(minIdx));
+        } else return this;
     }
     public void removeSaturatingValue(double countThlFactor, boolean highValues) {
         if (highValues) {
@@ -166,5 +197,22 @@ public class Histogram {
             x[i] = xValues ? (float)getValueFromIdx(i) : i;
         }
         new Plot(title, "value", "count", x, values).show();
+    }
+
+    @Override
+    public Object toJSONEntry() {
+        JSONObject res= new JSONObject();
+        res.put("data", JSONUtils.toJSONArray(data));
+        res.put("min", min);
+        res.put("binSize", binSize);
+        return res;
+    }
+
+    @Override
+    public void initFromJSONEntry(Object jsonEntry) {
+        JSONObject o = (JSONObject) jsonEntry;
+        data= JSONUtils.fromLongArray((JSONArray)(o).get("data"));
+        min = ((Number)o.get("min")).doubleValue();
+        binSize = ((Number)o.get("binSize")).doubleValue();
     }
 }

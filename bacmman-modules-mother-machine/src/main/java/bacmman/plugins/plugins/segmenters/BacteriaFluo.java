@@ -414,11 +414,11 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     private double getRootThreshold(List<SegmentedObject> parents, int structureIdx, Histogram[] histoStore, boolean min) {
         // particular case si BackgroundFit -> call
         String key = (min ? bckThresholder.toJSONEntry().toJSONString() : foreThresholder.toJSONEntry().toJSONString())+"_"+structureIdx;
-        if (parents.get(0).getRoot().getAttributes().containsKey(key)) {
+        if (parents.get(0).getRoot().getAttributeKeys().contains(key)) {
             return parents.get(0).getRoot().getAttribute(key, Double.NaN);
         } else {
             synchronized(parents.get(0).getRoot()) {
-                if (parents.get(0).getRoot().getAttributes().containsKey(key)) {
+                if (parents.get(0).getRoot().getAttributeKeys().contains(key)) {
                     return parents.get(0).getRoot().getAttribute(key, Double.NaN);
                 } else {
                     List<Image> im = parents.stream().map(p->p.getRoot()).map(p->p.getRawImage(structureIdx)).collect(Collectors.toList());
@@ -441,12 +441,12 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     private static double[] getRootBckMeanAndSigma(List<SegmentedObject> parents, int structureIdx, Histogram[] histoStore) {
         String meanK = "backgroundMean_"+structureIdx;
         String stdK = "backgroundStd_"+structureIdx;
-        if (parents.get(0).getRoot().getAttributes().containsKey(meanK)) {
+        if (parents.get(0).getRoot().getAttributeKeys().contains(meanK)) {
             Plugin.logger.debug("found on root {} mean {}, sigma: {}", parents.get(0), parents.get(0).getRoot().getAttribute(meanK, 0d),parents.get(0).getRoot().getAttribute(stdK, 1d));
             return new double[]{parents.get(0).getRoot().getAttribute(meanK, 0d), parents.get(0).getRoot().getAttribute(stdK, 1d)};
         } else {
             synchronized(parents.get(0).getRoot()) {
-                if (parents.get(0).getRoot().getAttributes().containsKey(meanK)) {
+                if (parents.get(0).getRoot().getAttributeKeys().contains(meanK)) {
                     return new double[]{parents.get(0).getRoot().getAttribute(meanK, 0d), parents.get(0).getRoot().getAttribute(stdK, 1d)};
                 } else {
                     Histogram histo;

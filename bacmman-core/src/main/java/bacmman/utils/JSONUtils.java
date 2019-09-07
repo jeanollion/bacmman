@@ -61,9 +61,11 @@ public class JSONUtils {
     }
     public static Object toJSONEntry(Object o) {
         if (o==null) return "null";
-        if (o instanceof JSONSerializable) return ((JSONSerializable)o).toJSONEntry();
+        else if (o instanceof JSONObject || o instanceof JSONArray) return o;
+        else if (o instanceof JSONSerializable) return ((JSONSerializable)o).toJSONEntry();
         else if (o instanceof double[]) return toJSONArray((double[])o);
-        else if (o instanceof double[]) return toJSONArray((float[])o);
+        else if (o instanceof float[]) return toJSONArray((float[])o);
+        else if (o instanceof long[]) return toJSONArray((long[])o);
         else if (o instanceof int[]) return toJSONArray((int[])o);
         else if (o instanceof Number) return o;
         else if (o instanceof Boolean) return o;
@@ -77,30 +79,33 @@ public class JSONUtils {
         else if (o instanceof String[]) return toJSONArray((String[])o);
         else return o.toString();
     }
-    public static Map<String, Object> toMap(Map map) {
-        HashMap<String, Object> res= new HashMap<>(map.size());
-        for (Object e : map.entrySet()) {
-            String key = (String)((Entry)e).getKey();
-            Object value = ((Entry)e).getValue();
-            if (value instanceof List) {
-                List array = (List)value;
-                if (!array.isEmpty() && (array.get(0) instanceof Integer || array.get(0) instanceof Long)) res.put(key, fromIntArray(array));
-                else res.put(key, fromDoubleArray(array));
-            } else res.put(key, value);
-        }
-        return res;
-    }
+
     public static Map<String, Object> toValueMap(Map jsonMap) {
         List<String> keys = new ArrayList<>(jsonMap.keySet());
         for (String k : keys) {
             Object v = jsonMap.get(k);
             if (v instanceof List) {
                 List array = (List)v;
-                if (!array.isEmpty() && (array.get(0) instanceof Integer || array.get(0) instanceof Long)) jsonMap.put(k, fromIntArray(array));
-                else jsonMap.put(k, fromDoubleArray(array));
+                if (!array.isEmpty()) {
+                    if (array.get(0) instanceof Integer) jsonMap.put(k, fromIntArray(array));
+                    else if (array.get(0) instanceof Long) jsonMap.put(k, fromLongArray(array));
+                    else if (array.get(0) instanceof Float) jsonMap.put(k, fromFloatArray(array));
+                    else jsonMap.put(k, fromDoubleArray(array));
+                }  else jsonMap.put(k, fromDoubleArray(array));
             } 
         }
         return (Map<String, Object>)jsonMap;
+    }
+    public static Object convertJSONArray(List array) {
+        if (array.isEmpty()) return array;
+        Object o = array.get(0);
+        if (o instanceof Integer) return fromIntArray(array);
+        else if (o instanceof Double) return fromDoubleArray(array);
+        else if (o instanceof Long) return fromLongArray(array);
+        else if (o instanceof Float) return fromFloatArray(array);
+        else if (o instanceof String) return fromStringArray(array);
+        else if (o instanceof Boolean) return fromBooleanArray(array);
+        else throw new IllegalArgumentException("unsupported object type:"+o.getClass()+": "+o);
     }
     
     public static double[] fromDoubleArray(List array) {
@@ -143,6 +148,11 @@ public class JSONUtils {
         res = (String[])array.toArray(res);
         return res;
     }
+    public static long[] fromLongArray(List array) {
+        long[] res = new long[array.size()];
+        for (int i = 0; i<res.length; ++i) res[i]=((Number)array.get(i)).longValue();
+        return res;
+    }
     public static int[] fromIntArray(List array) {
         int[] res = new int[array.size()];
         for (int i = 0; i<res.length; ++i) res[i]=((Number)array.get(i)).intValue();
@@ -151,6 +161,11 @@ public class JSONUtils {
     public static boolean[] fromBooleanArray(List array) {
         boolean[] res = new boolean[array.size()];
         for (int i = 0; i<res.length; ++i) res[i]=((Boolean)array.get(i));
+        return res;
+    }
+    public static JSONArray toJSONArray(long[] array) {
+        JSONArray res = new JSONArray();
+        for (long d : array) res.add(d);
         return res;
     }
     public static JSONArray toJSONArray(int[] array) {

@@ -19,6 +19,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.DLengineProvider;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
@@ -215,7 +216,13 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public PreProcessingChain getPreProcessingTemplate() {
         return template;
     }
-    
+
+    DLengineProvider dLengineProvider = new DLengineProvider();
+    public DLengineProvider getDLengineProvider() { //todo see if flush needed at beginng of processing
+        return dLengineProvider;
+    }
+
+
     /**
      * 
      * @param positionName name of the MicroscopyField
