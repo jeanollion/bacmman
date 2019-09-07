@@ -129,7 +129,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, objectSplitter, manualSegmenter, allowMerge, allowSplit); //brightObject 
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, allowMerge, allowSplit); //brightObject
     }
     public boolean allowSplit() {
         return allowSplit.getSelected();
