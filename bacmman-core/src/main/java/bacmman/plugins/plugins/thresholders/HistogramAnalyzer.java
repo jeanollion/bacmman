@@ -48,7 +48,7 @@ public class HistogramAnalyzer {
     private boolean verbose = false;
     
     public static double getBinSize(Histogram histo, double backgroundThld, int binNBetweenForeAndBack) {
-        Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(backgroundThld)+1, histo.data.length);
+        Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(backgroundThld)+1, histo.getData().length);
         double foreThld = histoFore.getQuantiles(0.5)[0];
         logger.debug("foreground: {}  ", foreThld);
         return (foreThld - backgroundThld) / binNBetweenForeAndBack;
@@ -128,7 +128,7 @@ public class HistogramAnalyzer {
         }
         Range satRange = this.foregroundRanges.stream().filter(r->r.max>minPeakIdx).filter(r->r.min>minPeakIdx || r.meanIdx()>minPeakIdx).max((r1, r2)->Double.compare(r1.count(), r2.count())).orElse(null);
         if (satRange==null) return Double.NaN;
-        if (new Range(satRange.min, histo.data.length-1).count() * maxSignalAmountProportionThrehsold > new Range(fore.min, histo.data.length-1).count()) return Double.NaN;  // signal amount condition
+        if (new Range(satRange.min, histo.getData().length-1).count() * maxSignalAmountProportionThrehsold > new Range(fore.min, histo.getData().length-1).count()) return Double.NaN;  // signal amount condition
         return histo.getValueFromIdx(satRange.min);
     }
     public List<Range> getMainForegroundRanges(int limit) {
@@ -158,8 +158,9 @@ public class HistogramAnalyzer {
         return smooth;
     }
     protected float[] getHistoValuesAsFloat() {
-        float[] histoValues = new float[histo.data.length];
-        for (int i = 0; i<histoValues.length; ++i) histoValues[i] = histo.data[i];
+        float[] histoValues = new float[histo.getData().length];
+        long[] data = histo.getData();
+        for (int i = 0; i<histoValues.length; ++i) histoValues[i] = data[i];
         return histoValues;
     }
     public static void smooth(float[] values, double scale) {
@@ -191,9 +192,10 @@ public class HistogramAnalyzer {
         public double count() {
             if (Double.isNaN(count)) {
                 synchronized(this) {
+                    long[] data = histo.getData();
                     if (Double.isNaN(count)) {
                         count = 0;
-                        for (int i = min; i<=max; ++i) count+=histo.data[i];
+                        for (int i = min; i<=max; ++i) count+=data[i];
                     }
                 }
             }
@@ -205,9 +207,10 @@ public class HistogramAnalyzer {
                     if (Double.isNaN(meanIdx)) {
                         count = 0;
                         meanIdx = 0;
+                        long[] data = histo.getData();
                         for (int i = min; i<=max; ++i) {
-                            meanIdx+=histo.data[i] * i;
-                            count+=histo.data[i];
+                            meanIdx+=data[i] * i;
+                            count+=data[i];
                         }
                         meanIdx/=count;
                     }

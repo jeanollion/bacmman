@@ -62,7 +62,8 @@ public class Saturate implements TrackPreFilter, Hint, DevPlugin {
             svBin = satBin;
             sv = sat;
         }
-        for (int i = (int)svBin; i<histo.data.length; ++i) histo.data[i]=0;
+        long[] hdata = histo.getData();
+        for (int i = (int)svBin; i<hdata.length; ++i) hdata[i]=0;
         logger.debug("saturate value: {}", sv);
         for (Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) {
             Image im = e.getValue();

@@ -134,20 +134,21 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     
     public static double runThresholder(Histogram histo, double sigmaFactor, double lastSigmaFactor, int iterations, double firstValue, double[] meanSigma) {
         if (meanSigma!=null && meanSigma.length<2) throw new IllegalArgumentException("Argument Mean Sigma should be null or of size 2 to receive mean and sigma values");
-        int firstIdx =  Double.isInfinite(firstValue)||firstValue==Double.MAX_VALUE ? histo.data.length-1 : (int)histo.getIdxFromValue(firstValue);
-        if (firstIdx>histo.data.length-1) firstIdx=histo.data.length-1;
+        int firstIdx =  Double.isInfinite(firstValue)||firstValue==Double.MAX_VALUE ? histo.getData().length-1 : (int)histo.getIdxFromValue(firstValue);
+        if (firstIdx>histo.getData().length-1) firstIdx=histo.getData().length-1;
         double binInc = 0.245; // empirical correction !
         double lastThreshold = firstIdx;
         double mean=0, sigma=0;
         double count=0;
+        long[] data = histo.getData();
         if (iterations<=0) iterations=1;
         for (int i = 0; i<iterations; i++) {
             count=0;
             sigma=0;
             mean=0;
             for (int idx = 0; idx<lastThreshold; idx++) {
-                mean+=(idx+binInc)*histo.data[idx];
-                count+=histo.data[idx];
+                mean+=(idx+binInc)*data[idx];
+                count+=data[idx];
             }
             double lastBinCount = histo.getCountLinearApprox(lastThreshold);
             
@@ -155,17 +156,17 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
             count+=lastBinCount;
             if (count>0) {
                 mean = mean/count;
-                for (int idx = 0; idx<lastThreshold; idx++) sigma+=Math.pow(mean-(idx+binInc), 2)*histo.data[idx];
+                for (int idx = 0; idx<lastThreshold; idx++) sigma+=Math.pow(mean-(idx+binInc), 2)*data[idx];
                 sigma+= Math.pow(mean-((int)lastThreshold+binInc), 2)*lastBinCount;
                 sigma= Math.sqrt(sigma/count);
                 if (meanSigma!=null) {
                     meanSigma[0]=histo.getValueFromIdx(mean);
-                    meanSigma[1]=sigma * histo.binSize;
+                    meanSigma[1]=sigma * histo.getBinSize();
                 }
             }
             double newThreshold = i==iterations-1 ? (mean + lastSigmaFactor * sigma) : (mean + sigmaFactor * sigma);
             newThreshold = Math.min(firstIdx, newThreshold);
-            if (debug) logger.debug("Kappa Sigma Thresholder HISTO: Iteration: {}, Mean : {}, Sigma : {}, thld: {}, lastBinCount: {} (full bin: {}, delta: {})", i, histo.getValueFromIdx(mean),sigma*histo.binSize,histo.getValueFromIdx(newThreshold), lastBinCount, lastThreshold>0? histo.data[(int)lastThreshold] : "invalidIDX", (lastThreshold-(int)lastThreshold));
+            if (debug) logger.debug("Kappa Sigma Thresholder HISTO: Iteration: {}, Mean : {}, Sigma : {}, thld: {}, lastBinCount: {} (full bin: {}, delta: {})", i, histo.getValueFromIdx(mean),sigma*histo.getBinSize(),histo.getValueFromIdx(newThreshold), lastBinCount, lastThreshold>0? data[(int)lastThreshold] : "invalidIDX", (lastThreshold-(int)lastThreshold));
             if (newThreshold == lastThreshold) break;
             else lastThreshold = newThreshold;
         }

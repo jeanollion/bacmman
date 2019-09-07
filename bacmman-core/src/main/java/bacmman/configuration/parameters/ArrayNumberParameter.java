@@ -60,7 +60,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
     public void sort() {
         Collections.sort(children, (n1, n2)->Double.compare(n1.getValue().doubleValue(), n2.getValue().doubleValue()));
     }
-    
+
     public ArrayNumberParameter setValue(double... values) {
         if (unMutableIndex>=0 && values.length<=unMutableIndex) throw new IllegalArgumentException("Min number of values: "+this.unMutableIndex+1);
         synchronized(this) {
