@@ -179,7 +179,7 @@ public class PluginConfigurationUtils {
                 if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ? 
                     psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
                     psc.getTrackPreFilters(false).removeAll();
-                }
+                } //else Processor.ensureScalerConfiguration(accessor.getDAO(p), );
                 // need to be able to run track-parametrizable on whole parentTrack....
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
                 //((TrackerSegmenter)plugin).segmentAndTrack(structureIdx, parentTrackDup, psc.getTrackPreFilters(true), psc.getPostFilters());

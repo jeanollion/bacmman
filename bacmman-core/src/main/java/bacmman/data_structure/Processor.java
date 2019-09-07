@@ -265,8 +265,8 @@ public class Processor {
             long t0 = System.currentTimeMillis();
             histogram = createHistogramForPosition(dao, objectClassIdx);
             long t1 = System.currentTimeMillis();
-            logger.info("generating global histogram for position: {}, channel: {}. Ellapsed time: {}ms", dao.getPositionName(), objectClassIdx, t1-t0);
-            root.setAttribute(histoKey, histogram.toJSONEntry().toString());
+            logger.info("generating global histogram for position: {}, channel: {}. Elapsed time: {}ms", dao.getPositionName(), objectClassIdx, t1-t0);
+            root.setAttribute(histoKey, histogram.toJSONEntry());
             dao.store(root);
         }
         scaler.setHistogram(histogram);

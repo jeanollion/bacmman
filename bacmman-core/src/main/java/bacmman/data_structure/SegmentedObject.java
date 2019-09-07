@@ -935,6 +935,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, value);
     }
+    public void setAttribute(String key, Object value) {
+        if (this.attributes==null) attributes = new HashMap<>();
+        attributes.put(key, value);
+    }
     public void setAttribute(String key, double value) {
         if (this.attributes==null) attributes = new HashMap<>();
         attributes.put(key, value);
