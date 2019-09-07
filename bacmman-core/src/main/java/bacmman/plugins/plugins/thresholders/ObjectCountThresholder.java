@@ -95,8 +95,8 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
             public boolean continuePropagation(Voxel currentVox, Voxel nextVox) {
                 double v = bright ? Math.max(currentVox.value, nextVox.value) : Math.min(currentVox.value, nextVox.value);
                 int idx = (int)objectCountHisto.getIdxFromValue(v);
-                if (objectCountHisto.data[idx]==0) objectCountHisto.data[idx] = getSpotNumber(instance, v, bright);
-                if (objectCountHisto.data[idx]>=max) { // stop propagation
+                if (objectCountHisto.getData()[idx]==0) objectCountHisto.getData()[idx] = getSpotNumber(instance, v, bright);
+                if (objectCountHisto.getData()[idx]>=max) { // stop propagation
                     instance.getHeap().clear();
                     return false;
                 } 
@@ -108,8 +108,8 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
         if (debug) {
             objectCountHisto.plotIJ1("objects", debug);
         }
-        int i = ArrayUtil.getFirstOccurence(objectCountHisto.data, objectCountHisto.data.length-1, 0, v->v>=max);
-        if (objectCountHisto.data[i]==max && i<objectCountHisto.data.length) ++i;
+        int i = ArrayUtil.getFirstOccurence(objectCountHisto.getData(), objectCountHisto.getData().length-1, 0, v->v>=max);
+        if (objectCountHisto.getData()[i]==max && i<objectCountHisto.getData().length) ++i;
         double value = objectCountHisto.getValueFromIdx(i);
         if (debug) logger.debug("thld: {} (idx:{})", value, i);
         return value;

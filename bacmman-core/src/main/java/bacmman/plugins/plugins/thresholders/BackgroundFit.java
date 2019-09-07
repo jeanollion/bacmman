@@ -115,10 +115,10 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
         long t1 = System.currentTimeMillis();
         // get mode -> background
         if (smooth) {
-            fillZeros(histo.data);
-            smoothInPlace(histo.data, 1);
+            fillZeros(histo.getData());
+            smoothInPlace(histo.getData(), 1);
         }
-        int modeIdx = ArrayUtil.max(histo.data, 1, histo.data.length-1);  // if the image has a lot of null values or a saturated values, the mode can be null or the saturated value so avoid borders
+        int modeIdx = ArrayUtil.max(histo.getData(), 1, histo.getData().length-1);  // if the image has a lot of null values or a saturated values, the mode can be null or the saturated value so avoid borders
         
         double halfWidthIdx = getHalfWidthIdx(histo, modeIdx, true);
         //logger.debug("background fit  : mode idx: {} (value: {}), half width estimation: {}", modeIdx, histo.getValueFromIdx(modeIdx), halfWidthIdx);
@@ -134,14 +134,14 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
         double modeFitIdx;
         int halfHalf = Math.max(4, (int)(halfWidthIdx/2d));
         int startT = modeIdx - halfHalf;
-        if (startT>=0 && 2 * modeIdx - halfHalf<histo.data.length) {
+        if (startT>=0 && 2 * modeIdx - halfHalf<histo.getData().length) {
             // gaussian fit on trimmed data to get more precise modal value
             WeightedObservedPoints obsT = new WeightedObservedPoints();
-            for (int i = startT; i<=2 * modeIdx - halfHalf; ++i) obsT.add( i, histo.data[i]-histo.data[startT]);
+            for (int i = startT; i<=2 * modeIdx - halfHalf; ++i) obsT.add( i, histo.getData()[i]-histo.getData()[startT]);
             double sigma = Math.abs(modeIdx - halfWidthIdx) / Math.sqrt(2*Math.log(2));
             //logger.debug("estimated sigma from half width {}", sigma * histo.binSize);
             try { 
-                double[] coeffsT = GaussianCurveFitter.create().withMaxIterations(1000).withStartPoint(new double[]{histo.data[modeIdx]-histo.data[startT], modeIdx, sigma/2.0}).fit(obsT.toList());
+                double[] coeffsT = GaussianCurveFitter.create().withMaxIterations(1000).withStartPoint(new double[]{histo.getData()[modeIdx]-histo.getData()[startT], modeIdx, sigma/2.0}).fit(obsT.toList());
                 modeFitIdx = coeffsT[1];
                 double stdBckT = coeffsT[2];
                 //logger.debug("mode: {}, modeFit: {}", modeIdx, modeFitIdx);
@@ -158,16 +158,16 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
         }
         double sigma = Math.abs(histo.getValueFromIdx(modeFitIdx) - histo.getValueFromIdx(halfWidthIdx)) / Math.sqrt(2*Math.log(2)); // scaled real values
         //logger.debug("estimed sigma from halfwidth (after mode fit) {}, mode: {}, halfWidth {}", sigma, histo.getValueFromIdx(modeFitIdx) , histo.getValueFromIdx(halfWidthIdx) );
-        int start = Double.isNaN(halfWidthIdx) ? getMinMonoBefore(histo.data, modeIdx) : Math.max(0, (int) (modeFitIdx - 6 * (modeFitIdx-halfWidthIdx)));
+        int start = Double.isNaN(halfWidthIdx) ? getMinMonoBefore(histo.getData(), modeIdx) : Math.max(0, (int) (modeFitIdx - 6 * (modeFitIdx-halfWidthIdx)));
         
         // use gaussian fit on lowest half of data 
         long t3 = System.currentTimeMillis();
         WeightedObservedPoints obs = new WeightedObservedPoints();
-        for (int i = start; i<=modeIdx; ++i) obs.add(histo.getValueFromIdx(i), histo.data[i]);
+        for (int i = start; i<=modeIdx; ++i) obs.add(histo.getValueFromIdx(i), histo.getData()[i]);
         obs.add(histo.getValueFromIdx(modeFitIdx), histo.getCountLinearApprox(modeFitIdx));
         for (double i  = modeFitIdx; i<=2 * modeFitIdx - start; ++i) obs.add(histo.getValueFromIdx(i), histo.getCountLinearApprox(2*modeFitIdx-i));  
         try {
-            double[] coeffs = GaussianCurveFitter.create().withMaxIterations(1000).withStartPoint(new double[]{histo.data[modeIdx], histo.getValueFromIdx(modeIdx), sigma}).fit(obs.toList());
+            double[] coeffs = GaussianCurveFitter.create().withMaxIterations(1000).withStartPoint(new double[]{histo.getData()[modeIdx], histo.getValueFromIdx(modeIdx), sigma}).fit(obs.toList());
             double meanBck = coeffs[1];
             double stdBck = coeffs[2];
             if (meanSigma!=null) {
@@ -193,18 +193,19 @@ public class BackgroundFit implements ThresholderHisto, SimpleThresholder, Multi
     }
     
     public static double getHalfWidthIdx(Histogram histo, double mode, boolean before) {
+        long[] data = histo.getData();
         double halfH = histo.getCountLinearApprox(mode) / 2d;
         int half = (int)mode;
         if (before) {
-            while(half>0 && histo.data[half-1]>halfH) --half;
+            while(half>0 && histo.getData()[half-1]>halfH) --half;
             if (half<=0) return Double.NaN;
             // linear approx between half & half -1
-            return half-1 + (halfH - histo.data[half-1]) / (double)(histo.data[half]-histo.data[half-1]) ;
+            return half-1 + (halfH - data[half-1]) / (double)(data[half]-data[half-1]) ;
         } else {
-            while(half<histo.data.length-1 && histo.data[half+1]>halfH) ++half;
-            if (half==histo.data.length-1) return Double.NaN;
+            while(half<data.length-1 && data[half+1]>halfH) ++half;
+            if (half==data.length-1) return Double.NaN;
             // linear approx between half & half -1
-            return half + (halfH - histo.data[half]) / (double)(histo.data[half]-histo.data[half+1]) ;
+            return half + (halfH - data[half]) / (double)(data[half]-data[half+1]) ;
         }
         
     }

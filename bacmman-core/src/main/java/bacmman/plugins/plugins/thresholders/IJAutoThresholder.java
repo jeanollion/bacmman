@@ -78,10 +78,10 @@ public class IJAutoThresholder implements SimpleThresholder, ThresholderHisto, H
     
     public static double runThresholder(Method method, Histogram histo) {
         if (method==null) return Double.NaN;
-        if (histo.data.length!=256) return runThresholderIJ2(method, histo);
+        if (histo.getData().length!=256) return runThresholderIJ2(method, histo);
         else {
             AutoThresholder at = new AutoThresholder();
-            double thld = at.getThreshold(method, Arrays.stream(histo.data).mapToInt(i->(int)i).toArray());
+            double thld = at.getThreshold(method, Arrays.stream(histo.getData()).mapToInt(i->(int)i).toArray());
             return histo.getValueFromIdx(thld);
         }
         

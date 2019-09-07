@@ -56,13 +56,13 @@ public class ThresholderWithOperation implements ThresholderHisto, SimpleThresho
     public double runThresholderHisto(Histogram histogram) {
         double thld =thresholder.instanciatePlugin().runThresholderHisto(histogram);
         int idx = (int)histogram.getIdxFromValue(thld);
-        Histogram hist = overThld.getSelected() ? histogram.duplicate(idx, histogram.data.length): histogram.duplicate(0, idx);
+        Histogram hist = overThld.getSelected() ? histogram.duplicate(idx, histogram.getData().length): histogram.duplicate(0, idx);
         switch(STAT.valueOf(stat.getSelectedItem())) {
             case QUANTILE:
             default :
                 return hist.getQuantiles(quantile.getValue().doubleValue())[0];
             case MEAN:
-                return hist.getValueFromIdx(hist.getMeanIdx(0, hist.data.length));
+                return hist.getValueFromIdx(hist.getMeanIdx(0, hist.getData().length));
         }
         
     }
