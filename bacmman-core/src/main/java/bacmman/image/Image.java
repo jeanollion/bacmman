@@ -263,6 +263,9 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         //return getPixel((int)x, (int)y, (int)z);
         return getPixelLinInter((int)x-xMin, (int)y-yMin, (int)z-zMin, (float)(x-(int)x), (float)(y-(int)y), (float)(z-(int)z));
     }
+    public int[] shape() {
+        return sizeZ>1 ? new int[]{sizeX, sizeY, sizeZ}:new int[]{sizeX, sizeY};
+    }
     public abstract float getPixel(int xz, int z);
     public abstract float getPixelWithOffset(int xy, int z);
     public abstract void setPixel(int x, int y, int z, double value);

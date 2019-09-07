@@ -24,6 +24,11 @@ import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.IntPredicate;
+import java.util.function.ToIntFunction;
+import java.util.stream.IntStream;
 
 public class Utils {
     public final static Logger logger = LoggerFactory.getLogger(Utils.class);
@@ -43,6 +48,7 @@ public class Utils {
      * @return
      */
     public static Image resampleImage(Image im, boolean binary, int... dimensions) {
+
         if (dimensions==null || dimensions.length==0) return im;
         // negative dimension = crop
 
@@ -100,4 +106,30 @@ public class Utils {
         return module;
     }
 
+    /**
+     *
+     * @param imagesNC
+     * @return shape for each image: channels, (Z) Y, X if {@param includeChannelNumber} true else X, Y, (Z)
+     */
+    public static int[][] getShapes(Image[][] imagesNC, boolean includeChannelNumber) {
+        BiFunction<Image, Integer, int[]> getShape;
+        if (includeChannelNumber) getShape = (im , nC)-> im.sizeZ()>1 ?new int[]{nC, im.sizeZ(), im.sizeY(), im.sizeX()} :  new int[]{nC, im.sizeY(), im.sizeX()};
+        else getShape = (im , nC)-> im.shape();
+        int[][] shapes = Arrays.stream(imagesNC).map(im -> getShape.apply(im[0], im.length)).toArray(int[][]::new);
+        IntPredicate oneShapeDiffers = idx -> IntStream.range(1, imagesNC[idx].length).anyMatch(i-> !Arrays.equals(getShape.apply(imagesNC[idx][i], imagesNC[idx].length), shapes[idx]));
+        if (IntStream.range(0, imagesNC.length).anyMatch(i->oneShapeDiffers.test(i)))
+            throw new IllegalArgumentException("at least two channels have different shapes");
+        return shapes;
+    }
+
+    public static Image[][] resample(Image[][] imagesNC, boolean[] isBinaryC, int[][] shapeNC) {
+        return IntStream.range(0, imagesNC.length).parallel()
+                .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
+                        .mapToObj(i -> Utils.resampleImage(imagesNC[idx][i], isBinaryC[i], shapeNC.length==1 ? shapeNC[0] : shapeNC[idx]))
+                        .toArray(Image[]::new))
+                .toArray(Image[][]::new);
+    }
+    public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {
+        return IntStream.range(0, shapes.length).allMatch(i -> Arrays.equals(shapes[i], referenceShape));
+    }
 }

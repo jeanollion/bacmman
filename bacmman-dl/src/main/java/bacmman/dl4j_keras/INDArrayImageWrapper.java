@@ -9,10 +9,24 @@ import org.nd4j.linalg.util.ArrayUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
+import java.util.stream.IntStream;
+
 public class INDArrayImageWrapper {
     public final static Logger logger = LoggerFactory.getLogger(INDArrayImageWrapper.class);
+
+    public static INDArray fromImagesNC(Image[] imagesN, int fromIncl, int toExcl) {
+        return Nd4j.concat(0, IntStream.range(fromIncl, toExcl).mapToObj(i->fromImage(imagesN[i])).toArray(INDArray[]::new));
+    }
+
+    public static INDArray fromImagesNC(Image[][] imagesNC, int fromIncl, int toExcl) {
+        return Nd4j.concat(0, IntStream.range(fromIncl, toExcl).mapToObj(i->fromImagesC(imagesNC[i])).toArray(INDArray[]::new));
+    }
+    public static INDArray fromImagesC(Image... imagesC) {
+        return Nd4j.concat(1, Arrays.stream(imagesC).map(i->fromImage(i)).toArray(INDArray[]::new));
+    }
+
     public static INDArray fromImage(Image image) {
-        if (image.sizeZ()>1) throw new IllegalArgumentException("3D images not supported yet");
         image = TypeConverter.toCommonImageType(image);
         if (image.sizeZ()==1) {
             switch (image.getBitDepth()) {
@@ -46,5 +60,8 @@ public class INDArrayImageWrapper {
         float[] values =  (imageIdx==0 && channelIdx==0) ? subArray.data().getFloatsAt(0, (int)subArray.length()): // in case offset == 0, the buffer of the subArray is the buffer of the original array to the whole original array is returned by the asFloat() method
                                                             subArray.data().asFloat();
         return ImageFloat.createImageFrom2DPixelArray("", values, (int)shape[3]);
+    }
+    public static Image[] getImagesC(INDArray array, int imageIdx) {
+        return IntStream.range(0, (int)array.shape()[1]).mapToObj(c -> getImage(array, imageIdx, c)).toArray(Image[]::new);
     }
 }

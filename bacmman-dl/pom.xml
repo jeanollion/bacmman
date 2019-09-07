@@ -41,11 +41,6 @@
             <artifactId>deeplearning4j-modelimport</artifactId>
             <version>1.0.0-beta4</version>
         </dependency>
-        <dependency>
-            <groupId>org.datavec</groupId>
-            <artifactId>datavec-api</artifactId>
-            <version>1.0.0-beta4</version>
-        </dependency>
     </dependencies>
 
 </project>
