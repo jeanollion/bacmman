@@ -28,7 +28,7 @@ import static bacmman.py_dataset.Utils.*;
 public class DL4Jengine implements DLengine {
     FileChooser modelFile = new FileChooser("Keras model file", FileChooser.FileChooserOption.FILE_ONLY).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
-    ArrayNumberParameter inputShape = new ArrayNumberParameter("Input shape", 3, new BoundedNumberParameter("", 0, 0, 0, null))
+    ArrayNumberParameter inputShape = new ArrayNumberParameter("Input shape", 2, new BoundedNumberParameter("", 0, 0, 0, null))
             .setValue(2, 256, 32)
             .setNewInstanceNameFunction(i -> {
                 if (getInputRank()==3) return "CYX".substring(i, i+1); //todo change this
@@ -72,16 +72,17 @@ public class DL4Jengine implements DLengine {
         Image[][] res = new Image[inputNC.length][];
         for (int idx = 0; idx<inputNC.length; idx+=batchSize) {
             int idxMax = Math.min(idx+batchSize, inputNC.length);
+            logger.debug("batch: [{};{}[", idx, idxMax);
             INDArray input = INDArrayImageWrapper.fromImagesNC(inputNC, idx, idxMax);
             INDArray output = model.output(input)[0];
-            for (int i = 0; i<idxMax; ++i) res[i] = INDArrayImageWrapper.getImagesC(output, i);
+            for (int i = idx; i<idxMax; ++i) res[i] = INDArrayImageWrapper.getImagesC(output, i-idx);
         }
         return res;
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{};
+        return new Parameter[]{modelFile, batchSize, inputShape};
     }
 
     // x , y

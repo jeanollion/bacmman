@@ -10,6 +10,8 @@ import bacmman.plugins.plugins.dl_engines.DL4Jengine;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
+import bacmman.py_dataset.Utils;
+import bacmman.utils.Pair;
 import fiji.plugin.trackmate.Spot;
 
 import java.lang.reflect.Constructor;
@@ -34,22 +36,42 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     }
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
+        long t0= System.currentTimeMillis();
         DLengine engine = dlEngine.instanciatePlugin();
+        long t1= System.currentTimeMillis();
+        logger.debug("dl engine instanciated in {}ms", t1-t0);
         trackPreFilters.filter(objectClassIdx, parentTrack);
-        Image[][] res =  engine.process(getInputs(objectClassIdx, parentTrack));
-        Map<SegmentedObject, Image> edm = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> res[i][0]));
-        Map<SegmentedObject, Image> dy = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> res[i][1]));
+        long t2= System.currentTimeMillis();
+        logger.debug("track prefilters run in {}ms", t2-t1);
+        Pair<Image[][], int[][]> inputs = getInputs(objectClassIdx, parentTrack);
+        long t3= System.currentTimeMillis();
+        logger.debug("input resampled in {}ms", t3-t2);
+        Image[][] prediction =  engine.process(inputs.key);
+        long t4= System.currentTimeMillis();
+        logger.debug("#{}(*{}) predictions made in {}ms", prediction.length, prediction[0].length, t4-t3);
+        Image[][] predictionResampled = Utils.resample(prediction, new boolean[]{false, true}, inputs.value);
+        // set offset & calibration
+        for (int idx = 0;idx<parentTrack.size(); ++idx) {
+            for (int c = 0; c<predictionResampled[idx].length; ++c) {
+                predictionResampled[idx][c].setCalibration(parentTrack.get(idx).getMaskProperties());
+                predictionResampled[idx][c].translate(parentTrack.get(idx).getMaskProperties());
+            }
+        }
+        long t5= System.currentTimeMillis();
+        logger.debug("predicitons resampled in {}ms", t5-t4);
+        Map<SegmentedObject, Image> edm = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> predictionResampled[i][0]));
+        Map<SegmentedObject, Image> dy = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> predictionResampled[i][1]));
         return new Map[]{edm, dy};
     }
-    private Image[][] getInputs(int objectClassIdx, List<SegmentedObject> parentTrack) {
-        Image[][] input = new Image[parentTrack.size()][2];
-        input[0][0] = parentTrack.get(0).getPreFilteredImage(objectClassIdx);
-        input[0][1] = input[0][0];
-        for (int i = 1; i<parentTrack.size(); ++i) {
-            input[i][0] = parentTrack.get(i-1).getPreFilteredImage(objectClassIdx);
-            input[i][1] = parentTrack.get(i).getPreFilteredImage(objectClassIdx);
-        }
-        return input;
+    private Pair<Image[][], int[][]> getInputs(int objectClassIdx, List<SegmentedObject> parentTrack) {
+        Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
+        int[][] shapes = Utils.getShapes(in, false);
+        logger.debug("shapes ok: {}", shapes);
+        Image[] inResampled = Utils.resample(in, false, new int[][]{{32, 256}});
+        logger.debug("resampled ok");
+        Image[][] input = IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
+        logger.debug("input ok");
+        return new Pair<>(input, shapes);
     }
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
