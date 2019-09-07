@@ -19,10 +19,7 @@
 package bacmman.data_structure;
 
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -68,7 +65,8 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         calibratedTimePoint = ((Number)json.get("timePointCal")).doubleValue();
         isTrackHead = (Boolean)json.get("isTh");
         indices = JSONUtils.fromIntArray((JSONArray)json.get("indices"));
-        values = JSONUtils.toValueMap((Map)json.get("values"));
+        //values = JSONUtils.toValueMap((Map)json.get("values"));
+        values = (Map<String, Object>)json.get("values"); // arrays are lazily converted
     }
     @Override
     public JSONObject toJSONEntry() {
@@ -134,7 +132,20 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
     }
     
     public Object getValue(String name) {
-        return values.get(name);
+        Object v = values.get(name);
+        if (v==null) return null;
+        else if (v instanceof Number) return v;
+        else if (v instanceof List) {
+            synchronized (values) {
+                Object vv = values.get(name);
+                if (vv instanceof List) {
+                    v = JSONUtils.convertJSONArray((List)vv);
+                    values.put(name, v);
+                    return v;
+                } else return vv; // was already converted by another call
+            }
+        }
+        return v;
     }
     
     public String getValueAsString(String name) {
@@ -257,7 +268,8 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         } 
         return new Measurements(positionName, frame, structureIdx, Arrays.copyOfRange(indices, 0, indices.length-parentOrder));
     }
-    public Map<String, Object> getValues() {return values;}
-    
-    
+    public Set<String> getKeys() {
+        return values.keySet();
+    }
+
 }

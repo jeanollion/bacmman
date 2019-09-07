@@ -31,13 +31,11 @@ import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
-import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
-import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageMask2D;
 import bacmman.image.TypeConverter;
@@ -425,12 +423,14 @@ public class ManualEdition {
         splitObjects(db, objects, updateDisplay, test, null);
     }
     public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, Experiment xp , ObjectDAO dao) {
+        Processor.ensureScalerConfiguration(dao, structureIdx);
         int parentStructureIdx = xp.getStructure(structureIdx).getParentStructure();
         TrackPreFilterSequence tpf = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(false);
         boolean needToComputeAllPreFilteredImage = !tpf.get().isEmpty() || xp.getStructure(structureIdx).getProcessingScheme().getSegmenter() instanceof TrackConfigurable;
         TrackPreFilterSequence tpfWithPF = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(true);
         if (!needToComputeAllPreFilteredImage) { // only preFilters on current objects
             PreFilterSequence pf = xp.getStructure(structureIdx).getProcessingScheme().getPreFilters();
+            pf.setScaler(xp.getStructure(structureIdx).getScalerForPosition(dao.getPositionName()));
             SegmentedObjectAccessor accessor = getAccessor();
             parents.map(p->p.getParent(parentStructureIdx)).filter(p->p.getPreFilteredImage(structureIdx)==null).forEach(parent ->{
                 accessor.setPreFilteredImage(parent, structureIdx, pf.filter(parent.getRawImage(structureIdx), parent.getMask()));

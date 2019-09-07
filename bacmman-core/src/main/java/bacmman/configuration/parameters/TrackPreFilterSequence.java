@@ -27,6 +27,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Collection;
 import java.util.List;
 import bacmman.plugins.TrackPreFilter;
+import bacmman.plugins.HistogramScaler;
 import bacmman.utils.MultipleException;
 
 import java.util.Map.Entry;
@@ -58,6 +59,14 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         }
         boolean first = true;
         TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getRawImage(structureIdx))));
+        // apply global scaling if necessary
+        SegmentedObjectAccessor accessor = getAccessor();
+        HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());
+        if (scaler != null) {
+            if (!scaler.isConfigured()) throw new RuntimeException("Scaler not configured for object class:"+structureIdx);
+            images.entrySet().parallelStream().forEach(e -> e.setValue(scaler.scale(e.getValue())));
+            first = false; // image can be modified
+        }
         double scaleXY = parentTrack.get(0).getScaleXY();
         double scaleZ = parentTrack.get(0).getScaleZ();
         Runnable setScale = () -> images.values().forEach(i->i.setCalibration(scaleXY, scaleZ));
@@ -67,7 +76,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
             setScale.run();
             first = false;
         }
-        SegmentedObjectAccessor accessor = getAccessor();
+
         for (Entry<SegmentedObject, Image> en : images.entrySet()) {
             accessor.setPreFilteredImage(en.getKey(), structureIdx,en.getValue());
         }

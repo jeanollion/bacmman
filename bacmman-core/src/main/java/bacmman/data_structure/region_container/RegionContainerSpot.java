@@ -24,9 +24,9 @@ public class RegionContainerSpot extends RegionContainer {
 
     @Override
     public Region getRegion() {
-        return new Spot(new Point(JSONUtils.fromFloatArray((List)structureObject.getAttributes().get("Center"))),
-                ((Number)structureObject.getAttributes().get("Radius")).doubleValue(),
-                ((Number)structureObject.getAttributes().get("Intensity")).doubleValue(),
+        return new Spot((Point)structureObject.getAttribute("Center"),
+                ((Number)structureObject.getAttribute("Radius")).doubleValue(),
+                ((Number)structureObject.getAttribute("Intensity")).doubleValue(),
                 structureObject.getIdx() + 1, is2D, structureObject.getScaleXY(), structureObject.getScaleZ());
     }
 

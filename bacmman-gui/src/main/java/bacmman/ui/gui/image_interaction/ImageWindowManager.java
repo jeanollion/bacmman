@@ -43,32 +43,19 @@ import java.awt.event.WindowListener;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.TreeMap;
 import java.util.function.Function;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
 
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
-import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.*;
 import bacmman.utils.HashMapGetCreate.SetFactory;
-import bacmman.utils.Pair;
 
 import static bacmman.utils.Pair.unpairValues;
-import bacmman.utils.Palette;
-import bacmman.utils.Utils;
+
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -616,7 +603,7 @@ public abstract class ImageWindowManager<I, U, V> {
                             Field attributes = SegmentedObject.class.getDeclaredField("attributes"); attributes.setAccessible(true);
                             attr = attributes.get(p.key);
                         } catch (Exception e) {}
-                        GUI.logger.debug("isTH: {}, values: {}, attributes: {}", p.key.isTrackHead(), p.key.getMeasurements().getValues(), attr);
+                        GUI.logger.debug("isTH: {}, values: {}, attributes: {}", p.key.isTrackHead(), p.key.getMeasurements().getKeys(), attr);
                     }
                 } else {
                     displayObject(dispImage, roi);
@@ -1130,16 +1117,17 @@ public abstract class ImageWindowManager<I, U, V> {
         menu.add(new JMenuItem("IsTrackHead: "+o.isTrackHead()));
         menu.add(new JMenuItem("Is2D: "+o.getRegion().is2D()));
         //DecimalFormat df = new DecimalFormat("#.####");
-        if (o.getAttributes()!=null && !o.getAttributes().isEmpty()) {
+        if (!o.getAttributeKeys().isEmpty()) {
             menu.addSeparator();
             menu.add(new JMenuItem("<html><b>Other Attributes</b></html>"));
-            for (Entry<String, Object> en : new TreeMap<>(o.getAttributes()).entrySet()) {
-                JMenuItem item = new JMenuItem(truncate(en.getKey(), TRUNC_LENGTH)+": "+truncate(toString(en.getValue()), TRUNC_LENGTH));
+            for (String k : new TreeSet<>(o.getAttributeKeys())) {
+                JMenuItem item = new JMenuItem(truncate(k, TRUNC_LENGTH)+": "+truncate(toString(k), TRUNC_LENGTH));
                 menu.add(item);
                 item.setAction(new AbstractAction(item.getActionCommand()) {
                     @Override
                         public void actionPerformed(ActionEvent ae) {
-                            java.awt.datatransfer.Transferable stringSelection = new StringSelection(en.getValue().toString());
+                            Object v = o.getMeasurements().getValue(k);
+                            java.awt.datatransfer.Transferable stringSelection = new StringSelection(v.getClass().isArray() ? ArrayUtil.toString(v) : v.toString());
                             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                             clipboard.setContents(stringSelection, null);
                         }
@@ -1149,13 +1137,14 @@ public abstract class ImageWindowManager<I, U, V> {
 
         menu.addSeparator();
         menu.add(new JMenuItem("<html><b>Measurements</b></html>"));
-        for (Entry<String, Object> en : new TreeMap<>(o.getMeasurements().getValues()).entrySet()) {
-            JMenuItem item = new JMenuItem(truncate(en.getKey(), TRUNC_LENGTH)+": "+truncate(toString(en.getValue()), TRUNC_LENGTH));
+        for (String key  : new TreeSet<>(o.getMeasurements().getKeys())) {
+            JMenuItem item = new JMenuItem(truncate(key, TRUNC_LENGTH)+": "+truncate(toString(o.getMeasurements().getValue(key)), TRUNC_LENGTH));
             menu.add(item);
             item.setAction(new AbstractAction(item.getActionCommand()) {
                 @Override
                     public void actionPerformed(ActionEvent ae) {
-                        java.awt.datatransfer.Transferable stringSelection = new StringSelection(en.getValue().toString());
+                        Object v = o.getMeasurements().getValue(key);
+                        java.awt.datatransfer.Transferable stringSelection = new StringSelection(v.getClass().isArray() ? ArrayUtil.toString(v) : v.toString());
                         Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                         clipboard.setContents(stringSelection, null);
                     }
@@ -1177,8 +1166,8 @@ public abstract class ImageWindowManager<I, U, V> {
         Collection<String> attributeKeys = new HashSet();
         Collection<String> mesKeys = new HashSet();
         for (SegmentedObject o : list) {
-            if (o.getAttributes()!=null && !o.getAttributes().isEmpty()) attributeKeys.addAll(o.getAttributes().keySet());
-            mesKeys.addAll(o.getMeasurements().getValues().keySet());
+            if (!o.getAttributeKeys().isEmpty()) attributeKeys.addAll(o.getAttributeKeys());
+            mesKeys.addAll(o.getMeasurements().getKeys());
         }
         attributeKeys=new ArrayList(attributeKeys);
         Collections.sort((List)attributeKeys);

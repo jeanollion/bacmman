@@ -19,15 +19,19 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 
 import javax.swing.tree.MutableTreeNode;
+
+import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.ObjectSplitter;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.ProcessingPipeline;
 
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -45,7 +49,8 @@ public class Structure extends ContainerParameterImpl<Structure> {
     PluginParameter<ProcessingPipeline> processingPipeline = new PluginParameter<>("Processing Pipeline", ProcessingPipeline.class, true).setEmphasized(false);
     BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>true</em> is set, a track can divide in several tracks");
     BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
-    
+    PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Global Scaling", HistogramScaler.class, true).setHint("Define here a method to scale raw input images, using the histogram of all images of the parent structure in the same position");
+    private Map<String, HistogramScaler> scalerP = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(p->scaler.instanciatePlugin());
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -58,6 +63,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         res.put("processingScheme", processingPipeline.toJSONEntry());
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
+        res.put("scaler", scaler.toJSONEntry());
         return res;
     }
 
@@ -74,6 +80,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         //brightObject.initFromJSONEntry(jsonO.get("brightObject"));
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
+        if (jsonO.containsKey("scaler")) scaler.initFromJSONEntry(jsonO.get("scaler"));
     }
     
     public Structure(String name, int parentStructure, int channelImage) {
@@ -141,7 +148,12 @@ public class Structure extends ContainerParameterImpl<Structure> {
         this.allowMerge.setSelected(allowMerge);
         return this;
     }
-    
+
+    public HistogramScaler getScalerForPosition(String position) {
+        if (!scaler.isOnePluginSet()) return null;
+        return scalerP.get(position);
+    }
+
     public ProcessingPipeline getProcessingScheme() {
         return processingPipeline.instanciatePlugin();
     }

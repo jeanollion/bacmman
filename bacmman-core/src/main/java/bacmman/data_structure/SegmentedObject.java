@@ -23,20 +23,9 @@ import bacmman.configuration.experiment.Position;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.BasicObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
-import bacmman.image.BlankMask;
-import bacmman.image.BoundingBox;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.image.ImageProperties;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.SimpleOffset;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import bacmman.image.*;
+
+import java.util.*;
 import java.util.Map.Entry;
 
 import bacmman.image.io.KymographFactory;
@@ -962,13 +951,19 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     public Object getAttribute(String key) {
         if (attributes==null) return null;
-        return attributes.get(key);
+        Object v = attributes.get(key);
+        if (v == null) return null;
+        if (v instanceof Number || v instanceof String || v instanceof Boolean) return v;
+        if ("center".equals(key)) return new Point(JSONUtils.fromFloatArray((List)v));
+        return v;
     }
     public <T> T getAttribute(String key, T defaultValue) {
         if (attributes==null) return defaultValue;
-        return (T)attributes.getOrDefault(key, defaultValue);
+        Object v = getAttribute(key);
+        if (v==null) return defaultValue;
+        else return (T)v;
     }
-    public Map<String, Object> getAttributes() {
+    public Set<String> getAttributeKeys() {
         if (this.attributes==null) {
             synchronized(this) {
                 if (attributes==null) {
@@ -976,7 +971,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                 }
             }
         }
-        return attributes;
+        return attributes.keySet();
     }
     void setMeasurements(Measurements m) {
         this.measurements=m;
