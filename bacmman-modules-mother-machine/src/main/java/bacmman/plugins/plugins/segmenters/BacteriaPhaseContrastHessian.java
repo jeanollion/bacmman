@@ -123,7 +123,7 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
         //estimate a minimal threshold : middle point between mean value under global threshold and global threshold
         double mean = histo.getValueFromIdx(histo.getMeanIdx(0, (int)histo.getIdxFromValue(globalThld)));
         double minThreshold = (mean+globalThld)/2.0;
-        double meanUp = histo.getValueFromIdx(histo.getMeanIdx((int)histo.getIdxFromValue(globalThld), histo.data.length));
+        double meanUp = histo.getValueFromIdx(histo.getMeanIdx((int)histo.getIdxFromValue(globalThld), histo.getData().length));
         double maxThreshold = (meanUp+globalThld)/2.0;
         logger.debug("bacteria phase segmentation: {} global threshold on images with forground: global thld: {}, thresholds: [{};{}]", parentTrack.get(0), globalThld, minThreshold, maxThreshold);
         return new double[]{minThreshold, globalThld, maxThreshold};
