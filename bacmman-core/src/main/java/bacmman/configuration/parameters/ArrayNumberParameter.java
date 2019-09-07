@@ -62,7 +62,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
     }
 
     public ArrayNumberParameter setValue(double... values) {
-        if (unMutableIndex>=0 && values.length<=unMutableIndex) throw new IllegalArgumentException("Min number of values: "+this.unMutableIndex+1);
+        if (unMutableIndex>=0 && values.length<=unMutableIndex) throw new IllegalArgumentException("Min number of values: "+(this.unMutableIndex+1));
         synchronized(this) {
             bypassListeners=true;
             setChildrenNumber(values.length);
