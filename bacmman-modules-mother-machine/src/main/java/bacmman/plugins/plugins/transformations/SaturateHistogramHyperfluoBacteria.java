@@ -66,28 +66,28 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
         Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
         double[] bckMuStd = new double[2];
         double bckThld = BackgroundFit.backgroundFit(histo, 10, bckMuStd);
-        Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(bckThld)+1, histo.data.length);
+        Histogram histoFore = histo.duplicate((int)histo.getIdxFromValue(bckThld)+1, histo.getData().length);
         double foreThld = histoFore.getQuantiles(0.5)[0];
         
         double satThld = bckMuStd[0] + (foreThld - bckMuStd[0]) * this.minSignalRatio.getValue().doubleValue();
         double satSignal = 0, totalSignal = 0;
         if (satThld<histo.getMaxValue()) {
             // condition on signal amount
-            satSignal = histo.count((int)histo.getIdxFromValue(satThld), histo.data.length);
-            totalSignal = histo.count((int)histo.getIdxFromValue(bckThld), histo.data.length);
+            satSignal = histo.count((int)histo.getIdxFromValue(satThld), histo.getData().length);
+            totalSignal = histo.count((int)histo.getIdxFromValue(bckThld), histo.getData().length);
             logger.debug("sat signal proportion: {}, ", satSignal / totalSignal);
             if (maxSignalProportion.getValue().doubleValue() > satSignal / totalSignal) {
                 saturateValue = satThld;
             } else {
                 saturateValue = histoFore.getQuantiles(1-maxSignalProportion.getValue().doubleValue())[0];
-                satSignal = histo.count((int)histo.getIdxFromValue(saturateValue), histo.data.length);
+                satSignal = histo.count((int)histo.getIdxFromValue(saturateValue), histo.getData().length);
                 logger.debug("sat value to reach maximal proportion: {}, ", saturateValue);
             }
         }
          
         long t1 = System.currentTimeMillis();
         configured = true;
-        logger.debug("SaturateHistoAuto: {}, bck : {}, thld: {}, fore: {}, saturation thld: {}, saturation proportion: {}, image range: {} computation time {}ms",saturateValue, bckMuStd[0], bckThld, foreThld, satThld, satSignal/totalSignal, new double[]{histo.min, histo.getMaxValue()}, t1-t0);
+        logger.debug("SaturateHistoAuto: {}, bck : {}, thld: {}, fore: {}, saturation thld: {}, saturation proportion: {}, image range: {} computation time {}ms",saturateValue, bckMuStd[0], bckThld, foreThld, satThld, satSignal/totalSignal, new double[]{histo.getMin(), histo.getMaxValue()}, t1-t0);
     }
     
     @Override

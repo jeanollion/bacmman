@@ -292,7 +292,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
                 Histogram histo = HistogramFactory.getHistogram(()->Image.stream(maskMap, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
                 double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, histo);
                 int thldIdx = (int)histo.getIdxFromValue(thld);
-                double foreground = histo.duplicate(thldIdx, histo.data.length).getQuantiles(0.5)[0];
+                double foreground = histo.duplicate(thldIdx, histo.getData().length).getQuantiles(0.5)[0];
                 double background = histo.getValueFromIdx(histo.getMeanIdx(0, thldIdx-1));
                 double range =foreground - background;
                 double xDerThld = range / this.relativeDerThld.getValue().doubleValue(); // divide by ratio and set to segmenter
