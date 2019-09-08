@@ -61,6 +61,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                 }
             }
         );
+        if (list.getMaxChildCount()>0 && list.getChildCount()==list.getMaxChildCount()) action.setEnabled(false);
         action = new JMenuItem(actionNames[1]);
         actions[1]=action;
         action.setAction(new AbstractAction(actionNames[1]) {
@@ -84,6 +85,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                 }
             }
         );
+        if (list.getUnMutableIndex()>=0) action.setEnabled(false);
         if (list.isDeactivatable()) {
             actions[2]=new JSeparator();
             action = new JMenuItem(deactivatableNames[0]);
