@@ -45,7 +45,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
 
     protected String name;
     protected List<T> children;
-    protected int unMutableIndex;
+    protected int unMutableIndex, maxChildCount;
     protected Class<T> childClass;
     protected String childClassName;
     protected T childInstance;
@@ -71,6 +71,13 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public L setAllowMoveChildren(boolean allow) {
         this.allowMoveChildren=allow;
         return (L)this;
+    }
+    @Override
+    public int getMaxChildCount() {
+        return this.maxChildCount;
+    }
+    public void setMaxChildCount(int maxChildCount) {
+        this.maxChildCount=maxChildCount;
     }
     @Override 
     public boolean allowMoveChildren() {
@@ -270,6 +277,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     @Override
     public boolean isValid() {
         if (unMutableIndex>=this.getChildCount()) return false;
+        if (maxChildCount>0 && maxChildCount<this.getChildCount()) return false;
         if (!getActivatedChildren().stream().noneMatch((child) -> (!child.isValid()))) return false;
         return this.additionalValidation.test((L)this);
     }

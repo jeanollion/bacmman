@@ -25,19 +25,20 @@ import java.util.List;
  * @author Jean Ollion
  */
 public interface ListParameter<T extends Parameter, L extends ListParameter<T, L>> extends ContainerParameter<T, L> { //<T extends Parameter>
-    public abstract T createChildInstance();
-    public List<T> getChildren();
+    T createChildInstance();
+    List<T> getChildren();
     /**
      *
      * @return the same instance of ListParameter
      */
-    public Class<T> getChildClass();
-    public void insert(T... child);
-    public void removeAllElements();
-    public int getUnMutableIndex();
-    public boolean isDeactivatable();
-    public void setActivatedAll(boolean activated);
-    public List<T> getActivatedChildren();
-    public T getChildByName(String name);
-    public boolean allowMoveChildren();
+    Class<T> getChildClass();
+    void insert(T... child);
+    void removeAllElements();
+    int getUnMutableIndex();
+    int getMaxChildCount();
+    boolean isDeactivatable();
+    void setActivatedAll(boolean activated);
+    List<T> getActivatedChildren();
+    T getChildByName(String name);
+    boolean allowMoveChildren();
 }
