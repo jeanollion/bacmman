@@ -317,6 +317,7 @@ public class DBMapMasterDAO implements MasterDAO {
     
     public boolean checkOutputDirectories(boolean image) {
         if (xp==null) return false;
+        //if (true) return false;
         String outS = image ? xp.getOutputImageDirectory() : xp.getOutputDirectory();
         File out = outS!=null ? new File(outS) : null;
         if (out==null || !out.exists() || !out.isDirectory()) { // look for default output dir and set it up if exists

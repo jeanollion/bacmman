@@ -19,7 +19,10 @@
 package bacmman.configuration.parameters;
 
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.stream.Collectors;
 import javax.swing.JFileChooser;
 import org.json.simple.JSONArray;
 import bacmman.utils.JSONUtils;
@@ -33,7 +36,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     protected String[] selectedFiles=new String[0];
     boolean allowNoSelection = true;
     protected FileChooserOption option = FileChooserOption.DIRECTORIES_ONLY;
-    
+    boolean relativePath = true;
     public FileChooser(String name, FileChooserOption option) {
         this(name, option, true);
     }
@@ -42,7 +45,10 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         this.option=option;
         this.allowNoSelection=allowNoSelection;
     }
-    
+    public FileChooser setRelativePath(boolean relativePath) {
+        this.relativePath=relativePath;
+        return this;
+    }
     public String[] getSelectedFilePath() {
         return selectedFiles;
     }
@@ -98,7 +104,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public FileChooserOption getOption() {return option;}
     
     @Override public FileChooser duplicate() {
-        FileChooser res = new FileChooser(name, option);
+        FileChooser res = new FileChooser(name, option, allowNoSelection).setRelativePath(relativePath);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         return res;
@@ -106,13 +112,29 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
 
     @Override
     public Object toJSONEntry() {
-        return JSONUtils.toJSONArray(selectedFiles);
+        if (!relativePath) {
+            return JSONUtils.toJSONArray(selectedFiles);
+        } else {
+            Path refPath = ParameterUtils.getExperiment(this).getPath();
+            String[] relPath = Arrays.stream(selectedFiles).map(p -> refPath.relativize(Paths.get(p)).toString()).toArray(String[]::new);
+            //logger.debug("save path: {}, ref path: {}, files: {} relativized: {}", name, refPath, selectedFiles, relPath);
+            return JSONUtils.toJSONArray(relPath);
+        }
     }
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-
         selectedFiles = JSONUtils.fromStringArray((JSONArray)jsonEntry);
+        if (relativePath && selectedFiles.length>0) {
+            Path refPath = ParameterUtils.getExperiment(this).getPath();
+            //logger.debug("init files {} -> {} (refPath: {})", name, selectedFiles, refPath);
+            selectedFiles = Arrays.stream(selectedFiles).map(p -> {
+                String rel = refPath.resolve(Paths.get(p)).normalize().toFile().getAbsolutePath();
+                if (rel==null) return p;
+                else return rel;
+            }).toArray(String[]::new);
+            //logger.debug("init files {} after relativize -> {}", name, selectedFiles);
+        }
     }
     
     public enum FileChooserOption {
