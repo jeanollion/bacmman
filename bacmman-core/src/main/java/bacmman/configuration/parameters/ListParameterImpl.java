@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
@@ -51,7 +52,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     protected T childInstance;
     protected Boolean isEmphasized;
     protected ContainerParameter parent;
-    protected Function<Integer, String> newInstanceNameFunction;
+    protected BiFunction<L, Integer, String> newInstanceNameFunction;
     boolean allowMoveChildren = true;
     protected Predicate<L> additionalValidation = l -> true;
     protected Predicate<T> childrenValidation = l -> true;
@@ -198,14 +199,14 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         T res = null;
         if (childInstance == null && getChildClass() != null) {
             try {
-                res = childClass.getDeclaredConstructor(String.class).newInstance(newInstanceNameFunction!=null ? newInstanceNameFunction.apply(getChildCount()) : "new "+childClass.getSimpleName());
+                res = childClass.getDeclaredConstructor(String.class).newInstance(newInstanceNameFunction!=null ? newInstanceNameFunction.apply((L)this, getChildCount()) : "new "+childClass.getSimpleName());
                 //if (isEmphasized!=null) res.setEmphasized(isEmphasized);
             } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
                 logger.error("duplicate error", ex);
             }
         } else if (childInstance != null) {
             res =  (T)childInstance.duplicate();
-            if (newInstanceNameFunction!=null) res.setName(newInstanceNameFunction.apply(getChildCount()));
+            if (newInstanceNameFunction!=null) res.setName(newInstanceNameFunction.apply((L)this, getChildCount()));
             if (childInstance.isEmphasized()) res.setEmphasized(true); // || Boolean.FALSE.equals(isEmphasized)
         }
         if (res!=null) {
@@ -361,15 +362,15 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public int getUnMutableIndex() {
         return unMutableIndex;
     }
-    public L setNewInstanceNameFunction(Function<Integer, String> nameFunction) {
+    public L setNewInstanceNameFunction(BiFunction<L, Integer, String> nameFunction) {
         this.newInstanceNameFunction = nameFunction;
         return (L)this;
     }
-    public void resetName(Function<Integer, String> nameFunction) {
+    public void resetName(BiFunction<L, Integer, String> nameFunction) {
         if (nameFunction==null && this.newInstanceNameFunction==null) return;
         if (nameFunction!=null) this.newInstanceNameFunction=nameFunction;
         int count = 0;
-        for (T t : this.children) t.setName(newInstanceNameFunction.apply(count++));
+        for (T t : this.children) t.setName(newInstanceNameFunction.apply((L)this, count++));
     }
     
     @Override

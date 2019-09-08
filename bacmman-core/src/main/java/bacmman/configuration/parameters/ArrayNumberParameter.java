@@ -28,7 +28,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
     boolean sorted;
     public ArrayNumberParameter(String name, int unMutableIndex, BoundedNumberParameter childInstance) {
         super(name, unMutableIndex, childInstance);
-        newInstanceNameFunction = i->Integer.toString(i);
+        newInstanceNameFunction = (l, i)->Integer.toString(i);
         if (unMutableIndex>=0) {
             for (int i = 0;i<=unMutableIndex; ++i) {
                 this.insert(createChildInstance());
