@@ -83,10 +83,13 @@ public class PluginConfigurationUtils {
     public static List<Map<SegmentedObject, TestDataStore>> testImageProcessingPlugin(final ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int structureIdx, List<SegmentedObject> parentSelection, boolean usePresentSegmentedObjects, boolean expertMode) {
         ProcessingPipeline psc=xp.getStructure(structureIdx).getProcessingScheme();
         SegmentedObjectAccessor accessor = getAccessor();
-        // get parent objects -> create graph cut
         SegmentedObject o = parentSelection.get(0);
         int parentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getParentStructure();
         int segParentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getSegmentationParentStructure();
+        // ensure scaler
+        logger.debug("get position histogram for scaling");
+        Processor.ensureScalerConfiguration(accessor.getDAO(o), structureIdx);
+        // get parent objects -> create graph cut
         Function<SegmentedObject, SegmentedObject> getParent = c -> (c.getStructureIdx()>parentStrutureIdx) ? c.getParent(parentStrutureIdx) : c.getChildren(parentStrutureIdx).findFirst().get();
         List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead(), false);
         Map<String, SegmentedObject> dupMap = SegmentedObjectUtils.createGraphCut(wholeParentTrack, true, true);  // don't modify object directly.
@@ -179,7 +182,7 @@ public class PluginConfigurationUtils {
                 if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ? 
                     psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
                     psc.getTrackPreFilters(false).removeAll();
-                } //else Processor.ensureScalerConfiguration(accessor.getDAO(p), );
+                }
                 // need to be able to run track-parametrizable on whole parentTrack....
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
                 //((TrackerSegmenter)plugin).segmentAndTrack(structureIdx, parentTrackDup, psc.getTrackPreFilters(true), psc.getPostFilters());

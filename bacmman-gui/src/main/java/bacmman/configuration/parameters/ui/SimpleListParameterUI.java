@@ -168,7 +168,9 @@ public class SimpleListParameterUI implements ListParameterUI {
                 }
             }
         );
-        
+        if (list.getMaxChildCount()>0 && list.getChildCount()==list.getMaxChildCount()) {
+            childActions[0].setEnabled(false); // add
+        }
         if (!mutable) {
             childActions[2].setEnabled(false); // delete
             childActions[3].setEnabled(false); // move up
