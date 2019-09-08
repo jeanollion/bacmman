@@ -26,22 +26,25 @@ import java.util.stream.Stream;
 import static bacmman.py_dataset.Utils.*;
 
 public class DL4Jengine implements DLengine {
-    FileChooser modelFile = new FileChooser("Keras model file", FileChooser.FileChooserOption.FILE_ONLY).setEmphasized(true);
+    FileChooser modelFile = new FileChooser("Keras model file", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
     ArrayNumberParameter inputShape = new ArrayNumberParameter("Input shape", 2, new BoundedNumberParameter("", 0, 0, 0, null))
-            .setValue(2, 256, 32)
-            .setNewInstanceNameFunction(i -> {
-                if (getInputRank()==3) return "CYX".substring(i, i+1); //todo change this
+            .setMaxChildCount(4)
+            .setNewInstanceNameFunction((l,i) -> {
+                if (l.getChildCount()==3 && i<3) return "CYX".substring(i, i+1);
                 else {
-                    if (i>3) i = 3;  // todo : set max number of elements
+                    if (i>3) i = 3;
                     return "CZYX".substring(i, i+1);
                 }
-            }).setAllowMoveChildren(false);
+            }).setValue(2, 256, 32).setAllowMoveChildren(false)
+            .addValidationFunction(l -> Arrays.stream(l.getArrayInt()).allMatch(i->i>0));
 
     public DL4Jengine() {
-
+        inputShape.resetName(null);
+        inputShape.addListener(l -> l.resetName(null));
     }
     public DL4Jengine(int[] inputShape, int batchSize) {
+        this();
         this.inputShape.setValue(ArrayUtil.toDouble(inputShape));
         this.batchSize.setValue(batchSize);
     }
