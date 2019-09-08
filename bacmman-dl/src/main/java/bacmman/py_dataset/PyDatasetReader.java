@@ -6,6 +6,7 @@ import bacmman.image.Histogram;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.SimpleImageProperties;
+import bacmman.processing.Resample;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
@@ -192,7 +193,7 @@ public class PyDatasetReader {
                 int[][] originalDims = this.originalDims.get(posName);
                 logger.debug("original dims: 0={}, 1={} #={}, dim={}", originalDims[0], originalDims[1], originalDims.length, res[0].getBoundingBox());
                 IntStream.range(0, idx.length).filter(i -> res[i] != null)
-                        .forEach(i -> res[i] = Utils.resampleBack(res[i], new SimpleBoundingBox(0, originalDims[i][0]-1, 0, originalDims[i][1]-1, 0, originalDims[i].length > 2 ? originalDims[i][2]-1 : 0), binary, resampleDims));
+                        .forEach(i -> res[i] = Resample.resampleBack(res[i], new SimpleBoundingBox(0, originalDims[i][0]-1, 0, originalDims[i][1]-1, 0, originalDims[i].length > 2 ? originalDims[i][2]-1 : 0), binary, resampleDims));
                 long t3 = System.currentTimeMillis();
                 logger.debug("resampled: {} images in {}ms", res.length, t3-t2);
             }
