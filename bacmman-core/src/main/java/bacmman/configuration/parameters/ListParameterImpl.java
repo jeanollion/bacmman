@@ -77,8 +77,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public int getMaxChildCount() {
         return this.maxChildCount;
     }
-    public void setMaxChildCount(int maxChildCount) {
+    public L setMaxChildCount(int maxChildCount) {
         this.maxChildCount=maxChildCount;
+        return (L)this;
     }
     @Override 
     public boolean allowMoveChildren() {
