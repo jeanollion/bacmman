@@ -26,6 +26,9 @@ import java.util.stream.Stream;
 import static bacmman.py_dataset.Utils.*;
 
 public class DL4Jengine implements DLengine {
+    // TODO add input / output rank in interface
+    // TODO ajuster segmentation en fonction du deplacement: split objects / suppr objets trop eloignés ?
+    // TODO segmentation: binariser EDM avant resample ?
     FileChooser modelFile = new FileChooser("Keras model file", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
     ArrayNumberParameter inputShape = new ArrayNumberParameter("Input shape", 2, new BoundedNumberParameter("", 0, 0, 0, null))
