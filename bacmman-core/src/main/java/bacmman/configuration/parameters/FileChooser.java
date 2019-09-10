@@ -19,6 +19,7 @@
 package bacmman.configuration.parameters;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
@@ -72,7 +73,12 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override 
     public boolean isValid() {
         if (!super.isValid()) return false;
-        return !(!allowNoSelection && this.selectedFiles.length==0);
+        if (selectedFiles.length==0 && !allowNoSelection) return false;
+        else if (selectedFiles.length>0) { // check that all files exist
+            if (relativePath && ParameterUtils.getExperiment(this).getPath()==null) return true; // can't test if files exist
+            if (Arrays.stream(selectedFiles).anyMatch(f -> !Files.exists(Paths.get(f)))) return false;
+        }
+        return true;
     }
     @Override
     public boolean sameContent(Parameter other) {
@@ -116,6 +122,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             return JSONUtils.toJSONArray(selectedFiles);
         } else {
             Path refPath = ParameterUtils.getExperiment(this).getPath();
+            if (refPath==null) return JSONUtils.toJSONArray(selectedFiles);
             String[] relPath = Arrays.stream(selectedFiles).map(p -> refPath.relativize(Paths.get(p)).toString()).toArray(String[]::new);
             //logger.debug("save path: {}, ref path: {}, files: {} relativized: {}", name, refPath, selectedFiles, relPath);
             return JSONUtils.toJSONArray(relPath);
@@ -129,6 +136,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             Path refPath = ParameterUtils.getExperiment(this).getPath();
             //logger.debug("init files {} -> {} (refPath: {})", name, selectedFiles, refPath);
             selectedFiles = Arrays.stream(selectedFiles).map(p -> {
+                if (refPath==null) return p;
                 String rel = refPath.resolve(Paths.get(p)).normalize().toFile().getAbsolutePath();
                 if (rel==null) return p;
                 else return rel;
