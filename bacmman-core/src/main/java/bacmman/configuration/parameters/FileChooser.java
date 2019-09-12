@@ -24,7 +24,10 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.swing.JFileChooser;
+
+import net.imagej.ops.Ops;
 import org.json.simple.JSONArray;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
@@ -47,45 +50,78 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         this.allowNoSelection=allowNoSelection;
     }
     public FileChooser setRelativePath(boolean relativePath) {
+        if (this.relativePath==relativePath) return this;
+        Path refPath = ParameterUtils.getExperiment(this).getPath();
+        if (refPath==null) throw new RuntimeException("Cannot change relative state, no path detected");
+        if (this.relativePath) selectedFiles = toAbsolutePath(refPath, selectedFiles);
+        else selectedFiles = toRelativePath(refPath, selectedFiles);
         this.relativePath=relativePath;
         return this;
     }
     public String[] getSelectedFilePath() {
+        if (relativePath) return toAbsolutePath(getRefPath(), selectedFiles);
         return selectedFiles;
     }
     
     public String getFirstSelectedFilePath() {
         if (selectedFiles.length==0) return null;
-        return selectedFiles[0];
+        if (relativePath) return toAbsolutePath(getRefPath(), selectedFiles[0]);
+        else return selectedFiles[0];
     }
     
     public void setSelectedFilePath(String... filePath) {
         if (filePath==null) selectedFiles = new String[0];
-        else selectedFiles=filePath;
+        else selectedFiles=Arrays.copyOf(filePath, filePath.length);
+        Path refPath = getRefPath();
+        for (int i = 0; i<selectedFiles.length; ++i) {
+            boolean abs = Paths.get(selectedFiles[i]).isAbsolute();
+            if (abs && this.relativePath) selectedFiles[i] = toRelativePath(refPath, selectedFiles[i]);
+            else if (!abs && !this.relativePath) selectedFiles[i] = toAbsolutePath(refPath, selectedFiles[i]);
+        }
         fireListeners();
     }
-    public void setSelectedFiles(File... filePath ) {
-        selectedFiles = new String[filePath.length];
-        int i = 0;
-        for (File f : filePath) selectedFiles[i++]=f.getAbsolutePath();
-        fireListeners();
+    public void setSelectedFiles(File... filePath) {
+        if (filePath==null || filePath.length==0) setSelectedFilePath(new String[0]);
+        else {
+            setSelectedFilePath(Arrays.stream(filePath).map(f -> f.toString()).toArray(String[]::new));
+        }
     }
     @Override 
     public boolean isValid() {
         if (!super.isValid()) return false;
         if (selectedFiles.length==0 && !allowNoSelection) return false;
         else if (selectedFiles.length>0) { // check that all files exist
-            if (relativePath && ParameterUtils.getExperiment(this).getPath()==null) return true; // can't test if files exist
-            if (Arrays.stream(selectedFiles).anyMatch(f -> !Files.exists(Paths.get(f)))) return false;
+            if (relativePath) {
+                Path ref = getRefPath();
+                if (ref==null) return true;
+                if (Arrays.stream(toAbsolutePath(getRefPath(), selectedFiles)).anyMatch(f -> !Files.exists(Paths.get(f)))) return false;
+            } else if (Arrays.stream(selectedFiles).anyMatch(f -> !Files.exists(Paths.get(f)))) return false;
         }
         return true;
     }
+
+
+
     @Override
     public boolean sameContent(Parameter other) {
         if (other instanceof FileChooser) {
-            if (((FileChooser)other).selectedFiles.length==selectedFiles.length) {
-                for (int i =0; i<selectedFiles.length; i++) { 
-                    if ((selectedFiles[i] ==null && ((FileChooser)other).selectedFiles[i]!=null) || ( selectedFiles[i] !=null && !selectedFiles[i].equals(((FileChooser)other).selectedFiles[i]))) {
+            FileChooser otherFC = (FileChooser)other;
+            if (otherFC.selectedFiles.length==selectedFiles.length) {
+                if (selectedFiles.length==0) return true;
+                boolean convert = this.relativePath != otherFC.relativePath;
+                Path refPath = convert ? getRefPath() : null;
+                Path otherRefPath = null;
+                boolean convertThis = convert && refPath!=null;
+                boolean convertOther = false;
+                if (convert && refPath==null) {
+                    otherRefPath = otherFC.getRefPath();
+                    if (otherRefPath==null) throw new IllegalArgumentException("cannot compare two file chooser, one of them in relative state without reference path");
+                    convertOther = true;
+                }
+                String[] compareThis = convertThis ? (this.relativePath ? toAbsolutePath(refPath, selectedFiles) : toRelativePath(refPath, selectedFiles)) : selectedFiles;
+                String[] compareOther = convertOther ? (otherFC.relativePath ? toAbsolutePath(otherRefPath, otherFC.selectedFiles): toRelativePath(otherRefPath, otherFC.selectedFiles)) : otherFC.selectedFiles;
+                for (int i =0; i<selectedFiles.length; i++) {
+                    if ((compareThis[i] ==null && compareOther[i]!=null) || ( compareThis[i] !=null && !compareThis[i].equals(compareOther[i]))) {
                         logger.trace("FileChoose {}!={}: difference in selected files : {} vs {}", this, other, selectedFiles, ((FileChooser)other).selectedFiles);
                         return false;
                     }
@@ -100,17 +136,23 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override
     public void setContentFrom(Parameter other) {
         if (other instanceof FileChooser) {
-            //this.option=((FileChooser)other).option;
-            this.selectedFiles=Arrays.copyOf(((FileChooser)other).selectedFiles, ((FileChooser)other).selectedFiles.length);
+            FileChooser otherFC = (FileChooser)other;
+            if (this.relativePath!=otherFC.relativePath) {
+                if (this.relativePath) selectedFiles = toRelativePath(otherFC.getRefPath(), otherFC.selectedFiles);
+                else selectedFiles = toAbsolutePath(otherFC.getRefPath(), otherFC.selectedFiles);
+            } else this.selectedFiles=Arrays.copyOf(((FileChooser)other).selectedFiles, ((FileChooser)other).selectedFiles.length);
         } else throw new IllegalArgumentException("wrong parameter type");
     }
     
-    @Override public String toString() {return name+" :"+Utils.getStringArrayAsString(selectedFiles);}
+    @Override public String toString() {
+        return name+" :"+Utils.getStringArrayAsString(selectedFiles);
+    }
     
     public FileChooserOption getOption() {return option;}
     
     @Override public FileChooser duplicate() {
         FileChooser res = new FileChooser(name, option, allowNoSelection).setRelativePath(relativePath);
+        res.selectedFiles = Arrays.copyOf(selectedFiles, selectedFiles.length);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         return res;
@@ -118,31 +160,54 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
 
     @Override
     public Object toJSONEntry() {
-        if (!relativePath) {
-            return JSONUtils.toJSONArray(selectedFiles);
-        } else {
-            Path refPath = ParameterUtils.getExperiment(this).getPath();
-            if (refPath==null) return JSONUtils.toJSONArray(selectedFiles);
-            String[] relPath = Arrays.stream(selectedFiles).map(p -> refPath.relativize(Paths.get(p)).toString()).toArray(String[]::new);
-            //logger.debug("save path: {}, ref path: {}, files: {} relativized: {}", name, refPath, selectedFiles, relPath);
-            return JSONUtils.toJSONArray(relPath);
-        }
+        return JSONUtils.toJSONArray(selectedFiles);
     }
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         selectedFiles = JSONUtils.fromStringArray((JSONArray)jsonEntry);
-        if (relativePath && selectedFiles.length>0) {
-            Path refPath = ParameterUtils.getExperiment(this).getPath();
-            //logger.debug("init files {} -> {} (refPath: {})", name, selectedFiles, refPath);
-            selectedFiles = Arrays.stream(selectedFiles).map(p -> {
-                if (refPath==null) return p;
-                String rel = refPath.resolve(Paths.get(p)).normalize().toFile().getAbsolutePath();
-                if (rel==null) return p;
-                else return rel;
-            }).toArray(String[]::new);
-            //logger.debug("init files {} after relativize -> {}", name, selectedFiles);
+        // check absolute...
+        if (selectedFiles.length>0) {
+            boolean rel = !currentPathsAreAbsolute();
+            if (this.relativePath != rel) {
+                if (this.relativePath) selectedFiles = toRelativePath(getRefPath(), selectedFiles);
+                else selectedFiles = toAbsolutePath(getRefPath(), selectedFiles);
+            }
         }
+    }
+    protected static String[] toRelativePath(Path refPath, String[] files) {
+        if (refPath == null) return null;
+        if (files ==null) return null;
+        if (files.length==0) return new String[0];
+        return Arrays.stream(files).map(p -> toRelativePath(refPath, p)).toArray(String[]::new);
+    }
+    protected static String toRelativePath(Path ref, String toConvert) {
+        return ref.relativize(Paths.get(toConvert)).toString();
+    }
+    protected  static String toAbsolutePath(Path ref, String toConvert) {
+        return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
+    }
+    protected Path getRefPath() {
+        return ParameterUtils.getExperiment(this).getPath();
+    }
+    protected static String[] toAbsolutePath(Path refPath, String[] files) {
+        if (refPath == null) return null;
+        if (files ==null) return null;
+        if (files.length==0) return new String[0];
+        return Arrays.stream(files).map(p -> {
+            String pp = toAbsolutePath(refPath, p);
+            if (pp==null) return p;
+            else return pp;
+        }).toArray(String[]::new);
+    }
+    protected boolean currentPathsAreAbsolute() {
+        if (selectedFiles==null || selectedFiles.length==0) return false;
+        boolean abs = Paths.get(selectedFiles[0]).isAbsolute();
+        if (selectedFiles.length>1) {
+            boolean anyDif = IntStream.range(1, selectedFiles.length).mapToObj(i -> selectedFiles[i]).anyMatch(f -> Paths.get(f).isAbsolute()!=abs);
+            if (anyDif) throw new IllegalArgumentException("Some paths are relative other absolute");
+            return abs;
+        } else return abs;
     }
     
     public enum FileChooserOption {
