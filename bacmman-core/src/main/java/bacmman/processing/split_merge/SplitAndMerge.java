@@ -34,6 +34,7 @@ import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 
+import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -47,20 +48,29 @@ import java.util.function.Predicate;
 public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& RegionCluster.InterfaceVoxels<I>
     protected Consumer<Image> addTestImage;
     protected ClusterCollection.InterfaceFactory<Region, I> factory;
-    protected HashMapGetCreate<Region, Double> medianValues;
+    protected final Map<Region, Double> medianValues;
+    protected final Map<Region, Double> meanValues;
     protected Image intensityMap;
     boolean wsMapIsEdgeMap = true, localMinOnSeedMap=true;
-    ImageMask foregroundMask;
-    protected Consumer<Region> regionChanged = r -> {if (medianValues!=null) medianValues.remove(r);};
+    protected ImageMask foregroundMask;
+    protected Consumer<Region> regionChanged;
     public void setTestMode(Consumer<Image> addTestImage) {
         this.addTestImage = addTestImage;
     }
     public SplitAndMerge(Image intensityMap) {
         this.intensityMap=intensityMap;
-        medianValues= new HashMapGetCreate<>(r -> {
+        medianValues= new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
             if (r.getLabel()==0) return ArrayUtil.quantile(r.getVoxels().stream().filter(v->intensityMap.contains(v.x, v.y, v.z)).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).toArray(), 0.5);
             else return BasicMeasurements.getQuantileValue(r, intensityMap, 0.5)[0];
         });
+        meanValues = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
+            if (r.getLabel()==0) return r.getVoxels().stream().filter(v->intensityMap.contains(v.x, v.y, v.z)).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).average().getAsDouble();
+            else return BasicMeasurements.getMeanValue(r, intensityMap);
+        });
+        regionChanged = r -> {
+            medianValues.remove(r);
+            meanValues.remove(r);
+        };
     }
     public SplitAndMerge<I> setMapsProperties(boolean wsMapIsEdgeMap, boolean localMinOnSeedMap) {
         this.wsMapIsEdgeMap=wsMapIsEdgeMap;
@@ -71,8 +81,11 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
      * 
      * @return A map containing median values of a given region within the map {@param intensityMap}, updated when a fusion occurs
      */
-    public HashMapGetCreate<Region, Double> getMedianValues() {
+    public Map<Region, Double> getMedianValues() {
         return medianValues;
+    }
+    public Map<Region, Double> getMeanValues() {
+        return meanValues;
     }
     
     public Image getIntensityMap() {
@@ -119,8 +132,8 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
      */
     public void addForbidByMedianDifference(double thldDiff) {
         this.addForbidFusion(i->{
-            double med1 = medianValues.getAndCreateIfNecessary(i.getE1());
-            double med2 = medianValues.getAndCreateIfNecessary(i.getE2());
+            double med1 = medianValues.get(i.getE1());
+            double med2 = medianValues.get(i.getE2());
             return Math.abs(med1-med2)>thldDiff;
         });
     }
@@ -199,10 +212,10 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     
     public BiFunction<? super I, ? super I, Integer> compareByMedianIntensity(boolean highIntensityFisrt) {
         return (i1, i2) -> {
-            double i11  = medianValues.getAndCreateIfNecessary(i1.getE1());
-            double i12  = medianValues.getAndCreateIfNecessary(i1.getE2());
-            double i21  = medianValues.getAndCreateIfNecessary(i2.getE1());
-            double i22  = medianValues.getAndCreateIfNecessary(i2.getE2());
+            double i11  = medianValues.get(i1.getE1());
+            double i12  = medianValues.get(i1.getE2());
+            double i21  = medianValues.get(i2.getE1());
+            double i22  = medianValues.get(i2.getE2());
             
             if (highIntensityFisrt) {
                 double min1 = Math.min(i11, i12);

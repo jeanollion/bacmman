@@ -346,7 +346,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         } else throw new IllegalArgumentException("wrong parameter type");
     }
     
-    protected void setChildrenNumber(int number) {
+    public L setChildrenNumber(int number) {
+        if (this.maxChildCount>0 && maxChildCount<number) throw new IllegalArgumentException("requested child number ("+number+") is greater than maximum child number ("+maxChildCount+")");
+        if (this.unMutableIndex>=0 && number<unMutableIndex+1) throw new IllegalArgumentException("requested child number ("+number+") is lower than minimum child number ("+(unMutableIndex+1)+")");
         if (this.getChildCount()>number) {
             int c = this.getChildCount();
             for (int i = c; i>number; --i) remove(i-1);
@@ -354,6 +356,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
             int c = this.getChildCount();
             for (int i = c; i<number; ++i) this.insert(createChildInstance());
         }
+        resetName(null);
+        return (L)this;
     }
     
     public void setUnmutableIndex(int unMutableIndex) {
@@ -419,6 +423,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         }
         
     }
+
+
 
     @Override
     public void setUserObject(Object object) {

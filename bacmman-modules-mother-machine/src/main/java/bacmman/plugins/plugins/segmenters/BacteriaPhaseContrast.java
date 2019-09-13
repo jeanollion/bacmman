@@ -307,7 +307,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
      */
     protected RegionPopulation filterBorderArtifacts(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
         Function<Region, Integer> artifactFunc  = getFilterBorderArtifacts(parent, structureIdx);
-        pop.filter(r->artifactFunc.apply(r)>=0 && (splitAndMerge.getMedianValues().getAndCreateIfNecessary(r)>lowerThld));
+        pop.filter(r->artifactFunc.apply(r)>=0 && (splitAndMerge.getMedianValues().get(r)>lowerThld));
         return pop;
     }
     /**

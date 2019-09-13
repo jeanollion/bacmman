@@ -68,23 +68,23 @@ public class SplitAndMergeRegionCriterion extends SplitAndMerge<SplitAndMergeReg
                 break;
             case DIFF_MEDIAN_BTWN_REGIONS:
                 interfaceValue = i -> {
-                    double v1 = getMedianValues().getAndCreateIfNecessarySync(i.getE1());
+                    double v1 = getMedianValues().get(i.getE1());
                     if (Double.isNaN(v1)) return Double.NEGATIVE_INFINITY; // background
-                    return Math.abs(v1-getMedianValues().getAndCreateIfNecessarySync(i.getE2()));
+                    return Math.abs(v1-getMedianValues().get(i.getE2()));
                 };
                 break;
             case ABSOLUTE_DIFF_MEDIAN_BTWN_REGIONS: // supposing : foreground values are higher. trying to merge region that can be foreground or background with foreground regions of lesser label. 
                 interfaceValue = i -> {
-                    double v1 = getMedianValues().getAndCreateIfNecessarySync(i.getE1());
+                    double v1 = getMedianValues().get(i.getE1());
                     if (Double.isNaN(v1)) return Double.POSITIVE_INFINITY; // background
-                    return v1-getMedianValues().getAndCreateIfNecessarySync(i.getE2()); // highest difference of higher label region will be negative
+                    return v1-getMedianValues().get(i.getE2()); // highest difference of higher label region will be negative
                 };
                 break;
             case ABSOLUTE_DIFF_MEDIAN_BTWN_REGIONS_INV: //supposing : background values are higher trying to merge region that can be foreground or background with foreground regions of lesser label
                 interfaceValue = i -> {
-                    double v1 = getMedianValues().getAndCreateIfNecessarySync(i.getE1());
+                    double v1 = getMedianValues().get(i.getE1());
                     if (Double.isNaN(v1)) return Double.POSITIVE_INFINITY; // background
-                    return getMedianValues().getAndCreateIfNecessarySync(i.getE2())-v1; // highest difference of higher label region will be negative
+                    return getMedianValues().get(i.getE2())-v1; // highest difference of higher label region will be negative
                 };
                 break;
         }

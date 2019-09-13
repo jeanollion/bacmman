@@ -22,6 +22,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.Voxel;
 import bacmman.image.Image;
+import bacmman.plugins.Plugin;
 import bacmman.processing.clustering.ClusterCollection;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
@@ -35,6 +36,8 @@ import java.util.function.Function;
 import static bacmman.plugins.Plugin.logger;
 
 import bacmman.utils.ArrayUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
@@ -44,6 +47,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface> {
+    public final static Logger logger = LoggerFactory.getLogger(SplitAndMergeEdge.class);
     final Image edge;
     public double splitThresholdValue;
     Function<Interface, Double> interfaceValue;
