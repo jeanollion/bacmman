@@ -99,6 +99,10 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
     public ArrayNumberParameter duplicate() {
         ArrayNumberParameter res = new ArrayNumberParameter(name, unMutableIndex, childInstance);
         res.setContentFrom(this);
+        res.setListeners(listeners);
+        res.setNewInstanceNameFunction(newInstanceNameFunction);
+        res.addValidationFunction(this.additionalValidation);
+        res.addValidationFunctionToChildren(this.childrenValidation);
         return res;
     }
 }

@@ -18,7 +18,10 @@ public class DLengineProvider {
         DLengine engine = engines.stream().filter(e -> e.getClass().equals(engineClass) && (ParameterUtils.sameContent(Arrays.asList(e.getParameters()), parameters))).findFirst().orElse(null);
         if (engine==null) {
             engine = engineFactory.get();
-            if (engine!=null) engines.add(engine);
+            if (engine!=null) {
+                engine.init();
+                engines.add(engine);
+            }
         }
         return engine;
     }
