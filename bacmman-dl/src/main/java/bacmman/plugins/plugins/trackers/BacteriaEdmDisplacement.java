@@ -23,15 +23,15 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProcessingPlugin {
-    PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("Deep learning model", DLengine.class, new DL4Jengine(), false);
-    BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distnace", 1, 50, 0, null);
+    PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
+    PluginParameter<DLengine> dlEngine = new PluginParameter<>("Deep learning model", DLengine.class, new DL4Jengine(), false).setEmphasized(true);
+    BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngine, edmSegmenter, maxLinkingDistance};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_dy = predict(objectClassIdx, parentTrack, trackPreFilters);
-        segment(objectClassIdx, parentTrack, edm_dy[0], postFilters, factory);
+        segment(objectClassIdx, parentTrack, edm_dy[0], edm_dy[1], postFilters, factory);
         track(objectClassIdx, parentTrack ,edm_dy[1], editor);
     }
 
@@ -46,7 +46,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         Pair<Image[][], int[][]> inputs = getInputs(objectClassIdx, parentTrack);
         long t3= System.currentTimeMillis();
         logger.debug("input resampled in {}ms", t3-t2);
-        Image[][] prediction =  engine.process(inputs.key);
+        Image[][] prediction =  engine.process(inputs.key)[0];
         long t4= System.currentTimeMillis();
         logger.debug("#{}(*{}) predictions made in {}ms", prediction.length, prediction[0].length, t4-t3);
         Image[][] predictionResampled = Utils.resample(prediction, new boolean[]{false, true}, inputs.value);
@@ -73,18 +73,23 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         logger.debug("input ok");
         return new Pair<>(input, shapes);
     }
-    public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
+    public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
-        Map<SegmentedObject, Image> pf = parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getPreFilteredImage(objectClassIdx)));
-        setPreFilteredImages(objectClassIdx, parentTrack, edm);
-        SegmentOnly seg = new SegmentOnly(edmSegmenter.instanciatePlugin()).setPostFilters(postFilters);
-        TrackConfigurable.TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instanciatePlugin());
-        seg.segmentAndTrack(objectClassIdx, parentTrack, apply, factory);
-        setPreFilteredImages(objectClassIdx, parentTrack, pf);
-    }
-    private static void setPreFilteredImages(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> images) {
-        SegmentedObjectAccessor accessor = getAccessor();
-        parentTrack.forEach(p -> accessor.setPreFilteredImage(p, objectClassIdx, images.get(p)));
+        TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instanciatePlugin());
+        parentTrack.parallelStream().forEach(p -> {
+            Image edmI = edm.get(p);
+            Segmenter segmenter = edmSegmenter.instanciatePlugin();
+            if (segmenter instanceof BacteriaEDM) {
+                ((BacteriaEDM)segmenter).setdy(dy);
+            }
+            if (stores!=null && segmenter instanceof TestableProcessingPlugin) {
+                ((TestableProcessingPlugin) segmenter).setTestDataStore(stores);
+            }
+            if (applyToSegmenter != null) applyToSegmenter.apply(p, segmenter);
+            RegionPopulation pop = segmenter.runSegmenter(edmI, objectClassIdx, p);
+            postFilters.filter(pop, objectClassIdx, p);
+            factory.setChildObjects(p, pop);
+        });
     }
     public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, TrackLinkEditor editor) {
         if (stores!=null) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
@@ -160,13 +165,4 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         this.stores=  stores;
     }
 
-    private static SegmentedObjectAccessor getAccessor() {
-        try {
-            Constructor<SegmentedObjectAccessor> constructor = SegmentedObjectAccessor.class.getDeclaredConstructor();
-            constructor.setAccessible(true);
-            return constructor.newInstance();
-        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
-            throw new RuntimeException("Could not create track link editor", e);
-        }
-    }
 }
