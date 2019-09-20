@@ -23,10 +23,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.swing.JFileChooser;
 
+import bacmman.configuration.experiment.Experiment;
 import net.imagej.ops.Ops;
 import org.json.simple.JSONArray;
 import bacmman.utils.JSONUtils;
@@ -65,18 +67,23 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     
     public String getFirstSelectedFilePath() {
         if (selectedFiles.length==0) return null;
-        if (relativePath) return toAbsolutePath(getRefPath(), selectedFiles[0]);
-        else return selectedFiles[0];
+        if (relativePath) {
+            Path refPath = getRefPath();
+            if (refPath!=null) return toAbsolutePath(refPath, selectedFiles[0]);
+        }
+        return selectedFiles[0];
     }
     
     public void setSelectedFilePath(String... filePath) {
         if (filePath==null) selectedFiles = new String[0];
-        else selectedFiles=Arrays.copyOf(filePath, filePath.length);
+        else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).toArray(String[]::new);
         Path refPath = getRefPath();
-        for (int i = 0; i<selectedFiles.length; ++i) {
-            boolean abs = Paths.get(selectedFiles[i]).isAbsolute();
-            if (abs && this.relativePath) selectedFiles[i] = toRelativePath(refPath, selectedFiles[i]);
-            else if (!abs && !this.relativePath) selectedFiles[i] = toAbsolutePath(refPath, selectedFiles[i]);
+        if (refPath!=null) {
+            for (int i = 0; i < selectedFiles.length; ++i) {
+                boolean abs = Paths.get(selectedFiles[i]).isAbsolute();
+                if (abs && this.relativePath) selectedFiles[i] = toRelativePath(refPath, selectedFiles[i]);
+                else if (!abs && !this.relativePath) selectedFiles[i] = toAbsolutePath(refPath, selectedFiles[i]);
+            }
         }
         fireListeners();
     }
@@ -188,7 +195,9 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
     }
     protected Path getRefPath() {
-        return ParameterUtils.getExperiment(this).getPath();
+        Experiment xp = ParameterUtils.getExperiment(this);
+        if (xp==null) return null;
+        return xp.getPath();
     }
     protected static String[] toAbsolutePath(Path refPath, String[] files) {
         if (refPath == null) return null;

@@ -27,6 +27,7 @@ import net.imglib2.img.ImagePlusAdapter;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
 import net.imglib2.type.numeric.RealType;
+import net.imglib2.view.Views;
 
 /**
  *
@@ -42,6 +43,7 @@ public class ImgLib2ImageWrapper {
     public static <T extends RealType<T>> Img<T> getImage(Image image) {
         return ImagePlusAdapter.wrapReal(IJImageWrapper.getImagePlus(image));
     }
+
     /*public static <T extends RealType<T>> Histogram1d<T> getHistogram(Img<T> img) {
         if (img.firstElement() instanceof IntegerType) {
             ((Img<IntegerType>)img)
