@@ -6,28 +6,24 @@ import bacmman.image.Image;
 import bacmman.image.Offset;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.dl_engines.DL4Jengine;
-import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
-import bacmman.py_dataset.Utils;
+import bacmman.processing.ResizeUtils;
 import bacmman.utils.Pair;
 import fiji.plugin.trackmate.Spot;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProcessingPlugin {
     PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("Deep learning model", DLengine.class, new DL4Jengine(), false).setEmphasized(true);
+    PluginParameter<DLengine> dlEngine = new PluginParameter<>("Deep learning model", DLengine.class, false).setEmphasized(true);
     BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngine, edmSegmenter, maxLinkingDistance};
-
+    private static boolean next = true;
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_dy = predict(objectClassIdx, parentTrack, trackPreFilters);
@@ -49,7 +45,10 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         Image[][] prediction =  engine.process(inputs.key)[0];
         long t4= System.currentTimeMillis();
         logger.debug("#{}(*{}) predictions made in {}ms", prediction.length, prediction[0].length, t4-t3);
-        Image[][] predictionResampled = Utils.resample(prediction, new boolean[]{false, true}, inputs.value);
+        if (next) { // remove dy of next image to avoid having to resample it
+            prediction = Arrays.stream(prediction).map(a -> Arrays.copyOf(a, 2)).toArray(Image[][]::new);
+        }
+        Image[][] predictionResampled = ResizeUtils.resample(prediction, new boolean[]{false, true}, inputs.value);
         // set offset & calibration
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
             for (int c = 0; c<predictionResampled[idx].length; ++c) {
@@ -65,11 +64,12 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     }
     private Pair<Image[][], int[][]> getInputs(int objectClassIdx, List<SegmentedObject> parentTrack) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
-        int[][] shapes = Utils.getShapes(in, false);
+        int[][] shapes = ResizeUtils.getShapes(in, false);
         logger.debug("shapes ok: {}", shapes);
-        Image[] inResampled = Utils.resample(in, false, new int[][]{{32, 256}});
+        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{{32, 256}});
         logger.debug("resampled ok");
-        Image[][] input = IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
+        Image[][] input = next ? IntStream.range(0, in.length).mapToObj(i -> new Image[]{i==0 ? inResampled[0] : inResampled[i-1], inResampled[i], i==in.length-1 ? inResampled[i] : inResampled[i+1]}).toArray(Image[][]::new) :
+            IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
         logger.debug("input ok");
         return new Pair<>(input, shapes);
     }
