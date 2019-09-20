@@ -479,6 +479,10 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public int getChildCount() {
         return getChildren().size();
     }
+    public int getActivatedChildCount() {
+        if (!isDeactivatable()) return getChildCount();
+        return (int)getChildren().stream().filter(c->(((Deactivatable)c).isActivated())).count();
+    }
 
     @Override
     public ContainerParameter getParent() {
