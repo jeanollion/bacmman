@@ -1,4 +1,4 @@
-package bacmman.dl4j_keras;
+package bacmman.dl;
 
 import bacmman.image.*;
 import org.nd4j.linalg.api.buffer.DataType;
