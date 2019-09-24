@@ -37,15 +37,16 @@
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow</artifactId>
             <version>1.13.1</version>
-            <exclusions>
+            <!-- enable the following exclusion are for gpu support-->
+            <!--exclusions>
                 <exclusion>
                     <groupId>org.tensorflow</groupId>
                     <artifactId>libtensorflow_jni</artifactId>
                 </exclusion>
-            </exclusions>
+            </exclusions-->
         </dependency>
         <!-- enable the two following deps are for gpu supports-->
-        <dependency>
+        <!--dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow</artifactId>
             <version>1.13.1</version>
@@ -54,8 +55,13 @@
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow_jni_gpu</artifactId>
             <version>1.13.1</version>
-        </dependency>
+        </dependency-->
 
+        <!--dependency>
+            <groupId>net.imagej</groupId>
+            <artifactId>imagej-tensorflow</artifactId>
+            <version>1.0.5-SNAPSHOT</version>
+        </dependency-->
     </dependencies>
 
 </project>

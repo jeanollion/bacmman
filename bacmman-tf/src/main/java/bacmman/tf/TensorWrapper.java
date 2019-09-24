@@ -10,7 +10,6 @@ import org.tensorflow.Tensor;
 
 import java.nio.FloatBuffer;
 import java.util.Arrays;
-import java.util.List;
 
 public class TensorWrapper {
     public final static Logger logger = LoggerFactory.getLogger(TensorWrapper.class);

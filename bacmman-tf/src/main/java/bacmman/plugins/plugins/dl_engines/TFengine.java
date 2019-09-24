@@ -66,6 +66,11 @@ public class TFengine implements DLengine {
 
     @Override
     public void init() {
+        try {
+            TensorFlow.version();
+        } catch(UnsatisfiedLinkError e) {
+            logger.error("Error while loading tensorflow:", e);
+        }
         logger.debug("tensorflow version: {}", TensorFlow.version());
         // TODO: load library... use tensorflow service ?
         //model = SavedModelBundle.load("/data/Images/MOP/data_segDis_resampled/seg_edm16dy24_model/", "serve");
