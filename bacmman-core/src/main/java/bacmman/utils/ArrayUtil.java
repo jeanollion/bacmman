@@ -628,6 +628,22 @@ public class ArrayUtil {
         for (int i = 0; i<res.length; ++i) res[i] = coll.get(i);
         return res;
     }
+    public static boolean contains(int[] array, int value) {
+        for (int i : array) if (i==value) return true;
+        return false;
+    }
+    public static boolean contains(long[] array, long value) {
+        for (long i : array) if (i==value) return true;
+        return false;
+    }
+    public static boolean contains(float[] array, float value) {
+        for (float i : array) if (i==value) return true;
+        return false;
+    }
+    public static boolean contains(double[] array, double value) {
+        for (double i : array) if (i==value) return true;
+        return false;
+    }
     /**
      * Apply function {@param func} to each element of array {@param array}
      * @param <T> type 

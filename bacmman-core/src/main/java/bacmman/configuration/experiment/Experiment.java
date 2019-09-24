@@ -40,7 +40,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import bacmman.plugins.plugins.transformations.SelectBestFocusPlane;
-import org.apache.commons.lang.ArrayUtils;
+import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Autofocus;
@@ -431,7 +431,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         List<MeasurementKey> allKeys = getAllMeasurementKeys();
         for (MeasurementKey k : allKeys) {
             if (classFilter==null || classFilter.equals(k.getClass())) {
-                if (structures.length==0 || ArrayUtils.contains(structures, k.getStoreStructureIdx())) map.getAndCreateIfNecessary(k.getStoreStructureIdx()).add(k.getKey());
+                if (structures.length==0 || ArrayUtil.contains(structures, k.getStoreStructureIdx())) map.getAndCreateIfNecessary(k.getStoreStructureIdx()).add(k.getKey());
             }
         }
         Map<Integer, String[]> mapRes = new HashMap<Integer, String[]>(map.size());
