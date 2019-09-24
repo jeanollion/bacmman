@@ -101,7 +101,7 @@ public class PluginConfigurationUtils {
         if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
         List<Map<SegmentedObject, TestDataStore>> storeList = new ArrayList<>(2);
         storeList.add(stores);
-
+        psc.setTestDataStore(stores);
         logger.debug("test processing: sel {}", parentSelection);
         logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method

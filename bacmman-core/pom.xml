@@ -23,12 +23,12 @@
         <dependency>
             <groupId>net.imagej</groupId>
             <artifactId>ij</artifactId>
-            <version>1.52p</version>
+            <version>1.52q</version>
         </dependency>
         <dependency>
             <groupId>net.imagej</groupId>
             <artifactId>imagej</artifactId>
-            <version>2.0.0-rc-69</version>
+            <version>2.0.0-rc-71</version>
         </dependency>
         <dependency>
             <groupId>net.imglib2</groupId>
@@ -66,12 +66,6 @@
             <artifactId>commons-math3</artifactId>
             <version>3.6.1</version>
         </dependency>
-        <!-->for non-local means wrapping<-->
-        <dependency>
-            <groupId>com.github.thorstenwagner</groupId>
-            <artifactId>ij-nl-means</artifactId>
-            <version>1.4.6</version>
-        </dependency>
         <dependency>
             <groupId>sc.fiji</groupId>
             <artifactId>imagescience</artifactId>
@@ -90,14 +84,18 @@
         <dependency>
             <groupId>ome</groupId>
             <artifactId>formats-gpl</artifactId>
-            <version>6.2.0</version>
-            <scope>compile</scope>
+            <version>6.2.1</version>
         </dependency>
-
         <dependency>
             <groupId>sc.fiji</groupId>
             <artifactId>TrackMate_</artifactId>
             <version>4.0.0</version>
+        </dependency>
+        <!-->for non-local means denoising plugin<-->
+        <dependency>
+            <groupId>com.github.thorstenwagner</groupId>
+            <artifactId>ij-nl-means</artifactId>
+            <version>1.4.6</version>
         </dependency>
     </dependencies>
     <repositories>
@@ -109,10 +107,10 @@
             <id>ome.releases</id>
             <url>http://artifacts.openmicroscopy.org/artifactory/ome.releases</url>
         </repository>
-        <repository>
+        <!--repository>
             <id>ome.snapshots</id>
             <url>http://artifacts.openmicroscopy.org/artifactory/ome.snapshots</url>
-        </repository>
+        </repository-->
     </repositories>
     <pluginRepositories>
         <pluginRepository>

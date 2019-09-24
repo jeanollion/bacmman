@@ -48,7 +48,6 @@ import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.SwingWorker;
 
-import org.apache.commons.lang.ArrayUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.utils.ArrayUtil;
@@ -643,7 +642,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         }
         if (structures!=null) {
             addSep.run();
-            sb.append("structures:").append(ArrayUtils.toString(structures));
+            sb.append("structures:").append(ArrayUtil.toString(structures));
         }
         if (positions!=null) {
             addSep.run();
@@ -652,7 +651,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         if (!extractMeasurementDir.isEmpty()) {
             addSep.run();
             sb.append("Extract: ");
-            for (Pair<String, int[]> p : this.extractMeasurementDir) sb.append((p.key==null?dir:p.key)).append('=').append(ArrayUtils.toString(p.value));
+            for (Pair<String, int[]> p : this.extractMeasurementDir) sb.append((p.key==null?dir:p.key)).append('=').append(ArrayUtil.toString(p.value));
         }
         if (exportData) {
             if (exportPreProcessedImages) {
