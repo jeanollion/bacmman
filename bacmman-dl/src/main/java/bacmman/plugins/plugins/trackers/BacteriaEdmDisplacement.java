@@ -35,16 +35,16 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         long t0= System.currentTimeMillis();
         DLengine engine = dlEngine.instanciatePlugin();
         long t1= System.currentTimeMillis();
-        logger.debug("dl engine instanciated in {}ms", t1-t0);
+        logger.info("dl engine instanciated in {}ms", t1-t0);
         trackPreFilters.filter(objectClassIdx, parentTrack);
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
         Pair<Image[][], int[][]> inputs = getInputs(objectClassIdx, parentTrack);
         long t3= System.currentTimeMillis();
-        logger.debug("input resampled in {}ms", t3-t2);
+        logger.info("input resampled in {}ms", t3-t2);
         Image[][] prediction =  engine.process(inputs.key)[0];
         long t4= System.currentTimeMillis();
-        logger.debug("#{}(*{}) predictions made in {}ms", prediction.length, prediction[0].length, t4-t3);
+        logger.info("#{}(*{}) predictions made in {}ms", prediction.length, prediction[0].length, t4-t3);
         if (next) { // remove dy of next image to avoid having to resample it
             prediction = Arrays.stream(prediction).map(a -> Arrays.copyOf(a, 2)).toArray(Image[][]::new);
         }
@@ -57,7 +57,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
             }
         }
         long t5= System.currentTimeMillis();
-        logger.debug("predicitons resampled in {}ms", t5-t4);
+        logger.info("predicitons resampled in {}ms", t5-t4);
         Map<SegmentedObject, Image> edm = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> predictionResampled[i][0]));
         Map<SegmentedObject, Image> dy = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> predictionResampled[i][1]));
         return new Map[]{edm, dy};
@@ -74,6 +74,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         return new Pair<>(input, shapes);
     }
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
+        logger.debug("segmenting : test mode: {}", stores!=null);
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
         TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instanciatePlugin());
         parentTrack.parallelStream().forEach(p -> {
