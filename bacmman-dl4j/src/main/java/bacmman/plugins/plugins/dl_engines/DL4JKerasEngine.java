@@ -36,4 +36,9 @@ public class DL4JKerasEngine extends DL4JEngine{
     public int getNumOutputArrays() {
         return model.getNumOutputArrays();
     }
+
+    @Override
+    public void close() {
+        if (model!=null) model.clear();
+    }
 }

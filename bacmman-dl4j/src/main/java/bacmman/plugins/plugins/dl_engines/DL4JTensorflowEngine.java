@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.dl_engines;
 
+import bacmman.plugins.DevPlugin;
 import org.nd4j.autodiff.execution.NativeGraphExecutioner;
 import org.nd4j.autodiff.samediff.SameDiff;
 import org.nd4j.imports.graphmapper.tf.TFGraphMapper;
@@ -8,7 +9,7 @@ import org.nd4j.linalg.api.ndarray.INDArray;
 import java.io.File;
 import java.util.List;
 
-public class DL4JTensorflowEngine extends DL4JEngine {
+public class DL4JTensorflowEngine extends DL4JEngine implements DevPlugin {
     SameDiff graph;
     NativeGraphExecutioner executioner;
     //SimpleListParameter<TextParameter> inputNames = new SimpleListParameter<TextParameter>("Input layer names", 0, new TextParameter("Layer name", "input", true, false)).setChildrenNumber(1);
@@ -32,6 +33,11 @@ public class DL4JTensorflowEngine extends DL4JEngine {
     @Override
     public int getNumOutputArrays() {
         return graph.outputs().size();
+    }
+
+    @Override
+    public void close() {
+        // TODO check if there is something to close !
     }
 
     @Override

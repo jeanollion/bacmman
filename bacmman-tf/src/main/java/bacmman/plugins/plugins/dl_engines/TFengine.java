@@ -65,6 +65,11 @@ public class TFengine implements DLengine {
     }
 
     @Override
+    public void close() {
+        if (graph!=null) graph.close();
+    }
+
+    @Override
     public void init() {
         try {
             TensorFlow.version();
