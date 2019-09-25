@@ -7,4 +7,5 @@ public interface DLengine extends Plugin {
     void init();
     int[][] getInputShapes();
     int getNumOutputArrays();
+    void close();
 }

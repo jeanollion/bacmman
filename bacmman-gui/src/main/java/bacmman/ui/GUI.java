@@ -3437,6 +3437,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         db.getSelectionDAO().clearCache();
         ImageWindowManagerFactory.getImageManager().flush();
         db.getExperiment().flushImages(true, true, excludedPositions);
+        db.getExperiment().getDLengineProvider().closeAllEngines();
         List<String> positions = new ArrayList<>(Arrays.asList(db.getExperiment().getPositionsAsString()));
         positions.removeAll(Arrays.asList(excludedPositions));
         for (String p : positions) db.getDao(p).clearCache();
@@ -3942,7 +3943,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                         try {
                             IJVirtualStack.openVirtual(db.getExperiment(), position, false);
                         } catch(Throwable t) {
-                            setMessage("Could no open input images for position: "+position+". If their location moved, used the re-link command");
+                            setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command");
                             logger.debug("Error while opening file position", t);
                         }
                     }
@@ -3953,9 +3954,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     public void actionPerformed(ActionEvent e) {
                         db.getExperiment().flushImages(true, true, position);
                         try {
-                        IJVirtualStack.openVirtual(db.getExperiment(), position, true);
+                            IJVirtualStack.openVirtual(db.getExperiment(), position, true);
                         } catch(Throwable t) {
-                            setMessage("Could no pre-processed images for position: "+position+". Pre-processing already performed?");
+                            setMessage("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
+                            logger.debug("error while trying to open pre-processed images", t);
                         }
                     }
                 };

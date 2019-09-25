@@ -170,6 +170,7 @@ public class Processor {
             }
             db.getDao(fieldName).clearCache();
         }
+        xp.getDLengineProvider().closeAllEngines();
     }
     public static void deleteObjects(ObjectDAO dao, int...structures) {
         Experiment xp = dao.getExperiment();

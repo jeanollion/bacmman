@@ -675,6 +675,10 @@ public class Region {
         if (is2D()||other.is2D()) return BoundingBox.intersect2D(getBounds(), other.getBounds());
         return BoundingBox.intersect(getBounds(), other.getBounds());
     }
+    public int getOverlapArea(Region other) {
+        return getOverlapArea(other, null, null);
+    }
+
     /**
      * Counts the overlap (in voxels) between this region and {@param other}, using masks of both region (no creation of voxels)
      * @param other other region

@@ -296,7 +296,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public void setOutputDirectory(String outputPath) {
         this.outputPath.setSelectedFilePath(outputPath);
         if (outputPath!=null) {
-            Path p = Paths.get(outputPath);
+            Path p = Paths.get(this.outputPath.getFirstSelectedFilePath());
             if (!Files.exists(p)) {
                 try {
                     Files.createDirectories(p);
@@ -316,7 +316,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public void setOutputImageDirectory(String outputPath) {
         imagePath.setSelectedFilePath(outputPath);
         if (outputPath!=null) {
-            Path p = Paths.get(outputPath);
+            Path p = Paths.get(this.imagePath.getFirstSelectedFilePath());
             if (!Files.exists(p)) {
                 try {
                     Files.createDirectories(p);
