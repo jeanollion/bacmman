@@ -42,8 +42,8 @@ import bacmman.plugins.plugins.segmenters.SpotSegmenter;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.DistanceComputationParameters;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.NestedSpot;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing.MutationTrackPostProcessing;
-import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
-import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface.SpotFactory;
+import bacmman.processing.matching.TrackMateInterface;
+import bacmman.processing.matching.TrackMateInterface.SpotFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,7 +144,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     public void track(int structureIdx, List<SegmentedObject> parentTrack, boolean LQSpots, boolean allowSplit, boolean allowMerge, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         //if (true) return;
         int compartmentStructure=this.compartmentStructure.getSelectedIndex();
-        int maxGap = this.maxGap.getValue().intValue()+1; // parameter = count only the frames where the spot is missing
+        int maxFrameDiff  = this.maxGap.getValue().intValue()+1; // parameter = count only the frames where the spot is missing
         double spotQualityThreshold = LQSpots ? this.spotQualityThreshold.getValue().doubleValue() : Double.NEGATIVE_INFINITY;
         double maxLinkingDistance = this.maxLinkingDistance.getValue().doubleValue();
         double maxLinkingDistanceGC = this.maxLinkingDistanceGC.getValue().doubleValue();
@@ -153,7 +153,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                 .setGapDistancePenalty(gapPenalty.getValue().doubleValue())
                 //.setAlternativeDistance(alternativeDistance.getValue().doubleValue())
                 .setAllowGCBetweenLQ(true)
-                .setMaxFrameDifference(maxGap)
+                .setMaxFrameDifference(maxFrameDiff)
                 .setProjectionType(projectionType.getSelectedEnum())
                 .setProjOnSameSide(this.projectOnSameSide.getSelected());
         
@@ -165,13 +165,13 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         Set<SegmentedObject> parentWithSpine = new HashSet<>();
         parentWithSpine.addAll(bacteriaMapMutation.keySet());
         bacteriaMapMutation.keySet().forEach(b-> {
-            int gap = 1;
+            int frameDiff = 1;
             SegmentedObject prev =b.getPrevious();
-            while (prev!=null && gap<maxGap && !bacteriaMapMutation.containsKey(prev)) {
-                ++gap;
+            while (prev!=null && frameDiff<maxFrameDiff && !bacteriaMapMutation.containsKey(prev)) {
+                ++frameDiff;
                 prev = prev.getPrevious();
             }
-            if (prev!=null && (gap<maxGap || bacteriaMapMutation.containsKey(prev))) { // add all bacteria between b & prev
+            if (prev!=null && (frameDiff<maxFrameDiff || bacteriaMapMutation.containsKey(prev))) { // add all bacteria between b & prev
                 SegmentedObject p = b.getPrevious();
                 if (b.isTrackHead()) parentWithSpine.addAll(getDivisionSiblings(b, false)); // for division point computation
                 while(p!=prev) {
@@ -231,7 +231,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             distParams.includeLQ=true;
             if (ok) ok = tmi.processFTF(maxLinkingDistance); // FTF HQ+LQ
             distParams.includeLQ=true;
-            if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxGap-1, false, false); // GC HQ+LQ (dist param: no gap closing between LQ spots)
+            if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxFrameDiff-1, false, false); // GC HQ+LQ (dist param: no gap closing between LQ spots)
             if (ok) {
                 tmi.setTrackLinks(objectsF, editor);
                 tmi.resetEdges();
@@ -244,7 +244,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         long t2 = System.currentTimeMillis();
         boolean ok = true; 
         ok = tmi.processFTF(maxLinkingDistance);
-        if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxGap-1, allowSplit, allowMerge);
+        if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxFrameDiff-1, allowSplit, allowMerge);
         if (ok && LQSpots) {
             //switchCrossingLinksWithLQBranches(tmi, maxLinkingDistanceGC/Math.sqrt(2), maxLinkingDistanceGC, maxGap); // remove crossing links
             tmi.setTrackLinks(objectsF, editor);

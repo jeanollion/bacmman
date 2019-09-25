@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
-package bacmman.plugins.plugins.trackers.trackmate;
+package bacmman.processing.matching;
 
 import bacmman.data_structure.*;
 import bacmman.utils.Pair;
@@ -157,7 +157,7 @@ public class TrackMateInterface<S extends Spot> {
         slSettings.put( KEY_ALLOW_GAP_CLOSING, maxFrameGap>=1 );
         //slSettings.put( KEY_GAP_CLOSING_FEATURE_PENALTIES, settings.get( KEY_GAP_CLOSING_FEATURE_PENALTIES ) );
         slSettings.put( KEY_GAP_CLOSING_MAX_DISTANCE, distanceThreshold );
-        slSettings.put( KEY_GAP_CLOSING_MAX_FRAME_GAP, maxFrameGap );
+        slSettings.put( KEY_GAP_CLOSING_MAX_FRAME_GAP, maxFrameGap+1 ); // this parameter is frameInterval
 
         slSettings.put( KEY_ALLOW_TRACK_SPLITTING, allowSplitting );
         //slSettings.put( KEY_SPLITTING_FEATURE_PENALTIES, settings.get( KEY_SPLITTING_FEATURE_PENALTIES ) );

@@ -27,6 +27,8 @@ import bacmman.ui.gui.image_interaction.IJVirtualStack;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.core.DefaultWorker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
@@ -45,6 +47,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public class RootTrackNode implements TrackNodeInterface, UIContainer {
+    public static final Logger logger = LoggerFactory.getLogger(RootTrackNode.class);
     TrackTreeGenerator generator;
     private  List<TrackNode> children;
     private List<SegmentedObject> remainingTrackHeads;
@@ -221,8 +224,8 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                     try {
                         IJVirtualStack.openVirtual(generator.getExperiment(), position, false);
                     } catch(Throwable t) {
-                        generator.pcb.log("Could no open input images for position: "+position+". If their location moved, used the re-link command");
-                        GUI.logger.debug("Error while opening file position", t);
+                        generator.pcb.log("Could not open input images for position: "+position+". If their location moved, used the re-link command");
+                        logger.debug("Error while opening file position", t);
                     }
                 }
             }
@@ -236,7 +239,8 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                         try {
                             IJVirtualStack.openVirtual(generator.getExperiment(), position, true);
                         } catch(Throwable t) {
-                            generator.pcb.log("Could no pre-processed images for position: "+position+". Pre-processing already performed?");
+                            generator.pcb.log("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
+                            logger.debug("error while trying to open pre-processed images: ", t);
                         }
                     }
                 }

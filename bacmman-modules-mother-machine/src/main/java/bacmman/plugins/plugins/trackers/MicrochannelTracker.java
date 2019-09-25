@@ -36,7 +36,7 @@ import java.util.Map.Entry;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.plugins.segmenters.MicrochannelPhase2D;
-import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
+import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
@@ -54,7 +54,7 @@ import java.util.stream.IntStream;
 public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     protected PluginParameter<MicrochannelSegmenter> segmenter = new PluginParameter<>("Segmentation algorithm", MicrochannelSegmenter.class, new MicrochannelPhase2D(), false).setEmphasized(true);
     NumberParameter maxShiftGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 0, 100, 1, null).setHint("Maximal distance (in pixels) used for for the gap-closing step<br /> Increase the value to take into account XY-shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
-    NumberParameter maxGapGC = new BoundedNumberParameter("Maximum Frame Gap", 0, 10, 0, null).setHint("Maximum frame gap for microchannel linking during gap-closing procedure: if two segmented microchannels are separated by a gap in frames larger than this value, they cannot be linked");
+    NumberParameter maxGapGC = new BoundedNumberParameter("Maximum Frame Gap", 0, 10, 0, null).setHint("Maximum frame gap for microchannel linking during gap-closing procedure: if two segmented microchannels are separated by a gap in frames larger than this value, they cannot be linked. 0 means no gap-closing");
     NumberParameter maxDistanceFTF = new BoundedNumberParameter("Maximal Distance for Frame-to-Frame Tracking", 0, 50, 10, null).setHint("Maximal distance (in pixels) used for Frame-to-Frame tracking procedure.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into account XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
     NumberParameter yShiftQuantile = new BoundedNumberParameter("Y-shift Quantile", 2, 0.5, 0, 1).setHint("After Tracking, the y-shift of microchannels are normalized for each track: the y-shift of a given microchannel at a given frame is replaced by the quantile of the distribution of the y-shift of this microchannel at all frames");
     NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel widths are normalized for each track: the width of a given microchannel at a given frame is replaced by the quantile of the distribution of the width of this microchannel at all frames");

@@ -19,9 +19,8 @@
 package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.parameters.Parameter;
-import com.itextpdf.text.Font;
-import java.awt.Color;
-import java.awt.Component;
+
+import java.awt.*;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import javax.swing.JTree;
@@ -66,8 +65,8 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
             if (isExpertMode.getAsBoolean()) { // bold parameter only in expert mode
                 boolean isEmphasized = ((Parameter) value).isEmphasized();
                 if (isEmphasized) ret.setFont(ret.getFont().deriveFont(Font.BOLD));
-                else ret.setFont(ret.getFont().deriveFont(Font.NORMAL));
-            } else ret.setFont(ret.getFont().deriveFont(Font.NORMAL));
+                else ret.setFont(ret.getFont().deriveFont(Font.PLAIN));
+            } else ret.setFont(ret.getFont().deriveFont(Font.PLAIN));
         }
         
         return ret;

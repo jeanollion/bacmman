@@ -47,7 +47,7 @@ import java.util.Map.Entry;
 
 import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.ObjectSplitter;
-import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
+import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 

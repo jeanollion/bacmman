@@ -5,7 +5,7 @@
     <parent>
         <groupId>com.github.jeanollion.bacmman</groupId>
         <artifactId>bacmman</artifactId>
-        <version>2.2.6</version>
+        <version>2.2.7</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>bacmman-core</artifactId>
@@ -31,10 +31,15 @@
             <version>2.0.0-rc-71</version>
         </dependency>
         <dependency>
+            <groupId>net.imagej</groupId>
+            <artifactId>imagej-ops</artifactId>
+            <version>0.43.2</version>
+        </dependency>
+        <!--dependency>
             <groupId>net.imglib2</groupId>
             <artifactId>imglib2</artifactId>
             <version>5.6.3</version>
-        </dependency>
+        </dependency-->
         <dependency>
             <groupId>net.imglib2</groupId>
             <artifactId>imglib2-algorithm-gpl</artifactId>
@@ -44,6 +49,11 @@
             <groupId>net.imglib2</groupId>
             <artifactId>imglib2-ij</artifactId>
             <version>2.0.0-beta-44</version>
+        </dependency>
+        <dependency>
+            <groupId>org.scijava</groupId>
+            <artifactId>vecmath</artifactId>
+            <version>1.6.0-scijava-2</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
@@ -90,6 +100,60 @@
             <groupId>sc.fiji</groupId>
             <artifactId>TrackMate_</artifactId>
             <version>4.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.tinygroup</groupId>
+                    <artifactId>jquery</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>com.itextpdf</groupId>
+                    <artifactId>itextpdf</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.jfree</groupId>
+                    <artifactId>jfreechart</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.jfree</groupId>
+                    <artifactId>jcommon</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.xmlgraphics</groupId>
+                    <artifactId>batik-dom</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.apache.xmlgraphics</groupId>
+                    <artifactId>batik-svggen</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>sc.fiji</groupId>
+                    <artifactId>3D_Viewer</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>sc.fiji</groupId>
+                    <artifactId>fiji-lib</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.scijava</groupId>
+                    <artifactId>j3dcore</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.scijava</groupId>
+                    <artifactId>j3dutils</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>net.imglib2</groupId>
+                    <artifactId>imglib2-realtransform</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.jdom</groupId>
+                    <artifactId>jdom2</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.tinyjee.jgraphx</groupId>
+                    <artifactId>jgraphx</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <!-->for non-local means denoising plugin<-->
         <dependency>

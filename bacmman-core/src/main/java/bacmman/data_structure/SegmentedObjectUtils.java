@@ -363,6 +363,9 @@ public class SegmentedObjectUtils {
         for (T o : list) res.put(o.getFrame(), o);
         return res;
     }
+    public static Map<Integer, List<SegmentedObject>> splitByFrame(Stream<SegmentedObject> objects) {
+        return objects.collect(Collectors.groupingBy(o -> o.getFrame()));
+    }
     
     public static <T extends SegmentedObject>  Map<String, List<T>> splitByPosition(Collection<T> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;

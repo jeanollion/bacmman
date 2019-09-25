@@ -31,14 +31,14 @@ public class DistanceComputationParameters {
         public double alternativeDistance;
         public boolean includeLQ = true;
         public boolean allowGapBetweenLQ = false;
-        public int maxFrameDiff = 0;
+        public int maxFrameDiff = 1;
         boolean projectOnSameSides = true;
         public BacteriaSpineLocalizer.PROJECTION projectionType= BacteriaSpineLocalizer.PROJECTION.PROPORTIONAL;
         public DistanceComputationParameters() {
             
         }
-        public DistanceComputationParameters setMaxFrameDifference(int maxFrameGap) {
-            this.maxFrameDiff = maxFrameGap;
+        public DistanceComputationParameters setMaxFrameDifference(int maxFrameDiff) {
+            this.maxFrameDiff = maxFrameDiff;
             return this;
         }
         public DistanceComputationParameters setProjectionType(BacteriaSpineLocalizer.PROJECTION projectionType) {

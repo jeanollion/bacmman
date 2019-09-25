@@ -16,7 +16,7 @@
  * You should have received a copy of the GNU General Public License
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
-package bacmman.plugins.plugins.trackers.trackmate;
+package bacmman.processing.matching;
 
 import fiji.plugin.trackmate.Spot;
 import static fiji.plugin.trackmate.tracking.LAPUtils.checkFeatureMap;

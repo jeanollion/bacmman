@@ -938,13 +938,13 @@ public class RegionPopulation {
     public static class ContactBorder implements Filter {
 
         int contactLimit;
-        ImageProperties mask;
+        ImageProperties imageProperties;
         Border border;
         int tolerance;
         int tolEnd = 1;
-        public ContactBorder(int contactLimit, ImageProperties mask, Border border) {
+        public ContactBorder(int contactLimit, ImageProperties imageProperties, Border border) {
             this.contactLimit = contactLimit;
-            this.mask = mask;
+            this.imageProperties = imageProperties;
             this.border = border;
         }
         public ContactBorder setLimit(int contactLimit) {
@@ -959,49 +959,100 @@ public class RegionPopulation {
         }
         public boolean contact(Voxel v) {
             if (border.xl && v.x <=tolerance) return true;
-            if (border.xr && v.x >= mask.sizeX() - tolEnd) return true;
+            if (border.xr && v.x >= imageProperties.sizeX() - tolEnd) return true;
             if (border.yup && v.y <=tolerance) return true;
-            if (border.ydown && v.y >= mask.sizeY() - tolEnd) return true;
-            if (border.z && (v.z <=tolerance || v.z >= mask.sizeZ() - tolEnd)) return true;
+            if (border.ydown && v.y >= imageProperties.sizeY() - tolEnd) return true;
+            if (border.z && (v.z <=tolerance || v.z >= imageProperties.sizeZ() - tolEnd)) return true;
+            return false;
+        }
+        public boolean contactWithOffset(Voxel v) {
+            if (border.xl && v.x <= imageProperties.xMin() + tolerance) return true;
+            if (border.xr && v.x > imageProperties.xMax() - tolEnd) return true;
+            if (border.yup && v.y <= imageProperties.yMin() + tolerance) return true;
+            if (border.ydown && v.y > imageProperties.yMax() - tolEnd) return true;
+            if (border.z && (v.z <= imageProperties.zMin() + tolerance || v.z > imageProperties.zMax() - tolEnd)) return true;
             return false;
         }
         @Override public void init(RegionPopulation population) {}
         @Override
         public boolean keepObject(Region object) {
-            if (contactLimit <= 0) {
+            if (contactLimit <= 0)  return true;
+            if (object.isAbsoluteLandMark()) {
+                if (!intersectWithOffset(object.getBounds())) return true;
+                int count = 0;
+                for (Voxel v : object.getContour()) {
+                    if (contactWithOffset(v)) {
+                        ++count;
+                        if (count >= contactLimit) return false;
+                    }
+                }
+                return true;
+            } else {
+                if (!intersect(object.getBounds())) return true;
+                int count = 0;
+                for (Voxel v : object.getContour()) {
+                    if (contact(v)) {
+                        ++count;
+                        if (count >= contactLimit) return false;
+                    }
+                }
                 return true;
             }
-            int count = 0;
-            for (Voxel v : object.getContour()) {
-                if (contact(v)) {
-                    ++count;
-                    if (count>=contactLimit) return false;
-                }
-            }
-            return true;
         }
         public int getContact(Region object) {
-            int count = 0;
-            for (Voxel v : object.getContour()) {
-                if (contact(v)) ++count;
+            if (object.isAbsoluteLandMark()) {
+                // first check if there is intersection of bounding box with considered borders
+                if (!intersectWithOffset(object.getBounds())) return 0;
+                int count = 0;
+                for (Voxel v : object.getContour()) {
+                    if (contactWithOffset(v)) ++count;
+                }
+                return count;
+            } else {
+                // first check if there is intersection of bounding box with considered borders
+                if (!intersect(object.getBounds())) return 0;
+                int count = 0;
+                for (Voxel v : object.getContour()) {
+                    if (contact(v)) ++count;
+                }
+                return count;
             }
-            return count;
+        }
+        public boolean intersect(BoundingBox bounds) {
+            if (border.xl && bounds.xMin() <=tolerance) return true;
+            if (border.xr && bounds.xMax() >= imageProperties.sizeX() - tolEnd) return true;
+            if (border.yup && bounds.yMin() <=tolerance) return true;
+            if (border.ydown && bounds.yMax() >= imageProperties.sizeY() - tolEnd) return true;
+            if (border.z && (bounds.zMin() <=tolerance || bounds.zMax() >= imageProperties.sizeZ() - tolEnd)) return true;
+            return false;
+        }
+        public boolean intersectWithOffset(BoundingBox bounds) {
+            if (border.xl && bounds.xMin() <= imageProperties.xMin() + tolerance) return true;
+            if (border.xr && bounds.xMax() > imageProperties.xMax() - tolEnd) return true;
+            if (border.yup && bounds.yMin() <= imageProperties.yMin() + tolerance) return true;
+            if (border.ydown && bounds.yMax() > imageProperties.yMin() - tolEnd) return true;
+            if (border.z && (bounds.zMin() <= imageProperties.zMin()+tolerance || bounds.zMax() > imageProperties.zMax() - tolEnd)) return true;
+            return false;
         }
     }
-    public static class ContactBorderMask implements Filter {
-
-        int contactLimit;
+    public static class ContactBorderMask extends ContactBorder {
         ImageMask mask;
-        Border border;
         public ContactBorderMask(int contactLimit, ImageMask mask, Border border) {
-            this.contactLimit = contactLimit;
+            super(contactLimit, mask, border);
             this.mask = mask;
-            this.border = border;
+            this.tolerance=0;
+            this.tolEnd=1;
         }
+        @Override
+        public ContactBorder setTolerance(int tolerance) {
+            throw new UnsupportedOperationException("no tolerance for ContactBorderMask");
+        }
+        @Override
         public ContactBorderMask setLimit(int contactLimit) {
             this.contactLimit=contactLimit;
             return this;
         }
+        @Override
         public boolean contact(Voxel v) {
             if (!mask.insideMask(v.x, v.y, v.z)) return false;
             if (border.xl && (!mask.contains(v.x-1, v.y, v.z) || !mask.insideMask(v.x-1, v.y, v.z))) return true;
@@ -1011,27 +1062,33 @@ public class RegionPopulation {
             if (border.z && (!mask.contains(v.x, v.y, v.z-1) || !mask.insideMask(v.x, v.y, v.z-1) || !mask.contains(v.x, v.y, v.z+1) || !mask.insideMask(v.x, v.y, v.z+1))) return true;
             return false;
         }
-        @Override public void init(RegionPopulation population) {}
         @Override
-        public boolean keepObject(Region object) {
-            if (contactLimit <= 0) {
-                return true;
-            }
-            int count = 0;
-            for (Voxel v : object.getContour()) {
-                if (contact(v)) {
-                    ++count;
-                    if (count>=contactLimit) return false;
-                }
-            }
-            return true;
+        public boolean contactWithOffset(Voxel v) {
+            if (!mask.insideMaskWithOffset(v.x, v.y, v.z)) return false;
+            if (border.xl && (!mask.containsWithOffset(v.x-1, v.y, v.z) || !mask.insideMaskWithOffset(v.x-1, v.y, v.z))) return true;
+            if (border.xr && (!mask.containsWithOffset(v.x+1, v.y, v.z) || !mask.insideMaskWithOffset(v.x+1, v.y, v.z))) return true;
+            if (border.yup && (!mask.containsWithOffset(v.x, v.y-1, v.z) || !mask.insideMaskWithOffset(v.x, v.y-1, v.z))) return true;
+            if (border.ydown && (!mask.containsWithOffset(v.x, v.y+1, v.z) || !mask.insideMaskWithOffset(v.x, v.y+1, v.z))) return true;
+            if (border.z && (!mask.containsWithOffset(v.x, v.y, v.z-1) || !mask.insideMaskWithOffset(v.x, v.y, v.z-1) || !mask.containsWithOffset(v.x, v.y, v.z+1) || !mask.insideMaskWithOffset(v.x, v.y, v.z+1))) return true;
+            return false;
         }
-        public int getContact(Region object) {
-            int count = 0;
-            for (Voxel v : object.getContour()) {
-                if (contact(v)) ++count;
-            }
-            return count;
+        @Override
+        public boolean intersect(BoundingBox bounds) {
+            if (border.xl && bounds.xMin() <=0) return true;
+            if (border.xr && bounds.xMax() > mask.sizeX()) return true;
+            if (border.yup && bounds.yMin() <=0) return true;
+            if (border.ydown && bounds.yMax() > mask.sizeY()) return true;
+            if (border.z && (bounds.zMin() <=0 || bounds.zMax() > mask.sizeZ())) return true;
+            return false;
+        }
+        @Override
+        public boolean intersectWithOffset(BoundingBox bounds) {
+            if (border.xl && bounds.xMin() <=mask.xMin()) return true;
+            if (border.xr && bounds.xMax() >= mask.xMax()) return true;
+            if (border.yup && bounds.yMin() <=mask.yMin()) return true;
+            if (border.ydown && bounds.yMax() >= mask.yMin()) return true;
+            if (border.z && (bounds.zMin() <=mask.zMin() || bounds.zMax() >= mask.zMax())) return true;
+            return false;
         }
     }
     public static class MeanIntensity implements Filter {

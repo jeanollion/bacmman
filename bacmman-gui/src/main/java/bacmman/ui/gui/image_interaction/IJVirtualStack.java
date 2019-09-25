@@ -47,7 +47,7 @@ public class IJVirtualStack extends VirtualStack {
     Image[][] imageCT;
     private final Object lock = new Object();
     public IJVirtualStack(int sizeX, int sizeY, int[] FCZCount, Function<Integer, int[]> getFCZ, BiFunction<Integer, Integer, Image> imageOpenerCT) {
-        super(sizeX, sizeY, null, null);
+        super(sizeX, sizeY, null, "");
         this.imageOpenerCT=imageOpenerCT;
         this.getFCZ=getFCZ;
         this.FCZCount=FCZCount;

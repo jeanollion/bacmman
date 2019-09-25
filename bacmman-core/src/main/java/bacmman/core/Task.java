@@ -381,8 +381,10 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         }
         
         public Task addExtractMeasurementDir(String dir, int... extractStructures) {
-            if (extractStructures!=null && extractStructures.length==0) extractStructures = null;
-            this.extractMeasurementDir.add(new Pair(dir, extractStructures));
+            if (extractStructures==null || extractStructures.length==0) {
+                ensurePositionAndStructures(false, true);
+                for (int s : structures) this.extractMeasurementDir.add(new Pair(dir, new int[]{s}));
+            } else  this.extractMeasurementDir.add(new Pair(dir, extractStructures));
             return this;
         }
         private void ensurePositionAndStructures(boolean positions, boolean structures) {
@@ -524,6 +526,8 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
                 publish("Error While Processing Positions");
                 publishError(t);
                 publishErrors();
+            } finally {
+                db.getExperiment().getDLengineProvider().closeAllEngines();
             }
             for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value);
             if (exportData) exportData();
@@ -651,7 +655,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         if (!extractMeasurementDir.isEmpty()) {
             addSep.run();
             sb.append("Extract: ");
-            for (Pair<String, int[]> p : this.extractMeasurementDir) sb.append((p.key==null?dir:p.key)).append('=').append(ArrayUtil.toString(p.value));
+            for (Pair<String, int[]> p : this.extractMeasurementDir) sb.append((p.key==null?dir:p.key)).append('=').append(p.value==null ? "all" : ArrayUtil.toString(p.value));
         }
         if (exportData) {
             if (exportPreProcessedImages) {

@@ -37,4 +37,8 @@ public class DLengineProvider {
         }
         return engine;
     }
+    public synchronized void closeAllEngines() {
+        engines.forEach(e->e.close());
+        engines.clear();
+    }
 }
