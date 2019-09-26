@@ -18,10 +18,17 @@ public class SimpleTrackGraph extends SimpleGraph<SegmentedObject, DefaultEdge> 
     }
     public SimpleTrackGraph populateGraph(Stream<SegmentedObject> objects) {
         objects.forEach(o -> {
+            addVertex(o);
             SegmentedObject prev = o.getPrevious();
-            if (prev!=null) addEdge(prev, o);
+            if (prev!=null) {
+                addVertex(prev);
+                addEdge(prev, o);
+            }
             SegmentedObject next = o.getNext();
-            if (next!=null) addEdge(o, next);
+            if (next!=null) {
+                addVertex(next);
+                addEdge(o, next);
+            }
         });
         return this;
     }

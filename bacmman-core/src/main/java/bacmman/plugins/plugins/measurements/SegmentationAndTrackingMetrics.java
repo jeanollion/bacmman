@@ -23,11 +23,13 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.*;
+
 public class SegmentationAndTrackingMetrics implements Measurement, Hint {
     ObjectClassParameter groundTruth = new ObjectClassParameter("Ground truth", -1, false, false);
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false);
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix to add to measurement keys");
-    SimpleListParameter<PluginParameter<FeatureFilter>> removeObjects = new SimpleListParameter<>("Object Filters", new PluginParameter<>("Filter", FeatureFilter.class, false));
+    SimpleListParameter<PluginParameter<FeatureFilter>> removeObjects = new SimpleListParameter<>("Object Filters", new PluginParameter<>("Filter", FeatureFilter.class, new FeatureFilter(), false));
 
     @Override
     public String getHintText() {
@@ -78,57 +80,61 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         Map<Integer, List<SegmentedObject>> SbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sIdx));
 
         if (removeObjects.getActivatedChildCount()>0) {
-            PostFilterSequence filters = new PostFilterSequence("").add(removeObjects.getActivatedChildren().stream().map(pp -> pp.instanciatePlugin()).collect(Collectors.toList()));
+            PostFilterSequence filters = new PostFilterSequence("").add(removeObjects.getActivatedChildren().stream().map(pp -> pp.instanciatePlugin()).collect(toList()));
             // apply features to remove objects from Gt & S
             parentTrack.parallelStream().forEach(parent -> {
-                filterObjects(parent, gtIdx, GbyF, filters);
-                filterObjects(parent, sIdx, SbyF, filters);
+                filterObjects(parent, gtIdx, GbyF.get(parent.getFrame()), filters);
+                filterObjects(parent, sIdx, SbyF.get(parent.getFrame()), filters);
             });
         }
         // compute all overlaps between regions and put non null overlap in a map
         Map<Integer, Set<Region>> falsePositives = new ConcurrentHashMap<>();
-        Map<Integer, Map<Region, Overlap>> overlapMap = parentTrack.parallelStream().collect(Collectors.toMap(p->p.getFrame(), p -> {
-            List<SegmentedObject> G = GbyF.get(p);
-            List<SegmentedObject> S = SbyF.get(p);
+        Map<Integer, Map<Region, Overlap>> overlapMap = parentTrack.parallelStream().collect(toMap(SegmentedObject::getFrame, p -> {
+            List<SegmentedObject> G = GbyF.get(p.getFrame());
+            List<SegmentedObject> S = SbyF.get(p.getFrame());
             if (G==null || G.isEmpty()) {
-                falsePositives.put(p.getFrame(), S==null ? Collections.emptySet() : S.stream().map(o->o.getRegion()).collect(Collectors.toSet()));
+                falsePositives.put(p.getFrame(), S==null ? Collections.emptySet() : S.stream().map(SegmentedObject::getRegion).collect(toSet()));
                 return  Collections.emptyMap();
             }
+            if (S==null) return G.stream().map(SegmentedObject::getRegion).collect(Collectors.toMap(Function.identity(), r -> new Overlap(r, null, 0)));
+            //return matchGreedy(p.getFrame(), G, S, falsePositives);
             return match(p.getFrame(), G, S, falsePositives);
         }));
         // track link part
         BiPredicate<SegmentedObject, SegmentedObject> vertexCorrespond = (g, s) -> {
             Overlap o = overlapMap.get(g.getFrame()).get(g.getRegion());
+            if (o==null) return false;
             return s.getRegion().equals(o.s);
         };
-        SimpleTrackGraph graphG = new SimpleTrackGraph().populateGraph(GbyF.values().stream().flatMap(v->v.stream()));
-        SimpleTrackGraph graphS = new SimpleTrackGraph().populateGraph(SbyF.values().stream().flatMap(v->v.stream()));
-        Map<Integer, OverlapEdges> overlapEdgePrevMap = parentTrack.parallelStream().collect(Collectors.toMap(p->p.getFrame(), p-> {
-            return getIntersectingEdges(graphG, GbyF.containsKey(p.getFrame())? GbyF.get(p.getFrame()).stream():null,
-                                        graphS, SbyF.containsKey(p.getFrame())? SbyF.get(p.getFrame()).stream():null,
-                                        vertexCorrespond, true);
-        }));
-        Map<Integer, OverlapEdges> overlapEdgeNextMap = parentTrack.parallelStream().collect(Collectors.toMap(p->p.getFrame(), p-> {
-            return getIntersectingEdges(graphG, GbyF.containsKey(p.getFrame())? GbyF.get(p.getFrame()).stream():null,
-                    graphS, SbyF.containsKey(p.getFrame())? SbyF.get(p.getFrame()).stream():null,
-                    vertexCorrespond, false);
-        }));
-
-        //TODO intersecting edges for the whole microchannel
+        SimpleTrackGraph graphG = new SimpleTrackGraph().populateGraph(GbyF.values().stream().flatMap(Collection::stream));
+        SimpleTrackGraph graphS = new SimpleTrackGraph().populateGraph(SbyF.values().stream().flatMap(Collection::stream));
+        Map<Integer, OverlapEdges> overlapEdgePrevMap = parentTrack.parallelStream().collect(toMap(SegmentedObject::getFrame,
+                p-> getIntersectingEdges(graphG, GbyF.containsKey(p.getFrame())? GbyF.get(p.getFrame()).stream():Stream.empty(),
+                                    graphS, SbyF.containsKey(p.getFrame())? SbyF.get(p.getFrame()).stream():Stream.empty(),
+                                    vertexCorrespond, true)));
+        Map<Integer, OverlapEdges> overlapEdgeNextMap = parentTrack.parallelStream().collect(toMap(SegmentedObject::getFrame,
+                p-> getIntersectingEdges(graphG, GbyF.containsKey(p.getFrame())? GbyF.get(p.getFrame()).stream():Stream.empty(),
+                                    graphS, SbyF.containsKey(p.getFrame())? SbyF.get(p.getFrame()).stream():Stream.empty(),
+                                    vertexCorrespond, false)));
 
         // set measurement to objects
         parentTrack.parallelStream().forEach(p -> {
-            double G_Vol = 0, S_Vol=0, S_FP_Vol=0, G_Inter_S=0, G_ObjectInter_S=0, G_ObjectUnion_S=0;
+            double G_Vol = 0, S_Vol=0, S_FP_Vol=0, G_ObjectInter_S=0, G_ObjectUnion_S=0;
             Map<Region, Overlap> gMap = overlapMap.get(p.getFrame());
+            //logger.debug("frame: {}, G: {}, S: {}, #overlaps: {}, #!=0 overlaps: {}", p.getFrame(), GbyF.get(p.getFrame()).size(), SbyF.get(p.getFrame()).size(), gMap.size(), gMap.values().stream().filter(o->o.overlap!=0).count());
             for (Overlap o : gMap.values()) {
                 G_Vol += o.gVol;
-                S_Vol +=o.sVol;
+                S_Vol += o.sVol;
                 G_ObjectInter_S+=o.overlap;
                 G_ObjectUnion_S+=o.union();
             }
-            G_Inter_S = getIntersection(p, GbyF.get(p.getFrame()), SbyF.get(p.getFrame()));
-            for (Region s:falsePositives.get(p.getFrame())) S_FP_Vol+=s.size();
+            double G_Inter_S = getIntersection(p, GbyF.get(p.getFrame()), SbyF.get(p.getFrame()));
+            if (falsePositives.containsKey(p.getFrame())) for (Region s : falsePositives.get(p.getFrame())) S_FP_Vol+=s.size();
+            S_Vol += S_FP_Vol;
+
+            // set measurements
             Measurements m = p.getMeasurements();
+            String prefix = this.prefix.getValue();
             m.setValue(prefix+"G_Vol", G_Vol);
             m.setValue(prefix+"S_Vol", S_Vol);
             m.setValue(prefix+"S_FP_Vol", S_FP_Vol);
@@ -150,6 +156,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
     }
 
     private static double getIntersection(SegmentedObject parent, List<SegmentedObject> l1, List<SegmentedObject> l2) {
+        if (l1==null || l1.isEmpty() || l2==null || l2.isEmpty()) return 0;
         ImageByte mask = new ImageByte("", parent.getMaskProperties());
         l1.stream().map(o->o.getRegion()).forEach(r -> r.draw(mask, 1));
         double[] inter = new double[1];
@@ -182,8 +189,8 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
      * @return edges of {@param objects} of this graph that have a corresponding edge of {@param otherObjects} from {@param otherGraph} , as well as edges of {@param otherGraph} that have no corresponding edges
      */
     public static OverlapEdges getIntersectingEdges(SimpleTrackGraph graph, Stream<SegmentedObject> objects, SimpleTrackGraph otherGraph, Stream<SegmentedObject> otherObjects, BiPredicate<SegmentedObject, SegmentedObject> vertexCorrespond, boolean prev) {
-        Set<DefaultEdge> edges = (prev ? graph.getPreviousEdges(objects) : graph.getNextEdges(objects)).collect(Collectors.toSet());
-        Set<DefaultEdge> otherEdges = (prev ? otherGraph.getPreviousEdges(otherObjects) : otherGraph.getNextEdges(otherObjects)).collect(Collectors.toSet());
+        Set<DefaultEdge> edges = (prev ? graph.getPreviousEdges(objects) : graph.getNextEdges(objects)).collect(toSet());
+        Set<DefaultEdge> otherEdges = (prev ? otherGraph.getPreviousEdges(otherObjects) : otherGraph.getNextEdges(otherObjects)).collect(toSet());
         BiPredicate<DefaultEdge, DefaultEdge> edgeCorrespond = (e, otherE) -> {
             return vertexCorrespond.test(graph.getEdgeSource(e), otherGraph.getEdgeSource(otherE))
                     && vertexCorrespond.test(graph.getEdgeTarget(e), otherGraph.getEdgeTarget(otherE));
@@ -205,15 +212,18 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
             this.otherEdges = otherEdges;
             this.overlap = overlap;
         }
+        public double jaccardIndex() {
+            return (double)overlap / (double)(edges + otherEdges - overlap);
+        }
     }
     static Map<Region, Overlap> matchGreedy(int frame, List<SegmentedObject> G, List<SegmentedObject> S, Map<Integer, Set<Region>> falsePositives) {
-        Set<Region> rS = S==null ? Collections.emptySet() : S.stream().map(o->o.getRegion()).collect(Collectors.toSet());
-        Map<Region, Overlap> map = G.stream().collect(Collectors.toMap(g->g.getRegion(), g -> {
+        Set<Region> rS = S.stream().map(SegmentedObject::getRegion).collect(toSet());
+        Map<Region, Overlap> map = G.stream().collect(toMap(SegmentedObject::getRegion, g -> {
             Overlap ol = rS.stream().map(s -> {
                 double overlap = g.getRegion().getOverlapArea(s);
                 if (overlap==0) return null;
                 return new Overlap(g.getRegion(), s, overlap);
-            }).filter(o->o!=null).max(Comparator.comparingDouble(o->o.jacardIndex())).orElse(new Overlap(g.getRegion(), null, 0));
+            }).filter(Objects::nonNull).max(Comparator.comparingDouble(Overlap::jacardIndex)).orElse(new Overlap(g.getRegion(), null, 0));
             if (ol.s!=null) rS.remove(ol.s);
             return ol;
         }));
@@ -223,15 +233,20 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
     static Map<Region, Overlap> match(int frame, List<SegmentedObject> G, List<SegmentedObject> S, Map<Integer, Set<Region>> falsePositives) {
         Map<Pair<Region, Region>, Overlap> overlaps = getOverlap(G, S); // overlaps are all computed at once in order to avoid re-computing them
         TrackMateInterface<RegionDistOverlap> tm = getTM(overlaps);
-        tm.addObjects(G.stream().map(o->o.getRegion()), frame);
-        tm.addObjects(S.stream().map(o->o.getRegion()), frame+1); // convention in order to use frame to frame linking
+        tm.addObjects(G.stream().map(SegmentedObject::getRegion), frame);
+        tm.addObjects(S.stream().map(SegmentedObject::getRegion), frame+1); // convention in order to use frame to frame linking
         tm.processFTF(1);
-        falsePositives.put(frame, S.stream().map(s -> s.getRegion()).filter(s -> tm.getPrevious(tm.objectSpotMap.get(s))==null).collect(Collectors.toSet()));
-        return G.stream().map(o->o.getRegion()).collect(Collectors.toMap(Function.identity(), g -> {
+        falsePositives.put(frame, S.stream().map(SegmentedObject::getRegion).filter(s -> tm.getPrevious(tm.objectSpotMap.get(s))==null).collect(toSet()));
+        return G.stream().map(SegmentedObject::getRegion).collect(toMap(Function.identity(), g -> {
             RegionDistOverlap sdo = tm.getNext(tm.objectSpotMap.get(g));
             if (sdo==null) return new Overlap(g, null, 0);
             Region s = tm.spotObjectMap.get(sdo);
-            return overlaps.get(new Pair<>(g, s));
+            Overlap o = overlaps.get(new Pair<>(g, s));
+            if (o!=null) return o;
+            else {
+                logger.error("gt region: {} was associated with region: {} without overlap", g, s);
+                return new Overlap(g, null, 0);
+            }
         }));
     }
     static Map<Pair<Region, Region>, Overlap> getOverlap(List<SegmentedObject> gl, List<SegmentedObject> sl) {
@@ -273,25 +288,25 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         public double squareDistanceTo(Spot other) {
             RegionDistOverlap otherR = (RegionDistOverlap)other;
             if (otherR.frame() < frame()) return otherR.squareDistanceTo(this);
-            Overlap o = overlapMap.get(new Pair(r, otherR));
+            Overlap o = overlapMap.get(new Pair<>(r, otherR.r));
             if (o==null || o.overlap == 0) return Double.POSITIVE_INFINITY;
             return 1 - o.jacardIndex();
         }
     }
 
-    private static void filterObjects(SegmentedObject parent, int objectClassIdx, Map<Integer, List<SegmentedObject>> objects, PostFilterSequence filters) {
+    private static void filterObjects(SegmentedObject parent, int objectClassIdx, List<SegmentedObject> objects, PostFilterSequence filters) {
+        if (objects==null || objects.isEmpty()) return;
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
-        if (pop.getRegions().isEmpty()) return;
         pop = filters.filter(pop, objectClassIdx, parent);
-        if (pop.getRegions().isEmpty()) objects.get(parent.getFrame()).clear();
+        if (pop.getRegions().isEmpty()) objects.clear();
         else {
             Set<Region> remainingObjects = new HashSet<>(pop.getRegions());
-            objects.get(parent.getFrame()).removeIf(o -> !remainingObjects.contains(o.getRegion()));
+            objects.removeIf(o -> !remainingObjects.contains(o.getRegion()));
         }
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{groundTruth, objectClass, prefix};
+        return new Parameter[]{groundTruth, objectClass, prefix, removeObjects};
     }
 }

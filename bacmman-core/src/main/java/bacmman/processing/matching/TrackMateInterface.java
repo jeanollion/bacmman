@@ -127,7 +127,7 @@ public class TrackMateInterface<S extends Spot> {
         }
         graph = frameToFrameLinker.getResult();
         long t1 = System.currentTimeMillis();
-        logger.debug("number of edges after FTF step: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
+        logger.trace("number of edges after FTF step: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
         return true;
     }
 
@@ -182,7 +182,7 @@ public class TrackMateInterface<S extends Spot> {
         }
         for (Map.Entry<Spot, Spot> e : clonedSpots.entrySet()) transferLinks(e.getKey(), e.getValue());
         long t1 = System.currentTimeMillis();
-        logger.debug("number of edges after GC step: {}, nb of vertices: {} (unlinked: {}), processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), unlinkedSpots.size(), t1-t0);
+        logger.trace("number of edges after GC step: {}, nb of vertices: {} (unlinked: {}), processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), unlinkedSpots.size(), t1-t0);
         return true;
     }
 
@@ -441,10 +441,11 @@ public class TrackMateInterface<S extends Spot> {
                 p = getPrevious(p);
             }
         }
-        Collections.sort(track, (s1, s2)->Double.compare(s1.getFeature(Spot.FRAME), s2.getFeature(Spot.FRAME)));
+        Collections.sort(track, Comparator.comparingDouble(s -> s.getFeature(Spot.FRAME)));
         return track;
     }
     public S getPrevious(S t) {
+        if (!graph.containsVertex(t)) return null;
         for (DefaultWeightedEdge e : graph.edgesOf(t)) {
             Spot s = graph.getEdgeSource(e);
             if (s.equals(t)) continue;
@@ -453,6 +454,7 @@ public class TrackMateInterface<S extends Spot> {
         return null;
     }
     public S getNext(S s) {
+        if (!graph.containsVertex(s)) return null;
         for (DefaultWeightedEdge e : graph.edgesOf(s)) {
             Spot t = graph.getEdgeTarget(e);
             if (s.equals(t)) continue;
