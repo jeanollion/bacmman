@@ -5,17 +5,20 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ObjectFeature;
 
-public class ContactWithMicrochannelOpenEnd implements ObjectFeature, Hint, DevPlugin {
+public class ContactWithMicrochannelOpenEnd implements ObjectFeature, Hint {
     RegionPopulation.ContactBorder yDown;
     BooleanParameter noContactIfOnlyOne = new BooleanParameter("Do not compute if only one object", true).setHint("If only one object is present in microchannel, returned contact is zero");
+    BooleanParameter normalize = new BooleanParameter("Divide by bacteria width?", true).setHint("If true, contact value will be divided by the median bacteria width");
+
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{noContactIfOnlyOne};
+        return new Parameter[]{normalize, noContactIfOnlyOne};
     }
 
     @Override
@@ -27,7 +30,10 @@ public class ContactWithMicrochannelOpenEnd implements ObjectFeature, Hint, DevP
     @Override
     public double performMeasurement(Region region) {
         if (yDown==null) return 0;
-        return yDown.getContact(region);
+        double contact = yDown.getContact(region);
+        if (normalize.getSelected()) {
+            return contact / GeometricalMeasurements.medianThicknessX(region);
+        } else return contact;
     }
 
     @Override

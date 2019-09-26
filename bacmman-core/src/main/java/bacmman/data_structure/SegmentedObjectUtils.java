@@ -163,7 +163,7 @@ public class SegmentedObjectUtils {
     }
 
     public static Stream<SegmentedObject> getAllChildrenAsStream(Stream<SegmentedObject> parentTrack, int structureIdx) {
-        Stream<SegmentedObject>[] allChildrenStream = parentTrack.map(p->p.getChildren(structureIdx)).toArray(l->new Stream[l]);
+        Stream<SegmentedObject>[] allChildrenStream = parentTrack.map(p->p.getChildren(structureIdx)).filter(s->s!=null).toArray(l->new Stream[l]);
         return StreamConcatenation.concat(allChildrenStream);
     }
 

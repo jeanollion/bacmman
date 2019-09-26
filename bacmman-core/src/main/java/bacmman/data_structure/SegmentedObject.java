@@ -303,7 +303,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             if (getExperiment().experimentStructure.isDirectChildOf(this.structureIdx, structureIdx)) { // direct child
                 res = getDirectChildren(structureIdx);
                 if (res!=null) return res.stream();
-                else return null;
+                else return null; // Stream.empty(); ?
             } else { // indirect child
                 int[] path = getExperimentStructure().getPathToStructure(this.getStructureIdx(), structureIdx);
                 if (path.length == 0) { // structure is not (indirect) child of current structure -> get included objects from first common parent
