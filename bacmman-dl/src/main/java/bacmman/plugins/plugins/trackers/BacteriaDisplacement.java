@@ -11,7 +11,7 @@ import bacmman.plugins.Tracker;
 import bacmman.plugins.TrackerSegmenter;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.plugins.plugins.track_pre_filters.ImportH5File;
-import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
+import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
 

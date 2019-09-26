@@ -7,7 +7,7 @@ import bacmman.image.Offset;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
-import bacmman.plugins.plugins.trackers.trackmate.TrackMateInterface;
+import bacmman.processing.matching.TrackMateInterface;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.Pair;
 import fiji.plugin.trackmate.Spot;
