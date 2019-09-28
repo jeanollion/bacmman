@@ -6,17 +6,22 @@ import bacmman.plugins.DLengine;
 import bacmman.tf.TensorWrapper;
 import bacmman.utils.ArrayUtil;
 import org.scijava.util.FileUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static bacmman.processing.ResizeUtils.allShapeEqual;
 import static bacmman.processing.ResizeUtils.getShapes;
 
 public class TFengine implements DLengine {
+    Logger logger = LoggerFactory.getLogger(DLengine.class);
     FileChooser modelFile = new FileChooser("Tensorflow model file", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
     ArrayNumberParameter inputShape = new ArrayNumberParameter("Input shape", 2, new BoundedNumberParameter("", 0, 0, 0, null))
@@ -80,6 +85,7 @@ public class TFengine implements DLengine {
         // TODO: load library... use tensorflow service ?
         //model = SavedModelBundle.load("/data/Images/MOP/data_segDis_resampled/seg_edm16dy24_model/", "serve");
         final byte[] graphDef;
+        if (modelFile.getFirstSelectedFilePath()==null || !new File(modelFile.getFirstSelectedFilePath()).exists()) return;
         try {
             graphDef = FileUtils.readFile(new File(modelFile.getFirstSelectedFilePath()));
         } catch (IOException e) {
@@ -90,11 +96,49 @@ public class TFengine implements DLengine {
         graph = new Graph();
         graph.importGraphDef(graphDef);
         logger.debug("model loaded!");
-        graph.operations().forEachRemaining(o -> {
-            logger.debug("operation: {}", o.name());
+        boolean[] missingLayer = new boolean[1];
+        inputs.getActivatedChildren().stream().map(i->i.getValue()).forEach(i -> {
+            if (graph.operation(i)==null) {
+                logger.error("Input layer {} not found in graph", i);
+                missingLayer[0] = true;
+            }
         });
+        outputs.getActivatedChildren().stream().forEach(o -> {
+            String name = findOutputName(o.getValue());
+            if (name==null) {
+                logger.error("Output layer {} not found in graph", o.getValue());
+                missingLayer[0] = true;
+            } else o.setValue(name); // name may have changed
+        });
+        if (missingLayer[0]) {
+            logger.info("List of all operation from graph:");
+            logOperations();
+            throw new RuntimeException("Input and/or output layer not found in graph");
+        }
     }
 
+    static String[] activations = new String[]{"Relu", "Tanh", "Sigmoid", "Softmax", "Atan", "LeakyRelu"}; // TODO add other activations
+    protected String findOutputName(String name) {
+        if (graph.operation(name)!=null) return name;
+        // test with activation layers
+        for (String activation : activations) {
+            String newName = name + "/" + activation;
+            Operation o = graph.operation(newName);
+            if (o!=null) return newName;
+        }
+        // case of "linear" activation ie no activation
+        String newName = name + "/" + "BiasAdd";
+        Operation o = graph.operation(newName);
+        if (o!=null) return newName;
+
+        if (!name.endsWith("_1")) return findOutputName(name + "_1");
+        return null;
+    }
+    public void logOperations() {
+        graph.operations().forEachRemaining(o -> {
+            logger.info("operation: {}, type: {}", o.name(), o.type());
+        });
+    }
     public synchronized Image[][][] process(Image[][]... inputNC) {
         int batchSize = this.batchSize.getValue().intValue();
         int[][] inputShapes = getInputShapes();
@@ -121,7 +165,17 @@ public class TFengine implements DLengine {
             long t1 = System.currentTimeMillis();
             Session.Runner r = s.runner();
             for (int ii = 0; ii<inputNames.length; ++ii)  r.feed(inputNames[ii], input[ii]);
-            for (int io = 0; io<outputNames.length; ++io) r.fetch(outputNames[io]);
+
+                for (int io = 0; io < outputNames.length; ++io) {
+                    try {
+                        r.fetch(outputNames[io]);
+                    } catch (IllegalArgumentException e) {
+                        logger.error("No output named: {} in the graph. Check operation list:", outputNames[io]);
+                        logOperations();
+                        throw e;
+                    }
+                }
+
             List<Tensor<?>> outputs = r.run();
             long t2 = System.currentTimeMillis();
             for (int io = 0; io<outputNames.length; ++io) {
