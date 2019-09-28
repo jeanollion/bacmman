@@ -31,7 +31,6 @@ public class DLengineProvider {
         if (engine==null) {
             engine = engineFactory.get();
             if (engine!=null) {
-                engine.init();
                 engines.add(engine);
             }
         }

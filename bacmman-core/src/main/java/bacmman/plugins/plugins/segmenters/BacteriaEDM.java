@@ -28,7 +28,7 @@ import java.util.stream.Stream;
 
 public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPlugin {
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 2, 2, 1, null ).setEmphasized(true);
-    BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 1, 1.5, 0, null ).setEmphasized(true);
+    BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 1, 1, 0.1, null ).setEmphasized(true);
 
     @Override
     public double split(SegmentedObject parent, int structureIdx, Region o, List<Region> result) {

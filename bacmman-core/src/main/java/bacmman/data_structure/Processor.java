@@ -250,6 +250,7 @@ public class Processor {
         if (me!=null) throw me;
     }
     public static void ensureScalerConfiguration(ObjectDAO dao, int objectClassIdx) {
+        dao.getExperiment().getStructure(objectClassIdx).ensureScalerConfiguration(dao.getPositionName());
         HistogramScaler scaler = dao.getExperiment().getStructure(objectClassIdx).getScalerForPosition(dao.getPositionName());
         if (scaler==null || scaler.isConfigured()) return;
         // check if there is an histogram in 1st root object

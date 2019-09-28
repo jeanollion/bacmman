@@ -24,6 +24,7 @@ import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 
 import javax.swing.tree.MutableTreeNode;
 
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 import bacmman.plugins.ManualSegmenter;
@@ -31,6 +32,7 @@ import bacmman.plugins.ObjectSplitter;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.ProcessingPipeline;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -152,6 +154,16 @@ public class Structure extends ContainerParameterImpl<Structure> {
     public HistogramScaler getScalerForPosition(String position) {
         if (!scaler.isOnePluginSet()) return null;
         return scalerP.get(position);
+    }
+    public void ensureScalerConfiguration(String position) {
+        if (scalerP.containsKey(position)) {
+            Parameter[] scalerParams =  scalerP.get(position).getParameters();
+            Parameter[] currentParams = scaler.instanciatePlugin().getParameters();
+            if (!ParameterUtils.sameContent(scalerParams, currentParams)) {
+                logger.debug("scaler configuration changed from: {} to {}", Arrays.deepToString(scalerParams), Arrays.deepToString(currentParams) );
+                scalerP.remove(position); // configuration has changed -> reset scaler
+            }
+        }
     }
 
     public ProcessingPipeline getProcessingScheme() {

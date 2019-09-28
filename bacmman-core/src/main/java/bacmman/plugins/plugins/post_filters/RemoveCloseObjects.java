@@ -5,6 +5,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.Hint;
 import bacmman.plugins.PostFilter;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
@@ -13,8 +14,8 @@ import java.util.List;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 
-public class RemoveCloseObjects implements PostFilter {
-    BoundedNumberParameter minDist = new BoundedNumberParameter("Minimal distance", 3, 1, 0, null).setHint("When two objects are closer than this distance (in pixels), only one of the two objects is kept: <br >If both object have a quality attribute, then the object with highest quality is kept, else the intensity at the center is compared");
+public class RemoveCloseObjects implements PostFilter, Hint {
+    BoundedNumberParameter minDist = new BoundedNumberParameter("Minimal distance", 3, 1, 0, null).setEmphasized(true).setHint("When two objects are closer than this distance (in pixels), only one of the two objects is kept.");
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
@@ -53,5 +54,10 @@ public class RemoveCloseObjects implements PostFilter {
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{minDist};
+    }
+
+    @Override
+    public String getHintText() {
+        return "Remove two segmented regions are close to each other, one of the two is removed. <br />If both object have a quality attribute, then the object with highest quality is kept, else the intensity at the center is compared";
     }
 }
