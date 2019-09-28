@@ -34,39 +34,42 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
         long t0= System.currentTimeMillis();
         DLengine engine = dlEngine.instanciatePlugin();
+        engine.init();
         long t1= System.currentTimeMillis();
         logger.info("dl engine instanciated in {}ms", t1-t0);
         trackPreFilters.filter(objectClassIdx, parentTrack);
+        if (stores!=null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
-        Pair<Image[][], int[][]> inputs = getInputs(objectClassIdx, parentTrack);
+        int[] imageShape = new int[]{engine.getInputShapes()[0][2], engine.getInputShapes()[0][1]};
+        Pair<Image[][], int[][]> inputs = getInputs(objectClassIdx, parentTrack, imageShape);
         long t3= System.currentTimeMillis();
         logger.info("input resampled in {}ms", t3-t2);
-        Image[][] prediction =  engine.process(inputs.key)[0];
+        Image[][][] prediction =  engine.process(inputs.key); // order: output / batch / channel
+        Image[] edm = ResizeUtils.getChannel(prediction[0], 0);
+        Image[] dy = ResizeUtils.getChannel(prediction[1], 0);
         long t4= System.currentTimeMillis();
-        logger.info("#{}(*{}) predictions made in {}ms", prediction.length, prediction[0].length, t4-t3);
-        if (next) { // remove dy of next image to avoid having to resample it
-            prediction = Arrays.stream(prediction).map(a -> Arrays.copyOf(a, 2)).toArray(Image[][]::new);
-        }
-        Image[][] predictionResampled = ResizeUtils.resample(prediction, new boolean[]{false, true}, inputs.value);
+        logger.info("#{}(*{}) predictions made in {}ms", prediction[0].length, prediction.length*prediction[0][0].length, t4-t3);
         // set offset & calibration
+        Image[] edm_res = ResizeUtils.resample(edm, false, inputs.value);
+        Image[] dy_res = ResizeUtils.resample(dy, true, inputs.value);
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
-            for (int c = 0; c<predictionResampled[idx].length; ++c) {
-                predictionResampled[idx][c].setCalibration(parentTrack.get(idx).getMaskProperties());
-                predictionResampled[idx][c].translate(parentTrack.get(idx).getMaskProperties());
-            }
+            edm_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+            edm_res[idx].translate(parentTrack.get(idx).getMaskProperties());
+            dy_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+            dy_res[idx].translate(parentTrack.get(idx).getMaskProperties());
         }
         long t5= System.currentTimeMillis();
         logger.info("predicitons resampled in {}ms", t5-t4);
-        Map<SegmentedObject, Image> edm = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> predictionResampled[i][0]));
-        Map<SegmentedObject, Image> dy = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> predictionResampled[i][1]));
-        return new Map[]{edm, dy};
+        Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> edm_res[i]));
+        Map<SegmentedObject, Image> dyM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> dy_res[i]));
+        return new Map[]{edmM, dyM};
     }
-    private Pair<Image[][], int[][]> getInputs(int objectClassIdx, List<SegmentedObject> parentTrack) {
+    private Pair<Image[][], int[][]> getInputs(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         int[][] shapes = ResizeUtils.getShapes(in, false);
         logger.debug("shapes ok: {}", shapes);
-        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{{32, 256}});
+        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape});
         logger.debug("resampled ok");
         Image[][] input = next ? IntStream.range(0, in.length).mapToObj(i -> new Image[]{i==0 ? inResampled[0] : inResampled[i-1], inResampled[i], i==in.length-1 ? inResampled[i] : inResampled[i+1]}).toArray(Image[][]::new) :
             IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
