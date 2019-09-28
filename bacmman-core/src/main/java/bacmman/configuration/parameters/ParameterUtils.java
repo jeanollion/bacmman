@@ -81,6 +81,9 @@ public class ParameterUtils {
         }
         return ok;
     }
+    public static boolean sameContent(Parameter[] p1, Parameter[] p2) {
+        return sameContent(Arrays.asList(p1), Arrays.asList(p2));
+    }
     public static boolean sameContent(List<Parameter> destination, List<Parameter> source) {return sameContent(destination, source, null);}
     public static boolean sameContent(List<Parameter> destination, List<Parameter> source, String message) {
         if (destination==null && source!=null) {

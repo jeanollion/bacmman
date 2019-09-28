@@ -254,6 +254,14 @@ public class PluginConfigurationUtils {
             List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instanciatePlugin()).collect(Collectors.toList());
             boolean first = true;
             TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(oo->oo, oo->oo.getRawImage(structureIdx))));
+            // scale images if necessary
+            HistogramScaler scaler = accessor.getExperiment(parentTrack.get(0)).getStructure(structureIdx).getScalerForPosition(parentTrack.get(0).getPositionName());
+            if (scaler != null) {
+                if (!scaler.isConfigured()) throw new RuntimeException("Scaler not configured for object class:"+structureIdx);
+                logger.warn("scaling images");
+                images.entrySet().parallelStream().forEach(e -> e.setValue(scaler.scale(e.getValue())));
+                first = false; // image can be modified
+            }
             for (TrackPreFilter p : before) {
                 p.filter(structureIdx, images, !first);
                 first = false;

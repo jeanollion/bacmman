@@ -53,7 +53,9 @@ public class ResizeUtils {
         else getShape = Image::shape;
         return Arrays.stream(imagesN).map(getShape::apply).toArray(int[][]::new);
     }
-
+    public static Image[] getChannel(Image[][] imageNC, int channelIdx) {
+        return Arrays.stream(imageNC).map(a -> a[channelIdx]).toArray(Image[]::new);
+    }
     public static Image[][] resample(Image[][] imagesNC, boolean[] isBinaryC, int[][] imageShapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)

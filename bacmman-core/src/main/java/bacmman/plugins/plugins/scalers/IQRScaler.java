@@ -20,6 +20,7 @@ public class IQRScaler implements HistogramScaler, Hint {
         center = quantiles[1];
         IQR = quantiles[2] - quantiles[0];
         scale = 1 / IQR;
+        logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
     }
 
     @Override
