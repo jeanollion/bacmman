@@ -14,7 +14,8 @@ BACMMAN can process this kind of data:
 See the [wiki](https://github.com/jeanollion/bacmman/wiki) for detailed information
 
 # Publications
-- [Robert et al. Mutation dynamics and fitness effects followed in single cells, Science 2018](http://science.sciencemag.org/content/359/6381/1283)
+- Example datasets are taken from: [Robert et al. Mutation dynamics and fitness effects followed in single cells, Science 2018](http://science.sciencemag.org/content/359/6381/1283)
+- When using this work please cite [J. Ollion, L. Robert, and M. Elez, “High-throughput detection and tracking of cells and intracellular spots in mother machine experiments” Nature Protocols, 2019.](https://rdcu.be/bRSze)
 
 # Licence
 
