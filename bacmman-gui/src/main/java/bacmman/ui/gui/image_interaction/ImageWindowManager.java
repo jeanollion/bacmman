@@ -1121,12 +1121,12 @@ public abstract class ImageWindowManager<I, U, V> {
             menu.addSeparator();
             menu.add(new JMenuItem("<html><b>Other Attributes</b></html>"));
             for (String k : new TreeSet<>(o.getAttributeKeys())) {
-                JMenuItem item = new JMenuItem(truncate(k, TRUNC_LENGTH)+": "+truncate(toString(k), TRUNC_LENGTH));
+                JMenuItem item = new JMenuItem(truncate(k, TRUNC_LENGTH)+": "+truncate(toString(o.getAttribute(k)), TRUNC_LENGTH));
                 menu.add(item);
                 item.setAction(new AbstractAction(item.getActionCommand()) {
                     @Override
                         public void actionPerformed(ActionEvent ae) {
-                            Object v = o.getMeasurements().getValue(k);
+                            Object v = o.getAttribute(k);
                             java.awt.datatransfer.Transferable stringSelection = new StringSelection(v.getClass().isArray() ? ArrayUtil.toString(v) : v.toString());
                             Clipboard clipboard = Toolkit.getDefaultToolkit().getSystemClipboard();
                             clipboard.setContents(stringSelection, null);
