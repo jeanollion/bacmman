@@ -104,6 +104,11 @@ public class Spot extends Region {
     }
 
     @Override
+    public Point getCenter() {
+        return center;
+    }
+
+    @Override
     public synchronized void addVoxels(Collection<Voxel> voxelsToAdd) {
         throw new RuntimeException("Cannot add voxels to spot");
     }

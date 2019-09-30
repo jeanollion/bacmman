@@ -5,6 +5,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Spot;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.geom.Point;
+import org.json.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,16 +25,16 @@ public class RegionContainerSpot extends RegionContainer {
 
     @Override
     public Region getRegion() {
-        return new Spot((Point)structureObject.getAttribute("Center"),
-                ((Number)structureObject.getAttribute("Radius", 1d)).doubleValue(),
-                ((Number)structureObject.getAttribute("Intensity", 0d)).doubleValue(),
+        return new Spot(new Point(JSONUtils.fromFloatArray((List)structureObject.getAttribute("Center"))),
+                ((Number)structureObject.getAttribute("Radius", Double.valueOf(1d))).doubleValue(),
+                ((Number)structureObject.getAttribute("Intensity", Double.valueOf(0d))).doubleValue(),
                 structureObject.getIdx() + 1, is2D, structureObject.getScaleXY(), structureObject.getScaleZ());
     }
 
     @Override
     public JSONObject toJSON() {
         JSONObject res = super.toJSON();
-        res.put("Type", ANALYTICAL_TYPES.SPHERE.name());
+        res.put("Type", ANALYTICAL_TYPES.SPHERE.name()); // center, radius and intensity are stored in the attribute parameter
         return res;
     }
 }
