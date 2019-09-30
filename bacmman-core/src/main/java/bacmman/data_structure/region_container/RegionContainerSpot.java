@@ -25,8 +25,8 @@ public class RegionContainerSpot extends RegionContainer {
     @Override
     public Region getRegion() {
         return new Spot((Point)structureObject.getAttribute("Center"),
-                ((Number)structureObject.getAttribute("Radius")).doubleValue(),
-                ((Number)structureObject.getAttribute("Intensity")).doubleValue(),
+                ((Number)structureObject.getAttribute("Radius", 1d)).doubleValue(),
+                ((Number)structureObject.getAttribute("Intensity", 0d)).doubleValue(),
                 structureObject.getIdx() + 1, is2D, structureObject.getScaleXY(), structureObject.getScaleZ());
     }
 
