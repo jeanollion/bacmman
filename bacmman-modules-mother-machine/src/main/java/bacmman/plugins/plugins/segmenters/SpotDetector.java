@@ -227,7 +227,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         segmentedSpots.removeIf(s->{
             if (!parentMask.contains(s.getCenter()) || !parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5))) {
                 //logger.debug("spot center outside mask. overlap: {}, size: {}, ratio: {}", s.getOverlapArea(parent.getRegion(), parent.getBounds(), null), s.size(), s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size());
-                return (s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size())<0.2;
+                return (s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size())<0.5;
             } return false;
         });
 
@@ -263,7 +263,10 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
         long t1 = System.currentTimeMillis();
         //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
-        List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage)).collect(Collectors.toList());
+        List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage))
+                .filter(s -> !Double.isNaN(s.getRadius()))
+                .filter(s -> !Double.isNaN(s.getIntensity()))
+                .collect(Collectors.toList());
         if (off!=null) {
             allSeeds.forEach(p->p.translateRev(off)); // translate back
             Offset rev = off.reverseOffset();
