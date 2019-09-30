@@ -138,6 +138,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             for (Entry<String, Object> e : attributes.entrySet()) {
                 if (e.getValue() instanceof double[]) res.attributes.put(e.getKey(), Arrays.copyOf((double[])e.getValue(), ((double[])e.getValue()).length));
                 else if (e.getValue() instanceof float[]) res.attributes.put(e.getKey(), Arrays.copyOf((float[])e.getValue(), ((float[])e.getValue()).length));
+                else if (e.getValue() instanceof long[]) res.attributes.put(e.getKey(), Arrays.copyOf((long[])e.getValue(), ((long[])e.getValue()).length));
+                else if (e.getValue() instanceof int[]) res.attributes.put(e.getKey(), Arrays.copyOf((int[])e.getValue(), ((int[])e.getValue()).length));
                 else if (e.getValue() instanceof Point) res.attributes.put(e.getKey(), ((Point)e.getValue()).duplicate());
                 else res.attributes.put(e.getKey(), e.getValue());
             }
@@ -680,7 +682,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                     object=regionContainer.getRegion().setIsAbsoluteLandmark(true);
                     if (attributes!=null) {
                         if (attributes.containsKey("Quality")) object.setQuality((Double)attributes.get("Quality"));
-                        if (attributes.containsKey("Center")) object.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center")))); 
+                        if (!(object instanceof Spot) && attributes.containsKey("Center")) object.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
                     }
                 }
             }
