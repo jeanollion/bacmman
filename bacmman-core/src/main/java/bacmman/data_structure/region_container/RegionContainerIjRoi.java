@@ -93,7 +93,9 @@ public class RegionContainerIjRoi extends RegionContainer {
             Roi r = roi.get(z);
             Rectangle bds = r.getBounds();
             ImageProcessor mask = r.getMask();
-            if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
+            if (mask==null) { // mask is rectangle
+                mask = IJImageWrapper.getImagePlus(TypeConverter.toImageInteger(new BlankMask(bds.width, bds.height, 1, bds.x, bds.y, 0, 1, 1), null)).getProcessor();
+            } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
                 ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
                 //logger.debug("object: {} paste image during ij roi decoding: roi: {} object bounds: {}", structureObject, i.getBoundingBox(), bounds);
                 mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds)).getProcessor();
@@ -165,13 +167,11 @@ public class RegionContainerIjRoi extends RegionContainer {
         ThresholdToSelection tts = new ThresholdToSelection();
         ImageInteger maskIm = TypeConverter.toImageInteger(mask, null); // copy only if necessary
         ImagePlus maskPlus = IJImageWrapper.getImagePlus(maskIm);
-        tts.setup("", maskPlus);
         int maxLevel = ImageInteger.getMaxValue(maskIm, true); // TODO necessary ??
         for (int z = 0; z < mask.sizeZ(); ++z) {
             ImageProcessor ip = maskPlus.getStack().getProcessor(z + 1);
             ip.setThreshold(1, maxLevel, ImageProcessor.NO_LUT_UPDATE);
-            tts.run(ip);
-            Roi roi = maskPlus.getRoi();
+            Roi roi = tts.convert(ip);
             if (roi != null) {
                 //roi.setPosition(z+1+mask.getOffsetZ());
                 Rectangle bds = roi.getBounds();
