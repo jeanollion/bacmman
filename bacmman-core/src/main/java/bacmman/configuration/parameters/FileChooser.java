@@ -66,7 +66,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     
     public String getFirstSelectedFilePath() {
-        if (selectedFiles.length==0) return null;
+        if (selectedFiles==null || selectedFiles.length==0) return null;
         if (relativePath) {
             Path refPath = getRefPath();
             if (refPath!=null) return toAbsolutePath(refPath, selectedFiles[0]);
@@ -96,8 +96,8 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override 
     public boolean isValid() {
         if (!super.isValid()) return false;
-        if (selectedFiles.length==0 && !allowNoSelection) return false;
-        else if (selectedFiles.length>0) { // check that all files exist
+        if ((selectedFiles==null || selectedFiles.length==0) && !allowNoSelection) return false;
+        else if (selectedFiles!=null && selectedFiles.length>0) { // check that all files exist
             if (relativePath) {
                 Path ref = getRefPath();
                 if (ref==null) return true;
@@ -113,6 +113,8 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public boolean sameContent(Parameter other) {
         if (other instanceof FileChooser) {
             FileChooser otherFC = (FileChooser)other;
+            if (otherFC.selectedFiles==null && selectedFiles==null) return true;
+            else if ((otherFC.selectedFiles==null) != (selectedFiles==null)) return false;
             if (otherFC.selectedFiles.length==selectedFiles.length) {
                 if (selectedFiles.length==0) return true;
                 boolean convert = this.relativePath != otherFC.relativePath;
@@ -167,12 +169,14 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
 
     @Override
     public Object toJSONEntry() {
+        if (selectedFiles==null) selectedFiles=new String[0];
         return JSONUtils.toJSONArray(selectedFiles);
     }
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         selectedFiles = JSONUtils.fromStringArray((JSONArray)jsonEntry);
+        if (selectedFiles==null) selectedFiles=new String[0];
         // check absolute...
         if (selectedFiles.length>0) {
             boolean rel = !currentPathsAreAbsolute();
