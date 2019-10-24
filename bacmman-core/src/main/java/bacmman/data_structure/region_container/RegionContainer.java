@@ -44,6 +44,9 @@ public abstract class RegionContainer {
         this.structureObject=structureObject;
         this.bounds=new SimpleBoundingBox(structureObject.getBounds());
     }
+    public SimpleBoundingBox getBounds() {
+        return bounds;
+    }
     public void setStructureObject(SegmentedObject structureObject) {
         this.structureObject=structureObject;
     }

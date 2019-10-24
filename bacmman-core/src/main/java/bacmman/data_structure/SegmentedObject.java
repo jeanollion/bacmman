@@ -68,7 +68,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     protected boolean isTrackHead=true;
     protected Map<String, Object> attributes;
     // object- and images-related attributes
-    private transient Region object;
+    private transient Region region;
     protected RegionContainer regionContainer;
     protected transient SmallArray<Image> rawImagesC=new SmallArray<>();
     protected transient SmallArray<Image> preFilteredImagesS=new SmallArray<>();
@@ -82,11 +82,11 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         this.initFromJSONEntry(json);
     }
 
-    public SegmentedObject(int timePoint, int structureIdx, int idx, Region object, SegmentedObject parent) {
+    public SegmentedObject(int timePoint, int structureIdx, int idx, Region region, SegmentedObject parent) {
         this.id= Id.get().toHexString();
         this.timePoint = timePoint;
-        this.object=object;
-        if (object!=null) this.object.label=idx+1;
+        this.region = region;
+        if (region !=null) this.region.label=idx+1;
         this.structureIdx = structureIdx;
         this.idx = idx;
         this.parent=parent;
@@ -104,7 +104,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     SegmentedObject(int timePoint, BlankMask mask, ObjectDAO dao) {
         this.id= Id.get().toHexString();
         this.timePoint=timePoint;
-        if (mask!=null) this.object=new Region(mask, 1, true);
+        if (mask!=null) this.region =new Region(mask, 1, true);
         this.structureIdx = -1;
         this.idx = 0;
         this.dao=dao;
@@ -179,7 +179,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     public double getCalibratedTimePoint() {
         if (getExperiment()==null) return Double.NaN;
         Position f = getExperiment().getPosition(getPositionName());
-        int z = (int)Math.round((getRegion().getBounds().zMin()+getRegion().getBounds().zMax())/2);
+        int z = (int)Math.round((getBounds().zMin()+getBounds().zMax())/2);
         double res  = f.getInputImages()==null || isRoot() ? Double.NaN : f.getInputImages().getCalibratedTimePoint(getExperiment().getChannelImageIdx(structureIdx), timePoint, z);
         //double res = Double.NaN; // for old xp TODO change
         if (Double.isNaN(res)) res = timePoint * f.getFrameDuration();
@@ -385,7 +385,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         }
     }
     void setIdx(int idx) {
-        if (this.object!=null) object.setLabel(idx+1);
+        if (this.region !=null) region.setLabel(idx+1);
         this.idx=idx;
     }
 
@@ -656,7 +656,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             logger.debug("offsets: {}", Utils.toStringList(pop.getRegions(), r -> new SimpleOffset(r.getBounds())));
         }
         // first object returned by splitter is updated to current structureObject
-        this.object=pop.getRegions().get(0).setLabel(idx+1);
+        this.region =pop.getRegions().get(0).setLabel(idx+1);
         this.regionContainer = null;
         flushImages();
         // second object is added to parent and returned
@@ -667,7 +667,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         res.setAttribute(EDITED_SEGMENTATION, true);
         return res;
     }
-    public boolean hasRegion() {return object!=null;}
+    public boolean hasRegion() {return region !=null;}
     // object- and image-related methods
 
     /**
@@ -675,25 +675,25 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
      * @return an object representing the segmented physical area
      */
     public Region getRegion() {
-        if (object==null) {
+        if (region ==null) {
             if (regionContainer==null) return null;
             synchronized(this) {
-                if (object==null) {
-                    object=regionContainer.getRegion().setIsAbsoluteLandmark(true);
+                if (region ==null) {
+                    region =regionContainer.getRegion().setIsAbsoluteLandmark(true);
                     if (attributes!=null) {
-                        if (attributes.containsKey("Quality")) object.setQuality((Double)attributes.get("Quality"));
-                        if (!(object instanceof Spot) && attributes.containsKey("Center")) object.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
+                        if (attributes.containsKey("Quality")) region.setQuality((Double)attributes.get("Quality"));
+                        if (!(region instanceof Spot) && attributes.containsKey("Center")) region.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
                     }
                 }
             }
         }
-        return object;
+        return region;
     }
     void setRegion(Region o) {
         synchronized(this) {
             regionContainer=null;
-            object=o;
-            object.label=idx+1;
+            region =o;
+            region.label=idx+1;
             flushImages();
             setRegionAttributesToAttributes();
         }
@@ -705,21 +705,27 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             attributes.remove("Intensity");
             attributes.remove("Radius");
         }
-        if (!Double.isNaN(object.getQuality())) setAttribute("Quality", object.getQuality());
-        if (object instanceof Spot) {
-            setAttribute("Radius", ((Spot)object).getRadius());
-            setAttribute("Intensity", ((Spot)object).getIntensity());
+        if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());
+        if (region instanceof Spot) {
+            setAttribute("Radius", ((Spot) region).getRadius());
+            setAttribute("Intensity", ((Spot) region).getIntensity());
         }
-        if (object.getCenter()!=null) {
-            Point c = object.getCenter();
+        if (region.getCenter()!=null) {
+            Point c = region.getCenter();
             setAttributeList("Center", IntStream.range(0, c.numDimensions()).mapToObj(i->(double)c.get(i)).collect(Collectors.toList()));
         }
     }
     
-    public ImageProperties getMaskProperties() {return getRegion().getImageProperties();}
+    public ImageProperties getMaskProperties() {
+        if (region == null) return new SimpleImageProperties(getBounds(), getScaleXY(), getScaleZ());
+        return getRegion().getImageProperties();
+    }
     public ImageMask getMask() {return getRegion().getMask();}
-    public BoundingBox getBounds() {return getRegion().getBounds();}
-    protected void createRegionContainer() {this.regionContainer=object.createRegionContainer(this);}
+    public BoundingBox getBounds() {
+        if (region==null && regionContainer!=null) return regionContainer.getBounds();
+        return getRegion().getBounds();
+    }
+    protected void createRegionContainer() {this.regionContainer= region.createRegionContainer(this);}
     boolean hasRegionContainer() {
         return regionContainer!=null;
     }
@@ -888,7 +894,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     
     public <T extends BoundingBox<T>> BoundingBox<T> getRelativeBoundingBox(SegmentedObject stop) throws RuntimeException {
-        SimpleBoundingBox res = new SimpleBoundingBox(getRegion().getBounds());
+        SimpleBoundingBox res = new SimpleBoundingBox(getBounds());
         if (stop==null || stop == getRoot()) return res;
         else return res.translate(new SimpleOffset(stop.getBounds()).reverseOffset());
     }
