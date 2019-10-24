@@ -59,7 +59,9 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     NumberParameter maxSigma = new BoundedNumberParameter("Sigma Filter", 2, 4, 1, null).setHint("Spot with a sigma value (from the gaussian fit) superior to this value will be erased.");
     NumberParameter symmetryThreshold = new NumberParameter<>("Radial Symmetry Threshold", 2, 0.3).setEmphasized(true).setHint("Radial Symmetry threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /><br />Radial Symmetry transform allows to highlight spots in an image by estimating the local radial symmetry. Implementation of the algorithm described in Loy & Zelinsky, IEEE, 2003<br />  Configuration hint: refer to the <em>Radial Symmetry</em> image displayed in test mode"); // was 2.25
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Threshold on gaussian for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, maxLocalRadius, typicalSigma, maxSigma};
+    NumberParameter minOverlap = new BoundedNumberParameter("Min Overlap %", 1, 20, 0, 100).setHint("When the center of a spot (after gaussian fit) is located oustide a bacteria, the spot is erased if the overlap percentage with the bacteria is inferior to this value. (0%: spots are never erased)");
+
+    Parameter[] parameters = new Parameter[]{symmetryThreshold, intensityThreshold, normMode, radii, smoothScale, maxLocalRadius, typicalSigma, maxSigma, minOverlap};
     ProcessingVariables pv = new ProcessingVariables();
     boolean planeByPlane = false; // TODO set as parameter for "true" 3D images
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
@@ -224,13 +226,16 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
             removeSpotsFarFromSeeds.accept(segmentedSpots, seeds);
         }
         // remove spots with center outside mask
-        segmentedSpots.removeIf(s->{
-            if (!parentMask.contains(s.getCenter()) || !parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1),(int) (s.getCenter().getWithDimCheck(2)+0.5))) {
-                //logger.debug("spot center outside mask. overlap: {}, size: {}, ratio: {}", s.getOverlapArea(parent.getRegion(), parent.getBounds(), null), s.size(), s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size());
-                return (s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size())<0.5;
-            } return false;
-        });
-
+        double minOverlap = this.minOverlap.getValue().doubleValue()/100d;
+        if (minOverlap>0) {
+            segmentedSpots.removeIf(s -> {
+                if (!parentMask.contains(s.getCenter()) || !parentMask.insideMask(s.getCenter().getIntPosition(0), s.getCenter().getIntPosition(1), (int) (s.getCenter().getWithDimCheck(2) + 0.5))) {
+                    //logger.debug("spot center outside mask. overlap: {}, size: {}, ratio: {}", s.getOverlapArea(parent.getRegion(), parent.getBounds(), null), s.size(), s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size());
+                    return (s.getOverlapArea(parent.getRegion(), parent.getBounds(), null) / s.size()) < minOverlap;
+                }
+                return false;
+            });
+        }
         // filter by radius
         segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
 
