@@ -23,7 +23,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("Deep learning model", DLengine.class, false).setEmphasized(true);
     BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngine, edmSegmenter, maxLinkingDistance};
-    private static boolean next = true;
+    private static boolean next = false;
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_dy = predict(objectClassIdx, parentTrack, trackPreFilters);
@@ -47,7 +47,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         logger.info("input resampled in {}ms", t3-t2);
         Image[][][] prediction =  engine.process(inputs.key); // order: output / batch / channel
         Image[] edm = ResizeUtils.getChannel(prediction[0], 0);
-        Image[] dy = ResizeUtils.getChannel(prediction[1], 0);
+        Image[] dy = ResizeUtils.getChannel(prediction[0], 0); // was [1]
         long t4= System.currentTimeMillis();
         logger.info("#{}(*{}) predictions made in {}ms", prediction[0].length, prediction.length*prediction[0][0].length, t4-t3);
         // set offset & calibration
@@ -71,8 +71,9 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         logger.debug("shapes ok: {}", shapes);
         Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape});
         logger.debug("resampled ok");
-        Image[][] input = next ? IntStream.range(0, in.length).mapToObj(i -> new Image[]{i==0 ? inResampled[0] : inResampled[i-1], inResampled[i], i==in.length-1 ? inResampled[i] : inResampled[i+1]}).toArray(Image[][]::new) :
-            IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
+        Image[][] input = IntStream.range(0, in.length).mapToObj(i -> new Image[]{inResampled[i]}).toArray(Image[][]::new); // for testing
+        //Image[][] input = next ? IntStream.range(0, in.length).mapToObj(i -> new Image[]{i==0 ? inResampled[0] : inResampled[i-1], inResampled[i], i==in.length-1 ? inResampled[i] : inResampled[i+1]}).toArray(Image[][]::new) :
+        //    IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
         logger.debug("input ok");
         return new Pair<>(input, shapes);
     }
