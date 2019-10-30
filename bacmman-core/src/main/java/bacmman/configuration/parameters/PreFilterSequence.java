@@ -33,7 +33,7 @@ import bacmman.utils.Utils;
 public class PreFilterSequence extends PluginParameterList<PreFilter, PreFilterSequence> {
     HistogramScaler scaler;
     public PreFilterSequence(String name) {
-        super(name, "Pre-Filter", PreFilter.class);
+        super(name, "Pre-Filter", PreFilter.class, false);
     }
     public PreFilterSequence setScaler(HistogramScaler scaler) {
         this.scaler = scaler;

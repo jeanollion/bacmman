@@ -16,6 +16,4 @@ public interface HistogramScaler extends Plugin {
     void setHistogram(Histogram histogram);
     Image scale(Image image);
     boolean isConfigured();
-
-
 }

@@ -56,7 +56,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     boolean allowMoveChildren = true;
     protected Predicate<L> additionalValidation = l -> true;
     protected Predicate<T> childrenValidation = l -> true;
-    
+    protected boolean allowDeactivate = true;
     @Override
     public L addValidationFunction(Predicate<L> isValid) {
         additionalValidation = additionalValidation.and(isValid);
@@ -216,9 +216,13 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         }
         return res;
     }
-    
+    public L setAllowDeactivable(boolean allow) {
+        allowDeactivate = allow;
+        return (L)this;
+    }
     @Override
     public boolean isDeactivatable() {
+        if (!allowDeactivate) return false;
         return Deactivatable.class.isAssignableFrom(this.getChildClass());
     }
     

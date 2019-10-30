@@ -3,6 +3,7 @@ package bacmman.plugins.plugins.scalers;
 import bacmman.configuration.parameters.IntervalParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
+import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
@@ -16,16 +17,26 @@ public class IQRScaler implements HistogramScaler, Hint {
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
-        double[] quantiles = histogram.getQuantiles(this.quantiles.getValuesAsDouble());
-        center = quantiles[1];
-        IQR = quantiles[2] - quantiles[0];
-        scale = 1 / IQR;
+        double[] IQR_scale_center = getIQR_Scale_Center(histogram);
+        this.IQR=IQR_scale_center[0];
+        this.scale = IQR_scale_center[1];
+        this.center = IQR_scale_center[2];
         logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
     }
-
+    public double[] getIQR_Scale_Center(Histogram histogram) {
+        double[] quantiles = histogram.getQuantiles(this.quantiles.getValuesAsDouble());
+        double center = quantiles[1];
+        double IQR = quantiles[2] - quantiles[0];
+        double scale = 1 / IQR;
+        return new double[] {IQR, scale, center};
+    }
     @Override
     public Image scale(Image image) {
-        return ImageOperations.affineOperation2(image, null, scale, -center);
+        if (isConfigured()) return ImageOperations.affineOperation2(image, null, scale, -center);
+        else { // perform on single image
+            double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(()->image.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            return ImageOperations.affineOperation2(image, null, IQR_scale_center[1], -IQR_scale_center[2]);
+        }
     }
 
     @Override

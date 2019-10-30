@@ -690,13 +690,7 @@ public class ImageOperations {
         if (mm[0]==mm[1]) return output;
         double scale = 1 / (mm[1] - mm[0]);
         double offset = -mm[0] * scale;
-        float[][] pixels = output.getPixelArray();
-        for (int z = 0; z < input.sizeZ(); z++) {
-            for (int xy = 0; xy < input.sizeXY(); xy++) {
-                pixels[z][xy] = (float) (input.getPixel(xy, z) * scale + offset);
-            }
-        }
-        return output;
+        return (ImageFloat)affineOperation(input, output, scale, offset);
     }
     public static ImageFloat normalize(Image input, ImageMask mask, ImageFloat output, double pMin, double pMax, boolean saturate) {
         if (pMin>=pMax) throw new IllegalArgumentException("pMin should be < pMax");

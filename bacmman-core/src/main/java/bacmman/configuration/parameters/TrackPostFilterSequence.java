@@ -35,7 +35,7 @@ import bacmman.utils.MultipleException;
 public class TrackPostFilterSequence extends PluginParameterList<TrackPostFilter, TrackPostFilterSequence> {
     
     public TrackPostFilterSequence(String name) {
-        super(name, "Track Post-Filter", TrackPostFilter.class);
+        super(name, "Track Post-Filter", TrackPostFilter.class, false);
     }
     
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) throws MultipleException {

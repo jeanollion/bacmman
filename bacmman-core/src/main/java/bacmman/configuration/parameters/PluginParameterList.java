@@ -32,8 +32,12 @@ import java.util.stream.Collectors;
  */
 public abstract class PluginParameterList<T extends Plugin, L extends PluginParameterList<T, L>> extends ListParameterImpl<PluginParameter<T>, L> {
     String childLabel;
-    public PluginParameterList(String name, String childLabel, Class<T> childClass) {
-        super(name, -1, new PluginParameter<T>(childLabel, childClass, false));
+
+    public PluginParameterList(String name, String childLabel, Class<T> childClass, boolean allowNoSelection) {
+        super(name, -1, new PluginParameter<>(childLabel, childClass, allowNoSelection));
+    }
+    public PluginParameterList(String name, String childLabel, Class<T> childClass, T childInstance, boolean allowNoSelection) {
+        super(name, -1, new PluginParameter<>(childLabel, childClass, childInstance, allowNoSelection));
     }
     
     private void add(T instance) {
@@ -63,6 +67,12 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
     
     public List<T> get() {
         return this.getActivatedChildren().stream().map(pp->pp.instanciatePlugin()).filter(p->p!=null).collect(Collectors.toList());
+    }
+    public List<T> getAll() {
+        return this.getChildren().stream().map(pp->{
+            if (pp instanceof Deactivatable && !((Deactivatable)pp).isActivated()) return null;
+            else return pp.instanciatePlugin();
+        }).collect(Collectors.toList());
     }
     public boolean isEmpty() {
         return this.children.stream().noneMatch((pp) -> (pp.isActivated()));
