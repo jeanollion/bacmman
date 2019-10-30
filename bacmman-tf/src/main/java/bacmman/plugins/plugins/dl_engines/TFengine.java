@@ -3,6 +3,8 @@ package bacmman.plugins.plugins.dl_engines;
 import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
+import bacmman.plugins.HistogramScaler;
+import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.tf.TensorWrapper;
 import bacmman.utils.ArrayUtil;
 import org.scijava.util.FileUtils;
@@ -35,14 +37,16 @@ public class TFengine implements DLengine {
             }).setValue(2, 256, 32).setAllowMoveChildren(false)
             .addValidationFunction(l -> Arrays.stream(l.getArrayInt()).allMatch(i->i>0)).setEmphasized(true);
     SimpleListParameter<ArrayNumberParameter> inputShapes = new SimpleListParameter<>("Input Shapes", 0, inputShape).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setEmphasized(true);
-    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<TextParameter>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setEmphasized(true);
-    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<TextParameter>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).setEmphasized(true);
+    SimplePluginParameterList<HistogramScaler> inputScalers = new SimplePluginParameterList<HistogramScaler>("Input scaling", "Scaler", HistogramScaler.class, new MinMaxScaler(), true).setNewInstanceNameFunction((s, i)->"scaler for input #"+i).setChildrenNumber(1).setEmphasized(true);
+    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setEmphasized(true);
+    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).setEmphasized(true);
     //SavedModelBundle model;
     Graph graph;
     public TFengine() {
         inputShape.resetName(null);
         inputShape.addListener(l -> l.resetName(null));
         inputShapes.addValidationFunction(l -> l.getActivatedChildCount() == inputs.getActivatedChildCount());
+        inputScalers.addValidationFunction(l -> l.getActivatedChildCount() == inputs.getActivatedChildCount());
         inputs.addValidationFunction(l -> l.getActivatedChildCount() == inputShapes.getActivatedChildCount());
     }
     public TFengine setModelPath(String path) {
@@ -96,7 +100,7 @@ public class TFengine implements DLengine {
         graph = new Graph();
         graph.importGraphDef(graphDef);
         logger.debug("model loaded!");
-        boolean[] missingLayer = new boolean[1];
+        boolean[] missingLayer = new boolean[2];
         inputs.getActivatedChildren().stream().map(i->i.getValue()).forEach(i -> {
             if (graph.operation(i)==null) {
                 logger.error("Input layer {} not found in graph", i);
@@ -107,13 +111,17 @@ public class TFengine implements DLengine {
             String name = findOutputName(o.getValue());
             if (name==null) {
                 logger.error("Output layer {} not found in graph", o.getValue());
-                missingLayer[0] = true;
+                missingLayer[1] = true;
             } else o.setValue(name); // name may have changed
         });
-        if (missingLayer[0]) {
+        if (missingLayer[0] || missingLayer[1]) {
             logger.info("List of all operation from graph:");
             logOperations();
-            throw new RuntimeException("Input and/or output layer not found in graph");
+            String err;
+            if (missingLayer[0] && missingLayer[1]) err = "Input and output";
+            else if (missingLayer[0]) err="Input";
+            else err="Output";
+            throw new RuntimeException(err+" layer not found in graph");
         }
     }
 
@@ -149,6 +157,10 @@ public class TFengine implements DLengine {
             if (!allShapeEqual(shapes, inputShapes[i])) throw new IllegalArgumentException("Input # "+i+": At least one image have a shapes from input shape: "+Arrays.toString(inputShapes[i]));
             if (nSamples != inputNC[i].length) throw new IllegalArgumentException("nSamples from input #"+i+"("+inputNC[0].length+") differs from input #0 = "+nSamples);
         }
+        // scale inputs
+        List<HistogramScaler> scalers = this.inputScalers.getAll();
+        for (int i = 0; i<inputNC.length; ++i) DLengine.scale(inputNC[i], scalers.get(i));
+
         final Session s = new Session(graph);
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
@@ -193,6 +205,6 @@ public class TFengine implements DLengine {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, inputShapes, inputs, outputs};
+        return new Parameter[]{modelFile, batchSize, inputShapes, inputs, inputScalers, outputs};
     }
 }
