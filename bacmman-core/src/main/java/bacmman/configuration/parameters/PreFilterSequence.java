@@ -81,6 +81,7 @@ public class PreFilterSequence extends PluginParameterList<PreFilter, PreFilterS
     public PreFilterSequence duplicate() {
         PreFilterSequence res = new PreFilterSequence(name);
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
 }

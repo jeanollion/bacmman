@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import org.json.simple.JSONArray;
@@ -57,6 +56,17 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     protected Predicate<L> additionalValidation = l -> true;
     protected Predicate<T> childrenValidation = l -> true;
     protected boolean allowDeactivate = true;
+
+    static void transferStateArguments(ListParameterImpl source, ListParameterImpl dest) {
+        dest.addValidationFunction(source.additionalValidation);
+        dest.addValidationFunctionToChildren(source.childrenValidation);
+        if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
+        dest.setAllowDeactivable(source.allowDeactivate);
+        dest.setNewInstanceNameFunction(source.newInstanceNameFunction);
+        dest.setHint(source.toolTipText);
+        dest.setSimpleHint(source.toolTipTextSimple);
+        dest.setListeners(source.listeners);
+    }
     @Override
     public L addValidationFunction(Predicate<L> isValid) {
         additionalValidation = additionalValidation.and(isValid);
@@ -118,7 +128,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         }
     }
     
-    protected String toolTipText, simpleToolTipText;
+    protected String toolTipText, toolTipTextSimple;
     @Override
     public String getHintText() {
         return toolTipText;
@@ -130,11 +140,11 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     }
     @Override
     public String getSimpleHintText() {
-        return simpleToolTipText;
+        return toolTipTextSimple;
     }
     @Override
     public L setSimpleHint(String tip) {
-        this.simpleToolTipText= tip;
+        this.toolTipTextSimple = tip;
         return (L)this;
     }
     

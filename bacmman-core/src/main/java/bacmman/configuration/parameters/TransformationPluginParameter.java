@@ -201,8 +201,8 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     @Override
     public TransformationPluginParameter<T> duplicate() {
         TransformationPluginParameter res = new TransformationPluginParameter(name, getPluginType(), allowNoSelection);
-        res.setListeners(listeners);
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
 

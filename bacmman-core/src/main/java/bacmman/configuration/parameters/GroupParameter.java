@@ -52,7 +52,7 @@ public class GroupParameter extends ContainerParameterImpl<GroupParameter> {
     public GroupParameter duplicate() {
         List<Parameter> dup = ParameterUtils.duplicateList(parameters);
         GroupParameter res =  new GroupParameter(name, dup);
-        res.setListeners(listeners);
+        transferStateArguments(this, res);
         return res;
     }
     /*@Override

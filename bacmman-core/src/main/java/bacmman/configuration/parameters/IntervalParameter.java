@@ -50,6 +50,9 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> {
         IntervalParameter res = new IntervalParameter(name, decimalPlaces, lowerBound, upperBound, values);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
 

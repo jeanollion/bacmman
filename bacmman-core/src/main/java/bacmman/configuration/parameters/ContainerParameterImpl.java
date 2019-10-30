@@ -127,13 +127,19 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
             throw new IllegalArgumentException("wrong parameter type");
         }
     }
-    
+    public static void transferStateArguments(ContainerParameterImpl source, ContainerParameterImpl dest) {
+        dest.setListeners(source.listeners);
+        dest.setHint(source.toolTipText);
+        dest.setSimpleHint(source.toolTipTextSimple);
+        dest.addValidationFunction(source.additionalValidation);
+        if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
+    }
     @Override
     public P duplicate() {
         try {
             P p = (P) this.getClass().getDeclaredConstructor(String.class).newInstance(name);
             p.setContentFrom(this);
-            p.setListeners(listeners);
+            transferStateArguments(this, p);
             return p;
         } catch (NoSuchMethodException | SecurityException | InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException ex) {
             logger.error("duplicate error:", ex);

@@ -93,6 +93,9 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
         NumberParameter res =  new NumberParameter(name, decimalPlaces, value);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return (P)res;
     }
 

@@ -36,7 +36,14 @@ public class ConditionalParameter extends ContainerParameterImpl<ConditionalPara
     HashMap<String, List<Parameter>> parameters;
     List<Parameter> defaultParameters;
     String currentValue;
-    
+
+    @Override
+    public ConditionalParameter setName(String name) {
+        super.setName(name);
+        if (action!=null) action.setName(name);
+        return this;
+    }
+
     @Override
     public Object toJSONEntry() {
         JSONObject res = new JSONObject();
@@ -61,7 +68,7 @@ public class ConditionalParameter extends ContainerParameterImpl<ConditionalPara
     }
     
     public ConditionalParameter(ActionableParameter action) {
-        this(action, new HashMap<String, List<Parameter>>(), null);
+        this(action, new HashMap<>(), null);
     }
     
     public ConditionalParameter(ActionableParameter action, HashMap<String, List<Parameter>> parameters, List<Parameter> defaultParameters) {
@@ -183,9 +190,13 @@ public class ConditionalParameter extends ContainerParameterImpl<ConditionalPara
     protected void initChildList() {
         super.initChildren(getCurrentParameters());
     }
+
     @Override public ConditionalParameter duplicate() {
-        ConditionalParameter res = new ConditionalParameter((ActionableParameter)action.duplicate()); 
+        ConditionalParameter res = new ConditionalParameter((ActionableParameter)action.duplicate());
+        parameters.forEach((v, p) -> res.setActionParameters(v, p.stream().map(pa->pa.duplicate()).toArray(i->new Parameter[i])));
         res.setListeners(listeners);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
         res.setContentFrom(this);
         return res;
     }

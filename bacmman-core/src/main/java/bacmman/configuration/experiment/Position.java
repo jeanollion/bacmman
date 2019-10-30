@@ -274,7 +274,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     @Override public Position duplicate() {
         Position mf = super.duplicate();
         if (sourceImages!=null) mf.setImages(sourceImages.duplicate());
-        mf.setListeners(listeners);
+        transferStateArguments(this, mf);
         return mf;
     }
     
