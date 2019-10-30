@@ -59,6 +59,7 @@ public class TrackPostFilterSequence extends PluginParameterList<TrackPostFilter
     public TrackPostFilterSequence duplicate() {
         TrackPostFilterSequence res = new TrackPostFilterSequence(name);
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
 }

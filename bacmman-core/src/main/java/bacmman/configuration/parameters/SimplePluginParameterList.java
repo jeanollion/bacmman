@@ -15,8 +15,9 @@ public class SimplePluginParameterList<T extends Plugin> extends PluginParameter
 
     @Override
     public SimplePluginParameterList<T> duplicate() {
-        SimplePluginParameterList dup = new SimplePluginParameterList(name, childLabel, childClass, allowNoSelection);
-        dup.setContentFrom(this);
-        return dup;
+        SimplePluginParameterList res = new SimplePluginParameterList(name, childLabel, childClass, allowNoSelection);
+        res.setContentFrom(this);
+        transferStateArguments(this, res);
+        return res;
     }
 }

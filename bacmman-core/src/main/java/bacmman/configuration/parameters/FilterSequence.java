@@ -57,6 +57,7 @@ public class FilterSequence extends PluginParameterList<Filter, FilterSequence> 
     public FilterSequence duplicate() {
         FilterSequence res = new FilterSequence(name);
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
 }

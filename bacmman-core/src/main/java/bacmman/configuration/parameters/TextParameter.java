@@ -77,6 +77,9 @@ public class TextParameter extends ParameterImpl<TextParameter> {
         TextParameter res =  new TextParameter(name, value, allowSpecialCharacters);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
     

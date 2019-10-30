@@ -164,6 +164,9 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         res.selectedFiles = Arrays.copyOf(selectedFiles, selectedFiles.length);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
 

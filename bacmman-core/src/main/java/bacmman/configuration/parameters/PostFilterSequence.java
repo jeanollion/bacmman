@@ -55,6 +55,7 @@ public class PostFilterSequence extends PluginParameterList<PostFilter, PostFilt
     public PostFilterSequence duplicate() {
         PostFilterSequence res = new PostFilterSequence(name);
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
 }

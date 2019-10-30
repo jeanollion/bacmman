@@ -34,6 +34,9 @@ public class ChoiceParameter extends AbstractChoiceParameter<ChoiceParameter>  {
         ChoiceParameter res = new ChoiceParameter(name, Arrays.copyOf(listChoice, listChoice.length) ,this.selectedItem, this.allowNoSelection);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
 }

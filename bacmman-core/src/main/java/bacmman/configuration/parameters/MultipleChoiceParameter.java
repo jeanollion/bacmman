@@ -116,6 +116,9 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
         MultipleChoiceParameter res= new MultipleChoiceParameter(name, listChoice, selectedItems);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
     

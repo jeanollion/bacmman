@@ -60,6 +60,9 @@ public class BoundedNumberParameter extends NumberParameter<BoundedNumberParamet
         BoundedNumberParameter res = new BoundedNumberParameter(name, decimalPlaces, value, lowerBound, upperBound);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
 

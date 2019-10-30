@@ -59,6 +59,7 @@ public class SimpleListParameter<T extends Parameter> extends ListParameterImpl<
     public SimpleListParameter<T> duplicate() {
         SimpleListParameter<T> res = new SimpleListParameter<>(name, unMutableIndex, getChildClass());
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
 

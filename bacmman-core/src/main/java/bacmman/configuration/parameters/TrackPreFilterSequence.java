@@ -47,6 +47,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
     public TrackPreFilterSequence duplicate() {
         TrackPreFilterSequence res = new TrackPreFilterSequence(name);
         res.setContentFrom(this);
+        transferStateArguments(this, res);
         return res;
     }
     private static boolean allPFImagesAreSet(List<SegmentedObject> parentTrack, int structureIdx) {

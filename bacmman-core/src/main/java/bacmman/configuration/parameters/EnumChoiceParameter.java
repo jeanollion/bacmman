@@ -39,6 +39,9 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         EnumChoiceParameter res = new EnumChoiceParameter(name, enumChoiceList ,getSelectedEnum(), allowNoSelection);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
+        res.setHint(toolTipText);
+        res.setSimpleHint(toolTipTextSimple);
+        res.setEmphasized(isEmphasized);
         return res;
     }
 
