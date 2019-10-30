@@ -32,7 +32,7 @@ import bacmman.plugins.Filter;
 public class FilterSequence extends PluginParameterList<Filter, FilterSequence> {
 
     public FilterSequence(String name) {
-        super(name, "Transformation", Filter.class);
+        super(name, "Transformation", Filter.class, false);
     }
     
     public Image filter(Image input)  {

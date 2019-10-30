@@ -32,7 +32,7 @@ import bacmman.plugins.PostFilter;
 public class PostFilterSequence extends PluginParameterList<PostFilter, PostFilterSequence> {
     
     public PostFilterSequence(String name) {
-        super(name, "Post-Filter", PostFilter.class);
+        super(name, "Post-Filter", PostFilter.class, false);
     }
     
     public RegionPopulation filter(RegionPopulation objectPopulation, int objectClassIdx, SegmentedObject parent) {

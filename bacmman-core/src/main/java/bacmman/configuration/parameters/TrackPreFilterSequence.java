@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, TrackPreFilterSequence> {
     
     public TrackPreFilterSequence(String name) {
-        super(name, "Track Pre-Filter", TrackPreFilter.class);
+        super(name, "Track Pre-Filter", TrackPreFilter.class, false);
     }
     @Override
     public TrackPreFilterSequence duplicate() {
