@@ -20,7 +20,9 @@ package bacmman.processing.gaussian_fit;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Spot;
+import bacmman.image.BoundingBox;
 import bacmman.image.ImageProperties;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.geom.Point;
 import bacmman.image.Image;
@@ -61,7 +63,7 @@ public class GaussianFit {
      * @param maxIter see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
      * @param lambda see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
      * @param termEpsilon see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
-     * @return for each peak, array of fitted parameters: coordinates, A, σ, C
+     * @return for each peak, array of fitted parameters: coordinates, A, σ, C. if fitted coordinates are outside the image, point is removed
      */
     public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalSigma, double minDistance, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
@@ -97,6 +99,8 @@ public class GaussianFit {
             */
         }
         if (!fitConstant) ImageOperations.addValue(image, min, image);
+        BoundingBox bounds = new SimpleBoundingBox(image).resetOffset();
+        results.entrySet().removeIf(e -> !bounds.contains(e.getKey()));
         return results;
     }
 

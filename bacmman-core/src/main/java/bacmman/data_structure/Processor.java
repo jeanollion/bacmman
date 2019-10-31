@@ -411,13 +411,14 @@ public class Processor {
                     .filter(m->!m.callOnlyOnTrackHeads())
                     .forEach(m-> {
                         if (pcb!=null) pcb.log("Executing Measurement: "+m.getClass().getSimpleName()+" on #"+allObCount+" objects");
+                        Stream<SegmentedObject> callObjectStream = StreamConcatenation.concat((Stream<SegmentedObject>[])allParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]));
                         try {
-                            ThreadRunner.executeAndThrowErrors(
-                                    StreamConcatenation.concat((Stream<SegmentedObject>[])allParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]))
-                                            .filter(o->measurementMissing.test(o, m))
-                                    , o->m.performMeasurement(o));
+                            //callObjectStream.sequential().filter(o->measurementMissing.test(o, m)).forEach(o->m.performMeasurement(o));
+                            ThreadRunner.executeAndThrowErrors(callObjectStream.filter(o->measurementMissing.test(o, m)), o->m.performMeasurement(o));
                         } catch(MultipleException me) {
                             globE.addExceptions(me.getExceptions());
+                        } catch (Throwable t) {
+                            globE.addExceptions(new Pair(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
                         }
                     });
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->!m.callOnlyOnTrackHeads()).findAny().orElse(null)!=null;

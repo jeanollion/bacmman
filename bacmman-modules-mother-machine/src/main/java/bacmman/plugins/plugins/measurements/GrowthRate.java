@@ -111,14 +111,14 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         boolean feat = saveFeature.getSelected();
         final ArrayList<ObjectFeatureCore> cores = new ArrayList<>();
         HashMapGetCreate<SegmentedObject, ObjectFeature> ofMap = new HashMapGetCreate<>(p -> {
-            ObjectFeature of = feature.instanciatePlugin().setUp(p, bIdx, ((SegmentedObject)p).getChildRegionPopulation(bIdx));
+            ObjectFeature of = feature.instanciatePlugin().setUp(p, bIdx, p.getChildRegionPopulation(bIdx));
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);
             return of;
         });
         List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead, false);
         parentTrack.stream().forEach(p->ofMap.getAndCreateIfNecessary(p));
         long t1 = System.currentTimeMillis();
-        logger.debug("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);
+        logger.trace("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);
         Map<SegmentedObject, Double> logLengthMap = Utils.parallele(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));
         long t2 = System.currentTimeMillis();
         Map<SegmentedObject, List<SegmentedObject>> bacteriaTracks = SegmentedObjectUtils.getAllTracks(parentTrack, bIdx);
@@ -135,7 +135,6 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
                 }
                 frame[0] = 0;
                 double[] beta = LinearRegression.run(frame, length);
-                idx = 0;
                 for (SegmentedObject b : l) {
                     b.getMeasurements().setValue("GrowthRate"+suffix, beta[1] );
                     if (saveSizeDiv) b.getMeasurements().setValue("SizeAtBirth"+suffix, Math.exp(beta[0]) );
@@ -150,7 +149,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
             }
         });
         long t4 = System.currentTimeMillis();
-        logger.debug("Growth Rate: compute values: {}, process: {}", t2-t1, t4-t3);
+        logger.trace("Growth Rate: compute values: {}ms, process: {}ms", t2-t1, t4-t3);
     }
     
     @Override 

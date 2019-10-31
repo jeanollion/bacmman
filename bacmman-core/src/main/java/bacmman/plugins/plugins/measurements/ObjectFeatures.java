@@ -108,7 +108,6 @@ public class ObjectFeatures implements Measurement, Hint {
     @Override
     public void performMeasurement(SegmentedObject parent) {
         int structureIdx = structure.getSelectedIndex();
-        //logger.debug("performing features on object: {} (children: {})", object, object.getChildren(structureIdx).size());
         ArrayList<ObjectFeatureCore> cores = new ArrayList<>();
         for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {
             ObjectFeature f = ofp.instanciatePlugin();
@@ -116,7 +115,7 @@ public class ObjectFeatures implements Measurement, Hint {
                 f.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
                 if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(cores, preFilters);
                 parent.getChildren(structureIdx).forEach(o-> {
-                    double m = f.performMeasurement(o.getRegion()); 
+                    double m = f.performMeasurement(o.getRegion());
                     o.getMeasurements().setValue(((TextParameter)ofp.getAdditionalParameters().get(0)).getValue(), m);
                 });
             }

@@ -50,9 +50,14 @@ public class Spot extends Region {
     @Override
     protected void createVoxels() {
         voxels = new HashSet<>();
+        if (getRadius()<1) {
+            voxels.add(center.asVoxel());
+            return;
+        }
         BoundingBox.loop(bounds,
             (x, y, z)->voxels.add(new Voxel(x, y, z)),
             (x, y, z)-> (Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + (is2D ? 0 : Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2)) <= radiusSq));
+        if (voxels.isEmpty()) voxels.add(center.asVoxel());
     }
     @Override
     public ImageMask<? extends ImageMask> getMask() {

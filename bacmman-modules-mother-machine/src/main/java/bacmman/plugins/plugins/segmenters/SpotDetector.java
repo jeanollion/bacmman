@@ -269,7 +269,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         long t1 = System.currentTimeMillis();
         //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
         List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage))
-                .filter(s -> !Double.isNaN(s.getRadius()))
+                .filter(s -> !Double.isNaN(s.getRadius()) || s.getRadius()<1)
                 .filter(s -> !Double.isNaN(s.getIntensity()))
                 .collect(Collectors.toList());
         if (off!=null) {
