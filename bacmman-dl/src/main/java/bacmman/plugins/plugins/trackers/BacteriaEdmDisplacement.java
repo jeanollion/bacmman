@@ -2,7 +2,9 @@ package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import bacmman.image.MutableBoundingBox;
 import bacmman.image.Offset;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
@@ -15,6 +17,7 @@ import fiji.plugin.trackmate.Spot;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -65,7 +68,33 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         Map<SegmentedObject, Image> dyM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> dy_res[i]));
         return new Map[]{edmM, dyM};
     }
+    /*private static Function<SegmentedObject, Image> getImageFunction(int objectClassIdx, int[] targetImageShape) {
+        if (targetImageShape==null) return p -> p.getPreFilteredImage(objectClassIdx);
+        return e -> { // caveat: not working with pre-filtered images / better have microchannels of target size
+            Image root = e.getRoot().getRawImage(e.getStructureIdx());
+            BoundingBox newBds = extendBBTo32x256(e.getBounds(), e.getRoot().getBounds(), targetImageShape);
+            return root.crop(newBds);
+        };
+    }
+
+    private static BoundingBox extendBBTo32x256(BoundingBox source, BoundingBox rootBB, int[] targetImageShape) {
+        MutableBoundingBox res = new MutableBoundingBox(source);
+        int toAddX = targetImageShape[0] - source.sizeX();
+        if (toAddX>0) {
+            res.setxMin(source.xMin() - (toAddX - toAddX / 2) );
+            res.setxMax(source.xMax() + toAddX / 2);
+            if (res.xMin() < 0) res.translate(-res.xMin(), 0, 0);
+            if (res.xMax() > rootBB.xMax()) res.translate(rootBB.xMax() - res.xMax(), 0, 0);
+            if (res.sizeX() != 32) throw new RuntimeException("could not extend bb to 32: curr size:"+res.sizeX()+" old size:"+source.sizeX() + " image: "+rootBB.sizeX());
+        }
+        res.setyMin(Math.max(0, source.yMin() - 5));
+        if (res.sizeY() < targetImageShape[1] ) res.setyMax(Math.min(rootBB.yMax(), res.yMin()+targetImageShape[1]-1));
+        //logger.debug("extends bds source: {}, dest: {}", source, res);
+        return res;
+    }*/
+
     private Pair<Image[][], int[][]> getInputs(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
+
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         int[][] shapes = ResizeUtils.getShapes(in, false);
         logger.debug("shapes ok: {}", shapes);
