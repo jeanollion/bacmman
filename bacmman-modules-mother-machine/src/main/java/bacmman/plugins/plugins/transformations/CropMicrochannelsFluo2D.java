@@ -109,7 +109,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         // compute one threshold for all images
         List<Image> allImages = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         ThresholderHisto thlder = thresholder.instanciatePlugin();
-        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND);
+        Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).filter(v->v!=0).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
         threshold = thlder.runThresholderHisto(histo);
         super.computeConfigurationData(channelIdx, inputImages);
     }
@@ -117,7 +117,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     @Override
     public MutableBoundingBox getBoundingBox(Image image) {
         double thld = Double.isNaN(threshold)? 
-                thresholder.instanciatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND)) 
+                thresholder.instanciatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream().filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND)) // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
                 : threshold;
         return getBoundingBox(image, null , thld);
     }
@@ -183,8 +183,8 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         if (bounds.xMin()<xMinLim) bounds.setxMin(xMinLim);
         if (bounds.xMax()>xMaxLim) bounds.setxMax(xMaxLim);
         
-        //4) limit yStart to upper mother even if it will included rotation background in the image
-        if (bounds.yMin()>yMin) bounds.setyMin(yMin);
+        //4) limit yStart to upper mother even if it will include rotation background in the image
+        if (bounds.yMin()>yMin) bounds.setyMin(Math.max(0, yMin- 20));
         
         return bounds;
         
