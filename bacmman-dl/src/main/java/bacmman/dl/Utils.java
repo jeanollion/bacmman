@@ -1,34 +1,15 @@
-package bacmman.py_dataset;
+package bacmman.dl;
 
-import bacmman.core.Core;
-import bacmman.image.BoundingBox;
 import bacmman.image.Image;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.wrappers.ImgLib2ImageWrapper;
+import bacmman.plugins.HistogramScaler;
 import bacmman.processing.Resample;
-import net.imagej.ops.transform.scaleView.DefaultScaleView;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.img.Img;
-import net.imglib2.interpolation.InterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
-import org.scijava.command.Command;
-import org.scijava.command.CommandInfo;
-import org.scijava.module.Module;
-import org.scijava.module.ModuleRunner;
-import org.scijava.module.ModuleService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
-import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
 public class Utils {
@@ -90,5 +71,16 @@ public class Utils {
     }
     public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {
         return IntStream.range(0, shapes.length).allMatch(i -> Arrays.equals(shapes[i], referenceShape));
+    }
+
+    public static void scale(Image[][] imageNC, HistogramScaler scaler) {
+        if (scaler==null) return;
+        int n_im = imageNC.length;
+        int n_chan = imageNC[0].length;
+        IntStream.range(0, n_im * n_chan).parallel().forEach(i -> {
+            int im_idx = i / n_chan;
+            int chan_idx = i % n_chan;
+            imageNC[im_idx][chan_idx] =  scaler.scale(imageNC[im_idx][chan_idx]);
+        });
     }
 }

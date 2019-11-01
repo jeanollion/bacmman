@@ -8,11 +8,13 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Offset;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.processing.matching.TrackMateInterface;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.Pair;
 import fiji.plugin.trackmate.Spot;
+import ucar.ma2.MAMath;
 
 import java.util.Arrays;
 import java.util.List;
@@ -23,10 +25,12 @@ import java.util.stream.IntStream;
 
 public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProcessingPlugin {
     PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("Deep learning model", DLengine.class, false).setEmphasized(true);
+    PluginParameter<DLengine> dlEngineEdm = new PluginParameter<>("edm model", DLengine.class, false).setEmphasized(true);
+    PluginParameter<DLengine> dlEngineDY = new PluginParameter<>("dy model", DLengine.class, false).setEmphasized(true).setPluginConfiguration(dle -> dle.setOutputNumber(2));
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
     BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
-    Parameter[] parameters =new Parameter[]{dlEngine, edmSegmenter, maxLinkingDistance};
-    private static boolean next = false;
+    Parameter[] parameters =new Parameter[]{dlEngineEdm, dlEngineDY, inputShape, edmSegmenter, maxLinkingDistance};
+
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_dy = predict(objectClassIdx, parentTrack, trackPreFilters);
@@ -36,75 +40,66 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
         long t0= System.currentTimeMillis();
-        DLengine engine = dlEngine.instanciatePlugin();
-        engine.init();
+        DLengine edmEngine = dlEngineEdm.instanciatePlugin();
+        edmEngine.init();
         long t1= System.currentTimeMillis();
         logger.info("dl engine instanciated in {}ms", t1-t0);
         trackPreFilters.filter(objectClassIdx, parentTrack);
         if (stores!=null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
-        int[] imageShape = new int[]{engine.getInputShapes()[0][2], engine.getInputShapes()[0][1]};
-        Pair<Image[][], int[][]> inputs = getInputs(objectClassIdx, parentTrack, imageShape);
+        int[] imageShape = new int[]{inputShape.getChildAt(2).getValue().intValue(), inputShape.getChildAt(1).getValue().intValue()};
+        Pair<Image[], int[][]> resampledImages = getResampledRawImages(objectClassIdx, parentTrack, imageShape);
         long t3= System.currentTimeMillis();
         logger.info("input resampled in {}ms", t3-t2);
-        Image[][][] prediction =  engine.process(inputs.key); // order: output / batch / channel
-        Image[] edm = ResizeUtils.getChannel(prediction[0], 0);
-        Image[] dy = ResizeUtils.getChannel(prediction[0], 0); // was [1]
+        Image[][] edmInput = getInputs(resampledImages.key, false, false);
+        Image[][][] predictionEdm =  edmEngine.process(edmInput); // order: output / batch / channel
+        Image[] edm = ResizeUtils.getChannel(predictionEdm[0], 0);
+
         long t4= System.currentTimeMillis();
-        logger.info("#{}(*{}) predictions made in {}ms", prediction[0].length, prediction.length*prediction[0][0].length, t4-t3);
-        // set offset & calibration
-        Image[] edm_res = ResizeUtils.resample(edm, false, inputs.value);
-        Image[] dy_res = ResizeUtils.resample(dy, true, inputs.value);
+        logger.info("#{} edm predictions made in {}ms", edm.length, t4-t3);
+
+        Image[][] dyRawInput = getInputs(resampledImages.key, true, false);
+        Image[][] dyedmInput = getInputs(edm, true, false);
+        Image[][][] predictionDY =  edmEngine.process(new Image[][][]{dyRawInput, dyedmInput}); // order: output / batch / channel
+        Image[] dy = ResizeUtils.getChannel(predictionDY[0], 0);
+        long t5= System.currentTimeMillis();
+        logger.info("#{} dy predictions made in {}ms", dy.length, t5-t4);
+        // resample, set offset & calibration
+        Image[] edm_res = ResizeUtils.resample(edm, false, resampledImages.value);
+        Image[] dy_res = ResizeUtils.resample(dy, true, resampledImages.value);
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
             edm_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             edm_res[idx].translate(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].translate(parentTrack.get(idx).getMaskProperties());
         }
-        long t5= System.currentTimeMillis();
-        logger.info("predicitons resampled in {}ms", t5-t4);
+        long t6= System.currentTimeMillis();
+        logger.info("predicitons resampled in {}ms", t6-t5);
         Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> edm_res[i]));
         Map<SegmentedObject, Image> dyM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> dy_res[i]));
         return new Map[]{edmM, dyM};
     }
-    /*private static Function<SegmentedObject, Image> getImageFunction(int objectClassIdx, int[] targetImageShape) {
-        if (targetImageShape==null) return p -> p.getPreFilteredImage(objectClassIdx);
-        return e -> { // caveat: not working with pre-filtered images / better have microchannels of target size
-            Image root = e.getRoot().getRawImage(e.getStructureIdx());
-            BoundingBox newBds = extendBBTo32x256(e.getBounds(), e.getRoot().getBounds(), targetImageShape);
-            return root.crop(newBds);
-        };
-    }
 
-    private static BoundingBox extendBBTo32x256(BoundingBox source, BoundingBox rootBB, int[] targetImageShape) {
-        MutableBoundingBox res = new MutableBoundingBox(source);
-        int toAddX = targetImageShape[0] - source.sizeX();
-        if (toAddX>0) {
-            res.setxMin(source.xMin() - (toAddX - toAddX / 2) );
-            res.setxMax(source.xMax() + toAddX / 2);
-            if (res.xMin() < 0) res.translate(-res.xMin(), 0, 0);
-            if (res.xMax() > rootBB.xMax()) res.translate(rootBB.xMax() - res.xMax(), 0, 0);
-            if (res.sizeX() != 32) throw new RuntimeException("could not extend bb to 32: curr size:"+res.sizeX()+" old size:"+source.sizeX() + " image: "+rootBB.sizeX());
-        }
-        res.setyMin(Math.max(0, source.yMin() - 5));
-        if (res.sizeY() < targetImageShape[1] ) res.setyMax(Math.min(rootBB.yMax(), res.yMin()+targetImageShape[1]-1));
-        //logger.debug("extends bds source: {}, dest: {}", source, res);
-        return res;
-    }*/
-
-    private Pair<Image[][], int[][]> getInputs(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
-
+    private Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        logger.debug("shapes ok: {}", shapes);
         Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape});
-        logger.debug("resampled ok");
-        Image[][] input = IntStream.range(0, in.length).mapToObj(i -> new Image[]{inResampled[i]}).toArray(Image[][]::new); // for testing
-        //Image[][] input = next ? IntStream.range(0, in.length).mapToObj(i -> new Image[]{i==0 ? inResampled[0] : inResampled[i-1], inResampled[i], i==in.length-1 ? inResampled[i] : inResampled[i+1]}).toArray(Image[][]::new) :
-        //    IntStream.range(0, in.length).mapToObj(i -> i==0 ? new Image[]{inResampled[0], inResampled[0]} : new Image[]{inResampled[i-1], inResampled[i]}).toArray(Image[][]::new);
-        logger.debug("input ok");
-        return new Pair<>(input, shapes);
+        // also scale by min/max
+        MinMaxScaler scaler = new MinMaxScaler();
+        IntStream.range(0, in.length).parallel().forEach(i -> inResampled[i] = scaler.scale(inResampled[i]));
+        return new Pair<>(inResampled, shapes);
+    }
+    private Image[][] getInputs(Image[] images, boolean addPrev, boolean addNext) {
+        if (!addPrev && !addNext) {
+            return IntStream.range(0, images.length).mapToObj(i -> new Image[]{images[i]}).toArray(Image[][]::new);
+        } else if (addPrev && addNext) {
+            return IntStream.range(0, images.length).mapToObj(i -> new Image[]{i==0 ? images[0] : images[i-1], images[i], i==images.length-1 ? images[i] : images[i+1]}).toArray(Image[][]::new);
+        } else if (addPrev && !addNext) {
+            return IntStream.range(0, images.length).mapToObj(i -> i==0 ? new Image[]{images[0], images[0]} : new Image[]{images[i-1], images[i]}).toArray(Image[][]::new);
+        } else {
+            return IntStream.range(0, images.length).mapToObj(i -> i==images.length-1 ? new Image[]{images[i], images[i]} : new Image[]{images[i], images[i+1]}).toArray(Image[][]::new);
+        }
     }
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores!=null);
