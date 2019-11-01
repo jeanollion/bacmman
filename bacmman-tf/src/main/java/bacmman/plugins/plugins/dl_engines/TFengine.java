@@ -51,8 +51,24 @@ public class TFengine implements DLengine {
         return this;
     }
     @Override
+    public TFengine setInputNumber(int inputNumber) {
+        if (inputNumber<1) throw new IllegalArgumentException("Invalid input number:"+inputNumber);
+        boolean oneInput = getNumInputArrays()==1;
+        inputs.setChildrenNumber(inputNumber);
+        if (oneInput) { // modify the output name by adding a the index
+            String name = inputs.getChildAt(0).getValue();
+            for (int i = 0; i<inputNumber; ++i) inputs.getChildAt(i).setValue(name+i);
+        }
+        return this;
+    }
+    @Override
     public int getNumOutputArrays() {
         return outputs.getActivatedChildCount();
+    }
+
+    @Override
+    public int getNumInputArrays() {
+        return inputs.getActivatedChildCount();
     }
 
     @Override
@@ -130,6 +146,7 @@ public class TFengine implements DLengine {
         });
     }
     public synchronized Image[][][] process(Image[][]... inputNC) {
+        if (inputNC.length!=getNumInputArrays()) throw new IllegalArgumentException("Invalid number of input provided. Expected:"+getNumInputArrays()+" provided:"+inputNC.length);
         int batchSize = this.batchSize.getValue().intValue();
         int nSamples = inputNC[0].length;
         /*int[][] inputShapes = getInputShapes();

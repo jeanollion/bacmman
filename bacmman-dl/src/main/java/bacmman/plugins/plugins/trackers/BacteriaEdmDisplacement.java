@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
 public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProcessingPlugin {
     PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
     PluginParameter<DLengine> dlEngineEdm = new PluginParameter<>("edm model", DLengine.class, false).setEmphasized(true);
-    PluginParameter<DLengine> dlEngineDY = new PluginParameter<>("dy model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setOutputNumber(2));
+    PluginParameter<DLengine> dlEngineDY = new PluginParameter<>("dy model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2));
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
     BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngineEdm, dlEngineDY, inputShape, edmSegmenter, maxLinkingDistance};
@@ -42,6 +42,8 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         long t0= System.currentTimeMillis();
         DLengine edmEngine = dlEngineEdm.instanciatePlugin();
         edmEngine.init();
+        DLengine dyEngine = dlEngineDY.instanciatePlugin();
+        dyEngine.init();
         long t1= System.currentTimeMillis();
         logger.info("dl engine instanciated in {}ms", t1-t0);
         trackPreFilters.filter(objectClassIdx, parentTrack);
@@ -58,10 +60,10 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
 
         long t4= System.currentTimeMillis();
         logger.info("#{} edm predictions made in {}ms", edm.length, t4-t3);
-
+        logger.debug("#output for dy: {}", dyEngine.getNumOutputArrays());
         Image[][] dyRawInput = getInputs(resampledImages.key, true, false);
         Image[][] dyedmInput = getInputs(edm, true, false);
-        Image[][][] predictionDY =  edmEngine.process(new Image[][][]{dyRawInput, dyedmInput}); // order: output / batch / channel
+        Image[][][] predictionDY =  dyEngine.process(new Image[][][]{dyRawInput, dyedmInput}); // order: output / batch / channel
         Image[] dy = ResizeUtils.getChannel(predictionDY[0], 0);
         long t5= System.currentTimeMillis();
         logger.info("#{} dy predictions made in {}ms", dy.length, t5-t4);
