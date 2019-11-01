@@ -44,13 +44,15 @@ import java.util.function.Predicate;
 public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L> {
 
     protected String name;
+    protected ContainerParameter parent;
+
     protected List<T> children;
-    protected int unMutableIndex, maxChildCount;
     protected Class<T> childClass;
     protected String childClassName;
     protected T childInstance;
+
+    protected int unMutableIndex, maxChildCount;
     protected Boolean isEmphasized;
-    protected ContainerParameter parent;
     protected BiFunction<L, Integer, String> newInstanceNameFunction;
     boolean allowMoveChildren = true;
     protected Predicate<L> additionalValidation = l -> true;
@@ -62,6 +64,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         dest.addValidationFunctionToChildren(source.childrenValidation);
         if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
         dest.setAllowDeactivable(source.allowDeactivate);
+        dest.setAllowMoveChildren(source.allowMoveChildren);
+        dest.setUnmutableIndex(source.unMutableIndex);
+        dest.setMaxChildCount(source.maxChildCount);
         dest.setNewInstanceNameFunction(source.newInstanceNameFunction);
         dest.setHint(source.toolTipText);
         dest.setSimpleHint(source.toolTipTextSimple);
