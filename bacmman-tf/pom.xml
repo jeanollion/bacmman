@@ -30,7 +30,7 @@
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
-            <artifactId>bacmman-core</artifactId>
+            <artifactId>bacmman-dl</artifactId>
             <version>2.2.7</version>
         </dependency>
         <dependency>

@@ -5,6 +5,7 @@ import bacmman.image.Image;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
+import bacmman.dl.Utils;
 import bacmman.tf.TensorWrapper;
 import bacmman.utils.ArrayUtil;
 import org.scijava.util.FileUtils;
@@ -14,60 +15,41 @@ import org.tensorflow.*;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static bacmman.processing.ResizeUtils.allShapeEqual;
 import static bacmman.processing.ResizeUtils.getShapes;
 
 public class TFengine implements DLengine {
     Logger logger = LoggerFactory.getLogger(DLengine.class);
-    FileChooser modelFile = new FileChooser("Tensorflow model file", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
+    FileChooser modelFile = new FileChooser("Tensorflow graph file", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
-    ArrayNumberParameter inputShape = new ArrayNumberParameter("Input shape", 2, new BoundedNumberParameter("", 0, 0, 0, null))
-            .setMaxChildCount(4)
-            .setNewInstanceNameFunction((l,i) -> {
-                if (l.getChildCount()==3 && i<3) return "CYX".substring(i, i+1);
-                else {
-                    if (i>3) i = 3;
-                    return "CZYX".substring(i, i+1);
-                }
-            }).setValue(2, 256, 32).setAllowMoveChildren(false)
-            .addValidationFunction(l -> Arrays.stream(l.getArrayInt()).allMatch(i->i>0)).setEmphasized(true);
-    SimpleListParameter<ArrayNumberParameter> inputShapes = new SimpleListParameter<>("Input Shapes", 0, inputShape).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setEmphasized(true);
-    SimplePluginParameterList<HistogramScaler> inputScalers = new SimplePluginParameterList<HistogramScaler>("Input scaling", "Scaler", HistogramScaler.class, new MinMaxScaler(), true).setNewInstanceNameFunction((s, i)->"scaler for input #"+i).setChildrenNumber(1).setEmphasized(true);
-    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setEmphasized(true);
-    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).setEmphasized(true);
-    //SavedModelBundle model;
+    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1);
+    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1);
     Graph graph;
-    public TFengine() {
-        inputShape.resetName(null);
-        inputShape.addListener(l -> l.resetName(null));
-        inputShapes.addValidationFunction(l -> l.getActivatedChildCount() == inputs.getActivatedChildCount());
-        inputScalers.addValidationFunction(l -> l.getActivatedChildCount() == inputs.getActivatedChildCount());
-        inputs.addValidationFunction(l -> l.getActivatedChildCount() == inputShapes.getActivatedChildCount());
-    }
+
     public TFengine setModelPath(String path) {
         this.modelFile.setSelectedFilePath(path);
         return this;
     }
-    public TFengine(int batchSize, int[][] inputShapes) {
-        this();
+
+    public TFengine setBatchSize(int batchSize) {
         this.batchSize.setValue(batchSize);
-        if (inputShapes==null || inputShapes.length==0) return;
-        this.inputShapes.setChildrenNumber(inputShapes.length);
-        for (int i = 0; i<inputShapes.length; ++i) {
-            this.inputShapes.getChildAt(i).setValue(ArrayUtil.toDouble(inputShapes[i]));
-        }
+        return this;
     }
 
     @Override
-    public int[][] getInputShapes() {
-        return inputShapes.getActivatedChildren().stream().map(a -> a.getArrayInt()).toArray(int[][]::new);
+    public TFengine setOutputNumber(int outputNumber) {
+        if (outputNumber<1) throw new IllegalArgumentException("Invalid output number:"+outputNumber);
+        boolean oneOutput = getNumOutputArrays()==1;
+        outputs.setChildrenNumber(outputNumber);
+        if (oneOutput) { // modify the output name by adding a the index
+            String name = outputs.getChildAt(0).getValue();
+            for (int i = 0; i<outputNumber; ++i) outputs.getChildAt(i).setValue(name+i);
+        }
+        return this;
     }
-
     @Override
     public int getNumOutputArrays() {
         return outputs.getActivatedChildCount();
@@ -149,9 +131,8 @@ public class TFengine implements DLengine {
     }
     public synchronized Image[][][] process(Image[][]... inputNC) {
         int batchSize = this.batchSize.getValue().intValue();
-        int[][] inputShapes = getInputShapes();
         int nSamples = inputNC[0].length;
-
+        /*int[][] inputShapes = getInputShapes();
         for (int i = 0; i<inputNC.length; ++i) {
             int[][] shapes = getShapes(inputNC[i], true);
             if (!allShapeEqual(shapes, inputShapes[i])) throw new IllegalArgumentException("Input # "+i+": At least one image have a shapes from input shape: "+Arrays.toString(inputShapes[i]));
@@ -159,8 +140,8 @@ public class TFengine implements DLengine {
         }
         // scale inputs
         List<HistogramScaler> scalers = this.inputScalers.getAll();
-        for (int i = 0; i<inputNC.length; ++i) DLengine.scale(inputNC[i], scalers.get(i));
-
+        for (int i = 0; i<inputNC.length; ++i) Utils.scale(inputNC[i], scalers.get(i));
+        */
         final Session s = new Session(graph);
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
@@ -205,6 +186,6 @@ public class TFengine implements DLengine {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, inputShapes, inputs, inputScalers, outputs};
+        return new Parameter[]{modelFile, batchSize, inputs, outputs};
     }
 }
