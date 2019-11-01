@@ -14,7 +14,9 @@ public interface DLengine extends Plugin {
     Image[][][] process(Image[][]... inputNC);
     void init();
     int getNumOutputArrays();
+    int getNumInputArrays();
     DLengine setOutputNumber(int outputNumber);
+    DLengine setInputNumber(int outputNumber);
     void close();
 
 }
