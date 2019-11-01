@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
 public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProcessingPlugin {
     PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
     PluginParameter<DLengine> dlEngineEdm = new PluginParameter<>("edm model", DLengine.class, false).setEmphasized(true);
-    PluginParameter<DLengine> dlEngineDY = new PluginParameter<>("dy model", DLengine.class, false).setEmphasized(true).setPluginConfiguration(dle -> dle.setOutputNumber(2));
+    PluginParameter<DLengine> dlEngineDY = new PluginParameter<>("dy model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setOutputNumber(2));
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
     BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngineEdm, dlEngineDY, inputShape, edmSegmenter, maxLinkingDistance};
