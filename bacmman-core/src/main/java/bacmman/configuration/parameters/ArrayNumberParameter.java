@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import java.util.Arrays;
 import java.util.Collections;
 
 /**
@@ -60,7 +61,9 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
     public void sort() {
         Collections.sort(children, (n1, n2)->Double.compare(n1.getValue().doubleValue(), n2.getValue().doubleValue()));
     }
-
+    public ArrayNumberParameter setValue(int... values) {
+        return setValue(Arrays.stream(values).mapToDouble(i->i).toArray());
+    }
     public ArrayNumberParameter setValue(double... values) {
         if (unMutableIndex>=0 && values.length<=unMutableIndex) throw new IllegalArgumentException("Min number of values: "+(this.unMutableIndex+1));
         synchronized(this) {
@@ -69,6 +72,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
             for (int i = 0; i<values.length; ++i) getChildAt(i).setValue(values[i]); 
             this.fireListeners();
             bypassListeners=false;
+            this.resetName(null);
         }
         return this;
     }

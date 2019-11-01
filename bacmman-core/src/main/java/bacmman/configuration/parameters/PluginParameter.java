@@ -23,8 +23,7 @@ import static bacmman.configuration.parameters.ChoiceParameter.NO_SELECTION;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.BiFunction;
-import java.util.function.Function;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 import bacmman.configuration.experiment.Experiment;
@@ -53,7 +52,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     protected boolean allowNoSelection;
     protected boolean activated=true;
     protected List<Parameter> additionalParameters;
-    
+    protected Consumer<T> newInstanceConfiguration;
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -102,7 +101,10 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         this(name, pluginType, allowNoSelection);
         setPlugin(pluginInstance);
     }
-    
+    public PluginParameter<T> setNewInstanceConfiguration(Consumer<T> newInstanceConfiguration) {
+        this.newInstanceConfiguration = newInstanceConfiguration;
+        return this;
+    }
     public PluginParameter<T> setAdditionalParameters(List<Parameter> additionalParameters) {
         if (additionalParameters.isEmpty()) return this;
         this.additionalParameters=additionalParameters;
@@ -174,6 +176,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 this.pluginParameters=null;
                 return;
             }
+            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             setPlugin(instance);
         }
     }
@@ -189,6 +192,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
                 for (Parameter p : params) p.setParent(this);
             }
+            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             return instance;
         };
         if (DLengine.class.isAssignableFrom(this.getPluginType())) { // shared instance of DL engine in order to avoid re-loading the model each time
@@ -260,6 +264,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         if (additionalParameters!=null) res.setAdditionalParameters(ParameterUtils.duplicateList(additionalParameters));
         res.setContentFrom(this);
         transferStateArguments(this, res);
+        res.setNewInstanceConfiguration(newInstanceConfiguration);
         return res;
     }
     
