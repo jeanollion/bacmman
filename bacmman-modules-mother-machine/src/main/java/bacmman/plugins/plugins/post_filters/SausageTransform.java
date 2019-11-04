@@ -32,6 +32,8 @@ import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -44,14 +46,17 @@ public class SausageTransform implements PostFilter, Hint {
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         MultipleException me = new MultipleException();
+        List<Region> error = new ArrayList<>();
         childPopulation.getRegions().forEach(r -> {
             try {
                 transform(r, parent.getBounds());
             } catch (Throwable t) {
                 me.addExceptions(new Pair<>(parent.toString(), t));
+                error.add(r);
             }
         });
-        if (!me.isEmpty()) throw me; //TODO not catched yet!
+        error.forEach(r -> childPopulation.eraseObject(r, true));
+        //if (!me.isEmpty()) throw me; //TODO not catched yet!
         return childPopulation;
     }
 
