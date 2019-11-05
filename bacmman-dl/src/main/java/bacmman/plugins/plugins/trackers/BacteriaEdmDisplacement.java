@@ -2,10 +2,7 @@ package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Offset;
+import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
@@ -17,6 +14,7 @@ import fiji.plugin.trackmate.Spot;
 import ucar.ma2.MAMath;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -126,10 +124,36 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         if (stores!=null) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
         Map<Region, Double> displacementMap = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(
                 o->o.getRegion(),
-                o-> BasicMeasurements.getMeanValue(o.getRegion(), dy.get(o.getParent())) * o.getParent().getBounds().sizeY() / 256d // factor is due to rescaling: dy is computed in pixels in the 32x256 image.
+                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0] * o.getParent().getBounds().sizeY() / 256d // / 256d factor is due to rescaling: dy is computed in pixels in the 32x256 image.
         ));
         Map<Region, Offset> parentOffset = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(o->o.getRegion(), o->o.getParent().getBounds()));
-        TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>(new TrackMateInterface.SpotFactory<TrackingObject>() {
+        TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>(getFactory(parentOffset, displacementMap));
+        Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
+        tmi.addObjects(objectsF);
+        removeCrossingLinks(objectsF, tmi.objectSpotMap);
+        tmi.processFTF(maxLinkingDistance.getValue().doubleValue());
+        tmi.processGC(maxLinkingDistance.getValue().doubleValue(), 0, true, false); // division
+        tmi.setTrackLinks(objectsF, editor);
+    }
+
+    private static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<Region, TrackingObject> objectSpotMap) {
+        // ensure no crossing // TODO for open channel start with middle object
+        for (int frame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt(); frame<=objectsF.keySet().stream().mapToInt(i->i).max().getAsInt(); ++frame) {
+            List<Region> regions = objectsF.get(frame).stream().map(o->o.getRegion()).sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
+            for (int idx = 1; idx<regions.size(); ++idx) {
+                TrackingObject up = objectSpotMap.get(regions.get(idx-1));
+                TrackingObject down = objectSpotMap.get(regions.get(idx));
+                int curMin=down.r.getBounds().yMin() + down.curToPrev.yMin();
+                int prevMax = up.r.getBounds().yMax() + up.curToPrev.yMin();
+                if (curMin<prevMax) {
+                    down.curToPrev.translate(new SimpleOffset(0, prevMax-curMin, 0));
+                }
+            }
+        }
+    }
+
+    private static TrackMateInterface.SpotFactory<TrackingObject> getFactory(Map<Region, Offset> parentOffset, Map<Region, Double> displacementMap) {
+        return new TrackMateInterface.SpotFactory<TrackingObject>() {
             @Override
             public TrackingObject toSpot(Region o, int frame) {
                 return new TrackingObject(o, parentOffset.get(o), frame, displacementMap.get(o));
@@ -139,19 +163,18 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
             public TrackingObject duplicate(TrackingObject trackingObject) {
                 return new TrackingObject(trackingObject.r, parentOffset.get(trackingObject.r), trackingObject.frame(), trackingObject.getFeature("dy"));
             }
-        });
-        Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
-        tmi.addObjects(objectsF);
-        tmi.processFTF(maxLinkingDistance.getValue().doubleValue());
-        tmi.processGC(maxLinkingDistance.getValue().doubleValue(), 0, true, false); // division
-        tmi.setTrackLinks(objectsF, editor);
+        };
     }
-
-    class TrackingObject extends fiji.plugin.trackmate.Spot {
-        Region r;
+    static class TrackingObject extends fiji.plugin.trackmate.Spot {
+        final Region r;
+        final Offset cur, curToPrev;
+        final double size;
         public TrackingObject(Region r, Offset offset, int frame, double dy) {
             super( r.getGeomCenter(false).translateRev(offset), 1, 1);
             this.r=r;
+            this.cur = new SimpleOffset(offset).reverseOffset();
+            this.curToPrev = new SimpleOffset(cur).translate(new SimpleOffset(0, -(int)(dy+0.5), 0));
+            size = r.size();
             getFeatures().put(fiji.plugin.trackmate.Spot.FRAME, (double)frame);
             getFeatures().put("dy", dy);
         }
@@ -165,12 +188,14 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
                 if (frame()==next.frame()+1) return next.squareDistanceTo(this);
                 if (frame()!=next.frame()-1) return Double.POSITIVE_INFINITY;
 
-                return Math.pow(getFeature(POSITION_X) - next.getFeature(POSITION_X),2) +
+                /*return Math.pow(getFeature(POSITION_X) - next.getFeature(POSITION_X),2) +
                         Math.pow(getFeature(POSITION_Y) - (next.getFeature(POSITION_Y) - next.getFeature("dy")) , 2) + // translate next y coord
-                        Math.pow(getFeature(POSITION_Z)-next.getFeature(POSITION_Z),2);
-
-                // other possible distance: overlap of translated region -> would be more efficient with a regression of distance to split parent center when division
-
+                        Math.pow(getFeature(POSITION_Z) - next.getFeature(POSITION_Z),2);
+                */
+                // other possible distance: overlap of translated region -> would be more efficient with a regression of distance to split parent center when division, or when previous object is not divided when tracker thought it was
+                double overlap = r.getOverlapArea(next.r, cur, next.curToPrev);
+                if (overlap==0) return Double.POSITIVE_INFINITY;
+                return 1 - overlap / next.size;
             } else return Double.POSITIVE_INFINITY;
         }
     }
