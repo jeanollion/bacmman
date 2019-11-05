@@ -312,7 +312,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                     int commonParentIdx = getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(this.structureIdx, structureIdx);
                     SegmentedObject commonParent = this.getParent(commonParentIdx);
                     Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx);
-                    return candidates.filter(c -> is2D()?BoundingBox.intersect2D(c.getBounds(), this.getBounds()):BoundingBox.intersect(c.getBounds(), this.getBounds()));
+                    if (candidates==null) return null;
+                    return candidates.filter(c -> is2D() ? BoundingBox.intersect2D(c.getBounds(), this.getBounds()) : BoundingBox.intersect(c.getBounds(), this.getBounds()));
                 } else { // direct children
                     Stream<SegmentedObject> currentChildren = getChildren(path[0]);
                     //logger.debug("getAllObjects: current structure {} current number of objects: {}", pathToStructure[0], currentChildren.size());
