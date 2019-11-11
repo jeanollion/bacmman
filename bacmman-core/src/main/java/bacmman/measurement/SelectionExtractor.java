@@ -37,7 +37,7 @@ public class SelectionExtractor {
         StringBuilder sb = new StringBuilder(70);
         sb.append("Position").append(separator);
         sb.append("PositionIdx").append(separator);
-        sb.append("StructureIdx").append(separator);
+        sb.append("ObjectClassIdx").append(separator);
         sb.append("Indices").append(separator);
         sb.append("Frame").append(separator);
         sb.append("SelectionName");
