@@ -53,6 +53,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     protected boolean activated=true;
     protected List<Parameter> additionalParameters;
     protected Consumer<T> newInstanceConfiguration;
+
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
