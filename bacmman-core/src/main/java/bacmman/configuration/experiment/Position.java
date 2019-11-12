@@ -117,13 +117,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     public boolean singleFrameChannel(int channelIdx) {
         if (sourceImages==null) return false;
-        return sourceImages.singleFrame(getSourceChannel(channelIdx));
+        return sourceImages.singleFrame(getExperiment().getSourceChannel(channelIdx));
     }
-    public int getSourceChannel(int channelIdx) {
-        int sourceCount = getExperiment().getChannelImageCount(false);
-        if (channelIdx<sourceCount) return channelIdx;
-        else return channelIdx-sourceCount;
-    }
+
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {
             logger.warn("current inputImages has: {} frames while there are {} input images", inputImages.getFrameNumber(), getFrameNumber(false));
@@ -242,7 +238,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     
     public int getSizeZ(int channelIdx) {
-        if (sourceImages!=null) return sourceImages.getSizeZ(getSourceChannel(channelIdx));
+        if (sourceImages!=null) return sourceImages.getSizeZ(getExperiment().getSourceChannel(channelIdx));
         else return -1;
     }
     
