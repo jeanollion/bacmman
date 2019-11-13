@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters.ui;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParameterUtils;
@@ -46,6 +47,10 @@ public class FileChooserUI implements ParameterUI {
         //fc.setFileHidingEnabled(false);
         fc.setMultiSelectionEnabled(fcParam.getOption().getMultipleSelectionEnabled());
         if (curDir != null) fc.setCurrentDirectory(new File(curDir).getParentFile());
+        else {
+            Experiment xp = ParameterUtils.getExperiment(fcParam);
+            if (xp!=null && xp.getPath()!=null) fc.setCurrentDirectory(xp.getPath().toFile());
+        }
         fc.setDialogTitle(fcParam.getName());
         int returnval = fc.showOpenDialog(model.getTree());
         Parameter.logger.debug("file chooser: {}: returned value? {}", fcParam.getName(), returnval == JFileChooser.APPROVE_OPTION);
