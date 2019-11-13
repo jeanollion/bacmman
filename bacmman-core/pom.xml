@@ -161,6 +161,12 @@
             <artifactId>ij-nl-means</artifactId>
             <version>1.4.6</version>
         </dependency>
+        <!--for VSNR 2D denoise plugin-->
+        <dependency>
+            <groupId>com.github.jeanollion</groupId>
+            <artifactId>denoise2d</artifactId>
+            <version>2.0.1</version>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>
