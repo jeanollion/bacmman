@@ -276,7 +276,11 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public int[] getDuplicatedChannelSources() {
         return channelImagesDuplicated.getChildren().stream().mapToInt(c->c.getSourceChannel()).toArray();
     }
-
+    public int getSourceChannel(int channelIdx) {
+        if (channelIdx<getChannelImageCount(false)) return channelIdx;
+        int dupChannelIdx = channelIdx - getChannelImageCount(false);
+        return channelImagesDuplicated.getChildAt(dupChannelIdx).getSourceChannel();
+    }
     public IMPORT_METHOD getImportImageMethod() {
         return IMPORT_METHOD.getValueOf(this.importMethod.getSelectedItem());
     }

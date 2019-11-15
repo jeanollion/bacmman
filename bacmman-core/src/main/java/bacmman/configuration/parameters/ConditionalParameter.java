@@ -82,6 +82,10 @@ public class ConditionalParameter extends ContainerParameterImpl<ConditionalPara
     public ConditionalParameter setActionParameters(String actionValue, Parameter... parameters) {
         return setActionParameters(actionValue, parameters, false);
     }
+
+    public String getActionValue() {
+        return this.currentValue;
+    }
     public List<Parameter> getActionParameters(String actionValue) {
         if (parameters.containsKey(actionValue)) return parameters.get(actionValue);
         else return defaultParameters;
