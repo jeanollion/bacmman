@@ -18,14 +18,10 @@
  */
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.plugins.TestableOperation;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.ChannelImageParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
@@ -40,6 +36,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.Hint;
+import bacmman.utils.SlidingOperator;
+import bacmman.utils.SlidingOperatorDouble;
 import bacmman.utils.Utils;
 import java.util.stream.IntStream;
 
@@ -56,7 +54,8 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     ConditionalParameter signalExclusionCond = new ConditionalParameter(signalExclusionBool2).setActionParameters("true", new Parameter[]{signalExclusion2, signalExclusionThreshold2});
     BooleanParameter addGlobalMean = new BooleanParameter("Add global mean", false).setEmphasized(true).setHint("If this option is set to <em>true</em>, the global mean value of pixel intensities is added to all pixels. This option ensures that this operation will not set negative values to pixels");
     BooleanParameter trimNegativeValues = new BooleanParameter("Set Negative values to Zero", false);
-    ConditionalParameter addGMCond = new ConditionalParameter(addGlobalMean).setActionParameters("false", new Parameter[]{trimNegativeValues});
+    BoundedNumberParameter slidingHalfWindow = new BoundedNumberParameter("Sliding mean half-window", 0, 40, 0, null).setEmphasized(true).setHint("If a positive value is set, the sliding mean of background values along Y axis will be added to each pixel");
+    ConditionalParameter addGMCond = new ConditionalParameter(addGlobalMean).setActionParameters("false", new Parameter[]{trimNegativeValues, slidingHalfWindow});
     Parameter[] parameters = new Parameter[]{signalExclusion, signalExclusionThreshold, signalExclusionCond, addGMCond};
     float[][][] meanFZY;
     public RemoveStripesSignalExclusion() {}
@@ -114,6 +113,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         }
         final double[] exclThld = chExcl>=0?(chExcl2>=0? new double[]{thld1, thld2} : new double[]{thld1} ) : new double[0];*/
         final boolean addGlobalMean = this.addGlobalMean.getSelected();
+        final int slidingHalfWindow = this.slidingHalfWindow.getValue().intValue();
         //logger.debug("remove stripes thld: {}", exclThld);
         meanFZY = new float[inputImages.getFrameNumber()][][];
         Image[] allImages = InputImages.getImageForChannel(inputImages, channelIdx, false);
@@ -136,7 +136,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                     }
                     m = mask;
                 } else m = new BlankMask(currentImage);
-                meanFZY[frame] = computeMeanX(currentImage, m, addGlobalMean);
+                meanFZY[frame] = computeMeanX(currentImage, m, addGlobalMean, slidingHalfWindow);
                 if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());      
             }
         );
@@ -170,7 +170,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         }
     }
     
-    public static float[][] computeMeanX(Image image, ImageMask mask, boolean addGlobalMean) {
+    public static float[][] computeMeanX(Image image, ImageMask mask, boolean addGlobalMean, int slidingHalfWindow) {
         float[][] res = new float[image.sizeZ()][image.sizeY()];
         double globalSum=0;
         double globalCount=0;
@@ -192,10 +192,15 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         if (addGlobalMean) {
             double globalMean = globalCount>0?globalSum/globalCount : 0;
             for (int z=0; z<image.sizeZ(); ++z) {
-                for (int y = 0; y<image.sizeY(); ++y) {
-                    res[z][y]-=globalMean;
-                }
+                for (int y = 0; y<image.sizeY(); ++y) res[z][y]-=globalMean;
             }
+        } else if (slidingHalfWindow>0) {
+            SlidingOperatorDouble<double[]> meanSlider = SlidingOperatorDouble.slidingMean();
+            for (int z=0; z<image.sizeZ(); ++z) {
+                float[] smoothed = SlidingOperatorDouble.performSlideFloatArray(res[z], slidingHalfWindow, meanSlider);
+                for (int y = 0; y<image.sizeY(); ++y) res[z][y]-= smoothed[y];
+            }
+
         }
         return res;
     }
@@ -213,10 +218,10 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         
         return output;
     }
-    public static Image removeStripes(Image image, ImageMask exclusionSignalMask, boolean addGlobalMean) {
-        return removeMeanX(image, image instanceof ImageFloat ? image : null, computeMeanX(image, exclusionSignalMask, addGlobalMean));
+    public static Image removeStripes(Image image, ImageMask exclusionSignalMask, boolean addGlobalMean, int slidingHalfWindow) {
+        return removeMeanX(image, image instanceof ImageFloat ? image : null, computeMeanX(image, exclusionSignalMask, addGlobalMean, slidingHalfWindow));
     }
-    
+
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         if (meanFZY==null || meanFZY.length<timePoint) throw new RuntimeException("RemoveStripes transformation not configured");
