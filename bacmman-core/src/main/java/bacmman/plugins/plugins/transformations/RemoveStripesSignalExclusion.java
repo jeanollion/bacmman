@@ -195,11 +195,10 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                 for (int y = 0; y<image.sizeY(); ++y) res[z][y]-=globalMean;
             }
         } else if (slidingHalfWindow>0) {
-            double globalMean = globalCount>0?globalSum/globalCount : 0;
             SlidingOperatorDouble<double[]> meanSlider = SlidingOperatorDouble.slidingMean();
             for (int z=0; z<image.sizeZ(); ++z) {
                 float[] smoothed = SlidingOperatorDouble.performSlideFloatArray(res[z], slidingHalfWindow, meanSlider);
-                for (int y = 0; y<image.sizeY(); ++y) res[z][y]-=globalMean - smoothed[y];
+                for (int y = 0; y<image.sizeY(); ++y) res[z][y]-= smoothed[y];
             }
 
         }
