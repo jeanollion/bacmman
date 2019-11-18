@@ -61,7 +61,7 @@ public class RemoveEndofChannelBacteria implements PostFilter, Hint {
     @Override public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         if (doNotRemoveIfOnlyOne.getSelected() && childPopulation.getRegions().size()==1) return childPopulation;
         final RegionPopulation.ContactBorder yDown = new RegionPopulation.ContactBorder(0, parent.getMask(), RegionPopulation.Border.YDown);
-        final RegionPopulation.ContactBorder xlr = new RegionPopulation.ContactBorder(0, parent.getMask(), RegionPopulation.Border.Xlr);
+        final RegionPopulation.ContactBorder xlr = new RegionPopulation.ContactBorder(0, parent.getMask(), RegionPopulation.Border.X);
         final double contactThld=contactProportion.getValue().doubleValue();
         final double contactSideThld = contactSidesProportion.getValue().doubleValue();
         final double sizeLimit  = this.sizeLimit.getValue().doubleValue();

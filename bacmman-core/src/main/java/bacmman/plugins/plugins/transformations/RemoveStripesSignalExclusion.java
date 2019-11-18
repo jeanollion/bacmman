@@ -95,7 +95,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         final int chExcl2 = this.signalExclusionBool2.getSelected() ? signalExclusion2.getSelectedIndex() : -1;
         if (testMode.testExpert() && chExcl>=0) {
             testMasks = new ConcurrentHashMap<>();
-            if (chExcl>=0) testMasks2 = new ConcurrentHashMap<>();
+            if (chExcl2>=0) testMasks2 = new ConcurrentHashMap<>();
         }
         // one threshold for all frames or one threshold per frame ? 
         /*double thld1=Double.NaN, thld2=Double.NaN;
@@ -155,13 +155,13 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
             Core.showImage5D("Stripes", stripesTC);
         }
         if (testMode.testSimple()) {
-            if (!testMasks.isEmpty()) {
+            if (testMasks!=null && !testMasks.isEmpty()) {
                 Image[][] maskTC = new Image[testMasks.size()][1];
                 for (Map.Entry<Integer, Image> e : testMasks.entrySet()) maskTC[e.getKey()][0] = e.getValue();
                 Core.showImage5D("Exclusion signal mask", maskTC);
                 testMasks.clear();
             }
-            if (!testMasks2.isEmpty()) {
+            if (testMasks!=null && !testMasks2.isEmpty()) {
                 Image[][] maskTC = new Image[testMasks2.size()][1];
                 for (Map.Entry<Integer, Image> e : testMasks2.entrySet()) maskTC[e.getKey()][0] = e.getValue();
                 Core.showImage5D("Exclusion signal mask2", maskTC);

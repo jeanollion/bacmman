@@ -923,11 +923,11 @@ public class RegionPopulation {
             return (min < 0 || size >= min) && (max < 0 || size < max);
         }
     }
-    public static enum Border {
-        X(true, true, false, false, false), Xl(true, false, false, false, false), Xr(false, true, false, false, false), Xlr(true, true, false, false, false), Y(false, false, true, true, false), YDown(false, false, false, true, false), YUp(false, false, true, false, false), Z(false, false, false, false, true), XY(true, true, true, true, false), XYup(true, true, true, false, false), XYZ(true, true, true, true, true), XlYup(true, false, true, false, false), XrYup(false, true, true, false, false);            
+    public enum Border {
+        X(true, true, false, false, false), Xl(true, false, false, false, false), Xr(false, true, false, false, false), Y(false, false, true, true, false), YDown(false, false, false, true, false), YUp(false, false, true, false, false), Z(false, false, false, false, true), XY(true, true, true, true, false), XYup(true, true, true, false, false), XYZ(true, true, true, true, true), XlYup(true, false, true, false, false), XrYup(false, true, true, false, false);
         boolean xl, xr, yup, ydown, z;
 
-        private Border(boolean xl, boolean xr, boolean yup, boolean ydown, boolean z) {
+        Border(boolean xl, boolean xr, boolean yup, boolean ydown, boolean z) {
             this.xl = xl;
             this.xr = xr;
             this.yup = yup;
