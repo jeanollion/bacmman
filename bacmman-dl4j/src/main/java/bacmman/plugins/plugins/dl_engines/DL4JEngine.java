@@ -44,7 +44,6 @@ public abstract class DL4JEngine implements DLengine {
         }
     }
 
-    @Override
     public int[][] getInputShapes() {
         return inputShapes.getActivatedChildren().stream().map(a -> a.getArrayInt()).toArray(int[][]::new);
     }

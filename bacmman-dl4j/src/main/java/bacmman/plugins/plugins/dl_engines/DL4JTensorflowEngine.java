@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.dl_engines;
 
+import bacmman.plugins.DLengine;
 import bacmman.plugins.DevPlugin;
 import org.nd4j.autodiff.execution.NativeGraphExecutioner;
 import org.nd4j.autodiff.samediff.SameDiff;
@@ -14,6 +15,7 @@ public class DL4JTensorflowEngine extends DL4JEngine implements DevPlugin {
     NativeGraphExecutioner executioner;
     //SimpleListParameter<TextParameter> inputNames = new SimpleListParameter<TextParameter>("Input layer names", 0, new TextParameter("Layer name", "input", true, false)).setChildrenNumber(1);
     List<String> inputNames;
+    int outputNumber, inputNumber;
     @Override
     public void init() {
         File modelDir = new File(modelFile.getFirstSelectedFilePath());
@@ -24,7 +26,8 @@ public class DL4JTensorflowEngine extends DL4JEngine implements DevPlugin {
         } else if (graph.inputs().size() != this.inputShapes.getActivatedChildren().size()) {
             throw new IllegalArgumentException("Model has "+graph.inputs().size()+" inputs, whereas "+this.inputShapes.getActivatedChildren().size()+" input shapes are provided");
         }
-
+        if (inputNumber>0 && getNumInputArrays()!=inputNumber) throw new IllegalArgumentException("Invalid input number");
+        if (outputNumber>0 && getNumOutputArrays()!=outputNumber) throw new IllegalArgumentException("Invalid output number");
         executioner = new NativeGraphExecutioner();
         inputNames = graph.inputs();
         logger.debug("graph inputs: {}, outputs: {}", inputNames, graph.outputs());
@@ -35,6 +38,22 @@ public class DL4JTensorflowEngine extends DL4JEngine implements DevPlugin {
         return graph.outputs().size();
     }
 
+    @Override
+    public int getNumInputArrays() {
+        return graph.inputs().size();
+    }
+
+    @Override
+    public DLengine setOutputNumber(int outputNumber) {
+        this.outputNumber=outputNumber;
+        return this;
+    }
+
+    @Override
+    public DLengine setInputNumber(int outputNumber) {
+        this.inputNumber=inputNumber;
+        return this;
+    }
     @Override
     public void close() {
         // TODO check if there is something to close !
