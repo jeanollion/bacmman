@@ -5,6 +5,7 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.plugins.ConfigurableTransformation;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Hint;
 import ij.ImagePlus;
 import ij.process.ImageProcessor;
@@ -14,7 +15,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.List;
 
-public class Denoise_VSNR2D implements ConfigurableTransformation, Hint {
+public class Denoise_VSNR2D implements ConfigurableTransformation, Hint, DevPlugin {
     Object VSNR;
     enum FILTER {GABOR, DIRAC}
     EnumChoiceParameter<FILTER> filterType = new EnumChoiceParameter<>("Filter type", FILTER.values(), FILTER.GABOR, false).setEmphasized(true);

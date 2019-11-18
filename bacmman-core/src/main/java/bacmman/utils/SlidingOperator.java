@@ -86,7 +86,7 @@ public interface SlidingOperator<E, A, R> {
         };
     }
     
-    public static <E, A, R> List<R> performSlide(List<E> list, int halfWindow, SlidingOperator<E, A, R> operator) {
+    static <E, A, R> List<R> performSlide(List<E> list, int halfWindow, SlidingOperator<E, A, R> operator) {
         if (list.isEmpty()) return Collections.EMPTY_LIST;
         A acc = operator.instanciateAccumulator();
         List<R> res = new ArrayList<>(list.size());
@@ -107,6 +107,7 @@ public interface SlidingOperator<E, A, R> {
         for (int i = list.size()-halfWindow; i<list.size(); ++i) res.add(end);
         return res;
     }
+
     public static <E, A, R> List<R> performSlideLeft(List<E> list, int window, SlidingOperator<E, A, R> operator) {
         if (list.isEmpty()) return Collections.EMPTY_LIST;
         A acc = operator.instanciateAccumulator();
@@ -126,21 +127,5 @@ public interface SlidingOperator<E, A, R> {
         }
         return res;
     }
-    /*public static <T, A, R> R[] slideArray(T[] list, int halfWindow, SlidingOperator<T, A, R> operator) {
-        R[] res = (R[])new Object[list.length];
-        if (list.length==0) return res;
-        if (list.length<2*halfWindow+1) halfWindow = (list.length-1)/2;
-        A acc = operator.instanciateAccumulator();
-        
-        for (int i = 0; i<=2*halfWindow; ++i) operator.slide(null, list.get(i), acc);
-        R start = operator.compute(acc);
-        for (int i = 0; i<=halfWindow; ++i) res.add(start);
-        for (int i = halfWindow+1; i<list.size()-halfWindow; ++i) {
-            operator.slide(list.get(i-halfWindow-1), list.get(i+halfWindow), acc);
-            res.add(operator.compute(acc));
-        }
-        R end = res.get(res.size()-1);
-        for (int i = list.size()-halfWindow; i<list.size(); ++i) res.add(end);
-        return res;
-    }*/
+
 }
