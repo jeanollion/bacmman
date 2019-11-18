@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -126,20 +127,46 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
                 o->o.getRegion(),
                 o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0] * o.getParent().getBounds().sizeY() / 256d // / 256d factor is due to rescaling: dy is computed in pixels in the 32x256 image.
         ));
-        Map<Region, Offset> parentOffset = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(o->o.getRegion(), o->o.getParent().getBounds()));
-        TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>(getFactory(parentOffset, displacementMap));
+        //Map<Region, Offset> parentOffset = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(o->o.getRegion(), o->o.getParent().getBounds()));
+        Map<SegmentedObject, TrackingObject> objectSpotMap = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(o->o, o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), displacementMap.get(o.getRegion()))));
+
+        //TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>(getFactory(parentOffset, displacementMap));
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
-        tmi.addObjects(objectsF);
-        removeCrossingLinks(objectsF, tmi.objectSpotMap);
-        tmi.processFTF(maxLinkingDistance.getValue().doubleValue());
-        tmi.processGC(maxLinkingDistance.getValue().doubleValue(), 0, true, false); // division
-        tmi.setTrackLinks(objectsF, editor);
+        //tmi.addObjects(objectsF);
+        removeCrossingLinks(objectsF, objectSpotMap);
+        //tmi.processFTF(maxLinkingDistance.getValue().doubleValue());
+        //tmi.processGC(maxLinkingDistance.getValue().doubleValue(), 0, true, false); // division
+        //tmi.setTrackLinks(objectsF, editor);
+        // link each object to the closest previous object
+        for (int frame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt()+1; frame<=objectsF.keySet().stream().mapToInt(i->i).max().getAsInt(); ++frame) {
+            List<SegmentedObject> objects = objectsF.get(frame);
+            List<SegmentedObject> objectsPrev = objectsF.get(frame-1);
+            for (SegmentedObject o : objects) {
+                SegmentedObject prev = getClosest(o, objectsPrev, objectSpotMap);
+                if (prev != null) editor.setTrackLinks(prev, o, true, false, true);
+            }
+        }
+
+    }
+    private static SegmentedObject getClosest(SegmentedObject source, List<SegmentedObject> targets, Map<SegmentedObject, TrackingObject> objectSpotMap) {
+        TrackingObject sourceTo = objectSpotMap.get(source);
+        double min = Double.POSITIVE_INFINITY;
+        SegmentedObject minO = null;
+        for (SegmentedObject target : targets) {
+            double dist =  objectSpotMap.get(target).squareDistanceTo(sourceTo);
+            if (dist < min) {
+                min = dist;
+                minO = target;
+            }
+        }
+        if (Double.isFinite(min)) return minO;
+        else return null;
     }
 
-    private static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<Region, TrackingObject> objectSpotMap) {
+    private static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
         // ensure no crossing // TODO for open channel start with middle object
         for (int frame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt(); frame<=objectsF.keySet().stream().mapToInt(i->i).max().getAsInt(); ++frame) {
-            List<Region> regions = objectsF.get(frame).stream().map(o->o.getRegion()).sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
+            List<SegmentedObject> regions = objectsF.get(frame).stream().map(o->o).sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
             for (int idx = 1; idx<regions.size(); ++idx) {
                 TrackingObject up = objectSpotMap.get(regions.get(idx-1));
                 TrackingObject down = objectSpotMap.get(regions.get(idx));
@@ -152,7 +179,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         }
     }
 
-    private static TrackMateInterface.SpotFactory<TrackingObject> getFactory(Map<Region, Offset> parentOffset, Map<Region, Double> displacementMap) {
+    /*private static TrackMateInterface.SpotFactory<TrackingObject> getFactory(Map<Region, Offset> parentOffset, Map<Region, Double> displacementMap) {
         return new TrackMateInterface.SpotFactory<TrackingObject>() {
             @Override
             public TrackingObject toSpot(Region o, int frame) {
@@ -164,25 +191,28 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
                 return new TrackingObject(trackingObject.r, parentOffset.get(trackingObject.r), trackingObject.frame(), trackingObject.getFeature("dy"));
             }
         };
-    }
-    static class TrackingObject extends fiji.plugin.trackmate.Spot {
+    }*/
+    static class TrackingObject{ //extends fiji.plugin.trackmate.Spot {
         final Region r;
-        final Offset cur, curToPrev;
+        final BoundingBox cur, curToPrev;
         final double size;
+        final int frame;
         public TrackingObject(Region r, Offset offset, int frame, double dy) {
-            super( r.getGeomCenter(false).translateRev(offset), 1, 1);
+            //super( r.getGeomCenter(false).translateRev(offset), 1, 1);
             this.r=r;
-            this.cur = new SimpleOffset(offset).reverseOffset();
-            this.curToPrev = new SimpleOffset(cur).translate(new SimpleOffset(0, -(int)(dy+0.5), 0));
+            Offset offRev = new SimpleOffset(offset).reverseOffset();
+            this.cur = new SimpleBoundingBox(r.getBounds()).translate(offRev);
+            this.curToPrev = new SimpleBoundingBox(cur).translate(new SimpleOffset(0, -(int)(dy+0.5), 0));
             size = r.size();
-            getFeatures().put(fiji.plugin.trackmate.Spot.FRAME, (double)frame);
-            getFeatures().put("dy", dy);
+            this.frame = frame;
+            //getFeatures().put("dy", dy);
         }
         public int frame() {
-            return getFeature(fiji.plugin.trackmate.Spot.FRAME).intValue();
+            return frame;
         }
-        @Override
-        public double squareDistanceTo( final Spot s ) {
+
+        //@Override
+        public double squareDistanceTo( final TrackingObject s ) {
             if (s instanceof TrackingObject) {
                 TrackingObject  next  = (TrackingObject)s;
                 if (frame()==next.frame()+1) return next.squareDistanceTo(this);
@@ -193,9 +223,15 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
                         Math.pow(getFeature(POSITION_Z) - next.getFeature(POSITION_Z),2);
                 */
                 // other possible distance: overlap of translated region -> would be more efficient with a regression of distance to split parent center when division, or when previous object is not divided when tracker thought it was
-                double overlap = r.getOverlapArea(next.r, cur, next.curToPrev);
+                /*double overlap = r.getOverlapArea(next.r, cur, next.curToPrev);
                 if (overlap==0) return Double.POSITIVE_INFINITY;
-                return 1 - overlap / next.size;
+                return 1 - overlap / next.size;*/
+                // overlap on y axis only
+
+                double overlap = Math.max(0, Math.min(cur.yMax(), next.curToPrev.yMax()) - Math.max(cur.yMin(), next.curToPrev.yMin()));
+                if (overlap==0) return Double.POSITIVE_INFINITY;
+                return 1 - overlap / next.curToPrev.sizeY();
+
             } else return Double.POSITIVE_INFINITY;
         }
     }
