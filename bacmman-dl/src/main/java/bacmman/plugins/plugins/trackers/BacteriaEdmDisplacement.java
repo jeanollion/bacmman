@@ -7,18 +7,13 @@ import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
-import bacmman.processing.matching.TrackMateInterface;
+import bacmman.plugins.plugins.segmenters.SplitAndMergeEDM;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.Pair;
-import fiji.plugin.trackmate.Spot;
-import ucar.ma2.MAMath;
 
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -29,7 +24,6 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
     BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngineEdm, dlEngineDY, inputShape, edmSegmenter, maxLinkingDistance};
-
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_dy = predict(objectClassIdx, parentTrack, trackPreFilters);
@@ -82,7 +76,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         return new Map[]{edmM, dyM};
     }
 
-    private Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
+    static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         int[][] shapes = ResizeUtils.getShapes(in, false);
         Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape});
@@ -91,7 +85,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         IntStream.range(0, in.length).parallel().forEach(i -> inResampled[i] = scaler.scale(inResampled[i]));
         return new Pair<>(inResampled, shapes);
     }
-    private Image[][] getInputs(Image[] images, boolean addPrev, boolean addNext) {
+    static Image[][] getInputs(Image[] images, boolean addPrev, boolean addNext) {
         if (!addPrev && !addNext) {
             return IntStream.range(0, images.length).mapToObj(i -> new Image[]{images[i]}).toArray(Image[][]::new);
         } else if (addPrev && addNext) {
@@ -110,7 +104,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
             Image edmI = edm.get(p);
             Segmenter segmenter = edmSegmenter.instanciatePlugin();
             if (segmenter instanceof BacteriaEDM) {
-                ((BacteriaEDM)segmenter).setdy(dy);
+                ((BacteriaEDM)segmenter).setDivisionCriterionMap(dy, SplitAndMergeEDM.DIVISION_CRITERION.DY, 0.75);
             }
             if (stores!=null && segmenter instanceof TestableProcessingPlugin) {
                 ((TestableProcessingPlugin) segmenter).setTestDataStore(stores);
@@ -148,7 +142,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         }
 
     }
-    private static SegmentedObject getClosest(SegmentedObject source, List<SegmentedObject> targets, Map<SegmentedObject, TrackingObject> objectSpotMap) {
+    static SegmentedObject getClosest(SegmentedObject source, List<SegmentedObject> targets, Map<SegmentedObject, TrackingObject> objectSpotMap) {
         TrackingObject sourceTo = objectSpotMap.get(source);
         double min = Double.POSITIVE_INFINITY;
         SegmentedObject minO = null;
@@ -163,7 +157,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         else return null;
     }
 
-    private static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
+    static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
         // ensure no crossing // TODO for open channel start with middle object
         for (int frame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt(); frame<=objectsF.keySet().stream().mapToInt(i->i).max().getAsInt(); ++frame) {
             List<SegmentedObject> regions = objectsF.get(frame).stream().map(o->o).sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
@@ -252,8 +246,8 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     }
 
     // testable processing plugin
-    Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores;
-    @Override public void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores) {
+    Map<SegmentedObject, TestDataStore> stores;
+    @Override public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores=  stores;
     }
 
