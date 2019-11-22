@@ -26,8 +26,9 @@ import java.util.stream.Stream;
 public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> {
     public final static Logger logger = LoggerFactory.getLogger(SplitAndMergeEDM.class);
     final Image edm;
-    public double splitThresholdValue;
-    boolean intensityIsdy;
+    public double splitThresholdValue, divCritValue;
+    public enum DIVISION_CRITERION { NONE, DY, DIV_MAP }
+    DIVISION_CRITERION criterion;
     Function<SplitAndMergeEDM.Interface, Double> interfaceValue;
 
     public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, boolean normalizeEdgeValues) {
@@ -36,8 +37,9 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
         splitThresholdValue=splitThreshold;
         setInterfaceValue(0.5, normalizeEdgeValues);
     }
-    public SplitAndMergeEDM setIntensityIsdy(boolean intensityIsdy) {
-        this.intensityIsdy = intensityIsdy;
+    public SplitAndMergeEDM setDivisionCriterion(DIVISION_CRITERION criterion, double value) {
+        this.criterion = criterion;
+        this.divCritValue = value;
         return this;
     }
 
@@ -131,14 +133,24 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
             if (voxels.size() + duplicatedVoxels.size() <= 2 && Math.min(getE1().size(), getE2().size()) > 10)
                 return false;
             boolean fusion = value < splitThresholdValue;
-            if (!intensityIsdy || !fusion) return fusion;
-            // use dy information from both regions: if dy is very different forbid fusion
-            double dy1  = SplitAndMergeEDM.this.getMeanValues().get(getE1());
-            double dy2  = SplitAndMergeEDM.this.getMedianValues().get(getE2());
-            double ddy = Math.abs(dy1 - dy2);
-            double ddyIfDiv = getE1().getGeomCenter(false).dist(getE2().getGeomCenter(false));
-            if (ddy>ddyIfDiv * 0.75) return false; // TODO tune this parameter
-            else return true;
+            if (!fusion) return false;
+            switch (criterion) {
+                case NONE:
+                default:
+                    return true;
+                case DY: {
+                    // use dy information from both regions: if dy is very different forbid fusion
+                    double dy1  = SplitAndMergeEDM.this.getMedianValues().get(getE1());
+                    double dy2  = SplitAndMergeEDM.this.getMedianValues().get(getE2());
+                    double ddy = Math.abs(dy1 - dy2);
+                    double ddyIfDiv = getE1().getGeomCenter(false).dist(getE2().getGeomCenter(false));
+                    return (ddy<ddyIfDiv * divCritValue); // TODO tune this parameter default = 0.75
+                } case DIV_MAP: {
+                    double div1  = SplitAndMergeEDM.this.getMedianValues().get(getE1());
+                    double div2  = SplitAndMergeEDM.this.getMedianValues().get(getE2());
+                    return (div1<divCritValue && div2<divCritValue);
+                }
+            }
         }
 
         @Override
