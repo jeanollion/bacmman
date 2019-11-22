@@ -44,8 +44,9 @@ public class TFengine implements DLengine {
         if (outputNumber<1) throw new IllegalArgumentException("Invalid output number:"+outputNumber);
         boolean oneOutput = getNumOutputArrays()==1;
         outputs.setChildrenNumber(outputNumber);
-        if (oneOutput) { // modify the output name by adding a the index
+        if (!oneOutput) { // modify the output name by adding a the index
             String name = outputs.getChildAt(0).getValue();
+            if (name.endsWith("0")) name = name.substring(0, name.length()-1);
             for (int i = 0; i<outputNumber; ++i) outputs.getChildAt(i).setValue(name+i);
         }
         return this;
@@ -55,8 +56,9 @@ public class TFengine implements DLengine {
         if (inputNumber<1) throw new IllegalArgumentException("Invalid input number:"+inputNumber);
         boolean oneInput = getNumInputArrays()==1;
         inputs.setChildrenNumber(inputNumber);
-        if (oneInput) { // modify the output name by adding a the index
+        if (!oneInput) { // modify the input name by adding a the index
             String name = inputs.getChildAt(0).getValue();
+            if (name.endsWith("0")) name = name.substring(0, name.length()-1);
             for (int i = 0; i<inputNumber; ++i) inputs.getChildAt(i).setValue(name+i);
         }
         return this;
@@ -110,7 +112,7 @@ public class TFengine implements DLengine {
             if (name==null) {
                 logger.error("Output layer {} not found in graph", o.getValue());
                 missingLayer[1] = true;
-            } else o.setValue(name); // name may have changed
+            } else o.setValue(name); // name may have been changed by findOutputName
         });
         if (missingLayer[0] || missingLayer[1]) {
             logger.info("List of all operation from graph:");
@@ -119,11 +121,11 @@ public class TFengine implements DLengine {
             if (missingLayer[0] && missingLayer[1]) err = "Input and output";
             else if (missingLayer[0]) err="Input";
             else err="Output";
-            throw new RuntimeException(err+" layer not found in graph");
+            throw new RuntimeException(err+" layer(s) not found in graph");
         }
     }
 
-    static String[] activations = new String[]{"Relu", "Tanh", "Sigmoid", "Softmax", "Atan", "LeakyRelu"}; // TODO add other activations
+    static String[] activations = new String[]{"bias", "Relu", "Tanh", "Sigmoid", "Softmax", "Atan", "LeakyRelu"}; // TODO add other activations
     protected String findOutputName(String name) {
         if (graph.operation(name)!=null) return name;
         // test with activation layers
@@ -133,11 +135,11 @@ public class TFengine implements DLengine {
             if (o!=null) return newName;
         }
         // case of "linear" activation ie no activation
-        String newName = name + "/" + "BiasAdd";
+        /*String newName = name + "/" + "BiasAdd";
         Operation o = graph.operation(newName);
         if (o!=null) return newName;
-
-        if (!name.endsWith("_1")) return findOutputName(name + "_1");
+        */
+        if (!name.endsWith("_0")) return findOutputName(name + "_1");
         return null;
     }
     public void logOperations() {
