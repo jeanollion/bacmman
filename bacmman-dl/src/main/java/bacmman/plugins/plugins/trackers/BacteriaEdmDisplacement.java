@@ -191,6 +191,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         final BoundingBox cur, curToPrev;
         final double size;
         final int frame;
+        final double dy;
         public TrackingObject(Region r, Offset offset, int frame, double dy) {
             //super( r.getGeomCenter(false).translateRev(offset), 1, 1);
             this.r=r;
@@ -199,6 +200,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
             this.curToPrev = new SimpleBoundingBox(cur).translate(new SimpleOffset(0, -(int)(dy+0.5), 0));
             size = r.size();
             this.frame = frame;
+            this.dy=dy;
             //getFeatures().put("dy", dy);
         }
         public int frame() {
