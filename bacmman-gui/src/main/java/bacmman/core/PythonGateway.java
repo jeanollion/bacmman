@@ -19,8 +19,11 @@
 package bacmman.core;
 
 import bacmman.data_structure.Selection;
+import bacmman.measurement.SelectionExtractor;
 import bacmman.ui.GUI;
 
+import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 import bacmman.ui.gui.selection.SelectionUtils;
@@ -76,9 +79,18 @@ public class PythonGateway {
             if (GUI.getDBConnection()!=null) logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbName);
             logger.info("Connection to {}....", dbName);
             GUI.getInstance().openExperiment(dbName, null, false);
-            logger.info("Selection tab....");
-            GUI.getInstance().setSelectedTab(3);
-            logger.info("Tab selected");
+            if (GUI.getDBConnection().isConfigurationReadOnly()) {
+                String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", selectionName+".csv").toString();
+                SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
+                logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbName, outputFile);
+            }
+            try {
+                logger.info("Selection tab....");
+                GUI.getInstance().setSelectedTab(3);
+                logger.info("Tab selected");
+            } catch(Exception e) {
+
+            }
         }
         GUI.getDBConnection().getSelectionDAO().store(res);
         logger.info("pop sels..");
