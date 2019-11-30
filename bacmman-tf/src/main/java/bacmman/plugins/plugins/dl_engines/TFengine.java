@@ -16,6 +16,7 @@ import org.tensorflow.*;
 import java.io.File;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Iterator;
 import java.util.List;
 
 import static bacmman.processing.ResizeUtils.allShapeEqual;
@@ -23,12 +24,12 @@ import static bacmman.processing.ResizeUtils.getShapes;
 
 public class TFengine implements DLengine {
     Logger logger = LoggerFactory.getLogger(DLengine.class);
-    FileChooser modelFile = new FileChooser("Tensorflow graph file", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
+    FileChooser modelFile = new FileChooser("Tensorflow graph file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
     SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1);
     SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1);
     Graph graph;
-
+    Session session;
     public TFengine setModelPath(String path) {
         this.modelFile.setSelectedFilePath(path);
         return this;
@@ -76,6 +77,7 @@ public class TFengine implements DLengine {
     @Override
     public void close() {
         if (graph!=null) graph.close();
+        if (session!=null) session.close();
     }
 
     @Override
@@ -87,8 +89,11 @@ public class TFengine implements DLengine {
         }
         logger.debug("tensorflow version: {}", TensorFlow.version());
         // TODO: load library... use tensorflow service ?
-        //model = SavedModelBundle.load("/data/Images/MOP/data_segDis_resampled/seg_edm16dy24_model/", "serve");
-        final byte[] graphDef;
+        SavedModelBundle model = SavedModelBundle.load(modelFile.getFirstSelectedFilePath(), "serve");
+        session = model.session();
+        graph = model.graph();
+        //logOperations();
+        /*final byte[] graphDef;
         if (modelFile.getFirstSelectedFilePath()==null || !new File(modelFile.getFirstSelectedFilePath()).exists()) return;
         try {
             graphDef = FileUtils.readFile(new File(modelFile.getFirstSelectedFilePath()));
@@ -98,7 +103,7 @@ public class TFengine implements DLengine {
 
         // Convert to a TensorFlow Graph object.
         graph = new Graph();
-        graph.importGraphDef(graphDef);
+        graph.importGraphDef(graphDef);*/
         logger.debug("model loaded!");
         boolean[] missingLayer = new boolean[2];
         inputs.getActivatedChildren().stream().map(i->i.getValue()).forEach(i -> {
@@ -125,21 +130,20 @@ public class TFengine implements DLengine {
         }
     }
 
-    static String[] activations = new String[]{"bias", "Relu", "Tanh", "Sigmoid", "Softmax", "Atan", "LeakyRelu"}; // TODO add other activations
     protected String findOutputName(String name) {
         if (graph.operation(name)!=null) return name;
-        // test with activation layers
-        for (String activation : activations) {
-            String newName = name + "/" + activation;
-            Operation o = graph.operation(newName);
-            if (o!=null) return newName;
+        // get last layer that starts with the name
+        Iterator<Operation> ops = graph.operations();
+        String newName=null;
+        while (ops.hasNext()) {
+            Operation next = ops.next();
+            if (next.name().startsWith(name)) newName = next.name();
         }
-        // case of "linear" activation ie no activation
-        /*String newName = name + "/" + "BiasAdd";
-        Operation o = graph.operation(newName);
-        if (o!=null) return newName;
-        */
-        if (!name.endsWith("_0")) return findOutputName(name + "_1");
+        if (newName!=null) {
+            logger.debug("output: {} was found with operation name: {}", name, newName);
+            return newName;
+        }
+        if (!name.endsWith("_1")) return findOutputName(name + "_1");
         return null;
     }
     public void logOperations() {
@@ -161,7 +165,7 @@ public class TFengine implements DLengine {
         List<HistogramScaler> scalers = this.inputScalers.getAll();
         for (int i = 0; i<inputNC.length; ++i) Utils.scale(inputNC[i], scalers.get(i));
         */
-        final Session s = new Session(graph);
+        //final Session s = new Session(graph);
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
         long wrapTime = 0, predictTime = 0;
@@ -175,9 +179,8 @@ public class TFengine implements DLengine {
             long t0 = System.currentTimeMillis();
             Tensor<Float>[] input = Arrays.stream(inputNC).map(imNC ->  TensorWrapper.fromImagesNC(imNC, fidx, idxMax, bufferContainer)).toArray(Tensor[]::new);
             long t1 = System.currentTimeMillis();
-            Session.Runner r = s.runner();
+            Session.Runner r = session.runner();
             for (int ii = 0; ii<inputNames.length; ++ii)  r.feed(inputNames[ii], input[ii]);
-
                 for (int io = 0; io < outputNames.length; ++io) {
                     try {
                         r.fetch(outputNames[io]);
