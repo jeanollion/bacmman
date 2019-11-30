@@ -83,6 +83,7 @@ public class PythonGateway {
                 String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", selectionName+".csv").toString();
                 SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
                 logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbName, outputFile);
+                return;
             }
             try {
                 logger.info("Selection tab....");
