@@ -44,10 +44,15 @@ public class TrackTreeController {
         //this.objectGenerator=objectGenerator;
         allGeneratorS = new HashMap<>();
         this.pcb=pcb;
-        for (int s = 0; s<db.getExperiment().getStructureCount(); ++s) {
-            allGeneratorS.put(s, new TrackTreeGenerator(db, this));
-        }
+        initGeneratorsIfNecessary();
         displayedGeneratorS=new TreeMap<>();
+    }
+    private void initGeneratorsIfNecessary() {
+        if (allGeneratorS.size()!=db.getExperiment().getStructureCount()) {
+            for (int s = 0; s < db.getExperiment().getStructureCount(); ++s) {
+                allGeneratorS.put(s, new TrackTreeGenerator(db, this));
+            }
+        }
     }
     public void setEnabled(boolean enabled) {
         for (TrackTreeGenerator t : allGeneratorS.values()) t.setEnabled(enabled);
@@ -61,6 +66,8 @@ public class TrackTreeController {
     }
     
     public void setStructure(int structureIdx) {
+        initGeneratorsIfNecessary();
+        if (structureIdx>=db.getExperiment().getStructureCount()) structureIdx = -1;
         structurePathToRoot = db.getExperiment().experimentStructure.getPathToRoot(structureIdx);
         if (structureIdx<0) {
             for (TrackTreeGenerator t : displayedGeneratorS.values()) t.clearTree();
@@ -68,14 +75,16 @@ public class TrackTreeController {
             return;
         }
         displayedGeneratorS.clear();
-        for (int s: structurePathToRoot) displayedGeneratorS.put(s, allGeneratorS.get(s));
+        for (int s: structurePathToRoot) {
+            displayedGeneratorS.put(s, allGeneratorS.get(s));
+        }
         updateParentTracks();
         if (GUI.logger.isTraceEnabled()) GUI.logger.trace("track tree controller set structure: number of generators: {}", displayedGeneratorS.size());
     }
     
     private int getLastTreeIdxWithSelection() {
         for (int i = structurePathToRoot.length-1; i>=0; --i) {
-            if (displayedGeneratorS.containsKey(structurePathToRoot[i]) && displayedGeneratorS.get(structurePathToRoot[i]).hasSelection()) return i;
+            if (displayedGeneratorS.get(structurePathToRoot[i])!=null && displayedGeneratorS.get(structurePathToRoot[i]).hasSelection()) return i;
         }
         return -1;
     }

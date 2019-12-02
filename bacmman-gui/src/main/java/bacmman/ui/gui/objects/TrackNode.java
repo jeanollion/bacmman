@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.objects;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.SelectionDAO;
@@ -125,7 +126,9 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         return getStructureName()+": #"+trackHead.getIdx()+ " Frames: ["+trackHead.getFrame()+";"+(track!=null?track.get(track.size()-1).getFrame():"???")+"] (N="+(track!=null?track.size():".........")+")"+(track!=null && tl!=track.size() ? " (Gaps="+(tl-track.size())+")" : ""); 
     }
     private String getStructureName() {
-        return this.root.generator.getExperiment().getStructure(trackHead.getStructureIdx()).getName();
+        Experiment xp = root.generator.getExperiment();
+        if (trackHead.getStructureIdx()>=xp.getStructureCount()) return "Unknown Object Class";
+        return xp.getStructure(trackHead.getStructureIdx()).getName();
     }
     
     @Override public TrackNode getChildAt(int childIndex) {
