@@ -84,6 +84,8 @@ public class PluginFactory {
                 if (dotIndex >= 0) {
                     testIJ1Class(command, className.substring(dotIndex + 1), loader);
                 }
+            } catch (SecurityException e) {
+                logger.info("Error while trying to load plugin: "+className, e);
             }
         }
     }

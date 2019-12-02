@@ -99,7 +99,7 @@
         <dependency>
             <groupId>sc.fiji</groupId>
             <artifactId>TrackMate_</artifactId>
-            <version>4.0.0</version>
+            <version>5.0.2</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.tinygroup</groupId>
@@ -160,12 +160,6 @@
             <groupId>com.github.thorstenwagner</groupId>
             <artifactId>ij-nl-means</artifactId>
             <version>1.4.6</version>
-        </dependency>
-        <!--for VSNR 2D denoise plugin-->
-        <dependency>
-            <groupId>com.github.jeanollion</groupId>
-            <artifactId>denoise2d</artifactId>
-            <version>2.0.1</version>
         </dependency>
     </dependencies>
     <repositories>
