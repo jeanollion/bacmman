@@ -75,9 +75,16 @@ public abstract class MultipleImageContainer implements JSONSerializable {
         return new StringBuilder(11).append(c).append(";").append(z).append(";").append(t).toString();
     }
     protected String relativePath(String absolutePath) {
-        return path.relativize(Paths.get(absolutePath)).toString();
+        try {
+            return path.relativize(Paths.get(absolutePath)).toString();
+        } catch(IllegalArgumentException e) { // under windows, some path have different roots and cannot be relativized
+            return absolutePath;
+        }
     }
     protected String absolutePath(String relativePath) {
-        return path.resolve(relativePath).normalize().toFile().getAbsolutePath();
+        Path p = path.resolve(relativePath);
+        if (p.isAbsolute()) return p.toFile().getAbsolutePath();
+        return p.normalize().toFile().getAbsolutePath();
+
     }
 }
