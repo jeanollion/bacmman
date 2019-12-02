@@ -1234,8 +1234,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             trackTreeStructureSelector = null;
             return;
         }
-        int[] sel = trackTreeStructureSelector !=null ? trackTreeStructureSelector.getSelectedStructures().toArray() : new int[]{0};
-        if (sel.length==0) sel = new int[]{0};
+        int[] sel = trackTreeStructureSelector !=null ? trackTreeStructureSelector.getSelectedStructures().toArray() : new int[]{-1};
+        if (sel.length==0) sel = new int[]{-1};
         trackTreeStructureSelector = new StructureSelectorTree(db.getExperiment(), i -> setTrackTreeStructure(i), TreeSelectionModel.SINGLE_TREE_SELECTION);
         setTrackStructureIdx(sel[0]);
         trackTreeStructureJSP.setViewportView(trackTreeStructureSelector.getTree());

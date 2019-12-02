@@ -121,6 +121,7 @@ public class StructureSelectorTree {
         return structureNamesMapIdx.get(struct);
     }
     private TreePath getPath(int structureIdx) {
+        if (structureIdx<0) return null;
         String[] path = Arrays.stream(xp.experimentStructure.getPathToRoot(structureIdx)).mapToObj(i->xp.getStructure(i).getName()).toArray(i->new String[i]);
         if (path.length==0) return null;
         DefaultMutableTreeNode[] nPath = new DefaultMutableTreeNode[path.length+1];
