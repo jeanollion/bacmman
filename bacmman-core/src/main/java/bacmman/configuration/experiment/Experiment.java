@@ -325,7 +325,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
                 try {
                     Files.createDirectories(p);
                 } catch (IOException e) {
-                    throw new RuntimeException(e);
+                    logger.error("Error while trying to create Output folder @ "+outputPath, e);
+                    //throw new RuntimeException(e);
                 }
             }
         }
