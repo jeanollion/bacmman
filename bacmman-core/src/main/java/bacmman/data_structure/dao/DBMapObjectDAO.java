@@ -231,7 +231,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                         long t2 = System.currentTimeMillis();
                         //logger.debug("#{} objects from structure: {}, time to retrieve: {}, time to parse: {}", allStrings.size(), key.value, t1-t0, t2-t1);
                     } catch(IOError|AssertionError|Exception e) {
-                        logger.error("Corrupted DATA for structure: "+key.value+" parent: "+key.key, e);
+                        logger.error("Corrupted DATA for structure: "+key.value+" parent: "+key, e);
                         allObjectsRetrievedInCache.put(key, true);
                         return new HashMap<>();
                     }
@@ -243,7 +243,11 @@ public class DBMapObjectDAO implements ObjectDAO {
                 for (SegmentedObject o : objectMap.values()) {
                     if (o.getNextId()!=null) o.setNext(objectMap.get(o.getNextId()));
                     if (o.getPreviousId()!=null) o.setPrevious(objectMap.get(o.getPreviousId()));
-                    if (accessor.trackHeadId(o)!=null) accessor.setTrackHead(o, objectMap.get(accessor.trackHeadId(o)), false, false);
+                    if (accessor.trackHeadId(o)!=null) {
+                        SegmentedObject th = objectMap.get(accessor.trackHeadId(o));
+                        if (th!=null) accessor.setTrackHead(o, th, false, false);
+                        else logger.warn("TrackHead of object : {} from: {} not found", o, key);
+                    }
                 }
                 // set to parents ? 
                 if (key.value>=0) {
