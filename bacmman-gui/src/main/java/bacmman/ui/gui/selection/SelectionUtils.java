@@ -205,9 +205,7 @@ public class SelectionUtils {
         return p.get(idx);
     }
     public static Collection<Pair<SegmentedObject, BoundingBox>> filterPairs(List<Pair<SegmentedObject, BoundingBox>> objects, Collection<String> indices) {
-        //Map<String, Pair<StructureObject, BoundingBox>> map = new HashMap<>(objects.size());
-        //for (Pair<StructureObject, BoundingBox> o : objects) map.put(Selection.indicesString(o.key), o);
-        Utils.removeDuplicates(objects, o->o.key.getIdx()); // remove duplicate labels. should not occur
+        //Utils.removeDuplicates(objects, o->Selection.indicesString(o.key)); // remove duplicate labels. should not occur
         Map<String, Pair<SegmentedObject, BoundingBox>> map = objects.stream().collect(Collectors.toMap(o->Selection.indicesString(o.key), o->o));
         map.keySet().retainAll(indices);
         return map.values();
