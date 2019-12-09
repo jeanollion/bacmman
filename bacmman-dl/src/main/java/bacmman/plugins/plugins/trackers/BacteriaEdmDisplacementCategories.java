@@ -12,10 +12,7 @@ import bacmman.processing.ResizeUtils;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -57,8 +54,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         Image[] noPrevMap = ResizeUtils.getChannel(predictions[1], 3);
 
         long t4= System.currentTimeMillis();
-        long t5= System.currentTimeMillis();
-        logger.info("#{} dy predictions made in {}ms", dy.length, t5-t4);
+        logger.info("#{} dy predictions made in {}ms", dy.length, t4-t3);
         // resample, set offset & calibration
         Image[] edm_res = ResizeUtils.resample(edm, false, resampledImages.value);
         Image[] dy_res = ResizeUtils.resample(dy, true, resampledImages.value);
@@ -74,8 +70,8 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
             noPrevMap_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             noPrevMap_res[idx].translate(parentTrack.get(idx).getMaskProperties());
         }
-        long t6= System.currentTimeMillis();
-        logger.info("predicitons resampled in {}ms", t6-t5);
+        long t5= System.currentTimeMillis();
+        logger.info("predicitons resampled in {}ms", t5-t4);
         Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> edm_res[i]));
         //Map<SegmentedObject, Image> divM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> divMap_res[i]));
         Map<SegmentedObject, Image> npM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> noPrevMap_res[i]));
@@ -147,8 +143,14 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                     }
                 }
             });
-            prevMap.forEach((o, prev) -> {
-                if (prev != null) editor.setTrackLinks(prev, o, true, false, true);
+            Set<SegmentedObject> prevSeen = new HashSet<>();
+            Set<SegmentedObject> prevSeenSeveralTimes = new HashSet<>();
+            prevMap.values().forEach(o -> {
+                if (prevSeen.contains(o)) prevSeenSeveralTimes.add(o);
+                else prevSeen.add(o);
+            });
+            prevMap.entrySet().stream().filter(e->e.getValue()!=null).sorted(Comparator.comparingInt(e->e.getValue().getFrame())).forEachOrdered(e -> {
+                editor.setTrackLinks(e.getValue(), e.getKey(),true, !prevSeenSeveralTimes.contains(e.getValue()), true);
             });
         }
     }
