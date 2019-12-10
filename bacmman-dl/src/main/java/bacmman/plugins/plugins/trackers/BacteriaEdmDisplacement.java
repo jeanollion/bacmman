@@ -160,7 +160,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
         // ensure no crossing // TODO for open channel start with middle object
         for (int frame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt(); frame<=objectsF.keySet().stream().mapToInt(i->i).max().getAsInt(); ++frame) {
-            List<SegmentedObject> regions = objectsF.get(frame).stream().map(o->o).sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
+            List<SegmentedObject> regions = objectsF.get(frame).stream().sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
             for (int idx = 1; idx<regions.size(); ++idx) {
                 TrackingObject up = objectSpotMap.get(regions.get(idx-1));
                 TrackingObject down = objectSpotMap.get(regions.get(idx));

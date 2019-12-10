@@ -9,10 +9,15 @@ import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.plugins.plugins.segmenters.SplitAndMergeEDM;
 import bacmman.processing.ResizeUtils;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
 import java.util.*;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -21,13 +26,15 @@ import static bacmman.plugins.plugins.trackers.BacteriaEdmDisplacement.*;
 public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, TestableProcessingPlugin {
     PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3));
+    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
+
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
-    BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, maxLinkingDistance};
+    //BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, growthRateRange};
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
-        //if (stores!=null) divMap.forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
+        //if (stores!=null) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
         segment(objectClassIdx, parentTrack, edm_div_dy_np[0], edm_div_dy_np[2], postFilters, factory);
         track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], editor);
     }
@@ -113,48 +120,148 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         // link each object to the closest previous object
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
+        Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
         for (int frame = minFrame+1; frame<=maxFrame; ++frame) {
             List<SegmentedObject> objects = objectsF.get(frame);
             if (objects.isEmpty()) continue;
             List<SegmentedObject> objectsPrev = objectsF.get(frame-1);
             if (objectsPrev.isEmpty()) continue;
-            Map<SegmentedObject, SegmentedObject> prevMap = Utils.toMapWithNullValues(objects.stream(), o->o, o->getClosest(o, objectsPrev, objectSpotMap), true);
+            Map<SegmentedObject, SegmentedObject> nextToPrevMap = Utils.toMapWithNullValues(objects.stream(), o->o, o->getClosest(o, objectsPrev, objectSpotMap), true);
             // take into account noPrev : remove link with previous cell if object is detected as noPrev and there is another cell linked to the previous cell
             Image np = noPrev.get(objects.get(0).getParent());
             Map<SegmentedObject, Double> noPrevO = objects.stream()
-                    .filter(o->prevMap.get(o)!=null)
+                    .filter(o->nextToPrevMap.get(o)!=null)
                     .filter(o->Math.abs(objectSpotMap.get(o).dy)<1) // only when no displacement is computed
                     .collect(Collectors.toMap(o->o, o -> BasicMeasurements.getMeanValue(o.getRegion(), np)));
             noPrevO.entrySet().removeIf(e->e.getValue()<0.5);
             noPrevO.forEach((o, npV) -> {
-                SegmentedObject prev = prevMap.get(o);
+                SegmentedObject prev = nextToPrevMap.get(o);
                 if (prev!=null) {
                     for (Map.Entry<SegmentedObject, Double> e : noPrevO.entrySet()) {
                         if (e.getKey().equals(o)) continue;
-                        if (!prev.equals(prevMap.get(e.getKey()))) continue;
+                        if (!prev.equals(nextToPrevMap.get(e.getKey()))) continue;
                         if (npV>e.getValue()) {
-                            prevMap.put(o, null);
+                            nextToPrevMap.put(o, null);
                             logger.debug("object: {} has no prev: (was: {}) p={}", o, prev, npV);
                             break;
                         } else {
-                            prevMap.put(e.getKey(), null);
+                            nextToPrevMap.put(e.getKey(), null);
                             logger.debug("object: {} has no prev: (was: {}) p={}", e.getKey(), prev, e.getValue());
                         }
                     }
                 }
             });
-            Set<SegmentedObject> prevSeen = new HashSet<>();
-            Set<SegmentedObject> prevSeenSeveralTimes = new HashSet<>();
-            prevMap.values().forEach(o -> {
-                if (prevSeen.contains(o)) prevSeenSeveralTimes.add(o);
-                else prevSeen.add(o);
+
+            Map<SegmentedObject, Integer> nextCount = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->0);
+            nextToPrevMap.values().forEach(o -> {if (o!=null) nextCount.replace(o, nextCount.get(o)+1);});
+            Map<SegmentedObject, Set<SegmentedObject>> divMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o->new HashSet<>());
+            nextToPrevMap.entrySet().stream().filter(e -> e.getValue()!=null)
+                    .filter(e->nextCount.get(e.getValue())>1)
+                    .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
+
+            // artifact of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
+            // when a division is detected: check if the mother cell divided at previous frame.
+
+            List<Pair<Set<SegmentedObject>, Set<SegmentedObject>>> toReMatch = new ArrayList<>();
+            Function<SegmentedObject, Pair<Set<SegmentedObject>, Set<SegmentedObject>>> alreadyInReMatch = prev -> {
+                for (Pair<Set<SegmentedObject>, Set<SegmentedObject>> p : toReMatch) {
+                    if (p.key.contains(prev)) return p;
+                }
+                return null;
+            };
+            Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
+            while(it.hasNext()) {
+                Map.Entry<SegmentedObject, Set<SegmentedObject>> e = it.next();
+                Pair<Set<SegmentedObject>, Set<SegmentedObject>> reM = alreadyInReMatch.apply(e.getKey());
+                if (reM!=null) {
+                    it.remove();
+                    reM.value.addAll(e.getValue());
+                } else if (divisionMap.containsKey(e.getKey().getPrevious())) {
+                    Set<SegmentedObject> prevDaughters = divisionMap.get(e.getKey().getPrevious());
+                    if (prevDaughters.stream().anyMatch(d->d.getNext()==null && !divisionMap.containsKey(d))) { // at least one of previous daughters is not linked to a next object
+                        toReMatch.add(new Pair<>(prevDaughters, e.getValue()));
+                    }
+                }
+            }
+            if (!toReMatch.isEmpty()) {
+                nextToPrevMap.forEach((n, p) -> { // also add single links in which prev object is implicated
+                    Pair<Set<SegmentedObject>, Set<SegmentedObject>> reM = alreadyInReMatch.apply(p);
+                    if (reM!=null) {
+                        reM.key.add(p);
+                        reM.value.add(n);
+                    }
+                });
+                toReMatch.forEach(p -> {
+                    // match prev daughters and current daughters
+                    // min distance when both groups are centered at same y coordinate
+                    Map<SegmentedObject, Set<SegmentedObject>> match = match(new ArrayList<>(p.key), new ArrayList<>(p.value));
+                    logger.debug("double division detected @ frame: {}, {}->{} : new match: {}", p.value.iterator().next().getFrame(), p.key, p.value, match.entrySet());
+                    // update prevMap, divMap and prevCount
+                    match.forEach((prev, ns) -> {
+                        ns.forEach(n -> nextToPrevMap.put(n, prev));
+                        nextCount.put(prev, ns.size());
+                        if (ns.size() > 1) divMap.put(prev, ns);
+                    });
+                });
+            }
+            nextToPrevMap.entrySet().stream().filter(e->e.getValue()!=null).forEach(e -> {
+                editor.setTrackLinks(e.getValue(), e.getKey(),true, nextCount.get(e.getValue())<=1, true);
             });
-            prevMap.entrySet().stream().filter(e->e.getValue()!=null).sorted(Comparator.comparingInt(e->e.getValue().getFrame())).forEachOrdered(e -> {
-                editor.setTrackLinks(e.getValue(), e.getKey(),true, !prevSeenSeveralTimes.contains(e.getValue()), true);
+            divisionMap.putAll(divMap);
+            // set error for division that yield more than 3 bacteria
+            nextToPrevMap.entrySet().stream().filter(e->nextCount.get(e.getValue())>2).forEach(e->{
+                e.getKey().setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
+                e.getValue().setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
+            });
+            Map<SegmentedObject, Double> sizeMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().size());
+            Predicate<SegmentedObject> touchBorder = o -> o.getBounds().yMax() == o.getParent().getBounds().yMax();
+            final SegmentedObject last = objects.stream().max(Comparator.comparingInt(o -> o.getBounds().yMax())).get();
+            // set error for growth outside of user-defined range // except for end-of-channel divisions
+            double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
+            final double meanGr =(growthRateRange[0] + growthRateRange[1]) / 2.0;
+            nextToPrevMap.forEach((next, prev) -> {
+                double growthrate;
+                if (divMap.containsKey(prev)) { // compute size of all next objects
+                    growthrate = divMap.get(prev).stream().mapToDouble(o->sizeMap.get(o)).sum() / sizeMap.get(prev);
+                } else if (touchBorder.test(prev) || touchBorder.test(next)) {
+                    growthrate = meanGr; // growth rate cannot be computes bacteria are partly out of the channel
+                } else {
+                    growthrate = sizeMap.get(next) / sizeMap.get(prev);
+                    if (next.equals(last) && growthrate<growthRateRange[0]) {
+                        // check that distance to end of channel is short
+                        int delta = next.getParent().getBounds().yMax() - next.getBounds().yMax();
+                        if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = meanGr;
+                    }
+                }
+                if (growthrate<growthRateRange[0] || growthrate>growthRateRange[1]) {
+                    next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
+                    prev.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
+                }
             });
         }
     }
+    // TODO find a matching method that would also work for swiming bacteria -> trackmate matching ?
+    protected static Map<SegmentedObject, Set<SegmentedObject>> match(List<SegmentedObject> prev, List<SegmentedObject> next) {
+        double yPrev = meanY(prev);
+        double yNext = meanY(next);
+        double[] yCoordPrev = prev.stream().mapToDouble(o->o.getBounds().yMean() - yPrev).toArray();
+        double[] yCoordNext = next.stream().mapToDouble(o->o.getBounds().yMean() - yNext).toArray();
+        Map<SegmentedObject, Set<SegmentedObject>> matchMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new HashSet<>());
+        ToIntFunction<Double> getClosest = coordNext -> IntStream.range(0, yCoordPrev.length).mapToObj(i->i).min(Comparator.comparingDouble(i -> Math.abs(yCoordPrev[i] - coordNext))).get();
+        for (int n = 0; n<yCoordNext.length; ++n) {
+            int closestIdx = getClosest.applyAsInt(yCoordNext[n]);
+            matchMap.get(prev.get(closestIdx)).add(next.get(n));
+        }
+        return matchMap;
+    }
 
+    protected static double meanY(Collection<SegmentedObject> objects) {
+        double[] size = objects.stream().mapToDouble(o->o.getRegion().size()).toArray();
+        double[] yCoord = objects.stream().mapToDouble(o->o.getBounds().yMean()).toArray();
+        double sumSize = Arrays.stream(size).sum();
+        double relativeMeanY =  IntStream.range(0, size.length).mapToDouble(i -> size[i] * yCoord[i]).sum() / sumSize;
+        return relativeMeanY - objects.iterator().next().getParent().getBounds().yMin();
+    }
     @Override
     public Segmenter getSegmenter() {
         return edmSegmenter.instanciatePlugin();
