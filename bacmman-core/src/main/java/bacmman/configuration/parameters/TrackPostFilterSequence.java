@@ -51,7 +51,7 @@ public class TrackPostFilterSequence extends PluginParameterList<TrackPostFilter
         return this;
     }
     
-    @Override public TrackPostFilterSequence add(Collection<TrackPostFilter> instances) {
+    @Override public TrackPostFilterSequence add(Collection<? extends TrackPostFilter> instances) {
         super.add(instances);
         return this;
     }

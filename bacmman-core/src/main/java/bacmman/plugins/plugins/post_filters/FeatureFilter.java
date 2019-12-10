@@ -27,12 +27,13 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
+import bacmman.plugins.PostFilterFeature;
 
 /**
  *
  * @author Jean Ollion
  */
-public class FeatureFilter implements PostFilter, Hint {
+public class FeatureFilter implements PostFilterFeature, Hint {
     PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setEmphasized(true).setHint("Choose here a feature computed for each segmented object");
     NumberParameter threshold = new NumberParameter<>("Threshold", 4, 0).setEmphasized(true);
     BooleanParameter keepOverThreshold = new BooleanParameter("Keep over threshold", true).setEmphasized(true).setHint("<ul><li>If set to <em>true</em>, only segmented object that have a value of the feature (as defined in the <em>Feature</em> parameter) larger than the threshold will be kept</li><li>If set to <em>false</em>, only segmented object that have a value of the feature smaller than the threshold will be kept</li></ul>");

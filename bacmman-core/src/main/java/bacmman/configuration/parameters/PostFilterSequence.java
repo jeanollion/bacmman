@@ -47,7 +47,7 @@ public class PostFilterSequence extends PluginParameterList<PostFilter, PostFilt
         return this;
     }
     
-    @Override public PostFilterSequence add(Collection<PostFilter> instances) {
+    @Override public PostFilterSequence add(Collection<? extends PostFilter> instances) {
         super.add(instances);
         return this;
     }

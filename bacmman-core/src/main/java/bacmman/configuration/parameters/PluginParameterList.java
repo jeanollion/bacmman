@@ -60,7 +60,7 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
         return (L)this;
     }
     
-    public L add(Collection<T> instances) {
+    public L add(Collection<? extends T> instances) {
         for (T t : instances) add(t);
         return (L)this;
     }
