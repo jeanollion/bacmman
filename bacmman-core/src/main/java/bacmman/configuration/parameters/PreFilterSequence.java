@@ -65,7 +65,7 @@ public class PreFilterSequence extends PluginParameterList<PreFilter, PreFilterS
         return this;
     }
     
-    @Override public PreFilterSequence add(Collection<PreFilter> instances) {
+    @Override public PreFilterSequence add(Collection<? extends PreFilter> instances) {
         super.add(instances);
         return this;
     }
