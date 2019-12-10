@@ -24,6 +24,7 @@ import org.jgrapht.graph.SimpleWeightedGraph;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -110,6 +111,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         });
         Function<SegmentedObject, Set<SegmentedObject>> getAllMatchingS = g -> matchG2S.outgoingEdgesOf(g).stream().map(e -> matchG2S.getEdgeTarget(e)).collect(Collectors.toSet());
         Function<SegmentedObject, Set<SegmentedObject>> getAllMatchingG = s -> matchG2S.incomingEdgesOf(s).stream().map(e -> matchG2S.getEdgeSource(e)).collect(Collectors.toSet());
+        Predicate<Set<SegmentedObject>> samePrev = s->s.stream().map(SegmentedObject::getPrevious).distinct().count() == 1;
         ToDoubleBiFunction<SegmentedObject, SegmentedObject> getOverlap = (g, s) -> {
             DefaultWeightedEdge e = matchG2S.getEdge(g, s);
             if (e==null) return 0;
@@ -143,7 +145,20 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                     // previous link matches ?
                     if ((g.getPrevious()!=null && s.getPrevious()!=null)) { // check matching of prev // TODO manage case of merging!!
                         SegmentedObject gPrev = matching1to1S2G.get(s.getPrevious());
-                        prevLinkEquals = g.getPrevious().equals(gPrev);
+                        if (gPrev==null && tolerance) { // division frame differs between S & G ?
+                            Set<SegmentedObject> gPrevs = getAllMatchingG.apply(s.getPrevious());
+                            if (gPrevs.size()>1) { // G divided and S did not ?
+                                if (gPrevs.contains(g.getPrevious()) && samePrev.test(gPrevs)) prevLinkEquals = true;
+                            } else if (gPrevs.size()==1) { // S divided and G did not ?
+                                gPrev = gPrevs.iterator().next();
+                                if (gPrev.equals(g.getPrevious())) {
+                                    Set<SegmentedObject> sPrevs = getAllMatchingS.apply(gPrev);
+                                    if (samePrev.test(sPrevs)) prevLinkEquals= true;
+                                }
+                            }
+                        } else {
+                            prevLinkEquals = g.getPrevious().equals(gPrev);
+                        }
                     }
                     seenG.add(g);
                 } else { // false positive or several objects match s or s matches several objects
@@ -157,7 +172,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                         seenG.add(g);
                         Set<SegmentedObject> matchingS = getAllMatchingS.apply(g);
                         SegmentedObject gPrev= g.getPrevious();
-                        if (tolerance && matchingS.stream().map(o -> o.getPrevious()).distinct().count() == 1) { // check that all matching S have same previous and that it is equal to sPrev
+                        if (tolerance && samePrev.test(matchingS)) { // check that all matching S have same previous and that it is equal to sPrev
                             SegmentedObject sPrev= s.getPrevious();
                             // check matching prev
                             if (gPrev==null && sPrev==null) prevLinkEquals = true;
@@ -178,7 +193,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                     } else { // several g match one s
                         SegmentedObject sPrev= s.getPrevious();
                         g = matchingG.stream().max(Comparator.comparingDouble(o -> getOverlap.applyAsDouble(o, s))).get();
-                        if (tolerance && matchingG.stream().map(o -> o.getPrevious()).distinct().count() == 1) { // check that all matching S have same previous and that it is equal to sPrev
+                        if (tolerance && samePrev.test(matchingG)) { // check that all matching S have same previous and that it is equal to sPrev
                             SegmentedObject gPrev= g.getPrevious();
                             // check matching prev
                             if (gPrev==null && sPrev==null) prevLinkEquals = true;
