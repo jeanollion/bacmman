@@ -3,23 +3,15 @@ package bacmman.plugins.plugins.dl_engines;
 import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
-import bacmman.plugins.HistogramScaler;
-import bacmman.plugins.plugins.scalers.MinMaxScaler;
-import bacmman.dl.Utils;
 import bacmman.tf.TensorWrapper;
-import bacmman.utils.ArrayUtil;
-import org.scijava.util.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 
-import static bacmman.processing.ResizeUtils.allShapeEqual;
 import static bacmman.processing.ResizeUtils.getShapes;
 
 public class TFengine implements DLengine {
@@ -76,44 +68,40 @@ public class TFengine implements DLengine {
 
     @Override
     public void close() {
-        if (graph!=null) graph.close();
-        if (session!=null) session.close();
+        if (graph!=null) {
+            graph.close();
+            graph = null;
+        }
+        if (session!=null) {
+            session.close();
+            session = null;
+        }
     }
 
     @Override
     public void init() {
+        if (graph!=null && session !=null) return; // already init
         try {
             TensorFlow.version();
         } catch(UnsatisfiedLinkError e) {
             logger.error("Error while loading tensorflow:", e);
         }
         logger.debug("tensorflow version: {}", TensorFlow.version());
-        // TODO: load library... use tensorflow service ?
         SavedModelBundle model = SavedModelBundle.load(modelFile.getFirstSelectedFilePath(), "serve");
         session = model.session();
         graph = model.graph();
-        //logOperations();
-        /*final byte[] graphDef;
-        if (modelFile.getFirstSelectedFilePath()==null || !new File(modelFile.getFirstSelectedFilePath()).exists()) return;
-        try {
-            graphDef = FileUtils.readFile(new File(modelFile.getFirstSelectedFilePath()));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-
-        // Convert to a TensorFlow Graph object.
-        graph = new Graph();
-        graph.importGraphDef(graphDef);*/
         logger.debug("model loaded!");
         boolean[] missingLayer = new boolean[2];
-        inputs.getActivatedChildren().stream().map(i->i.getValue()).forEach(i -> {
-            if (graph.operation(i)==null) {
-                logger.error("Input layer {} not found in graph", i);
+        logOperations();
+        inputs.getActivatedChildren().stream().forEach(i -> {
+            String name = findInputOperationName(i.getValue());
+            if (name==null) {
+                logger.error("Input layer \"{}\" not found in graph", name);
                 missingLayer[0] = true;
-            }
+            } else i.setValue(name);
         });
         outputs.getActivatedChildren().stream().forEach(o -> {
-            String name = findOutputName(o.getValue());
+            String name = findOutputOperationName(o.getValue());
             if (name==null) {
                 logger.error("Output layer {} not found in graph", o.getValue());
                 missingLayer[1] = true;
@@ -129,21 +117,32 @@ public class TFengine implements DLengine {
             throw new RuntimeException(err+" layer(s) not found in graph");
         }
     }
-
-    protected String findOutputName(String name) {
+    protected String findInputOperationName(String name) {
+        if (graph.operation(name)!=null) return name;
+        if (graph.operation("serving_default_input")!=null) return "serving_default_input"; // TODO fix this: how input names are set in TF2.keras.model.save method ???
+        Iterator<Operation> ops = graph.operations();
+        String newName = null;
+        while (ops.hasNext()) {
+            Operation next = ops.next();
+            if (!next.type().equals("Placeholder")) continue;
+            if (next.name().startsWith(name)) newName = next.name();
+        }
+        return newName;
+    }
+    protected String findOutputOperationName(String name) {
         if (graph.operation(name)!=null) return name;
         // get last layer that starts with the name
         Iterator<Operation> ops = graph.operations();
         String newName=null;
         while (ops.hasNext()) {
             Operation next = ops.next();
-            if (next.name().startsWith(name)) newName = next.name();
+            if (next.name().startsWith(name) && !next.name().endsWith("ReadVariableOp")) newName = next.name(); // ReadVariableOp is added in tf2.keras
         }
         if (newName!=null) {
             logger.debug("output: {} was found with operation name: {}", name, newName);
             return newName;
         }
-        if (!name.endsWith("_1")) return findOutputName(name + "_1");
+        if (!name.endsWith("_1")) return findOutputOperationName(name + "_1");
         return null;
     }
     public void logOperations() {
@@ -155,17 +154,6 @@ public class TFengine implements DLengine {
         if (inputNC.length!=getNumInputArrays()) throw new IllegalArgumentException("Invalid number of input provided. Expected:"+getNumInputArrays()+" provided:"+inputNC.length);
         int batchSize = this.batchSize.getValue().intValue();
         int nSamples = inputNC[0].length;
-        /*int[][] inputShapes = getInputShapes();
-        for (int i = 0; i<inputNC.length; ++i) {
-            int[][] shapes = getShapes(inputNC[i], true);
-            if (!allShapeEqual(shapes, inputShapes[i])) throw new IllegalArgumentException("Input # "+i+": At least one image have a shapes from input shape: "+Arrays.toString(inputShapes[i]));
-            if (nSamples != inputNC[i].length) throw new IllegalArgumentException("nSamples from input #"+i+"("+inputNC[0].length+") differs from input #0 = "+nSamples);
-        }
-        // scale inputs
-        List<HistogramScaler> scalers = this.inputScalers.getAll();
-        for (int i = 0; i<inputNC.length; ++i) Utils.scale(inputNC[i], scalers.get(i));
-        */
-        //final Session s = new Session(graph);
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
         long wrapTime = 0, predictTime = 0;
@@ -174,7 +162,7 @@ public class TFengine implements DLengine {
 
         for (int idx = 0; idx<nSamples; idx+=batchSize) {
             int idxMax = Math.min(idx+batchSize, nSamples);
-            logger.debug("batch: [{};{}[", idx, idxMax);
+            logger.debug("batch: [{};{})", idx, idxMax);
             final int fidx = idx;
             long t0 = System.currentTimeMillis();
             Tensor<Float>[] input = Arrays.stream(inputNC).map(imNC ->  TensorWrapper.fromImagesNC(imNC, fidx, idxMax, bufferContainer)).toArray(Tensor[]::new);
