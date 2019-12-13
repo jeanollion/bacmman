@@ -25,12 +25,15 @@ import java.beans.PropertyChangeListener;
 import java.util.List;
 import javax.swing.SwingWorker;
 import bacmman.utils.ArrayUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class DefaultWorker extends SwingWorker<Integer, String>{
+    private static final Logger logger = LoggerFactory.getLogger(DefaultWorker.class);
     protected final WorkerTask task;
     protected Runnable endOfWork;
     protected int[] taskIdx;
@@ -51,24 +54,30 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         this.gui=gui;
         taskIdx = ArrayUtil.generateIntegerArray(0, maxTaskIdx);
         if (gui!=null) {
-            addPropertyChangeListener(new PropertyChangeListener() {
-                @Override    
-                public void propertyChange(PropertyChangeEvent evt) {
-                    if ("progress".equals(evt.getPropertyName())) {
-                        int progress = (Integer) evt.getNewValue();
-                        gui.setProgress(progress);
-                    }
+            addPropertyChangeListener(evt -> {
+                if ("progress".equals(evt.getPropertyName())) {
+                    int progress = (Integer) evt.getNewValue();
+                    gui.setProgress(progress);
                 }
             });
         }
     }
     @Override
     protected Integer doInBackground() throws Exception {
+
         int count = 0;
+        if (gui!=null) {
+            logger.debug("Set running true");
+            gui.setRunning(true);
+        }
         for (int i : taskIdx) {
             String message = task.run(i);
             if (message!=null&&!"".equals(message)) publish(message);
             setProgress(100 * (++count) / taskIdx.length);
+        }
+        if (gui!=null) {
+            logger.debug("Set running false");
+            gui.setRunning(false);
         }
         return 0;
     }
@@ -93,11 +102,11 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         this.endOfWork=endOfWork;
         return this;
     }
-    public DefaultWorker appendEndOfWork(Runnable endOfWork) {
+    public DefaultWorker appendEndOfWork(Runnable end) {
         Runnable oldEnd = this.endOfWork;
         this.endOfWork = () -> {
-            oldEnd.run();
-            endOfWork.run();
+            if (oldEnd!=null) oldEnd.run();
+            if (end!=null) end.run();
         };
         return this;
     }

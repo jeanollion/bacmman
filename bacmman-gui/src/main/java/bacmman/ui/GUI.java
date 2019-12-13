@@ -3348,7 +3348,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         if (t.isPreProcess() || t.isSegmentAndTrack()) this.reloadObjectTrees=true; //|| t.reRunPreProcess
         
-        Task.executeTask(t, getUserInterface(), ()->{updateConfigurationTree();}); // update config because cache will be cleared
+        Task.executeTask(t, getUserInterface(), ()->updateConfigurationTree()); // update config because cache will be cleared
     }//GEN-LAST:event_runSelectedActionsMenuItemActionPerformed
 
     private void importImagesMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importImagesMenuItemActionPerformed

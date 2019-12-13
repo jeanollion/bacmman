@@ -48,7 +48,7 @@ public class MultiProgressLogger  implements ProgressLogger {
 
     @Override
     public void setRunning(boolean running) {
-        uis.stream().forEach((ui) -> {ui.setRunning(running);});
+        uis.stream().forEach((ui) -> ui.setRunning(running));
     }
     public void applyToLogUserInterfaces(Consumer<FileProgressLogger> function) {
         uis.stream().filter((ui) -> (ui instanceof FileProgressLogger)).forEach((ui) -> function.accept((FileProgressLogger)ui));

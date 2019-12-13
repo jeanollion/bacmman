@@ -974,7 +974,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (attributes==null) return defaultValue;
         Object v = getAttribute(key);
         if (v==null) return defaultValue;
-        else return (T)v;
+        if (!(defaultValue instanceof String) && v instanceof String && ("NA".equals(v) || "NaN".equals(v))) v = Double.NaN;
+        if (!defaultValue.getClass().isAssignableFrom(v.getClass())) return defaultValue;
+        return (T)v;
     }
     public Set<String> getAttributeKeys() {
         if (this.attributes==null) {
