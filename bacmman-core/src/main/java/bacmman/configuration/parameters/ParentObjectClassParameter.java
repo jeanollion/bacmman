@@ -18,7 +18,10 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.configuration.experiment.Structure;
+
 import java.util.function.Consumer;
+import java.util.function.ToIntFunction;
 
 
 /**
@@ -26,7 +29,7 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class ParentObjectClassParameter extends ObjectClassParameterAbstract<ParentObjectClassParameter> {
-    int maxStructure;
+    int maxStructure=-1;
     
     public ParentObjectClassParameter(String name) {
         this(name, -1, -1);
@@ -39,23 +42,18 @@ public class ParentObjectClassParameter extends ObjectClassParameterAbstract<Par
 
     public void setMaxStructureIdx(int maxStructureExcl) {
         this.maxStructure = maxStructureExcl;
-        if (maxStructure>=0 && super.getSelectedIndex()>=maxStructure) setSelectedIndex(-1);
     }
-    @Override public int getSelectedIndex() {
-        int idx = super.getSelectedIndex();
-        if (maxStructure>=0 && idx>=maxStructure) {
-            setSelectedIndex(-1);
-            idx= -1;
-        }
-        //logger.debug("parent structure parameter:{}. sel idx: {} max idx : {}", name, idx, maxStructure);
-        //if (maxStructure>=0 && idx>=maxStructure) throw new IllegalArgumentException("ParentStructureParameter "+name+"sel structure:"+idx+" superior to max structure: "+maxStructure);
-        return idx;
-    }
-    
+
     public int getMaxStructureIdx() {
         return maxStructure;
     }
-    
+
+    @Override
+    public boolean isValid() {
+        if (!super.isValid()) return false;
+        return maxStructure<0 || getSelectedIndex()<maxStructure;
+    }
+
     @Override
     public String[] getChoiceList() {
         String[] choices;
@@ -64,17 +62,22 @@ public class ParentObjectClassParameter extends ObjectClassParameterAbstract<Par
         } else {
            return new String[]{"error: no xp found in tree"};
         }
-        if (maxStructure<=0 && this.autoConfiguration!=null) autoConfiguration();
+        if (maxStructure<=0) autoConfiguration();
         if (maxStructure<=0) return new String[]{};
         String[] res = new String[maxStructure];
         System.arraycopy(choices, 0, res, 0, maxStructure);
         return res;
     }
-    
+    public static ToIntFunction<ObjectClassOrChannelParameter> structureInParents() {
+        return p->{
+            Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, p, false);
+            return (s!=null) ? s.getIndex(): -1;
+        };
+    }
     @Override
-    public void setSelectedIndex(int structureIdx) {
-        if (maxStructure>=0 && structureIdx>=maxStructure) throw new IllegalArgumentException("Parent Structure ("+structureIdx+") cannot be superior to max structure ("+maxStructure+")");
-        super.setSelectedIndex(structureIdx);
+    protected void autoConfiguration() {
+        if (autoConfiguration!=null) autoConfiguration.accept(this);
+        else maxStructure = structureInParents().applyAsInt(this);
     }
     
     public static Consumer<ParentObjectClassParameter> defaultAutoConfigurationParent() {
