@@ -8,6 +8,7 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.plugins.plugins.segmenters.SplitAndMergeEDM;
+import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
@@ -31,6 +32,9 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
     //BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, growthRateRange};
+
+    private static boolean next = false;
+    private static boolean averagePredictions = true;
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
@@ -53,13 +57,49 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         Pair<Image[], int[][]> resampledImages = getResampledRawImages(objectClassIdx, parentTrack, imageShape);
         long t3= System.currentTimeMillis();
         logger.info("input resampled in {}ms", t3-t2);
-        Image[][] input = getInputs(resampledImages.key, true, false);
-        Image[][][] predictions =  engine.process(input); // order: output / batch / channel
+        Image[][] input = getInputs(resampledImages.key, true, next);
+        Image[][][] predictions =  engine.process(input); // order: output# [dy / cat (cat_next) / edm] / batch / channel
         Image[] dy = ResizeUtils.getChannel(predictions[0], 0);
-        Image[] edm = ResizeUtils.getChannel(predictions[2], 1);
+        Image[] edm = ResizeUtils.getChannel(predictions[predictions.length-1], 1);
         //Image[] divMap = ResizeUtils.getChannel(predictions[1], 2);
         Image[] noPrevMap = ResizeUtils.getChannel(predictions[1], 3);
+        if (averagePredictions) {
+            if (next) {
+                Function<Image[][], Image[]> average3 = pcn -> {
+                    Image[] prev = pcn[0];
+                    Image[] cur = pcn[1];
+                    Image[] next = pcn[2];
+                    int last = cur.length - 1;
+                    ImageOperations.average(cur[0], cur[0], prev[1]);
+                    for (int i = 1; i<last; ++i) ImageOperations.average(cur[i], cur[i], prev[i+1], next[i-1]);
+                    ImageOperations.average(cur[last], cur[last], next[last-1]);
+                    return cur;
+                };
+                edm = average3.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length-1], 0), edm, ResizeUtils.getChannel(predictions[0], 2)});
 
+                Function<Image[][], Image[]> average2 = cn -> {
+                    Image[] cur = cn[1];
+                    Image[] next = cn[2];
+                    for (int i = 1; i < cur.length; ++i) ImageOperations.average(cur[i], cur[i], next[i - 1]);
+                    return cur;
+                };
+                if (predictions[0][0].length==2) {
+                    dy = average2.apply(new Image[][]{dy, ResizeUtils.getChannel(predictions[0], 1)});
+                }
+                if (predictions.length==4) {
+                    Image[] noPrevMapN = ResizeUtils.getChannel(predictions[2], 3);
+                    noPrevMap = average2.apply(new Image[][]{noPrevMap, noPrevMapN});
+                }
+            } else {
+                Function<Image[][], Image[]> average = pc -> {
+                    Image[] prev = pc[0];
+                    Image[] cur = pc[1];
+                    for (int i = 0; i<cur.length-1; ++i) ImageOperations.average(cur[i], cur[i], prev[i+1]);
+                    return cur;
+                };
+                edm = average.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length-1], 0), edm});
+            }
+        }
         long t4= System.currentTimeMillis();
         logger.info("#{} dy predictions made in {}ms", dy.length, t4-t3);
         // resample, set offset & calibration
