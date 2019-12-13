@@ -93,7 +93,36 @@ public class ImageOperations {
             return Image.mergeZPlanes(planes);
         }
     }
-
+    public static Image average(Image output, Image... images) {
+        if (images.length==0) throw new IllegalArgumentException("Cannot average zero images!");
+        if (output==null) output = new ImageFloat("avg", images[0]);
+        for (int i = 0; i< images.length; ++i) {
+            if (!output.sameDimensions(images[i])) throw new IllegalArgumentException("image:#"+i+" dimensions differ from output ("+images[i]+" != "+output+")");
+        }
+        double div = images.length;
+        if (div==2) {
+            for (int z = 0; z<output.sizeZ(); ++z) {
+                for (int xy=0; xy<output.sizeXY(); ++xy) {
+                    output.setPixel(xy, z, (images[0].getPixel(xy, z) + images[1].getPixel(xy, z))/div);
+                }
+            }
+        } else if (div == 3) {
+            for (int z = 0; z<output.sizeZ(); ++z) {
+                for (int xy=0; xy<output.sizeXY(); ++xy) {
+                    output.setPixel(xy, z, (images[0].getPixel(xy, z) + images[1].getPixel(xy, z) + images[2].getPixel(xy, z))/div);
+                }
+            }
+        } else {
+            for (int z = 0; z<output.sizeZ(); ++z) {
+                for (int xy=0; xy<output.sizeXY(); ++xy) {
+                    double avg = images[0].getPixel(xy, z);
+                    for (int i = 1; i<div; ++i) avg+=images[i].getPixel(xy, z);
+                    output.setPixel(xy, z, avg/div);
+                }
+            }
+        }
+        return output;
+    }
     public static double[] getMinAndMax(Collection<Image> images, boolean parallele) {
         if (images.isEmpty()) {
             return new double[2];
