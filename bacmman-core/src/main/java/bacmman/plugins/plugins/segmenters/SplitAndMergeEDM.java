@@ -3,9 +3,10 @@ package bacmman.plugins.plugins.segmenters;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.Voxel;
-import bacmman.image.Image;
+import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.GeometricalMeasurements;
+import bacmman.processing.Filters;
 import bacmman.processing.clustering.ClusterCollection;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
@@ -21,11 +22,13 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> {
     public final static Logger logger = LoggerFactory.getLogger(SplitAndMergeEDM.class);
     final Image edm;
+    Image edmLocalMax;
     public double splitThresholdValue, divCritValue;
     public enum DIVISION_CRITERION { NONE, DY, DIV_MAP }
     DIVISION_CRITERION criterion;
@@ -53,16 +56,22 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
         return this;
     }
     public SplitAndMergeEDM setInterfaceValue(double quantile, boolean normalizeEdgeValues) {
+        if (normalizeEdgeValues && this.edmLocalMax==null) {
+            ImageInteger lmMask = Filters.localExtrema(edm, null, true, 0.5, null, Filters.getNeighborhood(3, edm));
+            edmLocalMax = new ImageFloat("edm local max", lmMask);
+            ImageMask.loop(lmMask, (x, y, z) -> edmLocalMax.setPixel(x, y, z, edm.getPixel(x, y, z)));
+        }
         interfaceValue = i-> {
             if (i.getVoxels().isEmpty()) {
                 return Double.NaN;
             } else {
                 int size = i.getVoxels().size() + i.getDuplicatedVoxels().size();
-                double val = ArrayUtil.quantile(Stream.concat(i.getVoxels().stream(), i.getDuplicatedVoxels().stream()).mapToDouble(v -> edm.getPixel(v.x, v.y, v.z)).sorted(), size, 1);
-                if (true) {// normalize by mean edm value
-                    double sum = BasicMeasurements.getSum(i.getE1(), edm) + BasicMeasurements.getSum(i.getE2(), edm);
-                    double mean = sum / (i.getE1().size() + i.getE2().size());
-                    val = val / mean;
+                double val = ArrayUtil.quantile(Stream.concat(i.getVoxels().stream(), i.getDuplicatedVoxels().stream()).mapToDouble(v -> edm.getPixel(v.x, v.y, v.z)).sorted(), size, 0.5); // max/median value @ interface
+                if (normalizeEdgeValues) {// normalize by mean edm value
+                    // median local max edm value within 2 regions
+                    double[] edmLM = DoubleStream.concat(edmLocalMax.stream(i.getE1().getMask(), i.getE1().isAbsoluteLandMark()), edmLocalMax.stream(i.getE2().getMask(), i.getE2().isAbsoluteLandMark())).filter(d->d>0).sorted().toArray();
+                    double norm = ArrayUtil.median(edmLM);
+                    val =  val / norm;
                 }
                 return 1/val;
             }
@@ -98,18 +107,9 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
 
         @Override
         public void performFusion() {
-            double newMean = Double.NaN;
-            if (SplitAndMergeEDM.this.getMeanValues().containsKey(getE1()) || SplitAndMergeEDM.this.getMeanValues().containsKey(getE2())) {
-                double dy1 = SplitAndMergeEDM.this.getMeanValues().get(getE1());
-                double dy2 = SplitAndMergeEDM.this.getMeanValues().get(getE1());
-                double s1 = getE1().size();
-                double s2 = getE1().size();
-                newMean = (dy1 * s1 + dy2 * s2) / (s1 + s2);
-            }
             SplitAndMergeEDM.this.regionChanged.accept(e1);
             SplitAndMergeEDM.this.regionChanged.accept(e2);
             super.performFusion();
-            if (!Double.isNaN(newMean)) SplitAndMergeEDM.this.getMeanValues().put(e1, newMean);
         }
 
         @Override
@@ -143,7 +143,7 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
                     double dy1  = SplitAndMergeEDM.this.getMedianValues().get(getE1());
                     double dy2  = SplitAndMergeEDM.this.getMedianValues().get(getE2());
                     double ddy = Math.abs(dy1 - dy2);
-                    double ddyIfDiv = getE1().getGeomCenter(false).dist(getE2().getGeomCenter(false));
+                    double ddyIfDiv = Math.abs(getE1().getGeomCenter(false).get(1) - getE2().getGeomCenter(false).get(1));
                     return (ddy<ddyIfDiv * divCritValue); // TODO tune this parameter default = 0.75
                 } case DIV_MAP: {
                     double div1  = SplitAndMergeEDM.this.getMedianValues().get(getE1());

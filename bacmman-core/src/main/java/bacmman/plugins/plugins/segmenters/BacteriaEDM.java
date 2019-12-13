@@ -16,9 +16,9 @@ import java.util.*;
 import java.util.function.Consumer;
 
 public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPlugin {
-    BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 2, 2, 1, null ).setEmphasized(true);
-    BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 1, 1, 0.1, null ).setHint("EDM value inferior to this parameter are considered to be part of background").setEmphasized(true);
-    BoundedNumberParameter minMaxEDMValue = new BoundedNumberParameter("Minimal Max EDM value", 1, 2, 1, null ).setHint("Bacteria with maximal EDM value inferior to this parameter will be removed").setEmphasized(true);
+    BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 2, 3, 1, null ).setEmphasized(true);
+    BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 1, 1, 0.1, null ).setEmphasized(true).setHint("EDM value inferior to this parameter are considered to be part of background").setEmphasized(true);
+    BoundedNumberParameter minMaxEDMValue = new BoundedNumberParameter("Minimal Max EDM value", 1, 2, 1, null ).setEmphasized(true).setHint("Bacteria with maximal EDM value inferior to this parameter will be removed").setEmphasized(true);
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 20, 1, null ).setHint("Bacteria with size (in pixels) inferior to this value will be erased");
 
     @Override
@@ -35,9 +35,9 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
     public RegionPopulation runSegmenter(Image edm, int objectClassIdx, SegmentedObject parent) {
         Image dyI = divisionCriterion !=null ? divisionCriterion.get(parent) : null;
         if (dyI!=null && !edm.sameDimensions(dyI)) throw new IllegalArgumentException("dy image is not null and its shape differs from edm");
-        Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, (SegmentedObject)parent);
+        Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new ThresholdMask(edm, minimalEDMValue.getValue().doubleValue(), true, true);
-        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(edm, dyI==null ? edm : dyI, splitThreshold.getValue().doubleValue(), false)
+        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(edm, dyI==null ? edm : dyI, splitThreshold.getValue().doubleValue(), true)
                 .setDivisionCriterion(divCrit, divCritValue)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
