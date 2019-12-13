@@ -107,9 +107,10 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
     @Override 
     public String toString(){
         if (!multipleSelection) {
-            if (getSelectedIndex()>=0 && getChoiceList().length>getSelectedIndex()) return name+": "+getChoiceList()[getSelectedIndex()];
-            else if (allowNoSelection && getSelectedIndex()==-1) return name+": "+getNoSelectionString();
-            else return name+": no selected index";
+            int sel = getSelectedIndex();
+            if (sel>=0 && getChoiceList().length>sel) return name+": "+getChoiceList()[sel];
+            else if (allowNoSelection && sel==-1) return name+": "+getNoSelectionString();
+            else return name+": object class #"+sel;
         } else return name +": "+ Utils.getStringArrayAsStringTrim(50, getSelectedItemsNames());
     }
     
