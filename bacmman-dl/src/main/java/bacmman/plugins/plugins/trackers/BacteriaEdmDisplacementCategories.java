@@ -134,7 +134,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
             Image edmI = edm.get(p);
             Segmenter segmenter = edmSegmenter.instanciatePlugin();
             if (segmenter instanceof BacteriaEDM) {
-                ((BacteriaEDM)segmenter).setDivisionCriterionMap(dy,  SplitAndMergeEDM.DIVISION_CRITERION.DY  ,   1  ); // TODO tune this parameter or set as parameter ? // remove this ?
+                //((BacteriaEDM)segmenter).setDivisionCriterionMap(dy,  SplitAndMergeEDM.DIVISION_CRITERION.DY  ,   1  ); // TODO tune this parameter or set as parameter ? // remove this ?
             }
             if (stores!=null && segmenter instanceof TestableProcessingPlugin) {
                 ((TestableProcessingPlugin) segmenter).setTestDataStore(stores);
