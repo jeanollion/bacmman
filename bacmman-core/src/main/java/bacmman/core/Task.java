@@ -30,8 +30,6 @@ import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
 import bacmman.ui.logger.ProgressLogger;
 
-import static bacmman.core.TaskRunner.logger;
-
 import bacmman.data_structure.Processor.MEASUREMENT_MODE;
 import static bacmman.data_structure.Processor.deleteObjects;
 import static bacmman.data_structure.Processor.executeProcessingScheme;
@@ -57,6 +55,9 @@ import bacmman.utils.JSONUtils;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Comparator;
 import java.util.Objects;
 import java.util.function.BiConsumer;
@@ -71,6 +72,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class Task extends SwingWorker<Integer, String> implements ProgressCallback {
+        private static final Logger logger = LoggerFactory.getLogger(Task.class);
         String dbName, dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, generateTrackImages, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
         MEASUREMENT_MODE measurementMode = MEASUREMENT_MODE.ERASE_ALL;
@@ -477,7 +479,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         }
 
         public void runTask() {
-            if (ui!=null) ui.setRunning(true);
+            //if (ui!=null) ui.setRunning(true);
             publish("Run task: "+this.toString());
             initDB();
             Core.freeDisplayMemory();
@@ -708,11 +710,11 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
     @Override 
     public void done() {
         //logger.debug("EXECUTING DONE FOR : {}", this.toJSON().toJSONString());
-        this.publish("Job done.");
+        this.publish("Task done.");
         publishErrors();
         this.printErrors();
         this.publish("------------------");
-        if (ui!=null) ui.setRunning(false);
+        //if (ui!=null) ui.setRunning(false); // in case several tasks run
     }
     private void unrollMultipleExceptions() {
         // check for multiple exceptions and unroll them
@@ -775,7 +777,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             //if (ui!=null && i==0) ui.setRunning(true);
             tasks.get(i).initDB();
             Consumer<FileProgressLogger> setLF = l->{if (l.getLogFile()==null) l.setLogFile(tasks.get(i).getDir()+File.separator+"Log.txt");};
-            Consumer<FileProgressLogger> unsetLF = l->{l.setLogFile(null);};
+            Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
             tasks.get(i).runTask(); // clears cache +  unlock if !keepdb
