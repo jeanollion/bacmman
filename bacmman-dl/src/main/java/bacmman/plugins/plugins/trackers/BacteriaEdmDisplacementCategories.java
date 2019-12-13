@@ -260,22 +260,24 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
             double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
             final double meanGr =(growthRateRange[0] + growthRateRange[1]) / 2.0;
             nextToPrevMap.forEach((next, prev) -> {
-                double growthrate;
-                if (divMap.containsKey(prev)) { // compute size of all next objects
-                    growthrate = divMap.get(prev).stream().mapToDouble(o->sizeMap.get(o)).sum() / sizeMap.get(prev);
-                } else if (touchBorder.test(prev) || touchBorder.test(next)) {
-                    growthrate = meanGr; // growth rate cannot be computes bacteria are partly out of the channel
-                } else {
-                    growthrate = sizeMap.get(next) / sizeMap.get(prev);
-                    if (next.equals(last) && growthrate<growthRateRange[0]) {
-                        // check that distance to end of channel is short
-                        int delta = next.getParent().getBounds().yMax() - next.getBounds().yMax();
-                        if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = meanGr;
+                if (prev!=null) {
+                    double growthrate;
+                    if (divMap.containsKey(prev)) { // compute size of all next objects
+                        growthrate = divMap.get(prev).stream().mapToDouble(o->sizeMap.get(o)).sum() / sizeMap.get(prev);
+                    } else if (touchBorder.test(prev) || touchBorder.test(next)) {
+                        growthrate = meanGr; // growth rate cannot be computes bacteria are partly out of the channel
+                    } else {
+                        growthrate = sizeMap.get(next) / sizeMap.get(prev);
+                        if (next.equals(last) && growthrate<growthRateRange[0]) {
+                            // check that distance to end of channel is short
+                            int delta = next.getParent().getBounds().yMax() - next.getBounds().yMax();
+                            if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = meanGr;
+                        }
                     }
-                }
-                if (growthrate<growthRateRange[0] || growthrate>growthRateRange[1]) {
-                    next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
-                    prev.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
+                    if (growthrate<growthRateRange[0] || growthrate>growthRateRange[1]) {
+                        next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
+                        prev.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
+                    }
                 }
             });
         }
