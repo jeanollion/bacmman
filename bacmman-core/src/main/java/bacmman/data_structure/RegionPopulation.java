@@ -1140,10 +1140,12 @@ public class RegionPopulation {
         }
 
         public boolean keepObject(Region object) {
-            for (Filter f : filters) if (f.keepObject(object)) return true;
+            //logger.debug("or filters #{}: {}", filters.length, Arrays.stream(filters).map(f->f.keepObject(object)).toArray(i->new Object[i]));
+            for (Filter f : filters) {
+                if (f.keepObject(object)) return true;
+            }
             return false;
         }
-        
     }
 
     public static class Overlap implements Filter {

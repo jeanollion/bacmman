@@ -8,6 +8,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.image.ThresholdMask;
+import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.SegmenterSplitAndMerge;
 import bacmman.plugins.TestableProcessingPlugin;
 
@@ -16,7 +17,9 @@ import java.util.function.Consumer;
 
 public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPlugin {
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 2, 2, 1, null ).setEmphasized(true);
-    BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 1, 1, 0.1, null ).setEmphasized(true);
+    BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 1, 1, 0.1, null ).setHint("EDM value inferior to this parameter are considered to be part of background").setEmphasized(true);
+    BoundedNumberParameter minMaxEDMValue = new BoundedNumberParameter("Minimal Max EDM value", 1, 2, 1, null ).setHint("Bacteria with maximal EDM value inferior to this parameter will be removed").setEmphasized(true);
+    BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 20, 1, null ).setHint("Bacteria with size (in pixels) inferior to this value will be erased");
 
     @Override
     public double split(SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
@@ -39,7 +42,13 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
-        return sm.merge(popWS, null);
+        RegionPopulation res = sm.merge(popWS, null);
+        // filter regions:
+        int minSize = this.minimalSize.getValue().intValue();
+        double minMaxEDM = this.minMaxEDMValue.getValue().doubleValue();
+        double minEDM = this.minimalEDMValue.getValue().doubleValue();
+        res.filter(object -> object.size()>minSize && (minMaxEDM < minEDM || BasicMeasurements.getMaxValue(object, edm)>minMaxEDM));
+        return res;
     }
 
     Map<SegmentedObject, Image> divisionCriterion = null;
@@ -54,7 +63,7 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{minimalEDMValue, splitThreshold};
+        return new Parameter[]{minimalEDMValue, splitThreshold, minimalSize, minMaxEDMValue};
     }
 
     // testable processing plugin

@@ -49,7 +49,7 @@ public class FilterSequence extends PluginParameterList<Filter, FilterSequence> 
         return this;
     }
     
-    @Override public FilterSequence add(Collection<Filter> instances) {
+    @Override public FilterSequence add(Collection<? extends Filter> instances) {
         super.add(instances);
         return this;
     }

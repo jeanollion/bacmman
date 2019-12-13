@@ -92,7 +92,7 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         return this;
     }
     
-    @Override public TrackPreFilterSequence add(Collection<TrackPreFilter> instances) {
+    @Override public TrackPreFilterSequence add(Collection<? extends TrackPreFilter> instances) {
         super.add(instances);
         return this;
     }
