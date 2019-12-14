@@ -48,7 +48,7 @@ public class TensorWrapper {
         newShape[hasZ ? 2 : 1] = ySize;
         newShape[hasZ ? 3 : 2] = xSize;
         newShape[hasZ ? 4 : 3] = cSize;
-        logger.debug("shape: {}", newShape);
+        //logger.debug("shape: {}", newShape);
         return Tensor.create(newShape, FloatBuffer.wrap(buffer, 0, totalSize));
     }
     public static Image[][] getImagesNC(Tensor<Float> tensor, float[][] bufferContainer) {
