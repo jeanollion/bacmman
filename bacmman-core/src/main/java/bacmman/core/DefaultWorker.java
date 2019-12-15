@@ -79,7 +79,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             logger.debug("Set running false");
             gui.setRunning(false);
         }
-        return 0;
+        return count;
     }
     
     @Override
@@ -91,6 +91,12 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
 
     @Override 
     public void done() {
+        try {
+            int count = get();
+            logger.debug("worker task executed: {}/{}", count,  taskIdx.length);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
         if (this.endOfWork!=null) endOfWork.run();
         setProgress(0);
         if (gui!=null) {
