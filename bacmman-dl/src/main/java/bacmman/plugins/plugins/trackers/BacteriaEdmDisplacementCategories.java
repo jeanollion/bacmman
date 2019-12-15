@@ -38,7 +38,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
-        //if (stores!=null) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
+        if (stores!=null) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
         segment(objectClassIdx, parentTrack, edm_div_dy_np[0], edm_div_dy_np[2], postFilters, factory);
         track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], editor);
     }
@@ -61,7 +61,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         Image[][][] predictions =  engine.process(input); // order: output# [dy / cat (cat_next) / edm] / batch / channel
         Image[] dy = ResizeUtils.getChannel(predictions[0], 0);
         Image[] edm = ResizeUtils.getChannel(predictions[predictions.length-1], 1);
-        //Image[] divMap = ResizeUtils.getChannel(predictions[1], 2);
+        Image[] divMap = stores==null ? null : ResizeUtils.getChannel(predictions[1], 2);
         Image[] noPrevMap = ResizeUtils.getChannel(predictions[1], 3);
         if (averagePredictions) {
             if (next) {
@@ -105,25 +105,27 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         // resample, set offset & calibration
         Image[] edm_res = ResizeUtils.resample(edm, false, resampledImages.value);
         Image[] dy_res = ResizeUtils.resample(dy, true, resampledImages.value);
-        //Image[] divMap_res = ResizeUtils.resample(divMap, false, resampledImages.value);
+        Image[] divMap_res = divMap==null ? null : ResizeUtils.resample(divMap, false, resampledImages.value);
         Image[] noPrevMap_res = ResizeUtils.resample(noPrevMap, true, resampledImages.value);
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
             edm_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             edm_res[idx].translate(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].translate(parentTrack.get(idx).getMaskProperties());
-            //divMap_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            //divMap_res[idx].translate(parentTrack.get(idx).getMaskProperties());
+            if (divMap_res!=null) {
+                divMap_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+                divMap_res[idx].translate(parentTrack.get(idx).getMaskProperties());
+            }
             noPrevMap_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             noPrevMap_res[idx].translate(parentTrack.get(idx).getMaskProperties());
         }
         long t5= System.currentTimeMillis();
         logger.info("predicitons resampled in {}ms", t5-t4);
         Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> edm_res[i]));
-        //Map<SegmentedObject, Image> divM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> divMap_res[i]));
+        Map<SegmentedObject, Image> divM = divMap_res==null ? null : IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> divMap_res[i]));
         Map<SegmentedObject, Image> npM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> noPrevMap_res[i]));
         Map<SegmentedObject, Image> dyM = IntStream.range(0, parentTrack.size()).mapToObj(i->i).collect(Collectors.toMap(i -> parentTrack.get(i), i -> dy_res[i]));
-        return new Map[]{edmM, null, dyM, npM};
+        return new Map[]{edmM, divM, dyM, npM};
     }
 
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
@@ -241,6 +243,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                         ns.forEach(n -> nextToPrevMap.put(n, prev));
                         nextCount.put(prev, ns.size());
                         if (ns.size() > 1) divMap.put(prev, ns);
+                        else divMap.remove(prev);
                     });
                 });
             }
@@ -265,19 +268,22 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                     if (divMap.containsKey(prev)) { // compute size of all next objects
                         growthrate = divMap.get(prev).stream().mapToDouble(o->sizeMap.get(o)).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(next)) {
-                        growthrate = meanGr; // growth rate cannot be computes bacteria are partly out of the channel
+                        growthrate = Double.NaN; // growth rate cannot be computes bacteria are partly out of the channel
                     } else {
                         growthrate = sizeMap.get(next) / sizeMap.get(prev);
                         if (next.equals(last) && growthrate<growthRateRange[0]) {
                             // check that distance to end of channel is short
                             int delta = next.getParent().getBounds().yMax() - next.getBounds().yMax();
-                            if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = meanGr;
+                            if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = Double.NaN;
                         }
                     }
-                    if (growthrate<growthRateRange[0] || growthrate>growthRateRange[1]) {
+                    if (!Double.isNaN(growthrate) && (growthrate<growthRateRange[0] || growthrate>growthRateRange[1])) {
                         next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
                         prev.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
+                        prev.setAttribute("GrowthRateNext", growthrate);
+                        next.setAttribute("GrowthRatePrev", growthrate);
                     }
+
                 }
             });
         }
