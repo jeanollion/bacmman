@@ -62,7 +62,7 @@ public interface TrackConfigurable<P extends Plugin> {
      * @return ApplyToSegmenter object that will configure Segmenter instances before call to {@link Segmenter#runSegmenter(Image, int, SegmentedObject) }
      */
     TrackConfigurer run(int structureIdx, List<SegmentedObject> parentTrack);
-    
+    boolean allowRunOnParentTrackSubset();
     // + static helpers methods
     static <P extends Plugin> TrackConfigurer<P> getTrackConfigurer(int structureIdx, List<SegmentedObject> parentTrack, P plugin) {
         if (plugin instanceof TrackConfigurable) {

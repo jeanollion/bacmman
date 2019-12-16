@@ -352,8 +352,20 @@ public class ManualEdition {
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
             HashMap<SegmentedObject, TrackConfigurer> parentThMapParam = new HashMap<>();
             if (s instanceof TrackConfigurable) {
-                points.keySet().stream().map(p->p.getParent(parentStructureIdx)).map(p->p.getTrackHead()).distinct().forEach(p->parentThMapParam.put(p, TrackConfigurable.getTrackConfigurer(structureIdx, new ArrayList<>(db.getDao(positions[0]).getTrack(p)), s)));
-                parentThMapParam.entrySet().removeIf(e->e.getValue()==null);
+                if (((TrackConfigurable) s).allowRunOnParentTrackSubset()) { // TODO TEST
+                    // split point by parent track
+                    Map<SegmentedObject, List<SegmentedObject>> keyByPTH = SegmentedObjectUtils.splitByParentTrackHead(parentThMapParam.keySet());
+                    keyByPTH.forEach((pth, list) -> {
+                        list = list.stream().map(o->o.getParent()).collect(Collectors.toList());
+                        parentThMapParam.put(pth, TrackConfigurable.getTrackConfigurer(structureIdx, list, s));
+                    });
+                } else {
+                    points.keySet().stream()
+                            .map(p -> p.getParent(parentStructureIdx))
+                            .map(SegmentedObject::getTrackHead).distinct()
+                            .forEach(p -> parentThMapParam.put(p, TrackConfigurable.getTrackConfigurer(structureIdx, new ArrayList<>(db.getDao(positions[0]).getTrack(p)), s)));
+                    parentThMapParam.entrySet().removeIf(e -> e.getValue() == null);
+                }
             }
             
             logger.debug("manual segment: {} distinct parents. Segmentation structure: {}, parent structure: {}", points.size(), structureIdx, segmentationParentStructureIdx);

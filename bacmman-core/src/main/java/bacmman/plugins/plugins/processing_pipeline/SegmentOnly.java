@@ -41,6 +41,9 @@ import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
 import net.imagej.ops.Ops;
 
+import javax.swing.tree.MutableTreeNode;
+import javax.swing.tree.TreeNode;
+
 import static bacmman.utils.ThreadRunner.safeMap;
 
 /**
@@ -55,6 +58,14 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     
     public SegmentOnly(Segmenter segmenter) {
         this.segmenter.setPlugin(segmenter);
+        // also insert segmenter parameter into experiment tree
+        if (segmenter.getParameters().length>0) {
+            TreeNode parent = segmenter.getParameters()[0].getParent(); // parent is pluginParameter<Segmenter>
+            if (parent!=null && parent.getParent() instanceof MutableTreeNode) {
+                this.segmenter.setParent((MutableTreeNode)parent.getParent());
+            }
+        }
+
     }
     protected SegmentOnly(PluginParameter<Segmenter> segmenter) {
         this.segmenter=segmenter;

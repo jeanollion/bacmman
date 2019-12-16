@@ -441,6 +441,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             return StreamConcatenation.concat(ds);
         };
         /*
+        // TODO IF A track normalization is used -> set allowSubset to false
         // compute background per track -> not very effective because background can vary within track. To do -> sliding mean ?
         Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma = segParentTracks.values().stream().parallel().collect(Collectors.toMap(t->t.get(0), t -> {
             //DoubleStatistics ds = DoubleStatistics.getStats(valueStream.apply(t));
@@ -470,6 +471,12 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             s.setMaps(parentMapImages.get(p));
         };
     }
+
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return true;
+    }
+
     Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma;
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
         double[] scale = getScale();

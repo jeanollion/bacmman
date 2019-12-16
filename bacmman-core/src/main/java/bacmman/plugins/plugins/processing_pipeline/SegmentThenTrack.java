@@ -86,7 +86,7 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
             return;
         }
         if (parentTrack.isEmpty()) return;
-        SegmentOnly seg = new SegmentOnly(segmenter.instanciatePlugin()).setPreFilters(preFilters).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
+        SegmentOnly seg = new SegmentOnly(segmenter).setPreFilters(preFilters).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
         seg.segmentAndTrack(structureIdx, parentTrack, factory, null);
     }
 

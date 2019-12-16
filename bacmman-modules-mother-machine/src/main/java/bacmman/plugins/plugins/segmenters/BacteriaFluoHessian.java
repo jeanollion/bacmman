@@ -102,6 +102,11 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
         };
     }
 
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return false;
+    }
+
     protected double getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {
         if (voidMC.size()==parentTrack.size()) return Double.POSITIVE_INFINITY;
         Histogram[] histoRoot=new Histogram[1], histoParent=new Histogram[1];

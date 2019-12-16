@@ -30,7 +30,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  * @param <T>
  */
-public interface BoundingBox<T extends BoundingBox> extends Offset<T> {
+public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     public int xMax();
     public int yMax();
     public int zMax();

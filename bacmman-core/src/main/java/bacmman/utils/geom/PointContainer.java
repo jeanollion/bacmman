@@ -24,7 +24,7 @@ package bacmman.utils.geom;
  * @author Jean Ollion
  * @param <T>
  */
-public class PointContainer<T> extends Point<Point> {
+public class PointContainer<T> extends Point {
     public T content1;
     public PointContainer(T o, float... coords) {
         super(coords);

@@ -743,6 +743,26 @@ public class RegionPopulation {
         return edm;
     }
 
+    public RegionPopulation eraseTouchingContours(boolean lowConnectivity) {
+        if (getRegions().isEmpty()) return this;
+        redrawLabelMap(false);
+        ImageInteger maskR = getLabelMap();
+        Set<Voxel> toErase = new HashSet<>();
+        // compute voxels that touch
+        EllipsoidalNeighborhood neigh = new EllipsoidalNeighborhood(lowConnectivity?1:1.5, true);
+        for (Region r : getRegions()) {
+            Set<Voxel> contour = r.getContour();
+            int lab = r.getLabel();
+            Set<Voxel> touching = contour.stream()
+                    .filter(v -> neigh.stream(v, maskR, false).anyMatch(n -> maskR.getPixelInt(n.x, n.y, n.z)!=lab))
+                    .collect(Collectors.toSet());
+            toErase.addAll(touching);
+            r.removeVoxels(touching);
+        }
+        if (isAbsoluteLandmark()) toErase.forEach(v->maskR.setPixelWithOffset(v.x, v.y, v.z, 0));
+        else toErase.forEach(v->maskR.setPixel(v.x, v.y, v.z, 0));
+        return this;
+    }
     
     private static double[] getCenterArray(BoundingBox b) {
         return new double[]{b.xMean(), b.yMean(), b.zMean()};
