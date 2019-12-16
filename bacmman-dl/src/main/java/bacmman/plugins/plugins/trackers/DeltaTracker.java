@@ -9,6 +9,7 @@ import bacmman.data_structure.TrackLinkEditor;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.DLengine;
+import bacmman.plugins.Plugin;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Tracker;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
@@ -18,6 +19,8 @@ import bacmman.processing.ResizeUtils;
 import bacmman.processing.matching.SimpleTrackGraph;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DeltaTracker implements Tracker, TestableProcessingPlugin {
+    private final static Logger logger = LoggerFactory.getLogger(DeltaTracker.class);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1));
 
     @Override
@@ -51,10 +55,12 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin {
             IntStream.range(0, input.populations.length).forEach(i->stores.get(parentTrack.get(i)).addIntermediateImage("labels", getImage.apply(i)));
         }*/
         // make predictions
-        for (int idx = 0; idx < input.length(); idx += batchSize) {
-            Image[][][] inputs = input.getInput(idx, idx + batchSize, separateInputChannels);
+        int stepSize = 5 * batchSize;
+        for (int idx = 0; idx < input.length(); idx += stepSize) {
+            logger.debug("processing batch-group {} / {}", idx/stepSize, Math.floor(input.length()/(double)stepSize));
+            Image[][][] inputs = input.getInput(idx, idx + stepSize, separateInputChannels);
             Image[][] outputNC = engine.process(inputs)[0];
-            logger.debug("batch [{};{}) / [0;{})", idx, idx + outputNC.length, input.length());
+
             for (int i = 0; i < outputNC.length; ++i) { // set track links to graph
                 int rIdx = idx + i;
                 int[] pred = input.getPredictedNextRegions(rIdx, outputNC[i]);
@@ -73,7 +79,6 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin {
                 }
             }
         }
-        if (stores!=null) graph.vertexSet().forEach(v -> logger.debug("{}<-{}", v, graph.getPreviousObjects(v).toArray(SegmentedObject[]::new)));
         graph.setTrackLinks(true, false, editor);
     }
 
