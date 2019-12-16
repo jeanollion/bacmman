@@ -448,7 +448,7 @@ public class ManualEdition {
                 accessor.setPreFilteredImage(parent, structureIdx, pf.filter(parent.getRawImage(structureIdx), parent.getMask()));
             });
         } else {
-            if (dao==null) throw new RuntimeException("Cannot compute pre-filtered images because track preFilters are present and DAO not preset");
+            if (dao==null) throw new RuntimeException("Cannot compute pre-filtered images because track preFilters are present and DAO is null");
             parents.map(p->p.getParent(parentStructureIdx)).map(o->o.getTrackHead()).distinct().filter(p->p.getPreFilteredImage(structureIdx)==null).forEach(p->{
                 Core.userLog("Computing track pre-filters...");
                 logger.debug("tpf for : {}", p);

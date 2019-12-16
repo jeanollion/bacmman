@@ -178,15 +178,16 @@ public class PluginConfigurationUtils {
             if (psc instanceof ProcessingPipelineWithTracking) ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll();
 
             // run testing
+            if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ?
+                psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
+                psc.getTrackPreFilters(false).removeAll();
+            }
             if (!usePresentSegmentedObjects) {
-                if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ? 
-                    psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
-                    psc.getTrackPreFilters(false).removeAll();
-                }
                 // need to be able to run track-parametrizable on whole parentTrack....
                 psc.segmentAndTrack(structureIdx, parentTrackDup, getFactory(structureIdx), getEditor(structureIdx));
                 //((TrackerSegmenter)plugin).segmentAndTrack(structureIdx, parentTrackDup, psc.getTrackPreFilters(true), psc.getPostFilters());
             } else { // track only
+                ManualEdition.ensurePreFilteredImages(parentTrackDup.stream(), structureIdx, xp, accessor.getDAO(parentTrackDup.get(0)));
                 if (plugin instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)plugin).setTestDataStore(stores);
                 ((Tracker)plugin).track(structureIdx, parentTrackDup, getEditor(structureIdx));
                 //TrackPostFilterSequence tpf= (psc instanceof ProcessingPipelineWithTracking) ? ((ProcessingPipelineWithTracking)psc).getTrackPostFilters() : null;
