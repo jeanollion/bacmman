@@ -1,0 +1,195 @@
+package bacmman.plugins.plugins.trackers;
+
+import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.PluginParameter;
+import bacmman.data_structure.Region;
+import bacmman.data_structure.RegionPopulation;
+import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.TrackLinkEditor;
+import bacmman.image.*;
+import bacmman.measurement.BasicMeasurements;
+import bacmman.plugins.DLengine;
+import bacmman.plugins.TestableProcessingPlugin;
+import bacmman.plugins.Tracker;
+import bacmman.plugins.plugins.scalers.MinMaxScaler;
+import bacmman.processing.ImageOperations;
+import bacmman.processing.Resample;
+import bacmman.processing.ResizeUtils;
+import bacmman.processing.matching.SimpleTrackGraph;
+import bacmman.utils.ArrayUtil;
+import bacmman.utils.HashMapGetCreate;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
+public class DeltaTracker implements Tracker, TestableProcessingPlugin {
+    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1));
+
+    @Override
+    public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
+        // input is [0] prev + current raw image [1] prev object to predict (binary mask) + all current segmented objects (binary mask)
+        // output channels are [0] background [1] mother cell [2] daughter cell
+        DLengine engine = dlEngine.instanciatePlugin();
+        engine.init();
+        int batchSize = engine.getBatchSize();
+        boolean separateInputChannels = engine.getNumInputArrays() == 2;
+        InputFormatter input = new InputFormatter(structureIdx, parentTrack, 0.9, new int[]{32, 256});
+        SimpleTrackGraph graph = new SimpleTrackGraph();
+        parentTrack.stream().flatMap(p -> p.getChildren(structureIdx)).forEach(graph::addVertex); // populate graph vertex
+        Map<Integer, List<SegmentedObject>> segObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> parentTrack.get(i).getChildren(structureIdx).collect(Collectors.toList()));
+        /*if (stores!=null) {
+            IntFunction<Image> getImage = i -> {
+                SegmentedObject parent = parentTrack.get(i);
+                Image im = input.populations[i].getLabelMap();
+                return (Image)Resample.resample(im, true, parent.getBounds().sizeX(), parent.getBounds().sizeY()).resetOffset().translate(parent.getBounds());
+            };
+            IntStream.range(0, input.populations.length).forEach(i->stores.get(parentTrack.get(i)).addIntermediateImage("labels", getImage.apply(i)));
+        }*/
+        // make predictions
+        for (int idx = 0; idx < input.length(); idx += batchSize) {
+            Image[][][] inputs = input.getInput(idx, idx + batchSize, separateInputChannels);
+            Image[][] outputNC = engine.process(inputs)[0];
+            logger.debug("batch [{};{}) / [0;{})", idx, idx + outputNC.length, input.length());
+            for (int i = 0; i < outputNC.length; ++i) { // set track links to graph
+                int rIdx = idx + i;
+                int[] pred = input.getPredictedNextRegions(rIdx, outputNC[i]);
+                if (pred.length > 0) {
+                    int sourceParentIdx = input.populationIdx(rIdx);
+                    int sourceIdx = input.regionIdx(rIdx);
+                    SegmentedObject prev = segObjects.get(sourceParentIdx).get(sourceIdx);
+                    List<SegmentedObject> nexts = segObjects.get(sourceParentIdx + 1);
+                    for (int idxPred : pred) graph.addEdge(prev, nexts.get(idxPred));
+                }
+                if (stores!=null) {
+                    SegmentedObject parent = parentTrack.get(input.populationIdx(rIdx)+1);
+                    Function<Image, Image> resample = im -> (Image)Resample.resample(im, false, parent.getBounds().sizeX(), parent.getBounds().sizeY()).resetOffset().translate(parent.getBounds());
+                    stores.get(parent).addIntermediateImage("MotherPredictionRegion"+input.regionIdx(rIdx), resample.apply(outputNC[i][1]));
+                    stores.get(parent).addIntermediateImage("DaughterPredictionRegion"+input.regionIdx(rIdx), resample.apply(outputNC[i][2]));
+                }
+            }
+        }
+        if (stores!=null) graph.vertexSet().forEach(v -> logger.debug("{}<-{}", v, graph.getPreviousObjects(v).toArray(SegmentedObject[]::new)));
+        graph.setTrackLinks(true, false, editor);
+    }
+
+    Map<SegmentedObject, TestDataStore> stores;
+    @Override
+    public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
+        this.stores=stores;
+    }
+
+
+    private static class InputFormatter {
+        private final int[] regionCount;
+        private final int[] popIdxCorrespondance;
+        private final int[] regionInPopIdxCorrespondance;
+        final RegionPopulation[] populations;
+        private final Image[] regionMasksBinarized;
+        private final Image[] rawResampled;
+        private final double predictionThld;
+        private final HashMapGetCreate.HashMapGetCreateRedirected<Integer, Image> maskBuffer;
+        public InputFormatter(int objectClassIdx, List<SegmentedObject> parentTrack, double predictionThld, int[] imageDimensions) {
+            maskBuffer = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> new ImageByte("", new SimpleImageProperties(imageDimensions[0], imageDimensions[1], 1, 1, 1)));
+            this.predictionThld=predictionThld;
+            Image[] raw = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
+            rawResampled = ResizeUtils.resample(raw, false, new int[][]{imageDimensions});
+            // also scale by min/max
+            MinMaxScaler scaler = new MinMaxScaler();
+            IntStream.range(0, raw.length).parallel().forEach(i -> rawResampled[i] = scaler.scale(rawResampled[i]));
+            // resample region populations + remove touching borders + binarize
+            Image[] regionMasks = parentTrack.parallelStream().map(p -> p.getChildRegionPopulation(objectClassIdx).eraseTouchingContours(false).getLabelMap()).toArray(Image[]::new);
+            Image[] regionMasksResampled = ResizeUtils.resample(regionMasks, true, new int[][]{imageDimensions});
+            populations = Arrays.stream(regionMasksResampled).map(im -> new RegionPopulation((ImageInteger)TypeConverter.toImageInteger(im, null).resetOffset(), true)).toArray(RegionPopulation[]::new);
+            regionCount = Arrays.stream(populations).mapToInt(p->p.getRegions().size()).toArray();
+            int length = IntStream.of(regionCount).sum();
+            popIdxCorrespondance = new int[length];
+            regionInPopIdxCorrespondance = new int[length];
+            int cumIdx = 0;
+            for (int i = 0; i<populations.length; ++i) {
+                for (int j = 0; j<populations[i].getRegions().size(); ++j) {
+                    popIdxCorrespondance[cumIdx] = i;
+                    regionInPopIdxCorrespondance[cumIdx] = j;
+                    ++cumIdx;
+                }
+            }
+            regionMasksBinarized = Arrays.stream(regionMasksResampled).parallel().map(im -> TypeConverter.toByteMask(im, null, 1)).toArray(Image[]::new);
+        }
+        public int length() {
+            return popIdxCorrespondance.length;
+        }
+        public int regionIdx(int idx) {
+            return regionInPopIdxCorrespondance[idx];
+        }
+        public int populationIdx(int idx) {
+            return popIdxCorrespondance[idx];
+        }
+
+        public Image[][][] getInput(int startIncluded, int stopExcluded, boolean separateInputChannels) {
+            if (!canPredictNext(stopExcluded-1)) {
+                while(!canPredictNext(stopExcluded-1)) --stopExcluded;
+            }
+            if (separateInputChannels) {
+                return new Image[][][]{IntStream.range(startIncluded, stopExcluded).parallel().mapToObj(this::getRawInput).toArray(Image[][]::new),
+                        IntStream.range(startIncluded, stopExcluded).mapToObj(i->getMaskInput(i, maskBuffer.get(i-startIncluded))).toArray(Image[][]::new)};
+            } else { // for compatibility with original delta network
+                Image[][] in = IntStream.range(startIncluded, stopExcluded).parallel().mapToObj(i -> {
+                    Image[] raw = getRawInput(i);
+                    Image[] mask = getMaskInput(i, maskBuffer.get(i-startIncluded));
+                    return new Image[]{raw[0], raw[1], mask[0], mask[1]};
+                }).toArray(Image[][]::new);
+                return new Image[][][]{in};
+            }
+
+        }
+        public Image[] getRawInput(int idx) {
+            return new Image[]{rawResampled[populationIdx(idx)], rawResampled[populationIdx(idx)+1]};
+        }
+        public Image[] getMaskInput(int idx, Image buffer) {
+            return new Image[]{getObjectMask(idx, buffer), regionMasksBinarized[populationIdx(idx)+1]};
+        }
+        public Image getObjectMask(int idx, Image buffer) {
+            Region r = populations[populationIdx(idx)].getRegions().get(regionIdx(idx));
+            if (buffer==null) buffer = new ImageByte("", populations[populationIdx(idx)].getImageProperties());
+            else ImageOperations.fill(buffer, 0, null);
+            r.draw(buffer, 1);
+            return buffer;
+        }
+        public boolean canPredictNext(int idx) {
+            if (idx>=popIdxCorrespondance.length) return false;
+            return populationIdx(idx)<populations.length-1;
+        }
+        /**
+         *
+         * @param idx index of the previous cell
+         * @param predictionC predicted channels (0= background, 1 = mother, 2=daughters)
+         * @return index of next mother if any followed by other daughters if any
+         */
+        public int[] getPredictedNextRegions(int idx, Image[] predictionC) {
+            if (!canPredictNext(idx)) return new int[0];
+            RegionPopulation next = populations[populationIdx(idx)+1];
+            if (next.getRegions().isEmpty()) return new int[0];
+
+            Image mother = (Image)predictionC[1].resetOffset().translate(next.getImageProperties());
+            Image daughters = (Image)predictionC[2].resetOffset().translate(next.getImageProperties());
+            double[] predictionM = next.getRegions().stream().mapToDouble(r -> BasicMeasurements.getQuantileValue(r, mother, 0.5)[0]).toArray();
+            int motherIdx = ArrayUtil.max(predictionM);
+            if (predictionM[motherIdx]<predictionThld) return new int[0];
+            double[] predictionD = next.getRegions().stream().mapToDouble(r -> BasicMeasurements.getQuantileValue(r, daughters,0.5)[0]).toArray();
+            // return all cells that are not the mother and that have a probability
+            IntStream daugthers = IntStream.range(0, predictionD.length)
+                    .filter(i->i!=motherIdx)
+                    .filter(i->predictionD[i]>=predictionThld);
+            return IntStream.concat(IntStream.of(motherIdx), daugthers).toArray();
+        }
+    }
+
+    @Override
+    public Parameter[] getParameters() {
+        return new Parameter[]{dlEngine};
+    }
+}
