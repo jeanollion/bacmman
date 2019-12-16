@@ -67,6 +67,11 @@ public class TFengine implements DLengine {
     }
 
     @Override
+    public int getBatchSize() {
+        return this.batchSize.getValue().intValue();
+    }
+
+    @Override
     public void close() {
         if (graph!=null) {
             graph.close();
@@ -92,7 +97,7 @@ public class TFengine implements DLengine {
         graph = model.graph();
         logger.debug("model loaded!");
         boolean[] missingLayer = new boolean[2];
-        logOperations();
+        //logOperations();
         inputs.getActivatedChildren().stream().forEach(i -> {
             String name = findInputOperationName(i.getValue());
             if (name==null) {
@@ -154,6 +159,9 @@ public class TFengine implements DLengine {
         if (inputNC.length!=getNumInputArrays()) throw new IllegalArgumentException("Invalid number of input provided. Expected:"+getNumInputArrays()+" provided:"+inputNC.length);
         int batchSize = this.batchSize.getValue().intValue();
         int nSamples = inputNC[0].length;
+        for (int i = 1; i<inputNC.length; ++i) {
+            if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
+        }
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
         long wrapTime = 0, predictTime = 0;
@@ -179,7 +187,13 @@ public class TFengine implements DLengine {
                     }
                 }
 
-            List<Tensor<?>> outputs = r.run();
+            List<Tensor<?>> outputs;
+            try {
+                outputs = r.run();
+            }catch (UnsupportedOperationException e) {
+                logger.error("An error occurred during NN execution. Check input shapes: {}", Arrays.stream(input).map(i->i.shape()).toArray());
+                throw e;
+            }
             long t2 = System.currentTimeMillis();
             for (int io = 0; io<outputNames.length; ++io) {
                 Image[][] resIm = TensorWrapper.getImagesNC((Tensor<Float>)outputs.get(io), bufferContainer);
