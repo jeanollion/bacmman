@@ -363,6 +363,12 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
         return (p, s) -> s.setMaps(parentMapImages.get(p), getScale(structureIdx, parentTrack));
     }
+
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return true;
+    }
+
     Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma;
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
         double smoothScale = this.smoothScale.getValue().doubleValue();

@@ -18,7 +18,7 @@
  */
 package bacmman.image;
 
-public interface ImageProperties<T extends ImageProperties> extends BoundingBox<T> {
+public interface ImageProperties<T extends ImageProperties<T>> extends BoundingBox<T> {
     public String getName();
     public int sizeXY();
     public int sizeXYZ();

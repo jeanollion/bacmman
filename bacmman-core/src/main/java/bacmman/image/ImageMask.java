@@ -21,7 +21,7 @@ package bacmman.image;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 
 
-public interface ImageMask<I extends ImageMask> extends ImageProperties<I> {
+public interface ImageMask<I extends ImageMask<I>> extends ImageProperties<I> {
 
     public boolean insideMask(int x, int y, int z);
     public boolean insideMask(int xy, int z);

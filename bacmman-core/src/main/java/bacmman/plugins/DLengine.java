@@ -15,6 +15,7 @@ public interface DLengine extends Plugin {
     void init();
     int getNumOutputArrays();
     int getNumInputArrays();
+    int getBatchSize();
     DLengine setOutputNumber(int outputNumber);
     DLengine setInputNumber(int outputNumber);
     void close();

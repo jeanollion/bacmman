@@ -47,6 +47,8 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static bacmman.plugins.plugins.segmenters.MicrochannelPhase2D.X_DER_METHOD.CONSTANT;
+
 /**
  *
  * @author Jean Ollion
@@ -60,7 +62,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     EnumChoiceParameter<X_DER_METHOD> xDerPeakThldMethod = new EnumChoiceParameter("X-Derivative Threshold Method", X_DER_METHOD.values(), X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE, false);
     NumberParameter localDerExtremaThld = new BoundedNumberParameter("X-Derivative Threshold", 3, 10, 0, null).setHint("Threshold for Microchannel side detection (peaks of 1st-order x-derivative). <br />This optimal value of this parameter depends on the intensity of the image. This parameter should be adjusted if microchannels are poorly detected : a higher value if too many channels are detected and a lower value in the contrary. <br />Configuration Hint: Refer to <em>Side detection graph</em> (displayed through right-click menu in test mode) to display peak heights.<br />Set a higher value if too many channels are detected and a lower value in the contrary.");
     NumberParameter relativeDerThld = new BoundedNumberParameter("X-Derivative Ratio", 3, 40, 1, null).setHint("Threshold for Microchannel side detection (peaks of 1st-order x-derivative). <br />To compute x-derivative threshold, the signal range is computed as range = median signal value - mean background value. The x-derivative threshold is the range / this parameter.<br />Configuration Hint: Refer to <em>Side detection graph</em> (displayed through right-click menu in test mode) to display peak heights. The threshold is written in the graph title <br />Decrease this value if too many microchannels are detected.");
-    ConditionalParameter xDerPeakThldCond = new ConditionalParameter(xDerPeakThldMethod).setActionParameters(X_DER_METHOD.CONSTANT.toString(), localDerExtremaThld).setActionParameters(X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE.toString(), relativeDerThld).setHint("Peak selection method for microchannel side detection: <ol><li>"+X_DER_METHOD.CONSTANT.toString()+": Constant threshold</li><li>"+X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE.toString()+": The threshold is relative to the signal Range. This method is more robust to changes in the signal range and can be used with the same parameter on a larger number of datasets</li></ol>");
+    ConditionalParameter xDerPeakThldCond = new ConditionalParameter(xDerPeakThldMethod).setActionParameters(CONSTANT.toString(), localDerExtremaThld).setActionParameters(X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE.toString(), relativeDerThld).setHint("Peak selection method for microchannel side detection: <ol><li>"+ CONSTANT.toString()+": Constant threshold</li><li>"+X_DER_METHOD.RELATIVE_TO_INTENSITY_RANGE.toString()+": The threshold is relative to the signal Range. This method is more robust to changes in the signal range and can be used with the same parameter on a larger number of datasets</li></ol>");
 
     EnumChoiceParameter<END_DETECTION_METHOD> endDetectionMethod = new EnumChoiceParameter<>("End Detection Method", END_DETECTION_METHOD.values(), END_DETECTION_METHOD.CLOSED_END_WITH_ADJUST, false).setHint("Method for precise detection of microchannel closed-ends");
     NumberParameter closedEndYAdjustWindow = new BoundedNumberParameter("Closed-end Y Adjust Window", 0, 5, 0, null).setHint("Defines the window (in pixels) within which the y-coordinate of the closed-end of the microchannel will be refined. Searches for the first local maximum of the Y-derivative within the window: [y - <em>Closed-end Y adjust window</em>; y + <em>Closed-end Y adjust window</em>] ");
@@ -281,7 +283,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
     // track parametrizable interface
     @Override
     public TrackConfigurer<MicrochannelPhase2D> run(int structureIdx, List<SegmentedObject> parentTrack) {
-        switch(X_DER_METHOD.valueOf(xDerPeakThldMethod.getSelectedItem())) {
+        switch(xDerPeakThldMethod.getSelectedEnum()) {
             case CONSTANT:
                 return null;
             case RELATIVE_TO_INTENSITY_RANGE:
@@ -299,8 +301,13 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
                 return (p, s) -> s.globalLocalDerThld = xDerThld;
         }
     }
-    
-    
+
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return CONSTANT.equals(xDerPeakThldMethod.getSelectedEnum());
+    }
+
+
     private static int getNextMinIdx(final float[] derMap, final List<Integer> localMin, final List<Integer> localMax, final int maxIdx, int lastMinIdx, final double widthMin, final double widthMax, Comparator<int[]> segmentScoreComparator, boolean testMode) {
         int minIdx = lastMinIdx;
         while(minIdx<localMin.size()) {

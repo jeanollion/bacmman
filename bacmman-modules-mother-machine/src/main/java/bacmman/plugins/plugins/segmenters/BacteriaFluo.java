@@ -370,7 +370,12 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             s.globalBackgroundSigma = globalBackgroundSigma;
         };
     }
-    
+
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return false;
+    }
+
     protected double[] getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {
         if (voidMC.size()==parentTrack.size()) return new double[]{Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         Histogram[] histoRoot=new Histogram[1], histoParent=new Histogram[1];

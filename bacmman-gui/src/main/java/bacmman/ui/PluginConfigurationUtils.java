@@ -109,7 +109,7 @@ public class PluginConfigurationUtils {
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
             Segmenter segmenter = pf ? psc.getSegmenter() : (Segmenter)plugin;
             // run pre-filters on whole track -> some track preFilters need whole track to be effective. todo : parameter to limit ? 
-            boolean runPreFiltersOnWholeTrack = !psc.getTrackPreFilters(false).isEmpty() || plugin instanceof TrackConfigurable; 
+            boolean runPreFiltersOnWholeTrack = !psc.getTrackPreFilters(false).isEmpty() || (plugin instanceof TrackConfigurable & !((TrackConfigurable)plugin).allowRunOnParentTrackSubset());
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
             if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image

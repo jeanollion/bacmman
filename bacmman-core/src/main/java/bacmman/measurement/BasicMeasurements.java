@@ -42,21 +42,18 @@ public class BasicMeasurements {
                 ImageMask.loopWithOffset(object.getMask(), (x, y, z)->{sum[0]+=image.getPixelWithOffset(x, y, z);});
                 return sum[0];
             }
-        }
-        else {
+        } else {
             if (object.voxelsCreated()) for (Voxel v : object.getVoxels()) value+=image.getPixel(v.x, v.y, v.z);
             else {
                 double[] sum = new double[1];
-                ImageMask.loop(object.getMask(), (x, y, z)->{sum[0]+=image.getPixel(x, y, z);});
+                ImageMask.loopWithOffset(object.getMask(), (x, y, z)->{sum[0]+=image.getPixel(x, y, z);});
                 return sum[0];
             }
         }
         return value;
     }
     public static double getMeanValue(Region object, Image image) {
-        double sum = getSum(object, image);
-        if (object.voxelsCreated()) return sum/(double)object.getVoxels().size();
-        else return sum/(double)object.getMask().count();
+        return getSum(object, image)/object.size();
     }
     public static double getMeanValue(Collection<Voxel> voxels, Image image, boolean voxelsInAbsoluteLandMark) {
         double value=0;

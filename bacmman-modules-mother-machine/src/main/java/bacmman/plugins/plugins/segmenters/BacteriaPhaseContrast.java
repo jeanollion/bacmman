@@ -440,6 +440,11 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         };
     }
 
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return false;
+    }
+
     protected double[] getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {
         if (voidMC.size()==parentTrack.size()) return new double[]{Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY, Double.POSITIVE_INFINITY};
         // 1) get global otsu thld for images with foreground

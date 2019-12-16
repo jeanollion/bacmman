@@ -129,6 +129,12 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
         double thld = TrackConfigurable.getGlobalThreshold(structureIdx, parentTrack, this.threshold.instanciatePlugin());
         return (p, s)->s.thresholdValue=thld;
     }
+
+    @Override
+    public boolean allowRunOnParentTrackSubset() {
+        return false;
+    }
+
     /**
      *  Detection of microchannel using bacteria fluorescence
      *  1) Rough segmentation of cells on {@param image} using {@param thld} if {@param thld} is NaN threshold is computed using {@link BackgroundThresholder#runThresholder(Image, ImageMask, double, double, int, double, double[]) background thresholder} {@param thresholdedImage} is used instead if not null
