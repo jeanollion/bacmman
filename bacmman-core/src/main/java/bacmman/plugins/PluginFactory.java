@@ -21,6 +21,7 @@ package bacmman.plugins;
 import bacmman.core.Core;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -286,22 +287,22 @@ public class PluginFactory {
         return null;
     }
     
-    public static <T extends Plugin> Class<T> getPluginClass(Class<T> clazz, String className) {
+    public static Class getPluginClass(String className) {
         Class plugClass = PLUGIN_NAMES_MAP_CLASS.get(className);
         if (plugClass==null && OLD_NAMES_MAP_NEW.containsKey(className)) plugClass = PLUGIN_NAMES_MAP_CLASS.get(OLD_NAMES_MAP_NEW.get(className));
         return plugClass;
     }
     public static <T extends Plugin> T getPlugin(Class<T> clazz, String pluginName) {
         try {
-            Class plugClass = PLUGIN_NAMES_MAP_CLASS.get(pluginName);
+            Class<? extends T> plugClass = PLUGIN_NAMES_MAP_CLASS.get(pluginName);
             if (plugClass==null && OLD_NAMES_MAP_NEW.containsKey(pluginName)) plugClass = PLUGIN_NAMES_MAP_CLASS.get(OLD_NAMES_MAP_NEW.get(pluginName));
             if (plugClass==null) {
                 logger.error("plugin: {} of class: {} not found", pluginName, clazz);
                 return null;
             }
-            T instance = (T) plugClass.newInstance();
+            T instance = plugClass.getDeclaredConstructor().newInstance();
             return instance;
-        } catch (InstantiationException ex) {
+        } catch (InstantiationException|InvocationTargetException |NoSuchMethodException ex) {
             logger.error("plugin :{} of class: {} could not be instanciated, missing null constructor?", pluginName, clazz, ex);
         } catch (IllegalAccessException ex) {
             logger.error("plugin :{} of class: {} could not be instanciated", pluginName, clazz, ex);

@@ -20,6 +20,7 @@ public class TFengine implements DLengine {
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
     SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1);
     SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1);
+    String[] inputNames, outputNames;
     Graph graph;
     Session session;
     public TFengine setModelPath(String path) {
@@ -98,20 +99,22 @@ public class TFengine implements DLengine {
         logger.debug("model loaded!");
         boolean[] missingLayer = new boolean[2];
         //logOperations();
-        inputs.getActivatedChildren().stream().forEach(i -> {
-            String name = findInputOperationName(i.getValue());
-            if (name==null) {
-                logger.error("Input layer \"{}\" not found in graph", name);
+        inputNames = inputs.getActivatedChildren().stream().map(i->i.getValue()).toArray(String[]::new);
+        outputNames = outputs.getActivatedChildren().stream().map(i->i.getValue()).toArray(String[]::new);
+        for (int i = 0;i<inputNames.length; ++i) {
+            String name = findInputOperationName(inputNames[i]);
+            if (name == null) {
+                logger.error("Input layer \"{}\" not found in graph", inputNames[i]);
                 missingLayer[0] = true;
-            } else i.setValue(name);
-        });
-        outputs.getActivatedChildren().stream().forEach(o -> {
-            String name = findOutputOperationName(o.getValue());
-            if (name==null) {
-                logger.error("Output layer {} not found in graph", o.getValue());
+            } else inputNames[i] = name;// name may have been changed by findInputName
+        }
+        for (int i = 0;i<outputNames.length; ++i) {
+            String name = findOutputOperationName(outputNames[i]);
+            if (name == null) {
+                logger.error("Output layer \"{}\" not found in graph", outputNames[i]);
                 missingLayer[1] = true;
-            } else o.setValue(name); // name may have been changed by findOutputName
-        });
+            } else outputNames[i] = name;// name may have been changed by findOutputName
+        }
         if (missingLayer[0] || missingLayer[1]) {
             logger.info("List of all operation from graph:");
             logOperations();
@@ -165,8 +168,6 @@ public class TFengine implements DLengine {
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
         long wrapTime = 0, predictTime = 0;
-        String[] inputNames = this.inputs.getActivatedChildren().stream().map(t->t.getValue()).toArray(String[]::new);
-        String[] outputNames = this.outputs.getActivatedChildren().stream().map(t->t.getValue()).toArray(String[]::new);
 
         for (int idx = 0; idx<nSamples; idx+=batchSize) {
             int idxMax = Math.min(idx+batchSize, nSamples);
