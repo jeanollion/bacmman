@@ -17,21 +17,25 @@ import bacmman.processing.ResizeUtils;
 import bacmman.processing.matching.SimpleTrackGraph;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Pair;
+import org.jgrapht.graph.DefaultWeightedEdge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     private final static Logger logger = LoggerFactory.getLogger(DeltaTracker.class);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model that predict next cell, as in Delta <br />Input: 1) raw image at frame F with values in range [0, 1] 2) raw image at frame F+1 with values in range [0, 1] 3) binary mask of a cell at frame F 4) binary mask of all cells at frame F+1 (input can be either 1 input with the [1, 2, 3, 4]] images concatenated in the last axis or 2 inputs [1,2] and [3,4]. <br />Output: 3 channels, 2nd one contains the predicted 1rst daughter cell and 3rd one the other predicted daughter cell(s)");
-    BoundedNumberParameter predictionThld = new BoundedNumberParameter("Probability Threshold", 3, 0.9, 0.1, 1 ).setHint("For each cell C at frame F, a probability map is predicted for all cells at F+1. A cell C' at frame F+1 is considered to be linked to C if the median predicted probability value within C' is greater than this threshold");
+    BoundedNumberParameter predictionThld = new BoundedNumberParameter("Probability Threshold", 3, 0.5, 0.001, 1 ).setHint("For each cell C at frame F, a probability map is predicted for all cells at F+1. A cell C' at frame F+1 is considered to be linked to C if the median predicted probability value within C' is greater than this threshold");
     Parameter[] parameters = new Parameter[]{dlEngine, predictionThld};
     @Override
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
@@ -42,7 +46,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         int batchSize = engine.getBatchSize();
         boolean separateInputChannels = engine.getNumInputArrays() == 2;
         InputFormatter input = new InputFormatter(structureIdx, parentTrack, predictionThld.getValue().doubleValue(), new int[]{32, 256});
-        SimpleTrackGraph graph = new SimpleTrackGraph();
+        SimpleTrackGraph<DefaultWeightedEdge> graph = SimpleTrackGraph.createWeightedGraph();
         parentTrack.stream().flatMap(p -> p.getChildren(structureIdx)).forEach(graph::addVertex); // populate graph vertex
         Map<Integer, List<SegmentedObject>> segObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> parentTrack.get(i).getChildren(structureIdx).collect(Collectors.toList()));
         // make predictions
@@ -54,13 +58,13 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
 
             for (int i = 0; i < outputNC.length; ++i) { // set track links to graph
                 int rIdx = idx + i;
-                int[] pred = input.getPredictedNextRegions(rIdx, outputNC[i]);
-                if (pred.length > 0) {
+                List<Pair<Integer, Double>> pred = input.getPredictedNextRegions(rIdx, outputNC[i]);
+                if (pred.size() > 0) {
                     int sourceParentIdx = input.populationIdx(rIdx);
                     int sourceIdx = input.regionIdx(rIdx);
                     SegmentedObject prev = segObjects.get(sourceParentIdx).get(sourceIdx);
                     List<SegmentedObject> nexts = segObjects.get(sourceParentIdx + 1);
-                    for (int idxPred : pred) graph.addEdge(prev, nexts.get(idxPred));
+                    for (Pair<Integer, Double> idxPred : pred) graph.addWeightedEdge(prev, nexts.get(idxPred.key), idxPred.value);
                 }
                 if (stores!=null) {
                     SegmentedObject parent = parentTrack.get(input.populationIdx(rIdx)+1);
@@ -70,6 +74,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
                 }
             }
         }
+        graph.selectMaxEdges(true, false);
         graph.setTrackLinks(true, false, editor);
     }
 
@@ -170,22 +175,23 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
          * @param predictionC predicted channels (0= background, 1 = mother, 2=daughters)
          * @return index of next mother if any followed by other daughters if any
          */
-        public int[] getPredictedNextRegions(int idx, Image[] predictionC) {
-            if (!canPredictNext(idx)) return new int[0];
+        public List<Pair<Integer, Double>> getPredictedNextRegions(int idx, Image[] predictionC) {
+            if (!canPredictNext(idx)) return Collections.EMPTY_LIST;
             RegionPopulation next = populations[populationIdx(idx)+1];
-            if (next.getRegions().isEmpty()) return new int[0];
+            if (next.getRegions().isEmpty()) return Collections.EMPTY_LIST;
 
             Image mother = (Image)predictionC[1].resetOffset().translate(next.getImageProperties());
             Image daughters = (Image)predictionC[2].resetOffset().translate(next.getImageProperties());
             double[] predictionM = next.getRegions().stream().mapToDouble(r -> BasicMeasurements.getQuantileValue(r, mother, 0.5)[0]).toArray();
             int motherIdx = ArrayUtil.max(predictionM);
-            if (predictionM[motherIdx]<predictionThld) return new int[0];
+            if (predictionM[motherIdx]<predictionThld) return Collections.EMPTY_LIST;
+            Pair<Integer, Double> m = new Pair<>(motherIdx, predictionM[motherIdx]);
             double[] predictionD = next.getRegions().stream().mapToDouble(r -> BasicMeasurements.getQuantileValue(r, daughters,0.5)[0]).toArray();
             // return all cells that are not the mother and that have a probability
-            IntStream daugthers = IntStream.range(0, predictionD.length)
+            Stream<Pair<Integer, Double>> daugthers = IntStream.range(0, predictionD.length)
                     .filter(i->i!=motherIdx)
-                    .filter(i->predictionD[i]>=predictionThld);
-            return IntStream.concat(IntStream.of(motherIdx), daugthers).toArray();
+                    .filter(i->predictionD[i]>=predictionThld).mapToObj(i -> new Pair<>(i, predictionD[i]));
+            return Stream.concat(Stream.of(m), daugthers).collect(Collectors.toList());
         }
     }
 
