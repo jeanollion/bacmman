@@ -35,7 +35,7 @@ public class PasswordUtils {
         byte[] saltB = Base64.getDecoder().decode(salt);
         KeySpec spec = new PBEKeySpec(passphrase, saltB, 65536, 256); // AES-256
         try {
-            SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
+            SecretKeyFactory f = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             byte[] key = f.generateSecret(spec).getEncoded();
             return decrypt(enc, key);
         } catch (NoSuchAlgorithmException | InvalidKeySpecException e) {

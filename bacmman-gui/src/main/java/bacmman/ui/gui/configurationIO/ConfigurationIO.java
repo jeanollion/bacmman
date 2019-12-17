@@ -146,11 +146,17 @@ public class ConfigurationIO {
             char[] pass = password.getPassword();
             String token = this.token.getText();
             if (username.length()>0 && pass.length>0 && token.length()>0) {
-                TokenAuth.encryptAndStore(username, pass, token);
-                this.token.setText("");
-                enableTokenButtons();
-                fetchGists();
-                updateRemoteSelector();
+                try {
+                    TokenAuth.encryptAndStore(username, pass, token);
+                    GUI.log("Token stored successfully");
+                    enableTokenButtons();
+                    fetchGists();
+                    updateRemoteSelector();
+                    this.token.setText("");
+                } catch (Throwable t) {
+                    GUI.log("Could not store token");
+                    logger.error("could not store token", t);
+                }
             }
         });
         loadToken.addActionListener(e -> {
@@ -614,6 +620,7 @@ public class ConfigurationIO {
         else {
             try {
                 UserAuth auth = new TokenAuth(username.getText(), password.getPassword());
+                GUI.log("Token loaded successfully!");
                 return auth;
             } catch (IllegalArgumentException e) {
                 GUI.log("No token associated with this username found");
