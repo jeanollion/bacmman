@@ -5,9 +5,7 @@ import bacmman.data_structure.*;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
-import bacmman.plugins.plugins.segmenters.SplitAndMergeEDM;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.HashMapGetCreate;
@@ -17,7 +15,6 @@ import bacmman.utils.Utils;
 import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.ToDoubleFunction;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -45,7 +42,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
         long t0= System.currentTimeMillis();
-        DLengine engine = dlEngine.instanciatePlugin();
+        DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1= System.currentTimeMillis();
         logger.info("engine instanciated in {}ms", t1-t0);
@@ -131,10 +128,10 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores!=null);
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
-        TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instanciatePlugin());
+        TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instantiatePlugin());
         parentTrack.parallelStream().forEach(p -> {
             Image edmI = edm.get(p);
-            Segmenter segmenter = edmSegmenter.instanciatePlugin();
+            Segmenter segmenter = edmSegmenter.instantiatePlugin();
             if (segmenter instanceof BacteriaEDM) {
                 //((BacteriaEDM)segmenter).setDivisionCriterionMap(dy,  SplitAndMergeEDM.DIVISION_CRITERION.DY  ,   1  ); // TODO tune this parameter or set as parameter ? // remove this ?
             }
@@ -312,7 +309,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
     }
     @Override
     public Segmenter getSegmenter() {
-        return edmSegmenter.instanciatePlugin();
+        return edmSegmenter.instantiatePlugin();
     }
 
     @Override

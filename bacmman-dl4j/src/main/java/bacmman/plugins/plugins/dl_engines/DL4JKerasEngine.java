@@ -17,7 +17,7 @@ public class DL4JKerasEngine extends DL4JEngine{
     int outputNumber, inputNumber;
     @Override
     public void init() {
-        lambdalayers.getActivatedChildren().stream().map(pp -> pp.instanciatePlugin()).forEach(l -> {
+        lambdalayers.getActivatedChildren().stream().map(pp -> pp.instantiatePlugin()).forEach(l -> {
             KerasLayer.registerLambdaLayer(l.getLayerName(), (SameDiffLambdaLayer)l);
             logger.debug("registering lambda layer: {} with {}", l.getLayerName(), l.getClass());
         });

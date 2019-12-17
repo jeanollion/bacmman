@@ -33,9 +33,9 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
         long t0= System.currentTimeMillis();
-        DLengine edmEngine = dlEngineEdm.instanciatePlugin();
+        DLengine edmEngine = dlEngineEdm.instantiatePlugin();
         edmEngine.init();
-        DLengine dyEngine = dlEngineDY.instanciatePlugin();
+        DLengine dyEngine = dlEngineDY.instantiatePlugin();
         dyEngine.init();
         long t1= System.currentTimeMillis();
         logger.info("dl engine instanciated in {}ms", t1-t0);
@@ -99,10 +99,10 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores!=null);
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
-        TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instanciatePlugin());
+        TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instantiatePlugin());
         parentTrack.parallelStream().forEach(p -> {
             Image edmI = edm.get(p);
-            Segmenter segmenter = edmSegmenter.instanciatePlugin();
+            Segmenter segmenter = edmSegmenter.instantiatePlugin();
             if (segmenter instanceof BacteriaEDM) {
                 ((BacteriaEDM)segmenter).setDivisionCriterionMap(dy, SplitAndMergeEDM.DIVISION_CRITERION.DY, 0.75);
             }
@@ -234,7 +234,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
 
     @Override
     public Segmenter getSegmenter() {
-        return edmSegmenter.instanciatePlugin();
+        return edmSegmenter.instantiatePlugin();
     }
 
     @Override

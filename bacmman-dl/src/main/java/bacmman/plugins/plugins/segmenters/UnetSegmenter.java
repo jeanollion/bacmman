@@ -11,7 +11,6 @@ import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.Pair;
-import org.apache.commons.lang.NotImplementedException;
 
 import java.util.List;
 import java.util.Map;
@@ -55,7 +54,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
     }
 
     private Image[] predict(Image... inputImages) {
-        DLengine engine = dlEngine.instanciatePlugin();
+        DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         int[] imageShape = new int[]{inputShape.getChildAt(2).getValue().intValue(), inputShape.getChildAt(1).getValue().intValue()};
         Pair<Image[][], int[][]> input = getInput(inputImages, imageShape);

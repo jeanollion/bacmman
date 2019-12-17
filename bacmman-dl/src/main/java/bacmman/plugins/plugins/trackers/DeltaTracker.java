@@ -27,7 +27,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -41,7 +40,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         // input is [0] prev + current raw image [1] prev object to predict (binary mask) + all current segmented objects (binary mask)
         // output channels are [0] background [1] mother cell [2] daughter cell
-        DLengine engine = dlEngine.instanciatePlugin();
+        DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         int batchSize = engine.getBatchSize();
         boolean separateInputChannels = engine.getNumInputArrays() == 2;
