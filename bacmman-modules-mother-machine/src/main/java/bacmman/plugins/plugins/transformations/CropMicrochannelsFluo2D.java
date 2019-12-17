@@ -108,7 +108,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
         // compute one threshold for all images
         List<Image> allImages = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
-        ThresholderHisto thlder = thresholder.instanciatePlugin();
+        ThresholderHisto thlder = thresholder.instantiatePlugin();
         Histogram histo = HistogramFactory.getHistogram(()->Image.stream(allImages).filter(v->v!=0).parallel(), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND); // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
         threshold = thlder.runThresholderHisto(histo);
         super.computeConfigurationData(channelIdx, inputImages);
@@ -117,7 +117,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     @Override
     public MutableBoundingBox getBoundingBox(Image image) {
         double thld = Double.isNaN(threshold)? 
-                thresholder.instanciatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream().filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND)) // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
+                thresholder.instantiatePlugin().runThresholderHisto(HistogramFactory.getHistogram(()->image.stream().filter(v->v!=0), HistogramFactory.BIN_SIZE_METHOD.BACKGROUND)) // v!=0: in case rotation was performed : null rows/colums can interfere with threshold computation
                 : threshold;
         return getBoundingBox(image, null , thld);
     }

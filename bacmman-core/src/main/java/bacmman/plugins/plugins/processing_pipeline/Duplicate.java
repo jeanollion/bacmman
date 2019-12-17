@@ -46,7 +46,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         return "Duplicates the segmented objects of another object class. Tracker and post-filter can be applied. If no tracker is set, the lineage is also duplicated";
     }
     public Tracker getTracker() {
-        Tracker t =  tracker.instanciatePlugin();
+        Tracker t =  tracker.instantiatePlugin();
         if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
         return t;
     }

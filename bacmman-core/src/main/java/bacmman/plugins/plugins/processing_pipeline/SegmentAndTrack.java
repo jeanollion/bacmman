@@ -51,7 +51,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
 
     @Override
     public TrackerSegmenter getTracker() {
-        TrackerSegmenter t =  tracker.instanciatePlugin();
+        TrackerSegmenter t =  tracker.instantiatePlugin();
         if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
         return t;
     }
@@ -97,7 +97,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
         return nThreads;
     }*/
     @Override public Segmenter getSegmenter() {
-        TrackerSegmenter t = tracker.instanciatePlugin();
+        TrackerSegmenter t = tracker.instantiatePlugin();
         if (t!=null) return t.getSegmenter();
         else return null;
     }

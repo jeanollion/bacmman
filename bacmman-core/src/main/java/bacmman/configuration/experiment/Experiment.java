@@ -26,7 +26,7 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;
 import bacmman.data_structure.dao.ImageDAO;
 import bacmman.data_structure.dao.ImageDAOFactory;
-import java.io.File;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -68,12 +68,12 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
             .addValidationFunctionToChildren(ppm -> {
                 if (!ppm.isActivated()) return true;
                 if (!ppm.isOnePluginSet()) return false;
-                Measurement m = ppm.instanciatePlugin();
+                Measurement m = ppm.instantiatePlugin();
                 if (m==null) return false;
                 Map<Integer, List<String>> currentmkByStructure= m.getMeasurementKeys().stream().collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toList())));               
                 if (currentmkByStructure.values().stream().anyMatch((l) -> ((new HashSet<>(l).size()!=l.size())))) return false; // first check if duplicated keys for the measurement
                 SimpleListParameter<PluginParameter<Measurement>> ml= (SimpleListParameter) ppm.getParent();
-                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp->pp!=ppm).map(pp -> pp.instanciatePlugin()).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toSet())));
+                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp->pp!=ppm).map(pp -> pp.instantiatePlugin()).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toSet())));
                 return !currentmkByStructure.entrySet().stream().anyMatch( e -> {
                     Set<String> otherKeys = allmkByStructure.get(e.getKey());
                     if (otherKeys==null) return false;
@@ -257,7 +257,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     
     public Pair<Integer, Autofocus> getFocusChannelAndAlgorithm() {
         if (this.bestFocusPlaneChannel.getSelectedIndex()<0 || !autofocus.isOnePluginSet()) return null;
-        return new Pair<>(this.bestFocusPlaneChannel.getSelectedIndex(), this.autofocus.instanciatePlugin());
+        return new Pair<>(this.bestFocusPlaneChannel.getSelectedIndex(), this.autofocus.instantiatePlugin());
     }
     
     public void flushImages(boolean raw, boolean preProcessed, String... excludePositions) {
@@ -412,7 +412,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         else {
             ArrayList<MeasurementKey> res= new ArrayList<MeasurementKey>();
             for (PluginParameter<Measurement> p : measurements.getActivatedChildren()) {
-                Measurement m = p.instanciatePlugin();
+                Measurement m = p.instantiatePlugin();
                 if (m!=null) res.addAll(m.getMeasurementKeys());
             }
             return res;
@@ -424,7 +424,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         else {
             ArrayList<MeasurementKeyObject> res= new ArrayList<MeasurementKeyObject>();
             for (PluginParameter<Measurement> p : measurements.getActivatedChildren()) {
-                Measurement m = p.instanciatePlugin();
+                Measurement m = p.instantiatePlugin();
                 if (m!=null) for (MeasurementKey k : m.getMeasurementKeys()) if (k instanceof MeasurementKeyObject) res.add((MeasurementKeyObject)k);
             }
             return res;
@@ -450,7 +450,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         else {
             HashMapGetCreate<Integer, List<Measurement>> res = new HashMapGetCreate<>(structureIdx.length>0?structureIdx.length : this.getStructureCount(), new HashMapGetCreate.ListFactory<Integer, Measurement>());
             for (PluginParameter<Measurement> p : measurements.getActivatedChildren()) {
-                Measurement m = p.instanciatePlugin();
+                Measurement m = p.instantiatePlugin();
                 if (m!=null) {
                     if (structureIdx.length==0 || contains(structureIdx, m.getCallObjectClassIdx())) {
                         res.getAndCreateIfNecessary(m.getCallObjectClassIdx()).add(m);
@@ -461,7 +461,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         }
     }
     public Stream<Measurement> getMeasurements(int structureIdx) {
-        return measurements.getChildren().stream().filter(pp->pp.isActivated() && pp.isOnePluginSet()).map(pp->pp.instanciatePlugin()).filter(m->m.getCallObjectClassIdx()==structureIdx);
+        return measurements.getChildren().stream().filter(pp->pp.isActivated() && pp.isOnePluginSet()).map(pp->pp.instantiatePlugin()).filter(m->m.getCallObjectClassIdx()==structureIdx);
     }
     
     private static boolean contains(int[] structures, int structureIdx) {

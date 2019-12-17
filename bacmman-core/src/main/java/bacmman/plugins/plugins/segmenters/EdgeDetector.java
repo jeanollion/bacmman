@@ -188,7 +188,7 @@ public class EdgeDetector implements Segmenter, Hint {
     public void filterRegions(RegionPopulation pop, Image input, ImageMask mask) {
         switch (THLD_METHOD.getValue(this.thresholdMethod.getSelectedItem())) {
             case INTENSITY_MAP: {
-                    double thld = threshold.instanciatePlugin().runSimpleThresholder(input, mask);
+                    double thld = threshold.instantiatePlugin().runSimpleThresholder(input, mask);
                     if (addTestImage!=null) addTestImage.accept(generateRegionValueMap(pop, input).setName("Intensity value Map"));
                     pop.filter(new RegionPopulation.MedianIntensity(thld, darkBackground.getSelected(), input));
                     return;
@@ -196,7 +196,7 @@ public class EdgeDetector implements Segmenter, Hint {
             default: {
                     Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(input)));
                     Image valueMap = generateRegionValueMap(input, values);
-                    double thld = threshold.instanciatePlugin().runSimpleThresholder(valueMap , mask);
+                    double thld = threshold.instantiatePlugin().runSimpleThresholder(valueMap , mask);
                     if (addTestImage!=null) addTestImage.accept(valueMap.setName("EdgeDetector: Intensity value Map"));
                     if (darkBackground.getSelected()) values.entrySet().removeIf(e->e.getValue()>=thld);
                     else values.entrySet().removeIf(e->e.getValue()<=thld);

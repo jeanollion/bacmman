@@ -182,11 +182,11 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         }
     }
 
-    public T instanciatePlugin() {
+    public T instantiatePlugin() {
         if (!isOnePluginSet()) return null;
         Supplier<T> pluginFactory = () -> {
             T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
-            //Parameter.logger.debug("instanciating plugin: type {}, name {} instance==null? {} current parameters {}", pluginType, pluginName, instance==null, pluginParameters.size());
+            //Parameter.logger.debug("instantiating plugin: type {}, name {} instance==null? {} current parameters {}", pluginType, pluginName, instance==null, pluginParameters.size());
             if (instance==null) return null;
             Parameter[] params = instance.getParameters();
             if (params !=null) {
@@ -200,7 +200,8 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             Experiment xp = ParameterUtils.getExperiment(this);
             if (xp==null) return pluginFactory.get(); // no xp found in tree -> instance cannot be shared
             DLengineProvider dlEngineProvider = xp.getDLengineProvider();
-            return (T)dlEngineProvider.getEngine(PluginFactory.getPluginClass(pluginName), pluginParameters, (Supplier<DLengine>)pluginFactory);
+            DLengine instance = (DLengine)pluginFactory.get();
+            return (T)dlEngineProvider.getEngine(instance);
         } else return pluginFactory.get();
     }
     

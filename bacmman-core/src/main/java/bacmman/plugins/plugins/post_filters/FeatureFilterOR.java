@@ -22,7 +22,7 @@ public class FeatureFilterOR implements PostFilterFeature, Hint {
         if (childPopulation.getRegions().isEmpty()) return childPopulation;
         List<FeatureFilter> filters = this.filters.get();
         RegionPopulation.Feature[] features = filters.stream().map(filter -> {
-            ObjectFeature f = filter.feature.instanciatePlugin();
+            ObjectFeature f = filter.feature.instantiatePlugin();
             f.setUp(parent, childStructureIdx, childPopulation);
             return new RegionPopulation.Feature(f, filter.threshold.getValue().doubleValue(), filter.keepOverThreshold.getSelected(), filter.strict.getSelected());
         }).toArray(RegionPopulation.Feature[]::new);

@@ -101,7 +101,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     }
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        double thld = Double.isNaN(thresholdValue) ? this.threshold.instanciatePlugin().runThresholder(input, parent) : thresholdValue;
+        double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runThresholder(input, parent) : thresholdValue;
         logger.debug("thresholder: {} : {}", threshold.getPluginName(), threshold.getParameters());
         Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(), METHOD.PEAK,  TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
         if (r==null) return null;
@@ -110,7 +110,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     
     @Override
     public Result segment(Image input, int structureIdx, SegmentedObject parent) {
-        double thld = Double.isNaN(thresholdValue) ? this.threshold.instanciatePlugin().runSimpleThresholder(input, null) : thresholdValue;
+        double thld = Double.isNaN(thresholdValue) ? this.threshold.instantiatePlugin().runSimpleThresholder(input, null) : thresholdValue;
         Result r = segmentMicroChannels(input, null, yShift.getValue().intValue(), channelWidth.getValue().intValue(), channelLength.getValue().intValue(), fillingProportion.getValue().doubleValue(), thld, minObjectSize.getValue().intValue(),METHOD.PEAK, TestableProcessingPlugin.getAddTestImageConsumer(stores, parent), TestableProcessingPlugin.getMiscConsumer(stores, parent));
         return r;
     }
@@ -126,7 +126,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
 
     @Override
     public TrackConfigurer<MicrochannelFluo2D> run(int structureIdx, List<SegmentedObject> parentTrack) {
-        double thld = TrackConfigurable.getGlobalThreshold(structureIdx, parentTrack, this.threshold.instanciatePlugin());
+        double thld = TrackConfigurable.getGlobalThreshold(structureIdx, parentTrack, this.threshold.instantiatePlugin());
         return (p, s)->s.thresholdValue=thld;
     }
 

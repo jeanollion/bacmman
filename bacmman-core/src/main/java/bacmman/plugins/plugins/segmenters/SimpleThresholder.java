@@ -32,7 +32,6 @@ import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
 import bacmman.image.ImageLabeller;
 import bacmman.image.ImageMask;
-import bacmman.utils.Utils;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +57,7 @@ public class SimpleThresholder implements Segmenter {
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject structureObject) {
         ImageByte mask = new ImageByte("mask", input);
-        Thresholder t =  threshold.instanciatePlugin();
+        Thresholder t =  threshold.instantiatePlugin();
         double thresh = t.runThresholder(input, structureObject);
         byte[][] pixels = mask.getPixelArray();
         for (int z = 0; z<input.sizeZ(); ++z) {

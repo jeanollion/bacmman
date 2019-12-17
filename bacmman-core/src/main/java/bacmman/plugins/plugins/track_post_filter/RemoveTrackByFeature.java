@@ -89,7 +89,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         Consumer<SegmentedObject> exe = p -> {
             SegmentedObject parent = (SegmentedObject)p;
             RegionPopulation pop = parent.getChildRegionPopulation(structureIdx);
-            ObjectFeature f = feature.instanciatePlugin();
+            ObjectFeature f = feature.instantiatePlugin();
             f.setUp(parent, structureIdx, pop);
             Map<Region, Double> locValueMap = pop.getRegions().stream().collect(Collectors.toMap(o->o, o-> f.performMeasurement(o)));
             valueMap.putAll(locValueMap);

@@ -39,7 +39,6 @@ import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
-import net.imagej.ops.Ops;
 
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
@@ -77,7 +76,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     
     @Override public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
-        TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instanciatePlugin());
+        TrackConfigurer apply=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {
@@ -104,7 +103,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         try {
             pops = safeMap(allParents.stream().parallel(), subParent -> {
                 SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
-                Segmenter seg = segmenter.instanciatePlugin();
+                Segmenter seg = segmenter.instantiatePlugin();
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
                 Image input = globalParent.getPreFilteredImage(structureIdx);
                 if (subSegmentation)
@@ -176,5 +175,5 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     public Parameter[] getParameters() {
         return parameters;
     }
-    @Override public Segmenter getSegmenter() {return segmenter.instanciatePlugin();}
+    @Override public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
 }

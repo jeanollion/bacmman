@@ -34,7 +34,7 @@ public class ParameterUIBinder {
                 // get structureIdx
                 Structure s = bacmman.configuration.parameters.ParameterUtils.getFirstParameterFromParents(Structure.class, pp, false);
                 if (s!=null) {
-                    Plugin pl = pp.instanciatePlugin();
+                    Plugin pl = pp.instantiatePlugin();
                     boolean pf = pl instanceof PreFilter || pl instanceof TrackPreFilter;
                     if (pl instanceof Segmenter || pl instanceof Tracker || pl instanceof PreFilter || pl instanceof TrackPreFilter || pl instanceof PostFilter || pl instanceof TrackPostFilter) { //
                         int idx = 0;

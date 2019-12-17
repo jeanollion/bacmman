@@ -24,7 +24,6 @@ import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 
 import javax.swing.tree.MutableTreeNode;
 
-import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 import bacmman.plugins.ManualSegmenter;
@@ -52,7 +51,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>true</em> is set, a track can divide in several tracks");
     BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Global Scaling", HistogramScaler.class, true).setHint("Define here a method to scale raw input images, using the histogram of all images of the parent structure in the same position");
-    private Map<String, HistogramScaler> scalerP = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(p->scaler.instanciatePlugin());
+    private Map<String, HistogramScaler> scalerP = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(p->scaler.instantiatePlugin());
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -158,7 +157,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     public void ensureScalerConfiguration(String position) {
         if (scalerP.containsKey(position)) {
             Parameter[] scalerParams =  scalerP.get(position).getParameters();
-            Parameter[] currentParams = scaler.instanciatePlugin().getParameters();
+            Parameter[] currentParams = scaler.instantiatePlugin().getParameters();
             if (!ParameterUtils.sameContent(scalerParams, currentParams)) {
                 logger.debug("scaler configuration changed from: {} to {}", Arrays.deepToString(scalerParams), Arrays.deepToString(currentParams) );
                 scalerP.remove(position); // configuration has changed -> reset scaler
@@ -167,7 +166,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
 
     public ProcessingPipeline getProcessingScheme() {
-        return processingPipeline.instanciatePlugin();
+        return processingPipeline.instantiatePlugin();
     }
     
     public void setProcessingPipeline(ProcessingPipeline ps) {
@@ -175,9 +174,9 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     
     public ObjectSplitter getObjectSplitter() {
-        ObjectSplitter res = objectSplitter.instanciatePlugin();
+        ObjectSplitter res = objectSplitter.instantiatePlugin();
         if (res == null) {
-            ProcessingPipeline ps = this.processingPipeline.instanciatePlugin();
+            ProcessingPipeline ps = this.processingPipeline.instantiatePlugin();
             if (ps!=null) {
                 Segmenter s = ps.getSegmenter();
                 if (s instanceof ObjectSplitter) return (ObjectSplitter)s;
@@ -187,9 +186,9 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     
     public ManualSegmenter getManualSegmenter() {
-        ManualSegmenter res= manualSegmenter.instanciatePlugin();
+        ManualSegmenter res= manualSegmenter.instantiatePlugin();
         if (res == null) {
-            ProcessingPipeline ps = this.processingPipeline.instanciatePlugin();
+            ProcessingPipeline ps = this.processingPipeline.instantiatePlugin();
             if (ps!=null) {
                 Segmenter s = ps.getSegmenter();
                 if (s instanceof ManualSegmenter) return (ManualSegmenter)s;
@@ -245,7 +244,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         int idx = getIndex();
         parentStructure.setMaxStructureIdx(idx);
         segmentationParent.setMaxStructureIdx(idx);
-        if (processingPipeline.isOnePluginSet() && processingPipeline.instanciatePlugin() instanceof Duplicate) {
+        if (processingPipeline.isOnePluginSet() && processingPipeline.instantiatePlugin() instanceof Duplicate) {
             processingPipeline.getParameters().stream().filter(p->p instanceof ParentObjectClassParameter).map(p->(ParentObjectClassParameter)p).forEach(p->p.setMaxStructureIdx(idx));
         }
     }

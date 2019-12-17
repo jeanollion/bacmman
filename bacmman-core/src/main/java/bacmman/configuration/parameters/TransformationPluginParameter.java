@@ -155,8 +155,8 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     }
     
     @Override
-    public T instanciatePlugin() {
-        T instance = super.instanciatePlugin();
+    public T instantiatePlugin() {
+        T instance = super.instantiatePlugin();
         if (instance!=null) {
             //List target = instance.getConfigurationData();
             //if (target!=null && configurationData!=null) for (Object o : configurationData) target.add(ParameterUtils.duplicateConfigurationData(o));

@@ -75,8 +75,8 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     public double runThresholderHisto(Histogram histogram) {
         double firstValue = Double.MAX_VALUE;
         if (this.startingPoint.isOnePluginSet()) {
-            if (startingPoint.instanciatePlugin() instanceof ThresholderHisto) {
-                firstValue = ((ThresholderHisto)startingPoint.instanciatePlugin()).runThresholderHisto(histogram);
+            if (startingPoint.instantiatePlugin() instanceof ThresholderHisto) {
+                firstValue = ((ThresholderHisto)startingPoint.instantiatePlugin()).runThresholderHisto(histogram);
             } else throw new IllegalArgumentException("Starting point should be a thresholder histo");
         }
         return runThresholder(histogram, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, null);
@@ -85,7 +85,7 @@ public class BackgroundThresholder implements HintSimple, SimpleThresholder, Thr
     public double runSimpleThresholder(Image input, ImageMask mask) {
         double firstValue = Double.MAX_VALUE;
         if (this.startingPoint.isOnePluginSet()) {
-            firstValue = startingPoint.instanciatePlugin().runSimpleThresholder(input, mask);
+            firstValue = startingPoint.instantiatePlugin().runSimpleThresholder(input, mask);
         }
         return runThresholder(input, mask, sigmaFactor.getValue().doubleValue(), finalSigmaFactor.getValue().doubleValue(), iterations.getValue().intValue(), firstValue, null);
         
