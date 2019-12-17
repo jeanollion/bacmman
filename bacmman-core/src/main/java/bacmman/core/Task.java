@@ -497,33 +497,43 @@ public class Task implements ProgressCallback{
             publish("number of subtasks: "+countSubtasks());
             
             try {
-                positions.stream().map((pIdx) -> db.getExperiment().getPosition(pIdx).getName()).forEachOrdered((position) -> {
+                for (int pIdx : positions) {
+                    String position = posIdxNameMapper.apply(pIdx);
                     try {
                         process(position, deleteAllField);
                     } catch (MultipleException e) {
                         errors.addExceptions(e.getExceptions());
                     } catch (Throwable e) {
-                        errors.addExceptions(new Pair("Error while processing: db: "+db.getDBName()+" pos: "+position, e));
+                        errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
                     } finally {
                         db.getExperiment().getPosition(position).flushImages(true, true);
                         db.clearCache(position);
-                        if (!db.isConfigurationReadOnly() && db.getSelectionDAO()!=null) db.getSelectionDAO().clearCache();
+                        if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
+                            db.getSelectionDAO().clearCache();
                         Core.freeDisplayMemory();
                         System.gc();
                         publishMemoryUsage("After clearing cache");
                     }
-                });
+                }
             } catch (Throwable t) {
                 publish("Error While Processing Positions");
                 publishError(t);
                 publishErrors();
             } finally {
+                logger.debug("closing engines...");
                 db.getExperiment().getDLengineProvider().closeAllEngines();
             }
+            logger.debug("extracting meas...");
             for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value);
             if (exportData) exportData();
+            logger.debug("unlocking positions...");
+
             if (!keepDB) db.unlockPositions(pos);
-            else positions.forEach(p -> db.clearCache(posIdxNameMapper.apply(p)));
+            else {
+                logger.debug("clearing cache...");
+                for (int pIdx : positions) db.clearCache(posIdxNameMapper.apply(pIdx));
+                logger.debug("cache cleared...");
+            }
         }
     private void process(String position, boolean deleteAllField) {
         publish("Position: "+position);
