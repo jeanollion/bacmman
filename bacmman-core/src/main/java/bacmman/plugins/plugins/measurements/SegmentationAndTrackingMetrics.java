@@ -284,7 +284,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
      * @param prev
      * @return edges of {@param objects} of this graph that have a corresponding edge of {@param otherObjects} from {@param otherGraph} , as well as edges of {@param otherGraph} that have no corresponding edges
      */
-    public static OverlapEdges getIntersectingEdges(SimpleTrackGraph graph, Stream<SegmentedObject> objects, SimpleTrackGraph otherGraph, Stream<SegmentedObject> otherObjects, BiPredicate<SegmentedObject, SegmentedObject> vertexCorrespond, boolean prev) {
+    public static OverlapEdges getIntersectingEdges(SimpleTrackGraph<DefaultEdge> graph, Stream<SegmentedObject> objects, SimpleTrackGraph<DefaultEdge> otherGraph, Stream<SegmentedObject> otherObjects, BiPredicate<SegmentedObject, SegmentedObject> vertexCorrespond, boolean prev) {
         Set<DefaultEdge> edges = (prev ? graph.getPreviousEdges(objects) : graph.getNextEdges(objects)).collect(toSet());
         Set<DefaultEdge> otherEdges = (prev ? otherGraph.getPreviousEdges(otherObjects) : otherGraph.getNextEdges(otherObjects)).collect(toSet());
         BiPredicate<DefaultEdge, DefaultEdge> edgeCorrespond = (e, otherE) -> {
