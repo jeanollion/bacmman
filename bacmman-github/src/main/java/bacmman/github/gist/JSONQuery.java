@@ -45,7 +45,7 @@ public class JSONQuery {
         return this;
     }
     public JSONQuery authenticate(UserAuth auth) {
-        auth.autenticate(urlConnection);
+        auth.authenticate(urlConnection);
         return this;
     }
     public JSONQuery setBody(String jsonString) {

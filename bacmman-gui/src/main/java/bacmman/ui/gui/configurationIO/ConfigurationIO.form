@@ -3,7 +3,7 @@
   <grid id="27dc6" binding="mainPanel" layout-manager="GridLayoutManager" row-count="4" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
     <margin top="0" left="0" bottom="0" right="0"/>
     <constraints>
-      <xy x="20" y="20" width="1383" height="473"/>
+      <xy x="20" y="20" width="1383" height="484"/>
     </constraints>
     <properties/>
     <border type="none"/>
@@ -39,7 +39,7 @@
           </grid>
         </constraints>
         <properties>
-          <dividerLocation value="100"/>
+          <dividerLocation value="94"/>
           <orientation value="0"/>
         </properties>
         <border type="none"/>
@@ -158,7 +158,7 @@
           </component>
         </children>
       </grid>
-      <grid id="2f467" binding="credentialPanel" layout-manager="GridLayoutManager" row-count="1" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+      <grid id="2f467" binding="credentialPanel" layout-manager="GridLayoutManager" row-count="2" column-count="3" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
         <margin top="0" left="0" bottom="0" right="0"/>
         <constraints>
           <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
@@ -168,12 +168,12 @@
         <children>
           <component id="a9ef9" class="javax.swing.JPasswordField" binding="password">
             <constraints>
-              <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
+              <grid row="0" column="1" row-span="1" col-span="2" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
                 <preferred-size width="150" height="-1"/>
               </grid>
             </constraints>
             <properties>
-              <toolTipText value="Enter the password associated to the github account. If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk."/>
+              <toolTipText value="&lt;html&gt;Enter a password in order to store a github token or to load a previously stored token. &lt;br /&gt;If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. &lt;br /&gt;This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.&lt;/html&gt;"/>
             </properties>
           </component>
           <component id="93c29" class="javax.swing.JTextField" binding="username">
@@ -185,6 +185,33 @@
             <properties>
               <text value="bacmman"/>
               <toolTipText value="Enter the username of a github account containing configuration files"/>
+            </properties>
+          </component>
+          <component id="ad53b" class="javax.swing.JTextField" binding="token">
+            <constraints>
+              <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
+                <preferred-size width="150" height="-1"/>
+              </grid>
+            </constraints>
+            <properties>
+              <toolTipText value="paste here a personal access token with gist permission generated at: https://github.com/settings/tokens "/>
+            </properties>
+          </component>
+          <component id="8ec22" class="javax.swing.JButton" binding="storeToken">
+            <constraints>
+              <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Store Token"/>
+              <toolTipText value="token will be stored encrypted using the passphrase"/>
+            </properties>
+          </component>
+          <component id="a54ce" class="javax.swing.JButton" binding="loadToken">
+            <constraints>
+              <grid row="1" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Load Token"/>
             </properties>
           </component>
         </children>

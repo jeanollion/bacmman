@@ -9,7 +9,7 @@ public class BasicAuth implements UserAuth {
         this.username=username;
         this.password=password;
     }
-    public void autenticate(HttpURLConnection urlConnection) {
+    public void authenticate(HttpURLConnection urlConnection) {
         String usernameColonPassword = String.format("%s:%s", username, password);
         String basicAuthPayload = "Basic " + Base64.getEncoder().encodeToString(usernameColonPassword.getBytes());
         urlConnection.addRequestProperty("Authorization", basicAuthPayload);
