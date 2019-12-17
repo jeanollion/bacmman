@@ -3,6 +3,7 @@ package bacmman.data_structure;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.plugins.DLengine;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -10,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 public class DLengineProvider {
     Logger logger = LoggerFactory.getLogger(DLengineProvider.class);
@@ -29,6 +31,8 @@ public class DLengineProvider {
         }*/
         DLengine engine = engines.stream().filter(e -> e.getClass().equals(engineClass) && (ParameterUtils.sameContent(Arrays.asList(e.getParameters()), parameters))).findFirst().orElse(null);
         if (engine==null) {
+            //logger.debug("Engine of class: {}, and parameters: {} not found among opened engines:", engineClass, parameters);
+            //engines.forEach(e->logger.debug("Opened Engine: {}-> parameters:{}", e.getClass(), IntStream.range(0, parameters.size()).mapToObj(i->e.getParameters()[i].toStringFull()+(e.getParameters()[i].sameContent(parameters.get(i)) ? "==" : "!=")+parameters.get(i).toStringFull()).toArray()));
             engine = engineFactory.get();
             if (engine!=null) {
                 engines.add(engine);

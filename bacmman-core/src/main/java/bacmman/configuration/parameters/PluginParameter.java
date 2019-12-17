@@ -200,7 +200,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             Experiment xp = ParameterUtils.getExperiment(this);
             if (xp==null) return pluginFactory.get(); // no xp found in tree -> instance cannot be shared
             DLengineProvider dlEngineProvider = xp.getDLengineProvider();
-            return (T)dlEngineProvider.getEngine(getPluginType(), pluginParameters, (Supplier<DLengine>)pluginFactory);
+            return (T)dlEngineProvider.getEngine(PluginFactory.getPluginClass(pluginName), pluginParameters, (Supplier<DLengine>)pluginFactory);
         } else return pluginFactory.get();
     }
     

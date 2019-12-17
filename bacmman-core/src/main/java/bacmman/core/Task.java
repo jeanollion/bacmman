@@ -71,7 +71,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class Task extends SwingWorker<Integer, String> implements ProgressCallback {
+public class Task implements ProgressCallback{
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
         String dbName, dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, generateTrackImages, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
@@ -240,15 +240,6 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             else {
                 if (ui.equals(this.ui)) return this;
                 this.ui=ui;
-                addPropertyChangeListener((PropertyChangeEvent evt) -> {
-                    if ("progress".equals(evt.getPropertyName())) {
-                        int progress1 = (Integer) evt.getNewValue();
-                        ui.setProgress(progress1);
-                        //if (IJ.getInstance()!=null) IJ.getInstance().getProgressBar().show(progress, 100);
-                        //logger.ingo("progress: {}%", i);
-                        //gui.setProgress((Integer) evt.getNewValue());
-                    }
-                });
             }
             return this;
         }
@@ -410,10 +401,8 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
             if (preProcess) { // compare pre processing to template
                 ensurePositionAndStructures(true, false);
                 PreProcessingChain template = db.getExperiment().getPreProcessingTemplate();
-                for (int p : positions) {
-                    PreProcessingChain pr = db.getExperiment().getPosition(p).getPreProcessingChain();
-                    if (!template.getTransformations().sameContent(pr.getTransformations())) publish("Warning: Position: "+db.getExperiment().getPosition(p).getName()+": pre-processing pipeline differs from template");
-                }
+                List<Integer> posWithDifferentPP = positions.stream().filter(p -> !template.getTransformations().sameContent(db.getExperiment().getPosition(p).getPreProcessingChain().getTransformations())).collect(Collectors.toList());
+                publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
             }
             // check files
             for (Pair<String, int[]> e : extractMeasurementDir) {
@@ -687,9 +676,9 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
     }
     @Override
     public void incrementProgress() {
-        setProgress(100*(++taskCounter[0])/taskCounter[1]);
+        if (ui!=null) ui.setProgress(100*(++taskCounter[0])/taskCounter[1]);
     }
-    @Override
+    /*@Override
     protected Integer doInBackground() throws Exception {
         this.runTask();
         return this.errors.getExceptions().size();
@@ -699,7 +688,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         if (ui!=null) for (String s : strings) ui.setMessage(s);
         for (String s : strings) logger.info(s);
         
-    }
+    }*/
     public static boolean printStackTraceElement(String stackTraceElement) {
         //return true;
         return !stackTraceElement.startsWith("java.util.")&&!stackTraceElement.startsWith("java.lang.")&&!stackTraceElement.startsWith("java.security.")
@@ -707,7 +696,7 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
                 &&!stackTraceElement.startsWith("sun.reflect.")&&!stackTraceElement.startsWith("javax.swing.")
                 &&!stackTraceElement.startsWith("bacmman.core.")&&!stackTraceElement.startsWith("bacmman.utils.");
     }
-    @Override 
+    //@Override
     public void done() {
         //logger.debug("EXECUTING DONE FOR : {}", this.toJSON().toJSONString());
         this.publish("Task done.");
@@ -729,6 +718,10 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         }
         this.errors.addExceptions(errorsToAdd);
     }
+    public void publish(String message) {
+        if (ui!=null) ui.setMessage(message);
+        logger.debug(message);
+    }
     public void publishErrors() {
         unrollMultipleExceptions();
         this.publish("Errors: "+this.errors.getExceptions().size()+ " For JOB: "+this.toString());
@@ -739,10 +732,10 @@ public class Task extends SwingWorker<Integer, String> implements ProgressCallba
         publishError(error);
     }
     protected void publishError(Throwable t) {
-        publish(Arrays.stream(t.getStackTrace())
+        Arrays.stream(t.getStackTrace())
                 .map(st -> st.toString())
                 .filter(s->printStackTraceElement(s))
-                .toArray(l->new String[l]));
+                .forEachOrdered(s -> publish(s));
         if (t.getCause()!=null && !t.getCause().equals(t)) {
             publish("caused By");
             publishError(t.getCause());
