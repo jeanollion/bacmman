@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.Region;
@@ -8,10 +9,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackLinkEditor;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
-import bacmman.plugins.DLengine;
-import bacmman.plugins.Plugin;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.Tracker;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.Resample;
@@ -30,10 +28,11 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DeltaTracker implements Tracker, TestableProcessingPlugin {
+public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     private final static Logger logger = LoggerFactory.getLogger(DeltaTracker.class);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1));
-
+    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model that predict next cell, as in Delta <br />Input: 1) raw image at frame F with values in range [0, 1] 2) raw image at frame F+1 with values in range [0, 1] 3) binary mask of a cell at frame F 4) binary mask of all cells at frame F+1 (input can be either 1 input with the [1, 2, 3, 4]] images concatenated in the last axis or 2 inputs [1,2] and [3,4]. <br />Output: 3 channels, 2nd one contains the predicted 1rst daughter cell and 3rd one the other predicted daughter cell(s)");
+    BoundedNumberParameter predictionThld = new BoundedNumberParameter("Probability Threshold", 3, 0.9, 0.1, 1 ).setHint("For each cell C at frame F, a probability map is predicted for all cells at F+1. A cell C' at frame F+1 is considered to be linked to C if the median predicted probability value within C' is greater than this threshold");
+    Parameter[] parameters = new Parameter[]{dlEngine, predictionThld};
     @Override
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         // input is [0] prev + current raw image [1] prev object to predict (binary mask) + all current segmented objects (binary mask)
@@ -42,22 +41,14 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin {
         engine.init();
         int batchSize = engine.getBatchSize();
         boolean separateInputChannels = engine.getNumInputArrays() == 2;
-        InputFormatter input = new InputFormatter(structureIdx, parentTrack, 0.9, new int[]{32, 256});
+        InputFormatter input = new InputFormatter(structureIdx, parentTrack, predictionThld.getValue().doubleValue(), new int[]{32, 256});
         SimpleTrackGraph graph = new SimpleTrackGraph();
         parentTrack.stream().flatMap(p -> p.getChildren(structureIdx)).forEach(graph::addVertex); // populate graph vertex
         Map<Integer, List<SegmentedObject>> segObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> parentTrack.get(i).getChildren(structureIdx).collect(Collectors.toList()));
-        /*if (stores!=null) {
-            IntFunction<Image> getImage = i -> {
-                SegmentedObject parent = parentTrack.get(i);
-                Image im = input.populations[i].getLabelMap();
-                return (Image)Resample.resample(im, true, parent.getBounds().sizeX(), parent.getBounds().sizeY()).resetOffset().translate(parent.getBounds());
-            };
-            IntStream.range(0, input.populations.length).forEach(i->stores.get(parentTrack.get(i)).addIntermediateImage("labels", getImage.apply(i)));
-        }*/
         // make predictions
         int stepSize = 5 * batchSize;
         for (int idx = 0; idx < input.length(); idx += stepSize) {
-            logger.debug("processing batch-group {} / {}", idx/stepSize, Math.floor(input.length()/(double)stepSize));
+            logger.debug("processing batch-group {} / {}", Math.ceil(idx/(double)stepSize)+1, Math.ceil(input.length()/(double)stepSize));
             Image[][][] inputs = input.getInput(idx, idx + stepSize, separateInputChannels);
             Image[][] outputNC = engine.process(inputs)[0];
 
@@ -86,6 +77,11 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin {
     @Override
     public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores=stores;
+    }
+
+    @Override
+    public String getHintText() {
+        return "Implementation of Delta, software for cell tracking in mother machine. <br />Please cite: <a href='https://www.biorxiv.org/content/10.1101/720615v1'>https://www.biorxiv.org/content/10.1101/720615v1</a>";
     }
 
 
@@ -195,6 +191,6 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{dlEngine};
+        return parameters;
     }
 }

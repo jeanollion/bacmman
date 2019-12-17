@@ -6,10 +6,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.image.ThresholdMask;
-import bacmman.plugins.DLengine;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.TrackConfigurable;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.processing.ResizeUtils;
@@ -22,19 +19,20 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter>, TestableProcessingPlugin {
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1));
-    BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.2, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
+public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter>, TestableProcessingPlugin, Hint {
+    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
+    BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.1, 1 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
-
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
+    Parameter[] parameters = new Parameter[]{dlEngine, inputShape, splitThreshold, minimalProba};
+
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         Image proba = getSegmentedImage(input, parent);
         if (stores!=null) stores.get(parent).addIntermediateImage("SegModelOutput", proba);
         // perform watershed on probability map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
-        ImageMask mask = new ThresholdMask(proba, minimalProba.getValue().doubleValue(), true, true);
+        ImageMask mask = new ThresholdMask(proba, minimalProba.getValue().doubleValue(), true, false);
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), false)
                 .setDivisionCriterion(SplitAndMergeEDM.DIVISION_CRITERION.NONE, 0)
                 .setMapsProperties(false, false);
@@ -52,14 +50,10 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
     private Image getSegmentedImage(Image input, SegmentedObject parent) {
         if (segmentedImageMap!=null) return segmentedImageMap.get(parent);
         // perform prediction on single image
-        logger.warn("Segmenter not configured! Prediction will be performed one by one.");
+        logger.warn("Segmenter not configured! Prediction will be performed one by one, performance might be reduced.");
         return predict(input)[0];
     }
 
-    @Override
-    public Parameter[] getParameters() {
-        return new Parameter[]{dlEngine};
-    }
     private Image[] predict(Image... inputImages) {
         DLengine engine = dlEngine.instanciatePlugin();
         engine.init();
@@ -104,5 +98,15 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
     @Override
     public void setTestDataStore(Map<SegmentedObject, TestDataStore> stores) {
         this.stores=stores;
+    }
+
+    @Override
+    public Parameter[] getParameters() {
+        return parameters;
+    }
+
+    @Override
+    public String getHintText() {
+        return "This plugins run a Unet-like segmentation model, and performs a watershed transform on the predicted probability map";
     }
 }
