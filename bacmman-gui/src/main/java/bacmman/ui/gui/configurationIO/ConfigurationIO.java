@@ -5,10 +5,7 @@ import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.ContainerParameter;
 import bacmman.data_structure.dao.MasterDAO;
-import bacmman.github.gist.BasicAuth;
-import bacmman.github.gist.GistConfiguration;
-import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.UserAuth;
+import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
@@ -21,6 +18,8 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -53,6 +52,9 @@ public class ConfigurationIO {
     private JButton deleteRemote;
     private JButton duplicateRemote;
     private JPanel credentialPanel;
+    private JTextField token;
+    private JButton storeToken;
+    private JButton loadToken;
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigurationIO.class);
     Experiment xp;
@@ -119,7 +121,39 @@ public class ConfigurationIO {
             fetchGists();
             updateRemoteSelector();
         });
-        password.addActionListener(e -> {
+        DocumentListener dl = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons();
+            }
+
+        };
+        username.getDocument().addDocumentListener(dl);
+        password.getDocument().addDocumentListener(dl);
+        token.getDocument().addDocumentListener(dl);
+        storeToken.addActionListener(e -> {
+            String username = this.username.getText();
+            char[] pass = password.getPassword();
+            String token = this.token.getText();
+            if (username.length()>0 && pass.length>0 && token.length()>0) {
+                TokenAuth.encryptAndStore(username, pass, token);
+                this.token.setText("");
+                enableTokenButtons();
+                fetchGists();
+                updateRemoteSelector();
+            }
+        });
+        loadToken.addActionListener(e -> {
             savedPassword.put(username.getText(), password.getPassword());
             fetchGists();
             updateRemoteSelector();
@@ -315,6 +349,15 @@ public class ConfigurationIO {
     public void display(JFrame parent) {
         JDialog dia = new Dial(parent, "Import/Export Configuration from Github");
         dia.setVisible(true);
+    }
+    private void enableTokenButtons() {
+        String u = username.getText();
+        char[] p = password.getPassword();
+        String t = token.getText();
+        boolean enableSave =  u.length()!=0 && p.length!=0 && t.length()!=0;
+        boolean enableLoad = u.length()!=0 && p.length!=0;
+        loadToken.setEnabled(enableLoad);
+        storeToken.setEnabled(enableSave);
     }
 
     {
@@ -568,6 +611,17 @@ public class ConfigurationIO {
 
     private UserAuth getAuth() {
         if (password.getPassword().length == 0) return new NoAuth();
-        else return new BasicAuth(username.getText(), String.valueOf(password.getPassword()));
+        else {
+            try {
+                UserAuth auth = new TokenAuth(username.getText(), password.getPassword());
+                return auth;
+            } catch (IllegalArgumentException e) {
+                GUI.log("No token associated with this username found");
+                return new NoAuth();
+            } catch (Throwable t) {
+                GUI.log("Token could not be retrieved. Wrong password ?");
+                return new NoAuth();
+            }
+        }
     }
 }
