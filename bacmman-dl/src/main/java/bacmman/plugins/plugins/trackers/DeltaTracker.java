@@ -48,7 +48,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         // make predictions
         int stepSize = 5 * batchSize;
         for (int idx = 0; idx < input.length(); idx += stepSize) {
-            logger.debug("processing batch-group {} / {}", Math.ceil(idx/(double)stepSize)+1, Math.ceil(input.length()/(double)stepSize));
+            logger.debug("processing batch-group {} / {}", (int)Math.ceil(idx/(double)stepSize)+1, (int)Math.ceil((input.length()-2)/(double)stepSize));
             Image[][][] inputs = input.getInput(idx, idx + stepSize, separateInputChannels);
             Image[][] outputNC = engine.process(inputs)[0];
 
