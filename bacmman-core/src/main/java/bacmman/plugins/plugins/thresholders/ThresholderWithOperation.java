@@ -54,7 +54,7 @@ public class ThresholderWithOperation implements ThresholderHisto, SimpleThresho
     
     @Override
     public double runThresholderHisto(Histogram histogram) {
-        double thld =thresholder.instanciatePlugin().runThresholderHisto(histogram);
+        double thld =thresholder.instantiatePlugin().runThresholderHisto(histogram);
         int idx = (int)histogram.getIdxFromValue(thld);
         Histogram hist = overThld.getSelected() ? histogram.duplicate(idx, histogram.getData().length): histogram.duplicate(0, idx);
         switch(STAT.valueOf(stat.getSelectedItem())) {

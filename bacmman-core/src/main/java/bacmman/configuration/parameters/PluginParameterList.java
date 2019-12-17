@@ -66,12 +66,12 @@ public abstract class PluginParameterList<T extends Plugin, L extends PluginPara
     }
     
     public List<T> get() {
-        return this.getActivatedChildren().stream().map(pp->pp.instanciatePlugin()).filter(p->p!=null).collect(Collectors.toList());
+        return this.getActivatedChildren().stream().map(pp->pp.instantiatePlugin()).filter(p->p!=null).collect(Collectors.toList());
     }
     public List<T> getAll() {
         return this.getChildren().stream().map(pp->{
             if (pp instanceof Deactivatable && !((Deactivatable)pp).isActivated()) return null;
-            else return pp.instanciatePlugin();
+            else return pp.instantiatePlugin();
         }).collect(Collectors.toList());
     }
     public boolean isEmpty() {

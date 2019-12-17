@@ -102,7 +102,7 @@ public class ParentThresholder implements Thresholder {
                     // get track histogram
                     Map<Image, ImageMask> map = track.stream().collect(Collectors.toMap(o->o.getRawImage(sIdx), o->o.getMask()));
                     Histogram  histo = HistogramFactory.getHistogram(()->Image.stream(map, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
-                    double thld = this.thresholderHisto.instanciatePlugin().runThresholderHisto(histo);
+                    double thld = this.thresholderHisto.instantiatePlugin().runThresholderHisto(histo);
                     logger.debug("computing thld : {}, thresholder {} on track: {}, key: {}", thld, this.thresholderHisto.getPluginName(), p, key);
                     p.setAttribute(key, thld);
                 }
@@ -112,7 +112,7 @@ public class ParentThresholder implements Thresholder {
             String key = JSONUtils.toJSON(Arrays.asList(parameters)).toJSONString();
             if (!p.getAttributeKeys().contains(key)) { // compute threshold on single object
                 synchronized(p) {
-                    double thld = thresholder.instanciatePlugin().runThresholder(p.getRawImage(sIdx), p);
+                    double thld = thresholder.instantiatePlugin().runThresholder(p.getRawImage(sIdx), p);
                     logger.debug("computing : threshold {}, thresholder: {}, on object: {}, key: {}", thld, this.thresholderHisto.getPluginName(), p , key);
                     
                     p.setAttribute(key, thld);

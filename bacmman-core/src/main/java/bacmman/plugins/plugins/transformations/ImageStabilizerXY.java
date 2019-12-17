@@ -112,7 +112,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         //new IJImageDisplayer().showImage(imageRef.setName("ref image"));
         //if (true) return;
         final Double[][] translationTXYArray = new Double[inputImages.getFrameNumber()][];
-        Cropper crop = cropper.instanciatePlugin();
+        Cropper crop = cropper.instantiatePlugin();
         MutableBoundingBox cropBB= crop==null? null : crop.getCropBoundginBox(channelIdx, inputImages);
         logger.debug("crop bounding box: {}", cropBB);
         InputImages.getImageForChannel(inputImages, channelIdx, false); // ensure all transformations are performed on images (multithread)

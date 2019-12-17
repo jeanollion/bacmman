@@ -158,7 +158,7 @@ public class ConfigurationTreeGenerator {
         String t = getParameterHint((Parameter)parameter);
         if (t==null) t = "";
         if (parameter instanceof PluginParameter) {
-            Plugin p = ((PluginParameter)parameter).instanciatePlugin();
+            Plugin p = ((PluginParameter)parameter).instantiatePlugin();
             String t2 = getPluginHint(p);
             if (t2!=null && t2.length()>0) {
                 if (t.length()>0) t = t+"<br /><br />";

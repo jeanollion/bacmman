@@ -51,11 +51,11 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
     }
     
     @Override
-    public Segmenter getSegmenter() {return segmenter.instanciatePlugin();}
+    public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
     
     @Override
     public Tracker getTracker() {
-        Tracker t =  tracker.instanciatePlugin();
+        Tracker t =  tracker.instantiatePlugin();
         if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
         return t;
     }

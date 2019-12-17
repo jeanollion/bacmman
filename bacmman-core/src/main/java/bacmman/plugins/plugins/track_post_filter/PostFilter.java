@@ -34,7 +34,6 @@ import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
-import org.junit.Test;
 
 import static bacmman.utils.Utils.parallele;
 import java.util.function.BiPredicate;
@@ -110,7 +109,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
             //logger.debug("seg post-filter: {}", parent);
             if (!rootParent) pop.translate(new SimpleBoundingBox(parent.getBounds()).reverseOffset(), false); // go back to relative landmark for post-filter
             //if(parent.getFrame()==858) postFilters.set
-            bacmman.plugins.PostFilter instance = filter.instanciatePlugin();
+            bacmman.plugins.PostFilter instance = filter.instantiatePlugin();
             if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
             pop=instance.runPostFilter(parent, structureIdx, pop);
             List<SegmentedObject> toRemove=null;

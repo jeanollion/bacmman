@@ -19,7 +19,6 @@
 package bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.*;
@@ -51,7 +50,6 @@ import java.util.stream.IntStream;
 
 import bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker.FrameRangeLock.Unlocker;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Stream;
 
 /**
  *
@@ -90,7 +88,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     @Override public String getHintText() {return simpleTT + toolTip + toolTipAlgo;}
 
     @Override public SegmenterSplitAndMerge getSegmenter() {
-        return segmenter.instanciatePlugin();
+        return segmenter.instantiatePlugin();
     }
 
     // tracker-related attributes 
@@ -109,7 +107,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
     TrackConfigurable.TrackConfigurer applyToSegmenter;
     TreeMap<Integer, SegmentedObject> parentsByF;
     HashMapGetCreate<Integer, SegmenterSplitAndMerge> segmenters = new HashMapGetCreate<>(f->{
-        SegmenterSplitAndMerge s= segmenter.instanciatePlugin();
+        SegmenterSplitAndMerge s= segmenter.instantiatePlugin();
         if (applyToSegmenter!=null) applyToSegmenter.apply(parentsByF.get(f), s);
         return s;
     });
@@ -213,10 +211,10 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
         if (debug) logger.debug("minF: {}, maxF: {}", minF, maxFExcluded);
         //Core.userLog("bacteria Segment and Track: "+parentTrack.get(0));
         // 1) Segment and keep track of segmenter parametrizer for corrections
-        SegmentOnly so = new SegmentOnly(segmenter.instanciatePlugin()).setPostFilters(postFilters).setTrackPreFilters(trackPreFilters);
+        SegmentOnly so = new SegmentOnly(segmenter.instantiatePlugin()).setPostFilters(postFilters).setTrackPreFilters(trackPreFilters);
         if (correction) {
             so.getTrackPreFilters(true).filter(structureIdx, parentTrack); // set preFiltered images to structureObjects
-            applyToSegmenter=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instanciatePlugin());
+            applyToSegmenter=TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
             so.segmentAndTrack(structureIdx, parentTrack, applyToSegmenter, factory);
             inputImages=parentTrack.stream().collect(Collectors.toMap(p->p.getFrame(), p->p.getPreFilteredImage(structureIdx))); // record prefiltered images
         } else so.segmentAndTrack(structureIdx, parentTrack, factory, editor);

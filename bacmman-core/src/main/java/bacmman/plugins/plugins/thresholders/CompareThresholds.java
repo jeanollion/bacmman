@@ -46,15 +46,15 @@ public class CompareThresholds implements SimpleThresholder, Hint {
     
     @Override
     public double runSimpleThresholder(Image image, ImageMask mask) {
-        double thld1 = threshold1.instanciatePlugin().runSimpleThresholder(image, mask);
-        double thld2 = threshold2.instanciatePlugin().runSimpleThresholder(image, mask);
+        double thld1 = threshold1.instantiatePlugin().runSimpleThresholder(image, mask);
+        double thld2 = threshold2.instantiatePlugin().runSimpleThresholder(image, mask);
         return max.getSelected() ? Math.max(thld1, thld2) : Math.min(thld1, thld2);
     }
 
     @Override
     public double runThresholder(Image input, SegmentedObject structureObject) {
-        double thld1 = threshold1.instanciatePlugin().runThresholder(input, structureObject);
-        double thld2 = threshold2.instanciatePlugin().runThresholder(input, structureObject);
+        double thld1 = threshold1.instantiatePlugin().runThresholder(input, structureObject);
+        double thld2 = threshold2.instantiatePlugin().runThresholder(input, structureObject);
         return max.getSelected() ? Math.max(thld1, thld2) : Math.min(thld1, thld2);
     }
 

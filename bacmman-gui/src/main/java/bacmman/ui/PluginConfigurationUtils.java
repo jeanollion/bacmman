@@ -139,7 +139,7 @@ public class PluginConfigurationUtils {
                 Function<PostFilter, bacmman.plugins.plugins.track_post_filter.PostFilter> pfTotpfMapper = pp -> new bacmman.plugins.plugins.track_post_filter.PostFilter(pp).setMergePolicy(bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY.NERVER_MERGE);
                 SegmentedObjectFactory factory = getFactory(structureIdx);
                 TrackLinkEditor editor = getEditor(structureIdx);
-                List<TrackPostFilter> tpfBefore = psc.getPostFilters().getChildren().subList(0, pluginIdx).stream().filter(pp->pp.isActivated()).map(pp->pfTotpfMapper.apply(pp.instanciatePlugin())).collect(Collectors.toList());
+                List<TrackPostFilter> tpfBefore = psc.getPostFilters().getChildren().subList(0, pluginIdx).stream().filter(pp->pp.isActivated()).map(pp->pfTotpfMapper.apply(pp.instantiatePlugin())).collect(Collectors.toList());
 
                 if (!tpfBefore.isEmpty()) {
                     // at this point, need to duplicate another time the parent track to get an independent point
@@ -202,7 +202,7 @@ public class PluginConfigurationUtils {
             parentTrackDup = wholeParentTrackDup.stream().filter(p->p.getFrame()>=minF && p.getFrame()<=maxF).collect(Collectors.toList());
 
             TrackPostFilterSequence tpfs =((ProcessingPipelineWithTracking)psc).getTrackPostFilters();
-            List<TrackPostFilter> tpfBefore = tpfs.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instanciatePlugin()).collect(Collectors.toList());
+            List<TrackPostFilter> tpfBefore = tpfs.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instantiatePlugin()).collect(Collectors.toList());
             SegmentedObjectFactory factory = getFactory(structureIdx);
             TrackLinkEditor editor = getEditor(structureIdx);
 
@@ -252,7 +252,7 @@ public class PluginConfigurationUtils {
             parentTrack.forEach(p->facto.setChildren(p, null));
 
             TrackPreFilterSequence seq = psc.getTrackPreFilters(true);
-            List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instanciatePlugin()).collect(Collectors.toList());
+            List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instantiatePlugin()).collect(Collectors.toList());
             boolean first = true;
             TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(oo->oo, oo->oo.getRawImage(structureIdx))));
             // scale images if necessary
@@ -268,7 +268,7 @@ public class PluginConfigurationUtils {
                 first = false;
             }
             if (pluginIdx>0) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("before selected filter", images.get(p).duplicate())); // add images before processing
-            TrackPreFilter current = seq.getChildAt(pluginIdx).instanciatePlugin();
+            TrackPreFilter current = seq.getChildAt(pluginIdx).instantiatePlugin();
             if (current instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)current).setTestDataStore(stores);
             current.filter(structureIdx, images, !first);
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
@@ -425,7 +425,7 @@ public class PluginConfigurationUtils {
                             ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate())); // duplicate all images so that further transformations are not shown
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
-                        Transformation transfo = tpp.instanciatePlugin();
+                        Transformation transfo = tpp.instantiatePlugin();
                         logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
                         if (transfo instanceof TestableOperation && i==transfoIdx) {
                             ((TestableOperation)transfo).setTestMode(testMode);
@@ -479,7 +479,7 @@ public class PluginConfigurationUtils {
                 PreProcessingChain ppc = position.getPreProcessingChain();
                 List<TransformationPluginParameter<Transformation>> transList = ppc.getTransformations(false);
                 TransformationPluginParameter<Transformation> tpp = transList.get(transfoIdx);
-                Transformation transfo = tpp.instanciatePlugin();
+                Transformation transfo = tpp.instantiatePlugin();
 
                 int input = tpp.getInputChannel();
                 if (images.getChannelNumber()<=input) {

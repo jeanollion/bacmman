@@ -47,7 +47,7 @@ public class WatershedManualSegmenter implements ManualSegmenter {
     boolean verbose;
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int structureIdx, List<Point> points) {
         input = prefilters.filter(input, segmentationMask).setName("preFilteredImage");
-        SimpleThresholder t = stopThreshold.instanciatePlugin();
+        SimpleThresholder t = stopThreshold.instantiatePlugin();
         double threshold = t!=null?t.runSimpleThresholder(input, segmentationMask): Double.NaN;
         WatershedTransform.PropagationCriterion prop = Double.isNaN(threshold) ? null : new WatershedTransform.ThresholdPropagationOnWatershedMap(threshold);
         ImageByte mask = new ImageByte("seeds mask", input);

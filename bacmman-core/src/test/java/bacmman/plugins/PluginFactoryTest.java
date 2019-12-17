@@ -41,7 +41,7 @@ public class PluginFactoryTest {
         PluginParameter<Thresholder> thresholder = new PluginParameter<Thresholder>("Tresholder", Thresholder.class, true);
         Assert.assertTrue("Internal plugin search:", thresholder.getPluginNames().contains(pluginName));
         thresholder.setPlugin(pluginName);
-        Plugin p =  thresholder.instanciatePlugin();
+        Plugin p =  thresholder.instantiatePlugin();
         Assert.assertTrue("Internal plugin instanciation:", p instanceof Thresholder);
         
         

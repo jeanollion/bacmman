@@ -64,7 +64,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
     public GrowthRate() {
         feature.addListener( p -> {
             if (suffix.getValue().length()!=0 && featureKey.getValue().length()!=0) return;
-            String n = feature.instanciatePlugin().getDefaultName();
+            String n = feature.instantiatePlugin().getDefaultName();
             if (suffix.getValue().length()==0) suffix.setValue(n);
             if (featureKey.getValue().length()==0) featureKey.setValue(n);
         });
@@ -111,7 +111,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         boolean feat = saveFeature.getSelected();
         final ArrayList<ObjectFeatureCore> cores = new ArrayList<>();
         HashMapGetCreate<SegmentedObject, ObjectFeature> ofMap = new HashMapGetCreate<>(p -> {
-            ObjectFeature of = feature.instanciatePlugin().setUp(p, bIdx, p.getChildRegionPopulation(bIdx));
+            ObjectFeature of = feature.instantiatePlugin().setUp(p, bIdx, p.getChildRegionPopulation(bIdx));
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);
             return of;
         });

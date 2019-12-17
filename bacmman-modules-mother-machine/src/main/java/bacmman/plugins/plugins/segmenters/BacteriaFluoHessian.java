@@ -3,7 +3,6 @@ package bacmman.plugins.plugins.segmenters;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Voxel;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
@@ -13,19 +12,16 @@ import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
-import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
-import java.util.stream.Stream;
 
 public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> implements Hint, DevPlugin {
     private final static Logger logger = LoggerFactory.getLogger(BacteriaFluoHessian.class);
@@ -57,7 +53,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         if (isVoid) return null;
-        if (Double.isNaN(filterThld)) filterThld = foreThresholderFrame.instanciatePlugin().runSimpleThresholder(input, parent.getMask());
+        if (Double.isNaN(filterThld)) filterThld = foreThresholderFrame.instantiatePlugin().runSimpleThresholder(input, parent.getMask());
         return super.runSegmenter(input, objectClassIdx, parent);
     }
 
@@ -120,7 +116,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
         boolean needToComputeGlobalMax = this.foreThresholdMethod.getSelectedIndex()>0;
         if (!needToComputeGlobalMax) return Double.NaN;
         double foreThld;
-        ThresholderHisto thlder = foreThresholder.instanciatePlugin();
+        ThresholderHisto thlder = foreThresholder.instantiatePlugin();
         switch (foreThresholdMethod.getSelectedEnum()) {
             case ROOT_TRACK:
                 if (thlder instanceof BackgroundFit) {
@@ -153,7 +149,7 @@ public class BacteriaFluoHessian extends BacteriaHessian<BacteriaFluoHessian> im
                     return parents.get(0).getRoot().getAttribute(key, Double.NaN);
                 } else {
                     List<Image> im = parents.stream().map(p->p.getRoot()).map(p->p.getRawImage(structureIdx)).collect(Collectors.toList());
-                    ThresholderHisto thlder = foreThresholder.instanciatePlugin();
+                    ThresholderHisto thlder = foreThresholder.instantiatePlugin();
                     Histogram histo;
                     if (histoStore!=null && histoStore[0]!=null ) histo = histoStore[0];
                     else {

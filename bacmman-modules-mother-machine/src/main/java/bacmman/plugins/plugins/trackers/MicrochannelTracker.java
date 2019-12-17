@@ -184,10 +184,10 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         // segmentation
         final MicrochannelSegmenter.Result[] boundingBoxes = new MicrochannelSegmenter.Result[parentTrack.size()];
         trackPreFilters.filter(structureIdx, parentTrack);
-        TrackConfigurable.TrackConfigurer<? super MicrochannelSegmenter> applyToSegmenter = TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instanciatePlugin());
+        TrackConfigurable.TrackConfigurer<? super MicrochannelSegmenter> applyToSegmenter = TrackConfigurable.getTrackConfigurer(structureIdx, parentTrack, segmenter.instantiatePlugin());
         Consumer<Integer> exe =  idx -> {
             SegmentedObject parent = parentTrack.get(idx);
-            MicrochannelSegmenter s = segmenter.instanciatePlugin();
+            MicrochannelSegmenter s = segmenter.instantiatePlugin();
             if (applyToSegmenter !=null) applyToSegmenter.apply(parent, s);
             boundingBoxes[idx] = s.segment(parent.getPreFilteredImage(structureIdx), structureIdx, parent);
             if (boundingBoxes[idx]==null) factory.setChildObjects(parent, null); // if not set and call to getChildren() -> DAO will set old children
@@ -480,7 +480,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     
     @Override
     public MicrochannelSegmenter getSegmenter() {
-        return this.segmenter.instanciatePlugin();
+        return this.segmenter.instantiatePlugin();
     }
 
     @Override

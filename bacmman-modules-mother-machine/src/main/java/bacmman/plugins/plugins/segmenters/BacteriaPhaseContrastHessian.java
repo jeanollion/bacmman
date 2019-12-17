@@ -1,7 +1,6 @@
 package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
-import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Voxel;
@@ -124,7 +123,7 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
         //double globalThld = getGlobalOtsuThreshold(parentTrack.stream().filter(p->!voidMC.contains(p)), structureIdx);
         Map<Image, ImageMask> imageMapMask = parentTrack.stream().collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask() ));
         Histogram histo = HistogramFactory.getHistogram(()->Image.stream(imageMapMask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
-        double globalThld = this.foreThresholder.instanciatePlugin().runThresholderHisto(histo);
+        double globalThld = this.foreThresholder.instantiatePlugin().runThresholderHisto(histo);
         //estimate a minimal threshold : middle point between mean value under global threshold and global threshold
         double mean = histo.getValueFromIdx(histo.getMeanIdx(0, (int)histo.getIdxFromValue(globalThld)));
         double minThreshold = (mean+globalThld)/2.0;

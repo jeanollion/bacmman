@@ -128,7 +128,7 @@ public class Processor {
         InputImagesImpl images = position.getInputImages();
         PreProcessingChain ppc = position.getPreProcessingChain();
         for (TransformationPluginParameter<Transformation> tpp : ppc.getTransformations(true)) {
-            Transformation transfo = tpp.instanciatePlugin();
+            Transformation transfo = tpp.instantiatePlugin();
             logger.info("adding transformation: {} of class: {} to position: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
             if (transfo instanceof ConfigurableTransformation) {
                 ConfigurableTransformation ct = (ConfigurableTransformation)transfo;

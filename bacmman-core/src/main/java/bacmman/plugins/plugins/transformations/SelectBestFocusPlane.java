@@ -60,7 +60,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
                 Image image = inputImages.getImage(channelIdx, t);
                 if (image.sizeZ()>1) {
                     List<Image> planes = image.splitZPlanes();
-                    SimpleThresholder thlder = signalExclusionThreshold.instanciatePlugin();
+                    SimpleThresholder thlder = signalExclusionThreshold.instantiatePlugin();
                     conf[t] = getBestFocusPlane(planes, scale, thlder, null);
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
@@ -72,7 +72,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
     @Override
     public int getBestFocusPlane(Image image, ImageMask mask) {
         if (image.sizeZ()<=1) return 0;
-        return getBestFocusPlane(image.splitZPlanes(), this.gradientScale.getValue().doubleValue(), this.signalExclusionThreshold.instanciatePlugin(), mask);
+        return getBestFocusPlane(image.splitZPlanes(), this.gradientScale.getValue().doubleValue(), this.signalExclusionThreshold.instantiatePlugin(), mask);
     }
     
     public static int getBestFocusPlane(List<Image> planes, double scale, SimpleThresholder thlder, ImageMask globalMask) {

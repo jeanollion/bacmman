@@ -17,7 +17,7 @@ public class DLengineProvider {
     Logger logger = LoggerFactory.getLogger(DLengineProvider.class);
     List<DLengine> engines = new ArrayList<>();
     //private boolean loadTFFijiAttempt = false;
-    public synchronized DLengine getEngine(Class engineClass, List<Parameter> parameters, Supplier<DLengine> engineFactory) {
+    public synchronized <T extends DLengine> T getEngine(T defaultEngine) {
         /*if (!loadTFFijiAttempt) { // using reflexion here because we don't want to add a dependency
             try {
                 Service tensorflowService = Core.imagej2().get("net.imagej.tensorflow.TensorFlowService");
@@ -29,16 +29,14 @@ public class DLengineProvider {
             }
             loadTFFijiAttempt =true;
         }*/
-        DLengine engine = engines.stream().filter(e -> e.getClass().equals(engineClass) && (ParameterUtils.sameContent(Arrays.asList(e.getParameters()), parameters))).findFirst().orElse(null);
+        DLengine engine = engines.stream().filter(e -> e.getClass().equals(defaultEngine.getClass()) && (ParameterUtils.sameContent(e.getParameters(), defaultEngine.getParameters()))).findFirst().orElse(null);
         if (engine==null) {
-            //logger.debug("Engine of class: {}, and parameters: {} not found among opened engines:", engineClass, parameters);
-            //engines.forEach(e->logger.debug("Opened Engine: {}-> parameters:{}", e.getClass(), IntStream.range(0, parameters.size()).mapToObj(i->e.getParameters()[i].toStringFull()+(e.getParameters()[i].sameContent(parameters.get(i)) ? "==" : "!=")+parameters.get(i).toStringFull()).toArray()));
-            engine = engineFactory.get();
-            if (engine!=null) {
-                engines.add(engine);
-            }
+            logger.debug("Engine of class: {}, and parameters: {} not found among opened engines:", defaultEngine.getClass(), defaultEngine.getParameters());
+            engines.forEach(e->logger.debug("Opened Engine: {}-> parameters:{}", e.getClass(), IntStream.range(0, defaultEngine.getParameters().length).mapToObj(i->e.getParameters()[i].toStringFull()+(e.getParameters()[i].sameContent(defaultEngine.getParameters()[i]) ? "==" : "!=")+defaultEngine.getParameters()[i].toStringFull()).toArray()));
+            engines.add(defaultEngine);
+            engine = defaultEngine;
         }
-        return engine;
+        return (T)engine;
     }
     public synchronized void closeAllEngines() {
         engines.forEach(e->e.close());

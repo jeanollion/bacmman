@@ -25,7 +25,6 @@ import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.plugins.ObjectFeature;
-import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PostFilterFeature;
 
@@ -59,7 +58,7 @@ public class FeatureFilter implements PostFilterFeature, Hint {
     
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        ObjectFeature f = feature.instanciatePlugin();
+        ObjectFeature f = feature.instantiatePlugin();
         f.setUp(parent, childStructureIdx, childPopulation);
         childPopulation=childPopulation.filter(new RegionPopulation.Feature(f, threshold.getValue().doubleValue(), keepOverThreshold.getSelected(), strict.getSelected()));
         return childPopulation;

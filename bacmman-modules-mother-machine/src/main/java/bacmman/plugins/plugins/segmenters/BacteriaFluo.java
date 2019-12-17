@@ -161,11 +161,11 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     
     private void ensureThresholds(SegmentedObject parent, int structureIdx, boolean bck, boolean fore) {
         if (bck && Double.isNaN(bckThld) && THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(bckThresholdMethod)) {
-            bckThld = bckThresholderFrame.instanciatePlugin().runSimpleThresholder(parent.getPreFilteredImage(structureIdx), parent.getMask());
+            bckThld = bckThresholderFrame.instantiatePlugin().runSimpleThresholder(parent.getPreFilteredImage(structureIdx), parent.getMask());
         } 
         if (bck && Double.isNaN(bckThld)) throw new RuntimeException("Bck Threshold not computed");
         if (fore && Double.isNaN(foreThld) && THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(foreThresholdMethod.getSelectedEnum())) {
-            foreThld = foreThresholderFrame.instanciatePlugin().runSimpleThresholder(parent.getPreFilteredImage(structureIdx), parent.getMask());
+            foreThld = foreThresholderFrame.instantiatePlugin().runSimpleThresholder(parent.getPreFilteredImage(structureIdx), parent.getMask());
         } 
         if (fore && Double.isNaN(foreThld)) throw new RuntimeException("Fore Threshold not computed");        
     }
@@ -391,7 +391,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         if (!needToComputeGlobalMin && !needToComputeGlobalMax) return new double[]{Double.NaN, Double.NaN};
         double bckThld = Double.NaN, foreThld = Double.NaN;
         if (needToComputeGlobalMin) {
-            ThresholderHisto thlder = bckThresholder.instanciatePlugin();
+            ThresholderHisto thlder = bckThresholder.instantiatePlugin();
             if (THRESHOLD_COMPUTATION.ROOT_TRACK.equals(bckThresholdMethod)) { // root threshold
                 if (thlder instanceof BackgroundFit) {
                     double[] ms = getRootBckMeanAndSigma(parentTrack, structureIdx, histoRoot);
@@ -400,7 +400,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             } else bckThld = thlder.runThresholderHisto(getHistoParent.get());  // parent threshold
         }
         if (needToComputeGlobalMax) { // global threshold on this track
-            ThresholderHisto thlder = foreThresholder.instanciatePlugin();
+            ThresholderHisto thlder = foreThresholder.instantiatePlugin();
             if (THRESHOLD_COMPUTATION.ROOT_TRACK.equals(foreThresholdMethod.getSelectedEnum())) { // root threshold
                 if (thlder instanceof BackgroundFit) {
                     double[] ms = getRootBckMeanAndSigma(parentTrack, structureIdx, histoRoot);
@@ -427,7 +427,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                     return parents.get(0).getRoot().getAttribute(key, Double.NaN);
                 } else {
                     List<Image> im = parents.stream().map(p->p.getRoot()).map(p->p.getRawImage(structureIdx)).collect(Collectors.toList());
-                    ThresholderHisto thlder = (min ? bckThresholder:foreThresholder).instanciatePlugin();
+                    ThresholderHisto thlder = (min ? bckThresholder:foreThresholder).instantiatePlugin();
                     Histogram histo;
                     if (histoStore!=null && histoStore[0]!=null ) histo = histoStore[0];
                     else {

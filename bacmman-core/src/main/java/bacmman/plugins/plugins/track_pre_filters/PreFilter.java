@@ -26,7 +26,6 @@ import bacmman.image.Image;
 import bacmman.plugins.Hint;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPreFilter;
-import org.junit.Test;
 
 import static bacmman.utils.Utils.parallele;
 import java.util.Map;
@@ -57,7 +56,7 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
         Consumer<Map.Entry<SegmentedObject, Image>> c  = e->{
-            bacmman.plugins.PreFilter instance=  filter.instanciatePlugin();
+            bacmman.plugins.PreFilter instance=  filter.instantiatePlugin();
             if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
             e.setValue(instance.runPreFilter(e.getValue(), e.getKey().getMask(), canModifyImages));
         };

@@ -36,7 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.Hint;
-import bacmman.utils.SlidingOperator;
 import bacmman.utils.SlidingOperatorDouble;
 import bacmman.utils.Utils;
 import java.util.stream.IntStream;
@@ -124,12 +123,12 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                 ImageMask m;
                 if (chExcl>=0) {
                     Image se1 = allImagesExcl[frame];
-                    double thld1 = signalExclusionThreshold.instanciatePlugin().runSimpleThresholder(se1, null);
+                    double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
                     ThresholdMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new ThresholdMask(se1, thld1, true, true, 0):new ThresholdMask(se1, thld1, true, true);
                     if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
                     if (chExcl2>=0) {
                         Image se2 = allImagesExcl2[frame];
-                        double thld2 = signalExclusionThreshold2.instanciatePlugin().runSimpleThresholder(se2, null);
+                        double thld2 = signalExclusionThreshold2.instantiatePlugin().runSimpleThresholder(se2, null);
                         ThresholdMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new ThresholdMask(se2, thld2, true, true, 0):new ThresholdMask(se2, thld2, true, true);
                         if (testMode.testExpert()) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
                         mask = ThresholdMask.or(mask, mask2);

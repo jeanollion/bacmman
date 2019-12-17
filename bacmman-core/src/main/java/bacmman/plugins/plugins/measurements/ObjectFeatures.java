@@ -58,7 +58,7 @@ public class ObjectFeatures implements Measurement, Hint {
     public ObjectFeatures() {
         def.addListener( s -> {
             TextParameter tp = ((TextParameter)s.getAdditionalParameters().get(0));
-            if (s.isOnePluginSet()) tp.setValue(s.instanciatePlugin().getDefaultName());
+            if (s.isOnePluginSet()) tp.setValue(s.instantiatePlugin().getDefaultName());
             else tp.setValue("");
         });
         ((TextParameter)def.getAdditionalParameters().get(0)).addValidationFunction((t)->((TextParameter)t).getValue().length()>0);
@@ -110,7 +110,7 @@ public class ObjectFeatures implements Measurement, Hint {
         int structureIdx = structure.getSelectedIndex();
         ArrayList<ObjectFeatureCore> cores = new ArrayList<>();
         for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {
-            ObjectFeature f = ofp.instanciatePlugin();
+            ObjectFeature f = ofp.instantiatePlugin();
             if (f!=null) {
                 f.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
                 if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(cores, preFilters);
