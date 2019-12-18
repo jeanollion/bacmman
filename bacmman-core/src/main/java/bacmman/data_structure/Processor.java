@@ -214,9 +214,13 @@ public class Processor {
         ensureScalerConfiguration(dao, structureIdx);
         MultipleException me=null;
         try { // execute sequentially, store what has been processed, and throw exception in the end
-            ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao));
+            ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
+                execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
+            });
         } catch (MultipleException e) {
             me=e;
+        } finally {
+            xp.getDLengineProvider().closeAllEngines();
         }
         
         // store in DAO
