@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 
 import java.util.function.BiPredicate;
@@ -68,7 +70,7 @@ public class TrackLengthFilter implements TrackPostFilter, Hint {
         int min = minSize.getValue().intValue();
         int max = maxSize.getValue().intValue();
         List<SegmentedObject> objectsToRemove = new ArrayList<>();
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx, true, true);
         for (Entry<SegmentedObject, List<SegmentedObject>> e : allTracks.entrySet()) {
             if (e.getValue().size()<min || (max>0 && e.getValue().size()>max)) objectsToRemove.addAll(e.getValue());
         }
@@ -76,6 +78,11 @@ public class TrackLengthFilter implements TrackPostFilter, Hint {
         BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
             
         if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
     }
 
     @Override

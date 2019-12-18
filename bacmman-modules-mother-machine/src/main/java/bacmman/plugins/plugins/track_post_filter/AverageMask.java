@@ -35,6 +35,8 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 
 /**
@@ -47,6 +49,12 @@ public class AverageMask implements TrackPostFilter, DevPlugin{
     ChoiceParameter referencePoint = new ChoiceParameter("Reference Point", new String[]{"Upper-left corner"}, "Upper-left corner", false);
     //PostFilterSequence postFilters = new PostFilterSequence("Post-Filters");
     //BooleanParameter postFilterOnAverageImage = new BooleanParameter("Run post-filters on", "Average Image Over Frames", "Each Frame", true);
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.INTERVALS;
+    }
+
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor)  {
         Map<SegmentedObject, List<SegmentedObject>> allTracks=  SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);

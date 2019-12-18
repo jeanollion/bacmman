@@ -27,6 +27,7 @@ import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.plugins.Hint;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.ImageOperations;
 
 import java.util.TreeMap;
@@ -45,6 +46,10 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
     public NormalizeTrack(double saturation, boolean invert) {
         this.saturation.setValue(saturation);
         this.invert.setSelected(invert);
+    }
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImage) {

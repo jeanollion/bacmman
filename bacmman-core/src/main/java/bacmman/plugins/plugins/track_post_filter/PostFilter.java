@@ -28,6 +28,7 @@ import bacmman.plugins.Hint;
 
 import java.util.*;
 
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPostFilter;
 import bacmman.utils.MultipleException;
@@ -47,6 +48,10 @@ import java.util.stream.Collectors;
 public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlugin {
     PluginParameter<bacmman.plugins.PostFilter> filter = new PluginParameter<>("Filter", bacmman.plugins.PostFilter.class, false).setEmphasized(true);
 
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+    }
 
     Map<SegmentedObject, TestDataStore> stores;
     @Override

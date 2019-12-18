@@ -66,8 +66,6 @@ import bacmman.utils.Utils;
  */
 public class SelectionUtils {
 
-
-    
     public static boolean validSelectionName(MasterDAO db, String name) {
         if (!Utils.isValid(name, false)) {
             logger.error("Name should not contain special characters");

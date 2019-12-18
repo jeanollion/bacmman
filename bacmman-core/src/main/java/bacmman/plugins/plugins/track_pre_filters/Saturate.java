@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.track_pre_filters;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
@@ -48,7 +49,12 @@ public class Saturate implements TrackPreFilter, Hint, DevPlugin {
     public Saturate(double maxProportion) {
         this.maxSat.setValue(maxProportion);
     }
-    
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
+    }
+
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
         Map<Image, ImageMask> maskMap = TrackPreFilter.getMaskMap(preFilteredImages);

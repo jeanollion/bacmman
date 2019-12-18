@@ -131,8 +131,8 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
     }
 
     @Override
-    public boolean allowRunOnParentTrackSubset() {
-        return false;
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
 
     /**

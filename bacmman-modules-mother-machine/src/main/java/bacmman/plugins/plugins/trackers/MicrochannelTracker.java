@@ -487,8 +487,10 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     public Parameter[] getParameters() {
         return parameters;
     }
-    
 
-    
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.INTERVALS;
+    }
     
 }

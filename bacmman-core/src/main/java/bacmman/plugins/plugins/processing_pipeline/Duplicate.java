@@ -36,7 +36,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplicate> implements Hint {
+public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplicate, Tracker> implements Hint {
     protected PluginParameter<Tracker> tracker = new PluginParameter<>("Tracker", Tracker.class, true);
     ParentObjectClassParameter dup = new ParentObjectClassParameter("Duplicate From").setAllowNoSelection(false);
     protected Parameter[] parameters = new Parameter[]{dup, preFilters, trackPreFilters, tracker, trackPostFilters};
@@ -45,6 +45,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     public String getHintText() {
         return "Duplicates the segmented objects of another object class. Tracker and post-filter can be applied. If no tracker is set, the lineage is also duplicated";
     }
+    @Override
     public Tracker getTracker() {
         Tracker t =  tracker.instantiatePlugin();
         if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);

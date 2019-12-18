@@ -33,8 +33,7 @@ import bacmman.plugins.*;
  *
  * @author Jean Ollion
  */
-public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<SegmentAndTrack> implements Hint {
-    int nThreads;
+public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<SegmentAndTrack, TrackerSegmenter> implements Hint {
     PluginParameter<TrackerSegmenter> tracker = new PluginParameter<>("Tracker", TrackerSegmenter.class, true);
     Parameter[] parameters= new Parameter[]{preFilters, trackPreFilters, tracker, postFilters, trackPostFilters};
     

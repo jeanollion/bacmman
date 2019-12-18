@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
  * @author Jean Ollion
  */
 public interface TrackPreFilter  extends ImageProcessingPlugin {
+    ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode();
     void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages);
     static Map<Image, ImageMask> getMaskMap(Map<SegmentedObject, Image> map) {
         return map.entrySet().stream().collect(Collectors.toMap(e->e.getValue(), e->e.getKey().getMask()));

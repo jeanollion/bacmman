@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 import static bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY_TT;
 
@@ -61,13 +63,18 @@ public class RemoveTracksStartingAfterFrame implements TrackPostFilter, Hint {
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         int start = startFrame.getValue().intValue();
         List<SegmentedObject> objectsToRemove = new ArrayList<>();
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx, true, true);
         for (Entry<SegmentedObject, List<SegmentedObject>> e : allTracks.entrySet()) {
             if (e.getKey().getFrame()>start) objectsToRemove.addAll(e.getValue());
         }
         //logger.debug("remove track trackLength: #objects to remove: {}", objectsToRemove.size());
         BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
         if (!objectsToRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
     }
 
     @Override
