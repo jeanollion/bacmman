@@ -522,6 +522,7 @@ public class Task implements ProgressCallback{
             } finally {
                 logger.debug("closing engines...");
                 db.getExperiment().getDLengineProvider().closeAllEngines();
+                logger.debug("engines closed!");
             }
             logger.debug("extracting meas...");
             for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value);

@@ -48,14 +48,13 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         // output channels are [0] background [1] mother cell [2] daughter cell
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
-        int batchSize = engine.getBatchSize();
         boolean separateInputChannels = engine.getNumInputArrays() == 2;
         InputFormatter input = new InputFormatter(structureIdx, parentTrack, predictionThld.getValue().doubleValue(), new int[]{32, 256});
         SimpleTrackGraph<DefaultWeightedEdge> graph = SimpleTrackGraph.createWeightedGraph();
         parentTrack.stream().flatMap(p -> p.getChildren(structureIdx)).forEach(graph::addVertex); // populate graph vertex
         Map<Integer, List<SegmentedObject>> segObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> parentTrack.get(i).getChildren(structureIdx).collect(Collectors.toList()));
         // make predictions
-        int stepSize = 5 * batchSize;
+        int stepSize = Math.min(2048, input.length()); // in case there are lots of objects, many images could be created -> process by chunks
         for (int idx = 0; idx < input.length(); idx += stepSize) {
             logger.debug("processing batch-group {} / {}", (int)Math.ceil(idx/(double)stepSize)+1, (int)Math.ceil((input.length()-2)/(double)stepSize));
             Image[][][] inputs = input.getInput(idx, idx + stepSize, separateInputChannels);
