@@ -8,6 +8,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.PreFilter;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPreFilter;
 import bacmman.py_dataset.PyDatasetReader;
 import bacmman.utils.Pair;
@@ -38,6 +39,11 @@ public class ImportH5File implements TrackPreFilter {
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{h5File, groupName, datasetName, binaryImage};
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
     }
 
     @Override

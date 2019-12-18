@@ -238,6 +238,11 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     }
 
     @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+    }
+
+    @Override
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         throw new RuntimeException("Operation not supported"); // images need to be scaled to be able to predict
     }
