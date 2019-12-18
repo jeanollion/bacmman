@@ -38,8 +38,13 @@ public class DLengineProvider {
         }
         return (T)engine;
     }
-    public synchronized void closeAllEngines() {
-        engines.forEach(e->e.close());
+
+    public void closeAllEngines() {
+        for (DLengine e : engines) {
+            logger.debug("closing dlengine: {}->{}", e.getClass(), e.getParameters());
+            e.close();
+            logger.debug("engine closed successfully");
+        }
         engines.clear();
     }
 }

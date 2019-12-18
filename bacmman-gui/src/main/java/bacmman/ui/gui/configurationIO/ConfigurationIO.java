@@ -145,7 +145,7 @@ public class ConfigurationIO {
             String username = this.username.getText();
             char[] pass = password.getPassword();
             String token = this.token.getText();
-            if (username.length()>0 && pass.length>0 && token.length()>0) {
+            if (username.length() > 0 && pass.length > 0 && token.length() > 0) {
                 try {
                     TokenAuth.encryptAndStore(username, pass, token);
                     GUI.log("Token stored successfully");
@@ -356,12 +356,13 @@ public class ConfigurationIO {
         JDialog dia = new Dial(parent, "Import/Export Configuration from Github");
         dia.setVisible(true);
     }
+
     private void enableTokenButtons() {
         String u = username.getText();
         char[] p = password.getPassword();
         String t = token.getText();
-        boolean enableSave =  u.length()!=0 && p.length!=0 && t.length()!=0;
-        boolean enableLoad = u.length()!=0 && p.length!=0;
+        boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
+        boolean enableLoad = u.length() != 0 && p.length != 0;
         loadToken.setEnabled(enableLoad);
         storeToken.setEnabled(enableSave);
     }
@@ -395,7 +396,7 @@ public class ConfigurationIO {
         nodeJCB.setModel(defaultComboBoxModel1);
         nodePanel.add(nodeJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         mainSP = new JSplitPane();
-        mainSP.setDividerLocation(100);
+        mainSP.setDividerLocation(94);
         mainSP.setOrientation(0);
         mainPanel.add(mainSP, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(600, 600), null, 0, false));
         configSP = new JSplitPane();
@@ -438,16 +439,26 @@ public class ConfigurationIO {
         duplicateRemote.setText("Duplicate remote");
         actionPanel.add(duplicateRemote, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         credentialPanel = new JPanel();
-        credentialPanel.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        credentialPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         mainPanel.add(credentialPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         credentialPanel.setBorder(BorderFactory.createTitledBorder("Github credentials"));
         password = new JPasswordField();
-        password.setToolTipText("Enter the password associated to the github account. If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.");
-        credentialPanel.add(password, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
+        credentialPanel.add(password, new GridConstraints(0, 1, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         username = new JTextField();
         username.setText("bacmman");
         username.setToolTipText("Enter the username of a github account containing configuration files");
         credentialPanel.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        token = new JTextField();
+        token.setToolTipText("paste here a personal access token with gist permission generated at: https://github.com/settings/tokens ");
+        credentialPanel.add(token, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        storeToken = new JButton();
+        storeToken.setText("Store Token");
+        storeToken.setToolTipText("token will be stored encrypted using the passphrase");
+        credentialPanel.add(storeToken, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        loadToken = new JButton();
+        loadToken.setText("Load Token");
+        credentialPanel.add(loadToken, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
