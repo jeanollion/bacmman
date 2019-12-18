@@ -67,36 +67,45 @@ public class TFengine implements DLengine {
         return inputs.getActivatedChildCount();
     }
 
-    @Override
     public int getBatchSize() {
         return this.batchSize.getValue().intValue();
     }
 
     @Override
     public void close() {
-        if (graph!=null) {
-            graph.close();
-            graph = null;
-        }
         if (session!=null) {
             session.close();
             session = null;
+        }
+        if (graph!=null) {
+            graph.close();
+            graph = null;
         }
     }
 
     @Override
     public void init() {
         if (graph!=null && session !=null) return; // already init
-        try {
-            TensorFlow.version();
-        } catch(UnsatisfiedLinkError e) {
-            logger.error("Error while loading tensorflow:", e);
+        if (graph==null && session== null) {
+            try {
+                TensorFlow.version();
+            } catch(UnsatisfiedLinkError e) {
+                logger.error("Error while loading tensorflow:", e);
+            }
+            logger.debug("tensorflow version: {}", TensorFlow.version());
+            SavedModelBundle model = SavedModelBundle.load(modelFile.getFirstSelectedFilePath(), "serve");
+            session = model.session();
+            graph = model.graph();
+            logger.debug("model loaded!");
+            initInputAndOutputNames();
+        } else if (graph!=null && session == null) {
+            //session = new Session(graph, null); // TODO: not working! Thrown errors such as: Error while reading resource variable encoder0_2_conv/kernel from Container: localhost. This could mean that the variable was uninitialized. Not found: Container localhost does not exist. (Could not find resource: localhost/encoder0_2_conv/kernel)
+            graph.close();
+            graph=null;
+            init();
         }
-        logger.debug("tensorflow version: {}", TensorFlow.version());
-        SavedModelBundle model = SavedModelBundle.load(modelFile.getFirstSelectedFilePath(), "serve");
-        session = model.session();
-        graph = model.graph();
-        logger.debug("model loaded!");
+    }
+    private void initInputAndOutputNames() {
         boolean[] missingLayer = new boolean[2];
         //logOperations();
         inputNames = inputs.getActivatedChildren().stream().map(i->i.getValue()).toArray(String[]::new);
@@ -165,6 +174,7 @@ public class TFengine implements DLengine {
         for (int i = 1; i<inputNC.length; ++i) {
             if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
         }
+        init();
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
         long wrapTime = 0, predictTime = 0;
@@ -188,22 +198,25 @@ public class TFengine implements DLengine {
                     }
                 }
 
-            List<Tensor<?>> outputs;
+            List<Tensor<?>> outputs=null;
             try {
                 outputs = r.run();
-            }catch (UnsupportedOperationException e) {
+            } catch (UnsupportedOperationException e) {
                 logger.error("An error occurred during NN execution. Check input shapes: {}", Arrays.stream(input).map(i->i.shape()).toArray());
+                if (outputs!=null) for (Tensor o : outputs) o.close();
                 throw e;
+            } finally {
+                for (Tensor i : input) i.close();
             }
             long t2 = System.currentTimeMillis();
             for (int io = 0; io<outputNames.length; ++io) {
                 Image[][] resIm = TensorWrapper.getImagesNC((Tensor<Float>)outputs.get(io), bufferContainer);
+                outputs.get(io).close();
                 for (int i = idx;  i<idxMax; ++i) res[io][i] = resIm[i-idx];
             }
             long t3 = System.currentTimeMillis();
             wrapTime+=t1-t0 + t3 - t2;
             predictTime += t2-t1;
-
         }
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
