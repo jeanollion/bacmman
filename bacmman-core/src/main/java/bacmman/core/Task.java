@@ -21,6 +21,7 @@ package bacmman.core;
 import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.measurement.MeasurementExtractor;
@@ -43,7 +44,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.*;
 import javax.swing.SwingWorker;
 
 import org.json.simple.JSONArray;
@@ -60,10 +61,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
-import java.util.function.BinaryOperator;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -85,6 +82,7 @@ public class Task implements ProgressCallback{
         final boolean keepDB;
         int[] taskCounter;
         ProgressLogger ui;
+        String selectionName;
         public JSONObject toJSON() {
             JSONObject res=  new JSONObject();
             res.put("dbName", dbName); 
@@ -104,6 +102,7 @@ public class Task implements ProgressCallback{
             if (exportConfig) res.put("exportConfig", exportConfig);
             if (positions!=null) res.put("positions", JSONUtils.toJSONArray(positions));
             if (structures!=null) res.put("structures", JSONUtils.toJSONArray(structures));
+            if (selectionName!=null) res.put("selection", selectionName);
             JSONArray ex = new JSONArray();
             for (Pair<String, int[]> p : extractMeasurementDir) {
                 JSONObject o = new JSONObject();
@@ -137,6 +136,7 @@ public class Task implements ProgressCallback{
             this.exportSelections = (Boolean)data.getOrDefault("exportSelections", false);
             this.exportConfig = (Boolean)data.getOrDefault("exportConfig", false);
             if (exportPreProcessedImages || exportTrackImages || exportObjects || exportSelections || exportConfig) exportData= true;
+            if (data.containsKey("selection")) selectionName = (String)data.get("selection");
             if (data.containsKey("positions")) positions = JSONUtils.fromIntArrayToList((JSONArray)data.get("positions"));
             if (data.containsKey("structures")) structures = JSONUtils.fromIntArray((JSONArray)data.get("structures"));
             if (data.containsKey("extractMeasurementDir")) {
@@ -144,7 +144,7 @@ public class Task implements ProgressCallback{
                 JSONArray ex = (JSONArray)data.get("extractMeasurementDir");
                 for (Object o : ex) {
                     JSONObject jo = (JSONObject)(o);
-                    extractMeasurementDir.add(new Pair((String)jo.get("dir"), JSONUtils.fromIntArray((JSONArray)jo.get("s"))));
+                    extractMeasurementDir.add(new Pair(jo.get("dir"), JSONUtils.fromIntArray((JSONArray)jo.get("s"))));
                 }
             }
             return this;
@@ -166,6 +166,7 @@ public class Task implements ProgressCallback{
         hash = 59 * hash + (this.exportSelections ? 1 : 0);
         hash = 59 * hash + (this.exportConfig ? 1 : 0);
         hash = 59 * hash + (this.exportData ? 1 : 0);
+        if (selectionName!=null) hash = 59 * hash + selectionName.hashCode();
         hash = 59 * hash + Objects.hashCode(this.positions);
         hash = 59 * hash + Arrays.hashCode(this.structures);
         hash = 59 * hash + Objects.hashCode(this.extractMeasurementDir);
@@ -230,6 +231,9 @@ public class Task implements ProgressCallback{
             return false;
         }
         if (!Objects.equals(this.extractMeasurementDir, other.extractMeasurementDir)) {
+            return false;
+        }
+        if (!Objects.equals(this.selectionName, other.selectionName)) {
             return false;
         }
         return true;
@@ -372,6 +376,10 @@ public class Task implements ProgressCallback{
             Arrays.sort(structures);
             return this;
         }
+        public Task setSelection(String selectionName) {
+            this.selectionName = selectionName;
+            return this;
+        }
         
         public Task addExtractMeasurementDir(String dir, int... extractStructures) {
             if (extractStructures==null || extractStructures.length==0) {
@@ -403,6 +411,26 @@ public class Task implements ProgressCallback{
                 PreProcessingChain template = db.getExperiment().getPreProcessingTemplate();
                 List<Integer> posWithDifferentPP = positions.stream().filter(p -> !template.getTransformations().sameContent(db.getExperiment().getPosition(p).getPreProcessingChain().getTransformations())).collect(Collectors.toList());
                 publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
+            }
+            if (selectionName!=null) {
+                if (preProcess || generateTrackImages || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
+                else {
+                    Selection sel = db.getSelectionDAO().getOrCreate(selectionName, false);
+                    if (sel.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception("Empty selection")));
+                    else {
+                        int selObjectClass = sel.getStructureIdx();
+                        if (segmentAndTrack || trackOnly) { // check that parent object class of all object class is selection object class
+                            if (structures == null)
+                                errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
+                            else {
+                                for (int objectClass : structures) {
+                                    if (!db.getExperiment().experimentStructure.isDirectChildOf(selObjectClass, objectClass))
+                                        errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
+                                }
+                            }
+                        }
+                    }
+                }
             }
             // check files
             for (Pair<String, int[]> e : extractMeasurementDir) {
@@ -475,32 +503,33 @@ public class Task implements ProgressCallback{
             publishMemoryUsage("Before processing");
             this.ensurePositionAndStructures(true, true);
             Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
-            String[] pos = positions.stream().map(posIdxNameMapper).toArray(l->new String[l]);
-            db.lockPositions(pos);
-            
+            Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
+            Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
+            List<String> positionsToProcess = positions.stream().map(posIdxNameMapper).filter(selFilter).collect(Collectors.toList());
+            db.lockPositions(positionsToProcess.toArray(new String[0]));
+
             // check that all position to be processed are effectively locked
-            List<String> lockedPos = positions.stream().map(posIdxNameMapper).filter(p->db.getDao(p).isReadOnly()).collect(Collectors.toList());
-            if (!lockedPos.isEmpty()) {
-                ui.setMessage("Some positions could not be locked and will not be processed: " + lockedPos);
-                for (String p : lockedPos) errors.addExceptions(new Pair(p, new RuntimeException("Locked position. Already used by another process?")));
-                positions.removeIf( p -> MasterDAO.getDao(db, p).isReadOnly());
+            List<String> readOnlyPos = positionsToProcess.stream().filter(p->db.getDao(p).isReadOnly()).collect(Collectors.toList());
+            if (!readOnlyPos.isEmpty()) {
+                ui.setMessage("Some positions could not be locked and will not be processed: " + readOnlyPos);
+                for (String p : readOnlyPos) errors.addExceptions(new Pair(p, new RuntimeException("Locked position. Already used by another process?")));
+                positionsToProcess.removeAll(readOnlyPos);
             }
             boolean needToDeleteObjects = preProcess || segmentAndTrack;
-            boolean deleteAll =  needToDeleteObjects && structures.length==db.getExperiment().getStructureCount() && positions.size()==db.getExperiment().getPositionCount();
+            boolean deleteAll =  needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && positionsToProcess.size()==db.getExperiment().getPositionCount();
             if (deleteAll) {
                 publish("deleting objects...");
                 db.deleteAllObjects();
             }
-            boolean deleteAllField = needToDeleteObjects && structures.length==db.getExperiment().getStructureCount() && !deleteAll;
+            boolean deleteAllField = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll;
             logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllField);
             if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
             publish("number of subtasks: "+countSubtasks());
             
             try {
-                for (int pIdx : positions) {
-                    String position = posIdxNameMapper.apply(pIdx);
+                for (String position : positionsToProcess) {
                     try {
-                        process(position, deleteAllField);
+                        process(position, deleteAllField, selection);
                     } catch (MultipleException e) {
                         errors.addExceptions(e.getExceptions());
                     } catch (Throwable e) {
@@ -529,14 +558,14 @@ public class Task implements ProgressCallback{
             if (exportData) exportData();
             logger.debug("unlocking positions...");
 
-            if (!keepDB) db.unlockPositions(pos);
+            if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
             else {
                 logger.debug("clearing cache...");
-                for (int pIdx : positions) db.clearCache(posIdxNameMapper.apply(pIdx));
+                for (String position:positionsToProcess) db.clearCache(position);
                 logger.debug("cache cleared...");
             }
         }
-    private void process(String position, boolean deleteAllField) {
+    private void process(String position, boolean deleteAllField, Selection selection) {
         publish("Position: "+position);
         if (deleteAllField) db.getDao(position).deleteAllObjects();
         if (preProcess) {
@@ -553,12 +582,12 @@ public class Task implements ProgressCallback{
         
         if ((segmentAndTrack || trackOnly)) {
             logger.info("Processing: DB: {}, Position: {}", dbName, position);
-            deleteObjects(db.getDao(position), structures);
+            if (selection==null) deleteObjects(db.getDao(position), structures);
             List<SegmentedObject> root = getOrCreateRootTrack(db.getDao(position));
             for (int s : structures) { // TODO take code from processor
                 publish("Processing structure: "+s);
                 try {
-                    executeProcessingScheme(root, s, trackOnly, false);
+                    executeProcessingScheme(root, s, trackOnly, selection!=null, selection, this);
                 } catch (MultipleException e) {
                     errors.addExceptions(e.getExceptions());
                 } catch (Throwable e) {
@@ -630,10 +659,22 @@ public class Task implements ProgressCallback{
         return res;
     }
     @Override public String toString() {
-        char sep = ';';
+        String sep = "; " ;
         StringBuilder sb = new StringBuilder();
         Runnable addSep = () -> {if (sb.length()>0) sb.append(sep);};
-
+        sb.append("db:").append(dbName);
+        if (structures!=null) {
+            addSep.run();
+            sb.append("structures:").append(ArrayUtil.toString(structures));
+        }
+        if (positions!=null) {
+            addSep.run();
+            sb.append("positions:").append(Utils.toStringArrayShort(positions));
+        }
+        if (selectionName!=null) {
+            addSep.run();
+            sb.append("selection:").append(selectionName);
+        }
         if (preProcess) sb.append("preProcess");
         if (segmentAndTrack) {
             addSep.run();
@@ -646,14 +687,7 @@ public class Task implements ProgressCallback{
             addSep.run();
             sb.append("measurements[").append(measurementMode.toString()).append("]");
         }
-        if (structures!=null) {
-            addSep.run();
-            sb.append("structures:").append(ArrayUtil.toString(structures));
-        }
-        if (positions!=null) {
-            addSep.run();
-            sb.append("positions:").append(Utils.toStringArrayShort(positions));
-        } 
+
         if (!extractMeasurementDir.isEmpty()) {
             addSep.run();
             sb.append("Extract: ");
@@ -682,7 +716,7 @@ public class Task implements ProgressCallback{
             }
         }
         addSep.run();
-        sb.append("db:").append(dbName).append(sep).append("dir:").append(dir);
+        sb.append("dir:").append(dir);
         return sb.toString();
     }
     @Override

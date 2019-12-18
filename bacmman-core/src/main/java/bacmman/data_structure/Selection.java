@@ -483,6 +483,10 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         if (isActive(1)) sb.append("[A:1]");
         return sb.toString();
     }
+    public boolean isEmpty() {
+        for (List l : elements.values()) if (!l.isEmpty()) return false;
+        return true;
+    }
     public int count() {
         int c = 0;
         for (String k : elements.keySet()) c+=get(k, true).size();
