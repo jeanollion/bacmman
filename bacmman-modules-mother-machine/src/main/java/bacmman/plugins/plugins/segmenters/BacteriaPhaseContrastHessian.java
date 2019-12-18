@@ -10,6 +10,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Hint;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
@@ -113,8 +114,8 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
     }
 
     @Override
-    public boolean allowRunOnParentTrackSubset() {
-        return false;
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
 
     protected double[] getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {

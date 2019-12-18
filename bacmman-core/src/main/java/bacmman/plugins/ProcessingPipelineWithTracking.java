@@ -25,6 +25,7 @@ import bacmman.configuration.parameters.TrackPostFilterSequence;
  * @author Jean Ollion
  * @param <T>
  */
-public interface ProcessingPipelineWithTracking<T extends ProcessingPipelineWithTracking> extends ProcessingPipeline<T> {
-    public TrackPostFilterSequence getTrackPostFilters();
+public interface ProcessingPipelineWithTracking<T extends ProcessingPipelineWithTracking, U extends Tracker> extends ProcessingPipeline<T> {
+    U getTracker();
+    TrackPostFilterSequence getTrackPostFilters();
 }

@@ -28,5 +28,6 @@ import java.util.List;
  * @author Jean Ollion
  */
 public interface Tracker extends ImageProcessingPlugin {
+    ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode();
     void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor);
 }

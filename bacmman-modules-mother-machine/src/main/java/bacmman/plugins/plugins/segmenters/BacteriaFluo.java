@@ -372,8 +372,8 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     }
 
     @Override
-    public boolean allowRunOnParentTrackSubset() {
-        return false;
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
 
     protected double[] getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {

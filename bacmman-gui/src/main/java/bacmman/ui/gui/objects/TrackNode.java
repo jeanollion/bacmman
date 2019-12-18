@@ -19,21 +19,21 @@
 package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.core.DefaultWorker;
+import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.SelectionDAO;
+import bacmman.plugins.TrackConfigurable;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.data_structure.Processor;
 import bacmman.core.Task;
+import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.MultipleException;
 import java.awt.event.ActionEvent;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -41,7 +41,6 @@ import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import bacmman.utils.Pair;
 
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -260,23 +259,25 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                         public void actionPerformed(ActionEvent ae) {
                             final int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
                             Map<String, List<TrackNode>> nodesByPosition = root.generator.getSelectedTrackNodes().stream().collect(Collectors.groupingBy(n->n.root.position));
-                            nodesByPosition.forEach((p, l) -> {
-                                l.forEach(n -> {
-                                    GUI.logger.debug("run seg & track on : {}, structure: {}", n.trackHead, structureIdx);
-                                    GUI.log("Running Segmentation & Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+"...");
-                                    try {
-                                        Processor.executeProcessingScheme(n.getTrack(), structureIdx, false, true);
-                                        GUI.log("Segmentation & Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
-                                    } catch (MultipleException me) {
-                                        Task t = new Task().setUI(GUI.getInstance());
-                                        for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
-                                    } catch (Throwable tr) {
-                                        Task t = new Task().setUI(GUI.getInstance());
-                                        t.publishError(n.trackHead.toString(), tr);
-                                    }
-                                });
-                                if (nodesByPosition.size()>1) root.generator.db.clearCache(p);
-                            });
+                            List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
+                            ProgressLogger ui = GUI.getInstance();
+                            DefaultWorker.execute(idx -> {
+                                String p = positions.get(idx).key;
+                                TrackNode n = positions.get(idx).value;
+                                ui.setMessage("Running Segmentation and Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
+                                try {
+                                    Processor.executeProcessingScheme(n.getTrack(), structureIdx, false, true, null, null);
+                                    GUI.log("Segmentation and Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
+                                } catch (MultipleException me) {
+                                    Task t = new Task().setUI(GUI.getInstance());
+                                    for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
+                                } catch (Throwable tr) {
+                                    Task t = new Task().setUI(GUI.getInstance());
+                                    t.publishError(n.trackHead.toString(), tr);
+                                }
+                                if (nodesByPosition.size()>1 && idx<positions.size()-1 && !positions.get(idx + 1).key.equals(p)) root.generator.db.clearCache(p);
+                                return "";
+                            }, positions.size(), ui);
                             
                             // reload tree
                             root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
@@ -298,23 +299,26 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                         public void actionPerformed(ActionEvent ae) {
                             final int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
                             Map<String, List<TrackNode>> nodesByPosition = root.generator.getSelectedTrackNodes().stream().collect(Collectors.groupingBy(n->n.root.position));
-                            nodesByPosition.forEach((p, l) -> {
-                                l.forEach(n -> {
-                                    GUI.logger.debug("Running Tracking on : {}, structure: {}", n.trackHead, structureIdx);
-                                    GUI.log("Running Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
-                                    try {
-                                        Processor.executeProcessingScheme(n.getTrack(), structureIdx, true, false);
-                                        GUI.log("Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
-                                    } catch (MultipleException me) {
-                                        Task t = new Task().setUI(GUI.getInstance());
-                                        for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
-                                    } catch (Throwable tr) {
-                                        Task t = new Task().setUI(GUI.getInstance());
-                                        t.publishError(n.trackHead.toString(), tr);
-                                    }
-                                });
-                                if (nodesByPosition.size()>1) root.generator.db.clearCache(p);
-                            });
+                            List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
+                            ProgressLogger ui = GUI.getInstance();
+                            DefaultWorker.execute(idx -> {
+                                String p = positions.get(idx).key;
+                                TrackNode n = positions.get(idx).value;
+                                ui.setMessage("Running Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
+                                try {
+                                    Processor.executeProcessingScheme(n.getTrack(), structureIdx, true, false, null, null);
+                                    GUI.log("Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx+" performed!");
+                                } catch (MultipleException me) {
+                                    Task t = new Task().setUI(GUI.getInstance());
+                                    for (Pair<String, Throwable> pe : me.getExceptions()) t.publishError(pe.key, pe.value);
+                                } catch (Throwable tr) {
+                                    Task t = new Task().setUI(GUI.getInstance());
+                                    t.publishError(n.trackHead.toString(), tr);
+                                }
+                                if (nodesByPosition.size()>1 && idx<positions.size()-1 && !positions.get(idx + 1).key.equals(p)) root.generator.db.clearCache(p);
+                                return "";
+                            }, positions.size(), ui);
+
                             // reload tree
                             root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
                             // reload objects

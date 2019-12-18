@@ -29,5 +29,6 @@ import java.util.List;
  * @author Jean Ollion
  */
 public interface TrackPostFilter extends ImageProcessingPlugin {
+    ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode();
     void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
 }
