@@ -142,6 +142,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     
     // TreeNode implementation
     @Override public String toString() {
+        if (generator==null || generator.getExperiment()==null) return "no generator";
         return (parent!=null?"Position #"+generator.getExperiment().getPositionIdx(position)+" "+position: "Viewfield");//+(structureIdx>=0? generator.getExperiment().getStructure(structureIdx).getName():"Viewfield");
     }
     

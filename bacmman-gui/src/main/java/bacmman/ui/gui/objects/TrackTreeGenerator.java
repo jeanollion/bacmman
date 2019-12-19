@@ -64,12 +64,19 @@ public class TrackTreeGenerator {
     TrackTreeController controller;
     final protected HashMapGetCreate<String, Set<SegmentedObject>> highlightedObjects = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
     final protected Set<String> highlightedPositions = new HashSet<>();
-    final ProgressCallback pcb;
+    ProgressCallback pcb;
 
     public TrackTreeGenerator(MasterDAO db, TrackTreeController controller) {
         this.db = db;
         this.controller=controller;
         this.pcb=controller.pcb;
+    }
+    public void flush() {
+        this.db=null;
+        pcb=null;
+        highlightedObjects.clear();
+        highlightedPositions.clear();
+        controller=null;
     }
     public void setEnabled(boolean enabled) {
         if (tree!=null) tree.setEnabled(enabled);
@@ -79,6 +86,7 @@ public class TrackTreeGenerator {
     }
     
     public Experiment getExperiment() {
+        if (db==null) return null;
         return db.getExperiment();
     }
 

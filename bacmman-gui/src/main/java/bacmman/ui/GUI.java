@@ -990,6 +990,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         configurationTreeGenerator=null;
         if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.flush();
         testConfigurationTreeGenerator = null;
+        if (trackTreeController!=null) trackTreeController.flush();
         trackTreeController=null;
 
         trackTreeStructureJSP.setViewportView(null);

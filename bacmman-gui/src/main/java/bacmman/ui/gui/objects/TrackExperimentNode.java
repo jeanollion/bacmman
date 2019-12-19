@@ -67,6 +67,7 @@ public class TrackExperimentNode implements TreeNode, UIContainer {
     
     // TreeNode implementation
     @Override public String toString() {
+        if (generator==null || generator.getExperiment()==null) return "no generator";
         return generator.getExperiment().getName();
     }
     
