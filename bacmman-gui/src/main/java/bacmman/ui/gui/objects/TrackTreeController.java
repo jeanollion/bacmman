@@ -38,7 +38,7 @@ public class TrackTreeController {
     int[] structurePathToRoot;
     //StructureObjectTreeGenerator objectGenerator;
     boolean updateRoiDisplayWhenSelectionChange = true;
-    final ProgressCallback pcb;
+    ProgressCallback pcb;
     public TrackTreeController(MasterDAO db, ProgressCallback pcb) {
         this.db = db;
         //this.objectGenerator=objectGenerator;
@@ -46,6 +46,13 @@ public class TrackTreeController {
         this.pcb=pcb;
         initGeneratorsIfNecessary();
         displayedGeneratorS=new TreeMap<>();
+    }
+    public void flush() {
+        this.db=null;
+        this.pcb=null;
+        for  (TrackTreeGenerator g : allGeneratorS.values()) g.flush();
+        allGeneratorS.clear();
+        displayedGeneratorS.clear();
     }
     private void initGeneratorsIfNecessary() {
         if (allGeneratorS.size()!=db.getExperiment().getStructureCount()) {

@@ -125,6 +125,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         return getStructureName()+": #"+trackHead.getIdx()+ " Frames: ["+trackHead.getFrame()+";"+(track!=null?track.get(track.size()-1).getFrame():"???")+"] (N="+(track!=null?track.size():".........")+")"+(track!=null && tl!=track.size() ? " (Gaps="+(tl-track.size())+")" : ""); 
     }
     private String getStructureName() {
+        if (root==null || root.generator==null || root.generator.getExperiment()==null) return "Unknown Object Class";
         Experiment xp = root.generator.getExperiment();
         if (trackHead.getStructureIdx()>=xp.getStructureCount()) return "Unknown Object Class";
         return xp.getStructure(trackHead.getStructureIdx()).getName();
@@ -151,8 +152,12 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     }
 
     @Override public boolean isLeaf() {
-        if (track==null && getParent() instanceof RootTrackNode && root.generator.getExperiment().experimentStructure.getPathToRoot(root.structureIdx).length==1) return false; // Lazy loading only for 1st structure after root
+        if (track==null && getParent() instanceof RootTrackNode && firstStructureAfterRoot()) return false; // Lazy loading only for 1st structure after root
         return getChildCount()==0;
+    }
+    private boolean firstStructureAfterRoot() {
+        if (root.generator==null || root.generator.getExperiment()==null) return false;
+        return root.generator.getExperiment().experimentStructure.getPathToRoot(root.structureIdx).length==1;
     }
 
     @Override public Enumeration children() {
