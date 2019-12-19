@@ -406,7 +406,7 @@ public class DBMapMasterDAO implements MasterDAO {
         if (this.selectionDAO==null) {
             String op = getOutputPath();
             if (op!=null) {
-                selectionDAO = new DBMapSelectionDAO(this, op, readOnly);
+                selectionDAO = new DBMapSelectionDAO(this, op, isConfigurationReadOnly());
             }
         }
         return selectionDAO;

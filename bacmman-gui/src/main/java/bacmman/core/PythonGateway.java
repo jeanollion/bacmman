@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import bacmman.ui.gui.selection.SelectionUtils;
+import bacmman.utils.FileIO;
+import bacmman.utils.JSONUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import py4j.GatewayServer;
@@ -81,7 +83,8 @@ public class PythonGateway {
             GUI.getInstance().openExperiment(dbName, null, false);
             if (GUI.getDBConnection().isConfigurationReadOnly()) {
                 String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", selectionName+".csv").toString();
-                SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
+                //SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
+                FileIO.writeToFile(outputFile, new ArrayList<Selection>(){{add(res);}}, s->s.toJSONEntry().toString());
                 logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbName, outputFile);
                 return;
             }
