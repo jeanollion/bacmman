@@ -19,7 +19,6 @@
 package bacmman.ui;
 
 import bacmman.configuration.experiment.Experiment;
-import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.configuration.parameters.TrackPreFilterSequence;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -50,7 +49,6 @@ import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.BiPredicate;
@@ -437,7 +435,7 @@ public class ManualEdition {
         Processor.ensureScalerConfiguration(dao, structureIdx);
         int parentStructureIdx = xp.getStructure(structureIdx).getParentStructure();
         TrackPreFilterSequence tpf = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(false);
-        ProcessingPipeline.PARENT_TRACK_MODE mode = tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(ProcessingPipeline.PARENT_TRACK_MODE.COMPARATOR).orElse(ProcessingPipeline.PARENT_TRACK_MODE.ANY);
+        ProcessingPipeline.PARENT_TRACK_MODE mode = tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(ProcessingPipeline.PARENT_TRACK_MODE.COMPARATOR).orElse(ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
         if (xp.getStructure(structureIdx).getProcessingScheme().getSegmenter() instanceof TrackConfigurable) {
             ProcessingPipeline.PARENT_TRACK_MODE  m = ((TrackConfigurable)xp.getStructure(structureIdx).getProcessingScheme().getSegmenter()).parentTrackMode();
             if (m.value<mode.value) mode = m;
@@ -452,7 +450,7 @@ public class ManualEdition {
                 tracks = parents.map(SegmentedObject::getTrackHead).distinct().map(SegmentedObjectUtils::getTrack).collect(Collectors.toList());
                 break;
             }
-            case INTERVALS: {
+            case SINGLE_INTERVAL: {
                 Map<SegmentedObject, List<SegmentedObject>> pByTh = parents.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
                 tracks = pByTh.values().stream().map(l -> {
                     SegmentedObject first = l.stream().min(Comparator.comparing(SegmentedObject::getFrame)).get();
@@ -467,7 +465,7 @@ public class ManualEdition {
                 }).collect(Collectors.toList());
                 break;
             }
-            case ANY: {
+            case MULTIPLE_INTERVALS: {
                 tracks = parents.collect(Collectors.groupingBy(SegmentedObject::getTrackHead)).values().stream().map(l->{
                     l.sort(Comparator.comparing(SegmentedObject::getFrame));
                     return l;
