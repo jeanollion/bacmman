@@ -3666,10 +3666,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 Set<Integer> allowedActionsRunWithSel = new HashSet<Integer>() {{
                     add(1);
                     add(2);
-                }}; // TODO also measurement & extract
-                int[] parentStructure = IntStream.of(getSelectedStructures(false)).map(i -> db.getExperiment().experimentStructure.getParentObjectClassIdx(i)).toArray();
-                if (parentStructure.length ==1 && IntStream.of(runActionList.getSelectedIndices()).boxed().allMatch(allowedActionsRunWithSel::contains)) {
-                    List<String> allowedSelections =  db.getSelectionDAO().getSelections().stream().filter(s -> s.getStructureIdx()==parentStructure[0]).map(s->s.getName()).collect(Collectors.toList());
+                    add(4);
+                    add(5);
+                }};
+                int[] selActions = runActionList.getSelectedIndices();
+                boolean segTrack = IntStream.of(selActions).anyMatch(i->i==1 || i==2);
+                boolean allAllowed = selActions.length>0 && IntStream.of(selActions).boxed().allMatch(allowedActionsRunWithSel::contains);
+                int[] parentStructure = IntStream.of(getSelectedStructures(false))
+                        .map(i -> db.getExperiment().experimentStructure.getParentObjectClassIdx(i)).toArray();
+                //logger.debug("all allowed: {}, segTrack: {}, parentStructure: {} cond: {}", allAllowed, segTrack, parentStructure, allAllowed && (!segTrack || parentStructure.length ==1));
+                if (allAllowed && (!segTrack || parentStructure.length ==1)) {
+                    Predicate<Selection> filter = segTrack ? s -> s.getStructureIdx()==parentStructure[0] : s->true;
+                    List<String> allowedSelections = db.getSelectionDAO().getSelections().stream().filter(filter).map(Selection::getName).collect(Collectors.toList());
                     JMenu selMenu = new JMenu("Add current Task on Selection");
                     menu.add(selMenu);
                     for (String s : allowedSelections) {

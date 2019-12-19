@@ -36,14 +36,9 @@ import bacmman.image.io.KymographFactory;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import bacmman.plugins.ConfigurableTransformation;
 import org.slf4j.Logger;
@@ -380,18 +375,19 @@ public class Processor {
     // measurement-related methods
     public enum MEASUREMENT_MODE {ERASE_ALL, OVERWRITE, ONLY_NEW}
     
-    public static void performMeasurements(MasterDAO db, MEASUREMENT_MODE mode, ProgressCallback pcb) {
+    public static void performMeasurements(MasterDAO db, MEASUREMENT_MODE mode, Selection selection, ProgressCallback pcb) {
         Experiment xp = db.getExperiment();
-        for (int i = 0; i<xp.getPositionCount(); ++i) {
-            String positionName = xp.getPosition(i).getName();
-            performMeasurements(db.getDao(positionName), mode, pcb);
+        List<String> positions = selection==null ? Arrays.asList(db.getExperiment().getPositionsAsString()) :
+                selection.getAllPositions().stream().filter(p->!selection.getElementStrings(p).isEmpty()).collect(Collectors.toList());
+        for (String position : positions) {
+            performMeasurements(db.getDao(position), mode, selection, pcb);
             //if (dao!=null) dao.clearCacheLater(xp.getPosition(i).getName());
-            db.getDao(positionName).clearCache();
-            db.getExperiment().getPosition(positionName).flushImages(true, true);
+            db.getDao(position).clearCache();
+            db.getExperiment().getPosition(position).flushImages(true, true);
         }
     }
     
-    public static void performMeasurements(final ObjectDAO dao, MEASUREMENT_MODE mode, ProgressCallback pcb) {
+    public static void performMeasurements(final ObjectDAO dao, MEASUREMENT_MODE mode, Selection selection, ProgressCallback pcb) {
         long t0 = System.currentTimeMillis();
         List<SegmentedObject> roots = dao.getRoots();
         logger.debug("{} number of roots: {}", dao.getPositionName(), roots.size());
@@ -404,13 +400,15 @@ public class Processor {
         };
         if (mode!=MEASUREMENT_MODE.ERASE_ALL) { // retrieve measurements for all objects
             Set<Integer> targetStructures = Utils.flattenMap(measurements).stream()
-                    .flatMap(m->m.getMeasurementKeys().stream().map(k->k.getStoreStructureIdx()))
+                    .flatMap(m->m.getMeasurementKeys().stream().map(MeasurementKey::getStoreStructureIdx))
                     .collect(Collectors.toSet());
             dao.retrieveMeasurements(targetStructures.stream().mapToInt(i->i).toArray());
         } else {
             dao.deleteAllMeasurements();
+            // TODO if selection not null -> erase only corresponding measurements!
         }
         MultipleException globE = new MultipleException();
+        Set<SegmentedObject> selectionTH = selection==null ? null : selection.getElements(dao.getPositionName()).stream().map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
         for(Entry<Integer, List<Measurement>> e : measurements.entrySet()) { // measurements by call structure idx
             Map<SegmentedObject, List<SegmentedObject>> allParentTracks;
             if (e.getKey()==-1) {
@@ -418,10 +416,21 @@ public class Processor {
             } else {
                 allParentTracks = SegmentedObjectUtils.getAllTracks(roots, e.getKey());
             }
+            if (selection!=null) { // compute measurement only on objects contained in selection or children. only full tracks
+                if (e.getKey()==selection.getStructureIdx()) {
+                    allParentTracks.keySet().retainAll(selectionTH);
+                } else if (e.getKey()<selection.getStructureIdx()) {
+                    Set<SegmentedObject> th = selectionTH.stream().map(o->o.getParent(e.getKey())).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+                    allParentTracks.keySet().retainAll(th);
+                } else {
+                    Set<SegmentedObject> th = selection.getElements(dao.getPositionName()).stream().flatMap(o->o.getChildren(e.getKey())).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+                    allParentTracks.keySet().retainAll(th);
+                }
+            }
             if (pcb!=null) pcb.log("Executing #"+e.getValue().size()+" measurement"+(e.getValue().size()>1?"s":"")+" on Structure: "+e.getKey()+" (#"+allParentTracks.size()+" tracks): "+Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
             logger.debug("Executing: #{} measurements from parent: {} (#{} parentTracks) : {}", e.getValue().size(), e.getKey(), allParentTracks.size(), Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
-            // measurement are run separately depending on their carateristics to optimize parallele processing
-            // start with non parallele measurements on tracks -> give all ressources to the measurement and perform track by track
+            // measurement are run separately depending on their carateristics to optimize paralele processing
+            // start with non parallele measurements on tracks -> give 1 CPU ressources to the measurement and perform track by track
             List<Pair<Measurement, SegmentedObject>> actionPool = new ArrayList<>();
             allParentTracks.keySet().forEach(pt -> {
                 dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
@@ -429,17 +438,34 @@ public class Processor {
                         .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
                         .forEach(m-> actionPool.add(new Pair<>(m, pt)));
             });
-            if (pcb!=null && actionPool.size()>0) pcb.log("Executing: #"+actionPool.size()+" track measurements");
+            if (pcb!=null && actionPool.size()>0) {
+                pcb.log("Executing: #"+actionPool.size()+" track measurements");
+                pcb.incrementTaskNumber(actionPool.size());
+            }
+            // count parallel measurement on tracks -
+            int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
+            if (pcb!=null && parallelMeasCount>0) {
+                pcb.incrementTaskNumber(allParentTracks.size());
+            }
+            // count measurements on objects
+            List<Measurement> measObj = dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
+                    .filter(m->!m.callOnlyOnTrackHeads()).collect(Collectors.toList());
+            if (pcb!=null) pcb.incrementTaskNumber(measObj.size());
+
             if (!actionPool.isEmpty()) containsObjects=true;
             try {
-                ThreadRunner.executeAndThrowErrors(actionPool.parallelStream(), p->p.key.performMeasurement(p.value));
+                ThreadRunner.executeAndThrowErrors(actionPool.parallelStream(), p->{
+                    p.key.performMeasurement(p.value);
+                    if (pcb!=null) pcb.incrementProgress();
+                });
             } catch(MultipleException me) {
                 globE.addExceptions(me.getExceptions());
             }
             
-            // parallel measurement on tracks -> give all ressources to the measurement and perform track by track
-            int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
-            if (pcb!=null && parallelMeasCount>0) pcb.log("Executing: #"+ parallelMeasCount * allParentTracks.size()+" multithreaded track measurements");
+            // parallel measurement on tracks -> give all resources to the measurement and perform track by track
+            if (pcb!=null && parallelMeasCount>0) {
+                pcb.log("Executing: #"+ parallelMeasCount * allParentTracks.size()+" multithreaded track measurements");
+            }
             try {
                 ThreadRunner.executeAndThrowErrors(allParentTracks.keySet().stream(), pt->{
                     dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
@@ -449,6 +475,7 @@ public class Processor {
                                 ((MultiThreaded)m).setMultiThread(true);
                                 m.performMeasurement(pt);
                             });
+                    if (pcb!=null) pcb.incrementProgress();
                 });
             } catch(MultipleException me) {
                 globE.addExceptions(me.getExceptions());
@@ -456,26 +483,22 @@ public class Processor {
             int allObCount = allParentTracks.values().stream().mapToInt(t->t.size()).sum();
             
             // measurements on objects
-            dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
-                    .filter(m->!m.callOnlyOnTrackHeads())
-                    .forEach(m-> {
-                        if (pcb!=null) pcb.log("Executing Measurement: "+m.getClass().getSimpleName()+" on #"+allObCount+" objects");
-                        Stream<SegmentedObject> callObjectStream = StreamConcatenation.concat((Stream<SegmentedObject>[])allParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]));
-                        try {
-                            //callObjectStream.sequential().filter(o->measurementMissing.test(o, m)).forEach(o->m.performMeasurement(o));
-                            ThreadRunner.executeAndThrowErrors(callObjectStream.filter(o->measurementMissing.test(o, m)), o->m.performMeasurement(o));
-                        } catch(MultipleException me) {
-                            globE.addExceptions(me.getExceptions());
-                        } catch (Throwable t) {
-                            globE.addExceptions(new Pair(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
-                        }
-                    });
+            measObj.forEach(m-> {
+                if (pcb!=null) pcb.log("Executing Measurement: "+m.getClass().getSimpleName()+" on #"+allObCount+" objects");
+                Stream<SegmentedObject> callObjectStream = StreamConcatenation.concat((Stream<SegmentedObject>[])allParentTracks.values().stream().map(l->l.parallelStream()).toArray(s->new Stream[s]));
+                try {
+                    //callObjectStream.sequential().filter(o->measurementMissing.test(o, m)).forEach(o->m.performMeasurement(o));
+                    ThreadRunner.executeAndThrowErrors(callObjectStream.filter(o->measurementMissing.test(o, m)), o->m.performMeasurement(o));
+                } catch(MultipleException me) {
+                    globE.addExceptions(me.getExceptions());
+                } catch (Throwable t) {
+                    globE.addExceptions(new Pair(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
+                } finally {
+                    if (pcb!=null) pcb.incrementProgress();
+                }
+            });
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->!m.callOnlyOnTrackHeads()).findAny().orElse(null)!=null;
-            
-            //ThreadRunner.execute(actionPool, false, (Pair<Measurement, StructureObject> p, int idx) -> p.key.performMeasurement(p.value));
-            
-            //Stream<Pair<Measurement, StructureObject>> actions = allParentTracks.values().stream().flatMap(t-> dao.getExperiment().getMeasurements(e.getKey()).flatMap( m->m.callOnlyOnTrackHeads() ? Stream.generate(()-> new Pair<>(m, t.get(0)) ) : t.stream().map(o -> new Pair<>(m, o))) );
-            //actions.parallel().forEach(p->p.key.performMeasurement(p.value));
+
         }
         long t1 = System.currentTimeMillis();
         final Set<SegmentedObject> allModifiedObjects = new HashSet<>();
