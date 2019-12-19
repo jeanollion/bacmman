@@ -619,7 +619,7 @@ public class Task implements ProgressCallback{
         if (measurements) {
             publish("Measurements...");
             logger.info("Measurements: DB: {}, Position: {}", dbName, position);
-            Processor.performMeasurements(db.getDao(position), measurementMode, this);
+            Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);
             incrementProgress();
             //publishMemoryUsage("After Measurements");
         }

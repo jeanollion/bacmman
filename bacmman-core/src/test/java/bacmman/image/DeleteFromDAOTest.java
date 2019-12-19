@@ -161,7 +161,7 @@ public class DeleteFromDAOTest {
 
 
         xp.addMeasurement(new ObjectInclusionCount(1, 1, 50));
-        Processor.performMeasurements(masterDAO, MEASUREMENT_MODE.ERASE_ALL, null);
+        Processor.performMeasurements(masterDAO, MEASUREMENT_MODE.ERASE_ALL, null, null);
 
         SegmentedObject r = masterDAO.getDao("field1").getRoot(0);
         SegmentedObject ob = r.getChildren(0).findFirst().get();
