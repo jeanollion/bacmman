@@ -29,7 +29,7 @@ public class Resample {
      * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
      * @return
      */
-    public static Image resample(Image input, boolean binary, int... dimensions) {
+    public static <T extends Image<T>> T resample(T input, boolean binary, int... dimensions) {
         if (dimensions==null || dimensions.length==0) return input;
         // negative dimension = crop
         if (Arrays.stream(dimensions).anyMatch(i->i<0)) { // needs cropping
@@ -44,7 +44,7 @@ public class Resample {
         for (int i = 0; i<scaleFactors.length;++i) scaleFactors[i] = dimensions.length>i && dimensions[i]>0 ? (double)dimensions[i]/input.size(i) : 1;
         Img in = ImgLib2ImageWrapper.getImage(input);
         InterpolatorFactory inter = binary ? new NearestNeighborInterpolatorFactory() : new LanczosInterpolatorFactory(3, false);
-        return ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, inter));
+        return (T)ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, inter));
     }
     public static Image resampleBack(Image im, BoundingBox target, boolean binary, int... dimensions) {
         if (im.sameDimensions(target)) return im;

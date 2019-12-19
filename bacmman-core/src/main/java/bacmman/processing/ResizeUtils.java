@@ -5,9 +5,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class ResizeUtils {
@@ -63,11 +65,13 @@ public class ResizeUtils {
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
-    public static Image[] resample(Image[] imagesN, boolean isBinary, int[][] imageShapeN) {
+    public static <T extends Image> T[] resample(T[] imagesN, T[] output, boolean isBinary, int[][] imageShapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
-        return IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> Resample.resample(imagesN[idx], isBinary, imageShapeN.length==1 ? imageShapeN[0] : imageShapeN[idx]))
-                .toArray(Image[]::new);
+        List<T> res =  IntStream.range(0, imagesN.length).parallel()
+                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], isBinary, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
+                .collect(Collectors.toList());
+        res.toArray(output);
+        return output;
     }
     public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {
         return IntStream.range(0, shapes.length).allMatch(i -> Arrays.equals(shapes[i], referenceShape));

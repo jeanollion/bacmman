@@ -756,8 +756,10 @@ public class RegionPopulation {
             Set<Voxel> touching = contour.stream()
                     .filter(v -> neigh.stream(v, maskR, false).anyMatch(n -> maskR.getPixelInt(n.x, n.y, n.z)!=lab))
                     .collect(Collectors.toSet());
-            toErase.addAll(touching);
-            r.removeVoxels(touching);
+            if (touching.size()<r.size()) { // make sure this does not erase the region
+                toErase.addAll(touching);
+                r.removeVoxels(touching);
+            }
         }
         if (isAbsoluteLandmark()) toErase.forEach(v->maskR.setPixelWithOffset(v.x, v.y, v.z, 0));
         else toErase.forEach(v->maskR.setPixel(v.x, v.y, v.z, 0));
