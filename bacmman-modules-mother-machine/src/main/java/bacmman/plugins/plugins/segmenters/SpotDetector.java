@@ -41,8 +41,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static bacmman.plugins.plugins.segmenters.MicrochannelPhase2D.X_DER_METHOD.CONSTANT;
-
 /**
  *
  * @author Jean Ollion
@@ -368,7 +366,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma;

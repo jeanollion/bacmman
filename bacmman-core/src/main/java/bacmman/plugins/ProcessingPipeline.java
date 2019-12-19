@@ -53,7 +53,7 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
     void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores);
 
     enum PARENT_TRACK_MODE {
-        WHOLE_PARENT_TRACK_ONLY(0), INTERVALS(1), ANY(2);
+        WHOLE_PARENT_TRACK_ONLY(0), SINGLE_INTERVAL(1), MULTIPLE_INTERVALS(2);
         public final int value;
         PARENT_TRACK_MODE(int value) {
             this.value = value;
@@ -70,7 +70,7 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
             else return m2;
         };
         TrackPreFilterSequence tpf = ps.getTrackPreFilters(false);
-        PARENT_TRACK_MODE mode =  tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(PARENT_TRACK_MODE.COMPARATOR).orElse(PARENT_TRACK_MODE.ANY);
+        PARENT_TRACK_MODE mode =  tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(PARENT_TRACK_MODE.COMPARATOR).orElse(PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
         if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(mode)) return mode;
         Segmenter seg = ps.getSegmenter();
         if (seg instanceof TrackConfigurable) {
@@ -81,7 +81,7 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
         if (ps instanceof ProcessingPipelineWithTracking) {
             ProcessingPipelineWithTracking pst = (ProcessingPipelineWithTracking)ps;
             TrackPostFilterSequence tpof = pst.getTrackPostFilters();
-            PARENT_TRACK_MODE m =  tpof.get().stream().map(TrackPostFilter::parentTrackMode).min(PARENT_TRACK_MODE.COMPARATOR).orElse(PARENT_TRACK_MODE.ANY);
+            PARENT_TRACK_MODE m =  tpof.get().stream().map(TrackPostFilter::parentTrackMode).min(PARENT_TRACK_MODE.COMPARATOR).orElse(PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
             if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(m)) return m;
             mode = compare.apply(mode, m);
             Tracker t = pst.getTracker();

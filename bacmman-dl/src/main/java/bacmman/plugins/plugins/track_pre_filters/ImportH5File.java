@@ -6,13 +6,10 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.plugins.PreFilter;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPreFilter;
 import bacmman.py_dataset.PyDatasetReader;
 import bacmman.utils.Pair;
-import net.imagej.ops.Ops;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -43,7 +40,7 @@ public class ImportH5File implements TrackPreFilter {
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     @Override

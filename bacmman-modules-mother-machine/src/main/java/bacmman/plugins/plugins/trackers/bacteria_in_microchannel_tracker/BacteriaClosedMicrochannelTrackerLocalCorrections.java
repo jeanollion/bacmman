@@ -181,7 +181,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.INTERVALS;
+        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL;
     }
 
     @Override public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {

@@ -39,7 +39,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     @Override

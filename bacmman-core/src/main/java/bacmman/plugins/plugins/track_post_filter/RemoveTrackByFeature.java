@@ -62,7 +62,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
     
     public RemoveTrackByFeature setMergePolicy(PostFilter.MERGE_POLICY policy) {

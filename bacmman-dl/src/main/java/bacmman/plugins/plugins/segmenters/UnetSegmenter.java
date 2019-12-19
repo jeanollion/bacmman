@@ -83,7 +83,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
     static Pair<Image[][], int[][]> getInput(Image[] in, int[] targetImageShape) {

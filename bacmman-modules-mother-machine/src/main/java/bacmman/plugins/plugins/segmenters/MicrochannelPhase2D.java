@@ -304,7 +304,7 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        if (CONSTANT.equals(xDerPeakThldMethod.getSelectedEnum())) return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+        if (CONSTANT.equals(xDerPeakThldMethod.getSelectedEnum())) return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
         else return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
 
