@@ -180,10 +180,10 @@ public class SegmentedObjectUtils {
         return allTracks;
     }
     public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(List<SegmentedObject> parentTrack, int structureIdx) {
-        return getAllTracks(parentTrack, structureIdx, true);
+        return getAllTracks(parentTrack, structureIdx, true, true);
     }
 
-    public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(List<SegmentedObject> parentTrack, int structureIdx, boolean allowSearchInPreviousFrames) {
+    public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(List<SegmentedObject> parentTrack, int structureIdx, boolean allowSearchInPreviousFrames, boolean allowSearchInNextFrames) {
         if (parentTrack==null || parentTrack.isEmpty()) return Collections.EMPTY_MAP;
         if (allowSearchInPreviousFrames && parentTrack.get(0).equals(parentTrack.get(0).getTrackHead())) allowSearchInPreviousFrames=false;
         
@@ -194,45 +194,29 @@ public class SegmentedObjectUtils {
                 .filter(s->s!=null))
                 .toArray(s->new Stream[s]));
         Map<SegmentedObject, List<SegmentedObject>> res = allChildrenStream.collect(Collectors.groupingBy(o->o.getTrackHead()));
-        res.forEach((th, l) -> Collections.sort(l , Comparator.comparing(o->o.getFrame())) );
-        /*if (allowSearchInPreviousFrames) { // also add objects of track ? 
+        res.forEach((th, l) -> l.sort(Comparator.comparing(SegmentedObject::getFrame)));
+
+        if (allowSearchInPreviousFrames) { // also add objects of track ?
             res.forEach((th, l) -> {
-                StructureObject first = l.get(0);
+                SegmentedObject first = l.get(0);
                 while(first!=null && !first.equals(th)) {
                     first = first.getPrevious();
                     l.add(first);
                 }
                 Collections.sort(l);
             });
-        }*/
-        /*HashMap<StructureObject, List<StructureObject>>  res = new HashMap<>();
-        for (StructureObject p : parentTrack) {
-            List<StructureObject> children = p.getChildren(structureIdx);
-            if (children==null) continue;
-            for (StructureObject c : children) {
-                List<StructureObject> l;
-                if (c.isTrackHead()) {
-                    l = new ArrayList<>();
-                    l.add(c);
-                    res.put(c, l);
-                } else {
-                    l = res.get(c.getTrackHead());
-                    if (l!=null) l.add(c);
-                    else if (allowSearchInPreviousFrames) {
-                        l = new ArrayList<>();
-                        StructureObject th = c.getTrackHead();
-                        while (c!=null && c.getTrackHead().equals(th)) {
-                            l.add(c);
-                            c=c.getPrevious();
-                        }
-                        Collections.sort(l, (o1, o2)->Integer.compare(o1.getFrame(), o2.getFrame()));
-                        res.put(th, l);
-                    }
-                    else logger.error("getAllTracks: track not found for Object: {}, trackHead: {}", c, c.getTrackHead());
+        }
+        if (allowSearchInNextFrames) {
+            res.forEach((th, l) -> {
+                SegmentedObject last = l.get(l.size()-1).getNext();
+                while(last!=null && last.getTrackHead().equals(th)) {
+                    l.add(last);
+                    last = last.getNext();
                 }
-            }
-        }*/
-        //for (List<StructureObject> l : res.values()) updateTrackLinksFromMap(l);
+
+            });
+        }
+
         return res;
     }
     public static Map<SegmentedObject, List<SegmentedObject>> getAllTracksSplitDiv(List<SegmentedObject> parentTrack, int structureIdx) {

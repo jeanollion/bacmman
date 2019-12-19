@@ -33,6 +33,7 @@ import bacmman.image.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.ImageOperations;
 import java.util.ArrayList;
 import java.util.List;
@@ -93,7 +94,11 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
             Image edge = watershedMap.filter(crop, new BlankMask(crop));
             fit(crop, edge, new int[]{marginL, marginR, marginUp}, mc.getRegion(), this.morphoRadius.getValue().doubleValue(), this.trimUpperPixels.getValue().intValue(), this.resetBounds.getSelected(), debug);
         });
-        
+    }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
     }
 
     @Override

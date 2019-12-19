@@ -116,6 +116,7 @@ import bacmman.utils.Utils;
 import ij.IJ;
 
 import java.util.function.Consumer;
+import java.util.stream.IntStream;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
 
@@ -307,6 +308,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         actionPoolList.setModel(actionPoolListModel);
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
+        actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         datasetList.setModel(experimentModel);
         // disable components when run action
         relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);}};
@@ -3657,6 +3659,35 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             menu.add(addCurrentTask);
             addCurrentTask.setEnabled(db!=null);
+
+            if (db!=null && db.getExperiment()!=null) {
+                // task on a selection
+                // condition is that only segment&Track is selected and structure(s) are selected. Propose only selection that contain parent
+                Set<Integer> allowedActionsRunWithSel = new HashSet<Integer>() {{
+                    add(1);
+                    add(2);
+                }}; // TODO also measurement & extract
+                int[] parentStructure = IntStream.of(getSelectedStructures(false)).map(i -> db.getExperiment().experimentStructure.getParentObjectClassIdx(i)).toArray();
+                if (parentStructure.length ==1 && IntStream.of(runActionList.getSelectedIndices()).boxed().allMatch(allowedActionsRunWithSel::contains)) {
+                    List<String> allowedSelections =  db.getSelectionDAO().getSelections().stream().filter(s -> s.getStructureIdx()==parentStructure[0]).map(s->s.getName()).collect(Collectors.toList());
+                    JMenu selMenu = new JMenu("Add current Task on Selection");
+                    menu.add(selMenu);
+                    for (String s : allowedSelections) {
+                        Action selAction = new AbstractAction(s) {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                Task t = getCurrentTask(null);
+                                if (t!=null) {
+                                    t.setDBName(db.getDBName()).setDir(db.getDir().toFile().getAbsolutePath());
+                                    t.setSelection(s);
+                                    actionPoolListModel.addElement(t);
+                                }
+                            }
+                        };
+                        selMenu.add(selAction);
+                    }
+                }
+            }
             Action deleteSelected = new AbstractAction("Delete Selected Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {

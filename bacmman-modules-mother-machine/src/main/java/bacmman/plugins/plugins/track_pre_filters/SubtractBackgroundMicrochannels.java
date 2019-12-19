@@ -35,6 +35,7 @@ import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.Filters;
 import bacmman.processing.Filters.Mean;
 import bacmman.processing.ImageTransformation;
@@ -57,7 +58,12 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
     BooleanParameter smooth = new BooleanParameter("Perform Smoothing", false);
     NumberParameter radius = new BoundedNumberParameter("Radius", 0, 1000, 1, null).setHint("Radius of the paraboloïd will be this value * sum Y size of microchannels.<br />Lower value -> less homogeneity/faster");
     Parameter[] parameters = new Parameter[]{radius, isDarkBck, smooth};
-    
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.INTERVALS;
+    }
+
     @Override
     public String getHintText() {
         return "Subtracts background on a whole microchannel track at once. "

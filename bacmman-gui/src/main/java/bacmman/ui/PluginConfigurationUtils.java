@@ -108,8 +108,7 @@ public class PluginConfigurationUtils {
             boolean pf = plugin instanceof PostFilter;
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
             Segmenter segmenter = pf ? psc.getSegmenter() : (Segmenter)plugin;
-            // run pre-filters on whole track -> some track preFilters need whole track to be effective. todo : parameter to limit ? 
-            boolean runPreFiltersOnWholeTrack = !psc.getTrackPreFilters(false).isEmpty() || (plugin instanceof TrackConfigurable & !((TrackConfigurable)plugin).allowRunOnParentTrackSubset());
+            boolean runPreFiltersOnWholeTrack = (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) || (plugin instanceof TrackConfigurable & !((TrackConfigurable)plugin).parentTrackMode().allowIntervals());
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack
             if (!psc.getTrackPreFilters(true).get().isEmpty()) parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after pre-filters and track pre-filters", p.getPreFilteredImage(structureIdx))); // add preFiltered image
@@ -178,9 +177,11 @@ public class PluginConfigurationUtils {
             if (psc instanceof ProcessingPipelineWithTracking) ((ProcessingPipelineWithTracking)psc).getTrackPostFilters().removeAll();
 
             // run testing
-            if (!psc.getTrackPreFilters(false).isEmpty()) { // run pre-filters on whole track -> some track preFilters need whole track to be effective. TODO : parameter to limit ?
+            if (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) { // run pre-filters on whole track
                 psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
                 psc.getTrackPreFilters(false).removeAll();
+            } else {
+                psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup);
             }
             if (!usePresentSegmentedObjects) {
                 // need to be able to run track-parametrizable on whole parentTrack....

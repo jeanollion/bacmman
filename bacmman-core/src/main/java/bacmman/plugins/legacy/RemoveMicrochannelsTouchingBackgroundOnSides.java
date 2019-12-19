@@ -27,6 +27,7 @@ import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageLabeller;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 
 import java.util.*;
@@ -43,7 +44,12 @@ public class RemoveMicrochannelsTouchingBackgroundOnSides implements TrackPostFi
     public RemoveMicrochannelsTouchingBackgroundOnSides(int backgroundStructureIdx) {
         this.backgroundStructure.setSelectedClassIdx(backgroundStructureIdx);
     }
-    
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
+    }
+
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (backgroundStructure.getSelectedClassIdx()<0) throw new IllegalArgumentException("Background structure not configured");

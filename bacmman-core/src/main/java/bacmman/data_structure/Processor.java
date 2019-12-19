@@ -62,6 +62,8 @@ import bacmman.plugins.ProcessingPipeline;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
 
+import static bacmman.plugins.ProcessingPipeline.parentTrackMode;
+
 /**
  *
  * @author Jean Ollion
@@ -189,17 +191,22 @@ public class Processor {
         for (int s: structures) {
             if (!trackOnly) logger.info("Segmentation & Tracking: Position: {}, Structure: {} available mem: {}/{}GB", dao.getPositionName(), s, (Runtime.getRuntime().freeMemory()/1000000)/1000d, (Runtime.getRuntime().totalMemory()/1000000)/1000d);
             else logger.info("Tracking: Position: {}, Structure: {}", dao.getPositionName(), s);
-            executeProcessingScheme(root, s, trackOnly, false);
+            executeProcessingScheme(root, s, trackOnly, false, null, null);
             System.gc();
         }
     }
     
-    public static void executeProcessingScheme(List<SegmentedObject> parentTrack, final int structureIdx, final boolean trackOnly, final boolean deleteChildren) {
+    public static void executeProcessingScheme(List<SegmentedObject> parentTrack, final int structureIdx, final boolean trackOnly, final boolean deleteChildren, final Selection selection, ProgressCallback pcb) {
         if (parentTrack.isEmpty()) return;
         final ObjectDAO dao = parentTrack.get(0).getDAO();
         Experiment xp = parentTrack.get(0).getExperiment();
         final ProcessingPipeline ps = xp.getStructure(structureIdx).getProcessingScheme();
         int directParentStructure = xp.getStructure(structureIdx).getParentStructure();
+        String position = parentTrack.get(0).getPositionName();
+        if (selection!=null) {
+            if (selection.getElementStrings(position).isEmpty()) return;
+            if (selection.getStructureIdx()!=directParentStructure) return;
+        }
         if (trackOnly && ps instanceof SegmentOnly) return  ;
         SegmentedObjectUtils.setAllChildren(parentTrack, structureIdx);
         Map<SegmentedObject, List<SegmentedObject>> allParentTracks;
@@ -209,6 +216,43 @@ public class Processor {
         } else {
             allParentTracks = SegmentedObjectUtils.getAllTracks(parentTrack, directParentStructure);
         }
+        if (selection!=null) {
+            //TODO prefilters on whole track and seg/tracking on right interval!
+            // remove parent tracks that are not included in selection
+            logger.debug("run on selection: parent tracks #{}", allParentTracks.size());
+            Set<SegmentedObject> selTh = selection.getElements(position).stream().map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+            allParentTracks.keySet().retainAll(selTh);
+            // if processing scheme allows to run only on a subset of the tracks -> subset all the tracks
+            ProcessingPipeline.PARENT_TRACK_MODE mode = parentTrackMode(ps);
+            switch (mode) {
+                case ANY: {
+                    Set<SegmentedObject> sel = selection.getElements(position);
+                    Map<SegmentedObject, List<SegmentedObject>> selByTh = sel.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+                    allParentTracks.forEach((th, t)-> {
+                        if (selByTh.containsKey(th)) t.removeAll(selByTh.get(th));
+                        else t.clear();
+                    });
+                    break;
+                }
+                case INTERVALS: {
+                    // get first-last element for each track are remove all others
+                    Set<SegmentedObject> sel = selection.getElements(position);
+                    Map<SegmentedObject, List<SegmentedObject>> selByTh = sel.stream().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+                    allParentTracks.forEach((th, t)-> { // TODO or split in continuous intervals ?
+                        if (selByTh.containsKey(th)) {
+                            List<SegmentedObject> selT = selByTh.get(th);
+                            int minFrame = selT.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+                            int maxFrame = selT.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
+                            t.removeIf(o -> o.getFrame()<minFrame || o.getFrame()>maxFrame);
+                        } else t.clear();
+                    });
+                    break;
+                }
+            }
+            allParentTracks.entrySet().removeIf(e->e.getValue().isEmpty());
+            logger.debug("after remove selection: parent tracks: #{} mode: {}", allParentTracks.size(), mode);
+        }
+        if (pcb !=null) pcb.incrementTaskNumber(allParentTracks.size() - 1);
         logger.debug("ex ps: structure: {}, allParentTracks: {}", structureIdx, allParentTracks.size());
 
         ensureScalerConfiguration(dao, structureIdx);
@@ -216,6 +260,7 @@ public class Processor {
         try { // execute sequentially, store what has been processed, and throw exception in the end
             ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
                 execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
+                if (pcb !=null) pcb.incrementProgress();
             });
         } catch (MultipleException e) {
             me=e;

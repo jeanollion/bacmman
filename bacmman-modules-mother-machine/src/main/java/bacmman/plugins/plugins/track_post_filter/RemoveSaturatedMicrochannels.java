@@ -19,6 +19,7 @@
 package bacmman.plugins.plugins.track_post_filter;
 
 import bacmman.data_structure.*;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
@@ -51,11 +52,17 @@ public class RemoveSaturatedMicrochannels implements TrackPostFilter, Hint {
         this.minPercentageOfSaturatedObjects.setValue(percentageOfSaturatedObjects);
         this.minPercentageOfSaturatedPixels.setValue(percentageOfSaturatedPixels);
     }
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.INTERVALS;
+    }
+
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         
         List<SegmentedObject> objectsToRemove = new ArrayList<>();
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx, false, false);
         for (Entry<SegmentedObject, List<SegmentedObject>> e : allTracks.entrySet()) {
             if (isSaturated(e.getValue())) objectsToRemove.addAll(e.getValue());
         }

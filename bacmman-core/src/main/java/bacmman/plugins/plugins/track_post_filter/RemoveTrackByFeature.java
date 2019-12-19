@@ -28,6 +28,7 @@ import java.util.Map;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ObjectFeature;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 import static bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY_TT;
 import bacmman.utils.ArrayUtil;
@@ -58,7 +59,11 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
     public String getHintText() {
         return "<b>Removes tracks according to a user-defined criterion</b><br />Computes a user-defined feature (e.g. max, mean… see the <em>Feature</em> parameter) for each object of a track, then computes a user-defined statistics (e.g. mean, median… see the <em>Statistics</em> parameter) on the distribution of the objects’ feature, and compares it to a threshold (see the <em>Threshold</em> parameter), in order to decide if the track should be removed or not ";
     }
-    
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+    }
     
     public RemoveTrackByFeature setMergePolicy(PostFilter.MERGE_POLICY policy) {
         mergePolicy.setSelectedEnum(policy);
@@ -86,8 +91,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         if (!feature.isOnePluginSet()) return;
         Map<Region, Double> valueMap = new ConcurrentHashMap<>();
         // compute feature for each object, by parent
-        Consumer<SegmentedObject> exe = p -> {
-            SegmentedObject parent = (SegmentedObject)p;
+        Consumer<SegmentedObject> exe = parent -> {
             RegionPopulation pop = parent.getChildRegionPopulation(structureIdx);
             ObjectFeature f = feature.instantiatePlugin();
             f.setUp(parent, structureIdx, pop);
@@ -96,7 +100,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
         };
         ThreadRunner.executeAndThrowErrors(parallele(parentTrack.stream(), true), exe);
         // resume in one value per track
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx, true, true);
         List<SegmentedObject> objectsToRemove = new ArrayList<>();
         for (List<SegmentedObject> track : allTracks.values()) {
             List<Double> values = Utils.transform(track, so->valueMap.get(so.getRegion()));

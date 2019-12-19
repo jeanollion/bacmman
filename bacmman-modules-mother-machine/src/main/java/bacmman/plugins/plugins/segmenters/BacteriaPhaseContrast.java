@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.segmenters;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.plugins.HintSimple;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEdge;
@@ -441,8 +442,8 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
     }
 
     @Override
-    public boolean allowRunOnParentTrackSubset() {
-        return false;
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
     }
 
     protected double[] getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {

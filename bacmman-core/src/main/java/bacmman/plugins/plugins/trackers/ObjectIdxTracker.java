@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.Hint;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.Tracker;
 import bacmman.utils.Utils;
 
@@ -61,7 +62,12 @@ public class ObjectIdxTracker implements Tracker, Hint {
         }
         for (int i = lim; i<next.size(); ++i) editor.resetTrackLinks(next.get(i),true, true, true);
     }
-    
+
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
+    }
+
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         List<SegmentedObject> previousChildren = parentTrack.get(0).getChildren(structureIdx).collect(Collectors.toList());

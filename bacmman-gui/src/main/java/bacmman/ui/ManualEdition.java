@@ -27,6 +27,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 
 import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.plugins.*;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
@@ -45,18 +46,16 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.Map.Entry;
 
-import bacmman.plugins.ManualSegmenter;
-import bacmman.plugins.ObjectSplitter;
 import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.BiPredicate;
 
 import bacmman.ui.gui.image_interaction.FreeLineSplitter;
-import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -352,7 +351,7 @@ public class ManualEdition {
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
             HashMap<SegmentedObject, TrackConfigurer> parentThMapParam = new HashMap<>();
             if (s instanceof TrackConfigurable) {
-                if (((TrackConfigurable) s).allowRunOnParentTrackSubset()) { // TODO TEST
+                if (((TrackConfigurable) s).parentTrackMode().allowIntervals()) { // TODO TEST
                     // split point by parent track
                     Map<SegmentedObject, List<SegmentedObject>> keyByPTH = SegmentedObjectUtils.splitByParentTrackHead(parentThMapParam.keySet());
                     keyByPTH.forEach((pth, list) -> {
@@ -438,23 +437,48 @@ public class ManualEdition {
         Processor.ensureScalerConfiguration(dao, structureIdx);
         int parentStructureIdx = xp.getStructure(structureIdx).getParentStructure();
         TrackPreFilterSequence tpf = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(false);
-        boolean needToComputeAllPreFilteredImage = !tpf.get().isEmpty() || xp.getStructure(structureIdx).getProcessingScheme().getSegmenter() instanceof TrackConfigurable;
+        ProcessingPipeline.PARENT_TRACK_MODE mode = tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(ProcessingPipeline.PARENT_TRACK_MODE.COMPARATOR).orElse(ProcessingPipeline.PARENT_TRACK_MODE.ANY);
+        if (xp.getStructure(structureIdx).getProcessingScheme().getSegmenter() instanceof TrackConfigurable) {
+            ProcessingPipeline.PARENT_TRACK_MODE  m = ((TrackConfigurable)xp.getStructure(structureIdx).getProcessingScheme().getSegmenter()).parentTrackMode();
+            if (m.value<mode.value) mode = m;
+        }
         TrackPreFilterSequence tpfWithPF = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(true);
-        if (!needToComputeAllPreFilteredImage) { // only preFilters on current objects
-            PreFilterSequence pf = xp.getStructure(structureIdx).getProcessingScheme().getPreFilters();
-            pf.setScaler(xp.getStructure(structureIdx).getScalerForPosition(dao.getPositionName()));
-            SegmentedObjectAccessor accessor = getAccessor();
-            parents.map(p->p.getParent(parentStructureIdx)).filter(p->p.getPreFilteredImage(structureIdx)==null).forEach(parent ->{
-                accessor.setPreFilteredImage(parent, structureIdx, pf.filter(parent.getRawImage(structureIdx), parent.getMask()));
-            });
-        } else {
-            if (dao==null) throw new RuntimeException("Cannot compute pre-filtered images because track preFilters are present and DAO is null");
-            parents.map(p->p.getParent(parentStructureIdx)).map(o->o.getTrackHead()).distinct().filter(p->p.getPreFilteredImage(structureIdx)==null).forEach(p->{
-                Core.userLog("Computing track pre-filters...");
-                logger.debug("tpf for : {}", p);
-                tpfWithPF.filter(structureIdx, new ArrayList<>(dao.getTrack(p)));
-                Core.userLog("Track pre-filters computed!");
-            });
+        List<List<SegmentedObject>> tracks;
+        parents = parents.filter(p -> p.getPreFilteredImage(structureIdx)==null);
+        switch (mode) {
+            case WHOLE_PARENT_TRACK_ONLY:
+            default:
+            {
+                tracks = parents.map(SegmentedObject::getTrackHead).distinct().map(SegmentedObjectUtils::getTrack).collect(Collectors.toList());
+                break;
+            }
+            case INTERVALS: {
+                Map<SegmentedObject, List<SegmentedObject>> pByTh = parents.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+                tracks = pByTh.values().stream().map(l -> {
+                    SegmentedObject first = l.stream().min(Comparator.comparing(SegmentedObject::getFrame)).get();
+                    SegmentedObject last = l.stream().max(Comparator.comparing(SegmentedObject::getFrame)).get();
+                    List<SegmentedObject> res= new ArrayList<>(last.getFrame()-first.getFrame()+1);
+                    res.add(first);
+                    while(!first.equals(last)) {
+                        first = first.getNext();
+                        res.add(first);
+                    }
+                    return res;
+                }).collect(Collectors.toList());
+                break;
+            }
+            case ANY: {
+                tracks = parents.collect(Collectors.groupingBy(SegmentedObject::getTrackHead)).values().stream().map(l->{
+                    l.sort(Comparator.comparing(SegmentedObject::getFrame));
+                    return l;
+                }).collect(Collectors.toList());
+            }
+        }
+        for (List<SegmentedObject> t : tracks) {
+            Core.userLog("Computing track pre-filters...");
+            logger.debug("tpf for : {} (length: {}, mode: {})", t.get(0).getTrackHead(), t.size(), mode);
+            tpfWithPF.filter(structureIdx, t);
+            Core.userLog("Track pre-filters computed!");
         }
     }
     public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay, boolean test, ObjectSplitter defaultSplitter) {

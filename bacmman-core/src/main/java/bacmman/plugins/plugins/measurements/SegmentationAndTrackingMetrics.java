@@ -243,10 +243,13 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                 }
             }
             List<SegmentedObject> G = GbyF.get(p.getFrame());
-            Set<SegmentedObject> Grem = GbyFToRemove.get(p.getFrame());
-            for (SegmentedObject g : G) {
-                if (seenG.contains(g) || Grem.contains(g)) g.getMeasurements().setValue(prefix+"NoMatchSize", null);
-                else g.getMeasurements().setValue(prefix+"NoMatchSize", g.getRegion().size()); // false negative
+            if (G!=null && !G.isEmpty()) {
+                Set<SegmentedObject> Grem = GbyFToRemove.get(p.getFrame());
+                for (SegmentedObject g : G) {
+                    if (seenG.contains(g) || Grem.contains(g))
+                        g.getMeasurements().setValue(prefix + "NoMatchSize", null);
+                    else g.getMeasurements().setValue(prefix + "NoMatchSize", g.getRegion().size()); // false negative
+                }
             }
         });
     }

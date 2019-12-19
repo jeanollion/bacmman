@@ -24,6 +24,7 @@ import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.plugins.Hint;
+import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPreFilter;
 
@@ -47,6 +48,10 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
     public PreFilter setFilter(PluginParameter<bacmman.plugins.PreFilter> filter) {
         this.filter = filter;
         return this;
+    }
+    @Override
+    public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
+        return ProcessingPipeline.PARENT_TRACK_MODE.ANY;
     }
     public static PreFilter[] splitPreFilterSequence(PreFilterSequence preFilters) {
         PreFilter[] pfs = new PreFilter[preFilters.getChildCount()];
