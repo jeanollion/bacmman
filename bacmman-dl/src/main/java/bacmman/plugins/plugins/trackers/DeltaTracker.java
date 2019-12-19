@@ -106,15 +106,16 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         public InputFormatter(int objectClassIdx, List<SegmentedObject> parentTrack, double predictionThld, int[] imageDimensions) {
             maskBuffer = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> new ImageByte("", new SimpleImageProperties(imageDimensions[0], imageDimensions[1], 1, 1, 1)));
             this.predictionThld=predictionThld;
+
             Image[] raw = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
-            rawResampled = ResizeUtils.resample(raw, false, new int[][]{imageDimensions});
+            rawResampled = ResizeUtils.resample(raw, raw, false, new int[][]{imageDimensions});
             // also scale by min/max
             MinMaxScaler scaler = new MinMaxScaler();
             IntStream.range(0, raw.length).parallel().forEach(i -> rawResampled[i] = scaler.scale(rawResampled[i]));
             // resample region populations + remove touching borders + binarize
-            Image[] regionMasks = parentTrack.parallelStream().map(p -> p.getChildRegionPopulation(objectClassIdx).eraseTouchingContours(false).getLabelMap()).toArray(Image[]::new);
-            Image[] regionMasksResampled = ResizeUtils.resample(regionMasks, true, new int[][]{imageDimensions});
-            populations = Arrays.stream(regionMasksResampled).map(im -> new RegionPopulation((ImageInteger)TypeConverter.toImageInteger(im, null).resetOffset(), true)).toArray(RegionPopulation[]::new);
+            ImageInteger<? extends ImageInteger>[] regionMasks = parentTrack.parallelStream().map(p -> p.getChildRegionPopulation(objectClassIdx).getLabelMap()).toArray(ImageInteger[]::new);
+            ImageInteger<? extends ImageInteger>[] regionMasksResampled = ResizeUtils.resample(regionMasks, regionMasks, true, new int[][]{imageDimensions});
+            populations = Arrays.stream(regionMasksResampled).map(im -> new RegionPopulation(im.resetOffset(), true).eraseTouchingContours(false)).toArray(RegionPopulation[]::new);
             regionCount = Arrays.stream(populations).mapToInt(p->p.getRegions().size()).toArray();
             int length = IntStream.of(regionCount).sum();
             popIdxCorrespondance = new int[length];

@@ -61,8 +61,8 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
         long t5= System.currentTimeMillis();
         logger.info("#{} dy predictions made in {}ms", dy.length, t5-t4);
         // resample, set offset & calibration
-        Image[] edm_res = ResizeUtils.resample(edm, false, resampledImages.value);
-        Image[] dy_res = ResizeUtils.resample(dy, true, resampledImages.value);
+        Image[] edm_res = ResizeUtils.resample(edm, edm, false, resampledImages.value);
+        Image[] dy_res = ResizeUtils.resample(dy, dy, true, resampledImages.value);
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
             edm_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             edm_res[idx].translate(parentTrack.get(idx).getMaskProperties());
@@ -79,7 +79,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape});
+        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         // also scale by min/max
         MinMaxScaler scaler = new MinMaxScaler();
         IntStream.range(0, in.length).parallel().forEach(i -> inResampled[i] = scaler.scale(inResampled[i]));

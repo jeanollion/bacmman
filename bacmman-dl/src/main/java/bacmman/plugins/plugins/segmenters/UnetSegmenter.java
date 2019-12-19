@@ -23,7 +23,9 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 1 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
-    Parameter[] parameters = new Parameter[]{dlEngine, inputShape, splitThreshold, minimalProba};
+    BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 20, 1, null ).setHint("Region with size (in pixels) inferior to this value will be erased");
+
+    Parameter[] parameters = new Parameter[]{dlEngine, inputShape, splitThreshold, minimalProba, minimalSize};
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -38,6 +40,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
+        res.filter(object -> object.size()>minimalSize.getValue().intValue());
         // sort objects along largest dimension
         if (input.sizeY()>input.sizeX()) {
             res.getRegions().sort(ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
@@ -60,7 +63,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
         Pair<Image[][], int[][]> input = getInput(inputImages, imageShape);
         Image[][][] predictions = engine.process(input.key);
         Image[] seg = ResizeUtils.getChannel(predictions[0], 0);
-        Image[] seg_res = ResizeUtils.resample(seg, true, input.value);
+        Image[] seg_res = ResizeUtils.resample(seg, seg, true, input.value);
 
         for (int idx = 0;idx<inputImages.length; ++idx) {
             seg_res[idx].setCalibration(inputImages[idx]);
@@ -85,7 +88,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
 
     static Pair<Image[][], int[][]> getInput(Image[] in, int[] targetImageShape) {
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        Image[] inResampled = ResizeUtils.resample(in, false, new int[][]{targetImageShape});
+        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         // also scale by min/max
         MinMaxScaler scaler = new MinMaxScaler();
         IntStream.range(0, in.length).parallel().forEach(i -> inResampled[i] = scaler.scale(inResampled[i]));
