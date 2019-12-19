@@ -978,6 +978,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     private void closeExperiment() {
         promptSaveUnsavedChanges();
+        this.trackSubPanel.removeAll(); // this must be called before releasing locks because this methods somehow calls db.getExperiment() and thus re-lock(toString method)
         String xp = db!=null ? db.getDBName() : null;
         if (db!=null) {
             db.unlockPositions();
@@ -990,7 +991,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.flush();
         testConfigurationTreeGenerator = null;
         trackTreeController=null;
+
+        trackTreeStructureJSP.setViewportView(null);
+        trackTreeStructureSelector = null;
+
         reloadObjectTrees=true;
+
         populateActionStructureList();
         populateActionPositionList();
         updateDisplayRelatedToXPSet();
@@ -1253,7 +1259,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (this.trackTreeStructureSelector!=null) trackTreeStructureSelector.selectStructures(structureIdx);
         this.setTrackTreeStructure(structureIdx);
     }
-    
     public void displayTrackTrees() {
         this.trackSubPanel.removeAll();
         HashMap<Integer, JTree> newCurrentTrees = new HashMap<>(trackTreeController.getDisplayedGeneratorS().size());
