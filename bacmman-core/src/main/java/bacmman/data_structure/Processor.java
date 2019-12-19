@@ -247,7 +247,7 @@ public class Processor {
             allParentTracks.entrySet().removeIf(e->e.getValue().isEmpty());
             logger.debug("after remove selection: parent tracks: #{} mode: {}", allParentTracks.size(), mode);
         }
-        if (pcb !=null) pcb.incrementTaskNumber(allParentTracks.size() - 1);
+        if (pcb !=null) pcb.incrementTaskNumber(allParentTracks.size());
         logger.debug("ex ps: structure: {}, allParentTracks: {}", structureIdx, allParentTracks.size());
 
         ensureScalerConfiguration(dao, structureIdx);
