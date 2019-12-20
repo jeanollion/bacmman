@@ -159,7 +159,10 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
 
     static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
         // ensure no crossing // TODO for open channel start with middle object
-        for (int frame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt(); frame<=objectsF.keySet().stream().mapToInt(i->i).max().getAsInt(); ++frame) {
+        int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
+        int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
+        for (int frame = minFrame; frame<=maxFrame; ++frame) {
+            if (!objectsF.containsKey(frame)) continue;
             List<SegmentedObject> regions = objectsF.get(frame).stream().sorted(Comparator.comparingDouble(r->r.getBounds().yMean())).collect(Collectors.toList());
             for (int idx = 1; idx<regions.size(); ++idx) {
                 TrackingObject up = objectSpotMap.get(regions.get(idx-1));
@@ -239,7 +242,7 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL;
     }
 
     @Override

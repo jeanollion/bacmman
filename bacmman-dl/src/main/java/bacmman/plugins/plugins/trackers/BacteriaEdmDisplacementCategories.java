@@ -60,6 +60,9 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         Image[] edm = ResizeUtils.getChannel(predictions[predictions.length-1], 1);
         Image[] divMap = stores==null ? null : ResizeUtils.getChannel(predictions[1], 2);
         Image[] noPrevMap = ResizeUtils.getChannel(predictions[1], 3);
+        boolean[] noPrevParent = new boolean[parentTrack.size()];
+        noPrevParent[0] = true;
+        for (int i = 1; i<noPrevParent.length; ++i) if (parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1) noPrevParent[i]=true;
         if (averagePredictions) {
             if (next) {
                 Function<Image[][], Image[]> average3 = pcn -> {
@@ -67,9 +70,13 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                     Image[] cur = pcn[1];
                     Image[] next = pcn[2];
                     int last = cur.length - 1;
-                    ImageOperations.average(cur[0], cur[0], prev[1]);
-                    for (int i = 1; i<last; ++i) ImageOperations.average(cur[i], cur[i], prev[i+1], next[i-1]);
-                    ImageOperations.average(cur[last], cur[last], next[last-1]);
+                    if (!noPrevParent[1]) ImageOperations.average(cur[0], cur[0], prev[1]);
+                    for (int i = 1; i<last; ++i) {
+                        if (!noPrevParent[i+1] && !noPrevParent[i]) ImageOperations.average(cur[i], cur[i], prev[i+1], next[i-1]);
+                        else if (!noPrevParent[i+1]) ImageOperations.average(cur[i], cur[i], prev[i+1]);
+                        else if (!noPrevParent[i]) ImageOperations.average(cur[i], cur[i], next[i-1]);
+                    }
+                    if (!noPrevParent[last]) ImageOperations.average(cur[last], cur[last], next[last-1]);
                     return cur;
                 };
                 edm = average3.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length-1], 0), edm, ResizeUtils.getChannel(predictions[0], 2)});
@@ -77,7 +84,9 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                 Function<Image[][], Image[]> average2 = cn -> {
                     Image[] cur = cn[1];
                     Image[] next = cn[2];
-                    for (int i = 1; i < cur.length; ++i) ImageOperations.average(cur[i], cur[i], next[i - 1]);
+                    for (int i = 1; i < cur.length; ++i) {
+                        if (!noPrevParent[i]) ImageOperations.average(cur[i], cur[i], next[i - 1]);
+                    }
                     return cur;
                 };
                 if (predictions[0][0].length==2) {
@@ -91,7 +100,9 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                 Function<Image[][], Image[]> average = pc -> {
                     Image[] prev = pc[0];
                     Image[] cur = pc[1];
-                    for (int i = 0; i<cur.length-1; ++i) ImageOperations.average(cur[i], cur[i], prev[i+1]);
+                    for (int i = 0; i<cur.length-1; ++i) {
+                        if (!noPrevParent[i+1]) ImageOperations.average(cur[i], cur[i], prev[i+1]);
+                    }
                     return cur;
                 };
                 edm = average.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length-1], 0), edm});
@@ -162,9 +173,9 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
         for (int frame = minFrame+1; frame<=maxFrame; ++frame) {
             List<SegmentedObject> objects = objectsF.get(frame);
-            if (objects.isEmpty()) continue;
+            if (objects==null || objects.isEmpty()) continue;
             List<SegmentedObject> objectsPrev = objectsF.get(frame-1);
-            if (objectsPrev.isEmpty()) continue;
+            if (objectsPrev==null || objectsPrev.isEmpty()) continue;
             Map<SegmentedObject, SegmentedObject> nextToPrevMap = Utils.toMapWithNullValues(objects.stream(), o->o, o->getClosest(o, objectsPrev, objectSpotMap), true);
             // take into account noPrev : remove link with previous cell if object is detected as noPrev and there is another cell linked to the previous cell
             Image np = noPrev.get(objects.get(0).getParent());
@@ -314,7 +325,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL; // TODO To implement multiple interval: manage discontinuities in parent track: do not average & do not link @ discontinuities and
+        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS; // TODO To implement multiple interval: manage discontinuities in parent track: do not average & do not link @ discontinuities and
     }
 
     @Override
