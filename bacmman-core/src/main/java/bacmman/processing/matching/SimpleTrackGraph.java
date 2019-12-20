@@ -51,7 +51,15 @@ public class SimpleTrackGraph<E> extends SimpleGraph<SegmentedObject, E> {
     public E addWeightedEdge(SegmentedObject sourceVertex, SegmentedObject targetVertex, double weight) {
         if (sourceVertex.getFrame()>=targetVertex.getFrame()) throw new IllegalArgumentException("Cannot add track link if source frame is after target frame");
         E edge =  super.addEdge(sourceVertex, targetVertex);
-        setEdgeWeight(edge, weight);
+        if (edge!=null) setEdgeWeight(edge, weight);
+        else {
+            // edge already present -> set max weight
+            edge = super.getEdge(sourceVertex, targetVertex);
+            if (edge!=null) {
+                double w2 = getEdgeWeight(edge);
+                if (w2<weight) setEdgeWeight(edge, weight);
+            }
+        }
         return edge;
     }
     @Override
