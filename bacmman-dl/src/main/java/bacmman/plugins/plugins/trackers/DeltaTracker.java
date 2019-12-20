@@ -121,12 +121,13 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
             noPrevParent = new boolean[length];
             int cumIdx = 0;
             for (int i = 0; i<populations.length; ++i) {
+                boolean noP = i==0 || (parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1);
                 for (int j = 0; j<populations[i].getRegions().size(); ++j) {
                     popIdxCorrespondance[cumIdx] = i;
                     regionInPopIdxCorrespondance[cumIdx] = j;
+                    noPrevParent[cumIdx] = noP;
                     ++cumIdx;
                 }
-                if (i==0 || parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1) noPrevParent[i] = true;
             }
             regionMasksBinarized = Arrays.stream(regionMasksResampled).parallel().map(im -> TypeConverter.toByteMask(im, null, 1)).toArray(Image[]::new);
         }
