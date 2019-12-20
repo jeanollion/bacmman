@@ -184,7 +184,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         public List<Pair<Integer, Double>> getPredictedNextRegions(int idx, Image[] predictionC) {
             if (!canPredictNext(idx)) return Collections.EMPTY_LIST;
             int nextPopIdx = populationIdx(idx)+1;
-            if (noPrevParent[nextPopIdx]) return Collections.emptyList();
+            if (noPrevParent[idx]) return Collections.emptyList();
             RegionPopulation next = populations[nextPopIdx];
             if (next.getRegions().isEmpty()) return Collections.EMPTY_LIST;
 
