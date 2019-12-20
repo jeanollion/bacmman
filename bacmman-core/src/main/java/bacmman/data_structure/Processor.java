@@ -420,10 +420,14 @@ public class Processor {
                 if (e.getKey()==selection.getStructureIdx()) {
                     allParentTracks.keySet().retainAll(selectionTH);
                 } else if (e.getKey()<selection.getStructureIdx()) {
-                    Set<SegmentedObject> th = selectionTH.stream().map(o->o.getParent(e.getKey())).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+                    Set<SegmentedObject> th = selectionTH.stream().map(o->o.getParent(e.getKey())).filter(Objects::nonNull).map(SegmentedObject::getTrackHead).filter(Objects::nonNull).collect(Collectors.toSet());
                     allParentTracks.keySet().retainAll(th);
                 } else {
-                    Set<SegmentedObject> th = selection.getElements(dao.getPositionName()).stream().flatMap(o->o.getChildren(e.getKey())).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+                    Set<SegmentedObject> th = selection.getElements(dao.getPositionName()).stream().flatMap(o->{
+                        Stream<SegmentedObject> s = o.getChildren(e.getKey());
+                        if (s==null) return Stream.empty();
+                        return s;
+                    }).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
                     allParentTracks.keySet().retainAll(th);
                 }
             }
