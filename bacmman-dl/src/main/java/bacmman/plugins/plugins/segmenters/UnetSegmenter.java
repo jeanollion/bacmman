@@ -88,10 +88,10 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
 
     static Pair<Image[][], int[][]> getInput(Image[] in, int[] targetImageShape) {
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         // also scale by min/max
         MinMaxScaler scaler = new MinMaxScaler();
-        IntStream.range(0, in.length).parallel().forEach(i -> inResampled[i] = scaler.scale(inResampled[i]));
+        IntStream.range(0, in.length).parallel().forEach(i -> in[i] = scaler.scale(in[i]));
+        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         Image[][] input = IntStream.range(0, inResampled.length).mapToObj(i -> new Image[]{inResampled[i]}).toArray(Image[][]::new);
         return new Pair<>(input, shapes);
     }

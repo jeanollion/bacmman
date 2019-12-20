@@ -22,10 +22,7 @@ import org.jgrapht.graph.DefaultWeightedEdge;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -102,16 +99,17 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         private final Image[] regionMasksBinarized;
         private final Image[] rawResampled;
         private final double predictionThld;
+        private final boolean[] noPrevParent;
         private final HashMapGetCreate.HashMapGetCreateRedirected<Integer, Image> maskBuffer;
         public InputFormatter(int objectClassIdx, List<SegmentedObject> parentTrack, double predictionThld, int[] imageDimensions) {
             maskBuffer = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> new ImageByte("", new SimpleImageProperties(imageDimensions[0], imageDimensions[1], 1, 1, 1)));
             this.predictionThld=predictionThld;
 
             Image[] raw = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
-            rawResampled = ResizeUtils.resample(raw, raw, false, new int[][]{imageDimensions});
             // also scale by min/max
             MinMaxScaler scaler = new MinMaxScaler();
-            IntStream.range(0, raw.length).parallel().forEach(i -> rawResampled[i] = scaler.scale(rawResampled[i]));
+            IntStream.range(0, raw.length).parallel().forEach(i -> raw[i] = scaler.scale(raw[i])); // scale before resample so that image is converted to float
+            rawResampled = ResizeUtils.resample(raw, raw, false, new int[][]{imageDimensions});
             // resample region populations + remove touching borders + binarize
             ImageInteger<? extends ImageInteger>[] regionMasks = parentTrack.parallelStream().map(p -> p.getChildRegionPopulation(objectClassIdx).getLabelMap()).toArray(ImageInteger[]::new);
             ImageInteger<? extends ImageInteger>[] regionMasksResampled = ResizeUtils.resample(regionMasks, regionMasks, true, new int[][]{imageDimensions});
@@ -120,6 +118,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
             int length = IntStream.of(regionCount).sum();
             popIdxCorrespondance = new int[length];
             regionInPopIdxCorrespondance = new int[length];
+            noPrevParent = new boolean[length];
             int cumIdx = 0;
             for (int i = 0; i<populations.length; ++i) {
                 for (int j = 0; j<populations[i].getRegions().size(); ++j) {
@@ -127,6 +126,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
                     regionInPopIdxCorrespondance[cumIdx] = j;
                     ++cumIdx;
                 }
+                if (i==0 || parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1) noPrevParent[i] = true;
             }
             regionMasksBinarized = Arrays.stream(regionMasksResampled).parallel().map(im -> TypeConverter.toByteMask(im, null, 1)).toArray(Image[]::new);
         }
@@ -182,7 +182,9 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
          */
         public List<Pair<Integer, Double>> getPredictedNextRegions(int idx, Image[] predictionC) {
             if (!canPredictNext(idx)) return Collections.EMPTY_LIST;
-            RegionPopulation next = populations[populationIdx(idx)+1];
+            int nextPopIdx = populationIdx(idx)+1;
+            if (noPrevParent[nextPopIdx]) return Collections.emptyList();
+            RegionPopulation next = populations[nextPopIdx];
             if (next.getRegions().isEmpty()) return Collections.EMPTY_LIST;
 
             Image mother = (Image)predictionC[1].resetOffset().translate(next.getImageProperties());
@@ -191,12 +193,17 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
             int motherIdx = ArrayUtil.max(predictionM);
             if (predictionM[motherIdx]<predictionThld) return Collections.EMPTY_LIST;
             Pair<Integer, Double> m = new Pair<>(motherIdx, predictionM[motherIdx]);
+            ArrayList<Pair<Integer, Double>> res = new ArrayList<>();
+            res.add(m);
             double[] predictionD = next.getRegions().stream().mapToDouble(r -> BasicMeasurements.getQuantileValue(r, daughters,0.5)[0]).toArray();
-            // return all cells that are not the mother and that have a probability
+            int daugtherIdx = ArrayUtil.max(predictionD);
+            if (predictionD[daugtherIdx]>=predictionThld) res.add(new Pair<>(daugtherIdx, predictionD[daugtherIdx]));
+            return res;
+            /* return all cells that are not the mother and that have a probability. Case of division that yield in more than 2 cells
             Stream<Pair<Integer, Double>> daugthers = IntStream.range(0, predictionD.length)
                     .filter(i->i!=motherIdx)
                     .filter(i->predictionD[i]>=predictionThld).mapToObj(i -> new Pair<>(i, predictionD[i]));
-            return Stream.concat(Stream.of(m), daugthers).collect(Collectors.toList());
+            return Stream.concat(Stream.of(m), daugthers).collect(Collectors.toList());*/
         }
     }
 

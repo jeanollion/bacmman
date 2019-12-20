@@ -314,7 +314,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+        return ProcessingPipeline.PARENT_TRACK_MODE.SINGLE_INTERVAL; // TODO To implement multiple interval: manage discontinuities in parent track: do not average & do not link @ discontinuities and
     }
 
     @Override

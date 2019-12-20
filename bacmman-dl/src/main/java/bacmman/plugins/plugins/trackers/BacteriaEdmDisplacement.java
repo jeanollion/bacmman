@@ -79,10 +79,10 @@ public class BacteriaEdmDisplacement implements TrackerSegmenter, TestableProces
     static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         // also scale by min/max
         MinMaxScaler scaler = new MinMaxScaler();
-        IntStream.range(0, in.length).parallel().forEach(i -> inResampled[i] = scaler.scale(inResampled[i]));
+        IntStream.range(0, in.length).parallel().forEach(i -> in[i] = scaler.scale(in[i])); // scale before resample so that image is converted to float
+        Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         return new Pair<>(inResampled, shapes);
     }
     static Image[][] getInputs(Image[] images, boolean addPrev, boolean addNext) {
