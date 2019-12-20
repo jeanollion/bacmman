@@ -736,35 +736,33 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     @Override
     public void setRunning(boolean running) {
         this.running=running;
-        logger.debug("set running: "+running);
+        logger.debug("set running: {}", running);
         progressBar.setValue(progressBar.getMinimum());
         progressBar.setIndeterminate(running);
-        this.experimentMenu.setEnabled(!running);
+        logger.debug("RT1");
+        this.experimentMenu.setEnabled(!running); // TODO somehow this call lock experiment when an experiment is open and run task is performed
+        logger.debug("RT2");
         this.runMenu.setEnabled(!running);
         this.optionMenu.setEnabled(!running);
         this.importMenu.setEnabled(!running);
         this.exportMenu.setEnabled(!running);
         this.miscMenu.setEnabled(!running);
-        
         // action tab
         this.workingDirectory.setEditable(!running);
         this.datasetList.setEnabled(!running);
         if (actionStructureSelector!=null) this.actionStructureSelector.getTree().setEnabled(!running);
         this.runActionList.setEnabled(!running);
         this.microscopyFieldList.setEnabled(!running);
-        
         //config tab
 
         if (configurationTreeGenerator!=null && configurationTreeGenerator.getTree()!=null) this.configurationTreeGenerator.getTree().setEnabled(!running);
         this.moduleList.setEnabled(!running);
-
         // config test tab
         tabs.setEnabledAt(2, !running);
         if (testConfigurationTreeGenerator!=null && testConfigurationTreeGenerator.getTree()!=null) this.testConfigurationTreeGenerator.getTree().setEnabled(!running);
         this.testCopyButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
         this.testCopyToTemplateButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
         this.testModuleList.setEnabled(!running);
-
         // browsing tab
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);
@@ -1007,6 +1005,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         tabs.setSelectedIndex(0);
         ImageWindowManagerFactory.getImageManager().flush();
         if (xp!=null) setMessage("XP: "+xp+ " closed");
+        logger.debug("db {} closed.", xp);
         datasetListValueChanged(null);
         reloadObjectTrees=true;
         populateModuleList(moduleModel, moduleList, null, Collections.emptyList());

@@ -454,8 +454,9 @@ public class Task implements ProgressCallback{
                 if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
             }
             for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
-            logger.info("task : {}, isValid: {}", dbName, errors.isEmpty());
+            logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
             if (!keepDB) {
+                db.unlockConfiguration();
                 db.clearCache();
                 db=null;
             }
@@ -499,6 +500,7 @@ public class Task implements ProgressCallback{
             //if (ui!=null) ui.setRunning(true);
             publish("Run task: "+this.toString());
             initDB();
+            logger.debug("configuration read only: {}", db.isConfigurationReadOnly());
             Core.freeDisplayMemory();
             publishMemoryUsage("Before processing");
             this.ensurePositionAndStructures(true, true);
@@ -515,6 +517,7 @@ public class Task implements ProgressCallback{
                 for (String p : readOnlyPos) errors.addExceptions(new Pair(p, new RuntimeException("Locked position. Already used by another process?")));
                 positionsToProcess.removeAll(readOnlyPos);
             }
+            logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
             boolean needToDeleteObjects = preProcess || segmentAndTrack;
             boolean deleteAll =  needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && positionsToProcess.size()==db.getExperiment().getPositionCount();
             if (deleteAll) {
@@ -554,10 +557,9 @@ public class Task implements ProgressCallback{
                 logger.debug("engines closed!");
             }
             logger.debug("extracting meas...");
-            for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value);
+            for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
             if (exportData) exportData();
             logger.debug("unlocking positions...");
-
             if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
             else {
                 logger.debug("clearing cache...");
@@ -627,14 +629,14 @@ public class Task implements ProgressCallback{
     public void publishMemoryUsage(String message) {
         publish(message+Utils.getMemoryUsage());
     }
-    public void extractMeasurements(String dir, int[] structures) {
-        ensurePositionAndStructures(true, true);
+    public void extractMeasurements(String dir, int[] structures, List<String > positions) {
         String file = dir+File.separator+db.getDBName()+Utils.toStringArray(structures, "_", "", "_")+".csv";
         publish("extracting measurements from object class: "+Utils.toStringArray(structures));
         publish("measurements will be extracted to: "+ file);
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structures);
-        logger.debug("keys: {}", keys);
-        MeasurementExtractor.extractMeasurementObjects(db, file, getPositions(), keys);
+        logger.debug("keys: {}", Utils.toStringList(keys.entrySet()));
+        logger.debug("extract read only positions: {}", getPositions().stream().filter(p -> db.getDao(p).isReadOnly()).toArray());
+        MeasurementExtractor.extractMeasurementObjects(db, file, positions, keys);
         incrementProgress();
     }
     public void exportData() {
@@ -804,7 +806,8 @@ public class Task implements ProgressCallback{
             if (!t.isValid()) {
                 if (ui!=null) ui.setMessage("Invalid task: "+t.toString());
                 return;
-            } 
+            }
+            logger.debug("task valid. keep db: {}, readonly?: {}", t.keepDB, t.db==null ? "null" : t.db.isConfigurationReadOnly());
             t.setUI(ui);
             totalSubtasks+=t.countSubtasks();
         }

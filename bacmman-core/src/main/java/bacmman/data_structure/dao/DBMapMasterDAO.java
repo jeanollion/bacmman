@@ -194,14 +194,16 @@ public class DBMapMasterDAO implements MasterDAO {
         if (cfg.isFile()) cfg.delete();
     }
 
-    private synchronized void lockXP() {
+    private synchronized void accessConfigFileAndlockXP() {
         if (xpFileLock!=null) return;
         try {
-            logger.debug("locking file: {} (cfg null? {})", getConfigFile(dbName), xp==null);
             File f = getConfigFile(dbName);
             if (!f.exists()) f.createNewFile();
             cfg = new RandomAccessFile(f, readOnly?"r":"rw");
-            if (!readOnly) xpFileLock = cfg.getChannel().tryLock();
+            if (!readOnly) {
+                logger.debug("locking file: {} (cfg null? {})", getConfigFile(dbName), xp==null);
+                xpFileLock = cfg.getChannel().tryLock();
+            }
             //logger.debug("lock at creation: {}, for file: {}", xpFileLock, getConfigFile(dbName, false));
         } catch (FileNotFoundException ex) {
             logger.debug("no config file found!");
@@ -281,11 +283,11 @@ public class DBMapMasterDAO implements MasterDAO {
         if (this.xp==null) {
             synchronized(this) {
                 if (xp==null) {
-                    if (xpFileLock==null) this.lockXP();
+                    if (xpFileLock==null) this.accessConfigFileAndlockXP();
                     if (!readOnly && xpFileLock==null) {
                         logger.warn(dbName+ ": Config file could not be locked. Dataset already opened ? Dataset will be opened in ReadOnly mode");
                         readOnly = true;
-                        lockXP(); // will try to access the xp file in readonly mode
+                        accessConfigFileAndlockXP(); // will try to access the xp file in readonly mode
                     }
                     xp = getXPFromFile();
 
@@ -351,7 +353,7 @@ public class DBMapMasterDAO implements MasterDAO {
             logger.error("Cannot update configuration -> READ ONLY");
             return;
         }
-        if (this.xpFileLock==null) lockXP();
+        if (this.xpFileLock==null) accessConfigFileAndlockXP();
         updateXPFile();
     }
     private void updateXPFile() {
