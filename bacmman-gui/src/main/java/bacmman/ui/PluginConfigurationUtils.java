@@ -274,6 +274,7 @@ public class PluginConfigurationUtils {
             current.filter(structureIdx, images, !first);
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
         }
+        xp.getDLengineProvider().closeAllEngines();
         return storeList;
     }
     public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int objectClassIdx, boolean expertMode) {
