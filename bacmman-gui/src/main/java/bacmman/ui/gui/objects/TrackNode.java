@@ -266,7 +266,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             Map<String, List<TrackNode>> nodesByPosition = root.generator.getSelectedTrackNodes().stream().collect(Collectors.groupingBy(n->n.root.position));
                             List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
                             ProgressLogger ui = GUI.getInstance();
-                            DefaultWorker.execute(idx -> {
+                            DefaultWorker.WorkerTask wt =  idx -> {
                                 String p = positions.get(idx).key;
                                 TrackNode n = positions.get(idx).value;
                                 ui.setMessage("Running Segmentation and Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
@@ -282,14 +282,17 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                 }
                                 if (nodesByPosition.size()>1 && idx<positions.size()-1 && !positions.get(idx + 1).key.equals(p)) root.generator.db.clearCache(p);
                                 return "";
-                            }, positions.size(), ui);
-                            
-                            // reload tree
-                            root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
-                            // reload objects
-                            ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
-                            // reload selection
-                            GUI.getInstance().populateSelections();
+                            };
+                            DefaultWorker worker = new DefaultWorker(wt, positions.size(), ui);
+                            worker.appendEndOfWork(() -> {
+                                // reload tree
+                                root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
+                                // reload objects
+                                ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
+                                // reload selection
+                                GUI.getInstance().populateSelections();
+                            });
+                            worker.run();
                         }
                     }
                 );
@@ -306,7 +309,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             Map<String, List<TrackNode>> nodesByPosition = root.generator.getSelectedTrackNodes().stream().collect(Collectors.groupingBy(n->n.root.position));
                             List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
                             ProgressLogger ui = GUI.getInstance();
-                            DefaultWorker.execute(idx -> {
+                            DefaultWorker.WorkerTask wt =  idx -> {
                                 String p = positions.get(idx).key;
                                 TrackNode n = positions.get(idx).value;
                                 ui.setMessage("Running Tracking on track: "+n.trackHead+ " structureIdx: "+structureIdx);
@@ -322,12 +325,17 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                 }
                                 if (nodesByPosition.size()>1 && idx<positions.size()-1 && !positions.get(idx + 1).key.equals(p)) root.generator.db.clearCache(p);
                                 return "";
-                            }, positions.size(), ui);
-
-                            // reload tree
-                            root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
-                            // reload objects
-                            ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
+                            };
+                            DefaultWorker worker = new DefaultWorker(wt, positions.size(), ui);
+                            worker.appendEndOfWork(() -> {
+                                // reload tree
+                                root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
+                                // reload objects
+                                ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
+                                // reload selection
+                                GUI.getInstance().populateSelections();
+                            });
+                            worker.run();
                         }
                     }
                 );
