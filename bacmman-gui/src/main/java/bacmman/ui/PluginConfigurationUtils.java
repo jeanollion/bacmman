@@ -23,6 +23,7 @@ import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
+import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.image_container.MemoryImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
@@ -104,6 +105,7 @@ public class PluginConfigurationUtils {
         psc.setTestDataStore(stores);
         logger.debug("test processing: sel {}", parentSelection);
         logger.debug("test processing: whole parent track: {} selection: {}", wholeParentTrackDup.size(), parentTrackDup.size());
+        try {
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
             boolean pf = plugin instanceof PostFilter;
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
@@ -274,8 +276,24 @@ public class PluginConfigurationUtils {
             current.filter(structureIdx, images, !first);
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("after selected filter", images.get(p))); // add images before processing
         }
-        xp.getDLengineProvider().closeAllEngines();
+        } catch (Throwable t) {
+            GUI.log("An error occurred while testing...");
+            publishError(t);
+        } finally {
+            xp.getDLengineProvider().closeAllEngines();
+        }
         return storeList;
+    }
+    public static void publishError(Throwable t) {
+        GUI.log(t.toString());
+        Arrays.stream(t.getStackTrace())
+                .map(st -> st.toString())
+                .filter(Task::printStackTraceElement)
+                .forEachOrdered(GUI::log);
+        if (t.getCause()!=null && !t.getCause().equals(t)) {
+            GUI.log("caused By");
+            publishError(t.getCause());
+        }
     }
     public static List<JMenuItem> getTestCommand(ImageProcessingPlugin plugin, int pluginIdx, Experiment xp, int objectClassIdx, boolean expertMode) {
         Consumer<Boolean> performTest = b-> {
