@@ -739,7 +739,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.debug("set running: {}", running);
         progressBar.setValue(progressBar.getMinimum());
         progressBar.setIndeterminate(running);
-        logger.debug("RT1");
+        logger.debug("RT1: db null ? {}", db==null);
         this.experimentMenu.setEnabled(!running); // TODO somehow this call lock experiment when an experiment is open and run task is performed
         logger.debug("RT2");
         this.runMenu.setEnabled(!running);
