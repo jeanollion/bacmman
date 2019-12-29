@@ -118,14 +118,13 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
             int length = IntStream.of(regionCount).sum();
             popIdxCorrespondance = new int[length];
             regionInPopIdxCorrespondance = new int[length];
-            noPrevParent = new boolean[length];
+            noPrevParent = new boolean[populations.length];
             int cumIdx = 0;
             for (int i = 0; i<populations.length; ++i) {
-                boolean noP = i==0 || (parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1);
+                noPrevParent[i] = i==0 || (parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1);
                 for (int j = 0; j<populations[i].getRegions().size(); ++j) {
                     popIdxCorrespondance[cumIdx] = i;
                     regionInPopIdxCorrespondance[cumIdx] = j;
-                    noPrevParent[cumIdx] = noP;
                     ++cumIdx;
                 }
             }
@@ -184,7 +183,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         public List<Pair<Integer, Double>> getPredictedNextRegions(int idx, Image[] predictionC) {
             if (!canPredictNext(idx)) return Collections.EMPTY_LIST;
             int nextPopIdx = populationIdx(idx)+1;
-            if (noPrevParent[idx]) return Collections.emptyList();
+            if (noPrevParent[nextPopIdx]) return Collections.emptyList();
             RegionPopulation next = populations[nextPopIdx];
             if (next.getRegions().isEmpty()) return Collections.EMPTY_LIST;
 
