@@ -11,6 +11,7 @@ import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class ResizeUtils {
     public final static Logger logger = LoggerFactory.getLogger(ResizeUtils.class);
@@ -65,11 +66,12 @@ public class ResizeUtils {
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
+    @SuppressWarnings("unchecked")
     public static <T extends Image> T[] resample(T[] imagesN, T[] output, boolean isBinary, int[][] imageShapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
-        List<T> res =  IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], isBinary, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
-                .collect(Collectors.toList());
+        Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
+                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], isBinary, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+        List<T> res = s.collect(Collectors.toList());
         res.toArray(output);
         return output;
     }
