@@ -11,6 +11,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class Utils {
     public final static Logger logger = LoggerFactory.getLogger(Utils.class);
@@ -65,9 +66,9 @@ public class Utils {
     }
     public static Image[] resample(Image[] imagesN, boolean isBinary, int[][] shapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", shapeN.length, shapeN[0]);
-        return IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> Resample.resample(imagesN[idx], isBinary, shapeN.length==1 ? shapeN[0] : shapeN[idx]))
-                .toArray(Image[]::new);
+        Stream<Image> s = IntStream.range(0, imagesN.length).parallel()
+                .mapToObj(idx -> Resample.resample(imagesN[idx], isBinary, shapeN.length==1 ? shapeN[0] : shapeN[idx]));
+        return s.toArray(Image[]::new);
     }
     public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {
         return IntStream.range(0, shapes.length).allMatch(i -> Arrays.equals(shapes[i], referenceShape));
