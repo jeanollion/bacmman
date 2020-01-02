@@ -60,6 +60,7 @@ public abstract class InteractiveImage {
     public List<SegmentedObject> getParents() {return parents;}
     public abstract InteractiveImageKey getKey();
     public abstract void reloadObjects();
+    public abstract void resetObjects();
     public abstract Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z); // TODO this method is not used ...
     public abstract void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list);
     public abstract BoundingBox getObjectOffset(SegmentedObject object);

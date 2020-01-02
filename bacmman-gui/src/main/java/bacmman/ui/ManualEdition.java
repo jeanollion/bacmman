@@ -74,7 +74,8 @@ public class ManualEdition {
         // update display
 
         //Update all open images & objectImageInteraction
-        for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(objects) ) ImageWindowManagerFactory.getImageManager().reloadObjects(p, objectClassIdx, false);
+        //for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(objects) ) ImageWindowManagerFactory.getImageManager().reloadObjects(p, objectClassIdx, false);
+        ImageWindowManagerFactory.getImageManager().resetObjects(null, objectClassIdx);
         GUI.updateRoiDisplayForSelections(null, null);
 
         // update trackTree
@@ -343,7 +344,7 @@ public class ManualEdition {
         
         Map<SegmentedObject, List<Point>> points = iwm.getParentSelectedPointsMap(image, segmentationParentStructureIdx);
         if (points!=null && !points.isEmpty()) {
-            String[] positions = points.keySet().stream().map(p->p.getPositionName()).distinct().toArray(i->new String[i]);
+            String[] positions = points.keySet().stream().map(SegmentedObject::getPositionName).distinct().toArray(i->new String[i]);
             if (positions.length>1) throw new IllegalArgumentException("All points should come from same parent");
             ensurePreFilteredImages(points.keySet().stream(), structureIdx, db.getExperiment(), db.getDao(positions[0]));
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
@@ -417,9 +418,10 @@ public class ManualEdition {
                         GUI.getInstance().objectTreeGenerator.reload(node.getParent());
                     }*/
                     //Update all open images & objectImageInteraction
-                    ImageWindowManagerFactory.getImageManager().reloadObjects(e.getKey(), structureIdx, false);
+                    //ImageWindowManagerFactory.getImageManager().reloadObjects(e.getKey(), structureIdx, false);
                 }
             }
+            iwm.resetObjects(positions[0], structureIdx);
             // selected newly segmented objects on image
             InteractiveImage i = iwm.getImageObjectInterface(image);
             if (i!=null) {
@@ -544,18 +546,16 @@ public class ManualEdition {
                 // unselect
                 ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
                 ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);
-                
-                Set<SegmentedObject> parents = SegmentedObjectUtils.getParents(newObjects);
-                //if (GUI.hasInstance() && GUI.getInstance().objectTreeGenerator!=null) {
-                    for (SegmentedObject p : parents) {
-                        //Update tree
-                        //StructureNode node = GUI.getInstance().objectTreeGenerator.getObjectNode(p).getStructureNode(structureIdx);
-                        //node.createChildren();
-                        //GUI.getInstance().objectTreeGenerator.reload(node);
-                        //Update all open images & objectImageInteraction
-                        ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
-                    }
-                //}
+                ImageWindowManagerFactory.getImageManager().resetObjects(null, structureIdx);
+                /*Set<SegmentedObject> parents = SegmentedObjectUtils.getParents(newObjects);
+                for (SegmentedObject p : parents) {
+                    //Update tree
+                    //StructureNode node = GUI.getInstance().objectTreeGenerator.getObjectNode(p).getStructureNode(structureIdx);
+                    //node.createChildren();
+                    //GUI.getInstance().objectTreeGenerator.reload(node);
+                    //Update all open images & objectImageInteraction
+                    ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
+                }*/
                 // update selection
                 InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null, structureIdx);
                 if (i!=null) {
@@ -591,6 +591,7 @@ public class ManualEdition {
             }*/
             Set<SegmentedObject> parents = SegmentedObjectUtils.getParentTrackHeads(e.getValue());
             //Update all open images & objectImageInteraction
+            // TODO works when displayed from other structure than parent ? use reset instead ?
             for (SegmentedObject p : parents) ImageWindowManagerFactory.getImageManager().reloadObjects(p, e.getKey(), false);
             // update selection
             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null, e.getKey());
@@ -615,8 +616,9 @@ public class ManualEdition {
                 List<SegmentedObject> selTh = ImageWindowManagerFactory.getImageManager().getSelectedLabileTrackHeads(null);
 
                 //Update all open images & objectImageInteraction
-                for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(toDelete))
-                    ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
+                //for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(toDelete))
+                //    ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
+                ImageWindowManagerFactory.getImageManager().resetObjects(null, structureIdx);
                 ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh, true), true);
                 GUI.updateRoiDisplayForSelections(null, null);
 
