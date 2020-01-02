@@ -49,8 +49,8 @@ public class RadonProjection {
                 int N = projIdx - proj.length / 2;
                 double b = (N - costab - sintab) / sintab;
                 b *= scale;
-                boolean noValue=true;
                 double val = 0;
+                double n = 0;
                 for (int x = -Xcenter; x < Xcenter; x++) {
                     
                     //linear interpolation
@@ -59,12 +59,12 @@ public class RadonProjection {
 
                     if (y >= -Ycenter && y + 1 < Ycenter) {
                         val += (1 - weight) * image.getPixel(x+Xcenter, y + Ycenter, z)  + weight * image.getPixel(x+Xcenter, y + Ycenter + 1, z);
-                        noValue=false;
+                        ++n;
                     }
 
                     
                 }
-                if (!noValue) proj[projIdx] = (float) (val / Math.abs(sintab));
+                if (n>0) proj[projIdx] = (float) ((val / Math.abs(sintab)) / n);
                 else proj[projIdx] = Float.NaN;
 
             });
@@ -75,7 +75,7 @@ public class RadonProjection {
                 double bb = (N - costab - sintab) / costab;
                 bb = bb * scale;
                 //IJ.write("bb="+bb+" ");
-                boolean noValue=true;
+                double n = 0;
                 double val = 0;
                 for (int y = -Ycenter; y < Ycenter; y++) {
                     int x = (int) Math.round(aa * y + bb);
@@ -83,10 +83,10 @@ public class RadonProjection {
                     if (x >= -Xcenter && x + 1 < Xcenter) {
                         val += (1 - weight) * image.getPixel(x+Xcenter, y + Ycenter, z)
                                 + weight * image.getPixel(x+Xcenter + 1, y + Ycenter, z);
-                        noValue=false;
+                        ++n;
                     }
                 }
-                if (!noValue) proj[projIdx] = (float) (val / Math.abs(costab));
+                if (n>0) proj[projIdx] = (float) ((val / Math.abs(costab))/n);
                 else proj[projIdx] = Float.NaN;
             });
         }

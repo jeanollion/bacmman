@@ -410,7 +410,7 @@ public class Task implements ProgressCallback{
                 ensurePositionAndStructures(true, false);
                 PreProcessingChain template = db.getExperiment().getPreProcessingTemplate();
                 List<Integer> posWithDifferentPP = positions.stream().filter(p -> !template.getTransformations().sameContent(db.getExperiment().getPosition(p).getPreProcessingChain().getTransformations())).collect(Collectors.toList());
-                publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
+                if (!posWithDifferentPP.isEmpty()) publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
             }
             if (selectionName!=null) {
                 if (preProcess || generateTrackImages || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
@@ -723,6 +723,7 @@ public class Task implements ProgressCallback{
     }
     @Override
     public void incrementProgress() {
+        logger.debug("Progress: {}/{}", taskCounter[0]+1, taskCounter[1]);
         if (ui!=null) ui.setProgress(100*(++taskCounter[0])/taskCounter[1]);
     }
     /*@Override

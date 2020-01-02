@@ -113,7 +113,7 @@ public class Processor {
         }
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         for (int s =0; s<dao.getExperiment().getStructureCount(); ++s) dao.getExperiment().getImageDAO().deleteTrackImages(position.getName(), s);
-        setTransformations(position);
+        setTransformations(position, pcb);
         logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
         images.applyTranformationsAndSave(false); // here : should be able to close if necessary
         System.gc();
@@ -121,9 +121,13 @@ public class Processor {
         if (deleteObjects) dao.deleteAllObjects();
     }
     
-    public static void setTransformations(Position position)  {
+    public static void setTransformations(Position position, ProgressCallback pcb)  {
         InputImagesImpl images = position.getInputImages();
         PreProcessingChain ppc = position.getPreProcessingChain();
+        if (pcb!=null) {
+            int confTransfo = (int)ppc.getTransformations(true).stream().filter(t->t.instantiatePlugin() instanceof ConfigurableTransformation).count();
+            pcb.incrementTaskNumber(confTransfo);
+        }
         for (TransformationPluginParameter<Transformation> tpp : ppc.getTransformations(true)) {
             Transformation transfo = tpp.instantiatePlugin();
             logger.info("adding transformation: {} of class: {} to position: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
@@ -132,6 +136,7 @@ public class Processor {
                 logger.debug("before configuring: {}", Utils.getMemoryUsage());
                 ct.computeConfigurationData(tpp.getInputChannel(), images);
                 logger.debug("after configuring: {}", Utils.getMemoryUsage());
+                if (pcb!=null) pcb.incrementProgress();
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
         }
@@ -444,26 +449,28 @@ public class Processor {
             });
             if (pcb!=null && actionPool.size()>0) {
                 pcb.log("Executing: #"+actionPool.size()+" track measurements");
-                pcb.incrementTaskNumber(actionPool.size());
+                pcb.incrementTaskNumber(1);
             }
             // count parallel measurement on tracks -
             int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
             if (pcb!=null && parallelMeasCount>0) {
-                pcb.incrementTaskNumber(allParentTracks.size());
+                pcb.incrementTaskNumber(1);
             }
             // count measurements on objects
             List<Measurement> measObj = dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
                     .filter(m->!m.callOnlyOnTrackHeads()).collect(Collectors.toList());
-            if (pcb!=null) pcb.incrementTaskNumber(measObj.size());
+            if (pcb!=null && !measObj.isEmpty()) pcb.incrementTaskNumber(1);
 
             if (!actionPool.isEmpty()) containsObjects=true;
             try {
                 ThreadRunner.executeAndThrowErrors(actionPool.parallelStream(), p->{
                     p.key.performMeasurement(p.value);
-                    if (pcb!=null) pcb.incrementProgress();
+                    //if (pcb!=null) pcb.incrementProgress();
                 });
             } catch(MultipleException me) {
                 globE.addExceptions(me.getExceptions());
+            } finally {
+                if (pcb!=null && !actionPool.isEmpty()) pcb.incrementProgress();
             }
             
             // parallel measurement on tracks -> give all resources to the measurement and perform track by track
@@ -479,10 +486,12 @@ public class Processor {
                                 ((MultiThreaded)m).setMultiThread(true);
                                 m.performMeasurement(pt);
                             });
-                    if (pcb!=null) pcb.incrementProgress();
+                    //if (pcb!=null) pcb.incrementProgress();
                 });
             } catch(MultipleException me) {
                 globE.addExceptions(me.getExceptions());
+            } finally {
+                if (pcb!=null && parallelMeasCount>0) pcb.incrementProgress();
             }
             int allObCount = allParentTracks.values().stream().mapToInt(t->t.size()).sum();
             
@@ -498,9 +507,10 @@ public class Processor {
                 } catch (Throwable t) {
                     globE.addExceptions(new Pair(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
                 } finally {
-                    if (pcb!=null) pcb.incrementProgress();
+                    //if (pcb!=null) pcb.incrementProgress();
                 }
             });
+            if (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->!m.callOnlyOnTrackHeads()).findAny().orElse(null)!=null;
 
         }
