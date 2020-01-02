@@ -69,7 +69,13 @@ public class SimpleInteractiveImage extends InteractiveImage {
         if (offsets==null || objects==null || offsets.length!=objects.size()) reloadObjects();
         return offsets;
     }
-    
+
+    @Override
+    public void resetObjects() {
+        objects = null;
+        offsets = null;
+    }
+
     @Override public void reloadObjects() {
         if (childStructureIdx == parentStructureIdx) {
             objects = this.parents;

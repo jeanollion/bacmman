@@ -362,7 +362,6 @@ public abstract class ImageWindowManager<I, U, V> {
     }
 
     protected void reloadObjects__(InteractiveImageKey key) {
-        
         InteractiveImage i = imageObjectInterfaces.get(key);
         if (i!=null) {
             GUI.logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.displayedStructureIdx);
@@ -376,14 +375,17 @@ public abstract class ImageWindowManager<I, U, V> {
             reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
         } else {
             for (List<SegmentedObject> l : trackHeadTrackMap.get(parent)) {
-                for (InteractiveImageKey.IMAGE_TYPE it : InteractiveImageKey.IMAGE_TYPE.values()) reloadObjects__ (new InteractiveImageKey(l, childStructureIdx, it));
+                for (InteractiveImageKey.IMAGE_TYPE it : InteractiveImageKey.IMAGE_TYPE.values()) reloadObjects__(new InteractiveImageKey(l, childStructureIdx, it));
             }
         }
-        
-        
-        
     }
-    
+    public void resetObjects(String position, int childStructureIdx) {
+        imageObjectInterfaces.values().stream()
+                .filter(i->i.getChildStructureIdx()==childStructureIdx)
+                .filter(i->position==null || i.getParent().getPositionName().equals(position))
+                .forEach(InteractiveImage::resetObjects);
+        resetObjectsAndTracksRoi();
+    }
     public void reloadObjects(SegmentedObject parent, int childStructureIdx, boolean wholeTrack) {
         reloadObjects_(parent, childStructureIdx, true); // reload track images
         if (wholeTrack) { // reload each image of the track

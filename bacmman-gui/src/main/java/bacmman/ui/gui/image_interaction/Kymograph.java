@@ -80,7 +80,12 @@ public abstract class Kymograph extends InteractiveImage {
     public void reloadObjects() {
         for (SimpleInteractiveImage m : trackObjects) m.reloadObjects();
     }
-    
+
+    @Override
+    public void resetObjects() {
+        for (SimpleInteractiveImage m : trackObjects) m.resetObjects();
+    }
+
     public abstract int getClosestFrame(int x, int y);
     
     @Override
