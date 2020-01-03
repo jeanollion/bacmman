@@ -9,13 +9,11 @@ import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import com.google.common.collect.Sets;
-import org.jetbrains.annotations.Mutable;
 
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.function.DoubleFunction;
 import java.util.function.Predicate;
 import java.util.stream.DoubleStream;
 
