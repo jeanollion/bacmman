@@ -26,6 +26,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 
 import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
@@ -33,12 +34,7 @@ import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageMask;
-import bacmman.image.ImageMask2D;
-import bacmman.image.TypeConverter;
+
 import java.awt.Color;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -344,17 +340,16 @@ public class ManualEdition {
         
         Map<SegmentedObject, List<Point>> points = iwm.getParentSelectedPointsMap(image, segmentationParentStructureIdx);
         if (points!=null && !points.isEmpty()) {
-            String[] positions = points.keySet().stream().map(SegmentedObject::getPositionName).distinct().toArray(i->new String[i]);
+            String[] positions = points.keySet().stream().map(SegmentedObject::getPositionName).distinct().toArray(String[]::new);
             if (positions.length>1) throw new IllegalArgumentException("All points should come from same parent");
-            ensurePreFilteredImages(points.keySet().stream(), structureIdx, db.getExperiment(), db.getDao(positions[0]));
+            ensurePreFilteredImages(points.keySet().stream().map(p->p.getParent(parentStructureIdx)).distinct(), structureIdx, db.getExperiment(), db.getDao(positions[0]));
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
             HashMap<SegmentedObject, TrackConfigurer> parentThMapParam = new HashMap<>();
             if (s instanceof TrackConfigurable) {
                 if (((TrackConfigurable) s).parentTrackMode().allowIntervals()) { // TODO TEST
-                    // split point by parent track
-                    Map<SegmentedObject, List<SegmentedObject>> keyByPTH = SegmentedObjectUtils.splitByParentTrackHead(parentThMapParam.keySet());
-                    keyByPTH.forEach((pth, list) -> {
-                        list = list.stream().map(o->o.getParent()).collect(Collectors.toList());
+                    // split parents by track
+                    Map<SegmentedObject, List<SegmentedObject>> parentsByTH = points.keySet().stream().map(p -> p.getParent(parentStructureIdx)).distinct().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+                    parentsByTH.forEach((pth, list) -> {
                         parentThMapParam.put(pth, TrackConfigurable.getTrackConfigurer(structureIdx, list, s));
                     });
                 } else {
@@ -380,7 +375,11 @@ public class ManualEdition {
                 boolean ref2D = subParent.is2D() && globalParent.getRawImage(structureIdx).sizeZ()>1;
                 
                 Image input = globalParent.getPreFilteredImage(structureIdx);
-                if (subSegmentation) input = input.cropWithOffset(ref2D?new MutableBoundingBox(subParent.getBounds()).copyZ(input):subParent.getBounds());
+                if (subSegmentation) {
+                    BoundingBox cropBounds = ref2D?new MutableBoundingBox(subParent.getBounds()).copyZ(input):
+                            subParent.getBounds();
+                    input = input.cropWithOffset(cropBounds);
+                }
                 
                 // generate image mask without old objects
                 ImageByte mask = TypeConverter.toByteMask(e.getKey().getMask(), null, 1); // force creation of a new mask to avoid modification of original mask
@@ -476,7 +475,7 @@ public class ManualEdition {
         }
         for (List<SegmentedObject> t : tracks) {
             Core.userLog("Computing track pre-filters...");
-            logger.debug("tpf for : {} (length: {}, mode: {})", t.get(0).getTrackHead(), t.size(), mode);
+            logger.debug("tpf for : {} (length: {}, mode: {}), objectclass: {}, #filters: {}", t.get(0).getTrackHead(), t.size(), mode, structureIdx, tpfWithPF.get().size());
             tpfWithPF.filter(structureIdx, t);
             Core.userLog("Track pre-filters computed!");
         }
