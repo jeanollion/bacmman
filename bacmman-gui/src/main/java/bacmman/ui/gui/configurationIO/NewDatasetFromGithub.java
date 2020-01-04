@@ -2,10 +2,8 @@ package bacmman.ui.gui.configurationIO;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.ContainerParameter;
-import bacmman.github.gist.BasicAuth;
-import bacmman.github.gist.GistConfiguration;
-import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.UserAuth;
+import bacmman.github.gist.*;
+import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -16,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.Collections;
@@ -32,6 +32,9 @@ public class NewDatasetFromGithub extends JDialog {
     private JPanel buttonPanel;
     private JPanel configPanel;
     private JPanel selectorPanel;
+    private JTextField token;
+    private JButton storeTokenButton;
+    private JButton loadTokenButton;
     Map<String, char[]> savedPassword;
     JSONObject selectedXP;
     List<GistConfiguration> gists;
@@ -73,6 +76,26 @@ public class NewDatasetFromGithub extends JDialog {
                 onCancel();
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+        DocumentListener dl = new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons();
+            }
+
+        };
+        username.getDocument().addDocumentListener(dl);
+        password.getDocument().addDocumentListener(dl);
+        token.getDocument().addDocumentListener(dl);
         username.addActionListener(e -> {
             if (password.getPassword().length == 0 && savedPassword.containsKey(username.getText()))
                 password.setText(String.valueOf(savedPassword.get(username.getText())));
@@ -84,11 +107,43 @@ public class NewDatasetFromGithub extends JDialog {
             fetchGists();
             updateRemoteSelector();
         });
+        storeTokenButton.addActionListener(e -> {
+            String username = this.username.getText();
+            char[] pass = password.getPassword();
+            String token = this.token.getText();
+            if (username.length() > 0 && pass.length > 0 && token.length() > 0) {
+                try {
+                    TokenAuth.encryptAndStore(username, pass, token);
+                    GUI.log("Token stored successfully");
+                    enableTokenButtons();
+                    fetchGists();
+                    updateRemoteSelector();
+                    this.token.setText("");
+                } catch (Throwable t) {
+                    GUI.log("Could not store token");
+                    logger.error("could not store token", t);
+                }
+            }
+        });
+        loadTokenButton.addActionListener(e -> {
+            savedPassword.put(username.getText(), password.getPassword());
+            fetchGists();
+            updateRemoteSelector();
+        });
         // persistence of username account:
         PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true);
         buttonOK.setEnabled(false);
     }
 
+    private void enableTokenButtons() {
+        String u = username.getText();
+        char[] p = password.getPassword();
+        String t = token.getText();
+        boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
+        boolean enableLoad = u.length() != 0 && p.length != 0;
+        loadTokenButton.setEnabled(enableLoad);
+        storeTokenButton.setEnabled(enableSave);
+    }
     private void onOK() {
         // add your code here
         dispose();
@@ -137,7 +192,11 @@ public class NewDatasetFromGithub extends JDialog {
                 loggedIn = false;
             } else {
                 gists = GistConfiguration.getConfigurations(auth);
-                loggedIn = true;
+                if (gists==null) {
+                    gists = GistConfiguration.getPublicConfigurations(account);
+                    loggedIn = false;
+                    GUI.log("Could authenticate. Wrong username / token ?");
+                } else loggedIn = true;
             }
         }
         logger.debug("fetched gists: {}", gists.size());
@@ -145,7 +204,19 @@ public class NewDatasetFromGithub extends JDialog {
 
     private UserAuth getAuth() {
         if (password.getPassword().length == 0) return new NoAuth();
-        else return new BasicAuth(username.getText(), String.valueOf(password.getPassword()));
+        else {
+            try {
+                UserAuth auth = new TokenAuth(username.getText(), password.getPassword());
+                GUI.log("Token loaded successfully!");
+                return auth;
+            } catch (IllegalArgumentException e) {
+                GUI.log("No token associated with this username found");
+                return new NoAuth();
+            } catch (Throwable t) {
+                GUI.log("Token could not be retrieved. Wrong password ?");
+                return new NoAuth();
+            }
+        }
     }
 
     {

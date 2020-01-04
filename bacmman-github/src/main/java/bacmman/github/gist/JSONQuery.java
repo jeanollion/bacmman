@@ -14,7 +14,7 @@ public class JSONQuery {
     public static final Logger logger = LoggerFactory.getLogger(JSONQuery.class);
     public enum METHOD {GET, POST, PATCH, DELETE}
     private HttpURLConnection urlConnection;
-
+    UserAuth auth;
     public JSONQuery(String url) {
         URL serverUrl = null;
         try {
@@ -45,6 +45,8 @@ public class JSONQuery {
         return this;
     }
     public JSONQuery authenticate(UserAuth auth) {
+        if (auth instanceof NoAuth) this.auth=null;
+        else this.auth = auth;
         auth.authenticate(urlConnection);
         return this;
     }
@@ -81,7 +83,12 @@ public class JSONQuery {
                 o_oSb.append(o_sLineSep);
             }
         } catch (IOException e) {
-            logger.error("error while fetch query", e);
+            if (e.getMessage().contains("HTTP response code: 401")) {
+                logger.error("Authentication error wrong username/code/token");
+                return null;
+            } else {
+                logger.error("error while fetch query", e);
+            }
         } finally {
             urlConnection.disconnect();
         }
