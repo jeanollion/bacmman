@@ -193,7 +193,7 @@ public class ThreadRunner {
             if (setToNull) array[idx]=null;
             ++idx;
         }
-        if (pcb!=null) pcb.incrementTaskNumber(idx);
+        if (pcb!=null) pcb.setSubtaskNumber(idx);
         for (int i = 0; i<idx; ++i) {
             try {
                 Pair<String, Throwable> e = completion.take().get();
@@ -203,8 +203,10 @@ public class ThreadRunner {
                 }
             } catch (InterruptedException|ExecutionException ex) {
                 errors.add(new Pair("Execution exception: "+array[i], ex));
+            } finally {
+                if (pcb!=null) pcb.incrementSubTask();
             }
-            if (pcb!=null) pcb.incrementProgress();
+
         }
         if (!errors.isEmpty()) throw new MultipleException(errors);
     }
@@ -303,9 +305,23 @@ public class ThreadRunner {
         return new ProgressCallback() {
             int subTask = 0;
             int taskCount = 0;
+            double subTaskNumber = 0;
+            double subTaskCount = 0;
             @Override
-            public void incrementTaskNumber(int subtask) {
+            public synchronized void incrementTaskNumber(int subtask) {
                 this.subTask+=subtask;
+            }
+
+            @Override
+            public void setSubtaskNumber(int number) {
+                subTaskNumber = number;
+                subTaskCount = 0;
+            }
+
+            @Override
+            public synchronized void incrementSubTask() {
+                ++subTaskCount;
+                logger.debug("Current: {}/{}, subtask: {}/{}", taskCount, subTask, subTaskCount, subTaskNumber);
             }
 
             @Override

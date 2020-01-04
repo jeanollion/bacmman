@@ -27,6 +27,7 @@ import bacmman.data_structure.SegmentedObjectUtils;
 import java.io.File;
 import java.io.IOError;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.mapdb.DB;
@@ -682,12 +683,19 @@ public class DBMapObjectDAO implements ObjectDAO {
         Map<Integer, List<SegmentedObject>> bySIdx = SegmentedObjectUtils.splitByStructureIdx(objects);
         for (int i : bySIdx.keySet()) {
             Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(i);
-            for (SegmentedObject o : bySIdx.get(i)) {
-                o.getMeasurements().updateObjectProperties(o);
-                mDB.value.put(o.getId(), JSONUtils.serialize(o.getMeasurements()));
-                o.getMeasurements().modifications=false;
-            }
+            List<SegmentedObject> toStore = bySIdx.get(i);
+            long t0 = System.currentTimeMillis();
+            toStore.parallelStream().forEach(o -> o.getMeasurements().updateObjectProperties(o));
+            long t1 = System.currentTimeMillis();
+            Map<String, String> serializedObjects = toStore.parallelStream().collect(Collectors.toMap(SegmentedObject::getId, o->JSONUtils.serialize(o.getMeasurements())));
+            long t2 = System.currentTimeMillis();
+            mDB.value.putAll(serializedObjects);
+            long t3 = System.currentTimeMillis();
+            toStore.forEach(o -> o.getMeasurements().modifications=false);
+            long t4 = System.currentTimeMillis();
             mDB.key.commit();
+            long t5 = System.currentTimeMillis();
+            logger.debug("upsertMeas: update {}, serialize: {}, store: {}, commit {}", t1-t0, t2-t1, t3-t2, t5-t4);
         }
     }
 
