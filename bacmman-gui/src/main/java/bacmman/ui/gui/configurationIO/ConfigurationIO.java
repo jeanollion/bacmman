@@ -454,10 +454,11 @@ public class ConfigurationIO {
         credentialPanel.add(token, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         storeToken = new JButton();
         storeToken.setText("Store Token");
-        storeToken.setToolTipText("token will be stored encrypted using the passphrase");
+        storeToken.setToolTipText("token will be stored encrypted using the password");
         credentialPanel.add(storeToken, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         loadToken = new JButton();
-        loadToken.setText("Load Token");
+        loadToken.setText("Connect");
+        loadToken.setToolTipText("load a previously stored token and connect to github account");
         credentialPanel.add(loadToken, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
@@ -584,7 +585,6 @@ public class ConfigurationIO {
             remoteSelector.setSelectedGist(lastSel);
             remoteSelector.displaySelectedConfiguration();
         }
-
     }
 
     private void fetchGists() {
@@ -599,11 +599,11 @@ public class ConfigurationIO {
                 loggedIn = false;
             } else {
                 gists = GistConfiguration.getConfigurations(auth);
-                if (gists==null) {
+                if (gists == null) {
                     gists = GistConfiguration.getPublicConfigurations(account);
                     loggedIn = false;
                     GUI.log("Could authenticate. Wrong username / password / token ?");
-                } else  loggedIn = true;
+                } else loggedIn = true;
             }
         }
         logger.debug("fetched gists: {}", gists.size());
