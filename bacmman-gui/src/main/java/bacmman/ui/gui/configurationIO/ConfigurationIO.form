@@ -203,7 +203,7 @@
             </constraints>
             <properties>
               <text value="Store Token"/>
-              <toolTipText value="token will be stored encrypted using the passphrase"/>
+              <toolTipText value="token will be stored encrypted using the password"/>
             </properties>
           </component>
           <component id="a54ce" class="javax.swing.JButton" binding="loadToken">
@@ -212,6 +212,7 @@
             </constraints>
             <properties>
               <text value="Load Token"/>
+              <toolTipText value="load a previously stored token and connect to github account"/>
             </properties>
           </component>
         </children>

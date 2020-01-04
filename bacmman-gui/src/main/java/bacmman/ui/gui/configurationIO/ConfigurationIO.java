@@ -599,7 +599,11 @@ public class ConfigurationIO {
                 loggedIn = false;
             } else {
                 gists = GistConfiguration.getConfigurations(auth);
-                loggedIn = true;
+                if (gists==null) {
+                    gists = GistConfiguration.getPublicConfigurations(account);
+                    loggedIn = false;
+                    GUI.log("Could authenticate. Wrong username / password / token ?");
+                } else  loggedIn = true;
             }
         }
         logger.debug("fetched gists: {}", gists.size());

@@ -154,7 +154,9 @@ public class GistConfiguration implements Hint {
     }
 
     public static List<GistConfiguration> getConfigurations(UserAuth auth) {
-        return parseJSON(new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.GET).authenticate(auth).fetch());
+        String configs = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.GET).authenticate(auth).fetch();
+        if (configs==null) return null;
+        return parseJSON(configs);
     }
     private static List<GistConfiguration> parseJSON(String response) {
         List<GistConfiguration> res = new ArrayList<>();
