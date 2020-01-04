@@ -126,7 +126,7 @@ public class Processor {
         PreProcessingChain ppc = position.getPreProcessingChain();
         if (pcb!=null) {
             int confTransfo = (int)ppc.getTransformations(true).stream().filter(t->t.instantiatePlugin() instanceof ConfigurableTransformation).count();
-            pcb.incrementTaskNumber(confTransfo);
+            pcb.setSubtaskNumber(confTransfo);
         }
         for (TransformationPluginParameter<Transformation> tpp : ppc.getTransformations(true)) {
             Transformation transfo = tpp.instantiatePlugin();
@@ -136,7 +136,7 @@ public class Processor {
                 logger.debug("before configuring: {}", Utils.getMemoryUsage());
                 ct.computeConfigurationData(tpp.getInputChannel(), images);
                 logger.debug("after configuring: {}", Utils.getMemoryUsage());
-                if (pcb!=null) pcb.incrementProgress();
+                if (pcb!=null) pcb.incrementSubTask();
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
         }
@@ -252,7 +252,7 @@ public class Processor {
             allParentTracks.entrySet().removeIf(e->e.getValue().isEmpty());
             logger.debug("after remove selection: parent tracks: #{} mode: {}", allParentTracks.size(), mode);
         }
-        if (pcb !=null) pcb.incrementTaskNumber(allParentTracks.size());
+        if (pcb !=null) pcb.setSubtaskNumber(allParentTracks.size());
         logger.debug("ex ps: structure: {}, allParentTracks: {}", structureIdx, allParentTracks.size());
 
         ensureScalerConfiguration(dao, structureIdx);
@@ -260,12 +260,12 @@ public class Processor {
         try { // execute sequentially, store what has been processed, and throw exception in the end
             ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
                 execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
-                if (pcb !=null) pcb.incrementProgress();
             });
         } catch (MultipleException e) {
             me=e;
         } finally {
             xp.getDLengineProvider().closeAllEngines();
+            if (pcb !=null) pcb.incrementSubTask();
         }
         
         // store in DAO
@@ -447,51 +447,54 @@ public class Processor {
                         .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
                         .forEach(m-> actionPool.add(new Pair<>(m, pt)));
             });
+            int subTaskNumber = 0;
             if (pcb!=null && actionPool.size()>0) {
-                pcb.log("Executing: #"+actionPool.size()+" track measurements");
-                pcb.incrementTaskNumber(1);
+                subTaskNumber+=actionPool.size();
             }
             // count parallel measurement on tracks -
             int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
             if (pcb!=null && parallelMeasCount>0) {
-                pcb.incrementTaskNumber(1);
+                subTaskNumber+=allParentTracks.size();
             }
             // count measurements on objects
             List<Measurement> measObj = dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
                     .filter(m->!m.callOnlyOnTrackHeads()).collect(Collectors.toList());
-            if (pcb!=null && !measObj.isEmpty()) pcb.incrementTaskNumber(1);
-
+            if (pcb!=null && !measObj.isEmpty()) subTaskNumber+=measObj.size();
+            if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
             if (!actionPool.isEmpty()) containsObjects=true;
-            try {
-                ThreadRunner.executeAndThrowErrors(actionPool.parallelStream(), p->{
-                    p.key.performMeasurement(p.value);
-                    //if (pcb!=null) pcb.incrementProgress();
-                });
-            } catch(MultipleException me) {
-                globE.addExceptions(me.getExceptions());
-            } finally {
-                if (pcb!=null && !actionPool.isEmpty()) pcb.incrementProgress();
+            if (!actionPool.isEmpty()) {
+                pcb.log("Executing: #"+actionPool.size()+" track measurements");
+                try {
+                    ThreadRunner.executeAndThrowErrors(actionPool.parallelStream(), p -> {
+                        logger.debug("performing: {}@{}", p.key, p.value);
+                        p.key.performMeasurement(p.value);
+                        if (pcb != null) pcb.incrementSubTask();
+                    });
+                } catch (MultipleException me) {
+                    globE.addExceptions(me.getExceptions());
+                } finally {
+                    //if (pcb!=null && !actionPool.isEmpty()) pcb.incrementProgress();
+                }
             }
-            
             // parallel measurement on tracks -> give all resources to the measurement and perform track by track
             if (pcb!=null && parallelMeasCount>0) {
-                pcb.log("Executing: #"+ parallelMeasCount * allParentTracks.size()+" multithreaded track measurements");
-            }
-            try {
-                ThreadRunner.executeAndThrowErrors(allParentTracks.keySet().stream(), pt->{
-                    dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
-                            .filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded))
-                            .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
-                            .forEach(m-> {
-                                ((MultiThreaded)m).setMultiThread(true);
-                                m.performMeasurement(pt);
-                            });
-                    //if (pcb!=null) pcb.incrementProgress();
-                });
-            } catch(MultipleException me) {
-                globE.addExceptions(me.getExceptions());
-            } finally {
-                if (pcb!=null && parallelMeasCount>0) pcb.incrementProgress();
+                pcb.log("Executing: #" + parallelMeasCount * allParentTracks.size() + " multithreaded track measurements");
+                try {
+                    ThreadRunner.executeAndThrowErrors(allParentTracks.keySet().stream(), pt -> {
+                        dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
+                                .filter(m -> m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded))
+                                .filter(m -> measurementMissing.test(pt, m)) // only test on trackhead object
+                                .forEach(m -> {
+                                    ((MultiThreaded) m).setMultiThread(true);
+                                    m.performMeasurement(pt);
+                                });
+                        if (pcb != null) pcb.incrementSubTask();
+                    });
+                } catch (MultipleException me) {
+                    globE.addExceptions(me.getExceptions());
+                } finally {
+                    //if (pcb!=null && parallelMeasCount>0) pcb.incrementProgress();
+                }
             }
             int allObCount = allParentTracks.values().stream().mapToInt(t->t.size()).sum();
             
@@ -507,12 +510,12 @@ public class Processor {
                 } catch (Throwable t) {
                     globE.addExceptions(new Pair(dao.getPositionName()+"/objectClassIdx:"+e.getKey()+"/measurement"+m.getClass().getSimpleName(), t));
                 } finally {
-                    //if (pcb!=null) pcb.incrementProgress();
+                    if (pcb!=null) pcb.incrementSubTask();
                 }
             });
-            if (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
+            //f (pcb!=null && !measObj.isEmpty()) pcb.incrementProgress();
             if (!containsObjects && allObCount>0) containsObjects = e.getValue().stream().filter(m->!m.callOnlyOnTrackHeads()).findAny().orElse(null)!=null;
-
+            if (pcb!=null) pcb.incrementProgress();
         }
         long t1 = System.currentTimeMillis();
         final Set<SegmentedObject> allModifiedObjects = new HashSet<>();
@@ -524,7 +527,12 @@ public class Processor {
             }
         }
         logger.debug("measurements on field: {}: computation time: {}, #modified objects: {}", dao.getPositionName(), t1-t0, allModifiedObjects.size());
+        if (pcb!=null) pcb.log("Measurements performed, saving "+allModifiedObjects.size()+" objects...");
+        long t2 = System.currentTimeMillis();
         dao.upsertMeasurements(allModifiedObjects);
+        long t3 = System.currentTimeMillis();
+        logger.debug("upsert time: {}", t3-t2);
+        if (pcb!=null) pcb.incrementProgress();
         if (!globE.isEmpty()) throw globE;
         if (containsObjects && allModifiedObjects.isEmpty()) throw new RuntimeException("No Measurement preformed");
     }

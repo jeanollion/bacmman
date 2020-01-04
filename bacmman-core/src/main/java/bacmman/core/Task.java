@@ -81,6 +81,7 @@ public class Task implements ProgressCallback{
         MasterDAO db;
         final boolean keepDB;
         int[] taskCounter;
+        double subtaskNumber=0,subtaskCount=0;
         ProgressLogger ui;
         String selectionName;
         public JSONObject toJSON() {
@@ -478,18 +479,27 @@ public class Task implements ProgressCallback{
         public int countSubtasks() {
             initDB();
             ensurePositionAndStructures(true, true);
+
+            Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
+            Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
+            Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
+            int positionsToProcess = (int)positions.stream().map(posIdxNameMapper).filter(selFilter).count();
+
             int count=0;
             // preProcess: 
-            if (preProcess) count += positions.size();
-            if (this.segmentAndTrack || this.trackOnly) count += positions.size() * structures.length;
-            if (this.measurements) count += positions.size();
+            if (preProcess) count += positionsToProcess;
+            if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length;
+            if (this.measurements) {
+                int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
+                count += positionsToProcess * (nCallOC+1); // +1 for upsert
+            }
             if (this.generateTrackImages) {
                 int gen = 0;
                 for (int s : structures)  if (!db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) ++gen;
-                count+=positions.size()*gen;
+                count+=positionsToProcess*gen;
             }
             count+=extractMeasurementDir.size();
-            if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positions.size();
+            if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
             return count;
         }
         public void setSubtaskNumber(int[] taskCounter) {
@@ -622,7 +632,7 @@ public class Task implements ProgressCallback{
             publish("Measurements...");
             logger.info("Measurements: DB: {}, Position: {}", dbName, position);
             Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);
-            incrementProgress();
+            // process is incremented by method
             //publishMemoryUsage("After Measurements");
         }
     }
@@ -721,22 +731,7 @@ public class Task implements ProgressCallback{
         sb.append("dir:").append(dir);
         return sb.toString();
     }
-    @Override
-    public void incrementProgress() {
-        logger.debug("Progress: {}/{}", taskCounter[0]+1, taskCounter[1]);
-        if (ui!=null) ui.setProgress(100*(++taskCounter[0])/taskCounter[1]);
-    }
-    /*@Override
-    protected Integer doInBackground() throws Exception {
-        this.runTask();
-        return this.errors.getExceptions().size();
-    }
-    @Override
-    protected void process(List<String> strings) {
-        if (ui!=null) for (String s : strings) ui.setMessage(s);
-        for (String s : strings) logger.info(s);
-        
-    }*/
+
     public static boolean printStackTraceElement(String stackTraceElement) {
         //return true;
         return !stackTraceElement.startsWith("java.util.")&&!stackTraceElement.startsWith("java.lang.")&&!stackTraceElement.startsWith("java.security.")
@@ -793,6 +788,26 @@ public class Task implements ProgressCallback{
     @Override
     public void incrementTaskNumber(int subtask) {
         if (taskCounter!=null) this.taskCounter[1]+=subtask;
+    }
+
+    @Override
+    public synchronized void incrementProgress() {
+        ++taskCounter[0];
+        logger.debug("Progress: {}/{}", taskCounter[0], taskCounter[1]);
+        if (ui!=null) ui.setProgress(100*taskCounter[0]/taskCounter[1]);
+    }
+
+    @Override
+    public void setSubtaskNumber(int number) {
+        subtaskNumber = number;
+        subtaskCount = 0;
+    }
+
+    @Override
+    public synchronized void incrementSubTask() {
+        ++subtaskCount;
+        logger.debug("Progress: {}/{}, subtask: {}/{}", taskCounter[0], taskCounter[1], subtaskCount, subtaskNumber);
+        if (ui!=null) ui.setProgress((int)(100*(taskCounter[0] + subtaskCount / subtaskNumber)/taskCounter[1] + 0.5));
     }
 
     @Override
