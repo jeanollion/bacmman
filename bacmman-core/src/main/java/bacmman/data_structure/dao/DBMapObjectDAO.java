@@ -240,14 +240,27 @@ public class DBMapObjectDAO implements ObjectDAO {
                 allObjectsRetrievedInCache.put(key, true);
                 // set prev, next & trackHead
                 Map<String, SegmentedObject> objectMap = cache.get(key);
+                List<SegmentedObject> noTh = null;
                 for (SegmentedObject o : objectMap.values()) {
                     if (o.getNextId()!=null) o.setNext(objectMap.get(o.getNextId()));
                     if (o.getPreviousId()!=null) o.setPrevious(objectMap.get(o.getPreviousId()));
                     if (accessor.trackHeadId(o)!=null) {
                         SegmentedObject th = objectMap.get(accessor.trackHeadId(o));
                         if (th!=null) accessor.setTrackHead(o, th, false, false);
-                        else logger.warn("TrackHead of object : {} from: {} not found", o, key);
+                        else {
+                            if (noTh==null) noTh = new ArrayList<>();
+                            noTh.add(o);
+                            logger.warn("TrackHead of object : {} from: {} not found", o, key);
+                        }
                     }
+                }
+                if (noTh!=null) { // set trackhead
+                    noTh.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+                    noTh.forEach(o -> {
+                        if (o.getPrevious()!=null && o.equals(o.getPrevious().getNext())) {
+                            accessor.setTrackHead(o, o.getPrevious().getTrackHead()==null ? o.getPrevious() : o.getPrevious().getTrackHead(), false, false);
+                        }
+                    });
                 }
                 // set to parents ? 
                 if (key.value>=0) {
@@ -303,10 +316,10 @@ public class DBMapObjectDAO implements ObjectDAO {
         return null;
     }
     @Override
-    public void setAllChildren(List<SegmentedObject> parentTrack, int childStructureIdx) {
+    public void setAllChildren(Collection<SegmentedObject> parentTrack, int childStructureIdx) {
         if (parentTrack.isEmpty()) return;
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
-        Map<String, SegmentedObject> children = getChildren(new Pair(parentTrack.get(0).getTrackHeadId(), childStructureIdx));
+        Map<String, SegmentedObject> children = getChildren(new Pair(parentTrack.iterator().next().getTrackHeadId(), childStructureIdx));
         logger.debug("setting: {} children to {} parents", children.size(), parentTrack.size());
         SegmentedObjectUtils.splitByParent(children.values()).forEach((parent, c) -> {
             if (c==null) return;
@@ -370,6 +383,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         if (readOnly) return Collections.EMPTY_SET;
         Set<Integer> res = new HashSet<>();
         Map<SegmentedObject, List<SegmentedObject>> byTh = SegmentedObjectUtils.splitByTrackHead(parents);
+
         for (SegmentedObject pth : byTh.keySet()) res.addAll(deleteChildren(byTh.get(pth), structureIdx, pth.getId(), false));
         if (commit) {
             getDB(structureIdx).commit();
@@ -510,7 +524,7 @@ public class DBMapObjectDAO implements ObjectDAO {
             }
             
             HTreeMap<String, String> dbMap = getDBMap(key);
-            toRemove.forEach((o) -> dbMap.remove(o.getId()));
+            toRemove.forEach((o) -> dbMap.remove(o.getId())); //.stream().sorted(Comparator.comparingInt(o->-o.getFrame())).
             // also remove measurements
             Pair<DB, HTreeMap<String, String>> mDB = getMeasurementDB(key.value);
             if (mDB!=null) toRemove.forEach((o) -> mDB.value.remove(o.getId()));

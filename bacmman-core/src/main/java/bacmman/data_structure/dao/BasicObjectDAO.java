@@ -100,7 +100,7 @@ public class BasicObjectDAO implements ObjectDAO {
     }
     
     @Override
-    public void setAllChildren(List<SegmentedObject> parentTrack, int childStructureIdx) {
+    public void setAllChildren(Collection<SegmentedObject> parentTrack, int childStructureIdx) {
         
     }
     
