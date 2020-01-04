@@ -50,7 +50,7 @@ public interface ObjectDAO {
      * @param parentTrack object with same trackHead id
      * @param structureIdx direct child of parent
      */
-    public void setAllChildren(List<SegmentedObject> parentTrack, int structureIdx);
+    public void setAllChildren(Collection<SegmentedObject> parentTrack, int structureIdx);
     /**
      * Deletes the children of {@param parent} of structure {@param structureIdx}
      * @param parent
