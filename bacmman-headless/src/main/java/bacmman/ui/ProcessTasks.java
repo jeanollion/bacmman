@@ -46,20 +46,24 @@ public class ProcessTasks {
         Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         root.setLevel(Level.INFO);
         ConsoleProgressLogger consoleUI = new ConsoleProgressLogger();
+        //consoleUI.setMessage("ARGS #"+args.length+" "+Utils.toStringArray(args));
         final ProgressLogger ui;
         if (args.length==0) {
             consoleUI.setMessage("Missing argument: job list file and optionally a log file as second argument");
             return;
+        } else if (args.length==1) {
+            ui = consoleUI;
         } else if (args.length==2) {
             FileProgressLogger logUI = new FileProgressLogger(true);
             logUI.setLogFile(args[1]);
+            consoleUI.setMessage("Setting log file: "+args[1]);
             ui = new MultiProgressLogger(consoleUI, logUI);
-        } else if (args.length>2) {
+        } else {
             consoleUI.setMessage("Too many arguments. Expect only path of job list file and optionally a log file as second argument");
             return;
-        } else ui = consoleUI;
-
-        ui.setMessage("BACMMAN version: "+Utils.getVersion(ui));
+        }
+        ui.setRunning(true);
+        //ui.setMessage("BACMMAN version: "+Utils.getVersion(ui));
         Function<String, Task> parser = s->new Task().setUI(ui).fromJSON(JSONUtils.parse(s));
         List<Task> jobs = FileIO.readFromFile(args[0], parser);
         ui.setMessage(jobs.size()+" jobs found in file: "+args[0]);
@@ -89,6 +93,7 @@ public class ProcessTasks {
         for (Task t: jobs) errorCount+=t.getErrors().size();
         ui.setMessage("All jobs finished. Errors: "+errorCount);
         for (Task t: jobs) t.printErrors();
+        ui.setRunning(false);
     }
 
 }
