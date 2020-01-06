@@ -326,6 +326,7 @@ public class ThreadRunner {
 
             @Override
             public void incrementProgress() {
+                subTaskCount = 0;
                 logger.debug("Current: {}/{}", ++taskCount, subTask);
             }
 

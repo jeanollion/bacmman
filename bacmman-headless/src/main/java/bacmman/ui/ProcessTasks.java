@@ -21,12 +21,16 @@ package bacmman.ui;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.core.Task;
 import bacmman.plugins.PluginFactory;
+import bacmman.ui.logger.FileProgressLogger;
+import bacmman.ui.logger.MultiProgressLogger;
+import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.function.Function;
 import org.slf4j.LoggerFactory;
@@ -41,22 +45,28 @@ public class ProcessTasks {
         PluginFactory.findPlugins("bacmman.plugins.plugins");
         Logger root = (Logger)LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         root.setLevel(Level.INFO);
-        ConsoleProgressLogger ui = new ConsoleProgressLogger();
+        ConsoleProgressLogger consoleUI = new ConsoleProgressLogger();
+        final ProgressLogger ui;
         if (args.length==0) {
-            ui.setMessage("Missing argument: job list file");
+            consoleUI.setMessage("Missing argument: job list file and optionally a log file as second argument");
             return;
-        }
-        else if (args.length>1) {
-            ui.setMessage("Too many arguments. Expect only path of job list file");
+        } else if (args.length==2) {
+            FileProgressLogger logUI = new FileProgressLogger(true);
+            logUI.setLogFile(args[1]);
+            ui = new MultiProgressLogger(consoleUI, logUI);
+        } else if (args.length>2) {
+            consoleUI.setMessage("Too many arguments. Expect only path of job list file and optionally a log file as second argument");
             return;
-        }
-        ui.setMessage("BOA version: "+Utils.getVersion(ui));
+        } else ui = consoleUI;
+
+        ui.setMessage("BACMMAN version: "+Utils.getVersion(ui));
         Function<String, Task> parser = s->new Task().setUI(ui).fromJSON(JSONUtils.parse(s));
         List<Task> jobs = FileIO.readFromFile(args[0], parser);
         ui.setMessage(jobs.size()+" jobs found in file: "+args[0]);
         if (jobs.isEmpty()) return;
         
         int count = 0;
+        int subTaskCount = 0;
         for (Task t : jobs) {
             if (t==null) {
                 ui.setMessage("Error: job "+count+" could not be parsed");
@@ -67,11 +77,12 @@ public class ProcessTasks {
                 return;
             }
             ++count;
+            subTaskCount += t.countSubtasks();
         }
         ui.setMessage(">Will execute: "+jobs.size()+" jobs");
-        
+        int[] counter = new int[]{0, subTaskCount};
         for (Task t : jobs) {
-            ui.setMessage("Running Job: "+t.toString());
+            t.setSubtaskNumber(counter);
             t.runTask();
         }
         int errorCount = 0;
