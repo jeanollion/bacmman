@@ -61,6 +61,7 @@ public interface ProgressCallback {
             @Override
             public synchronized void incrementProgress() {
                 progress++;
+                subTaskCount = 0;
                 if (taskCount>0) ui.setProgress((int)(100 * (progress/taskCount)));
             }
             @Override
