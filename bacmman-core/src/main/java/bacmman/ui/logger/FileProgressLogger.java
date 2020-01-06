@@ -36,11 +36,17 @@ public class FileProgressLogger implements ProgressLogger {
     FileLock xpFileLock;
     RandomAccessFile logFileWriter;
     boolean append;
+    boolean logProgress;
     public FileProgressLogger(boolean append) {
         this.append = append;
     }
-    public void setAppend(boolean append) {
+    public FileProgressLogger setAppend(boolean append) {
         this.append=append;
+        return this;
+    }
+    public FileProgressLogger setLogProgress(boolean logProgress) {
+        this.logProgress=logProgress;
+        return this;
     }
     private synchronized void lockLogFile() {
         if (xpFileLock!=null) return;
@@ -105,7 +111,7 @@ public class FileProgressLogger implements ProgressLogger {
     
     @Override
     public void setProgress(int i) {
-        setMessage("Progress: "+i+"%");
+        if (logProgress) setMessage("Progress: "+i+"%");
     }
 
     @Override
