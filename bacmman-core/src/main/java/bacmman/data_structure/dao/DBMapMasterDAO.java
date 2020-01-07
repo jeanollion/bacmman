@@ -290,11 +290,12 @@ public class DBMapMasterDAO implements MasterDAO {
                         accessConfigFileAndlockXP(); // will try to access the xp file in readonly mode
                     }
                     xp = getXPFromFile();
-
-                    // check output dir & set default if necessary
-                    boolean modified = checkOutputDirectories(true);
-                    modified = checkOutputDirectories(false) || modified;
-                    if (modified) updateExperiment();
+                    if (xp!=null) {
+                        // check output dir & set default if necessary
+                        boolean modified = checkOutputDirectories(false);
+                        modified = checkOutputDirectories(true) || modified;
+                        if (modified) updateExperiment();
+                    }
                 } else return xp;
             }
         }
@@ -323,7 +324,7 @@ public class DBMapMasterDAO implements MasterDAO {
         String outS = image ? xp.getOutputImageDirectory() : xp.getOutputDirectory();
         File out = outS!=null ? new File(outS) : null;
         if (out==null || !out.exists() || !out.isDirectory()) { // look for default output dir and set it up if exists
-            out = new File(configDir + File.separator + "Output");
+            out = configDir.resolve("Output").toFile().getAbsoluteFile();
             out.mkdirs();
             if (out.isDirectory()) {
                 if (image) xp.setOutputImageDirectory(out.getAbsolutePath());

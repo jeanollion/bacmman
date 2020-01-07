@@ -313,7 +313,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
     
     public String getOutputImageDirectory() {
-        if (imagePath.getFirstSelectedFilePath()==null) setOutputImageDirectory(getOutputDirectory());
+        if (imagePath.getFirstSelectedFilePath()==null && getOutputDirectory()!=null) setOutputImageDirectory(getOutputDirectory());
         return imagePath.getFirstSelectedFilePath();
     }
     
@@ -467,6 +467,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     private static boolean contains(int[] structures, int structureIdx) {
         for (int s: structures) if (s==structureIdx) return true;
         return false;
+    }
+    public String toString() {
+        return name;
     }
 
     public enum IMPORT_METHOD {
