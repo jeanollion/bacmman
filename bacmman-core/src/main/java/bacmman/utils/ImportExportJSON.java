@@ -269,8 +269,8 @@ public class ImportExportJSON {
                 }
                 List<Experiment> xp = FileIO.readFromFile(path, o->JSONUtils.parse(Experiment.class, o));
                 if (xp.size()==1) {
-                    xp.get(0).setOutputDirectory(Paths.get(path).getParent().resolve("Output").normalize().toFile().getAbsolutePath());
-                    xp.get(0).setOutputImageDirectory(xp.get(0).getOutputDirectory());
+                    xp.get(0).setOutputDirectory(null);
+                    xp.get(0).setOutputImageDirectory(null);
                     xp.get(0).getPositionParameter().removeAllElements();
                     dao.setExperiment(xp.get(0));
                     logger.debug("Dataset: {} from file: {} set to db: {}", dao.getExperiment().getName(), path, dao.getDBName());
