@@ -27,12 +27,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 import bacmman.ui.gui.selection.SelectionUtils;
+import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import py4j.GatewayServer;
 import bacmman.utils.HashMapGetCreate;
+
+import javax.swing.*;
 
 /**
  *
@@ -76,45 +79,55 @@ public class PythonGateway {
         for (int i = 0; i<ids.size(); ++i) idsByPosition.getAndCreateIfNecessary(positions.get(i)).add(ids.get(i));
         Selection res = Selection.generateSelection(selectionName, objectClassIdx, idsByPosition);
         logger.info("Generating selection: size: {} ({})", positions.size(), res.count());
+        SwingUtilities.invokeLater(() -> {
+            if (GUI.getDBConnection() == null || !GUI.getDBConnection().getDBName().equals(dbName)) {
+                if (GUI.getDBConnection() != null)
+                    logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbName);
+                logger.info("Connection to {}....", dbName);
+                String dir = ExperimentSearchUtils.searchForLocalDir(dbName);
+                if (dir == null) throw new IllegalArgumentException("Could find dataset:" + dbName);
+                GUI.getInstance().openExperiment(dbName, dir, false);
+                if (GUI.getDBConnection().isConfigurationReadOnly()) {
+                    String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
+                    //SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
+                    FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
+                        add(res);
+                    }}, s -> s.toJSONEntry().toString());
+                    logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbName, outputFile);
+                    return;
+                }
+                try {
+                    logger.info("Selection tab....");
+                    GUI.getInstance().setSelectedTab(3);
+                    logger.info("Tab selected");
+                } catch (Exception e) {
 
-        if (GUI.getDBConnection()==null || !GUI.getDBConnection().getDBName().equals(dbName)) {
-            if (GUI.getDBConnection()!=null) logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbName);
-            logger.info("Connection to {}....", dbName);
-            GUI.getInstance().openExperiment(dbName, null, false);
-            if (GUI.getDBConnection().isConfigurationReadOnly()) {
-                String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", selectionName+".csv").toString();
-                //SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
-                FileIO.writeToFile(outputFile, new ArrayList<Selection>(){{add(res);}}, s->s.toJSONEntry().toString());
-                logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbName, outputFile);
-                return;
+                }
             }
-            try {
-                logger.info("Selection tab....");
-                GUI.getInstance().setSelectedTab(3);
-                logger.info("Tab selected");
-            } catch(Exception e) {
+            GUI.getDBConnection().getSelectionDAO().store(res);
+            logger.info("pop sels..");
+            GUI.getInstance().populateSelections();
+            logger.debug("all selections: {}", GUI.getInstance().getSelections().stream().map(s -> s.getName()).toArray());
+            Selection savedSel = GUI.getInstance().getSelections().stream().filter(s -> s.getName().equals(res.getName())).findFirst().orElse(null);
+            if (savedSel == null) throw new IllegalArgumentException("selection could not be saved");
+            savedSel.setIsDisplayingObjects(showObjects);
+            savedSel.setIsDisplayingTracks(showTracks);
+            savedSel.setHighlightingTracks(true);
+            savedSel.setNavigate(true);
 
+            if (openWholeSelection) {
+                // limit to 200 objects
+                if (ids.size() > 200) throw new IllegalArgumentException("too many objects in selection");
+                SelectionUtils.displaySelection(savedSel, -2, objectClassIdxDisplay);
+            } else if (open) {
+                GUI.getInstance().navigateToNextObjects(true, null, false, objectClassIdxDisplay, interactiveObjectClassIdx < 0);
             }
-        }
-        GUI.getDBConnection().getSelectionDAO().store(res);
-        logger.info("pop sels..");
-        GUI.getInstance().populateSelections();
-        logger.debug("all selections: {}", GUI.getInstance().getSelections().stream().map(s->s.getName()).toArray());
-        Selection savedSel = GUI.getInstance().getSelections().stream().filter(s->s.getName().equals(res.getName())).findFirst().orElse(null);
-        if (savedSel==null) throw new IllegalArgumentException("selection could not be saved");
-        savedSel.setIsDisplayingObjects(showObjects);
-        savedSel.setIsDisplayingTracks(showTracks);
-        savedSel.setHighlightingTracks(true);
-        savedSel.setNavigate(true);
+            if (interactiveObjectClassIdx >= 0) GUI.getInstance().setInteractiveStructureIdx(interactiveObjectClassIdx);
+        });
+    }
 
-        if (openWholeSelection) {
-            // limit to 200 objects
-            if (ids.size()>200) throw new IllegalArgumentException("too many objects in selection");
-            SelectionUtils.displaySelection(savedSel, -2, objectClassIdxDisplay);
-        } else if (open) {
-            GUI.getInstance().navigateToNextObjects(true, null, false, objectClassIdxDisplay, interactiveObjectClassIdx<0);
-        }
-        if (interactiveObjectClassIdx>=0) GUI.getInstance().setInteractiveStructureIdx(interactiveObjectClassIdx);
+    private void connect(String dbName) {
+
     }
     
 }
