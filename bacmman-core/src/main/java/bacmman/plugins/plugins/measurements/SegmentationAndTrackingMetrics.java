@@ -93,8 +93,8 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                 else return null;
             };
             // apply features to remove objects from Gt & S
-            GbyFToRemove = parentTrack.parallelStream().collect(Collectors.toMap(p->p.getFrame(), p->filterObjects(p, gtIdx, GbyF.get(p.getFrame()), filters)));
-            SbyFToRemove = parentTrack.parallelStream().map(p->getParent.apply(p)).filter(p->p!=null).collect(Collectors.toMap(p->p.getFrame(), p->filterObjects(p, sIdx, SbyF.get(p.getFrame()), filters)));
+            GbyFToRemove = parentTrack.parallelStream().collect(Collectors.toMap(SegmentedObject::getFrame, p->filterObjects(p, gtIdx, GbyF.get(p.getFrame()), filters)));
+            SbyFToRemove = parentTrack.parallelStream().map(getParent).filter(Objects::nonNull).collect(Collectors.toMap(SegmentedObject::getFrame, p->filterObjects(p, sIdx, SbyF.get(p.getFrame()), filters)));
         } else {
             GbyFToRemove = new HashMapGetCreate.HashMapGetCreateRedirected<>(i->Collections.emptySet());
             SbyFToRemove = new HashMapGetCreate.HashMapGetCreateRedirected<>(i->Collections.emptySet());
@@ -102,7 +102,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         // compute all overlaps between regions and put non null overlap in a map
         MaxOverlapMatcher<SegmentedObject> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.segmentedObjectOverlap());
         SimpleWeightedGraph<SegmentedObject, DefaultWeightedEdge> matchG2S = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
-        parentTrack.stream().forEach(p -> {
+        parentTrack.forEach(p -> {
             List<SegmentedObject> G = GbyF.get(p.getFrame());
             List<SegmentedObject> S = SbyF.get(p.getFrame());
             if (G!=null) G.forEach(matchG2S::addVertex);
@@ -144,19 +144,14 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
             Set<SegmentedObject> Grem = GbyFToRemove.get(p.getFrame());
             Set<SegmentedObject> seenS = new HashSet<>();
             Set<SegmentedObject> seenG = new HashSet<>();
-            Set<SegmentedObject> currentS = new HashSet<>(); // in case tolerance = true and S divides before G: contains sibling cells that match with ground truth
             for (SegmentedObject s : S) {
+                Set<SegmentedObject> matchingS=null, matchingG=null;
                 Integer distDiv = null;
                 if (seenS.contains(s)) continue;
                 SegmentedObject g = matching1to1S2G.get(s);
-                if (Srem.contains(s)) {
-                    seenS.add(s);
-                    if (g!=null) seenG.add(g);
-                    continue;
-                }
-
                 double sizeG, sizeS, intersection;
                 Boolean prevLinkEquals;
+                boolean exclude;
                 if (g!=null) { // 1 to 1 match
                     intersection = getOverlap.applyAsDouble(g, s);
                     sizeG = g.getRegion().size();
@@ -174,44 +169,40 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                             } else prevLinkEquals = false;
                         } else prevLinkEquals = g.getPrevious().equals(gPrev);
                     } else prevLinkEquals = null; // neither has a previous object
-                    seenG.add(g);
+                    exclude = Srem.contains(s) || Grem.contains(g);
                 } else { // false positive or several objects match s or s matches several objects
-                    Set<SegmentedObject> matchingG = getAllMatchingG.apply(s);
+                    matchingG = getAllMatchingG.apply(s);
                     if (matchingG.isEmpty()) { // false positive
                         intersection = 0;
                         sizeG = 0;
                         sizeS = s.getRegion().size();
                         prevLinkEquals = null;
+                        exclude = Srem.contains(s);
                     } else if (matchingG.size()==1) { // several s match one g
                         g = matchingG.iterator().next();
-                        seenG.add(g);
-                        Set<SegmentedObject> matchingS = getAllMatchingS.apply(g);
+                        matchingG=null;
+                        matchingS = getAllMatchingS.apply(g);
                         SegmentedObject gPrev= g.getPrevious();
                         // S divided before ? get distance to dist
-                        if (matchingS.stream().noneMatch(Srem::contains) && !Grem.contains(g)) { // division error only if all S are not to be removed
-                            distDiv = getDivisionDist.applyAsInt(matchingS);
-                            if (distDiv == -1) distDiv = 0;
-                            else distDiv = -distDiv; // S div is before ground truth div
-                        }
+                        exclude = matchingS.stream().anyMatch(Srem::contains)|| Grem.contains(g);
+                        distDiv = getDivisionDist.applyAsInt(matchingS);
+                        if (distDiv == -1) distDiv = 0;
+                        else distDiv = -distDiv; // S div is before ground truth div
                         SegmentedObject sPrev= s.getPrevious();
                         // check matching prev
                         if (gPrev==null && sPrev==null) prevLinkEquals = true;
                         else if (sPrev!=null && gPrev!=null) {
                             prevLinkEquals = getAllMatchingG.apply(sPrev).contains(gPrev);
-                            //SegmentedObject gPrevMatch = matching1to1S2G.get(sPrev);
-                            //prevLinkEquals = gPrevMatch!=null && gPrevMatch.equals(gPrev);
                         } else prevLinkEquals = false;
-                        currentS.addAll(matchingS);
-                        sizeS = currentS.stream().mapToDouble(o->o.getRegion().size()).sum();
+                        sizeS = matchingS.stream().mapToDouble(o->o.getRegion().size()).sum();
                         sizeG = g.getRegion().size();
                         final SegmentedObject curG = g;
-                        intersection = currentS.stream().mapToDouble(o->getOverlap.applyAsDouble(curG, o)).sum();
+                        intersection = matchingS.stream().mapToDouble(o->getOverlap.applyAsDouble(curG, o)).sum();
                     } else { // several g match one s
                         SegmentedObject sPrev= s.getPrevious();
-                        if (matchingG.stream().noneMatch(Grem::contains) && !Srem.contains(s)) {// division error only if all G are not to be removed
-                            distDiv = getDivisionDist.applyAsInt(matchingG); // will be marked to S
-                            if (distDiv == -1) distDiv = 0;
-                        }
+                        exclude = matchingG.stream().anyMatch(Grem::contains) || Srem.contains(s);
+                        distDiv = getDivisionDist.applyAsInt(matchingG); // will be marked to S
+                        if (distDiv == -1) distDiv = 0;
                         // check matching prev
                         Set<SegmentedObject> gPrevs = matchingG.stream().map(SegmentedObject::getPrevious).filter(Objects::nonNull).collect(toSet());
                         if (gPrevs.isEmpty() && sPrev==null) prevLinkEquals = true;
@@ -222,35 +213,42 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                         sizeG = matchingG.stream().mapToDouble(o->o.getRegion().size()).sum();
                         sizeS = s.getRegion().size();
                         intersection = matchingG.stream().mapToDouble(o->getOverlap.applyAsDouble(o, s)).sum();
-                        seenG.addAll(matchingG);
                     }
                 }
-                for (SegmentedObject o : currentS) {
-                    if (o.equals(s)) continue;
-                    o.getMeasurements().setValue(prefix + "Intersection", null);
-                    o.getMeasurements().setValue(prefix + "Size", null);
-                    o.getMeasurements().setValue(prefix + "SizeGt", null);
-                    o.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
-                    o.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
+                if (matchingS!=null) {
+                    for (SegmentedObject o : matchingS) {
+                        if (o.equals(s)) continue;
+                        o.getMeasurements().setValue(prefix + "Intersection", null);
+                        o.getMeasurements().setValue(prefix + "Size", null);
+                        o.getMeasurements().setValue(prefix + "SizeGt", null);
+                        o.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
+                        o.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
+                    }
                 }
-                s.getMeasurements().setValue(prefix + "Intersection", intersection);
-                s.getMeasurements().setValue(prefix + "Size", sizeS);
-                s.getMeasurements().setValue(prefix + "SizeGt", sizeG);
-                if (prevLinkEquals ==null) s.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
-                else s.getMeasurements().setValue(prefix + "PrevLinkMatches", prevLinkEquals);
-                if (distDiv==null) s.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
-                else s.getMeasurements().setValue(prefix + "DistanceToGTDivision", distDiv);
-                if (currentS.isEmpty()) seenS.add(s);
-                else {
-                    seenS.addAll(currentS);
-                    currentS.clear();
+                if (exclude) {
+                    s.getMeasurements().setValue(prefix + "Intersection", null);
+                    s.getMeasurements().setValue(prefix + "Size", null);
+                    s.getMeasurements().setValue(prefix + "SizeGt", null);
+                    s.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
+                    s.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
+                } else {
+                    s.getMeasurements().setValue(prefix + "Intersection", intersection);
+                    s.getMeasurements().setValue(prefix + "Size", sizeS);
+                    s.getMeasurements().setValue(prefix + "SizeGt", sizeG);
+                    if (prevLinkEquals == null) s.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
+                    else s.getMeasurements().setValue(prefix + "PrevLinkMatches", prevLinkEquals);
+                    if (distDiv==null) s.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
+                    else s.getMeasurements().setValue(prefix + "DistanceToGTDivision", distDiv);
                 }
+                if (matchingS==null) seenS.add(s);
+                else seenS.addAll(matchingS);
+                if (matchingG==null) seenG.add(g);
+                else seenG.addAll(matchingG);
             }
             List<SegmentedObject> G = GbyF.get(p.getFrame());
             if (G!=null && !G.isEmpty()) {
                 for (SegmentedObject g : G) {
-                    if (seenG.contains(g) || Grem.contains(g))
-                        g.getMeasurements().setValue(prefix + "NoMatchSize", null);
+                    if (seenG.contains(g) || Grem.contains(g)) g.getMeasurements().setValue(prefix + "NoMatchSize", null);
                     else g.getMeasurements().setValue(prefix + "NoMatchSize", g.getRegion().size()); // false negative
                 }
             }
