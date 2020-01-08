@@ -252,7 +252,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 "Shortcuts can also be used to add objects to or remove objects from a single active selection or a group of several active selections. Two different groups can be defined (0 and 1). " +
                 "To define active selections right-click on the selections and choose <em>Active Selection group 0</em> or <em>Active Selection group 1</em>. To add or remove objects from the active selection(s), select them on a kymograph and use the shortcuts corresponding to the appropriate selection group (See <em>Help / Display shortcut table</em>)</li>" +
                 "<li>To navigate a selection and display the objects, right-click on the selection and select: <em>Enable Navigation</em>, <em>Display Objects</em> and/or <em>Display Tracks</em> then use the commands (Navigate Next and previous and corresponding shortcuts) to display the appropriate kymographs </li>" +
-                "<li>Selected selections can be exported to a table from the menu <em>Run / Extract selections</em></li>"+
+                "<li>Selected selections can be exported to a table from the menu <em>Run / Extract selected selections</em></li>"+
                 "<li>Selections can also be generated from R or Python. After generating a selection from R, click on <em>Reload Selections</em> to display it in the list</li>" +
                 "</ul>"));
         // tool tips for test panel
