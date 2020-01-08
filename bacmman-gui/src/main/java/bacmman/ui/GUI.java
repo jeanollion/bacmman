@@ -79,6 +79,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -871,15 +873,23 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (hostnameOrDir==null) {
             hostnameOrDir = getHostNameOrDir(dbName);
             if (hostnameOrDir==null) return;
+        } else {
+            String curWorkingDir = workingDirectory.getText();
+            String newWorkingDir = Paths.get(hostnameOrDir).getParent().toAbsolutePath().toString();
+            if (!curWorkingDir.equals(newWorkingDir)) {
+                workingDirectory.setText(newWorkingDir);
+                populateExperimentList();
+            }
+            this.setSelectedExperiment(dbName);
         }
         db = MasterDAOFactory.createDAO(dbName, hostnameOrDir);
         if (db==null) {
-            logger.warn("no experiment found in DB: {}", db);
+            logger.warn("no config found in dataset {} @ {}", dbName, hostnameOrDir);
             return;
         }
         db.setConfigurationReadOnly(readOnly);
         if (db.getExperiment()==null) {
-            logger.warn("no experiment found in DB: {}", db);
+            logger.warn("no config found in dataset {} @ {}", dbName, hostnameOrDir);
             closeExperiment();
             return;
         }
@@ -887,7 +897,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             db.lockPositions();
             for (String p : db.getExperiment().getPositionsAsString()) if (db.getDao(p).isReadOnly()) setMessage("Position: "+p+" could not be locked. it may be used by another process. All changes on segmented objects of this position won't be saved");
         }
-        logger.info("Experiment found in db: {} ", db.getDBName());
+        logger.info("Dataset found in db: {} ", db.getDBName());
         if (db.isConfigurationReadOnly()) {
             GUI.log(dbName+ ": Config file could not be locked. Dataset already open ? Dataset will be open in Read Only mode: all modifications on configuration or selections won't be saved. ");
             GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
@@ -966,7 +976,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         if (db.experimentChangedFromFile()) {
             if (db.isConfigurationReadOnly()) {
-                this.setMessage("Configuration have changed but canno't be saved in read-only mode");
+                this.setMessage("Configuration have changed but cannot be saved in read-only mode");
             } else {
                 boolean save = Utils.promptBoolean("Current configuration has unsaved changes. Save ? ", this);
                 if (save) db.updateExperiment();

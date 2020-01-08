@@ -388,6 +388,7 @@ public class DBMapMasterDAO implements MasterDAO {
     @Override 
     public boolean experimentChangedFromFile() {
         Experiment xpFile = getXPFromFile();
+        if (xpFile==null && xp==null) return false;
         return xpFile==null || !xpFile.sameContent(xp);
     }
 
