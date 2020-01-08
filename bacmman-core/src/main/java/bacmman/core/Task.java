@@ -240,343 +240,354 @@ public class Task implements ProgressCallback{
         return true;
     }
         
-        public Task setUI(ProgressLogger ui) {
-            if (ui==null) this.ui=null;
+    public Task setUI(ProgressLogger ui) {
+        if (ui==null) this.ui=null;
+        else {
+            if (ui.equals(this.ui)) return this;
+            this.ui=ui;
+        }
+        return this;
+    }
+    public Task() {
+        setUI(Core.getProgressLogger());
+        keepDB = false;
+    }
+    public Task(MasterDAO db) {
+        setUI(Core.getProgressLogger());
+        this.db=db;
+        this.dbName=db.getDBName();
+        this.dir=db.getDir().toFile().getAbsolutePath();
+        keepDB = true;
+    }
+    public Task(String dbName) {
+        this(dbName, null);
+    }
+    public Task(String dbName, String dir) {
+        this();
+        this.dbName=dbName;
+        if (dir!=null && !"".equals(dir)) this.dir=dir;
+        else this.dir = ExperimentSearchUtils.searchForLocalDir(dbName);
+    }
+    public Task setDBName(String dbName) {
+        if (dbName!=null && dbName.equals(this.dbName)) return this;
+        this.db=null;
+        this.dbName=dbName;
+        return this;
+    }
+    public Task setDir(String dir) {
+        if (dir!=null && dir.equals(this.dir)) return this;
+        this.db=null;
+        this.dir=dir;
+        return this;
+    }
+
+    public List<Pair<String, Throwable>> getErrors() {return errors.getExceptions();}
+    public MasterDAO getDB() {
+        initDB();
+        return db;
+    }
+    public String getDir() {
+        return dir;
+    }
+    public Task setAllActions() {
+        this.preProcess=true;
+        this.segmentAndTrack=true;
+        this.measurements=true;
+        this.trackOnly=false;
+        return this;
+    }
+    public Task setActions(boolean preProcess, boolean segment, boolean track, boolean measurements) {
+        this.preProcess=preProcess;
+        this.segmentAndTrack=segment;
+        if (segmentAndTrack) trackOnly = false;
+        else trackOnly = track;
+        this.measurements=measurements;
+        return this;
+    }
+    public Task setMeasurementMode(MEASUREMENT_MODE mode) {
+        this.measurementMode=mode;
+        return this;
+    }
+    public boolean isPreProcess() {
+        return preProcess;
+    }
+
+    public boolean isSegmentAndTrack() {
+        return segmentAndTrack;
+    }
+
+    public boolean isTrackOnly() {
+        return trackOnly;
+    }
+
+    public boolean isMeasurements() {
+        return measurements;
+    }
+
+    public boolean isGenerateTrackImages() {
+        return generateTrackImages;
+    }
+
+    public Task setGenerateTrackImages(boolean generateTrackImages) {
+        this.generateTrackImages=generateTrackImages;
+        return this;
+    }
+
+    public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
+        this.exportPreProcessedImages=preProcessedImages;
+        this.exportTrackImages=trackImages;
+        this.exportObjects=objects;
+        this.exportConfig=config;
+        this.exportSelections=selections;
+        if (preProcessedImages || trackImages || objects || config || selections) exportData= true;
+        return this;
+    }
+
+    public Task setPositions(int... positions) {
+        if (positions!=null && positions.length>0) this.positions=Utils.toList(positions);
+        return this;
+    }
+    public Task unsetPositions(int... positions) {
+        initDB();
+        if (this.positions==null) this.positions=Utils.toList(ArrayUtil.generateIntegerArray(db.getExperiment().getPositionCount()));
+        for (int p : positions) this.positions.remove((Integer)p);
+        logger.debug("positions: {} ({})", this.positions, Utils.transform(this.positions, i->db.getExperiment().getPositionsAsString()[i]));
+        return this;
+    }
+    private void initDB() {
+        if (db==null) {
+            if (dir==null) throw new RuntimeException("XP not found");
+            if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.createDAO(dbName, dir, MasterDAOFactory.DAOType.DBMap);
+            //else db = MasterDAOFactory.createDAO(dbName, dir, MasterDAOFactory.DAOType.Morphium);
+        }
+    }
+    public Task setPositions(String... positions) {
+        if (positions!=null && positions.length>0) {
+            boolean initDB = db==null;
+            if (initDB) initDB();
+            this.positions=new ArrayList<>(positions.length);
+            for (int i = 0; i<positions.length; ++i) this.positions.add(db.getExperiment().getPositionIdx(positions[i]));
+            if (initDB) db=null; // only set to null if no db was set before, to be able to run on GUI db without lock issues
+        }
+        return this;
+    }
+
+    public Task setStructures(int... structures) {
+        this.structures=structures;
+        Arrays.sort(structures);
+        return this;
+    }
+    public Task setSelection(String selectionName) {
+        this.selectionName = selectionName;
+        return this;
+    }
+
+    public Task addExtractMeasurementDir(String dir, int... extractStructures) {
+        if (extractStructures==null || extractStructures.length==0) {
+            ensurePositionAndStructures(false, true);
+            for (int s : structures) this.extractMeasurementDir.add(new Pair(dir, new int[]{s}));
+        } else  this.extractMeasurementDir.add(new Pair(dir, extractStructures));
+        return this;
+    }
+    private void ensurePositionAndStructures(boolean positions, boolean structures) {
+        if ((!positions || this.positions!=null) && (!structures || this.structures!=null)) return;
+        initDB();
+        if (positions && this.positions==null) this.positions = Utils.toList(ArrayUtil.generateIntegerArray(db.getExperiment().getPositionCount()));
+        if (structures && this.structures==null) this.structures = ArrayUtil.generateIntegerArray(db.getExperiment().getStructureCount());
+    }
+
+    public boolean isValid() {
+        initDB(); // read only be default
+
+        if (db.getExperiment()==null) {
+            errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
+            printErrors();
+            if (!keepDB) db = null;
+            return false;
+        }
+        if (structures!=null) checkArray(structures, db.getExperiment().getStructureCount(), "Invalid structure: ");
+        if (positions!=null) checkArray(positions, db.getExperiment().getPositionCount(), "Invalid position: ");
+        if (preProcess) { // compare pre processing to template
+            ensurePositionAndStructures(true, false);
+            PreProcessingChain template = db.getExperiment().getPreProcessingTemplate();
+            List<Integer> posWithDifferentPP = positions.stream().filter(p -> !template.getTransformations().sameContent(db.getExperiment().getPosition(p).getPreProcessingChain().getTransformations())).collect(Collectors.toList());
+            if (!posWithDifferentPP.isEmpty()) publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
+        }
+        if (selectionName!=null) {
+            if (preProcess || generateTrackImages || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
             else {
-                if (ui.equals(this.ui)) return this;
-                this.ui=ui;
-            }
-            return this;
-        }
-        public Task() {
-            setUI(Core.getProgressLogger());
-            keepDB = false;
-        }
-        public Task(MasterDAO db) {
-            setUI(Core.getProgressLogger());
-            this.db=db;
-            this.dbName=db.getDBName();
-            this.dir=db.getDir().toFile().getAbsolutePath();
-            keepDB = true;
-        }
-        public Task(String dbName) {
-            this(dbName, null);
-        }
-        public Task(String dbName, String dir) {
-            this();
-            this.dbName=dbName;
-            if (dir!=null && !"".equals(dir)) this.dir=dir;
-            else this.dir = ExperimentSearchUtils.searchForLocalDir(dbName);
-        }
-        public Task setDBName(String dbName) {
-            if (dbName!=null && dbName.equals(this.dbName)) return this;
-            this.db=null;
-            this.dbName=dbName;
-            return this;
-        }
-        public Task setDir(String dir) {
-            if (dir!=null && dir.equals(this.dir)) return this;
-            this.db=null;
-            this.dir=dir;
-            return this;
-        }
-        
-        public List<Pair<String, Throwable>> getErrors() {return errors.getExceptions();}
-        public MasterDAO getDB() {
-            initDB();
-            return db;
-        }
-        public String getDir() {
-            return dir;
-        }
-        public Task setAllActions() {
-            this.preProcess=true;
-            this.segmentAndTrack=true;
-            this.measurements=true;
-            this.trackOnly=false;
-            return this;
-        }
-        public Task setActions(boolean preProcess, boolean segment, boolean track, boolean measurements) {
-            this.preProcess=preProcess;
-            this.segmentAndTrack=segment;
-            if (segmentAndTrack) trackOnly = false;
-            else trackOnly = track;
-            this.measurements=measurements;
-            return this;
-        }
-        public Task setMeasurementMode(MEASUREMENT_MODE mode) {
-            this.measurementMode=mode;
-            return this;
-        }
-        public boolean isPreProcess() {
-            return preProcess;
-        }
-
-        public boolean isSegmentAndTrack() {
-            return segmentAndTrack;
-        }
-
-        public boolean isTrackOnly() {
-            return trackOnly;
-        }
-
-        public boolean isMeasurements() {
-            return measurements;
-        }
-
-        public boolean isGenerateTrackImages() {
-            return generateTrackImages;
-        }
-        
-        public Task setGenerateTrackImages(boolean generateTrackImages) {
-            this.generateTrackImages=generateTrackImages;
-            return this;
-        }
-        
-        public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
-            this.exportPreProcessedImages=preProcessedImages;
-            this.exportTrackImages=trackImages;
-            this.exportObjects=objects;
-            this.exportConfig=config;
-            this.exportSelections=selections;
-            if (preProcessedImages || trackImages || objects || config || selections) exportData= true;
-            return this;
-        }
-        
-        public Task setPositions(int... positions) {
-            if (positions!=null && positions.length>0) this.positions=Utils.toList(positions);
-            return this;
-        }
-        public Task unsetPositions(int... positions) {
-            initDB();
-            if (this.positions==null) this.positions=Utils.toList(ArrayUtil.generateIntegerArray(db.getExperiment().getPositionCount()));
-            for (int p : positions) this.positions.remove((Integer)p);
-            logger.debug("positions: {} ({})", this.positions, Utils.transform(this.positions, i->db.getExperiment().getPositionsAsString()[i]));
-            return this;
-        }
-        private void initDB() {
-            if (db==null) {
-                if (dir==null) throw new RuntimeException("XP not found");
-                if (!"localhost".equals(dir) && new File(dir).exists()) db = MasterDAOFactory.createDAO(dbName, dir, MasterDAOFactory.DAOType.DBMap);
-                //else db = MasterDAOFactory.createDAO(dbName, dir, MasterDAOFactory.DAOType.Morphium);
-            }
-        }
-        public Task setPositions(String... positions) {
-            if (positions!=null && positions.length>0) {
-                boolean initDB = db==null;
-                if (initDB) initDB();
-                this.positions=new ArrayList<>(positions.length);
-                for (int i = 0; i<positions.length; ++i) this.positions.add(db.getExperiment().getPositionIdx(positions[i]));
-                if (initDB) db=null; // only set to null if no db was set before, to be able to run on GUI db without lock issues
-            }
-            return this;
-        }
-        
-        public Task setStructures(int... structures) {
-            this.structures=structures;
-            Arrays.sort(structures);
-            return this;
-        }
-        public Task setSelection(String selectionName) {
-            this.selectionName = selectionName;
-            return this;
-        }
-        
-        public Task addExtractMeasurementDir(String dir, int... extractStructures) {
-            if (extractStructures==null || extractStructures.length==0) {
-                ensurePositionAndStructures(false, true);
-                for (int s : structures) this.extractMeasurementDir.add(new Pair(dir, new int[]{s}));
-            } else  this.extractMeasurementDir.add(new Pair(dir, extractStructures));
-            return this;
-        }
-        private void ensurePositionAndStructures(boolean positions, boolean structures) {
-            if ((!positions || this.positions!=null) && (!structures || this.structures!=null)) return;
-            initDB();
-            if (positions && this.positions==null) this.positions = Utils.toList(ArrayUtil.generateIntegerArray(db.getExperiment().getPositionCount()));
-            if (structures && this.structures==null) this.structures = ArrayUtil.generateIntegerArray(db.getExperiment().getStructureCount());
-        }
-
-        public boolean isValid() {
-            initDB(); // read only be default
-            
-            if (db.getExperiment()==null) {
-                errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
-                printErrors();
-                if (!keepDB) db = null;
-                return false;
-            } 
-            if (structures!=null) checkArray(structures, db.getExperiment().getStructureCount(), "Invalid structure: ");
-            if (positions!=null) checkArray(positions, db.getExperiment().getPositionCount(), "Invalid position: ");
-            if (preProcess) { // compare pre processing to template
-                ensurePositionAndStructures(true, false);
-                PreProcessingChain template = db.getExperiment().getPreProcessingTemplate();
-                List<Integer> posWithDifferentPP = positions.stream().filter(p -> !template.getTransformations().sameContent(db.getExperiment().getPosition(p).getPreProcessingChain().getTransformations())).collect(Collectors.toList());
-                if (!posWithDifferentPP.isEmpty()) publish("Warning: the pre-processing pipeline of the following position differs from template: "+Utils.toStringArrayShort(posWithDifferentPP));
-            }
-            if (selectionName!=null) {
-                if (preProcess || generateTrackImages || exportPreProcessedImages || exportTrackImages || exportObjects) errors.addExceptions(new Pair(dbName, new Exception("Invalid action to run with selection")));
+                Selection sel = db.getSelectionDAO().getOrCreate(selectionName, false);
+                if (sel.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception("Empty selection")));
                 else {
-                    Selection sel = db.getSelectionDAO().getOrCreate(selectionName, false);
-                    if (sel.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception("Empty selection")));
-                    else {
-                        int selObjectClass = sel.getStructureIdx();
-                        if (segmentAndTrack || trackOnly) { // check that parent object class of all object class is selection object class
-                            if (structures == null)
-                                errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
-                            else {
-                                for (int objectClass : structures) {
-                                    if (!db.getExperiment().experimentStructure.isDirectChildOf(selObjectClass, objectClass))
-                                        errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
-                                }
+                    int selObjectClass = sel.getStructureIdx();
+                    if (segmentAndTrack || trackOnly) { // check that parent object class of all object class is selection object class
+                        if (structures == null)
+                            errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
+                        else {
+                            for (int objectClass : structures) {
+                                if (!db.getExperiment().experimentStructure.isDirectChildOf(selObjectClass, objectClass))
+                                    errors.addExceptions(new Pair(dbName, new Exception("One of the object class is not direct children of selection object class")));
                             }
                         }
                     }
                 }
             }
-            // check files
-            for (Pair<String, int[]> e : extractMeasurementDir) {
-                String exDir = e.key==null? db.getDir().toFile().getAbsolutePath() : e.key;
-                File f= new File(exDir);
-                if (!f.exists()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " not found")));
-                else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
-                else if (e.value!=null) checkArray(e.value, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
-            }
-            if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
-            // check parametrization
-            if (preProcess) {
-                ensurePositionAndStructures(true, false);
-                for (int p : positions) if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
-            }
-            if (segmentAndTrack || trackOnly) {
-                ensurePositionAndStructures(false, true);
-                for (int s : structures) if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Structure: "+ db.getExperiment().getStructure(s).getName())));
-            }
-            if (measurements) {
-                if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
-            }
-            for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
-            logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
-            if (!keepDB) {
-                db.unlockConfiguration();
-                db.clearCache();
-                db=null;
-            }
-            return errors.isEmpty();
         }
-        private void checkArray(int[] array, int maxValue, String message) {
-            if (array[ArrayUtil.max(array)]>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValue)));
-            if (array[ArrayUtil.min(array)]<0) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
+        // check files
+        for (Pair<String, int[]> e : extractMeasurementDir) {
+            String exDir = e.key==null? db.getDir().toFile().getAbsolutePath() : e.key;
+            File f= new File(exDir);
+            if (!f.exists()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " not found")));
+            else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
+            else if (e.value!=null) checkArray(e.value, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
         }
-        private void checkArray(List<Integer> array, int maxValue, String message) {
-            if (array==null || array.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception(message)));
-            if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.max(array)+ " not found, max value: "+maxValue)));
-            if (Collections.min(array)<0) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.min(array)+ " not found")));
+        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
+        // check parametrization
+        if (preProcess) {
+            ensurePositionAndStructures(true, false);
+            for (int p : positions) if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
         }
-        public void printErrors() {
-            if (!errors.isEmpty()) logger.error("Errors for Task: {}", toString());
-            for (Pair<String, ? extends Throwable> e : errors.getExceptions()) logger.error(e.key, e.value);
+        if (segmentAndTrack || trackOnly) {
+            ensurePositionAndStructures(false, true);
+            for (int s : structures) if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Structure: "+ db.getExperiment().getStructure(s).getName())));
         }
-        public int countSubtasks() {
-            initDB();
-            ensurePositionAndStructures(true, true);
+        if (measurements) {
+            if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
+        }
+        for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
+        logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
+        if (!keepDB) {
+            db.unlockConfiguration();
+            db.clearCache();
+            db=null;
+        }
+        return errors.isEmpty();
+    }
+    private void checkArray(int[] array, int maxValue, String message) {
+        if (array[ArrayUtil.max(array)]>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValue)));
+        if (array[ArrayUtil.min(array)]<0) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
+    }
+    private void checkArray(List<Integer> array, int maxValue, String message) {
+        if (array==null || array.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception(message)));
+        if (Collections.max(array)>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.max(array)+ " not found, max value: "+maxValue)));
+        if (Collections.min(array)<0) errors.addExceptions(new Pair(dbName, new Exception(message + Collections.min(array)+ " not found")));
+    }
+    public void printErrors() {
+        if (!errors.isEmpty()) logger.error("Errors for Task: {}", toString());
+        for (Pair<String, ? extends Throwable> e : errors.getExceptions()) logger.error(e.key, e.value);
+    }
+    public int countSubtasks() {
+        initDB();
+        ensurePositionAndStructures(true, true);
 
-            Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
-            Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
-            Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
-            int positionsToProcess = (int)positions.stream().map(posIdxNameMapper).filter(selFilter).count();
+        Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
+        Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
+        Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
+        int positionsToProcess = (int)positions.stream().map(posIdxNameMapper).filter(selFilter).count();
 
-            int count=0;
-            // preProcess: 
-            if (preProcess) count += positionsToProcess;
-            if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length;
-            if (this.measurements) {
-                int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
-                count += positionsToProcess * (nCallOC+1); // +1 for upsert
-            }
-            if (this.generateTrackImages) {
-                int gen = 0;
-                for (int s : structures)  if (!db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) ++gen;
-                count+=positionsToProcess*gen;
-            }
-            count+=extractMeasurementDir.size();
-            if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
-            return count;
+        int count=0;
+        // preProcess:
+        if (preProcess) count += positionsToProcess;
+        if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length;
+        if (this.measurements) {
+            int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
+            count += positionsToProcess * (nCallOC+1); // +1 for upsert
         }
-        public void setSubtaskNumber(int[] taskCounter) {
-            this.taskCounter=taskCounter;
+        if (this.generateTrackImages) {
+            int gen = 0;
+            for (int s : structures)  if (!db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) ++gen;
+            count+=positionsToProcess*gen;
         }
+        count+=extractMeasurementDir.size();
+        if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
+        return count;
+    }
+    public void setSubtaskNumber(int[] taskCounter) {
+        this.taskCounter=taskCounter;
+    }
 
-        public void runTask() {
-            //if (ui!=null) ui.setRunning(true);
-            publish("Run task: "+this.toString());
-            initDB();
-            logger.debug("configuration read only: {}", db.isConfigurationReadOnly());
-            Core.freeDisplayMemory();
-            publishMemoryUsage("Before processing");
-            this.ensurePositionAndStructures(true, true);
-            Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
-            Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
-            Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
-            List<String> positionsToProcess = positions.stream().map(posIdxNameMapper).filter(selFilter).collect(Collectors.toList());
-            db.lockPositions(positionsToProcess.toArray(new String[0]));
+    public void runTask() {
+        //if (ui!=null) ui.setRunning(true);
+        publish("Run task: "+this.toString());
+        initDB();
+        logger.debug("configuration read only: {}", db.isConfigurationReadOnly());
+        Core.freeDisplayMemory();
+        publishMemoryUsage("Before processing");
+        this.ensurePositionAndStructures(true, true);
+        Function<Integer, String> posIdxNameMapper = pIdx -> db.getExperiment().getPosition(pIdx).getName();
+        Selection selection = selectionName==null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
+        Predicate<String> selFilter = selectionName==null ? p->true : p->selection.getAllPositions().contains(p);
+        List<String> positionsToProcess = positions.stream().map(posIdxNameMapper).filter(selFilter).collect(Collectors.toList());
+        db.lockPositions(positionsToProcess.toArray(new String[0]));
 
-            // check that all position to be processed are effectively locked
-            List<String> readOnlyPos = positionsToProcess.stream().filter(p->db.getDao(p).isReadOnly()).collect(Collectors.toList());
-            if (!readOnlyPos.isEmpty()) {
-                ui.setMessage("Some positions could not be locked and will not be processed: " + readOnlyPos);
-                for (String p : readOnlyPos) errors.addExceptions(new Pair(p, new RuntimeException("Locked position. Already used by another process?")));
-                positionsToProcess.removeAll(readOnlyPos);
-            }
-            logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
-            boolean needToDeleteObjects = preProcess || segmentAndTrack;
-            boolean deleteAll =  needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && positionsToProcess.size()==db.getExperiment().getPositionCount();
-            if (deleteAll) {
-                publish("deleting objects...");
-                db.deleteAllObjects();
-            }
-            boolean deleteAllField = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll;
-            logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllField);
-            if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
-            publish("number of subtasks: "+countSubtasks());
-            
-            try {
-                for (String position : positionsToProcess) {
-                    try {
-                        process(position, deleteAllField, selection);
-                    } catch (MultipleException e) {
-                        errors.addExceptions(e.getExceptions());
-                    } catch (Throwable e) {
-                        errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
-                    } finally {
-                        db.getExperiment().getPosition(position).flushImages(true, true);
-                        db.clearCache(position);
-                        if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
-                            db.getSelectionDAO().clearCache();
-                        Core.freeDisplayMemory();
-                        System.gc();
-                        publishMemoryUsage("After clearing cache");
-                    }
+        // check that all position to be processed are effectively locked
+        List<String> readOnlyPos = positionsToProcess.stream().filter(p->db.getDao(p).isReadOnly()).collect(Collectors.toList());
+        if (!readOnlyPos.isEmpty()) {
+            ui.setMessage("Some positions could not be locked and will not be processed: " + readOnlyPos);
+            for (String p : readOnlyPos) errors.addExceptions(new Pair(p, new RuntimeException("Locked position. Already used by another process?")));
+            positionsToProcess.removeAll(readOnlyPos);
+        }
+        logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
+        boolean needToDeleteObjects = preProcess || segmentAndTrack;
+        boolean deleteAll =  needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && positionsToProcess.size()==db.getExperiment().getPositionCount();
+        if (deleteAll) {
+            publish("deleting objects...");
+            db.deleteAllObjects();
+        }
+        boolean deleteAllField = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll;
+        logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllField);
+        if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
+        publish("number of subtasks: "+countSubtasks());
+
+        try {
+            for (String position : positionsToProcess) {
+                try {
+                    process(position, deleteAllField, selection);
+                } catch (MultipleException e) {
+                    errors.addExceptions(e.getExceptions());
+                } catch (Throwable e) {
+                    errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
+                } finally {
+                    db.getExperiment().getPosition(position).flushImages(true, true);
+                    db.clearCache(position);
+                    if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
+                        db.getSelectionDAO().clearCache();
+                    Core.freeDisplayMemory();
+                    System.gc();
+                    publishMemoryUsage("After clearing cache");
                 }
-            } catch (Throwable t) {
-                publish("Error While Processing Positions");
-                publishError(t);
-                publishErrors();
-            } finally {
-                logger.debug("closing engines...");
-                db.getExperiment().getDLengineProvider().closeAllEngines();
-                logger.debug("engines closed!");
             }
-            logger.debug("extracting meas...");
-            for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
-            if (exportData) exportData();
-            logger.debug("unlocking positions...");
-            if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
-            else {
-                logger.debug("clearing cache...");
-                for (String position:positionsToProcess) db.clearCache(position);
-                logger.debug("cache cleared...");
-            }
+        } catch (Throwable t) {
+            publish("Error While Processing Positions");
+            publishError(t);
+            publishErrors();
+        } finally {
+            logger.debug("closing engines...");
+            db.getExperiment().getDLengineProvider().closeAllEngines();
+            logger.debug("engines closed!");
         }
+        logger.debug("extracting meas...");
+        for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
+        if (exportData) exportData();
+        logger.debug("unlocking positions...");
+        if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
+        else {
+            logger.debug("clearing cache...");
+            for (String position:positionsToProcess) db.clearCache(position);
+            logger.debug("cache cleared...");
+        }
+    }
+
+    public void flush(boolean errors) {
+        if (db!=null) {
+            db.clearCache();
+            db=null;
+        }
+        if (errors) {
+            this.errors.getExceptions().clear();
+        }
+    }
+
     private void process(String position, boolean deleteAllField, Selection selection) {
         publish("Position: "+position);
         if (deleteAllField) db.getDao(position).deleteAllObjects();
@@ -774,11 +785,11 @@ public class Task implements ProgressCallback{
         publish("Error @"+localizer+" "+(error==null?"null":error.toString()));
         publishError(error);
     }
-    protected void publishError(Throwable t) {
+    public void publishError(Throwable t) {
         Arrays.stream(t.getStackTrace())
-                .map(st -> st.toString())
-                .filter(s->printStackTraceElement(s))
-                .forEachOrdered(s -> publish(s));
+                .map(StackTraceElement::toString)
+                .filter(Task::printStackTraceElement)
+                .forEachOrdered(this::publish);
         if (t.getCause()!=null && !t.getCause().equals(t)) {
             publish("caused By");
             publishError(t.getCause());
