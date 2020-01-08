@@ -76,9 +76,13 @@ public class ProcessTasks {
                 ui.setMessage("Error: job "+count+" could not be parsed");
                 return;
             }
-            if (!t.isValid()) {
-                ui.setMessage("Error: job: "+t.toString()+" is not valid" + (t.getDB()==null?"db null": (t.getDB().getExperiment()==null? "xp null":"")));
-                return;
+            try {
+                if (!t.isValid()) {
+                    ui.setMessage("Error: job: "+t.toString()+" is not valid" + (t.getDB()==null?"db null": (t.getDB().getExperiment()==null? "xp null":"")));
+                    return;
+                }
+            } catch (Throwable e) {
+                t.publishError("Validation", e);
             }
             ++count;
             subTaskCount += t.countSubtasks();
@@ -87,12 +91,18 @@ public class ProcessTasks {
         int[] counter = new int[]{0, subTaskCount};
         for (Task t : jobs) {
             t.setSubtaskNumber(counter);
-            t.runTask();
+            try {
+                t.runTask();
+            } catch (Throwable e) {
+                t.publishError("Task", e);
+            } finally {
+                t.flush(false);
+            }
         }
         int errorCount = 0;
         for (Task t: jobs) errorCount+=t.getErrors().size();
         ui.setMessage("All jobs finished. Errors: "+errorCount);
-        for (Task t: jobs) t.printErrors();
+        for (Task t: jobs) t.publishErrors();
         ui.setRunning(false);
     }
 
