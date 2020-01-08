@@ -2344,7 +2344,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         runMenu.add(extractMeasurementMenuItem);
 
-        extractSelectionMenuItem.setText("Extract Selections");
+        extractSelectionMenuItem.setText("Extract Selected Selections");
         extractSelectionMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 extractSelectionMenuItemActionPerformed(evt);
