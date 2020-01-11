@@ -111,7 +111,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         long t4= System.currentTimeMillis();
         logger.info("#{} dy predictions made in {}ms", dy.length, t4-t3);
         // resample, set offset & calibration
-        Image[] edm_res = ResizeUtils.resample(edm, edm, false, resampledImages.value);
+        Image[] edm_res = ResizeUtils.resample(edm, edm, false, resampledImages.value); // should segmentation be performed before resampling so that edm values correspond to actual distances?
         Image[] dy_res = ResizeUtils.resample(dy, dy, true, resampledImages.value);
         Image[] divMap_res = divMap==null ? null : ResizeUtils.resample(divMap, divMap, false, resampledImages.value);
         Image[] noPrevMap_res = ResizeUtils.resample(noPrevMap, noPrevMap, true, resampledImages.value);
