@@ -56,31 +56,36 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         logger.info("input resampled in {}ms", t3-t2);
         Image[][] input = getInputs(resampledImages.key, true, next);
         Image[][][] predictions =  engine.process(input); // order: output# [dy / cat (cat_next) / edm] / batch / channel
+        int channelEdmCur = predictions[predictions.length-1][0].length==1 ? 0 : 1;
         Image[] dy = ResizeUtils.getChannel(predictions[0], 0);
-        Image[] edm = ResizeUtils.getChannel(predictions[predictions.length-1], 1);
+        Image[] edm = ResizeUtils.getChannel(predictions[predictions.length-1], channelEdmCur);
         Image[] divMap = stores==null ? null : ResizeUtils.getChannel(predictions[1], 2);
         Image[] noPrevMap = ResizeUtils.getChannel(predictions[1], 3);
         boolean[] noPrevParent = new boolean[parentTrack.size()];
         noPrevParent[0] = true;
         for (int i = 1; i<noPrevParent.length; ++i) if (parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1) noPrevParent[i]=true;
+
         if (averagePredictions) {
             if (next) {
-                Function<Image[][], Image[]> average3 = pcn -> {
-                    Image[] prev = pcn[0];
-                    Image[] cur = pcn[1];
-                    Image[] next = pcn[2];
-                    int last = cur.length - 1;
-                    if (!noPrevParent[1]) ImageOperations.average(cur[0], cur[0], prev[1]);
-                    for (int i = 1; i<last; ++i) {
-                        if (!noPrevParent[i+1] && !noPrevParent[i]) ImageOperations.average(cur[i], cur[i], prev[i+1], next[i-1]);
-                        else if (!noPrevParent[i+1]) ImageOperations.average(cur[i], cur[i], prev[i+1]);
-                        else if (!noPrevParent[i]) ImageOperations.average(cur[i], cur[i], next[i-1]);
-                    }
-                    if (!noPrevParent[last]) ImageOperations.average(cur[last], cur[last], next[last-1]);
-                    return cur;
-                };
-                edm = average3.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length-1], 0), edm, ResizeUtils.getChannel(predictions[0], 2)});
-
+                if (predictions[predictions.length-1][0].length==3) {
+                    Function<Image[][], Image[]> average3 = pcn -> {
+                        Image[] prev = pcn[0];
+                        Image[] cur = pcn[1];
+                        Image[] next = pcn[2];
+                        int last = cur.length - 1;
+                        if (!noPrevParent[1]) ImageOperations.average(cur[0], cur[0], prev[1]);
+                        for (int i = 1; i < last; ++i) {
+                            if (!noPrevParent[i + 1] && !noPrevParent[i])
+                                ImageOperations.average(cur[i], cur[i], prev[i + 1], next[i - 1]);
+                            else if (!noPrevParent[i + 1]) ImageOperations.average(cur[i], cur[i], prev[i + 1]);
+                            else if (!noPrevParent[i]) ImageOperations.average(cur[i], cur[i], next[i - 1]);
+                        }
+                        if (!noPrevParent[last]) ImageOperations.average(cur[last], cur[last], next[last - 1]);
+                        return cur;
+                    };
+                    edm = average3.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length - 1], 0), edm, ResizeUtils.getChannel(predictions[predictions.length - 1], 2)});
+                }
+                // avergae on dy
                 Function<Image[][], Image[]> average2 = cn -> {
                     Image[] cur = cn[1];
                     Image[] next = cn[2];
@@ -96,7 +101,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
                     Image[] noPrevMapN = ResizeUtils.getChannel(predictions[2], 3);
                     noPrevMap = average2.apply(new Image[][]{noPrevMap, noPrevMapN});
                 }
-            } else {
+            } else if (!next && channelEdmCur==1) {
                 Function<Image[][], Image[]> average = pc -> {
                     Image[] prev = pc[0];
                     Image[] cur = pc[1];
