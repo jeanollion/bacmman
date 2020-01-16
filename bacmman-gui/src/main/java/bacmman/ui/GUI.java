@@ -34,6 +34,7 @@ import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.configurationIO.ConfigurationIO;
+import bacmman.ui.gui.configurationIO.DLModelsLibrary;
 import bacmman.ui.gui.configurationIO.NewDatasetFromGithub;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
@@ -717,6 +718,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             remoteIO2.addActionListener(e -> {
                 if (!checkConnection()) return;
                 new ConfigurationIO(db, githubPasswords).display(this);
+            });
+            JMenuItem dlModelLib = new JMenuItem("DL Model library");
+            this.exportMenu.add(dlModelLib);
+            dlModelLib.addActionListener(e -> {
+                new DLModelsLibrary(githubPasswords).display(this);
             });
         }
     }
