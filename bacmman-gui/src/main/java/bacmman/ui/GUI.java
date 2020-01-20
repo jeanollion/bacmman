@@ -170,6 +170,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
+    private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("incase of HiDPI screen, a zoom factor is applied to the display, set here this factor");
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
 
@@ -360,9 +361,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // local zoom
         PropertyUtils.setPersistant(localZoomFactor, "local_zoom_factor");
         PropertyUtils.setPersistant(localZoomArea, "local_zoom_area");
+        PropertyUtils.setPersistant(localZoomScale, "local_zoom_scale");
         ConfigurationTreeGenerator.addToMenu(localZoomFactor.getName(), ParameterUIBinder.getUI(localZoomFactor).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomArea.getName(), ParameterUIBinder.getUI(localZoomArea).getDisplayComponent(), localZoomMenu);
-        
+        ConfigurationTreeGenerator.addToMenu(localZoomScale.getName(), ParameterUIBinder.getUI(localZoomScale).getDisplayComponent(), localZoomMenu);
         // load xp after persistent props loaded
         populateExperimentList();
         updateDisplayRelatedToXPSet();
@@ -803,6 +805,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     public double getLocalZoomLevel() {
         return this.localZoomFactor.getValue().doubleValue();
+    }
+    public double getLocalZoomScale() {
+        return this.localZoomScale.getValue().doubleValue();
     }
 
     //public StructureObjectTreeGenerator getObjectTree() {return this.objectTreeGenerator;}
