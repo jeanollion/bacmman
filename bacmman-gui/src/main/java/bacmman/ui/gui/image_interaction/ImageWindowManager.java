@@ -168,7 +168,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public abstract boolean isCurrentFocusOwnerAnImage();
     public void toggleActivateLocalZoom() {
         if (localZoom==null) {
-            localZoom =  GUI.getInstance()==null? new ZoomPane() : new ZoomPane(GUI.getInstance().getLocalZoomLevel(), GUI.getInstance().getLocalZoomArea());
+            localZoom =  GUI.getInstance()==null? new ZoomPane() : new ZoomPane(GUI.getInstance().getLocalZoomLevel(), GUI.getInstance().getLocalZoomArea(), GUI.getInstance().getLocalZoomScale());
         } else {
             localZoom.detach();
             localZoom = null;

@@ -54,9 +54,12 @@ public class ZoomPane extends JPanel {
         this(3f, 25);
     }
     public ZoomPane(double zoomLevel, int zoomArea) {
-        double scale = Double.parseDouble(System.getProperty("sun.java2d.uiScale", "1"));
-        SCALE = (int) scale; // TODO could work with double but it seams java only uses integral scale values....
-        logger.debug("Zoom pane Scale: {}", SCALE);
+        this(zoomLevel, zoomArea, Double.parseDouble(System.getProperty("sun.java2d.uiScale", "1")));
+    }
+    public ZoomPane(double zoomLevel, int zoomArea, double scale) {
+        //scale = (int) scale; // TODO could work with double but it seams java only uses integral scale values....
+        SCALE=(float)scale;
+        logger.debug("Zoom pane Scale: {}", scale);
         ZOOM_AREA=zoomArea;
         this.zoomLevel = (float)zoomLevel;
         popup = new JWindow();
