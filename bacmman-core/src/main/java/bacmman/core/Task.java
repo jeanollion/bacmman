@@ -36,8 +36,8 @@ import static bacmman.data_structure.Processor.deleteObjects;
 import static bacmman.data_structure.Processor.executeProcessingScheme;
 import static bacmman.data_structure.Processor.getOrCreateRootTrack;
 
-import java.beans.PropertyChangeEvent;
 import java.io.File;
+import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -45,17 +45,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.*;
-import javax.swing.SwingWorker;
 
+import bacmman.utils.*;
+import net.imglib2.histogram.Histogram1d;
+import net.imglib2.type.numeric.RealType;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import bacmman.utils.ArrayUtil;
 import bacmman.utils.FileIO.ZipWriter;
-import bacmman.utils.ImportExportJSON;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.MultipleException;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,6 +65,7 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class Task implements ProgressCallback{
+        public enum EXTRACT_TYPE {RAW, LABEL, PREVIOUS_LABEL, UNET_WEIGHT_MAP, DELTA_WEIGHT_MAP}
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
         String dbName, dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, generateTrackImages, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
@@ -84,6 +81,12 @@ public class Task implements ProgressCallback{
         double subtaskNumber=0,subtaskCount=0;
         ProgressLogger ui;
         String selectionName;
+
+        String extractDSFile;
+        List<Triplet<String, EXTRACT_TYPE, Integer>> extractDSFeatures;
+        List<String> extractDSSelections;
+        int[] extractDSDimensions;
+
         public JSONObject toJSON() {
             JSONObject res=  new JSONObject();
             res.put("dbName", dbName); 
@@ -112,8 +115,27 @@ public class Task implements ProgressCallback{
                 ex.add(o);
             }
             if (!ex.isEmpty()) res.put("extractMeasurementDir", ex);
+            if (extractDSFile!=null && extractDSSelections!=null && !extractDSSelections.isEmpty() && extractDSFeatures !=null && !extractDSFeatures.isEmpty()) {
+                JSONObject extractDS = new JSONObject();
+                extractDS.put("outputFile", extractDSFile);
+                JSONArray extractDSSels = new JSONArray();
+                for (String s : extractDSSelections) extractDSSels.add(s);
+                extractDS.put("selections", extractDSSels);
+                extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
+                JSONArray extractDSFeats = new JSONArray();
+                for (Triplet<String, EXTRACT_TYPE, Integer> feature: extractDSFeatures) {
+                    JSONObject feat = new JSONObject();
+                    feat.put("name", feature.v1);
+                    feat.put("oc", feature.v3);
+                    feat.put("type", feature.v2.toString());
+                    extractDSFeats.add(feat);
+                }
+                extractDS.put("features", extractDSFeats);
+                res.put("extractDataset", extractDS);
+            }
             return res;
         }
+
         public Task duplicate() {
             return new Task().fromJSON(toJSON());
         }
@@ -147,6 +169,23 @@ public class Task implements ProgressCallback{
                     JSONObject jo = (JSONObject)(o);
                     extractMeasurementDir.add(new Pair(jo.get("dir"), JSONUtils.fromIntArray((JSONArray)jo.get("s"))));
                 }
+            }
+            if (data.containsKey("extractDataset")) {
+                JSONObject extractDS = (JSONObject)data.get("extractDataset");
+                extractDSFile = (String)extractDS.get("outputFile");
+                JSONArray sels = (JSONArray)extractDS.get("selections");
+                extractDSSelections = new ArrayList<>(sels.size());
+                for (Object s : sels) extractDSSelections.add((String)s);
+                JSONArray feats = (JSONArray)extractDS.get("features");
+                extractDSFeatures = new ArrayList<>(feats.size());
+                for (Object f : feats) {
+                    JSONObject feat = (JSONObject)f;
+                    extractDSFeatures.add(new Triplet<>(
+                            (String)feat.get("name"),
+                            EXTRACT_TYPE.valueOf((String)feat.get("type")),
+                            ((Number)feat.get("oc")).intValue()));
+                }
+                extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
             }
             return this;
         }
@@ -289,6 +328,23 @@ public class Task implements ProgressCallback{
     public String getDir() {
         return dir;
     }
+
+    public String getExtractDSFile() {
+        return extractDSFile;
+    }
+
+    public List<Triplet<String, EXTRACT_TYPE, Integer>> getExtractDSFeatures() {
+        return extractDSFeatures;
+    }
+
+    public List<String> getExtractDSSelections() {
+        return extractDSSelections;
+    }
+
+    public int[] getExtractDSDimensions() {
+        return extractDSDimensions;
+    }
+
     public Task setAllActions() {
         this.preProcess=true;
         this.segmentAndTrack=true;
@@ -332,7 +388,13 @@ public class Task implements ProgressCallback{
         this.generateTrackImages=generateTrackImages;
         return this;
     }
-
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<Triplet<String, EXTRACT_TYPE, Integer>> extractDS, int[] dimensions) {
+        this.extractDSFile = extractDSFile;
+        this.extractDSSelections = extractDSSelections;
+        this.extractDSFeatures = extractDS;
+        this.extractDSDimensions = dimensions;
+        return this;
+    }
     public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
         this.exportPreProcessedImages=preProcessedImages;
         this.exportTrackImages=trackImages;
@@ -440,7 +502,7 @@ public class Task implements ProgressCallback{
             else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
             else if (e.value!=null) checkArray(e.value, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
         }
-        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
+        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData && (extractDSFile==null)) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
         // check parametrization
         if (preProcess) {
             ensurePositionAndStructures(true, false);
@@ -454,6 +516,21 @@ public class Task implements ProgressCallback{
             if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
         }
         for (Pair<String, Throwable> e : errors.getExceptions()) publish("Invalid Task Error @"+e.key+" "+(e.value==null?"null":e.value.toString()));
+
+        // dataset extraction
+        if (extractDSFile!=null || extractDSFeatures!=null || extractDSSelections!=null || extractDSDimensions!=null) {
+            if (extractDSDimensions==null || extractDSDimensions.length!=2 || extractDSDimensions[0]<=0 || extractDSDimensions[1]<=0) {
+                errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
+            }
+            if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair(dbName, "No features to extract"));
+            if (extractDSFeatures.stream().anyMatch(f->f.v1==null || f.v1.length()==0)) errors.addExceptions(new Pair(dbName, "Invalid features names"));
+            if (extractDSFeatures.stream().anyMatch(f->f.v3<0)) errors.addExceptions(new Pair(dbName, "Invalid features object class"));
+            if (extractDSFeatures.stream().anyMatch(f->f.v2==null)) errors.addExceptions(new Pair(dbName, "Invalid features type"));
+            if (extractDSFeatures.stream().map(f->f.v1).count()<extractDSFeatures.size()) errors.addExceptions(new Pair(dbName, "Duplicate feature name"));
+            if (extractDSSelections==null || extractDSSelections.isEmpty()) errors.addExceptions(new Pair(dbName, "No selection to extract from"));
+            if (extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).isEmpty())) errors.addExceptions(new Pair(dbName, "One or several selection is empty or absent"));
+        }
+
         logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
         if (!keepDB) {
             db.unlockConfiguration();
@@ -499,6 +576,16 @@ public class Task implements ProgressCallback{
         }
         count+=extractMeasurementDir.size();
         if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
+        if (extractDSFile!=null && extractDSFeatures!=null && extractDSSelections!=null) {
+            ToIntFunction<String> countPosition = sName -> {
+                Selection sel = db.getSelectionDAO().getOrCreate(sName, false);
+                return sel.getAllPositions().size();
+            };
+            for (String sel : extractDSSelections) {
+                logger.debug("count sub task: sel: {} = {} pos x {} feat", sel, countPosition.applyAsInt(sel), extractDSFeatures.size());
+                count += extractDSFeatures.size() * countPosition.applyAsInt(sel);
+            }
+        }
         return count;
     }
     public void setSubtaskNumber(int[] taskCounter) {
@@ -537,37 +624,51 @@ public class Task implements ProgressCallback{
         logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllField);
         if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
         publish("number of subtasks: "+countSubtasks());
-
-        try {
-            for (String position : positionsToProcess) {
-                try {
-                    process(position, deleteAllField, selection);
-                } catch (MultipleException e) {
-                    errors.addExceptions(e.getExceptions());
-                } catch (Throwable e) {
-                    errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
-                } finally {
-                    db.getExperiment().getPosition(position).flushImages(true, true);
-                    db.clearCache(position);
-                    if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
-                        db.getSelectionDAO().clearCache();
-                    Core.freeDisplayMemory();
-                    System.gc();
-                    publishMemoryUsage("After clearing cache");
+        if (preProcess || segmentAndTrack || trackOnly || generateTrackImages || measurements) {
+            try {
+                for (String position : positionsToProcess) {
+                    try {
+                        process(position, deleteAllField, selection);
+                    } catch (MultipleException e) {
+                        errors.addExceptions(e.getExceptions());
+                    } catch (Throwable e) {
+                        errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
+                    } finally {
+                        db.getExperiment().getPosition(position).flushImages(true, true);
+                        db.clearCache(position);
+                        if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
+                            db.getSelectionDAO().clearCache();
+                        Core.freeDisplayMemory();
+                        System.gc();
+                        publishMemoryUsage("After clearing cache");
+                    }
                 }
+            } catch (Throwable t) {
+                publish("Error While Processing Positions");
+                publishError(t);
+                publishErrors();
+            } finally {
+                logger.debug("closing engines...");
+                db.getExperiment().getDLengineProvider().closeAllEngines();
+                logger.debug("engines closed!");
             }
-        } catch (Throwable t) {
-            publish("Error While Processing Positions");
-            publishError(t);
-            publishErrors();
-        } finally {
-            logger.debug("closing engines...");
-            db.getExperiment().getDLengineProvider().closeAllEngines();
-            logger.debug("engines closed!");
         }
         logger.debug("extracting meas...");
         for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
         if (exportData) exportData();
+
+        // extract dataset
+        if (extractDSFile!=null && extractDSSelections!=null && !extractDSSelections.isEmpty() && extractDSFeatures!=null && !extractDSFeatures.isEmpty()) {
+            // using reflection for now to avoid dependency
+            try {
+                Class clazz = Class.forName("bacmman.py_dataset.ExtractDatasetUtil");
+                java.lang.reflect.Method m = clazz.getMethod("runTask", Task.class);
+                m.invoke(null, this);
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+                throw new RuntimeException("Could not extract dataset. DL module not installed ?", e);
+            }
+        }
+
         logger.debug("unlocking positions...");
         if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
         else {
@@ -736,6 +837,23 @@ public class Task implements ProgressCallback{
                 addSep.run();
                 sb.append("ExportSelection");
             }
+        }
+        // extract Dataset
+        if (extractDSFile!=null) {
+            addSep.run();
+            sb.append("ExtractDSFile:").append(extractDSFile);
+        }
+        if (extractDSSelections!=null) {
+            addSep.run();
+            sb.append("ExtractDSSelections:").append(Utils.toStringList(extractDSSelections));
+        }
+        if (extractDSFeatures!=null) {
+            addSep.run();
+            sb.append("ExtractDSFeatures:").append(Utils.toStringList(extractDSFeatures, feat->feat.v1+":oc="+feat.v3+"("+feat.v2.toString()+")"));
+        }
+        if (extractDSDimensions!=null) {
+            addSep.run();
+            sb.append("ExtractDSDimensions:").append(Utils.toStringArray(extractDSDimensions));
         }
         addSep.run();
         sb.append("dir:").append(dir);
