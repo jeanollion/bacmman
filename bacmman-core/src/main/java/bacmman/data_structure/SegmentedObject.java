@@ -920,13 +920,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     
     public RegionPopulation getChildRegionPopulation(int structureIdx) {
-        List<SegmentedObject> child = this.getDirectChildren(structureIdx);
-        if (child==null || child.isEmpty()) return new RegionPopulation(new ArrayList<>(0), this.getMaskProperties());
-        else {
-            ArrayList<Region> objects = new ArrayList<>(child.size());
-            for (SegmentedObject s : child) objects.add(s.getRegion());
-            return new RegionPopulation(objects, this.getMaskProperties());
-        }
+        Stream<SegmentedObject> children = this.getChildren(structureIdx);
+        if (children==null) children = Stream.empty();
+        return new RegionPopulation(children.map(SegmentedObject::getRegion).collect(Collectors.toList()), this.getMaskProperties());
     }
     public void setAttributeList(String key, List<Double> value) {
         if (this.attributes==null) attributes = new HashMap<>();

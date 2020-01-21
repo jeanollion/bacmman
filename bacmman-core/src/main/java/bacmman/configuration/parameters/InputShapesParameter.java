@@ -4,20 +4,24 @@ import java.util.Arrays;
 
 public class InputShapesParameter extends SimpleListParameter<ArrayNumberParameter> {
 
-    public InputShapesParameter(String name, int unMutableIndex) {
-        super(name, unMutableIndex, getInputShapeParameter());
+    public InputShapesParameter(String name, int unMutableIndex, boolean includeChannel) {
+        super(name, unMutableIndex, getInputShapeParameter(includeChannel));
         setAllowDeactivable(false);
     }
-    public static ArrayNumberParameter getInputShapeParameter() {
-        ArrayNumberParameter res = new ArrayNumberParameter("Input shape", 2, new BoundedNumberParameter("", 0, 0, 1, null))
-            .setMaxChildCount(4)
+    public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel) {
+        int max = includeChannel ? 4 : 3;
+        String yx = includeChannel ? "CYX" : "YX";
+        String zyx = includeChannel ? "CZYX" : "ZYX";
+        int[] defValues = includeChannel ? new int[]{2, 256, 32} : new int[]{256, 32};
+        ArrayNumberParameter res = new ArrayNumberParameter("Input shape", includeChannel?2:1, new BoundedNumberParameter("", 0, 0, 1, null))
+            .setMaxChildCount(max)
             .setNewInstanceNameFunction((l,i) -> {
-                if (l.getChildCount()<=3 && i<3) return "CYX".substring(i, i+1);
+                if (l.getChildCount()<=max-1 && i<max-1) return yx.substring(i, i+1);
                 else {
-                    if (i>3) i = 3;
-                    return "CZYX".substring(i, i+1);
+                    if (i>=max) i = max-1;
+                    return zyx.substring(i, i+1);
                 }
-            }).setValue(2, 256, 32).setAllowMoveChildren(false)
+            }).setValue(defValues).setAllowMoveChildren(false)
             .addValidationFunction(l -> Arrays.stream(l.getArrayInt()).allMatch(i->i>0));
         res.addListener(l -> l.resetName(null));
         return res;

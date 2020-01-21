@@ -35,6 +35,7 @@ import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.configurationIO.ConfigurationIO;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
+import bacmman.ui.gui.configurationIO.ExtractDataset;
 import bacmman.ui.gui.configurationIO.NewDatasetFromGithub;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
@@ -3673,7 +3674,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (SwingUtilities.isRightMouseButton(evt)) {
             JPopupMenu menu = new JPopupMenu();
             List<Task> sel = actionPoolList.getSelectedValuesList();
-            Action addCurrentTask = new AbstractAction("Add Current Task to Task List") {
+            Action addCurrentTask = new AbstractAction("Add Current Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     Task t = getCurrentTask(null);
@@ -3685,6 +3686,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             menu.add(addCurrentTask);
             addCurrentTask.setEnabled(db!=null);
+
+            Action addExtractDBTask = new AbstractAction("Add new dataset extraction Task to List") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    Task t = ExtractDataset.promptExtractDatasetTask(db, actionPoolList.getSelectedValue());
+                    if (t!=null) actionPoolListModel.addElement(t);
+                }
+            };
+            menu.add(addExtractDBTask);
+            addExtractDBTask.setEnabled(db!=null);
 
             if (db!=null && db.getExperiment()!=null) {
                 // task on a selection
@@ -4585,7 +4596,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JScrollPane actionJSP;
     private javax.swing.JPanel actionPanel;
     private javax.swing.JScrollPane actionPoolJSP;
-    private javax.swing.JList actionPoolList;
+    private javax.swing.JList<Task> actionPoolList;
     private javax.swing.JScrollPane actionPositionJSP;
     private javax.swing.JScrollPane actionStructureJSP;
     private javax.swing.JCheckBoxMenuItem activateLoggingMenuItem;
