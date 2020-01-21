@@ -37,6 +37,12 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
     public MutableBoundingBox(int x, int y, int z) {
         super(x, x, y, y, z, z);
     }
+
+    @Override
+    public MutableBoundingBox duplicate() {
+        return new MutableBoundingBox(this);
+    }
+
     public MutableBoundingBox(BoundingBox other) {
         super(other);
     }

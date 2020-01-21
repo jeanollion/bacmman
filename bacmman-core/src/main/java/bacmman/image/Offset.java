@@ -25,14 +25,15 @@ package bacmman.image;
  * @param <T>
  */
 public interface Offset<T extends Offset<T>> {
-    public int xMin();
-    public int yMin();
-    public int zMin();
-    public int getIntPosition(int dim);
-    public T resetOffset();
-    public T reverseOffset();
-    public T translate(Offset other);
-    public static boolean offsetNull(Offset offset) {
+    int xMin();
+    int yMin();
+    int zMin();
+    int getIntPosition(int dim);
+    Offset<T> resetOffset();
+    Offset<T> reverseOffset();
+    Offset<T> translate(Offset other);
+    static boolean offsetNull(Offset offset) {
         return offset.xMin()==0 && offset.yMin() == 0 && offset.zMin()==0;
     }
+    Offset<T> duplicate();
 }
