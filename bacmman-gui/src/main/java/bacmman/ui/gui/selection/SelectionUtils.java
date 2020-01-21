@@ -482,6 +482,24 @@ public class SelectionUtils {
         });
         menu.add(duplicate);
         if (selectedValues.size()!=1) duplicate.setEnabled(false);
+        JMenu setOC = new JMenu("Set Object Class");
+        String[] ocNames = GUI.getDBConnection().getExperiment().experimentStructure.getObjectClassesAsString();
+        for (int i = 0; i<ocNames.length; ++i) {
+            final int ocIdx = i;
+            JMenuItem oc = new JMenuItem(ocNames[i]);
+            setOC.add(oc);
+            oc.addActionListener((ActionEvent e) -> {
+                if (selectedValues.isEmpty()) return;
+                for (Selection s: selectedValues) {
+                    s.setObjectClassIdx(ocIdx);
+                    s.getMasterDAO().getSelectionDAO().store(s);
+                }
+                GUI.getInstance().populateSelections();
+                list.updateUI();
+            });
+        }
+
+        menu.add(setOC);
 
         JMenuItem clear = new JMenuItem("Clear");
         clear.addActionListener((ActionEvent e) -> {
