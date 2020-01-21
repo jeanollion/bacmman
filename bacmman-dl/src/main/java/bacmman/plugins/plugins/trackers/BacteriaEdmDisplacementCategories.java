@@ -26,7 +26,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3));
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
-    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
     //BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
     Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, growthRateRange};
 
@@ -50,7 +50,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         if (stores!=null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
-        int[] imageShape = new int[]{inputShape.getChildAt(2).getValue().intValue(), inputShape.getChildAt(1).getValue().intValue()};
+        int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
         Pair<Image[], int[][]> resampledImages = getResampledRawImages(objectClassIdx, parentTrack, imageShape);
         long t3= System.currentTimeMillis();
         logger.info("input resampled in {}ms", t3-t2);

@@ -22,7 +22,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 1 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
-    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setHint("Region with size (in pixels) inferior to this value will be erased");
 
     Parameter[] parameters = new Parameter[]{dlEngine, inputShape, splitThreshold, minimalProba, minimalSize};
@@ -59,7 +59,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
     private Image[] predict(Image... inputImages) {
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
-        int[] imageShape = new int[]{inputShape.getChildAt(2).getValue().intValue(), inputShape.getChildAt(1).getValue().intValue()};
+        int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
         Pair<Image[][], int[][]> input = getInput(inputImages, imageShape);
         Image[][][] predictions = engine.process(input.key);
         Image[] seg = ResizeUtils.getChannel(predictions[0], 0);

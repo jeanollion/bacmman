@@ -20,7 +20,7 @@ import java.util.stream.IntStream;
 
 public class DLFilter implements TrackPreFilter, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1].<br /Output: pre-filtered image>");
-    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter().setValue(1, 256, 32);
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
 
 
     @Override
@@ -41,7 +41,7 @@ public class DLFilter implements TrackPreFilter, Hint {
     private Image[] predict(Image... inputImages) {
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
-        int[] imageShape = new int[]{inputShape.getChildAt(2).getValue().intValue(), inputShape.getChildAt(1).getValue().intValue()};
+        int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
         Pair<Image[][], int[][]> input = getInput(inputImages, imageShape);
         Image[][][] predictions = engine.process(input.key);
         Image[] seg = ResizeUtils.getChannel(predictions[0], 0);
