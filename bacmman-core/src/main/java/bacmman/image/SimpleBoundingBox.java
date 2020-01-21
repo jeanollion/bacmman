@@ -48,7 +48,6 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
     public SimpleBoundingBox(BoundingBox other) {
         this(other.xMin(), other.xMax(), other.yMin(), other.yMax(), other.zMin(), other.zMax());
     }
-    
     @Override public int xMin() { return xMin; }
     @Override public int xMax() { return xMax; }
     @Override public int yMin() { return yMin; }
@@ -101,7 +100,7 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         return translate(-2*xMin, -2*yMin, -2*zMin);
     }
     
-    public T duplicate() {
+    @Override public T duplicate() {
         return (T)new MutableBoundingBox(xMin, xMax, yMin, yMax, zMin, zMax);
     }
     

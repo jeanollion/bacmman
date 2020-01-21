@@ -30,10 +30,17 @@ public class SimpleOffset implements Offset<SimpleOffset> {
         this.yMin = yMin;
         this.zMin = zMin;
     }
+
     public SimpleOffset(Offset other) {
         this(other.xMin(), other.yMin(), other.zMin());
     }
-    @Override 
+
+    @Override
+    public SimpleOffset duplicate() {
+        return new SimpleOffset(xMin, yMin, zMin);
+    }
+
+    @Override
     public int getIntPosition(int dim) {
         switch(dim) {
             case 0:

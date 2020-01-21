@@ -31,21 +31,23 @@ import java.util.stream.Stream;
  * @param <T>
  */
 public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
-    public int xMax();
-    public int yMax();
-    public int zMax();
-    public int sizeX();
-    public int sizeY();
-    public int sizeZ();
-    public double xMean();
-    public double yMean();
-    public double zMean();
-    public boolean contains(int x, int y, int z);
-    public boolean contains(Point point);
-    public boolean containsWithOffset(int x, int y, int z);
-    public boolean containsWithOffset(Point point);
-    public boolean sameBounds(BoundingBox other);
-    public boolean sameDimensions(BoundingBox other);
+    int xMax();
+    int yMax();
+    int zMax();
+    int sizeX();
+    int sizeY();
+    int sizeZ();
+    double xMean();
+    double yMean();
+    double zMean();
+    boolean contains(int x, int y, int z);
+    boolean contains(Point point);
+    boolean containsWithOffset(int x, int y, int z);
+    boolean containsWithOffset(Point point);
+    boolean sameBounds(BoundingBox other);
+    boolean sameDimensions(BoundingBox other);
+    @Override BoundingBox<T> duplicate();
+    @Override BoundingBox<T> translate(Offset other);
     Point getCenter();
     /**
      * 
