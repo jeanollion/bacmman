@@ -171,6 +171,12 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         this.mDAO=mDAO;
     }
     
+    public Selection setObjectClassIdx(int objectClassIdx) {
+        this.structureIdx = objectClassIdx;
+        if (retrievedElements!=null) retrievedElements.clear();
+        return this;
+    }
+
     public int getStructureIdx() {
         return structureIdx;
     }
