@@ -80,6 +80,7 @@ public class ConfigurationTreeGenerator {
     private final MasterDAO mDAO;
     private final ProgressCallback pcb;
     private boolean expertMode = true;
+    private boolean showRootHandle = true;
     public ConfigurationTreeGenerator(Experiment xp, ContainerParameter root, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
         if (xp==null) throw new IllegalArgumentException("Experiment cannot be null");
         if (root == null) throw new IllegalArgumentException("Root cannot be null");
@@ -90,6 +91,11 @@ public class ConfigurationTreeGenerator {
         this.pcb = pcb;
         this.setHint=setHint;
         this.setModules = setModules;
+    }
+    public ConfigurationTreeGenerator showRootHandle(boolean show) {
+        this.showRootHandle= show;
+        if (tree!=null) tree.setShowsRootHandles(show);
+        return this;
     }
     public void setExpertMode(boolean expertMode) {
         this.expertMode = expertMode;
@@ -211,7 +217,7 @@ public class ConfigurationTreeGenerator {
         ToolTipManager.sharedInstance().registerComponent(tree); // add tool tips to the tree
 
         treeModel.setJTree(tree);
-        tree.setShowsRootHandles(true);
+        tree.setShowsRootHandles(showRootHandle);
         tree.setRootVisible(!(rootParameter instanceof Experiment));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> { // compare tree

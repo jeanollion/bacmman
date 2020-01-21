@@ -42,7 +42,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     protected String[] selectedFiles=new String[0];
     boolean allowNoSelection = true;
     protected FileChooserOption option = FileChooserOption.DIRECTORIES_ONLY;
-    boolean relativePath = true;
+    boolean relativePath = true, mustExist=true;
     public FileChooser(String name, FileChooserOption option) {
         this(name, option, true);
     }
@@ -53,11 +53,16 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     public FileChooser setRelativePath(boolean relativePath) {
         if (this.relativePath==relativePath) return this;
+        if (selectedFiles==null || selectedFiles.length==0) return this;
         Path refPath = ParameterUtils.getExperiment(this).getPath();
         if (refPath==null) throw new RuntimeException("Cannot change relative state, no path detected");
         if (this.relativePath) selectedFiles = toAbsolutePath(refPath, selectedFiles);
         else selectedFiles = toRelativePath(refPath, selectedFiles);
         this.relativePath=relativePath;
+        return this;
+    }
+    public FileChooser mustExist(boolean mustExist) {
+        this.mustExist=mustExist;
         return this;
     }
     public String[] getSelectedFilePath() {
@@ -77,12 +82,14 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public void setSelectedFilePath(String... filePath) {
         if (filePath==null) selectedFiles = new String[0];
         else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).toArray(String[]::new);
-        Path refPath = getRefPath();
-        if (refPath!=null) {
-            for (int i = 0; i < selectedFiles.length; ++i) {
-                boolean abs = Paths.get(selectedFiles[i]).isAbsolute();
-                if (abs && this.relativePath) selectedFiles[i] = toRelativePath(refPath, selectedFiles[i]);
-                else if (!abs && !this.relativePath) selectedFiles[i] = toAbsolutePath(refPath, selectedFiles[i]);
+        if (relativePath) {
+            Path refPath = getRefPath();
+            if (refPath!=null) {
+                for (int i = 0; i < selectedFiles.length; ++i) {
+                    boolean abs = Paths.get(selectedFiles[i]).isAbsolute();
+                    if (abs && this.relativePath) selectedFiles[i] = toRelativePath(refPath, selectedFiles[i]);
+                    else if (!abs && !this.relativePath) selectedFiles[i] = toAbsolutePath(refPath, selectedFiles[i]);
+                }
             }
         }
         fireListeners();
@@ -97,7 +104,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public boolean isValid() {
         if (!super.isValid()) return false;
         if ((selectedFiles==null || selectedFiles.length==0) && !allowNoSelection) return false;
-        else if (selectedFiles!=null && selectedFiles.length>0) { // check that all files exist
+        else if (selectedFiles!=null && selectedFiles.length>0 && mustExist) { // check that all files exist
             if (relativePath) {
                 Path ref = getRefPath();
                 if (ref==null) return true;
@@ -106,8 +113,6 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         }
         return true;
     }
-
-
 
     @Override
     public boolean sameContent(Parameter other) {
