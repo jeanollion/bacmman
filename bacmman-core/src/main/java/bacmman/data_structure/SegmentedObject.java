@@ -297,6 +297,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
      * @return return all contained objects of {@param objectClassIdx}
      */
     public Stream<SegmentedObject> getChildren(int structureIdx) {
+        return getChildren(structureIdx, false);
+    }
+
+    public Stream<SegmentedObject> getChildren(int structureIdx, boolean strictIntersection) {
         //if (structureIdx<this.structureIdx) throw new IllegalArgumentException("Structure: "+structureIdx+" cannot be child of structure: "+this.structureIdx);
         if (structureIdx == this.structureIdx) return Stream.of(this);
         if (structureIdx<0) return Stream.of(getRoot());
@@ -313,7 +317,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                     SegmentedObject commonParent = this.getParent(commonParentIdx);
                     Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx);
                     if (candidates==null) return null;
-                    return candidates.filter(c -> is2D() ? BoundingBox.intersect2D(c.getBounds(), this.getBounds()) : BoundingBox.intersect(c.getBounds(), this.getBounds()));
+                    if (strictIntersection) {
+                        return candidates.filter(c -> is2D() ? BoundingBox.isIncluded2D(c.getBounds(), this.getBounds()) : BoundingBox.isIncluded(c.getBounds(), this.getBounds()));
+                    } else return candidates.filter(c -> is2D() ? BoundingBox.intersect2D(c.getBounds(), this.getBounds()) : BoundingBox.intersect(c.getBounds(), this.getBounds()));
                 } else { // direct children
                     Stream<SegmentedObject> currentChildren = getChildren(path[0]);
                     //logger.debug("getAllObjects: current structure {} current number of objects: {}", pathToStructure[0], currentChildren.size());
@@ -920,7 +926,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     
     public RegionPopulation getChildRegionPopulation(int structureIdx) {
-        Stream<SegmentedObject> children = this.getChildren(structureIdx);
+        Stream<SegmentedObject> children = this.getChildren(structureIdx, true);
         if (children==null) children = Stream.empty();
         return new RegionPopulation(children.map(SegmentedObject::getRegion).collect(Collectors.toList()), this.getMaskProperties());
     }
