@@ -6,6 +6,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.TextParameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPreFilter;
 import bacmman.py_dataset.PyDatasetReader;
@@ -17,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public class ImportH5File implements TrackPreFilter {
+public class ImportH5File implements TrackPreFilter, DevPlugin {
     public final FileChooser h5File = new FileChooser("Input images", FileChooser.FileChooserOption.FILE_ONLY).setEmphasized(true);// todo add relative path option in FileChooser parameter
     public final  TextParameter datasetName = new TextParameter("Dataset name", "edm", true, false).setEmphasized(true);
     public final  TextParameter groupName = new TextParameter("Group name", "", true, true).setEmphasized(true);

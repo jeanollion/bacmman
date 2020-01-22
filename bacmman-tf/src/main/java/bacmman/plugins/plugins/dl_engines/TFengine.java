@@ -18,8 +18,8 @@ public class TFengine implements DLengine {
     Logger logger = LoggerFactory.getLogger(DLengine.class);
     FileChooser modelFile = new FileChooser("Tensorflow graph file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
-    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1);
-    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1);
+    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue())));
+    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue())));
     String[] inputNames, outputNames;
     Graph graph;
     Session session;
@@ -36,8 +36,8 @@ public class TFengine implements DLengine {
     @Override
     public TFengine setOutputNumber(int outputNumber) {
         if (outputNumber<1) throw new IllegalArgumentException("Invalid output number:"+outputNumber);
-        boolean oneOutput = getNumOutputArrays()==1;
         outputs.setChildrenNumber(outputNumber);
+        boolean oneOutput = getNumOutputArrays()==1;
         if (!oneOutput) { // modify the output name by adding a the index
             String name = outputs.getChildAt(0).getValue();
             if (name.endsWith("0")) name = name.substring(0, name.length()-1);
