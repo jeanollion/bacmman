@@ -188,12 +188,12 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
             //Parameter.logger.debug("instantiating plugin: type {}, name {} instance==null? {} current parameters {}", pluginType, pluginName, instance==null, pluginParameters.size());
             if (instance==null) return null;
+            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             Parameter[] params = instance.getParameters();
             if (params !=null) {
                 ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
                 for (Parameter p : params) p.setParent(this);
             }
-            if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             return instance;
         };
         if (DLengine.class.isAssignableFrom(this.getPluginType())) { // shared instance of DL engine in order to avoid re-loading the model each time
