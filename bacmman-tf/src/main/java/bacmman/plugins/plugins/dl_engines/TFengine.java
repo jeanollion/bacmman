@@ -48,8 +48,8 @@ public class TFengine implements DLengine {
     @Override
     public TFengine setInputNumber(int inputNumber) {
         if (inputNumber<1) throw new IllegalArgumentException("Invalid input number:"+inputNumber);
-        boolean oneInput = getNumInputArrays()==1;
         inputs.setChildrenNumber(inputNumber);
+        boolean oneInput = getNumInputArrays()==1;
         if (!oneInput) { // modify the input name by adding a the index
             String name = inputs.getChildAt(0).getValue();
             if (name.endsWith("0")) name = name.substring(0, name.length()-1);
