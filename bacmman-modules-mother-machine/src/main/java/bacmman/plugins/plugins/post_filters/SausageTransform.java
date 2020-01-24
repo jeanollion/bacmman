@@ -47,6 +47,7 @@ public class SausageTransform implements PostFilter, Hint {
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         MultipleException me = new MultipleException();
         List<Region> error = new ArrayList<>();
+        childPopulation.ensureEditableRegions();
         childPopulation.getRegions().forEach(r -> {
             try {
                 transform(r, parent.getBounds());

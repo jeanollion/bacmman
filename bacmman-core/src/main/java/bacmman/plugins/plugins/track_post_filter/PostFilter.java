@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
+import bacmman.image.Offset;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
 
@@ -31,6 +32,7 @@ import java.util.*;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPostFilter;
+import bacmman.processing.matching.MaxOverlapMatcher;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
@@ -40,6 +42,7 @@ import static bacmman.utils.Utils.parallele;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  *
@@ -110,30 +113,75 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
         Set<SegmentedObject> objectsToRemove = new HashSet<>();
         Consumer<SegmentedObject> exe = p -> {
             SegmentedObject parent = p;
+            Stream<SegmentedObject> childrenS = parent.getChildren(structureIdx);
+            if (childrenS==null) return;
             RegionPopulation pop = parent.getChildRegionPopulation(structureIdx);
-            //logger.debug("seg post-filter: {}", parent);
-            if (!rootParent) pop.translate(new SimpleBoundingBox(parent.getBounds()).reverseOffset(), false); // go back to relative landmark for post-filter
-            //if(parent.getFrame()==858) postFilters.set
+            List<SegmentedObject> children = childrenS.collect(Collectors.toList());
+            if (!rootParent) {
+                pop.translate(parent.getBounds().duplicate().reverseOffset(), false); // go back to relative landmark for post-filter
+            }
             bacmman.plugins.PostFilter instance = filter.instantiatePlugin();
             if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
             pop=instance.runPostFilter(parent, structureIdx, pop);
+            if (!rootParent) {
+                Offset off = parent.getBounds();
+                pop.translate(off, true); // go back to absolute landmark
+                // also translate old regions only if there were not translated back (i.e. new regions were created by post filter)
+                children.stream().map(SegmentedObject::getRegion).filter(r->!r.isAbsoluteLandMark()).forEach(r -> {
+                    r.translate(off);
+                    r.setIsAbsoluteLandmark(true);
+                });
+            }
             List<SegmentedObject> toRemove=null;
-            if (parent.getChildren(structureIdx)!=null) {
-                List<SegmentedObject> children = parent.getChildren(structureIdx).collect(Collectors.toList());;
-                if (pop.getRegions().size()==children.size()) { // map each object by index
-                    for (int i = 0; i<pop.getRegions().size(); ++i) {
-                        factory.setRegion(children.get(i), pop.getRegions().get(i));
-                    }
-                } else { // map object by region hashcode -> preFilter should not create new region, but only delete or modify. TODO: use matching algorithm to solve creation case
-                    for (SegmentedObject o : children) {
-                        if (!pop.getRegions().contains(o.getRegion())) {
-                            if (toRemove==null) toRemove= new ArrayList<>();
-                            toRemove.add(o);
-                        } 
+            // first map regions with segmented object by hashcode
+            List<Region> newRegions = pop.getRegions();
+            int idx = 0;
+            while (idx<children.size()) {
+                SegmentedObject c = children.get(idx);
+                // look for a region with same hashcode:
+                int nIdx = newRegions.indexOf(c.getRegion());
+                if (nIdx>=0) {
+                    children.remove(idx);
+                    newRegions.remove(nIdx);
+                } else ++idx; // no matching region
+            }
+            /*if (pop.getRegions().size()==children.size()) { // map each object by index
+                for (int i = 0; i<pop.getRegions().size(); ++i) {
+                    factory.setRegion(children.get(i), pop.getRegions().get(i));
+                }
+            }*/
+            // then if there are unmapped objects -> map by overlap
+            if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
+                MaxOverlapMatcher<Region> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.regionOverlap(null, null));
+                Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> oldMaxOverlap = new HashMap<>();
+                Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> newMaxOverlap = new HashMap<>();
+                List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                matcher.match(oldR, pop.getRegions(), oldMaxOverlap, newMaxOverlap);
+                for (SegmentedObject o : children) {
+                    MaxOverlapMatcher<Region>.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
+                    if (maxNew==null) {
+                        if (toRemove==null) toRemove= new ArrayList<>();
+                        toRemove.add(o);
+                    } else {
+                        factory.setRegion(o, maxNew.o2);
                     }
                 }
-            }
-            if (!rootParent) pop.translate(parent.getBounds(), true); // go back to absolute landmark
+                if (!oldMaxOverlap.isEmpty()) { // creation of new segmented objects
+                    throw new RuntimeException("Object creation not supported");
+                }
+                /*for (SegmentedObject o : children) {
+                    int idx = pop.getRegions().indexOf(o.getRegion());
+                    if (idx<0) {
+                        if (toRemove==null) toRemove= new ArrayList<>();
+                        toRemove.add(o);
+                    } else {
+                        factory.setRegion(o, pop.getRegions().get(idx));
+                    }
+                }*/
+            } else if (!children.isEmpty()) {
+                toRemove=children;
+            } else if (!newRegions.isEmpty()) throw new RuntimeException("Object creation not supported (2)");
+
             if (toRemove!=null) {
                 synchronized(objectsToRemove) {
                     objectsToRemove.addAll(toRemove);
@@ -145,7 +193,8 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
         try {
             ThreadRunner.executeAndThrowErrors(parallele(parentTrack.stream(), true), exe);
         } catch (MultipleException me) {
-            for (Pair<String, Throwable> p : me.getExceptions()) logger.debug(p.key, p.value);
+            throw me;
+            //for (Pair<String, Throwable> p : me.getExceptions()) logger.debug(p.key, p.value);
         }
         if (!objectsToRemove.isEmpty()) { 
             //logger.debug("delete method: {}, objects to delete: {}", this.deleteMethod.getSelectedItem(), objectsToRemove.size());

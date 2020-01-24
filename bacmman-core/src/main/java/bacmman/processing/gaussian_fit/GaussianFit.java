@@ -54,7 +54,7 @@ public class GaussianFit {
      * I(xᵢ) = A * exp (- 1/(2*σ²) * ∑ (xᵢ - x₀ᵢ)² ) + C
      * σ = standard deviation of gaussian
      * x₀ᵢ = coordinate of spot center
-     * N = amplitude (number of photons in spot)
+     * A = amplitude (number of photons in spot)
      * C = background level
      * @param image image on which peaks should be fitted
      * @param peaks center of spots, will be used as starting point for x₀ᵢ . Coordinates are in the local landmark of {@param image}
@@ -101,6 +101,39 @@ public class GaussianFit {
         if (!fitConstant) ImageOperations.addValue(image, min, image);
         BoundingBox bounds = new SimpleBoundingBox(image).resetOffset();
         results.entrySet().removeIf(e -> !bounds.contains(e.getKey()));
+        return results;
+    }
+
+    /**
+     * Fits only A and C on {@param image}
+     * @param image
+     * @param fittedPeaks fitted points. result of call to {@link #run(Image, List, double, double, int, double, double)}, on the centers of {@param peaks}
+     * @param maxIter
+     * @param lambda
+     * @param termEpsilon
+     * @return
+     */
+    public static Map<Point, double[]> fitIntensity(Image image, Map<Point, double[]> fittedPeaks, int maxIter, double lambda, double termEpsilon ) {
+        boolean is3D = image.sizeZ()>1;
+        Img img = ImgLib2ImageWrapper.getImage(image);
+        int nDims = is3D?3:2;
+        double typicalSigma = fittedPeaks.values().stream().mapToDouble(d -> d[d.length-2]).max().getAsDouble();
+        for (Entry<Point, double[]> e : fittedPeaks.entrySet()) {
+            e.getValue()[nDims+1] = 1 / (2 * Math.pow(e.getValue()[nDims+1], 2)); // compute b from sigma
+        }
+        StartPointEstimator estimator = new MLGaussianPlusConstantIntensityEstimator(typicalSigma, nDims, fittedPeaks);
+        FitFunction fitFunction = new GaussianPlusConstantIntensity();
+
+        List<Point> peaks = new ArrayList<>(fittedPeaks.keySet());
+        LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter, lambda, termEpsilon);
+        PeakFitter fitter = new PeakFitter(img, peaks, solver, fitFunction, estimator);
+        fitter.setNumThreads(1);
+        if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
+
+        Map<Point, double[]> results = fitter.getResult();
+        for (Entry<Point, double[]> e : results.entrySet()) {
+            e.getValue()[nDims+1] = 1 / Math.sqrt(2 * e.getValue()[nDims+1]); // compute sigma from parameters
+        }
         return results;
     }
 

@@ -84,9 +84,13 @@ public class RegionContainerVoxels extends RegionContainer {
     }
     @Override
     public Region getRegion() {
-        return new Region(getVoxels(), structureObject.getIdx() + 1, bounds, is2D, structureObject.getScaleXY(), structureObject.getScaleZ());
+        return new Region(getVoxels(), segmentedObject.getIdx() + 1, bounds, is2D, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
     }
-    
+    @Override
+    public void update() {
+        super.update();
+        createCoordsArrays(segmentedObject.getRegion());
+    }
     @Override 
     public JSONObject toJSON() {
         JSONObject res = super.toJSON();

@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.post_filters;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Spot;
 import bacmman.plugins.PostFilter;
 import bacmman.plugins.Hint;
 
@@ -38,6 +39,9 @@ public class FillHoles2D implements PostFilter, Hint {
     public FillHoles2D() {}
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
+        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Spot)) { // do nothing
+            return childPopulation;
+        }
         bacmman.processing.FillHoles2D.fillHoles(childPopulation);
         return childPopulation;
     }

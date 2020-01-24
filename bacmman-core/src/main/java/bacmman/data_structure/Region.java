@@ -79,6 +79,7 @@ public class Region {
     protected double quality=Double.NaN;
     protected Point center;
     protected boolean is2D;
+    boolean regionModified;
     /**
      * @param mask : image containing only the object, and whose bounding box is the same as the one of the object
      * @param label
@@ -97,7 +98,7 @@ public class Region {
         this.voxels = voxels;
         this.label=label;
         this.scaleXY=scaleXY;
-        this.scaleZ=scaleXY;
+        this.scaleZ=scaleZ;
         this.is2D=is2D;
     }
     public Region(final Voxel voxel, int label, boolean is2D, double scaleXY, double scaleZ) {
@@ -113,7 +114,9 @@ public class Region {
         this.absoluteLandmark = absoluteLandmark;
         return this;
     }
-    
+    public boolean hasModifications() {
+        return regionModified;
+    }
     public boolean isAbsoluteLandMark() {
         return absoluteLandmark;
     }
@@ -121,11 +124,15 @@ public class Region {
         return is2D;
     }
     public Region setIs2D(boolean is2D) {
-        this.is2D=is2D;
+        if (this.is2D!=is2D) {
+            regionModified=true;
+            this.is2D=is2D;
+        }
         return this;
     }
     public Region setQuality(double quality) {
         this.quality=quality;
+        regionModified=true;
         return this;
     }
     public double getQuality() {
@@ -171,6 +178,7 @@ public class Region {
 
     public Region setCenter(Point center) {
         this.center=center;
+        regionModified=true;
         return this;
     }
     
@@ -271,11 +279,13 @@ public class Region {
             }
         }
         this.bounds=null;
+        regionModified=true;
     }
     public synchronized void remove(Region r) {
         if (this.mask!=null && r.mask!=null) andNot(r.mask);
         else if (this.voxels!=null && r.voxels!=null) removeVoxels(r.voxels);
         else andNot(r.getMask());
+        regionModified=true;
     }
     public synchronized void removeVoxels(Collection<Voxel> voxelsToRemove) {
         if (voxels!=null) voxels.removeAll(voxelsToRemove);
@@ -285,6 +295,7 @@ public class Region {
             for (Voxel v : voxelsToRemove) mask.setPixelWithOffset(v.x, v.y, v.z, 0);
         }
         this.bounds=null;
+        regionModified=true;
     }
     public synchronized void andNot(ImageMask otherMask) {
         getMask();
@@ -297,6 +308,7 @@ public class Region {
             }
         };
         BoundingBox.loop(BoundingBox.getIntersection(otherMask, getBounds()), function);
+        regionModified=true;
     }
     public synchronized void and(ImageMask otherMask) {
         getMask();
@@ -310,6 +322,7 @@ public class Region {
             }
         };
         BoundingBox.loop(BoundingBox.getIntersection(otherMask, getBounds()), function);
+        regionModified=true;
     }
     public boolean contains(Voxel v) {
         if (voxels!=null) return voxels.contains(v);
@@ -533,6 +546,7 @@ public class Region {
                 for (Region toErase : objects) toErase.draw(mask, 0);
             }
             voxels = null; // reset voxels
+            regionModified=true;
         }
         return changes;
     }
@@ -575,6 +589,7 @@ public class Region {
                 for (Region toErase : objects) toErase.draw(mask, 0);
             }
             voxels = null; // reset voxels
+            regionModified=true;
         }
         return changes;
     }
@@ -627,6 +642,7 @@ public class Region {
         }
         bounds = null; // reset boudns
         this.mask=null; // reset voxels
+        regionModified=true;
     }
     
     protected void createBoundsFromVoxels() {
@@ -652,6 +668,7 @@ public class Region {
             this.mask= mask;
             this.bounds=null;
             this.voxels=null;
+            regionModified=true;
         }
     }
     
@@ -754,6 +771,7 @@ public class Region {
         //logger.debug("merge:  {} + {}, nb voxel avant: {}, nb voxels après: {}", this.getLabel(), other.getLabel(), nb,getVoxels().size() );
         this.mask=null; // reset mask
         this.bounds=null; // reset bounds
+        regionModified=true;
     }
     public static Region merge(Region... regions) {
         return merge(Arrays.asList(regions));
@@ -798,6 +816,7 @@ public class Region {
             else for (Voxel v : getVoxels()) image.setPixel(v.x, v.y, v.z, value);
         }
         else {
+            if (mask == null) throw new RuntimeException("Both voxels and mask are null: cannot draw region of class: "+getClass());
             //logger.trace("drawing from IMAGE of object: {} with label: {} on image: {} mask offsetX: {} mask offsetY: {} mask offsetZ: {}", this, label, mask, mask.getOffsetX(), mask.getOffsetY(), mask.getOffsetZ());
             if (isAbsoluteLandMark()) ImageMask.loopWithOffset(mask, (x, y, z)-> { image.setPixelWithOffset(x, y, z, value); });
             else ImageMask.loopWithOffset(mask, (x, y, z)-> { image.setPixel(x, y, z, value); });
@@ -894,6 +913,7 @@ public class Region {
                 this.voxels = new HashSet<>(voxels); // hash of voxel changed
             }
             if (center!=null) center.translate(offset);
+            regionModified=true;
         }
         return this;
     }

@@ -134,6 +134,18 @@ public class RegionPopulation {
         return objects.get(0).isAbsoluteLandMark();
     }
 
+    public RegionPopulation ensureEditableRegions() {
+        if (objects==null) return this;
+        for (int i = 0; i<objects.size(); ++i) {
+            if (objects.get(i) instanceof Spot) {
+                Spot s = (Spot)objects.get(i);
+                if (s.voxelsCreated()) objects.set(i, new Region(s.getVoxels(), s.label, s.is2D, s.scaleXY, s.scaleZ));
+                else objects.set(i, new Region(s.getMask(), s.label, s.is2D));
+            }
+        }
+        return this;
+    }
+
     public RegionPopulation addObjects(boolean updateLabelImage, Region... objects) {
         return addObjects(Arrays.asList(objects), updateLabelImage);
     }
@@ -243,7 +255,11 @@ public class RegionPopulation {
         for (Region o : getRegions()) o.label = idx++;
         redrawLabelMap(fillImage);
     }
-
+    public void clearLabelMap() {
+        if (labelImage==null) return;
+        if (objects==null) this.getRegions();
+        labelImage = null;
+    }
     public void redrawLabelMap(boolean fillImage) {
         if (hasImage()) {
             int maxLabel = getRegions().isEmpty() ? 0 : Collections.max(getRegions(), Comparator.comparingInt(Region::getLabel)).getLabel();
@@ -803,8 +819,8 @@ public class RegionPopulation {
         @Override
         public boolean keepObject(Region object) {
             double testValue = feature.performMeasurement(object);
+            logger.debug("FeatureFilter: {}, object: {}, testValue: {}, threshold: {}", feature.getClass().getSimpleName(), object.getLabel(), testValue, threshold);
             if (Double.isNaN(testValue)) return true;
-            //logger.debug("FeatureFilter: {}, object: {}, testValue: {}, threshold: {}", feature.getClass().getSimpleName(), object.getLabel(), testValue, threshold);
             if (keepOverThreshold) {
                 if (strict) return testValue>threshold;
                 else return testValue>=threshold;

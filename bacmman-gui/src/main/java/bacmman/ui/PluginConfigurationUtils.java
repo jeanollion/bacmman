@@ -37,9 +37,8 @@ import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImag
 
 import bacmman.image.Image;
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
+
 import java.awt.event.ActionEvent;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -47,7 +46,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
-import bacmman.utils.HashMapGetCreate;
 
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -285,13 +283,24 @@ public class PluginConfigurationUtils {
         return storeList;
     }
     public static void publishError(Throwable t) {
+        if (t instanceof MultipleException) {
+            GUI.log(t.toString());
+            logger.error(t.toString());
+            ((MultipleException)t).getExceptions().forEach(p -> {
+                GUI.log("Error @"+p.key+": "+p.value.toString());
+                logger.debug("Error @ {}", p.key);
+                publishError(p.value);
+            });
+        }
         GUI.log(t.toString());
+        logger.error("Error occured while testing:", t);
         Arrays.stream(t.getStackTrace())
-                .map(st -> st.toString())
+                .map(StackTraceElement::toString)
                 .filter(Task::printStackTraceElement)
                 .forEachOrdered(GUI::log);
         if (t.getCause()!=null && !t.getCause().equals(t)) {
-            GUI.log("caused By");
+            GUI.log("caused by");
+            logger.error("caused by");
             publishError(t.getCause());
         }
     }

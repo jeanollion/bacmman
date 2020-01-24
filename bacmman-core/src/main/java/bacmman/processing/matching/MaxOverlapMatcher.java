@@ -2,14 +2,14 @@ package bacmman.processing.matching;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.BoundingBox;
+import bacmman.image.Offset;
 import org.jetbrains.annotations.NotNull;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
 import java.util.*;
-import java.util.function.Predicate;
-import java.util.function.ToDoubleBiFunction;
-import java.util.function.ToDoubleFunction;
+import java.util.function.*;
 
 public class MaxOverlapMatcher<O> {
     final ToDoubleBiFunction<O, O> intersectionFunction;
@@ -24,9 +24,16 @@ public class MaxOverlapMatcher<O> {
     public static ToDoubleBiFunction<SegmentedObject, SegmentedObject> segmentedObjectOverlap() {
         return (g, s) -> g.getRegion().getOverlapArea(s.getRegion());
     }
-    public static ToDoubleBiFunction<Region, Region> regionOverlap() {
-        return (g, s) -> g.getOverlapArea(s);
+
+    public static ToDoubleBiFunction<Region, Region> regionOverlap(Offset gOff, Offset sOff) {
+        return (g, s) -> g.getOverlapArea(s, gOff, sOff);
     }
+    public static ToDoubleBiFunction<Region, Region> regionBBOverlap(Offset gOff, Offset sOff) {
+        BiFunction<Region, Offset, BoundingBox> getBB = (r, o) -> o==null ? r.getBounds() : r.getBounds().duplicate().translate(o);
+        return (g, s) -> g.is2D() ? BoundingBox.getIntersection2D(getBB.apply(g, gOff), getBB.apply(s, sOff)).getSizeXY() :
+                BoundingBox.getIntersection(getBB.apply(g, gOff), getBB.apply(s, sOff)).getSizeXYZ();
+    }
+
     public static void filterLowOverlapSegmentedObject(MaxOverlapMatcher<SegmentedObject> matcher, double minJaccardIndex) {
         matcher.addFilter( o -> o.jaccardIndex(ob -> ob.getRegion().size())>minJaccardIndex);
     }
@@ -105,8 +112,8 @@ public class MaxOverlapMatcher<O> {
     }
 
     public class Overlap<O> implements Comparable<Overlap<O>> {
-        double overlap;
-        O o1, o2;
+        public final double overlap;
+        public final O o1, o2;
         public Overlap(O o1, O o2, double overlap) {
             this.overlap=overlap;
             this.o1=o1;

@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Spot;
 import bacmman.image.ImageInteger;
 import bacmman.image.TypeConverter;
 import bacmman.processing.BinaryMorphoEDT;
@@ -46,8 +47,12 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
     
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
+        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Spot)) { // do nothing
+            return childPopulation;
+        }
         boolean edt = scale.getScaleXY()>=8;
         Neighborhood n = edt?null: Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parent.getMask());
+        childPopulation.ensureEditableRegions();
         for (Region o : childPopulation.getRegions()) {
             ImageInteger closed = edt? TypeConverter.toImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parallele), null)
                     : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallele);

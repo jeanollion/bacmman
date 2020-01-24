@@ -5,13 +5,11 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Spot;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.geom.Point;
-import org.json.JSONArray;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Map;
 
 public class RegionContainerSpot extends RegionContainer {
     public final static Logger logger = LoggerFactory.getLogger(RegionContainerSpot.class);
@@ -25,10 +23,10 @@ public class RegionContainerSpot extends RegionContainer {
 
     @Override
     public Region getRegion() {
-        return new Spot(new Point(JSONUtils.fromFloatArray((List)structureObject.getAttribute("Center"))),
-                ((Number)structureObject.getAttribute("Radius", Double.valueOf(1d))).doubleValue(),
-                ((Number)structureObject.getAttribute("Intensity", Double.valueOf(0d))).doubleValue(),
-                structureObject.getIdx() + 1, is2D, structureObject.getScaleXY(), structureObject.getScaleZ());
+        return new Spot(new Point(JSONUtils.fromFloatArray((List) segmentedObject.getAttribute("Center"))),
+                ((Number) segmentedObject.getAttribute("Radius", Double.valueOf(1d))).doubleValue(),
+                ((Number) segmentedObject.getAttribute("Intensity", Double.valueOf(0d))).doubleValue(),
+                segmentedObject.getIdx() + 1, is2D, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
     }
 
     @Override
