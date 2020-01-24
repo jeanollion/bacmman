@@ -39,7 +39,7 @@ public class RegionContainerBlankMask extends RegionContainer {
     
     @Override
     public Region getRegion() {
-        return new Region(getImage(), structureObject.getIdx()+1, is2D);
+        return new Region(getImage(), segmentedObject.getIdx()+1, is2D);
     }
 
     protected RegionContainerBlankMask() {}

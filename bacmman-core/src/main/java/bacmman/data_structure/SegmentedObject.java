@@ -301,7 +301,6 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
 
     public Stream<SegmentedObject> getChildren(int structureIdx, boolean strictIntersection) {
-        //if (structureIdx<this.structureIdx) throw new IllegalArgumentException("Structure: "+structureIdx+" cannot be child of structure: "+this.structureIdx);
         if (structureIdx == this.structureIdx) return Stream.of(this);
         if (structureIdx<0) return Stream.of(getRoot());
         List<SegmentedObject> res= this.childrenSM.get(structureIdx);
@@ -315,17 +314,17 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                 if (path.length == 0) { // structure is not (indirect) child of current structure -> get included objects from first common parent
                     int commonParentIdx = getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(this.structureIdx, structureIdx);
                     SegmentedObject commonParent = this.getParent(commonParentIdx);
-                    Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx);
+                    Stream<SegmentedObject> candidates = commonParent.getChildren(structureIdx, strictIntersection);
                     if (candidates==null) return null;
                     if (strictIntersection) {
                         return candidates.filter(c -> is2D() ? BoundingBox.isIncluded2D(c.getBounds(), this.getBounds()) : BoundingBox.isIncluded(c.getBounds(), this.getBounds()));
                     } else return candidates.filter(c -> is2D() ? BoundingBox.intersect2D(c.getBounds(), this.getBounds()) : BoundingBox.intersect(c.getBounds(), this.getBounds()));
                 } else { // direct children
-                    Stream<SegmentedObject> currentChildren = getChildren(path[0]);
-                    //logger.debug("getAllObjects: current structure {} current number of objects: {}", pathToStructure[0], currentChildren.size());
+                    Stream<SegmentedObject> currentChildren = getChildren(path[0], strictIntersection);
+                    if (currentChildren==null) return null;
                     for (int i = 1; i<path.length; ++i) {
                         int ii = i;
-                        currentChildren = currentChildren.flatMap(p->p.getChildren(path[ii]));
+                        currentChildren = currentChildren.flatMap(p->p.getChildren(path[ii], strictIntersection));
                         //logger.debug("getAllObjects: current structure {} current number of objects: {}", pathToStructure[i], currentChildren.size());
                     }
                     return currentChildren;
@@ -585,7 +584,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     
     SegmentedObject setTrackHead(SegmentedObject trackHead, boolean resetPreviousIfTrackHead, boolean propagateToNextObjects, Collection<SegmentedObject> modifiedObjects) {
-        if (resetPreviousIfTrackHead && this==trackHead && previous!=null && previous.next==this) {
+        if (trackHead==null) trackHead=this;
+        if (resetPreviousIfTrackHead && this.equals(trackHead) && previous!=null && previous.next==this) {
             previous.setNext(null);
             if (modifiedObjects!=null) modifiedObjects.add(previous);
         }
@@ -687,6 +687,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             synchronized(this) {
                 if (region ==null) {
                     region =regionContainer.getRegion().setIsAbsoluteLandmark(true);
+                    //logger.debug("Region: {} attributes: {}", this, attributes);
                     if (attributes!=null) {
                         if (attributes.containsKey("Quality")) region.setQuality((Double)attributes.get("Quality"));
                         if (!(region instanceof Spot) && attributes.containsKey("Center")) region.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
@@ -732,7 +733,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (region==null && regionContainer!=null) return regionContainer.getBounds();
         return getRegion().getBounds();
     }
-    protected void createRegionContainer() {this.regionContainer= region.createRegionContainer(this);}
+    protected void createRegionContainer() {
+        this.regionContainer= region.createRegionContainer(this);
+        region.regionModified=false;
+    }
     boolean hasRegionContainer() {
         return regionContainer!=null;
     }
@@ -741,12 +745,16 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         return regionContainer;
     }
     void updateRegionContainer(){
-        //logger.debug("updating object for: {}, container null? {}, was modified? {}, flag: {}", this,objectContainer==null, objectModified, flag);
         if (regionContainer==null) {
+            if (region.regionModified) setRegionAttributesToAttributes();
             createRegionContainer();
+        } else {
+            if (region.regionModified) {
+                setRegionAttributesToAttributes();
+                regionContainer.update();
+                region.regionModified=false;
+            }
         }
-        //logger.debug("updating object container: {} of object: {}", objectContainer.getClass(), this );
-        
     }
     void setRawImage(int structureIdx, Image image) {
         int channelIdx = getExperiment().getChannelImageIdx(structureIdx);

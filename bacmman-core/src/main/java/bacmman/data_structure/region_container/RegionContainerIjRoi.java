@@ -21,7 +21,7 @@ package bacmman.data_structure.region_container;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.region_container.roi.Roi3D;
-import bacmman.image.BlankMask;
+import bacmman.image.*;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.Roi;
@@ -31,13 +31,7 @@ import ij.process.ImageProcessor;
 import bacmman.image.wrappers.IJImageWrapper;
 
 import static bacmman.image.Image.logger;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
-import bacmman.image.Offset;
-import bacmman.image.SimpleImageProperties;
-import bacmman.image.SimpleOffset;
-import bacmman.image.TypeConverter;
+
 import ij.plugin.filter.ThresholdToSelection;
 import java.awt.Rectangle;
 import java.util.*;
@@ -63,6 +57,7 @@ public class RegionContainerIjRoi extends RegionContainer {
         roi = createRoi(object.getMask(), object.getBounds(), object.is2D());
     }
     private void encodeRoi() {
+        if (roi==null) createRoi(segmentedObject.getRegion());
         roiZ = new ArrayList<>(roi.size());
         roi.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey))
                 .forEach(e->roiZ.add(RoiEncoder.saveAsByteArray(e.getValue())));
@@ -104,13 +99,19 @@ public class RegionContainerIjRoi extends RegionContainer {
         });
         ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
         //logger.debug("creating object for: {}, scale: {}", structureObject, structureObject.getScaleXY());
-        res.setCalibration(new SimpleImageProperties(bounds, structureObject.getScaleXY(), structureObject.getScaleZ())).translate(bounds);
+        res.setCalibration(new SimpleImageProperties(bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ())).translate(bounds);
         return res;
+    }
+    @Override
+    public void update() {
+        super.update();
+        createRoi(segmentedObject.getRegion());
+        roiZ = null;
     }
 
     @Override
     public Region getRegion() {
-        return new Region(getMask(), structureObject.getIdx() + 1, is2D);
+        return new Region(getMask(), segmentedObject.getIdx() + 1, is2D);
     }
 
     @Override

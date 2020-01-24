@@ -28,15 +28,27 @@ public class Spot extends Region {
         this.radiusSq = radius * radius;
         this.intensity = intensity;
     }
-    private static BoundingBox getBounds(Point center, double radius, boolean is2D) {
-        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius)), (int)Math.ceil(center.get(2)+(is2D?0:radius)));
-    }
+
     @Override
     public Spot setIs2D(boolean is2D) {
-        if (is2D!=this.is2D) bounds=getBounds(center, radius, is2D);
-        this.is2D = is2D;
+        if (is2D!=this.is2D) {
+            bounds=getBounds(center, radius, is2D);
+            this.is2D = is2D;
+            regionModified=true;
+        }
         return this;
     }
+
+    public Spot setRadius(double radius) {
+        this.clearVoxels();
+        this.clearMask();
+        this.bounds = null;
+        this.radius=radius;
+        this.radiusSq = radius * radius;
+        regionModified=true;
+        return this;
+    }
+
     public double getRadius() {
         return radius;
     }
@@ -47,15 +59,17 @@ public class Spot extends Region {
 
     @Override
     protected void createVoxels() {
-        voxels = new HashSet<>();
+        HashSet<Voxel> voxels_ = new HashSet<>();
         if (getRadius()<1) {
-            voxels.add(center.asVoxel());
+            voxels_.add(center.asVoxel());
+            voxels = voxels_;
             return;
         }
         BoundingBox.loop(bounds,
-            (x, y, z)->voxels.add(new Voxel(x, y, z)),
+            (x, y, z)->voxels_.add(new Voxel(x, y, z)),
             (x, y, z)-> (Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + (is2D ? 0 : Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2)) <= radiusSq));
-        if (voxels.isEmpty()) voxels.add(center.asVoxel());
+        if (voxels_.isEmpty()) voxels_.add(center.asVoxel());
+        voxels = voxels_;
     }
     @Override
     public ImageMask<? extends ImageMask> getMask() {
@@ -73,7 +87,10 @@ public class Spot extends Region {
     // TODO: display ROI, invalidate methods that modify mask or voxels, generate spots from post-filter / spot detector ?
 
     public static Spot fromRegion(Region r, double radius, double intensity) {
-        return new Spot(r.getCenter(), radius, intensity, r.getLabel(), r.is2D(), r.getScaleXY(), r.getScaleZ());
+        Spot res =  new Spot(r.getCenter(), radius, intensity, r.getLabel(), r.is2D(), r.getScaleXY(), r.getScaleZ());
+        res.setQuality(r.quality);
+        res.setIsAbsoluteLandmark(r.absoluteLandmark);
+        return res;
     }
 
     @Override
@@ -86,7 +103,10 @@ public class Spot extends Region {
 
     @Override
     public Spot duplicate(boolean duplicateVoxels) {
-        return new Spot(center.duplicate(), radius, intensity, label, is2D, scaleXY, scaleZ);
+        Spot res = new Spot(center.duplicate(), radius, intensity, label, is2D, scaleXY, scaleZ);
+        res.setQuality(quality);
+        res.setIsAbsoluteLandmark(absoluteLandmark);
+        return res;
     }
 
     @Override
@@ -181,12 +201,14 @@ public class Spot extends Region {
     protected void createBoundsFromVoxels() {
 
     }
-
+    private static BoundingBox getBounds(Point center, double radius, boolean is2D) {
+        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius)), (int)Math.ceil(center.get(2)+(is2D?0:radius)));
+    }
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {
         if (bounds==null) {
             synchronized(this) { // "Double-Checked Locking"
                 if (bounds==null) {
-                    bounds = new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius)), (int)Math.ceil(center.get(2)+(is2D?0:radius)));
+                    bounds = getBounds(center, radius, is2D);
                 }
             }
         }

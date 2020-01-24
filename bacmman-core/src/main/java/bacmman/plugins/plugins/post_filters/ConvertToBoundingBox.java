@@ -23,10 +23,8 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.Hint;
-import bacmman.plugins.Plugin;
 import bacmman.plugins.PostFilter;
 
-import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -243,6 +241,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         BoundingBox parentBds = useParentBounds.getSelected() ? new SimpleBoundingBox(parent.getBounds()).resetOffset() : parent.getRoot().getBounds(); // post-filter: relative to parent
+        childPopulation.ensureEditableRegions();
         childPopulation.getRegions().forEach(r->{
             MutableBoundingBox bds = new MutableBoundingBox(r.getBounds());
             List<ConditionalParameter> axisParam = this.axisCond.getChildren();

@@ -502,6 +502,8 @@ public class SegmentedObjectUtils {
     public static Map<String, SegmentedObject> createGraphCut(List<SegmentedObject> track, boolean includeChildren, boolean generateNewId) {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
+        // transform track to root track in order to include indirect children
+        track = track.stream().map(o->o.getRoot()).collect(Collectors.toList());
         // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
         Experiment xp = track.get(0).getExperiment();
         Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap((Integer s) -> xp.experimentStructure.getAllDirectChildStructures(s), HashMapGetCreate.Syncronization.SYNC_ON_MAP);

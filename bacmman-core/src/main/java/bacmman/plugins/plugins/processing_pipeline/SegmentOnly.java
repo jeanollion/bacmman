@@ -56,17 +56,18 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     public SegmentOnly() {}
     
     public SegmentOnly(Segmenter segmenter) {
-        this.segmenter.setPlugin(segmenter);
-        // also insert segmenter parameter into experiment tree
-        if (segmenter.getParameters().length>0) {
+        // insert segmenter parameter into experiment tree (do it before call to setPlugin)
+        MutableTreeNode p=null;
+        if (segmenter.getParameters()!=null && segmenter.getParameters().length>0) {
             TreeNode parent = segmenter.getParameters()[0].getParent(); // parent is pluginParameter<Segmenter>
             if (parent!=null && parent.getParent() instanceof MutableTreeNode) {
-                this.segmenter.setParent((MutableTreeNode)parent.getParent());
+                p = (MutableTreeNode)parent.getParent();
             }
         }
-
+        this.segmenter.setPlugin(segmenter);
+        if (p!=null) this.segmenter.setParent(p);
     }
-    protected SegmentOnly(PluginParameter<Segmenter> segmenter) {
+    public SegmentOnly(PluginParameter<Segmenter> segmenter) {
         this.segmenter=segmenter;
     }
     @Override

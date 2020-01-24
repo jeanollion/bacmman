@@ -123,7 +123,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     }
     @Override public void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         long t0 = System.currentTimeMillis();
-        SegmentOnly ps = new SegmentOnly(segmenter.instantiatePlugin()).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
+        SegmentOnly ps = new SegmentOnly(segmenter).setTrackPreFilters(trackPreFilters).setPostFilters(postFilters);
         ps.segmentAndTrack(structureIdx, parentTrack, factory, editor);
         long t1= System.currentTimeMillis();
         track(structureIdx, parentTrack, true, allowSplitting.getSelected(), allowMerging.getSelected(), factory, editor);

@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Spot;
 import bacmman.image.ImageInteger;
 import bacmman.plugins.Hint;
 import bacmman.processing.Filters;
@@ -45,6 +46,13 @@ public class BinaryMax implements PostFilter, MultiThreaded, Hint {
     }
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
+        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Spot)) {
+            double add = scale.getScaleXY();
+            childPopulation.getRegions().stream().map(r->(Spot)r).forEach(s->s.setRadius(s.getRadius()+add));
+            childPopulation.clearLabelMap();
+            return childPopulation;
+        }
+        // TODO manage case when only part are spots...
         Neighborhood n = Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parent.getMask());
         childPopulation.relabel(false); // ensure label are ordered
         ImageInteger labelMap =  (ImageInteger)Filters.applyFilter(childPopulation.getLabelMap(), null, new Filters.BinaryMaxLabelWise(), n, parallele);

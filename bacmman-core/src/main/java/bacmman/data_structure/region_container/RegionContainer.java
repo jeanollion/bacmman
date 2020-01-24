@@ -36,25 +36,28 @@ import org.json.simple.JSONObject;
 public abstract class RegionContainer {
     public static final int MAX_VOX_3D = 20;
     public static final int MAX_VOX_2D = 30;
-    protected transient SegmentedObject structureObject;
+    protected transient SegmentedObject segmentedObject;
     SimpleBoundingBox bounds;
     boolean is2D;
-    public RegionContainer(SegmentedObject structureObject) {
-        this.is2D = structureObject.getRegion().is2D();
-        this.structureObject=structureObject;
-        this.bounds=new SimpleBoundingBox(structureObject.getBounds());
+    public RegionContainer(SegmentedObject segmentedObject) {
+        this.is2D = segmentedObject.getRegion().is2D();
+        this.segmentedObject = segmentedObject;
+        this.bounds=new SimpleBoundingBox(segmentedObject.getBounds());
     }
     public SimpleBoundingBox getBounds() {
         return bounds;
     }
-    public void setStructureObject(SegmentedObject structureObject) {
-        this.structureObject=structureObject;
+    public void setSegmentedObject(SegmentedObject segmentedObject) {
+        this.segmentedObject = segmentedObject;
     }
-    protected float getScaleXY() {return structureObject.getScaleXY();}
-    protected float getScaleZ() {return structureObject.getScaleZ();}
+    protected float getScaleXY() {return segmentedObject.getScaleXY();}
+    protected float getScaleZ() {return segmentedObject.getScaleZ();}
     public boolean is2D() {return is2D;}
     public abstract Region getRegion();
-
+    public void update() {
+        bounds = new SimpleBoundingBox(segmentedObject.getBounds());
+        is2D = segmentedObject.is2D();
+    }
     public void initFromJSON(Map<String, Object> json) {
         JSONArray bds =  (JSONArray)json.get("bounds");
         this.bounds=new MutableBoundingBox();
@@ -75,11 +78,11 @@ public abstract class RegionContainer {
         else if (json.containsKey("roi")||json.containsKey("roiZ")) res = new RegionContainerIjRoi();
         else if (json.containsKey("Type")) res = ANALYTICAL_TYPES.valueOf((String)json.get("Type")).getCreator();
         else res = new RegionContainerBlankMask(); // retro-compatibility
-        res.setStructureObject(o);
+        res.setSegmentedObject(o);
         res.initFromJSON(json);
         return res;
     }
-    public enum ANALYTICAL_TYPES {SPHERE(()->new RegionContainerSpot()), RECTANGLE((()-> new RegionContainerBlankMask()));
+    public enum ANALYTICAL_TYPES {SPHERE(RegionContainerSpot::new), RECTANGLE((RegionContainerBlankMask::new));
         private final Supplier<RegionContainer> containerCreator;
         ANALYTICAL_TYPES(Supplier<RegionContainer> containerCreator) {
             this.containerCreator=containerCreator;

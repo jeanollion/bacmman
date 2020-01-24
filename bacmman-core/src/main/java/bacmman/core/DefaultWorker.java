@@ -95,14 +95,16 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             int count = get();
             logger.debug("worker task executed: {}/{}", count,  taskIdx.length);
         } catch (Exception e) {
+            gui.setMessage("Error while executing task:" + e.toString());
             throw new RuntimeException(e);
+        } finally {
+            if (this.endOfWork!=null) endOfWork.run();
+            setProgress(0);
+            if (gui!=null) {
+                gui.setMessage("End of Jobs");
+                gui.setRunning(false);
+            } //else System.out.println("No GUI. End of JOBS");
         }
-        if (this.endOfWork!=null) endOfWork.run();
-        setProgress(0);
-        if (gui!=null) {
-            gui.setMessage("End of Jobs");
-            gui.setRunning(false);
-        } //else System.out.println("No GUI. End of JOBS");
     }
     public DefaultWorker setEndOfWork(Runnable endOfWork) {
         this.endOfWork=endOfWork;
