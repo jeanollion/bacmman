@@ -1,22 +1,26 @@
 package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
-import bacmman.image.ThresholdMask;
+import bacmman.data_structure.Spot;
+import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
+import bacmman.processing.gaussian_fit.GaussianFit;
 import bacmman.utils.Pair;
+import bacmman.utils.geom.Point;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -37,21 +41,40 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         // perform watershed on EDM map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ThresholdMask mask = new ThresholdMask(proba, minimalEDM.getValue().doubleValue(), true, false);
-        ImageInteger bacteriaMask = parent.getChildRegionPopulation(bacteriaObjectClass.getSelectedClassIdx()).getLabelMap();
-        mask = ThresholdMask.and(mask, bacteriaMask);
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), false)
                 .setDivisionCriterion(SplitAndMergeEDM.DIVISION_CRITERION.NONE, 0)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 2);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
-        res.filter(object -> object.size()>minimalSize.getValue().intValue());
+        List<Region> bacteria = parent.getChildRegionPopulation(bacteriaObjectClass.getSelectedClassIdx()).getRegions();
+        Offset parentOff= parent.getBounds();
+        Predicate<Region> intersectWithBacteria = s -> bacteria.stream().anyMatch(b -> b.getOverlapArea(s, parentOff, null)>0);
+        res.filter(object -> object.size()>minimalSize.getValue().intValue() && !intersectWithBacteria.test(object));
+        setQuality(input, proba, popWS.getRegions(), 2);
+        res.filter(object -> !Double.isNaN(object.getQuality()));
         // sort objects along largest dimension
         if (input.sizeY()>input.sizeX()) {
             res.getRegions().sort(ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
             res.relabel(false);
         }
         return res;
+    }
+
+    private static void setQuality(Image raw, Image prediction, List<Region> regions, double typicalSigma) {
+        Image smoothed = ImageFeatures.gaussianSmooth(raw, 2, false);
+        if (regions.isEmpty()) return;
+        List<Point> seeds = regions.stream().map(r->r.getMassCenter(prediction, false)).collect(Collectors.toList());
+        Map<Point, double[]> fit = GaussianFit.run(prediction, seeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
+        GaussianFit.fitIntensity(smoothed, fit, 300, 0.001, 0.01);
+
+        for (int i = 0; i<regions.size(); ++i) {
+            Spot s = GaussianFit.spotMapper.apply(fit.get(seeds.get(i)), raw);
+            // possibility to filter here: by radius -> should correspond to region extent, fit center should be close, radius should be close enough ...
+            Region r = regions.get(i);
+            r.setQuality(s.getIntensity());
+
+        }
     }
 
     private Image getSegmentedImage(Image input, SegmentedObject parent) {
