@@ -23,4 +23,9 @@ public class Labels implements FeatureExtractor {
     public boolean isBinary() {
         return true;
     }
+
+    @Override
+    public String defaultName() {
+        return "regionLabels";
+    }
 }

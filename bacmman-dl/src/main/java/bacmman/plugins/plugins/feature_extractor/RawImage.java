@@ -23,4 +23,9 @@ public class RawImage implements FeatureExtractor {
     public Parameter[] getParameters() {
         return new Parameter[0];
     }
+
+    @Override
+    public String defaultName() {
+        return "raw";
+    }
 }

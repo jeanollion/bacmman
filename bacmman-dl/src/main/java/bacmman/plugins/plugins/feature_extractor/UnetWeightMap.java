@@ -71,4 +71,9 @@ public class UnetWeightMap implements FeatureExtractor {
     public Parameter[] getParameters() {
         return new Parameter[]{sigma, wo, eraseConoutrs, limitClassFrequencyRatio};
     }
+
+    @Override
+    public String defaultName() {
+        return "weightMap";
+    }
 }

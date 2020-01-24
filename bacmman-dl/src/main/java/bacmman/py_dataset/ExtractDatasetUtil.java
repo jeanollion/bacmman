@@ -6,6 +6,7 @@ import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.*;
+import bacmman.plugins.FeatureExtractor;
 import bacmman.processing.EDT;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
@@ -18,6 +19,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.DoubleToIntFunction;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,12 +33,12 @@ public class ExtractDatasetUtil {
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();
-        List<Triplet<String, Task.EXTRACT_TYPE, Integer>> features = t.getExtractDSFeatures();
+        List<Triplet<String, FeatureExtractor, Integer>> features = t.getExtractDSFeatures();
         List<String> selectionNames = t.getExtractDSSelections();
-
+        int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
+        IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
         MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
-        boolean eraseTouchingContours = features.stream().anyMatch(f->f.v2.equals(Task.EXTRACT_TYPE.UNET_WEIGHT_MAP)||f.v2.equals(Task.EXTRACT_TYPE.DELTA_WEIGHT_MAP)); // if a feature is a weight map ?
         for (String selName : selectionNames) {
             logger.debug("Selection: {}", selName);
             Selection sel = mDAO.getSelectionDAO().getOrCreate(selName, false);
@@ -53,38 +55,14 @@ public class ExtractDatasetUtil {
                 logger.debug("position: {}", position);
                 Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirected<>(oc -> {
                     Map<SegmentedObject, RegionPopulation> res = ExtractDatasetUtil.getResampledPopMap(oc, false, dimensions);
-                    if (eraseTouchingContours) res.values().parallelStream().forEach(pop -> pop.eraseTouchingContours(false));
+                    if (eraseTouchingContours.test(oc)) res.values().parallelStream().forEach(pop -> pop.eraseTouchingContours(false));
                     return res;
                 });
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
-                for (Triplet<String, Task.EXTRACT_TYPE, Integer> feature : features) {
+                for (Triplet<String, FeatureExtractor, Integer> feature : features) {
                     logger.debug("feature: {}", feature);
-                    switch(feature.v2) {
-                        case RAW: {
-                            ExtractDatasetUtil.extractRaw(outputPath, outputName + feature.v1, sel, position, feature.v3, false, dimensions);
-                            break;
-                        }
-                        case LABEL: {
-                            Map<SegmentedObject, RegionPopulation> resampledPop = resampledPops.get(feature.v3);
-                            ExtractDatasetUtil.extractLabel(outputPath, outputName + feature.v1, sel, position, resampledPop, dimensions);
-                            break;
-                        }
-                        case PREVIOUS_LABEL: {
-                            Map<SegmentedObject, RegionPopulation> resampledPop = resampledPops.get(feature.v3);
-                            ExtractDatasetUtil.extractPreviousLabel(outputPath, outputName + feature.v1, sel, position, 1, resampledPop, dimensions);
-                            break;
-                        }
-                        case UNET_WEIGHT_MAP: {
-                            Map<SegmentedObject, RegionPopulation> resampledPop = resampledPops.get(feature.v3);
-                            ExtractDatasetUtil.extractWeightMap(outputPath, outputName + feature.v1, sel, position, resampledPop, 10, 5, WEIGHT_MAP.UNET, dimensions);
-                            break;
-                        }
-                        case DELTA_WEIGHT_MAP: {
-                            Map<SegmentedObject, RegionPopulation> resampledPop = resampledPops.get(feature.v3);
-                            ExtractDatasetUtil.extractWeightMap(outputPath, outputName + feature.v1, sel, position, resampledPop, 10, 5, WEIGHT_MAP.DELTA, dimensions);
-                            break;
-                        }
-                    }
+                    Function<SegmentedObject, Image> extractRaw = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
+                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractRaw, SCALE_MODE.NO_SCALE, feature.v2.isBinary(), null, true,  true, dimensions);
                     t.incrementProgress();
                 }
                 resampledPops.clear();
@@ -193,6 +171,14 @@ public class ExtractDatasetUtil {
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
 
+        if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
+            int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
+            if (images.stream().anyMatch(i->i.getBitDepth()!=maxBD)) {
+                if (maxBD==32) scaleMode = SCALE_MODE.TO_FLOAT;
+                else scaleMode = SCALE_MODE.TO_SHORT;
+            }
+        }
+
         if (metadata==null) metadata= new HashMap<>();
         Function<Image, Image> converter = null;
         switch (scaleMode) {
@@ -257,6 +243,12 @@ public class ExtractDatasetUtil {
                     }
                 }
                 break;
+            case TO_SHORT:
+                converter = im -> im instanceof ImageShort ? im : TypeConverter.toShort(im, null);
+                break;
+            case TO_FLOAT:
+                converter = im -> im instanceof ImageFloat ? im : TypeConverter.toFloat(im, null);
+                break;
         }
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
@@ -304,5 +296,5 @@ public class ExtractDatasetUtil {
 
     public enum WEIGHT_MAP {NONE, UNET, DELTA, DY}
 
-    public enum SCALE_MODE {NO_SCALE, MAX_MIN_BYTE_SAFE_FLOAT, MAX_MIN_BYTE, MAX_MIN_SHORT}
+    public enum SCALE_MODE {NO_SCALE, MAX_MIN_BYTE_SAFE_FLOAT, MAX_MIN_BYTE, MAX_MIN_SHORT, TO_SHORT, TO_FLOAT}
 }
