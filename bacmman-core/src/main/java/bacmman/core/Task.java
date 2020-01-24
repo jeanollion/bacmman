@@ -19,6 +19,7 @@
 package bacmman.core;
 
 import bacmman.configuration.experiment.PreProcessingChain;
+import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
@@ -26,6 +27,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
+import bacmman.plugins.FeatureExtractor;
 import bacmman.ui.logger.ExperimentSearchUtils;
 import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
@@ -65,7 +67,6 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class Task implements ProgressCallback{
-        public enum EXTRACT_TYPE {RAW, LABEL, PREVIOUS_LABEL, UNET_WEIGHT_MAP, DELTA_WEIGHT_MAP}
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
         String dbName, dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, generateTrackImages, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
@@ -83,9 +84,10 @@ public class Task implements ProgressCallback{
         String selectionName;
 
         String extractDSFile;
-        List<Triplet<String, EXTRACT_TYPE, Integer>> extractDSFeatures;
+        List<Triplet<String, FeatureExtractor, Integer>> extractDSFeatures;
         List<String> extractDSSelections;
         int[] extractDSDimensions;
+        int[] extractDSEraseTouchingContoursOC;
 
         public JSONObject toJSON() {
             JSONObject res=  new JSONObject();
@@ -123,14 +125,16 @@ public class Task implements ProgressCallback{
                 extractDS.put("selections", extractDSSels);
                 extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
                 JSONArray extractDSFeats = new JSONArray();
-                for (Triplet<String, EXTRACT_TYPE, Integer> feature: extractDSFeatures) {
+                for (Triplet<String, FeatureExtractor, Integer> feature: extractDSFeatures) {
                     JSONObject feat = new JSONObject();
                     feat.put("name", feature.v1);
                     feat.put("oc", feature.v3);
-                    feat.put("type", feature.v2.toString());
+                    PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, feature.v2, false);
+                    feat.put("feature", pp.toJSONEntry());
                     extractDSFeats.add(feat);
                 }
                 extractDS.put("features", extractDSFeats);
+                if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) extractDS.put("eraseTouchingContoursOC", JSONUtils.toJSONArray(extractDSEraseTouchingContoursOC));
                 res.put("extractDataset", extractDS);
             }
             return res;
@@ -180,12 +184,16 @@ public class Task implements ProgressCallback{
                 extractDSFeatures = new ArrayList<>(feats.size());
                 for (Object f : feats) {
                     JSONObject feat = (JSONObject)f;
+                    PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, false);
+                    pp.initFromJSONEntry(feat.get("feature"));
                     extractDSFeatures.add(new Triplet<>(
                             (String)feat.get("name"),
-                            EXTRACT_TYPE.valueOf((String)feat.get("type")),
+                            pp.instantiatePlugin(),
                             ((Number)feat.get("oc")).intValue()));
                 }
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
+                if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
+                else extractDSEraseTouchingContoursOC = new int[0];
             }
             return this;
         }
@@ -333,7 +341,7 @@ public class Task implements ProgressCallback{
         return extractDSFile;
     }
 
-    public List<Triplet<String, EXTRACT_TYPE, Integer>> getExtractDSFeatures() {
+    public List<Triplet<String, FeatureExtractor, Integer>> getExtractDSFeatures() {
         return extractDSFeatures;
     }
 
@@ -343,6 +351,9 @@ public class Task implements ProgressCallback{
 
     public int[] getExtractDSDimensions() {
         return extractDSDimensions;
+    }
+    public int[] getExtractDSEraseTouchingContoursOC() {
+        return extractDSEraseTouchingContoursOC;
     }
 
     public Task setAllActions() {
@@ -388,11 +399,12 @@ public class Task implements ProgressCallback{
         this.generateTrackImages=generateTrackImages;
         return this;
     }
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<Triplet<String, EXTRACT_TYPE, Integer>> extractDS, int[] dimensions) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<Triplet<String, FeatureExtractor, Integer>> extractDS, int[] dimensions, int[] eraseTouchingContoursOC) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
+        this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         return this;
     }
     public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
@@ -851,11 +863,18 @@ public class Task implements ProgressCallback{
         }
         if (extractDSFeatures!=null) {
             addSep.run();
-            sb.append("ExtractDSFeatures:").append(Utils.toStringList(extractDSFeatures, feat->feat.v1+":oc="+feat.v3+"("+feat.v2.toString()+")"));
+            sb.append("ExtractDSFeatures:").append(Utils.toStringList(extractDSFeatures, feat->{
+                PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, feat.v2, false);
+                return feat.v1+":oc="+feat.v3+"("+pp.toJSONEntry().toJSONString()+")";
+            }));
         }
         if (extractDSDimensions!=null) {
             addSep.run();
             sb.append("ExtractDSDimensions:").append(Utils.toStringArray(extractDSDimensions));
+        }
+        if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) {
+            addSep.run();
+            sb.append("extractDSEraseTouchingContoursOC:").append(Utils.toStringArray(extractDSEraseTouchingContoursOC));
         }
         addSep.run();
         sb.append("dir:").append(dir);
