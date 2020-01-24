@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Task;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.plugins.FeatureExtractor;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.selection.SelectionRenderer;
 import bacmman.utils.Triplet;
@@ -32,7 +33,8 @@ public class ExtractDataset extends JDialog {
     private JScrollPane selectionListJSP;
     private final DefaultListModel<Selection> selectionModel;
     private final ConfigurationTreeGenerator outputConfigTree;
-    private final SimpleListParameter<GroupParameter> outputConfigList;
+    private final SimpleListParameter<GroupParameter> outputFeatureList;
+    SimpleListParameter<ObjectClassParameter> eraseTouchingContours;
     private final ArrayNumberParameter outputShape;
     private final GroupParameter container;
     private final FileChooser outputFile;
@@ -62,49 +64,27 @@ public class ExtractDataset extends JDialog {
                     return list.getActivatedChildren().stream().filter(g -> !g.equals(parent)).map(g -> (TextParameter) g.getChildAt(0)).noneMatch(tx -> tx.getValue().equals(t.getValue()));
                 });
         ObjectClassParameter defOC = new ObjectClassParameter("Object class").setHint("Object class of the extracted features");
-        EnumChoiceParameter<Task.EXTRACT_TYPE> defType = new EnumChoiceParameter<>("Extract", Task.EXTRACT_TYPE.values(), Task.EXTRACT_TYPE.RAW, false)
-                .setHint("Type of the extracted feature");
-        defType.addListener(type -> {
+        PluginParameter<FeatureExtractor> defFeature = new PluginParameter<>("Feature", FeatureExtractor.class, false).setHint("Choose a feature to extract");
+        defFeature.addListener(type -> {
             GroupParameter parent = (GroupParameter) type.getParent();
             TextParameter name = (TextParameter) parent.getChildAt(0);
             if (name.getValue().length() == 0) {
-                switch (type.getSelectedEnum()) {
-                    case RAW: {
-                        name.setValue("raw");
-                        break;
-                    }
-                    case LABEL: {
-                        name.setValue("regionLabels");
-                        break;
-                    }
-                    case PREVIOUS_LABEL: {
-                        name.setValue("prevRegionLabels");
-                        break;
-                    }
-                    case UNET_WEIGHT_MAP:
-                    case DELTA_WEIGHT_MAP: {
-                        name.setValue("weightMap");
-                        break;
-                    }
-                }
+                name.setValue(type.instantiatePlugin().defaultName());
             }
         });
-        defOC.addListener(t -> {
-            logger.debug("oc listener");
-            setEnableOk();
-        });
-        defName.addListener(t -> {
-            logger.debug("name listener");
-            setEnableOk();
-        });
-        defType.addListener(t -> setEnableOk());
-        GroupParameter defOutput = new GroupParameter("Output", defName, defOC, defType);
-        outputConfigList = new SimpleListParameter<>("Features", 0, defOutput)
+        defOC.addListener(t -> setEnableOk());
+        defName.addListener(t -> setEnableOk());
+        defFeature.addListener(t -> setEnableOk());
+        GroupParameter defOutput = new GroupParameter("Output", defName, defOC, defFeature);
+        eraseTouchingContours = new SimpleListParameter<>("Erase touching contours", ObjectClassParameter.class)
+                .setHint("List here all object class that should have touching contours erased.")
+                .setNewInstanceNameFunction((p, i) -> "Object class");
+        outputFeatureList = new SimpleListParameter<>("Features", 0, defOutput)
                 .setNewInstanceNameFunction((l, i) -> "Feature #" + i).setChildrenNumber(1).setHint("List here all extracted feature");
         outputShape = InputShapesParameter.getInputShapeParameter(false)
                 .setValue(256, 32).setMaxChildCount(2)
                 .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions");
-        container = new GroupParameter("", outputFile, outputShape, outputConfigList);
+        container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v -> {
         }, (s, l) -> {
@@ -115,7 +95,7 @@ public class ExtractDataset extends JDialog {
         // disable ok button if not valid
         selectionList.addListSelectionListener(e -> setEnableOk());
 
-        outputConfigList.addListener(t -> setEnableOk());
+        outputFeatureList.addListener(t -> setEnableOk());
         outputShape.addListener(t -> setEnableOk());
         outputShape.getChildren().forEach(n -> n.addListener(t -> setEnableOk()));
         outputFile.addListener(t -> setEnableOk());
@@ -151,7 +131,7 @@ public class ExtractDataset extends JDialog {
         buttonOK.setEnabled(true);
     }
 
-    private void setDefaultValues(String outputFile, List<String> selections, List<Triplet<String, Task.EXTRACT_TYPE, Integer>> features, int[] dimensions) {
+    private void setDefaultValues(String outputFile, List<String> selections, List<Triplet<String, FeatureExtractor, Integer>> features, int[] dimensions, int[] eraseContoursOC) {
         if (outputFile != null) this.outputFile.setSelectedFilePath(outputFile);
         List<String> allSel = Collections.list(selectionModel.elements()).stream().map(s -> s.getName()).collect(Collectors.toList());
         if (selections != null && !selections.isEmpty()) {
@@ -159,18 +139,24 @@ public class ExtractDataset extends JDialog {
             selectionList.setSelectedIndices(sel);
         }
         if (features != null && !features.isEmpty()) {
-            this.outputConfigList.setChildrenNumber(features.size());
+            this.outputFeatureList.setChildrenNumber(features.size());
             for (int i = 0; i < features.size(); ++i) {
-                GroupParameter g = outputConfigList.getChildAt(i);
-                Triplet<String, Task.EXTRACT_TYPE, Integer> f = features.get(i);
+                GroupParameter g = outputFeatureList.getChildAt(i);
+                Triplet<String, FeatureExtractor, Integer> f = features.get(i);
                 ((TextParameter) g.getChildAt(0)).setValue(f.v1);
-                ((EnumChoiceParameter<Task.EXTRACT_TYPE>) g.getChildAt(2)).setSelectedEnum(f.v2);
+                ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).setPlugin(f.v2);
                 ObjectClassParameter ocp = ((ObjectClassParameter) g.getChildAt(1));
                 if (f.v3 < ocp.getChoiceList().length) ocp.setSelectedClassIdx(f.v3);
             }
         }
         if (dimensions != null) {
             this.outputShape.setValue(dimensions[1], dimensions[0]);
+        }
+        if (eraseContoursOC != null) {
+            this.eraseTouchingContours.setChildrenNumber(eraseContoursOC.length);
+            for (int i = 0; i < eraseContoursOC.length; ++i) {
+                eraseTouchingContours.getChildAt(i).setSelectedClassIdx(eraseContoursOC[i]);
+            }
         }
         outputConfigTree.getTree().updateUI();
     }
@@ -181,13 +167,14 @@ public class ExtractDataset extends JDialog {
                 .stream()
                 .map(s -> s.getName())
                 .collect(Collectors.toList());
-        List<Triplet<String, Task.EXTRACT_TYPE, Integer>> features = outputConfigList.getActivatedChildren().stream().map(g -> new Triplet<>(
+        List<Triplet<String, FeatureExtractor, Integer>> features = outputFeatureList.getActivatedChildren().stream().map(g -> new Triplet<>(
                 ((TextParameter) g.getChildAt(0)).getValue(),
-                ((EnumChoiceParameter<Task.EXTRACT_TYPE>) g.getChildAt(2)).getSelectedEnum(),
+                ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).instantiatePlugin(),
                 ((ObjectClassParameter) g.getChildAt(1)).getSelectedClassIdx()
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
-        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims);
+        int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(o -> o.getSelectedClassIdx()).toArray();
+        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC);
 
         dispose();
     }
@@ -196,7 +183,7 @@ public class ExtractDataset extends JDialog {
         ExtractDataset dialog = new ExtractDataset(mDAO);
         dialog.setTitle("Configure Dataset extraction");
         if (selectedTask != null)
-            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelections(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSDimensions());
+            dialog.setDefaultValues(selectedTask.getExtractDSFile(), selectedTask.getExtractDSSelections(), selectedTask.getExtractDSFeatures(), selectedTask.getExtractDSDimensions(), selectedTask.getExtractDSEraseTouchingContoursOC());
         dialog.pack();
         dialog.setVisible(true);
         //System.exit(0);

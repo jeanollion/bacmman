@@ -9,4 +9,5 @@ import java.util.Map;
 public interface FeatureExtractor extends Plugin {
     Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions);
     boolean isBinary();
+    String defaultName();
 }
