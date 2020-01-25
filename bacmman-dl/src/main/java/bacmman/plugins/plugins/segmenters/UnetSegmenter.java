@@ -63,7 +63,7 @@ public class UnetSegmenter implements Segmenter, TrackConfigurable<UnetSegmenter
         Pair<Image[][], int[][]> input = getInput(inputImages, imageShape);
         Image[][][] predictions = engine.process(input.key);
         Image[] seg = ResizeUtils.getChannel(predictions[0], 0);
-        Image[] seg_res = ResizeUtils.resample(seg, seg, true, input.value);
+        Image[] seg_res = ResizeUtils.resample(seg, seg, false, input.value);
 
         for (int idx = 0;idx<inputImages.length; ++idx) {
             seg_res[idx].setCalibration(inputImages[idx]);

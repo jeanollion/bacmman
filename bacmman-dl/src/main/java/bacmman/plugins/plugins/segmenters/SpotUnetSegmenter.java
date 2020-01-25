@@ -6,7 +6,10 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Spot;
 import bacmman.image.*;
+import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.LocalSNR;
+import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.processing.ImageFeatures;
@@ -16,7 +19,6 @@ import bacmman.processing.gaussian_fit.GaussianFit;
 import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -28,11 +30,11 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     ParentObjectClassParameter bacteriaObjectClass = new ParentObjectClassParameter("Bacteria");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
-    BoundedNumberParameter minimalEDM = new BoundedNumberParameter("Minimal EDM value", 3, 0.5, 0.001, 1 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted EDM is greater than this threshold");
+    BoundedNumberParameter minimalProbability = new BoundedNumberParameter("Minimal Probability", 3, 0.75, 0.001, 1 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted EDM is greater than this threshold");
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 3, 1, null ).setHint("Region with size (in pixels) inferior to this value will be erased");
 
-    Parameter[] parameters = new Parameter[]{bacteriaObjectClass, dlEngine, inputShape, splitThreshold, minimalEDM, minimalSize};
+    Parameter[] parameters = new Parameter[]{bacteriaObjectClass, dlEngine, inputShape, splitThreshold, minimalProbability, minimalSize};
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -40,7 +42,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         if (stores!=null) stores.get(parent).addIntermediateImage("SegModelOutput", proba);
         // perform watershed on EDM map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
-        ThresholdMask mask = new ThresholdMask(proba, minimalEDM.getValue().doubleValue(), true, false);
+        ThresholdMask mask = new ThresholdMask(proba, minimalProbability.getValue().doubleValue(), true, false);
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), false)
                 .setDivisionCriterion(SplitAndMergeEDM.DIVISION_CRITERION.NONE, 0)
                 .setMapsProperties(false, false);
@@ -51,7 +53,8 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         Offset parentOff= parent.getBounds();
         Predicate<Region> intersectWithBacteria = s -> bacteria.stream().anyMatch(b -> b.getOverlapArea(s, parentOff, null)>0);
         res.filter(object -> object.size()>minimalSize.getValue().intValue() && !intersectWithBacteria.test(object));
-        setQuality(input, proba, popWS.getRegions(), 2);
+        //setQuality(parent, input, proba, popWS.getRegions(), 2);
+        setQualitySNR(parent, objectClassIdx, proba, res);
         res.filter(object -> !Double.isNaN(object.getQuality()));
         // sort objects along largest dimension
         if (input.sizeY()>input.sizeX()) {
@@ -60,8 +63,20 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         }
         return res;
     }
-
-    private static void setQuality(Image raw, Image prediction, List<Region> regions, double typicalSigma) {
+    private void setQualitySNR(SegmentedObject parent, int ocIdx, Image prediction, RegionPopulation pop) {
+        LocalSNR snr = new LocalSNR(bacteriaObjectClass.getSelectedClassIdx());
+        snr.setIntensityStructure(ocIdx);
+        snr.setFormula(SNR.FORMULA.AMPLITUDE, SNR.FOREGROUND_FORMULA.MEDIAN, SNR.BACKGROUND_FORMULA.MEDIAN);
+        snr.setLocalBackgroundRadius(6);
+        snr.setUp(parent, ocIdx, pop);
+        pop.getRegions().forEach(r -> {
+            double meanProba = BasicMeasurements.getMeanValue(r, prediction);
+            double amp = snr.performMeasurement(r);
+            r.setQuality(amp * meanProba);
+            logger.debug("parent: {}@{}, proba: {}, amplitude: {}, quality: {}", parent, r.getLabel()-1, meanProba, amp, r.getQuality());
+        });
+    }
+    private static void setQuality(SegmentedObject parent, Image raw, Image prediction, List<Region> regions, double typicalSigma) {
         Image smoothed = ImageFeatures.gaussianSmooth(raw, 2, false);
         if (regions.isEmpty()) return;
         List<Point> seeds = regions.stream().map(r->r.getMassCenter(prediction, false)).collect(Collectors.toList());
@@ -70,10 +85,11 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
 
         for (int i = 0; i<regions.size(); ++i) {
             Spot s = GaussianFit.spotMapper.apply(fit.get(seeds.get(i)), raw);
+            logger.debug("parent: {}@{}, radius: {}, amplitude: {}, constant: {}", parent, i, s.getRadius(), s.getIntensity(), fit.get(seeds.get(i))[4]);
             // possibility to filter here: by radius -> should correspond to region extent, fit center should be close, radius should be close enough ...
             Region r = regions.get(i);
-            r.setQuality(s.getIntensity());
-
+            double meanProba = BasicMeasurements.getMeanValue(r, prediction);
+            r.setQuality(s.getIntensity() * meanProba);
         }
     }
 
@@ -96,7 +112,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         Pair<Image[][][], int[][]> input = getInput(inputImages, bactMask, imageShape);
         Image[][][] predictions = engine.process(input.key);
         Image[] seg = ResizeUtils.getChannel(predictions[0], 0);
-        Image[] seg_res = ResizeUtils.resample(seg, seg, true, input.value);
+        Image[] seg_res = ResizeUtils.resample(seg, seg, false, input.value);
 
         for (int idx = 0;idx<inputImages.length; ++idx) {
             seg_res[idx].setCalibration(inputImages[idx]);
