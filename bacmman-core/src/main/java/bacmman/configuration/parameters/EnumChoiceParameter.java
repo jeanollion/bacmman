@@ -19,6 +19,7 @@
 package bacmman.configuration.parameters;
 
 import java.util.Arrays;
+import java.util.function.Function;
 
 /**
  *
@@ -27,16 +28,26 @@ import java.util.Arrays;
 
 public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameter<EnumChoiceParameter<E>>  {
     final E[] enumChoiceList;
+    final Function<E, String> toString;
+    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, Function<E, String> toString, boolean allowNoSelection) {
+        super(name, Arrays.stream(enumChoiceList)
+                        .map(toString)
+                        .toArray(String[]::new),
+                selectedItem==null ? null : toString.apply(selectedItem), allowNoSelection);
+        this.enumChoiceList=enumChoiceList;
+        this.toString=toString;
+    }
     public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, boolean allowNoSelection) {
         super(name, Arrays.stream(enumChoiceList)
-                .map(e -> e.toString())
-                .toArray(l -> new String[l] ),
+                .map(Enum::toString)
+                .toArray(String[]::new),
                 selectedItem==null ? null : selectedItem.toString(), allowNoSelection);
         this.enumChoiceList=enumChoiceList;
+        this.toString = Enum::toString;
     }
 
     @Override public EnumChoiceParameter<E> duplicate() {
-        EnumChoiceParameter res = new EnumChoiceParameter(name, enumChoiceList ,getSelectedEnum(), allowNoSelection);
+        EnumChoiceParameter<E> res = new EnumChoiceParameter<E>(name, enumChoiceList ,getSelectedEnum(), toString, allowNoSelection);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         res.setHint(toolTipText);
@@ -52,7 +63,7 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
     }
     public EnumChoiceParameter<E> setSelectedEnum(E selectedEnum) {
         if (selectedEnum==null) this.setSelectedItem(null);
-        else setSelectedItem(selectedEnum.toString());
+        else setSelectedItem(toString.apply(selectedEnum));
         return this;
     }
 }

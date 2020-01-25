@@ -232,7 +232,15 @@ public class GaussianFit {
         fitter.setNumThreads(1);
         if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
         fitFunction.copyParametersToBucket((double[])fitter.getResult().get(estimator.center));
-        return IntStream.range(0, peaks.size()).mapToObj(i->i).collect(Collectors.toMap(i->peaks.get(i), i->fitFunction.parameterBucket[i]));
+        return IntStream.range(0, peaks.size()).mapToObj(i->i).collect(Collectors.toMap(i->peaks.get(i), i->{
+            double[] params = fitFunction.parameterBucket[i];
+            if (fitConstant) {
+                double[] res = new double[params.length+1];
+                System.arraycopy(params, 0, res, 0, params.length);
+                res[params.length] = fitFunction.parameterBucket[peaks.size()][0];
+                return res;
+            } else return params;
+        }));
     }
 
 }

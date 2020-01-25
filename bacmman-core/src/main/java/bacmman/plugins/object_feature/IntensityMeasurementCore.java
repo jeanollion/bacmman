@@ -24,6 +24,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import java.util.HashMap;
 
+import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.DoubleStatistics;
 import bacmman.utils.geom.Point;
 
@@ -53,7 +54,7 @@ public class IntensityMeasurementCore implements ObjectFeatureCore {
     }
     
     public class IntensityMeasurements {
-        public double mean=Double.NaN, sd=Double.NaN, min=Double.NaN, max=Double.NaN, valueAtCenter=Double.NaN, count=Double.NaN;
+        public double mean=Double.NaN, sd=Double.NaN, min=Double.NaN, max=Double.NaN, valueAtCenter=Double.NaN, median=Double.NaN, count=Double.NaN;
         Region o;
         
         public IntensityMeasurements(Region o) {
@@ -73,6 +74,10 @@ public class IntensityMeasurementCore implements ObjectFeatureCore {
                 this.valueAtCenter = o.isAbsoluteLandMark() ? intensityMap.getPixelWithOffset(center.get(0), center.get(1), center.getWithDimCheck(2)) : intensityMap.getPixel(center.get(0), center.get(1), center.getWithDimCheck(2));
             }
             return valueAtCenter;
+        }
+        public double getMedian() {
+            if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, intensityMap, 0.5)[0];
+            return median;
         }
     }
 }
