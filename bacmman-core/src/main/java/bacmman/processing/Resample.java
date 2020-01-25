@@ -9,7 +9,9 @@ import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.interpolation.InterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.ClampingNLinearInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.realtransform.RealViews;
 import net.imglib2.realtransform.Scale;
@@ -19,9 +21,26 @@ import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 
 import java.util.Arrays;
+import java.util.function.Supplier;
 
 public class Resample {
 
+    public enum INTERPOLATION {
+        NEAREST(NearestNeighborInterpolatorFactory::new),
+        NLINEAR(NLinearInterpolatorFactory::new),
+        CLAMPING_NLINEAR(ClampingNLinearInterpolatorFactory::new),
+        LANCZOS1(()->new LanczosInterpolatorFactory(1, false)),
+        LANCZOS3(()->new LanczosInterpolatorFactory(3, false)),
+        LANCZOS5(()->new LanczosInterpolatorFactory(5, false));
+
+        private final Supplier<InterpolatorFactory> factory;
+        INTERPOLATION(Supplier<InterpolatorFactory> factory) {
+            this.factory=factory;
+        }
+        public InterpolatorFactory factory() {
+            return factory.get();
+        }
+    }
 
     /**
      *
@@ -29,7 +48,7 @@ public class Resample {
      * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
      * @return
      */
-    public static <T extends Image<T>> T resample(T input, boolean binary, int... dimensions) {
+    public static <T extends Image<T>> T resample(T input, InterpolatorFactory interpolation, int... dimensions) {
         if (dimensions==null || dimensions.length==0) return input;
         // negative dimension = crop
         if (Arrays.stream(dimensions).anyMatch(i->i<0)) { // needs cropping
@@ -43,8 +62,25 @@ public class Resample {
         if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
         for (int i = 0; i<scaleFactors.length;++i) scaleFactors[i] = dimensions.length>i && dimensions[i]>0 ? (double)dimensions[i]/input.size(i) : 1;
         Img in = ImgLib2ImageWrapper.getImage(input);
-        InterpolatorFactory inter = binary ? new NearestNeighborInterpolatorFactory() : new LanczosInterpolatorFactory(3, false);
-        return (T)ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, inter));
+        return (T)ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, interpolation));
+    }
+    /**
+     *
+     * @param input
+     * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
+     * @return
+     */
+    public static <T extends Image<T>> T resample(T input, INTERPOLATION interpolation, int... dimensions) {
+        return resample(input, interpolation.factory(), dimensions);
+    }
+    /**
+     *
+     * @param input
+     * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
+     * @return
+     */
+    public static <T extends Image<T>> T resample(T input, boolean binary, int... dimensions) {
+        return resample(input, binary?INTERPOLATION.NEAREST.factory():INTERPOLATION.LANCZOS3.factory(), dimensions);
     }
     public static Image resampleBack(Image im, BoundingBox target, boolean binary, int... dimensions) {
         if (im.sameDimensions(target)) return im;
@@ -53,7 +89,7 @@ public class Resample {
             BoundingBox cropBB = new SimpleBoundingBox(0, dimensions[0]<0 && im.sizeX()<target.sizeX() ? target.sizeX()-1 : im.sizeX()-1, 0, dimensions.length>1 && dimensions[1]<0 && im.sizeY()<target.sizeY() ? target.sizeY()-1 : im.sizeY()-1, 0, dimensions.length>2 && dimensions[2]<0 && im.sizeZ()<target.sizeZ() ? target.sizeZ()-1 : im.sizeZ()-1);
             im = im.crop(cropBB);
         }
-        return resample(im, binary, target.sizeX(), target.sizeY(), target.sizeZ());
+        return resample(im, binary?INTERPOLATION.NEAREST:INTERPOLATION.LANCZOS3, target.sizeX(), target.sizeY(), target.sizeZ());
     }
 
 

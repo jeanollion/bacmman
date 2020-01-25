@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -46,12 +43,32 @@ import java.util.List;
  * @author Jean Ollion
  */
 public class SNR extends IntensityMeasurement implements Hint {
+    public enum FORMULA{AMPLITUDE_NORM_STD("(F-B)/std(B)"), AMPLITUDE("F-B");
+        public final String name;
+        FORMULA(String name) {
+            this.name = name;
+        }
+    }
+    public enum FOREGROUND_FORMULA{MEAN("mean"), MAX("max"), CENTER("value at center"), MEDIAN("median");
+        public final String name;
+        FOREGROUND_FORMULA(String name) {
+            this.name = name;
+        }
+    }
+    public enum BACKGROUND_FORMULA{MEAN("mean"), MEDIAN("median");
+        public final String name;
+        BACKGROUND_FORMULA(String name) {
+            this.name = name;
+        }
+    }
     protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class").setEmphasized(true);
     protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null).setHint("Dilated foreground objects will be excluded from background mask");
     protected BoundedNumberParameter erodeBorders = new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null).setHint("Background mask will be eroded in order to avoid border effects");
-    protected ChoiceParameter formula = new ChoiceParameter("Formula", new String[]{"(F-B)/std(B)", "F-B"}, "(F-B)/std(B)", false).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
-    protected ChoiceParameter foregroundFormula = new ChoiceParameter("Foreground", new String[]{"mean", "max", "value at center"}, "mean", false).setEmphasized(true).setHint("Foreground estimation method");
-    @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, dilateExcluded, erodeBorders};}
+    protected EnumChoiceParameter<FORMULA> formula = new EnumChoiceParameter<>("Formula", FORMULA.values(), FORMULA.AMPLITUDE_NORM_STD, e->e.name, false).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
+    protected EnumChoiceParameter<FOREGROUND_FORMULA> foregroundFormula = new EnumChoiceParameter<>("Foreground", FOREGROUND_FORMULA.values(), FOREGROUND_FORMULA.MEAN, e->e.name, false).setEmphasized(true).setHint("Foreground estimation method");
+    protected EnumChoiceParameter<BACKGROUND_FORMULA> backgroundFormula = new EnumChoiceParameter<>("Background", BACKGROUND_FORMULA.values(), BACKGROUND_FORMULA.MEAN, e->e.name, false).setEmphasized(true).setHint("Background estimation method");
+
+    @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, backgroundFormula, dilateExcluded, erodeBorders};}
     HashMap<Region, Region> foregroundMapBackground;
     Offset foregorundOffset;
     Offset parentOffsetRev;
@@ -68,9 +85,10 @@ public class SNR extends IntensityMeasurement implements Hint {
         this.erodeBorders.setValue(erodeRadius);
         return this;
     }
-    public SNR setFormula(int formula, int foreground) {
-        this.formula.setSelectedIndex(formula);
-        this.foregroundFormula.setSelectedIndex(foreground);
+    public SNR setFormula(FORMULA formula, FOREGROUND_FORMULA foregroundFormula, BACKGROUND_FORMULA backgroundFormula) {
+        this.formula.setSelectedEnum(formula);
+        this.foregroundFormula.setSelectedEnum(foregroundFormula);
+        this.backgroundFormula.setSelectedEnum(backgroundFormula);
         return this;
     }
     @Override public IntensityMeasurement setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation foregroundPopulation) {
@@ -136,21 +154,31 @@ public class SNR extends IntensityMeasurement implements Hint {
         IntensityMeasurementCore.IntensityMeasurements iParent = super.core.getIntensityMeasurements(parentObject);
         IntensityMeasurementCore.IntensityMeasurements fore = super.core.getIntensityMeasurements(object);
         //logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
-        return getValue(getForeValue(fore), iParent.mean, iParent.sd);
+        return getValue(getForeValue(fore), getBackValue(iParent), iParent.sd);
     }
-    
+    protected double getBackValue(IntensityMeasurementCore.IntensityMeasurements back) {
+        switch (backgroundFormula.getSelectedEnum()) {
+            case MEAN:
+            default: return back.mean;
+            case MEDIAN: return back.getMedian();
+        }
+    }
     protected double getForeValue(IntensityMeasurementCore.IntensityMeasurements fore) {
-        switch (foregroundFormula.getSelectedIndex()) {
-            case 0: return fore.mean;
-            case 1: return fore.max;
-            case 2: return fore.getValueAtCenter();
+        switch (foregroundFormula.getSelectedEnum()) {
+            case MAX: return fore.max;
+            case CENTER: return fore.getValueAtCenter();
+            case MEDIAN: return fore.getMedian();
+            case MEAN:
             default: return fore.mean;
         }     
     }
     
     protected double getValue(double fore, double back, double backSd) {
-        if (this.formula.getSelectedIndex()==0) return (fore-back)/backSd;
-        else return fore-back;
+        switch(formula.getSelectedEnum()) {
+            case AMPLITUDE_NORM_STD:
+            default: return (fore-back)/backSd;
+            case AMPLITUDE: return fore-back;
+        }
     }
 
     @Override public String getDefaultName() {

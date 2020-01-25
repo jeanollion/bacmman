@@ -26,18 +26,22 @@ import bacmman.image.ImageByte;
 import bacmman.image.Offset;
 import bacmman.image.SimpleOffset;
 import bacmman.image.TypeConverter;
+import bacmman.measurement.BasicMeasurements;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class LocalSNR extends SNR {
+    public final static Logger logger = LoggerFactory.getLogger(LocalSNR.class);
     protected BoundedNumberParameter localBackgroundRadius = new BoundedNumberParameter("Local background radius", 1, 8, 0, null).setHint("Defines the local background area, by dilating the foreground region with this radius and removing the foreground region from the dilated region");
-    public static boolean debug;
+    public static boolean debug=true;
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, dilateExcluded, erodeBorders, localBackgroundRadius};}
     public LocalSNR() {}
     
@@ -60,14 +64,14 @@ public class LocalSNR extends SNR {
         ImageByte localBackgroundMask  = TypeConverter.toByteMask(object.getMask(), null, 1).setName("mask:");
         localBackgroundMask.translate(offset); // so that local background mask is in absolute landmark
         localBackgroundMask = Filters.binaryMax(localBackgroundMask, null, Filters.getNeighborhood(localBackgroundRadius.getValue().doubleValue(), localBackgroundMask), false, true, false);
-        ImageOperations.andWithOffset(localBackgroundMask, backgroundObject.getMask(), localBackgroundMask); // do not dilate outside backgorund mask
-        double[] meanSdBck = ImageOperations.getMeanAndSigmaWithOffset(intensityMap, localBackgroundMask, null, false);
+        ImageOperations.andWithOffset(localBackgroundMask, backgroundObject.getMask(), localBackgroundMask); // do not dilate outside background mask
+        Region bck = new Region(localBackgroundMask, 1, true).setIsAbsoluteLandmark(true);
         IntensityMeasurementCore.IntensityMeasurements fore = super.core.getIntensityMeasurements(object);
-        
-        double d = getValue(getForeValue(fore), meanSdBck[0], meanSdBck[1]);
+        IntensityMeasurementCore.IntensityMeasurements back = super.core.getIntensityMeasurements(bck);
+        double d = getValue(getForeValue(fore), getBackValue(back), back.sd);
         if (debug) {
-            Plugin.logger.debug("SNR local object: {}, value: {}, rad: {}, count: {}, objectCount: {}, fore: {}, sd:{}, back: {}, sd: {}", object.getLabel(), d, localBackgroundRadius.getValue().doubleValue(), localBackgroundMask.count(), object.getMask().count(), fore.mean, fore.sd, meanSdBck[0], meanSdBck[1]);
-            Core.showImage(localBackgroundMask);
+            logger.debug("SNR local object: {}, value: {}, rad: {}, count: {}, objectCount: {}, fore: {}, fore sd:{}, back: {}, sd: {}", object.getLabel(), d, localBackgroundRadius.getValue().doubleValue(), localBackgroundMask.count(), object.getMask().count(), fore.mean, fore.sd, getBackValue(back), back.sd);
+            //Core.showImage(localBackgroundMask);
         }
         return d;
         
