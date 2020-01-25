@@ -39,7 +39,7 @@ public class UnetWeightMap implements FeatureExtractor {
         double sigma = this.sigma.getValue().doubleValue();
         double wo = this.wo.getValue().doubleValue();
         boolean eraseContours = this.eraseConoutrs.getSelected();
-        ImageFloat[] edms = wo==0 ? new ImageFloat[0] : pop.getRegions().stream().map(r -> {
+        ImageFloat[] edms = wo==0 || pop.getRegions().size()<=1 ? new ImageFloat[0] : pop.getRegions().stream().map(r -> {
             ImageByte mask = new ImageByte("", pop.getImageProperties());
             r.draw(mask, 1, mask);
             return EDT.transform(mask, false, 1, 1, false);
