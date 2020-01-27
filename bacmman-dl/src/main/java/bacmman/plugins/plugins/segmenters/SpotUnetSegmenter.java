@@ -49,11 +49,16 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         RegionPopulation popWS = sm.split(mask, 2);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
+
+        // fit spot on prediction map
+        double typicalSigma = 2;
+        res = fitRegionOnProbaMap(res, proba, typicalSigma);
+
         List<Region> bacteria = parent.getChildRegionPopulation(bacteriaObjectClass.getSelectedClassIdx()).getRegions();
         Offset parentOff= parent.getBounds();
         Predicate<Region> intersectWithBacteria = s -> bacteria.stream().anyMatch(b -> b.getOverlapArea(s, parentOff, null)>0);
         res.filter(object -> object.size()>minimalSize.getValue().intValue() && !intersectWithBacteria.test(object));
-        //setQuality(parent, input, proba, popWS.getRegions(), 2);
+        //setQuality(parent, input, proba, popWS.getRegions(), typicalSigma);
         setQualitySNR(parent, objectClassIdx, proba, res);
         res.filter(object -> !Double.isNaN(object.getQuality()));
         // sort objects along largest dimension
@@ -63,6 +68,13 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         }
         return res;
     }
+
+    private static RegionPopulation fitRegionOnProbaMap(RegionPopulation population, Image proba, double typicalSigma) {
+        Map<Region, double[]> fit =GaussianFit.runOnRegions(proba, population.getRegions(), typicalSigma, 4*typicalSigma+1, false, 300, 0.001, 0.01);
+        List<Spot> spots = fit.entrySet().stream().map(e -> GaussianFit.spotMapper.apply(e.getValue(), proba)).collect(Collectors.toList());
+        return new RegionPopulation(spots, population.getImageProperties());
+    }
+
     private void setQualitySNR(SegmentedObject parent, int ocIdx, Image prediction, RegionPopulation pop) {
         LocalSNR snr = new LocalSNR(bacteriaObjectClass.getSelectedClassIdx());
         snr.setIntensityStructure(ocIdx);
@@ -80,7 +92,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         Image smoothed = ImageFeatures.gaussianSmooth(raw, 2, false);
         if (regions.isEmpty()) return;
         List<Point> seeds = regions.stream().map(r->r.getMassCenter(prediction, false)).collect(Collectors.toList());
-        Map<Point, double[]> fit = GaussianFit.run(prediction, seeds, typicalSigma, 4*typicalSigma+1, 300, 0.001, 0.01);
+        Map<Point, double[]> fit = GaussianFit.run(prediction, seeds, typicalSigma, 4*typicalSigma+1, false, 300, 0.001, 0.01);
         GaussianFit.fitIntensity(smoothed, fit, 300, 0.001, 0.01);
 
         for (int i = 0; i<regions.size(); ++i) {
