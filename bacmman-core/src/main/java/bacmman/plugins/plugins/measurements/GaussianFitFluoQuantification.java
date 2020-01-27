@@ -51,7 +51,7 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
                 so.setAttribute("GF_N", ((Spot)so.getRegion()).getIntensity());
             });
         } else {
-            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, 300, 0.001, 0.01);
+            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, true, 300, 0.001, 0.01);
             Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(o -> o.getRegion(), o -> o));
             parameters.forEach((r, p) -> {
                 SegmentedObject so = rSMap.get(r);
