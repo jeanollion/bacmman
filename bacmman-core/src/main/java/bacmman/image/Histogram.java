@@ -72,6 +72,10 @@ public class Histogram implements JSONSerializable  {
     public double getMaxValue() {
         return getValueFromIdx(getMaxNonNullIdx()+1);
     }
+    public double getMinValue() {
+        return getValueFromIdx(getMinNonNullIdx());
+    }
+
     public Histogram duplicate(int fromIdxIncluded, int toIdxExcluded) {
         long[] dup = new long[data.length];
         System.arraycopy(data, fromIdxIncluded, dup, fromIdxIncluded, toIdxExcluded-fromIdxIncluded);
@@ -156,22 +160,24 @@ public class Histogram implements JSONSerializable  {
         for (long i : data) gcount += i;
         double[] res = new double[quantile.length];
         for (int i = 0; i<res.length; ++i) {
-            if (quantile[i]<0) quantile[i]=0;
-            else if (quantile[i]>1) quantile[i]=1;
-            long count = gcount;
-            double limit = count * (1-quantile[i]); // 1- ?
-            if (limit >= count) {
-                res[i] = min;
-                continue;
+            if (quantile[i]<=0) res[i] = getMinValue();
+            else if (quantile[i]>=1) res[i]=getMaxValue();
+            else {
+                long count = gcount;
+                double limit = count * (1 - quantile[i]); // 1- ?
+                if (limit >= count) {
+                    res[i] = min;
+                    continue;
+                }
+                count = data[data.length - 1];
+                int idx = data.length - 1;
+                while (count < limit && idx > 0) {
+                    idx--;
+                    count += data[idx];
+                }
+                double idxInc = (data[idx] != 0) ? (count - limit) / (data[idx]) : 0; //lin approx
+                res[i] = getValueFromIdx(idx + idxInc);
             }
-            count = data[data.length-1];
-            int idx = data.length-1;
-            while (count < limit && idx > 0) {
-                idx--;
-                count += data[idx];
-            }
-            double idxInc = (data[idx] != 0) ? (count - limit) / (data[idx]) : 0; //lin approx
-            res[i] = getValueFromIdx(idx + idxInc);
         }
         return res;
     }

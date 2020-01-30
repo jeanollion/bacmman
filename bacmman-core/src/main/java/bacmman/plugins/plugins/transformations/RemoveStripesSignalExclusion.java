@@ -160,7 +160,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                 Core.showImage5D("Exclusion signal mask", maskTC);
                 testMasks.clear();
             }
-            if (testMasks!=null && !testMasks2.isEmpty()) {
+            if (testMasks2!=null && !testMasks2.isEmpty()) {
                 Image[][] maskTC = new Image[testMasks2.size()][1];
                 for (Map.Entry<Integer, Image> e : testMasks2.entrySet()) maskTC[e.getKey()][0] = e.getValue();
                 Core.showImage5D("Exclusion signal mask2", maskTC);

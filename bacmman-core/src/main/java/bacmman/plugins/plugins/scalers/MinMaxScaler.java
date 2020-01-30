@@ -15,7 +15,7 @@ public class MinMaxScaler implements HistogramScaler, Hint {
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
-        double min = histogram.getMin();
+        double min = histogram.getMinValue();
         double max = histogram.getMaxValue();
         scale = 1 / (max - min);
         offset = -min;
