@@ -18,6 +18,7 @@ import java.util.function.Predicate;
 import java.util.stream.DoubleStream;
 
 import static bacmman.image.BoundingBox.intersect2D;
+import static bacmman.image.BoundingBox.loop;
 
 public class Spot extends Region {
     double radius, radiusSq, intensity;
@@ -260,46 +261,90 @@ public class Spot extends Region {
      * @return overlap (in voxels) between this region and {@param other}
      */
     @Override
-    public int getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
-        BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);
+    public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
+        BoundingBox otherBounds = offsetOther==null? other.getBounds().duplicate() :  other.getBounds().duplicate().translate(offsetOther);
+        BoundingBox thisBounds = offset==null? getBounds().duplicate() : getBounds().duplicate().translate(offset);
         final boolean inter2D = is2D() || other.is2D();
         if (inter2D) {
             if (!intersect2D(thisBounds, otherBounds)) return 0;
         } else {
             if (!BoundingBox.intersect(thisBounds, otherBounds)) return 0;
         }
+
         BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
                 : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
         BoundingBox.LoopPredicate insideOther;
         BoundingBox loopBds;
-        if (other.is2D()!=is2D()) { // considers that the 2D object expands in the whole range of the 3D object
+        if (other.is2D()!=is2D()) { // considers that the 2D object as a cylinder that expands in the whole range of the 3D object
             loopBds = !is2D() ? BoundingBox.getIntersection2D(thisBounds, otherBounds) : BoundingBox.getIntersection2D(otherBounds, thisBounds);
             if (other instanceof Spot)  {
                 if (other.is2D()) insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
                 else insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
             } else  {
                 ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
-                insideOther = (x, y, z) -> otherMask.insideMask(x, y, z);
+                insideOther = otherMask::insideMask;
             }
         } else {
             loopBds = BoundingBox.getIntersection(otherBounds, thisBounds);
             if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
             else insideOther = (x, y, z) -> other.getMask().insideMask(x, y, z);
         }
+        final int[] count = new int[1];
+        if (other instanceof Spot) {
+            boolean triDim = !is2D() || !other.is2D();
+            if (!triDim) { // both are disks
+                double r0 = this.radius;
+                double r1 = ((Spot) other).radius;
+                double d = this.center.dist(other.center);
+                double rr0 = r0 * r0;
+                double rr1 = r1 * r1;
+                if (d > r1 + r0) { // Circles do not overlap
+                    return 0;
+                } else if (d <= Math.abs(r0 - r1) && r0 >= r1) { // Circle1 is completely inside circle0
+                    return Math.PI * rr1; // Return area of circle1
+                } else if (d <= Math.abs(r0 - r1) && r0 < r1) { // Circle0 is completely inside circle1
+                    return Math.PI * rr0; // Return area of circle0
+                } else { // Circles partially overlap
+                    double phi = (Math.acos((rr0 + (d * d) - rr1) / (2 * r0 * d))) * 2;
+                    double theta = (Math.acos((rr1 + (d * d) - rr0) / (2 * r1 * d))) * 2;
+                    double area1 = 0.5 * theta * rr1 - 0.5 * rr1 * Math.sin(theta);
+                    double area2 = 0.5 * phi * rr0 - 0.5 * rr0 * Math.sin(phi);
+                    return area1 + area2; // Return area of intersection
+                }
+            }
+            // TODO use ANALYTICAL formulas for 3D case!! cylinder/shpere or sphere/shpere
+            DoubleLoopPredicate insideD = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
+                    : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
+            DoubleLoopPredicate insideOtherD = other.is2D() ? (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq
+                    : (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
+            SimpleBoundingBox loopsBds2 = new SimpleBoundingBox(0, loopBds.sizeX()*2, 0, loopBds.sizeY()*2, 0, loopBds.sizeZ()*2);
+            BoundingBox.loop(loopsBds2,
+                (x, y, z) -> {
+                    double xx = loopBds.xMin() + x/2.;
+                    double yy = loopBds.yMin() + y/2.;
+                    double zz = loopBds.zMin() + z/2.;
+                    if (insideD.test(xx, yy, zz) && insideOtherD.test(xx, yy, zz))
+                    count[0]++;
+                });
+            double voxFraction =  8;
+            return count[0] / voxFraction;
+        }
 
-        final int count[] = new int[1];
-        final int offX = offset==null ? 0 : offset.xMin();
+        final int offX = offset==null ? 0 : offset.xMin(); // not thisBounds because of inside function
         final int offY = offset==null ? 0 : offset.yMin();
         final int offZ = offset==null ? 0 : offset.zMin();
         final int otherOffX = otherBounds.xMin();
         final int otherOffY = otherBounds.yMin();
         final int otherOffZ = otherBounds.zMin();
+
         BoundingBox.loop(loopBds,
-                (x, y, z) ->  count[0]++,
-                (x, y, z) -> inside.test(x-offX, y-offY, z-offZ) && insideOther.test(x-otherOffX, y-otherOffY, z-otherOffZ));
+                (x, y, z) -> count[0]++,
+                (x, y, z) -> inside.test(x - offX, y - offY, z - offZ) && insideOther.test(x - otherOffX, y - otherOffY, z - otherOffZ));
 
         return count[0];
+    }
+    private interface DoubleLoopPredicate {
+        boolean test(double x, double y, double z);
     }
     @Override
     public void merge(Region other) {
