@@ -27,7 +27,6 @@
         <module>bacmman-github</module>
         <module>bacmman-dl</module>
         <module>bacmman-tf</module>
-        <module>bacmman-dl4j</module>
     </modules>
 
 
