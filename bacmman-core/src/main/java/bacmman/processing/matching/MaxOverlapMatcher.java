@@ -62,15 +62,17 @@ public class MaxOverlapMatcher<O> {
         if (gToS!=null) {
             // for each g -> max overlap with S
             for (O g : gl) {
-                Overlap maxO  = overlaps.stream().filter(o -> o.o1.equals(g)).max(Comparator.comparingDouble(o->o.overlap)).orElse(null);
-                if (maxO!=null) gToS.put(g, maxO);
+                overlaps.stream().filter(o -> o.o1.equals(g))
+                        .max(Comparator.comparingDouble(o -> o.overlap))
+                        .ifPresent(maxO -> gToS.put(g, maxO));
             }
         }
         if (sToG!=null) {
             // for each s-> max overlap with G
             for (O s : sl) {
-                Overlap<O> maxO  = overlaps.stream().filter(o -> o.o2.equals(s)).max(Comparator.comparingDouble(o->o.overlap)).orElse(null);
-                if (maxO!=null) sToG.put(s, new Overlap<O>(s, maxO.o1, maxO.overlap));
+                overlaps.stream().filter(o -> o.o2.equals(s))
+                        .max(Comparator.comparingDouble(o -> o.overlap))
+                        .ifPresent(maxO -> sToG.put(s, new Overlap<O>(s, maxO.o1, maxO.overlap)));
             }
         }
     }
@@ -81,15 +83,17 @@ public class MaxOverlapMatcher<O> {
         Set<Overlap<O>> maxOverlaps = new HashSet<>();
         // for each g-> max overlap with s
         for (O g : gl) {
-            Overlap maxO  = overlaps.stream().filter(o -> o.o1.equals(g)).max(Comparator.comparingDouble(o->o.overlap)).orElse(null);
-            if (maxO!=null) maxOverlaps.add(maxO);
+            overlaps.stream().filter(o -> o.o1.equals(g))
+                    .max(Comparator.comparingDouble(o -> o.overlap))
+                    .ifPresent(maxOverlaps::add);
         }
         // for each s-> max overlap with G
         for (O s : sl) {
-            Overlap<O> maxO  = overlaps.stream().filter(o -> o.o2.equals(s)).max(Comparator.comparingDouble(o->o.overlap)).orElse(null);
-            if (maxO!=null) maxOverlaps.add(maxO);
+            overlaps.stream().filter(o -> o.o2.equals(s))
+                    .max(Comparator.comparingDouble(o -> o.overlap))
+                    .ifPresent(maxOverlaps::add);
         }
-        maxOverlaps.forEach(o -> {
+        maxOverlaps.stream().distinct().forEach(o -> {
             DefaultWeightedEdge e = graph.addEdge(o.o1, o.o2);
             graph.setEdgeWeight(e, o.overlap);
         });
