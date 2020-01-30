@@ -138,8 +138,9 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         };
         // set measurement to objects
         String prefix = this.prefix.getValue();
-        parentTrack.stream().filter(p->SbyF.containsKey(p.getFrame())).forEach(p -> {
+        parentTrack.forEach(p -> {
             List<SegmentedObject> S = SbyF.get(p.getFrame());
+            if (S==null) S = Collections.emptyList();
             Set<SegmentedObject> Srem = SbyFToRemove.get(p.getFrame());
             Set<SegmentedObject> Grem = GbyFToRemove.get(p.getFrame());
             Set<SegmentedObject> seenS = new HashSet<>();
@@ -258,9 +259,9 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
     private static double getIntersection(SegmentedObject parent, List<SegmentedObject> l1, List<SegmentedObject> l2) {
         if (l1==null || l1.isEmpty() || l2==null || l2.isEmpty()) return 0;
         ImageByte mask = new ImageByte("", parent.getMaskProperties());
-        l1.stream().map(o->o.getRegion()).forEach(r -> r.draw(mask, 1));
+        l1.stream().map(SegmentedObject::getRegion).forEach(r -> r.draw(mask, 1));
         double[] inter = new double[1];
-        l2.stream().map(o->o.getRegion()).forEach( r -> ImageMask.loopWithOffset(r.getMask(), (x, y, z)-> ++inter[0], (x, y, z)->mask.containsWithOffset(x, y, z) && mask.insideMaskWithOffset(x, y, z)));
+        l2.stream().map(SegmentedObject::getRegion).forEach(r -> ImageMask.loopWithOffset(r.getMask(), (x, y, z)-> ++inter[0], (x, y, z)->mask.containsWithOffset(x, y, z) && mask.insideMaskWithOffset(x, y, z)));
         return inter[0];
     }
 
