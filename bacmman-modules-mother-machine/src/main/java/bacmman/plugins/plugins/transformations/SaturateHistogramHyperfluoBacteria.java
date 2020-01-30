@@ -87,7 +87,7 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
          
         long t1 = System.currentTimeMillis();
         configured = true;
-        logger.debug("SaturateHistoAuto: {}, bck : {}, thld: {}, fore: {}, saturation thld: {}, saturation proportion: {}, image range: {} computation time {}ms",saturateValue, bckMuStd[0], bckThld, foreThld, satThld, satSignal/totalSignal, new double[]{histo.getMin(), histo.getMaxValue()}, t1-t0);
+        logger.debug("SaturateHistoAuto: {}, bck : {}, thld: {}, fore: {}, saturation thld: {}, saturation proportion: {}, image range: {} computation time {}ms",saturateValue, bckMuStd[0], bckThld, foreThld, satThld, satSignal/totalSignal, new double[]{histo.getMinValue(), histo.getMaxValue()}, t1-t0);
     }
     
     @Override

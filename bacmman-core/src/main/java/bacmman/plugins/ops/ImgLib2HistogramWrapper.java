@@ -37,17 +37,19 @@ import org.slf4j.LoggerFactory;
 public class ImgLib2HistogramWrapper {
     public static final Logger logger = LoggerFactory.getLogger(ImgLib2HistogramWrapper.class);
     private static DiscreteFrequencyDistribution DFDfromHisto(Histogram histo) {
-        DiscreteFrequencyDistribution res= new DiscreteFrequencyDistribution(new long[]{histo.getData().length});
+        int min = histo.getMinNonNullIdx();
+        int max = histo.getMaxNonNullIdx();
+        DiscreteFrequencyDistribution res= new DiscreteFrequencyDistribution(new long[]{max - min + 1});
         long[] pos = new long[1];
         long[] data = histo.getData();
-        for (int i = 0; i<data.length; ++i) {
-            pos[0] = i;
+        for (int i = min; i<=max; ++i) {
+            pos[0] = i - min;
             res.setFrequency(pos, data[i]);
         }
         return res;
     }
     private static <T extends RealType< T >> BinMapper1d<T> binMapperfromHisto(Histogram histo) {
-        return new Real1dBinMapper(histo.getMin(), histo.getMaxValue(), histo.getData().length, false);
+        return new Real1dBinMapper(histo.getMinValue(), histo.getMaxValue(), histo.getMaxNonNullIdx() - histo.getMinNonNullIdx() + 1, false);
     }
     public static <T extends RealType<T>> Histogram1d<T> wrap(Histogram histo) {
         try {
@@ -57,7 +59,7 @@ public class ImgLib2HistogramWrapper {
             dfdF.set(res, DFDfromHisto(histo));
             Field fv = Histogram1d.class.getDeclaredField("firstValue");
             fv.setAccessible(true);
-            fv.set(res, new FloatType((float)histo.getMin()));
+            fv.set(res, new FloatType((float)histo.getMinValue()));
             return res;
         } catch (NoSuchFieldException | SecurityException | IllegalArgumentException | IllegalAccessException ex) {
             logger.debug("Error while converting histogram", ex);

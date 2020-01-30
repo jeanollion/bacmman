@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.plugins.Plugin;
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
@@ -31,6 +32,8 @@ import bacmman.image.SimpleBoundingBox;
 import ij.gui.ImageWindow;
 import ij.gui.StackWindow;
 import ij.plugin.frame.SyncWindows;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -44,6 +47,7 @@ import java.util.function.Supplier;
  * @author Jean Ollion
  */
 public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
+    static Logger logger = LoggerFactory.getLogger(IJImageDisplayer.class);
     protected HashMap<Image, ImagePlus> displayedImages=new HashMap<>();
     protected HashMap<ImagePlus, Image> displayedImagesInv=new HashMap<>();
     @Override public ImagePlus showImage(Image image, double... displayRange) {
@@ -248,7 +252,8 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
         //res.show();
         ImagePlus ip = IJImageWrapper.getImagePlus(imageTC, -1);
         ip.setTitle(title);
-        // TODO: set display range ?
+        double[] displayRange = ImageDisplayer.getDisplayRange(imageTC[0][0], null);
+        ip.setDisplayRange(displayRange[0], displayRange[1]);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         bacmman.ui.GUI.logger.debug("image: {}, isDisplayedAsHyperStack: {}, is HP: {}, dim: {}", title, ip.isDisplayedHyperStack(), ip.isHyperStack(), ip.getDimensions());

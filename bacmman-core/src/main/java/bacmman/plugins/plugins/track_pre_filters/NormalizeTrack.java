@@ -55,7 +55,7 @@ public class NormalizeTrack  implements TrackPreFilter, Hint {
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImage) {
         Histogram histo = HistogramFactory.getHistogram(()->Image.stream(preFilteredImages.values()).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
         double[] minAndMax = new double[2];
-        minAndMax[0] = histo.getMin();
+        minAndMax[0] = histo.getMinValue();
         if (saturation.getValue().doubleValue()<1) minAndMax[1] = histo.getQuantiles(saturation.getValue().doubleValue())[0];
         else minAndMax[1] = histo.getMaxValue();
         double scale = 1 / (minAndMax[1] - minAndMax[0]);

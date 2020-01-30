@@ -76,15 +76,19 @@ public interface ImageDisplayer<T> {
         }
         return resTC;
     }
-    public static double[] getDisplayRange(Image im, ImageMask mask) {
+    static double[] getDisplayRange(Image im, ImageMask mask) {
         Histogram hist = HistogramFactory.getHistogram(()->im.stream(mask, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
-        if (hist.getData().length==2) return new double[]{hist.getMin(), hist.getMin()+hist.getBinSize()};
-        hist.removeSaturatingValue(5, true);
+        int minIdx = hist.getMinNonNullIdx();
+        int maxIdx = hist.getMaxNonNullIdx();
+        double minValue = hist.getValueFromIdx(minIdx);
+        double maxValue = hist.getValueFromIdx(maxIdx);
+        if (hist.getData().length==2 || minIdx==maxIdx+1 || minIdx==maxIdx) return new double[]{minValue, minValue+hist.getBinSize()}; // binary image
+        //hist.removeSaturatingValue(5, true);
         hist.removeSaturatingValue(5, false);
         double[] per =  hist.getQuantiles(0, 1);
         if (per[0]==per[1]) {
-            per[0] = hist.getMin();
-            per[1] = hist.getMaxValue();
+            per[0] = minValue;
+            per[1] = maxValue;
         }
         if (per[0]>0 &&  im instanceof ImageInteger) per[0] -= 1; // possibly a label image
         return per;
