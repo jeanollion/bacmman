@@ -1234,9 +1234,9 @@ public class RegionPopulation {
         @Override
         public boolean keepObject(Region object) {
             Region maxInterO = null;
-            int maxInter = 0;
+            double maxInter = 0;
             for (Region o : other.getRegions()) {
-                int inter = o.getOverlapArea(object, null, null);
+                double inter = o.getOverlapArea(object, null, null);
                 if (inter > maxInter) {
                     maxInter = inter;
                     maxInterO = o;

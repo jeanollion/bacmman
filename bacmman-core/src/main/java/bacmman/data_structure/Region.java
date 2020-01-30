@@ -692,7 +692,7 @@ public class Region {
         if (is2D()||other.is2D()) return BoundingBox.intersect2D(getBounds(), other.getBounds());
         return BoundingBox.intersect(getBounds(), other.getBounds());
     }
-    public int getOverlapArea(Region other) {
+    public double getOverlapArea(Region other) {
         return getOverlapArea(other, null, null);
     }
 
@@ -703,7 +703,7 @@ public class Region {
      * @param offsetOther offset to add to {@param other} so that is would be in absolute landmark
      * @return overlap (in voxels) between this region and {@param other}
      */
-    public int getOverlapArea(Region other, Offset offset, Offset offsetOther) {
+    public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
         if (other instanceof Spot) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
         BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
         BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);
@@ -747,9 +747,9 @@ public class Region {
     public Region getContainer(Collection<Region> containerCandidates, Offset offset, Offset containerOffset) {
         if (containerCandidates.isEmpty()) return null;
         Region currentParent=null;
-        int currentIntersection=-1;
+        double currentIntersection=-1;
         for (Region p : containerCandidates) {
-            int inter = getOverlapArea(p, offset, containerOffset);
+            double inter = getOverlapArea(p, offset, containerOffset);
             if (inter>0) {
                 if (currentParent==null) {
                     currentParent = p;
