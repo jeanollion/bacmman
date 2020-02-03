@@ -260,12 +260,12 @@ public class Processor {
         try { // execute sequentially, store what has been processed, and throw exception in the end
             ThreadRunner.executeAndThrowErrors(allParentTracks.values().stream(), pt -> {
                 execute(xp.getStructure(structureIdx).getProcessingScheme(), structureIdx, pt, trackOnly, deleteChildren, dao);
+                if (pcb !=null) pcb.incrementSubTask();
             });
         } catch (MultipleException e) {
             me=e;
         } finally {
             xp.getDLengineProvider().closeAllEngines();
-            if (pcb !=null) pcb.incrementSubTask();
         }
         
         // store in DAO
