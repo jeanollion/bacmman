@@ -54,9 +54,17 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     boolean wsMapIsEdgeMap = true, localMinOnSeedMap=true;
     protected ImageMask foregroundMask;
     protected Consumer<Region> regionChanged;
+    protected double seedThreshold = Double.NaN;
+
+    public SplitAndMerge<I> setSeedThrehsold(double seedThrehsold) {
+        this.seedThreshold=seedThrehsold;
+        return this;
+    }
+
     public void setTestMode(Consumer<Image> addTestImage) {
         this.addTestImage = addTestImage;
     }
+
     public SplitAndMerge(Image intensityMap) {
         this.intensityMap=intensityMap;
         medianValues= new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
@@ -175,7 +183,8 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         return merge(popWS, stopCondition);
     }
     public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation) {
-        ImageByte seeds = Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap()));
+        ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap())) :
+                Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap()));
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!wsMapIsEdgeMap);
         if (minSizePropagation>0) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
         RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);

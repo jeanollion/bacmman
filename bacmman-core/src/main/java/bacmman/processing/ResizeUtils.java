@@ -59,6 +59,15 @@ public class ResizeUtils {
     public static Image[] getChannel(Image[][] imageNC, int channelIdx) {
         return Arrays.stream(imageNC).map(a -> a[channelIdx]).toArray(Image[]::new);
     }
+    public static Image[] averageChannelOnOutputs(Image[][][] imageONC, int channelIdx, int... outputIdx) {
+        if (outputIdx.length==1) return getChannel(imageONC[outputIdx[0]], channelIdx);
+        IntStream range =  (outputIdx.length==0) ? IntStream.range(0, imageONC.length) : IntStream.of(outputIdx);
+        Image[][] imageON = range.mapToObj(i -> imageONC[i]).map(imageNC -> getChannel(imageNC, channelIdx)).toArray(Image[][]::new);
+        return IntStream.range(0, imageON[0].length)
+                .mapToObj(n-> Arrays.stream(imageON).map(images -> images[n]).toArray(Image[]::new)) // for each batch index -> generate an array of outputs
+                .map(a -> ImageOperations.average(null, a)) // average on outputs
+                .toArray(Image[]::new);
+    }
     public static Image[][] resample(Image[][] imagesNC, boolean[] isBinaryC, int[][] imageShapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)

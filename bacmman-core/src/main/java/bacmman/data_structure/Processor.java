@@ -438,18 +438,18 @@ public class Processor {
             }
             if (pcb!=null) pcb.log("Executing #"+e.getValue().size()+" measurement"+(e.getValue().size()>1?"s":"")+" on Structure: "+e.getKey()+" (#"+allParentTracks.size()+" tracks): "+Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
             logger.debug("Executing: #{} measurements from parent: {} (#{} parentTracks) : {}", e.getValue().size(), e.getKey(), allParentTracks.size(), Utils.toStringList(e.getValue(), m->m.getClass().getSimpleName()));
-            // measurement are run separately depending on their carateristics to optimize paralele processing
-            // start with non parallele measurements on tracks -> give 1 CPU ressources to the measurement and perform track by track
-            List<Pair<Measurement, SegmentedObject>> actionPool = new ArrayList<>();
+            // measurement are run separately depending on their characteristics to optimize parallelle processing
+            // start with non parallel measurements on tracks -> give 1 CPU to the measurement and perform track by track
+            List<Pair<Measurement, SegmentedObject>> nonParallelTrackMeasurements = new ArrayList<>();
             allParentTracks.keySet().forEach(pt -> {
                 dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
                         .filter(m->m.callOnlyOnTrackHeads() && !(m instanceof MultiThreaded))
                         .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
-                        .forEach(m-> actionPool.add(new Pair<>(m, pt)));
+                        .forEach(m-> nonParallelTrackMeasurements.add(new Pair<>(m, pt)));
             });
             int subTaskNumber = 0;
-            if (pcb!=null && actionPool.size()>0) {
-                subTaskNumber+=actionPool.size();
+            if (pcb!=null && nonParallelTrackMeasurements.size()>0) {
+                subTaskNumber+=nonParallelTrackMeasurements.size();
             }
             // count parallel measurement on tracks -
             int parallelMeasCount = (int)e.getValue().stream().filter(m->m.callOnlyOnTrackHeads() && (m instanceof MultiThreaded) ).count();
@@ -461,12 +461,12 @@ public class Processor {
                     .filter(m->!m.callOnlyOnTrackHeads()).collect(Collectors.toList());
             if (pcb!=null && !measObj.isEmpty()) subTaskNumber+=measObj.size();
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
-            if (!actionPool.isEmpty()) containsObjects=true;
-            if (!actionPool.isEmpty()) {
-                pcb.log("Executing: #"+actionPool.size()+" track measurements");
+            if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
+            if (!nonParallelTrackMeasurements.isEmpty()) {
+                pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
                 try {
-                    ThreadRunner.executeAndThrowErrors(actionPool.parallelStream(), p -> {
-                        logger.debug("performing: {}@{}", p.key, p.value);
+                    ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {
+                        pcb.log("performing: "+p.key+"@"+p.value);
                         p.key.performMeasurement(p.value);
                         if (pcb != null) pcb.incrementSubTask();
                     });
