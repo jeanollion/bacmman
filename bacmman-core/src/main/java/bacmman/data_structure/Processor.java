@@ -441,12 +441,10 @@ public class Processor {
             // measurement are run separately depending on their characteristics to optimize parallelle processing
             // start with non parallel measurements on tracks -> give 1 CPU to the measurement and perform track by track
             List<Pair<Measurement, SegmentedObject>> nonParallelTrackMeasurements = new ArrayList<>();
-            allParentTracks.keySet().forEach(pt -> {
-                dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
-                        .filter(m->m.callOnlyOnTrackHeads() && !(m instanceof MultiThreaded))
-                        .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
-                        .forEach(m-> nonParallelTrackMeasurements.add(new Pair<>(m, pt)));
-            });
+            allParentTracks.keySet().forEach(pt -> dao.getExperiment().getMeasurementsByCallStructureIdx(e.getKey()).get(e.getKey()).stream()
+                    .filter(m->m.callOnlyOnTrackHeads() && !(m instanceof MultiThreaded))
+                    .filter(m->measurementMissing.test(pt, m)) // only test on trackhead object
+                    .forEach(m-> nonParallelTrackMeasurements.add(new Pair<>(m, pt))));
             int subTaskNumber = 0;
             if (pcb!=null && nonParallelTrackMeasurements.size()>0) {
                 subTaskNumber+=nonParallelTrackMeasurements.size();
@@ -463,6 +461,7 @@ public class Processor {
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
             if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
             if (!nonParallelTrackMeasurements.isEmpty()) {
+                nonParallelTrackMeasurements.stream().map(p->p.value).distinct().flatMap(th->allParentTracks.get(th).stream()).forEach(SegmentedObject::getMeasurements); // retrieve all measurement objects to avoid concurrent locks
                 pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
                 try {
                     ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {
