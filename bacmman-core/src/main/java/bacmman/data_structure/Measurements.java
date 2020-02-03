@@ -20,6 +20,7 @@ package bacmman.data_structure;
 
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -49,7 +50,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         this.frame=o.getFrame();
         this.structureIdx=o.getStructureIdx();
         this.isTrackHead=o.isTrackHead;
-        this.values=new HashMap<>();
+        this.values=new ConcurrentHashMap<>();
         updateObjectProperties(o);
     }
     public Measurements(Map json, String positionName) {
@@ -67,6 +68,7 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         indices = JSONUtils.fromIntArray((JSONArray)json.get("indices"));
         //values = JSONUtils.toValueMap((Map)json.get("values"));
         values = (Map<String, Object>)json.get("values"); // arrays are lazily converted
+        values = new ConcurrentHashMap<>(values);
     }
     @Override
     public JSONObject toJSONEntry() {
@@ -169,43 +171,33 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
     }
     
     public void setValue(String key, Number value) {
-        synchronized(values) {
-            if (value == null || isNA(value)) values.remove(key);
-            else values.put(key, value);
-            modifications=true;
-        }
+        if (value == null || isNA(value)) values.remove(key);
+        else values.put(key, value);
+        modifications=true;
     }
     private static boolean isNA(Number value) {
         return (value instanceof Double && ((Double)value).isNaN() ||  value instanceof Float && ((Float)value).isNaN());
     }
     public void setStringValue(String key, String value) {
-        synchronized(values) {
-            if (value == null) values.remove(key);
-            else values.put(key, value);
-            modifications=true;
-        }
+        if (value == null) values.remove(key);
+        else values.put(key, value);
+        modifications=true;
     }
     
     public void setValue(String key, boolean value) {
-        synchronized(values) {
-            this.values.put(key, value);
-            modifications=true;
-        }
+        this.values.put(key, value);
+        modifications=true;
     }
     
     public void setArrayValue(String key, double[] value) {
-        synchronized(values) {
-            if (value == null) values.remove(key);
-            else this.values.put(key, Arrays.asList(value));
-            modifications=true;
-        }
+        if (value == null) values.remove(key);
+        else this.values.put(key, Arrays.asList(value));
+        modifications=true;
     }
     public void setListValue(String key, List<Double> value) {
-        synchronized(values) {
-            if (value == null) values.remove(key);
-            else this.values.put(key, value);
-            modifications=true;
-        }
+        if (value == null) values.remove(key);
+        else this.values.put(key, value);
+        modifications=true;
     }
     
     public int compareTo(Measurements o) { // positionName / structureIdx / frame / indices
@@ -223,7 +215,6 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
             if (indices.length!=o.indices.length) return lMin==indices.length?-1:1;
         }
         return 0;
-        
     }
     
     @Override 

@@ -724,7 +724,7 @@ public class DBMapObjectDAO implements ObjectDAO {
             Measurements m = new Measurements(parse(mS), this.positionName);
             return m;
         } catch (IOError e) {
-            
+            logger.error("Error while fetching measurement", e);
         }
         return null;
         
