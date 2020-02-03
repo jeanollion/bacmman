@@ -30,6 +30,10 @@ public class Spot extends Region {
         this.intensity = intensity;
     }
 
+    public void setIntensity(double intensity) {
+        this.intensity = intensity;
+    }
+
     @Override
     public Spot setIs2D(boolean is2D) {
         if (is2D!=this.is2D) {

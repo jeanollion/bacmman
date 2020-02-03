@@ -80,9 +80,9 @@ public class SNR extends IntensityMeasurement implements Hint {
         backgroundStructure.setSelectedClassIdx(structureIdx);
         return this;
     }
-    public SNR setRadii(double dilateRadius, double erodeRadius) {
-        this.dilateExcluded.setValue(dilateRadius);
-        this.erodeBorders.setValue(erodeRadius);
+    public SNR setRadii(double dilateForegroundRadius, double erodeBackgroundMaskRadius) {
+        this.dilateExcluded.setValue(dilateForegroundRadius);
+        this.erodeBorders.setValue(erodeBackgroundMaskRadius);
         return this;
     }
     public SNR setFormula(FORMULA formula, FOREGROUND_FORMULA foregroundFormula, BACKGROUND_FORMULA backgroundFormula) {
