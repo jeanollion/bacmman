@@ -54,6 +54,7 @@ import static bacmman.utils.Utils.objectsAllHaveSameProperty;
 
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -769,9 +770,12 @@ public class RegionPopulation {
         for (Region r : getRegions()) {
             Set<Voxel> contour = r.getContour();
             int lab = r.getLabel();
+            ToIntFunction<Voxel> getVoxel = r.isAbsoluteLandMark() ? n->maskR.getPixelIntWithOffset(n.x, n.y, n.z) : n->maskR.getPixelInt(n.x, n.y, n.z);
             Set<Voxel> touching = contour.stream()
-                    .filter(v -> neigh.stream(v, maskR, false).anyMatch(n -> maskR.getPixelInt(n.x, n.y, n.z)!=lab))
-                    .collect(Collectors.toSet());
+                    .filter(v -> neigh.stream(v, maskR, r.isAbsoluteLandMark()).anyMatch(n -> {
+                        int l = getVoxel.applyAsInt(n);
+                        return l>0 && l!=lab;
+                    })).collect(Collectors.toSet());
             if (touching.size()<r.size()) { // make sure this does not erase the region
                 toErase.addAll(touching);
                 r.removeVoxels(touching);

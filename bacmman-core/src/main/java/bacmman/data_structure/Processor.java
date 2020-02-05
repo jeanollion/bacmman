@@ -274,7 +274,7 @@ public class Processor {
             Stream<SegmentedObject> s = p.getChildren(structureIdx);
             if (s==null) return Stream.empty();
             else return s;
-        }).forEachOrdered(c->children.add(c));
+        }).forEachOrdered(children::add);
         dao.store(children);
         logger.debug("total objects: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
         
@@ -465,7 +465,7 @@ public class Processor {
                 pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
                 try {
                     ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {
-                        pcb.log("performing: "+p.key+"@"+p.value);
+                        //pcb.log("performing: "+p.key+"@"+p.value);
                         p.key.performMeasurement(p.value);
                         if (pcb != null) pcb.incrementSubTask();
                     });
