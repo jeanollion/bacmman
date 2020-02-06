@@ -53,16 +53,14 @@ public class ExtractDatasetUtil {
             }
             for (String position : sel.getAllPositions()) {
                 logger.debug("position: {}", position);
-                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirected<>(oc -> {
-                    Map<SegmentedObject, RegionPopulation> res = ExtractDatasetUtil.getResampledPopMap(oc, false, dimensions);
-                    if (eraseTouchingContours.test(oc)) res.values().parallelStream().forEach(pop -> pop.eraseTouchingContours(false));
-                    return res;
-                });
+                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc ->  ExtractDatasetUtil.getResampledPopMap(oc, false, dimensions, eraseTouchingContours.test(oc)));
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
+                boolean saveLabels = true;
                 for (Triplet<String, FeatureExtractor, Integer> feature : features) {
                     logger.debug("feature: {}", feature);
-                    Function<SegmentedObject, Image> extractRaw = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
-                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractRaw, SCALE_MODE.NO_SCALE, feature.v2.isBinary(), null, true,  true, dimensions);
+                    Function<SegmentedObject, Image> extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
+                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, SCALE_MODE.NO_SCALE, feature.v2.isBinary(), null, saveLabels,  saveLabels, dimensions);
+                    saveLabels=false;
                     t.incrementProgress();
                 }
                 resampledPops.clear();
@@ -70,7 +68,7 @@ public class ExtractDatasetUtil {
         }
     }
 
-    public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, boolean shortMask, int[] dimensions) {
+    public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, boolean shortMask, int[] dimensions, boolean eraseTouchingContours) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> {
             Image mask = o.getChildRegionPopulation(objectClassIdx).getLabelMap();
             ImageInteger maskR;
@@ -82,6 +80,7 @@ public class ExtractDatasetUtil {
                 else maskR = (ImageByte)mask.resetOffset();
             }
             RegionPopulation res = new RegionPopulation(maskR, true);
+            if (eraseTouchingContours) res.eraseTouchingContours(false);
             return res;
         });
     }

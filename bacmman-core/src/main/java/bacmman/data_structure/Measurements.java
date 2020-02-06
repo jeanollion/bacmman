@@ -27,6 +27,8 @@ import org.json.simple.JSONObject;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -34,6 +36,7 @@ import bacmman.utils.Utils;
  */
 
 public class Measurements implements Comparable<Measurements>, JSONSerializable{
+    private final static Logger logger = LoggerFactory.getLogger(Measurements.class);
     protected String id;
     protected String positionName;
     protected int frame, structureIdx;
@@ -54,8 +57,8 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         updateObjectProperties(o);
     }
     public Measurements(Map json, String positionName) {
-        this.initFromJSONEntry(json);
         this.positionName=positionName;
+        this.initFromJSONEntry(json);
     }
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
@@ -68,6 +71,11 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         indices = JSONUtils.fromIntArray((JSONArray)json.get("indices"));
         //values = JSONUtils.toValueMap((Map)json.get("values"));
         values = (Map<String, Object>)json.get("values"); // arrays are lazily converted
+        values.entrySet().removeIf(e->{
+            boolean rem = e.getKey()==null || e.getValue()==null;
+            if (rem) logger.error("oc: {}, pos: {}, idx: {} null entry : {}", structureIdx, positionName, indices, e);
+            return rem;
+        });
         values = new ConcurrentHashMap<>(values);
     }
     @Override
