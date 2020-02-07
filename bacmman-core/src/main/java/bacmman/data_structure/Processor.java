@@ -491,7 +491,7 @@ public class Processor {
                 pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
                 try {
                     ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {
-                        pcb.log("performing: "+p.key+"@"+p.value);
+                        //pcb.log("performing: "+p.key+"@"+p.value);
                         p.key.performMeasurement(p.value);
                         if (pcb != null) pcb.incrementSubTask();
                     });
