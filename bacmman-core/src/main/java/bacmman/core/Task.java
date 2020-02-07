@@ -942,7 +942,7 @@ public class Task implements ProgressCallback{
     @Override
     public synchronized void incrementProgress() {
         ++taskCounter[0];
-        logger.debug("Progress: {}/{}", taskCounter[0], taskCounter[1]);
+        //logger.debug("Progress: {}/{}", taskCounter[0], taskCounter[1]);
         if (ui!=null) ui.setProgress(100*taskCounter[0]/taskCounter[1]);
     }
 
@@ -955,7 +955,7 @@ public class Task implements ProgressCallback{
     @Override
     public synchronized void incrementSubTask() {
         ++subtaskCount;
-        logger.debug("Progress: {}/{}, subtask: {}/{}", taskCounter[0], taskCounter[1], subtaskCount, subtaskNumber);
+        //logger.debug("Progress: {}/{}, subtask: {}/{}", taskCounter[0], taskCounter[1], subtaskCount, subtaskNumber);
         if (ui!=null) ui.setProgress((int)(100*(taskCounter[0] + subtaskCount / subtaskNumber)/taskCounter[1] + 0.5));
     }
 

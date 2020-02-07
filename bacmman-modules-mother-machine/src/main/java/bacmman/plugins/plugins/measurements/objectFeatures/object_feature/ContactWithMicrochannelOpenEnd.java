@@ -1,6 +1,7 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -14,16 +15,19 @@ public class ContactWithMicrochannelOpenEnd implements ObjectFeature, Hint {
     RegionPopulation.ContactBorder yDown;
     BooleanParameter noContactIfOnlyOne = new BooleanParameter("Do not compute if only one object", true).setHint("If only one object is present in microchannel, returned contact is zero");
     BooleanParameter normalize = new BooleanParameter("Divide by bacteria width?", true).setHint("If true, contact value will be divided by the median bacteria width");
-
+    BoundedNumberParameter tolerance = new BoundedNumberParameter("Tolerance", 0, 0, 0, null).setHint("if >0, a contact is considered if the distance from the contour of the object to the open-end of the microchannel is inferior to this parameter");
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{normalize, noContactIfOnlyOne};
+        return new Parameter[]{normalize, noContactIfOnlyOne, tolerance};
     }
 
     @Override
     public ObjectFeature setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        if (childPopulation.getRegions().size()>1) yDown = new RegionPopulation.ContactBorder(0, parent.getMask(), RegionPopulation.Border.YDown);
+        if (childPopulation.getRegions().size()>1) {
+            yDown = new RegionPopulation.ContactBorder(0, parent.getMask(), RegionPopulation.Border.YDown)
+                    .setTolerance(tolerance.getValue().intValue());
+        }
         return this;
     }
 

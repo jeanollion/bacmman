@@ -1003,10 +1003,16 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
     public Measurements getMeasurements() {
         if (measurements==null) {
-            synchronized(this) {
-                if (measurements==null) {
-                    if (dao!=null && !(dao instanceof BasicObjectDAO)) measurements = dao.getMeasurements(this);
-                    if (measurements==null) measurements = new Measurements(this);
+            if (dao!=null) {
+                synchronized(dao) {
+                    if (measurements==null) {
+                        if (!(dao instanceof BasicObjectDAO)) measurements = dao.getMeasurements(this);
+                        if (measurements==null) measurements = new Measurements(this);
+                    }
+                }
+            } else {
+                synchronized (this) {
+                    if (measurements == null) measurements = new Measurements(this);
                 }
             }
         }

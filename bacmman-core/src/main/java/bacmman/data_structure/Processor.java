@@ -51,6 +51,8 @@ import bacmman.utils.Pair;
 import bacmman.utils.StreamConcatenation;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+
+import java.util.function.Function;
 import java.util.stream.Stream;
 import bacmman.plugins.ProcessingPipeline;
 
@@ -274,7 +276,7 @@ public class Processor {
             Stream<SegmentedObject> s = p.getChildren(structureIdx);
             if (s==null) return Stream.empty();
             else return s;
-        }).forEachOrdered(c->children.add(c));
+        }).forEachOrdered(children::add);
         dao.store(children);
         logger.debug("total objects: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
         
@@ -461,7 +463,31 @@ public class Processor {
             if (subTaskNumber>0 && pcb!=null) pcb.setSubtaskNumber(subTaskNumber);
             if (!nonParallelTrackMeasurements.isEmpty()) containsObjects=true;
             if (!nonParallelTrackMeasurements.isEmpty()) {
-                nonParallelTrackMeasurements.stream().map(p->p.value).distinct().flatMap(th->allParentTracks.get(th).stream()).forEach(SegmentedObject::getMeasurements); // retrieve all measurement objects to avoid concurrent locks
+                Function<Measurement, Set<Integer>> modifiedOC = m -> m.getMeasurementKeys().stream().map(MeasurementKey::getStoreStructureIdx).collect(Collectors.toSet());
+                Map<SegmentedObject, Set<Integer>> modifiedOCByTH = nonParallelTrackMeasurements.stream().reduce(
+                    new HashMap<>(),
+                    (map, p) -> {
+                        Set<Integer> ocs = map.get(p.value);
+                        if (ocs==null) map.put(p.value, modifiedOC.apply(p.key));
+                        else ocs.addAll(modifiedOC.apply(p.key));
+                        return map;
+                    }, (map1, map2) -> {
+                        for (Entry<SegmentedObject, Set<Integer>> ee : map2.entrySet()) {
+                            Set<Integer> ocs = map1.get(ee.getKey());
+                            if (ocs==null) map1.put(ee.getKey(), ee.getValue());
+                            else ocs.addAll(ee.getValue());
+                        }
+                        return map1;
+                    });
+
+                nonParallelTrackMeasurements.stream().map(p->p.value).distinct()
+                        .forEach(th -> {
+                            Set<Integer> oc = modifiedOCByTH.get(th);
+                            if (oc!=null) {
+                                List<SegmentedObject> track = allParentTracks.get(th);
+                                oc.forEach(idx -> track.forEach(o -> o.getChildren(idx).forEach(SegmentedObject::getMeasurements)));
+                            }
+                        }); // retrieve all measurement objects to avoid thread idle at measurement creation
                 pcb.log("Executing: #"+nonParallelTrackMeasurements.size()+" non-multithreaded track measurements");
                 try {
                     ThreadRunner.executeAndThrowErrors(nonParallelTrackMeasurements.parallelStream(), p -> {

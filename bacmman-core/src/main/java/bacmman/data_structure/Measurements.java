@@ -27,6 +27,8 @@ import org.json.simple.JSONObject;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -34,6 +36,7 @@ import bacmman.utils.Utils;
  */
 
 public class Measurements implements Comparable<Measurements>, JSONSerializable{
+    private final static Logger logger = LoggerFactory.getLogger(Measurements.class);
     protected String id;
     protected String positionName;
     protected int frame, structureIdx;
@@ -54,8 +57,8 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         updateObjectProperties(o);
     }
     public Measurements(Map json, String positionName) {
-        this.initFromJSONEntry(json);
         this.positionName=positionName;
+        this.initFromJSONEntry(json);
     }
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
@@ -68,6 +71,11 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         indices = JSONUtils.fromIntArray((JSONArray)json.get("indices"));
         //values = JSONUtils.toValueMap((Map)json.get("values"));
         values = (Map<String, Object>)json.get("values"); // arrays are lazily converted
+        values.entrySet().removeIf(e->{
+            boolean rem = e.getKey()==null || e.getValue()==null;
+            if (rem) logger.error("oc: {}, pos: {}, idx: {} null entry : {}", structureIdx, positionName, indices, e);
+            return rem;
+        });
         values = new ConcurrentHashMap<>(values);
     }
     @Override
@@ -138,12 +146,12 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         if (v==null) return null;
         else if (v instanceof Number) return v;
         else if (v instanceof List) {
-            synchronized (values) {
+            synchronized (v) {
                 Object vv = values.get(name);
-                if (vv instanceof List) {
-                    v = JSONUtils.convertJSONArray((List)vv);
-                    values.put(name, v);
-                    return v;
+                if (v.equals(vv)) {
+                    Object array = JSONUtils.convertJSONArray((List)v);
+                    values.put(name, array);
+                    return array;
                 } else return vv; // was already converted by another call
             }
         }
