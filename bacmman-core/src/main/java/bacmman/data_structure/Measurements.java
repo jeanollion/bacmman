@@ -146,12 +146,12 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         if (v==null) return null;
         else if (v instanceof Number) return v;
         else if (v instanceof List) {
-            synchronized (values) {
+            synchronized (v) {
                 Object vv = values.get(name);
-                if (vv instanceof List) {
-                    v = JSONUtils.convertJSONArray((List)vv);
-                    values.put(name, v);
-                    return v;
+                if (v.equals(vv)) {
+                    Object array = JSONUtils.convertJSONArray((List)v);
+                    values.put(name, array);
+                    return array;
                 } else return vv; // was already converted by another call
             }
         }
