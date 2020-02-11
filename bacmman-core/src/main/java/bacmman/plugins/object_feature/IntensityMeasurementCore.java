@@ -27,19 +27,22 @@ import java.util.HashMap;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.DoubleStatistics;
 import bacmman.utils.geom.Point;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
-public class IntensityMeasurementCore implements ObjectFeatureCore {
+public class IntensityMeasurementCore {
+    private final static Logger logger = LoggerFactory.getLogger(IntensityMeasurementCore.class);
     Image intensityMap, transformedMap;
     HashMap<Region, IntensityMeasurements> values = new HashMap<>();
     
-    public void setUp(Image intensityMap, ImageMask mask , PreFilterSequence preFilters) {
+    public void setUp(Image intensityMap, Image transformedMap) {
         this.intensityMap=intensityMap;    
-        if (preFilters==null) this.transformedMap=intensityMap;
-        else transformedMap = preFilters.filter(intensityMap, mask);
+        if (transformedMap==null) this.transformedMap=intensityMap;
+        else this.transformedMap = transformedMap;
     }
     public Image getIntensityMap(boolean transformed) {
         return transformed ? transformedMap : intensityMap;
@@ -59,7 +62,7 @@ public class IntensityMeasurementCore implements ObjectFeatureCore {
         
         public IntensityMeasurements(Region o) {
             this.o=o;
-            DoubleStatistics stats = DoubleStatistics.getStats(intensityMap.stream(o.getMask(), o.isAbsoluteLandMark()));
+            DoubleStatistics stats = DoubleStatistics.getStats(transformedMap.stream(o.getMask(), o.isAbsoluteLandMark()));
             mean = stats.getAverage();
             sd = stats.getStandardDeviation();
             min = stats.getMin();
@@ -71,12 +74,12 @@ public class IntensityMeasurementCore implements ObjectFeatureCore {
             if (Double.isNaN(valueAtCenter)) {
                 Point center = o.getCenter();
                 if (center==null) center = o.getGeomCenter(false);
-                this.valueAtCenter = o.isAbsoluteLandMark() ? intensityMap.getPixelWithOffset(center.get(0), center.get(1), center.getWithDimCheck(2)) : intensityMap.getPixel(center.get(0), center.get(1), center.getWithDimCheck(2));
+                this.valueAtCenter = o.isAbsoluteLandMark() ? transformedMap.getPixelWithOffset(center.get(0), center.get(1), center.getWithDimCheck(2)) : transformedMap.getPixel(center.get(0), center.get(1), center.getWithDimCheck(2));
             }
             return valueAtCenter;
         }
         public double getMedian() {
-            if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, intensityMap, 0.5)[0];
+            if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, transformedMap, 0.5)[0];
             return median;
         }
     }

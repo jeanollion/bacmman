@@ -19,8 +19,11 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.data_structure.Region;
+import bacmman.measurement.BasicMeasurements;
+import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.Hint;
 import bacmman.plugins.object_feature.IntensityMeasurement;
+import bacmman.processing.ImageOperations;
 
 /**
  *

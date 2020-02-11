@@ -25,7 +25,11 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 
+import bacmman.image.ImageMask;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SimpleObjectFeature;
 
 /**
@@ -40,6 +44,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         this.intensity.setSelectedClassIdx(structureIdx);
         return this;
     }
+    @Override
     public int getIntensityStructure() {
         return this.intensity.getSelectedClassIdx();
     }
@@ -55,18 +60,14 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity};}
 
     @Override
-    public void setUpOrAddCore(List<ObjectFeatureCore> availableCores, PreFilterSequence preFilters) {
-        IntensityMeasurementCore existingCore = getCore(availableCores);
+    public void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> filters) {
+        IntensityMeasurementCore existingCore = availableCores==null ? null : availableCores.get(intensityMap);
         if (existingCore==null) {
             if (core==null) {
                 core = new IntensityMeasurementCore();
-                core.setUp(intensityMap, parent.getMask(), preFilters);
+                core.setUp(intensityMap, filters==null ? null : filters.apply(intensityMap, parent.getMask()));
             }
-            if (availableCores!=null) availableCores.add(core);
+            if (availableCores!=null) availableCores.put(intensityMap, core);
         } else core=existingCore;
-    }
-    private IntensityMeasurementCore getCore(List<ObjectFeatureCore> availableCores) {
-        if (availableCores==null || availableCores.isEmpty()) return null;
-        return availableCores.stream().filter(c -> c instanceof IntensityMeasurementCore).map(c->(IntensityMeasurementCore)c).filter(c->c.getIntensityMap(false)==intensityMap).findAny().orElse(null);
     }
 }

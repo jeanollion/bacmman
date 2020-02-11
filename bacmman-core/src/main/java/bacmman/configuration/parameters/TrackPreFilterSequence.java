@@ -30,6 +30,7 @@ import bacmman.plugins.TrackPreFilter;
 import bacmman.plugins.HistogramScaler;
 import bacmman.utils.MultipleException;
 
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -58,6 +59,14 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         if (isEmpty() && allPFImagesAreSet(parentTrack, structureIdx)) { // if no preFilters &  only add raw images if no prefiltered image is present
             return;
         }
+        Map<SegmentedObject, Image> images = filterImages(structureIdx, parentTrack);
+        SegmentedObjectAccessor accessor = getAccessor();
+        for (Entry<SegmentedObject, Image> en : images.entrySet()) {
+            accessor.setPreFilteredImage(en.getKey(), structureIdx,en.getValue());
+        }
+    }
+
+    public Map<SegmentedObject, Image> filterImages(int structureIdx, List<SegmentedObject> parentTrack) {
         boolean first = true;
         TreeMap<SegmentedObject, Image> images = new TreeMap<>(parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getRawImage(structureIdx))));
         // apply global scaling if necessary
@@ -70,17 +79,17 @@ public class TrackPreFilterSequence extends PluginParameterList<TrackPreFilter, 
         }
         double scaleXY = parentTrack.get(0).getScaleXY();
         double scaleZ = parentTrack.get(0).getScaleZ();
-        Runnable setScale = () -> images.values().forEach(i->i.setCalibration(scaleXY, scaleZ));
+        Runnable setScale = () -> images.entrySet().forEach(e->{
+            e.getValue().setCalibration(scaleXY, scaleZ);
+            e.getValue().resetOffset().translate(e.getKey().getBounds());
+        });
         setScale.run();
         for (TrackPreFilter p : this.get()) {
             p.filter(structureIdx, images, !first);
             setScale.run();
             first = false;
         }
-
-        for (Entry<SegmentedObject, Image> en : images.entrySet()) {
-            accessor.setPreFilteredImage(en.getKey(), structureIdx,en.getValue());
-        }
+        return images;
     }
 
     @Override public TrackPreFilterSequence addAtFirst(TrackPreFilter... instances) {

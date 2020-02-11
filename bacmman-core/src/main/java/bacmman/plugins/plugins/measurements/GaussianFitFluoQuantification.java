@@ -19,9 +19,12 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
 
     protected ObjectClassParameter structure = new ObjectClassParameter("Objects", -1, false, false);
     protected BooleanParameter forceCompute = new BooleanParameter("Force computation", false).setHint("If set to false and selected segmented objects are already gaussian-fitted spots, instead of performing a gaussian fit on centers, the radius and intensity of spots will be extracted");
+    protected BooleanParameter fitConstant = new BooleanParameter("Fit Constant", false).setHint("If true a gaussian with an additive constant will be fit, as well as the constant. If false, the constant will not be fit and set to the minimal value in the surroundings of the object");
+    protected BooleanParameter fitCenter = new BooleanParameter("Fit Center", false).setHint("If false, a gaussian centered at the center of the object will be fit. If true the center of the gaussian will be fit");
+
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
 
-    protected Parameter[] parameters = new Parameter[]{structure, forceCompute, typicalSigma};
+    protected Parameter[] parameters = new Parameter[]{structure, forceCompute, typicalSigma, fitCenter, fitConstant};
 
     @Override
     public int getCallObjectClassIdx() {
@@ -51,8 +54,8 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
                 so.setAttribute("GF_N", ((Spot)so.getRegion()).getIntensity());
             });
         } else {
-            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, true, 300, 0.001, 0.01);
-            Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(o -> o.getRegion(), o -> o));
+            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, fitCenter.getSelected(), fitConstant.getSelected(), 300, 0.001, 0.01);
+            Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(SegmentedObject::getRegion, o -> o));
             parameters.forEach((r, p) -> {
                 SegmentedObject so = rSMap.get(r);
                 so.setAttribute("GF_Sigma", p[p.length - 2]);

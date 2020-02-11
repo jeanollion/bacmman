@@ -817,7 +817,7 @@ public class Region {
         }
         else {
             if (mask == null) throw new RuntimeException("Both voxels and mask are null: cannot draw region of class: "+getClass());
-            //logger.trace("drawing from IMAGE of object: {} with label: {} on image: {} mask offsetX: {} mask offsetY: {} mask offsetZ: {}", this, label, mask, mask.getOffsetX(), mask.getOffsetY(), mask.getOffsetZ());
+            //logger.debug("drawing from IMAGE of object: {} with label: {} on image: {} mask: {}, absolute landmark: {}", this, label, image, mask, isAbsoluteLandMark());
             if (isAbsoluteLandMark()) ImageMask.loopWithOffset(mask, (x, y, z)-> { image.setPixelWithOffset(x, y, z, value); });
             else ImageMask.loopWithOffset(mask, (x, y, z)-> { image.setPixel(x, y, z, value); });
         }
