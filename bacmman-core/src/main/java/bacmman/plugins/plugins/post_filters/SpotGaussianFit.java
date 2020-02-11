@@ -20,7 +20,7 @@ public class SpotGaussianFit implements PostFilter, Hint {
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), typicalSigma.getValue().doubleValue(), 2 * typicalSigma.getValue().doubleValue() +1, true , 300, 0.001, 0.01);
+        Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), typicalSigma.getValue().doubleValue(), 2 * typicalSigma.getValue().doubleValue() +1, true , true, 300, 0.001, 0.01);
         List<Region> regions = new ArrayList<>(childPopulation.getRegions().size());
         parameters.forEach((r, p)-> regions.add(GaussianFit.spotMapper.apply(p, childPopulation.getImageProperties()).setLabel(r.getLabel())));
         Collections.sort(regions, Comparator.comparingInt(Region::getLabel));

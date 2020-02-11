@@ -20,10 +20,11 @@ package bacmman.plugins.plugins.measurements;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.image.Image;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.*;
-import bacmman.plugins.object_feature.ObjectFeatureCore;
+import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.LinearRegression;
@@ -44,6 +45,7 @@ import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size;
 
 import static bacmman.utils.Utils.parallele;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 /**
@@ -109,14 +111,14 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         String featKey = this.featureKey.getValue();
         boolean saveSizeDiv = saveSizeAtDiv.getSelected();
         boolean feat = saveFeature.getSelected();
-        final ArrayList<ObjectFeatureCore> cores = new ArrayList<>();
+        Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
         HashMapGetCreate<SegmentedObject, ObjectFeature> ofMap = new HashMapGetCreate<>(p -> {
             ObjectFeature of = feature.instantiatePlugin().setUp(p, bIdx, p.getChildRegionPopulation(bIdx));
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);
             return of;
         });
         List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead, false);
-        parentTrack.stream().forEach(p->ofMap.getAndCreateIfNecessary(p));
+        parentTrack.forEach(ofMap::getAndCreateIfNecessary);
         long t1 = System.currentTimeMillis();
         logger.trace("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);
         Map<SegmentedObject, Double> logLengthMap = Utils.parallele(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));

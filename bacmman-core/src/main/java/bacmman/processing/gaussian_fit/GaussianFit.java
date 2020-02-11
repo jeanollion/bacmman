@@ -23,7 +23,6 @@ import bacmman.data_structure.Spot;
 import bacmman.image.BoundingBox;
 import bacmman.image.ImageProperties;
 import bacmman.image.SimpleBoundingBox;
-import bacmman.processing.ImageOperations;
 import bacmman.utils.geom.Point;
 import bacmman.image.Image;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
@@ -66,12 +65,10 @@ public class GaussianFit {
      */
     public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalSigma, double minDistance, boolean fitConstant, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
-        double min = fitConstant ? Double.NaN : image.getMinAndMax(null)[0];
-        if (!fitConstant) ImageOperations.addValue(image, -min, image);
         Img img = ImgLib2ImageWrapper.getImage(image);
         int nDims = is3D?3:2;
-        StartPointEstimator estimator = fitConstant ? new MLGaussianPlusConstantSimpleEstimator(typicalSigma, nDims) : new MLGaussianEstimator(typicalSigma, nDims);
-        FitFunction fitFunction = fitConstant?  new GaussianPlusConstant() : new Gaussian();
+        StartPointEstimator estimator = new MLGaussianPlusConstantSimpleEstimator(typicalSigma, nDims);
+        FitFunction fitFunction =  new GaussianPlusConstant(fitConstant);
 
         // cluster are fit together
         List<Set<Point>> clusters = getClusters(peaks, minDistance );
@@ -97,7 +94,6 @@ public class GaussianFit {
             params[params.length-1] = Math.sqrt(LevenbergMarquardtSolver.chiSquared(data.X, e.getValue(), data.I, fitFunction));
             */
         }
-        if (!fitConstant) ImageOperations.addValue(image, min, image);
         BoundingBox bounds = new SimpleBoundingBox(image).resetOffset();
         results.entrySet().removeIf(e -> !bounds.contains(e.getKey()));
         return results;
@@ -112,7 +108,7 @@ public class GaussianFit {
      * @param termEpsilon
      * @return
      */
-    public static Map<Point, double[]> fitIntensity(Image image, Map<Point, double[]> fittedPeaks, int maxIter, double lambda, double termEpsilon ) {
+    public static Map<Point, double[]> fitIntensity(Image image, Map<Point, double[]> fittedPeaks, boolean fitConstant, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
         Img img = ImgLib2ImageWrapper.getImage(image);
         int nDims = is3D?3:2;
@@ -126,7 +122,7 @@ public class GaussianFit {
             }
         }
         StartPointEstimator estimator = new MLGaussianPlusConstantIntensityEstimator(typicalSigma, nDims, fittedPeaks);
-        FitFunction fitFunction = new GaussianPlusConstantIntensity();
+        FitFunction fitFunction = new GaussianPlusConstantIntensity(fitConstant);
 
         List<Point> peaks = new ArrayList<>(fittedPeaks.keySet());
         LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter, lambda, termEpsilon);
@@ -152,19 +148,30 @@ public class GaussianFit {
      * @param termEpsilon
      * @return
      */
-    public static Map<Region, double[]> runOnRegions(Image image, List<Region> peaks, double typicalSigma, double minDistance, boolean fitConstant, int maxIter, double lambda, double termEpsilon ) {
+    public static Map<Region, double[]> runOnRegions(Image image, List<Region> peaks, double typicalSigma, double minDistance, boolean fitCenter, boolean fitConstant, int maxIter, double lambda, double termEpsilon ) {
         int nDims = image.sizeZ()>1 ? 3 : 2;
         Map<Point, Region> locObj = new HashMap<>(peaks.size());
         List<Point> peaksLoc = new ArrayList<>(peaks.size());
         for (Region o : peaks) {
             Point center = o.getCenter();
             if (center == null) center = o.getMassCenter(image, false);
-            if (o.isAbsoluteLandMark()) center.translateRev(image);
+            if (o.isAbsoluteLandMark()) center = center.duplicate().translateRev(image);
             peaksLoc.add(center);
             locObj.put(center, o);
         }
 
-        Map<Point, double[]> results = run(image, peaksLoc, typicalSigma, minDistance, fitConstant, maxIter, lambda, termEpsilon);
+        Map<Point, double[]> results;
+        if (fitCenter) results= run(image, peaksLoc, typicalSigma, minDistance, fitConstant, maxIter, lambda, termEpsilon);
+        else {
+            Map<Point, double[]> startParams = peaksLoc.stream().collect(Collectors.toMap(Function.identity(), p -> {
+                Region region = locObj.get(p);
+                double[] params = new double[nDims + 3];
+                for (int i = 0; i<nDims; ++i) params[i] = p.get(i);
+                params[nDims+1] = nDims==2 ? Math.sqrt(region.size() / (4 * Math.PI)) : Math.pow(3 * region.size() / (4 * Math.PI), 1/3d); // estimation of sigma for circle / sphere
+                return params;
+            }));
+            results = fitIntensity(image, startParams, fitConstant, maxIter, lambda, termEpsilon);
+        }
 
         Map<Region, double[]> results2 = new HashMap<>(results.size());
         for (Entry<Point, double[]> e : results.entrySet()) {
@@ -230,8 +237,8 @@ public class GaussianFit {
      */
     private static <L extends Localizable> Map<L, double[]> runPeakCluster(Img img, Set<L> closePeaks, double typicalSigma, boolean fitConstant, int maxIter, double lambda, double termEpsilon) {
         List<L> peaks = new ArrayList<>(closePeaks);
-        MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks,new MLGaussianSimpleEstimator(typicalSigma, img.numDimensions()), fitConstant);
-        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(img.numDimensions()+2, closePeaks.size(), new Gaussian(), fitConstant);
+        MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks,new MLGaussianSimpleEstimator(typicalSigma, img.numDimensions()), true);
+        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(img.numDimensions()+2, closePeaks.size(), new Gaussian(), true, fitConstant); // fit only one constant
         LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter * closePeaks.size(), lambda, termEpsilon/closePeaks.size());
         PeakFitter fitter = new PeakFitter(img, Arrays.asList(estimator.center), solver, fitFunction, estimator);
         fitter.setNumThreads(1);

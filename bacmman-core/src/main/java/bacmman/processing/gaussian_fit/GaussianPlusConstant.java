@@ -48,7 +48,10 @@ import net.imglib2.algorithm.localization.FitFunction;
  * @author Jean Ollion, from Jean-Yves Tinevez <jeanyves.tinevez@gmail.com> - 2013
  */
 public class GaussianPlusConstant implements FitFunction {
-
+	final boolean fitConstant;
+	public GaussianPlusConstant(boolean fitConstant) {
+		this.fitConstant=fitConstant;
+	}
 	/*
 	 * METHODS
 	 */
@@ -90,7 +93,7 @@ public class GaussianPlusConstant implements FitFunction {
 			}
 			return - d * a[a.length-3] * E(x, a);
 		} else {// With respect to C
-                    return 1;
+                    return fitConstant ? 1 : 0;
                 }
 	}
 

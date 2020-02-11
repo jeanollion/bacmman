@@ -23,5 +23,5 @@ package bacmman.plugins;
  * @author Jean Ollion
  */
 public interface MultiThreaded {
-    public void setMultiThread(boolean parallel);
+    void setMultiThread(boolean parallel);
 }
