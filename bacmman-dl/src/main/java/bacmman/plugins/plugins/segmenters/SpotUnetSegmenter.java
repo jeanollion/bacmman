@@ -77,7 +77,11 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         Predicate<Region> intersectWithBacteria = s -> bacteria.stream().anyMatch(b -> b.getOverlapArea(s, parentOff, null)>0);
         res.filter(object -> object.size()>minimalSize.getValue().intValue() && !intersectWithBacteria.test(object));
         //setQuality(parent, input, proba, popWS.getRegions(), typicalSigma);
-        setQualitySNR(parent, objectClassIdx, proba, res);
+        //setQualitySNR(parent, objectClassIdx, proba, res);
+
+        // quality is max proba inside spot
+        res.getRegions().forEach(r->r.setQuality(BasicMeasurements.getQuantileValue(r, proba, 1)[0]));
+
         double qualityThreshold = this.qualityThreshold.getValue().doubleValue();
         res.filter(object -> !Double.isNaN(object.getQuality()) && object.getQuality()>=qualityThreshold);
         // sort objects along largest dimension
