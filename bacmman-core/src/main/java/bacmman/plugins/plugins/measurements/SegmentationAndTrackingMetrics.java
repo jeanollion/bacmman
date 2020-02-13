@@ -69,6 +69,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         res.add(new MeasurementKeyObject(prefix+"SizeGt", sClass));
         res.add(new MeasurementKeyObject(prefix+"PrevLinkMatches", sClass));
         res.add(new MeasurementKeyObject(prefix+"DistanceToGTDivision", sClass));
+        res.add(new MeasurementKeyObject(prefix+"MatchIndices", sClass));
         res.add(new MeasurementKeyObject(prefix+"NoMatchSize", gClass));
         return res;
     }
@@ -224,6 +225,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                         o.getMeasurements().setValue(prefix + "SizeGt", null);
                         o.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
                         o.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
+                        o.getMeasurements().setValue(prefix + "MatchIndices", null);
                     }
                 }
                 if (exclude) {
@@ -232,6 +234,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                     s.getMeasurements().setValue(prefix + "SizeGt", null);
                     s.getMeasurements().setValue(prefix + "PrevLinkMatches", null);
                     s.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
+                    s.getMeasurements().setValue(prefix + "MatchIndices", null);
                 } else {
                     s.getMeasurements().setValue(prefix + "Intersection", intersection);
                     s.getMeasurements().setValue(prefix + "Size", sizeS);
@@ -240,6 +243,8 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
                     else s.getMeasurements().setValue(prefix + "PrevLinkMatches", prevLinkEquals);
                     if (distDiv==null) s.getMeasurements().setValue(prefix + "DistanceToGTDivision", null);
                     else s.getMeasurements().setValue(prefix + "DistanceToGTDivision", distDiv);
+                    if (g==null) s.getMeasurements().setValue(prefix + "MatchIndices", null);
+                    else s.getMeasurements().setStringValue(prefix + "MatchIndices", Selection.indicesString(g));
                 }
                 if (matchingS==null) seenS.add(s);
                 else seenS.addAll(matchingS);
