@@ -10,7 +10,9 @@ public class Quantile extends IntensityMeasurement {
     BoundedNumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
     @Override
     public double performMeasurement(Region region) {
-        return BasicMeasurements.getQuantileValue(region, core.getIntensityMap(true), quantile.getValue().doubleValue())[0];
+        double quantile = this.quantile.getValue().doubleValue();
+        if (quantile == 0.5) return core.getIntensityMeasurements(region).getMedian();
+        return BasicMeasurements.getQuantileValue(region, core.getIntensityMap(true), quantile)[0];
     }
 
     @Override
