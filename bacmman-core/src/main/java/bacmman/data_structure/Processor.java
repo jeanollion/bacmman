@@ -426,12 +426,9 @@ public class Processor {
             if (selection!=null) { // compute measurement only on objects contained in selection or children. only full tracks
                 if (e.getKey()==selection.getStructureIdx()) {
                     allParentTracks.keySet().retainAll(selectionTH);
-                } else if (e.getKey()<selection.getStructureIdx()) {
-                    Set<SegmentedObject> th = selectionTH.stream().map(o->o.getParent(e.getKey())).filter(Objects::nonNull).map(SegmentedObject::getTrackHead).filter(Objects::nonNull).collect(Collectors.toSet());
-                    allParentTracks.keySet().retainAll(th);
                 } else {
                     Set<SegmentedObject> th = selection.getElements(dao.getPositionName()).stream().flatMap(o->{
-                        Stream<SegmentedObject> s = o.getChildren(e.getKey());
+                        Stream<SegmentedObject> s = o.getChildren(e.getKey(), false);
                         if (s==null) return Stream.empty();
                         return s;
                     }).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
