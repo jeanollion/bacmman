@@ -108,8 +108,8 @@ public class TFengine implements DLengine {
     private void initInputAndOutputNames() {
         boolean[] missingLayer = new boolean[2];
         //logOperations();
-        inputNames = inputs.getActivatedChildren().stream().map(i->i.getValue()).toArray(String[]::new);
-        outputNames = outputs.getActivatedChildren().stream().map(i->i.getValue()).toArray(String[]::new);
+        inputNames = inputs.getActivatedChildren().stream().map(TextParameter::getValue).toArray(String[]::new);
+        outputNames = outputs.getActivatedChildren().stream().map(TextParameter::getValue).toArray(String[]::new);
         for (int i = 0;i<inputNames.length; ++i) {
             String name = findInputOperationName(inputNames[i]);
             if (name == null) {
@@ -138,13 +138,15 @@ public class TFengine implements DLengine {
         if (graph.operation(name)!=null) return name;
         if (graph.operation("serving_default_input")!=null) return "serving_default_input"; // TODO fix this: how input names are set in TF2.keras.model.save method ???
         Iterator<Operation> ops = graph.operations();
-        String newName = null;
-        while (ops.hasNext()) {
+        while (ops.hasNext()) { // return first placeholder whose name starts with "name"
             Operation next = ops.next();
             if (!next.type().equals("Placeholder")) continue;
-            if (next.name().startsWith(name)) newName = next.name();
+            if (next.name().startsWith(name)) {
+                logger.debug("placeholder tensor name found for input: {} -> {}", name, next.name());
+                return next.name();
+            }
         }
-        return newName;
+        return null;
     }
     protected String findOutputOperationName(String name) {
         if (graph.operation(name)!=null) return name;
@@ -159,7 +161,6 @@ public class TFengine implements DLengine {
             logger.debug("output: {} was found with operation name: {}", name, newName);
             return newName;
         }
-        if (!name.endsWith("_1")) return findOutputOperationName(name + "_1");
         return null;
     }
     public void logOperations() {
