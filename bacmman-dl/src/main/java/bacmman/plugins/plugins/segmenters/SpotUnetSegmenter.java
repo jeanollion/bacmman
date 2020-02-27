@@ -12,6 +12,7 @@ import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.LocalS
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
@@ -61,7 +62,12 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
                 .setDivisionCriterion(SplitAndMergeEDM.DIVISION_CRITERION.NONE, 0)
                 .setMapsProperties(false, false);
         if (THRESHOLD_ON_PREDICTION.equals(method)) sm.setSeedThrehsold(probaRange.getValuesAsDouble()[1]);
-        RegionPopulation popWS = sm.split(mask, 2);
+        RegionPopulation popWS = sm.split(mask, 0);
+        if (stores!=null) {
+            //Image seeds = Filters.localExtrema(sm.getSeedCreationMap(), null, true, probaRange.getValuesAsDouble()[1], mask, Filters.getNeighborhood(1.5, 1.5, mask));
+            //imageDisp.accept(seeds.setName("Foreground detection: Seeds"));
+            //imageDisp.accept(popWS.getLabelMap().duplicate("Foreground detection: Label Map"));
+        }
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
         double typicalSigma = 2;
@@ -79,8 +85,8 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         //setQuality(parent, input, proba, popWS.getRegions(), typicalSigma);
         //setQualitySNR(parent, objectClassIdx, proba, res);
 
-        // quality is max proba inside spot
-        res.getRegions().forEach(r->r.setQuality(BasicMeasurements.getQuantileValue(r, proba, 1)[0]));
+        res.getRegions().forEach(r->r.setQuality(BasicMeasurements.getQuantileValue(r, proba, 1)[0])); // quality is max proba inside spot
+        //res.getRegions().forEach(r->r.setQuality(BasicMeasurements.getMeanValue(r, proba))); // quality is mean proba inside spot
 
         double qualityThreshold = this.qualityThreshold.getValue().doubleValue();
         res.filter(object -> !Double.isNaN(object.getQuality()) && object.getQuality()>=qualityThreshold);
