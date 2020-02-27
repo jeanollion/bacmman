@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
 import bacmman.tf.TensorWrapper;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
@@ -203,7 +204,7 @@ public class TFengine implements DLengine {
             try {
                 outputs = r.run();
             } catch (UnsupportedOperationException e) {
-                logger.error("An error occurred during NN execution. Check input shapes: {}", Arrays.stream(input).map(i->i.shape()).toArray());
+                logger.error("An error occurred during NN execution. Check input shapes: #{} inputs given with shapes: {}", input.length, Arrays.stream(input).map(Tensor::shape).toArray());
                 if (outputs!=null) for (Tensor o : outputs) o.close();
                 throw e;
             } finally {
