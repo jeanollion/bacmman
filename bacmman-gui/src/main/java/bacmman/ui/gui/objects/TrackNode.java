@@ -20,17 +20,16 @@ package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.DefaultWorker;
-import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.SelectionDAO;
-import bacmman.plugins.TrackConfigurable;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.data_structure.Processor;
 import bacmman.core.Task;
 import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
 import java.awt.event.ActionEvent;
 import java.util.*;
@@ -41,7 +40,10 @@ import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import bacmman.utils.Pair;
 
+import java.util.function.IntFunction;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -210,12 +212,20 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         boolean noChildStructure;
         public TrackNodeUI(TrackNode tn) {
             this.trackNode=tn;
+            String[] structureNames = trackNode.trackHead.getExperimentStructure().getObjectClassesAsString();
             String[] childStructureNames = trackNode.trackHead.getExperimentStructure().getChildObjectClassesAsString(trackNode.trackHead.getStructureIdx());
+            ToIntFunction<String> getOCIdx = s -> {
+                for (int i = 0; i<structureNames.length; ++i) {
+                    if (structureNames[i].equals(s)) return i;
+                }
+                return -1;
+            };
+            int[] currentAndChildOCIdx = IntStream.concat(IntStream.of(trackNode.trackHead.getStructureIdx()), IntStream.of(trackNode.trackHead.getExperimentStructure().getAllChildStructures(trackNode.trackHead.getStructureIdx()))).toArray();
+            String[] currentAndChildOCNames = trackNode.trackHead.getExperimentStructure().getObjectClassesNames(currentAndChildOCIdx);
             noChildStructure = childStructureNames.length==0;
             this.actions = new JMenuItem[7];
             JMenu rawSubMenu = new JMenu("Open Kymograph");
             actions[0] = rawSubMenu;
-            String[] structureNames = trackNode.trackHead.getExperimentStructure().getObjectClassesAsString();
             JMenu runSegAndTrackingSubMenu = new JMenu("Run segmentation and tracking");
             actions[1] = runSegAndTrackingSubMenu;
             JMenu runTrackingSubMenu = new JMenu("Run tracking");
@@ -243,10 +253,10 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 openRaw[i].setAction(new AbstractAction(structureNames[i]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), getStructureIdx(ae.getActionCommand(), openRaw));
-                            //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getStructureIdx(), getStructureIdx(ae.getActionCommand(), openRaw));
+                            if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
+                            //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
                             //trackNode.loadAllTrackObjects(path);
-                            int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
+                            int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx);
                             if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
                             GUI.getInstance().setInteractiveStructureIdx(structureIdx);
@@ -262,7 +272,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 runSegAndTracking[i].setAction(new AbstractAction(childStructureNames[i]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            final int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
+                            final int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             Map<String, List<TrackNode>> nodesByPosition = root.generator.getSelectedTrackNodes().stream().collect(Collectors.groupingBy(n->n.root.position));
                             List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
                             ProgressLogger ui = GUI.getInstance();
@@ -305,7 +315,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 runTracking[i].setAction(new AbstractAction(childStructureNames[i]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            final int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
+                            final int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             Map<String, List<TrackNode>> nodesByPosition = root.generator.getSelectedTrackNodes().stream().collect(Collectors.groupingBy(n->n.root.position));
                             List<Pair<String, TrackNode>> positions = nodesByPosition.entrySet().stream().flatMap(e -> e.getValue().stream().map(l->new Pair<>(e.getKey(), l))).sorted(Comparator.comparing(p->p.key)).collect(Collectors.toList());
                             ProgressLogger ui = GUI.getInstance();
@@ -342,24 +352,18 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 runTrackingSubMenu.add(runTracking[i]);
             }
             
-            createSelection = new JMenuItem[childStructureNames.length];
+            createSelection = new JMenuItem[currentAndChildOCNames.length];
             for (int i = 0; i < createSelection.length; i++) {
-                createSelection[i] = new JMenuItem(childStructureNames[i]);
-                createSelection[i].setAction(new AbstractAction(childStructureNames[i]) {
+                createSelection[i] = new JMenuItem(currentAndChildOCNames[i]);
+                createSelection[i].setAction(new AbstractAction(currentAndChildOCNames[i]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            final int structureIdx = getStructureIdx(ae.getActionCommand(), openRaw);
+                            final int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             GUI.logger.debug("create selectionfor structure: {} of idx: {}, within track: {}", ae.getActionCommand(), structureIdx, trackHead);
                             List<TrackNode> selectedNodes = root.generator.getSelectedTrackNodes();
-                            List<SegmentedObject> objectsToAdd = new ArrayList<>();
-                            for (TrackNode tn : selectedNodes) {
-                                //logger.debug("creating selection: th: {}, length: {}", tn.trackHead, tn.getTrack().size());
-                                for (SegmentedObject p : tn.getTrack()) {
-                                    //if (p.getChildren(structureIdx)!=null && !p.getChildren(structureIdx).isEmpty()) logger.debug("creating selection: parent idx: {} children : {}", p, p.getChildren(structureIdx));
-                                    p.getChildren(structureIdx).forEachOrdered(o->objectsToAdd.add(o));
-                                }
-                            }
+                            Set<SegmentedObject> objectsToAdd = selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(structureIdx, true)).collect(Collectors.toSet());
                             Selection s = root.generator.db.getSelectionDAO().getOrCreate(ae.getActionCommand(), true);
+                            s.setObjectClassIdx(structureIdx);
                             s.addElements(objectsToAdd);
                             s.setColor("Grey");
                             root.generator.db.getSelectionDAO().store(s);
@@ -372,11 +376,13 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             }
             addToSelection.setAction(new AbstractAction("Add to Selected Selection(s)") {
                 @Override public void actionPerformed(ActionEvent e) {
-                    List<SegmentedObject> sel = trackNode.root.generator.controller.getTreeGenerator(trackHead.getStructureIdx()).getSelectedTrackHeads();
+                    List<TrackNode> selectedNodes = root.generator.getSelectedTrackNodes();
+                    Map<Integer, Set<SegmentedObject>> objects = new HashMapGetCreate.HashMapGetCreateRedirected<>(ocIdx -> selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(ocIdx, true)).collect(Collectors.toSet()));
                     SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
                     for (Selection s : GUI.getInstance().getSelectedSelections(false)) {
-                        if (s.getStructureIdx()==-1 || s.getStructureIdx()==trackHead.getStructureIdx()) {
-                            s.addElements(sel);
+                        Set<SegmentedObject> objectsToAdd = objects.get(s.getStructureIdx()==-1 ? trackHead.getStructureIdx() : s.getStructureIdx());
+                        if (!objectsToAdd.isEmpty()) {
+                            s.addElements(objectsToAdd);
                             dao.store(s);
                         }
                     }
@@ -385,11 +391,14 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             });
             removeFromSelection.setAction(new AbstractAction("Remove from Selected Selection(s)") {
                 @Override public void actionPerformed(ActionEvent e) {
-                    List<SegmentedObject> sel = trackNode.root.generator.controller.getTreeGenerator(trackHead.getStructureIdx()).getSelectedTrackHeads();
+                    List<TrackNode> selectedNodes = root.generator.getSelectedTrackNodes();
+                    Map<Integer, Set<SegmentedObject>> objects = new HashMapGetCreate.HashMapGetCreateRedirected<>(ocIdx -> selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(ocIdx, true)).collect(Collectors.toSet()));
                     SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
                     for (Selection s : GUI.getInstance().getSelectedSelections(false)) {
-                        if (s.getStructureIdx()==-1 || s.getStructureIdx()==trackHead.getStructureIdx()) {
-                            s.removeElements(sel);
+                        if (s.getStructureIdx()==-1) continue;
+                        Set<SegmentedObject> objectsToRemove = objects.get(s.getStructureIdx());
+                        if (!objectsToRemove.isEmpty()) {
+                            s.removeElements(objectsToRemove);
                             dao.store(s);
                         }
                     }
@@ -407,10 +416,6 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     return new JMenuItem[]{actions[1], actions[2], actions[3], actions[4], actions[5], actions[6]};
                 } else return actions;
             }
-        }
-        private int getStructureIdx(String name, JMenuItem[] actions) {
-            for (int i = 0; i<actions.length; ++i) if (actions[i].getActionCommand().equals(name)) return i;
-            return -1;
         }
     }
 }
