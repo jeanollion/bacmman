@@ -186,7 +186,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap())) :
                 Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap()));
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!wsMapIsEdgeMap);
-        if (minSizePropagation>0) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
+        if (minSizePropagation>1) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
         RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);
         if (addTestImage!=null) popWS.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         return popWS;
