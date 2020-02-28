@@ -18,7 +18,7 @@ import static bacmman.processing.ResizeUtils.getShapes;
 public class TFengine implements DLengine {
     Logger logger = LoggerFactory.getLogger(DLengine.class);
     FileChooser modelFile = new FileChooser("Tensorflow SavedModelBundle folder", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true);
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 0, null);
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null);
     SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue())));
     SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue())));
     String[] inputNames, outputNames;
