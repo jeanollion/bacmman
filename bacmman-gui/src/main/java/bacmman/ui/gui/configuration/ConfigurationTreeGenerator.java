@@ -324,7 +324,16 @@ public class ConfigurationTreeGenerator {
         tree.setDropMode(DropMode.ON_OR_INSERT);
         tree.setTransferHandler(new TreeTransferHandler( 
                 (TreeNode n) -> ((Parameter)n).duplicate(), 
-                (TreePath p)-> (p!=null && p.getLastPathComponent() instanceof ListParameter && ((ListParameter)p.getLastPathComponent()).allowMoveChildren())
+                (TreePath p, TreePath sourceP)-> {
+                    if (p==null) return false;
+                    if (!(p.getLastPathComponent() instanceof ListParameter)) return false;
+                    ListParameter dest= (ListParameter)p.getLastPathComponent();
+                    if (!dest.allowMoveChildren()) return false;
+                    if (!(sourceP.getLastPathComponent() instanceof ListParameter)) return false;
+                    ListParameter source= (ListParameter)sourceP.getLastPathComponent();
+                    //return true;
+                    return source.getChildClass().equals(dest.getChildClass());
+                }
         ));
 
         // configure call back for structures (update display)
