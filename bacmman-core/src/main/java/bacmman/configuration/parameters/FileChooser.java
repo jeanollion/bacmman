@@ -208,7 +208,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     }
     protected Path getRefPath() {
         Experiment xp = ParameterUtils.getExperiment(this);
-        if (xp==null || xp.getPath()==null) logger.warn("Could not get reference path for parameter: {} (from: {}). Experiment found ? {}", this, this.getParameterPath(), xp!=null);
+        //if (xp==null || xp.getPath()==null) logger.warn("Could not get reference path for parameter: {} (from: {}). Experiment found ? {}", this, this.getParameterPath(), xp!=null);
         if (xp==null) return null;
         return xp.getPath();
     }
