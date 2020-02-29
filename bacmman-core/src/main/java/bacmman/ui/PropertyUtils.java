@@ -56,6 +56,7 @@ public class PropertyUtils {
     public final static String LAST_SELECTED_EXPERIMENT = "last_selected_xp";
     public final static String EXPORT_FORMAT = "export_format";
     public final static String LAST_IMPORT_IMAGE_DIR = "last_import_image_dir";
+    public final static String LAST_TASK_FILE_DIR = "last_task_file_dir";
     public final static String LAST_IO_DATA_DIR = "last_io_data_dir";
     public final static String LAST_IO_CONFIG_DIR = "last_io_config_dir";
     public final static String LAST_EXTRACT_MEASUREMENTS_DIR = "last_extract_measurement_dir";

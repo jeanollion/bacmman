@@ -3788,8 +3788,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action save = new AbstractAction("Save to File") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    File out = Utils.chooseFile("Save Task list as...", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
-                    if (out==null || out.isDirectory()) return;
+                    String defDir = PropertyUtils.get(PropertyUtils.LAST_TASK_FILE_DIR, workingDirectory.getText());
+                    File out = Utils.chooseFile("Save Task list as...", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
+                    if (out==null || out.isDirectory()) {
+                        if (out!=null) setMessage("Choose a file, not a directory");
+                        return;
+                    }
+                    PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, out.getParent());
                     String outS = out.getAbsolutePath();
                     if (!outS.endsWith(".txt")&&!outS.endsWith(".json")) outS+=".json";
                     FileIO.writeToFile(outS, Collections.list(actionPoolListModel.elements()), s->s.toJSON().toJSONString());
@@ -3800,8 +3805,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action saveProc = new AbstractAction("Split and Save to files...") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    File out = Utils.chooseFile("Choose Folder", workingDirectory.getText(), FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
-                    if (out==null || !out.isDirectory()) return;
+                    String defDir = PropertyUtils.get(PropertyUtils.LAST_TASK_FILE_DIR, workingDirectory.getText());
+                    File out = Utils.chooseFile("Choose Folder", defDir, FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, GUI.getInstance());
+                    if (out==null || !out.isDirectory()) {
+                        if (out!=null) setMessage("Choose a directory, not a file");
+                        return;
+                    }
+                    PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, out.getParent());
                     String outDir = out.getAbsolutePath();
                     List<Task> tasks = Collections.list(actionPoolListModel.elements());
                     Task.getProcessingTasksByPosition(tasks).entrySet().forEach(en -> {
@@ -3817,10 +3827,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action load = new AbstractAction("Load from File") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    String dir = workingDirectory.getText();
+                    String dir = PropertyUtils.get(PropertyUtils.LAST_TASK_FILE_DIR, workingDirectory.getText());
                     if (!new File(dir).isDirectory()) dir = null;
                     File f = Utils.chooseFile("Choose Task list file", dir, FileChooser.FileChooserOption.FILES_ONLY, GUI.getInstance());
                     if (f!=null && f.exists()) {
+                        PropertyUtils.set(PropertyUtils.LAST_TASK_FILE_DIR, f.getParent());
                         List<Task> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->{
                             JSONObject o = JSONUtils.parse(s);
                             if (o!=null) return new Task().fromJSON(o);
