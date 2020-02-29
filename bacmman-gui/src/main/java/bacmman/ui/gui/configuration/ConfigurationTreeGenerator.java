@@ -219,7 +219,7 @@ public class ConfigurationTreeGenerator {
         treeModel.setJTree(tree);
         tree.setShowsRootHandles(showRootHandle);
         tree.setRootVisible(!(rootParameter instanceof Experiment));
-        tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
+        tree.getSelectionModel().setSelectionMode(TreeSelectionModel.CONTIGUOUS_TREE_SELECTION);
         DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> { // compare tree
             Predicate<Parameter> isPositionListPredicate = pp->pp instanceof ListParameter && pp.getName().equals("Pre-Processing for all Positions");
             boolean isPosition = rootParameter instanceof Experiment && (ParameterUtils.testInParents(isPositionListPredicate, p, true));

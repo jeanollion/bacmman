@@ -67,47 +67,51 @@ public class TreeTransferHandler extends TransferHandler {
         if(!support.isDataFlavorSupported(nodesFlavor)) {
             return false;
         }
-        // Do not allow a drop on the drag source selections.
-        JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
-        JTree tree = (JTree)support.getComponent();
-        int dropRow = tree.getRowForPath(dl.getPath());
-        int[] selRows = tree.getSelectionRows();
-        if (selRows.length==0) return false;
-        for(int i = 0; i < selRows.length; i++) {
-            if(selRows[i] == dropRow) {
-                return false;
-            }
-        }
 
+        JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
+        JTree destTree = (JTree)support.getComponent();
+        int dropRow = destTree.getRowForPath(dl.getPath());
+
+        NodesTransferable nt = null;
+        try {
+            Transferable t = support.getTransferable();
+            nt = ((NodesTransferable)t.getTransferData(nodesFlavor));
+        } catch(UnsupportedFlavorException | IOException ufe) {
+            return false;
+        }
+        JTree sourceTree = nt.sourceTree;
+        int[] selRows = sourceTree.getSelectionRows();
+        if (selRows.length==0) return false;
+
+
+        TreePath dest = dl.getPath();
+        TreePath destParent = dest.getParentPath();
+        if (destParent==null) return false;
         // only allow to move nodes from same parent
-        TreePath sourcePath0 = tree.getPathForRow(selRows[0]);
+        TreePath sourcePath0 = sourceTree.getPathForRow(selRows[0]);
         if (sourcePath0.getPathCount()<=1) return false;
         MutableTreeNode sourceParent =  (MutableTreeNode)sourcePath0.getPathComponent(sourcePath0.getPathCount()-2);
+        if (sourceParent==null) return false;
         for (int sel : selRows) {
-            TreePath path = tree.getPathForRow(sel);
+            TreePath path = sourceTree.getPathForRow(sel);
             if (!path.getPathComponent(path.getPathCount()-2).equals(sourceParent)) {
                 //logger.debug("not same parent: {} vs {}", sourceParent, path.getPathComponent(path.getPathCount()-2));
                 return false;
             }
         }
+        if (sourceParent.equals(destParent.getLastPathComponent())) { // Do not allow a drop on the drag source selections.
+            for (int i = 0; i < selRows.length; i++) {
+                if (selRows[i] == dropRow) {
+                    return false;
+                }
+            }
+        }
 
-
-        TreePath dest = dl.getPath();
-        TreePath destParent = dest.getParentPath();
         if (!canRecieve.test(destParent, sourcePath0.getParentPath())) {
-            //logger.debug("can recieve test failed: dest: {} parent: {} ", dest.getLastPathComponent(), destParent.getLastPathComponent());
+            logger.debug("can recieve test failed: dest: {} source: {}", dest, sourcePath0);
             return false;
         }
-        // Only allow movement within parent of same class
-        /*MutableTreeNode targetParent = (MutableTreeNode)destParent.getLastPathComponent();
-        for (int sel : selRows) {
-            TreePath path = tree.getPathForRow(sel);
-            if (path.getPathComponent(path.getPathCount()-2)!=targetParent) {
-                //logger.debug("not same parent: target {} vs source {}", target, path.getPathComponent(path.getPathCount()-2));
-                return false;
-            }
-        }*/
-        //logger.debug("drop:  to {}", dest.getLastPathComponent() );
+
         return true;
     }
 
@@ -128,7 +132,7 @@ public class TreeTransferHandler extends TransferHandler {
         
         MutableTreeNode[] nodes =  copies.toArray(new MutableTreeNode[copies.size()]);
         nodesToRemove = toRemove.toArray(new MutableTreeNode[toRemove.size()]);
-        return new NodesTransferable(nodes);
+        return new NodesTransferable(nodes, tree);
         
     }
   
@@ -136,20 +140,24 @@ public class TreeTransferHandler extends TransferHandler {
     private  MutableTreeNode copy(TreeNode node) {
         return copy.apply(node);
     }
+    private boolean sameModel(DefaultTreeModel sourceModel, Transferable data) {
+        try {
+            NodesTransferable nt = ((NodesTransferable)data.getTransferData(nodesFlavor));
+            return nt.destModel.equals(sourceModel);
+        } catch(UnsupportedFlavorException | IOException ufe) {
+            return true;
+        }
+    }
     @Override
     protected void exportDone(JComponent source, Transferable data, int action) {
         if((action & MOVE) == MOVE) {
             JTree sourceTree = (JTree)source;
             DefaultTreeModel sourceModel = (DefaultTreeModel)sourceTree.getModel();
-            try {
-                NodesTransferable nt = ((NodesTransferable)data.getTransferData(nodesFlavor));
-                if (!nt.destModel.equals(sourceModel)) return; // transfer to another tree : no need to remove nodes
-            } catch(UnsupportedFlavorException | IOException ufe) {
-            }
-
-            // Remove nodes saved in nodesToRemove in createTransferable.
-            for(int i = 0; i < nodesToRemove.length; i++) {
-                sourceModel.removeNodeFromParent(nodesToRemove[i]);
+            if (sameModel(sourceModel, data)) {
+                // Remove nodes saved in nodesToRemove in createTransferable.
+                for (int i = 0; i < nodesToRemove.length; i++) {
+                    sourceModel.removeNodeFromParent(nodesToRemove[i]);
+                }
             }
         }
     }
@@ -172,10 +180,8 @@ public class TreeTransferHandler extends TransferHandler {
             if (nodes==null) {
                 return false;
             }
-        } catch(UnsupportedFlavorException ufe) {
-            logger.debug("UnsupportedFlavor: {}", ufe);
-        } catch(java.io.IOException ioe) {
-            logger.debug("I/O error: {}", ioe);
+        } catch(UnsupportedFlavorException | IOException ufe) {
+            logger.debug("dnd error: {}", ufe);
         }
         // Get drop location info.
         JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
@@ -188,17 +194,18 @@ public class TreeTransferHandler extends TransferHandler {
         DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
         nt.destModel=model;
         // Configure for drop mode.
-        int index = childIndex;    // DropMode.INSERT
+        int destIndex = childIndex;    // DropMode.INSERT
         if(childIndex == -1) {     // DropMode.ON
-            index = parent.getChildCount();
+            destIndex = parent.getChildCount();
         }
-        for(TreePath p : tree.getSelectionPaths()) { // add index if components to be moved are before destination index as they will be deleted after insertion
-            if (parent.getIndex((TreeNode)p.getLastPathComponent())<index) index++;
+        if (model.equals(nt.sourceModel)) { //TODO test on parent instead
+            int firstSourceIndex = nodesToRemove[0].getParent().getIndex(nodesToRemove[0]);
+            if (firstSourceIndex<destIndex) destIndex+=1;
         }
         // Add data to model.
         for(int i = 0; i < nodes.length; i++) {
             //logger.debug("drop: {} to {} @ {}", nodes[i], parent, index);
-            model.insertNodeInto(nodes[i], parent, index++);
+            model.insertNodeInto(nodes[i], parent, destIndex++);
         }
         return true;
     }
@@ -209,9 +216,12 @@ public class TreeTransferHandler extends TransferHandler {
   
     public class NodesTransferable implements Transferable {
         MutableTreeNode[] nodes;
-        DefaultTreeModel destModel;
-        public NodesTransferable(MutableTreeNode[] nodes) {
+        JTree sourceTree;
+        DefaultTreeModel destModel, sourceModel;
+        public NodesTransferable(MutableTreeNode[] nodes, JTree sourceTree) {
             this.nodes = nodes;
+            this.sourceTree = sourceTree;
+            this.sourceModel=(DefaultTreeModel)sourceTree.getModel();
          }
         @Override
         public Object getTransferData(DataFlavor flavor)
