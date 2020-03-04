@@ -156,8 +156,8 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
         Pair<Image[][][], int[][]> input = getInput(inputImages, bactMask, imageShape);
         Image[][][] predictions = engine.process(input.key);
-        Image[] seg = predictions.length>1 ? ResizeUtils.averageChannelOnOutputs(predictions, 0) :  //average on predictions
-                ResizeUtils.getChannel(predictions[predictions.length-1], 0);
+        Image[] seg = predictions.length>1 ? ResizeUtils.averageChannelOnOutputs(predictions, -1) :  //average on predictions. get last channel : if softmax -> class is last channel.
+                ResizeUtils.getChannel(predictions[predictions.length-1], -1);
 
         Image[] seg_res = ResizeUtils.resample(seg, seg, false, input.value);
 
