@@ -74,7 +74,13 @@ public class IntensityMeasurementCore {
             if (Double.isNaN(valueAtCenter)) {
                 Point center = o.getCenter();
                 if (center==null) center = o.getMassCenter(transformedMap, false);
-                this.valueAtCenter = o.isAbsoluteLandMark() ? transformedMap.getPixelWithOffset(center.get(0), center.get(1), center.getWithDimCheck(2)) : transformedMap.getPixel(center.get(0), center.get(1), center.getWithDimCheck(2));
+                if (o.isAbsoluteLandMark()) {
+                    center.ensureWithinBounds(transformedMap);
+                    this.valueAtCenter = transformedMap.getPixelWithOffset(center.get(0), center.get(1), center.getWithDimCheck(2));
+                } else {
+                    center.ensureWithinBounds(transformedMap.getBoundingBox().resetOffset());
+                    this.valueAtCenter = transformedMap.getPixel(center.get(0), center.get(1), center.getWithDimCheck(2));
+                }
             }
             return valueAtCenter;
         }
