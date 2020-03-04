@@ -37,7 +37,7 @@
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow</artifactId>
             <version>1.15.0</version>
-            <!-- enable the two following exclusion are for gpu supports-->
+            <!-- enable the two following exclusion for gpu supports-->
             <exclusions>
                 <exclusion>
                     <groupId>org.tensorflow</groupId>
@@ -45,7 +45,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
-        <!-- enable the two following deps are for gpu supports-->
+        <!-- enable the two following deps for gpu supports-->
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow</artifactId>
