@@ -56,8 +56,10 @@ public class ResizeUtils {
         else getShape = Image::shape;
         return Arrays.stream(imagesN).map(getShape::apply).toArray(int[][]::new);
     }
+
     public static Image[] getChannel(Image[][] imageNC, int channelIdx) {
-        return Arrays.stream(imageNC).map(a -> a[channelIdx]).toArray(Image[]::new);
+        int cIdx = channelIdx>=0 ? channelIdx : imageNC[0].length + channelIdx;
+        return Arrays.stream(imageNC).map(a -> a[cIdx]).toArray(Image[]::new);
     }
     public static Image[] averageChannelOnOutputs(Image[][][] imageONC, int channelIdx, int... outputIdx) {
         if (outputIdx.length==1) return getChannel(imageONC[outputIdx[0]], channelIdx);
