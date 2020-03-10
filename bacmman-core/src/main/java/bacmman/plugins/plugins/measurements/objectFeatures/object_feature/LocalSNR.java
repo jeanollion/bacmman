@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 public class LocalSNR extends SNR {
     public final static Logger logger = LoggerFactory.getLogger(LocalSNR.class);
     protected BoundedNumberParameter localBackgroundRadius = new BoundedNumberParameter("Local background radius", 1, 8, 0, null).setHint("Defines the local background area, by dilating the foreground region with this radius and removing the foreground region from the dilated region");
-    public static boolean debug=true;
+    public static boolean debug=false;
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, dilateExcluded, erodeBorders, localBackgroundRadius};}
     public LocalSNR() {}
     
