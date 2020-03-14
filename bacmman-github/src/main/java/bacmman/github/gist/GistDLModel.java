@@ -26,7 +26,6 @@ public class GistDLModel implements Hint {
     private JSONObject jsonContent;
     private Supplier<String> contentRetriever;
     public String getHintText() {return description;}
-    private static String PREFIX = "bacmman-dlmodel-";
     String id;
     public static String BASE_URL = "https://api.github.com";
     public GistDLModel(JSONObject gist) {
@@ -59,13 +58,13 @@ public class GistDLModel implements Hint {
         }
         contentRetriever = () -> new JSONQuery(fileURL).fetch();
     }
-    public GistDLModel(String account, String folder, String name, String description, String url) {
+    public GistDLModel(String account, String folder, String name, String description, String url, DLModelMetadata metadata) {
         this.account=account;
         if (folder.contains("_")) throw new IllegalArgumentException("folder name should not contain '_' character");
         this.folder=folder;
         this.name=name;
         this.description=description;
-        this.setContent(url);
+        this.setContent(url, metadata);
     }
 
     public boolean isVisible() {
@@ -107,9 +106,10 @@ public class GistDLModel implements Hint {
         return "dlmodel_"+folder+"_"+name+".json";
     }
 
-    public GistDLModel setContent(String url) {
+    public GistDLModel setContent(String url, DLModelMetadata metadata) {
         this.jsonContent = new JSONObject();
         jsonContent.put("url", url);
+        jsonContent.put("metadata", metadata.toJSONEntry());
         return this;
     }
 
@@ -133,15 +133,19 @@ public class GistDLModel implements Hint {
         return jsonContent;
     }
     public String getModelURL() {
-        if (jsonContent==null) {
-            if (contentRetriever == null) throw new RuntimeException("No query");
-            String content = contentRetriever.get();
-            jsonContent = JSONUtils.parse(content);
-        }
+        getContent();
         return (String)jsonContent.get("url");
     }
 
+    public DLModelMetadata getMetadata() {
+        getContent();
+        DLModelMetadata metadata = new DLModelMetadata();
+        if (jsonContent.containsKey("metadata"))  metadata.initFromJSONEntry(jsonContent.get("metadata"));
+        return metadata;
+    }
+
     public static List<GistDLModel> getPublic(String account) {
+        logger.debug("get public gists from account: {}", account);
         return parseJSON(new JSONQuery(BASE_URL+"/users/"+account+"/gists").method(JSONQuery.METHOD.GET).fetch());
     }
 
