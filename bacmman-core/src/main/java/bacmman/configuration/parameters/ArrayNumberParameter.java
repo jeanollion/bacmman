@@ -103,13 +103,8 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
     public ArrayNumberParameter duplicate() {
         ArrayNumberParameter res = new ArrayNumberParameter(name, unMutableIndex, childInstance);
         res.setContentFrom(this);
-        res.setHint(toolTipText);
-        res.setSimpleHint(toolTipTextSimple);
-        res.setListeners(listeners);
-        res.setNewInstanceNameFunction(newInstanceNameFunction);
-        res.addValidationFunction(this.additionalValidation);
-        res.addValidationFunctionToChildren(this.childrenValidation);
-        res.setEmphasized(isEmphasized);
+        res.setSorted(sorted);
+        transferStateArguments(this, res);
         return res;
     }
 }

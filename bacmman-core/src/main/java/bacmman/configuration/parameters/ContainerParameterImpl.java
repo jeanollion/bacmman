@@ -38,7 +38,7 @@ import java.util.function.Predicate;
 
 public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<Parameter, P>, InvisibleNode {
     protected String name;
-    protected ContainerParameter parent;
+    protected MutableTreeNode parent;
     protected List<Parameter> children;
     protected Boolean isEmphasized;
     protected Predicate<P> additionalValidation = p->true;
@@ -202,12 +202,12 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     @Override
     public void setParent(MutableTreeNode newParent) {
         if (newParent==null) parent = null;
-        else parent=(ContainerParameter)newParent;
+        else parent=newParent;
     }
 
     @Override
     public ContainerParameter getParent() {
-        return parent;
+        return (ContainerParameter)parent;
     }
 
     @Override
