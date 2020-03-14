@@ -20,7 +20,7 @@ import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, TestableProcessingPlugin {
+public class DistNet implements TrackerSegmenter, TestableProcessingPlugin {
     PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3));
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
@@ -44,7 +44,7 @@ public class BacteriaEdmDisplacementCategories implements TrackerSegmenter, Test
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1= System.currentTimeMillis();
-        logger.info("engine instanciated in {}ms", t1-t0);
+        logger.info("engine instanciated in {}ms, class: {}", t1-t0, engine.getClass());
         trackPreFilters.filter(objectClassIdx, parentTrack);
         if (stores!=null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
