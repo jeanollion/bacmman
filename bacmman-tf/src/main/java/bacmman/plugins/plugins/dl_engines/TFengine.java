@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
 import bacmman.tf.TensorWrapper;
+import bacmman.utils.ReflexionUtils;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -12,6 +13,7 @@ import org.tensorflow.*;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import static bacmman.processing.ResizeUtils.getShapes;
 
@@ -86,6 +88,7 @@ public class TFengine implements DLengine {
 
     @Override
     public void init() {
+        //ReflexionUtils.setvalueOnFinalField(DataType.FLOAT, "value", 20);
         if (graph!=null && session !=null) return; // already init
         if (graph==null && session== null) {
             try {
@@ -133,20 +136,23 @@ public class TFengine implements DLengine {
             else if (missingLayer[0]) err="Input";
             else err="Output";
             throw new RuntimeException(err+" layer(s) not found in graph");
-        }
+        } //else logOperations();
     }
     protected String findInputOperationName(String name) {
-        if (graph.operation(name)!=null) return name;
-        if (graph.operation("serving_default_input")!=null) return "serving_default_input"; // TODO fix this: how input names are set in TF2.keras.model.save method ???
+        //if (graph.operation(name)!=null) return name; // issue when model is exported with tf.keras (1.15) -> two inputs are  present _1  -> return the last placeholder
         Iterator<Operation> ops = graph.operations();
-        while (ops.hasNext()) { // return first placeholder whose name starts with "name"
+        String newName=null;
+        while (ops.hasNext()) { // return last placeholder whose name starts with "name"
             Operation next = ops.next();
             if (!next.type().equals("Placeholder")) continue;
             if (next.name().startsWith(name)) {
                 logger.debug("placeholder tensor name found for input: {} -> {}", name, next.name());
-                return next.name();
+                newName = next.name();
+                //return next.name();
             }
         }
+        if (newName!=null) return newName;
+        if (graph.operation("serving_default_input")!=null) return "serving_default_input"; // TODO fix this: how input names are set in TF2.keras.model.save method ???
         return null;
     }
     protected String findOutputOperationName(String name) {
@@ -156,7 +162,7 @@ public class TFengine implements DLengine {
         String newName=null;
         while (ops.hasNext()) {
             Operation next = ops.next();
-            if (next.name().startsWith(name) && !next.name().endsWith("ReadVariableOp")) newName = next.name(); // ReadVariableOp is added in tf2.keras
+            if (next.name().startsWith(name) ) newName = next.name(); // ReadVariableOp is added in tf2.keras //&& !next.name().endsWith("ReadVariableOp")
         }
         if (newName!=null) {
             logger.debug("output: {} was found with operation name: {}", name, newName);

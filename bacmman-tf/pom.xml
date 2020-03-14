@@ -33,20 +33,31 @@
             <artifactId>bacmman-dl</artifactId>
             <version>2.2.9</version>
         </dependency>
+        <!--dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow-core-api</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>org.tensorflow</groupId>
+            <artifactId>tensorflow-core-api</artifactId>
+            <version>0.1.0-SNAPSHOT</version>
+            <classifier>linux-x86_64</classifier>
+        </dependency-->
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow</artifactId>
             <version>1.15.0</version>
             <!-- enable the two following exclusion for gpu supports-->
-            <exclusions>
+            <!--exclusions>
                 <exclusion>
                     <groupId>org.tensorflow</groupId>
                     <artifactId>libtensorflow_jni</artifactId>
                 </exclusion>
-            </exclusions>
+            </exclusions-->
         </dependency>
         <!-- enable the two following deps for gpu supports-->
-        <dependency>
+        <!--dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow</artifactId>
             <version>1.15.0</version>
@@ -55,7 +66,7 @@
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow_jni_gpu</artifactId>
             <version>1.15.0</version>
-        </dependency>
+        </dependency-->
     </dependencies>
 
 </project>
