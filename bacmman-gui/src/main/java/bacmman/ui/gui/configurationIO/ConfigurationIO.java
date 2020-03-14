@@ -66,11 +66,13 @@ public class ConfigurationIO {
     JFrame displayingFrame;
     boolean loggedIn = false;
     Map<String, char[]> savedPassword;
+    Runnable onClose;
 
-    public ConfigurationIO(MasterDAO db, Map<String, char[]> savedPassword) {
+    public ConfigurationIO(MasterDAO db, Map<String, char[]> savedPassword, Runnable onClose) {
         this.db = db;
         this.xp = db.getExperiment();
         this.savedPassword = savedPassword;
+        this.onClose = onClose;
         nodeJCB.addItemListener(e -> {
             switch (nodeJCB.getSelectedIndex()) {
                 case 0:
@@ -479,11 +481,10 @@ public class ConfigurationIO {
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(WindowEvent evt) {
+                    if (onClose!=null) onClose.run();
                     if (db.experimentChangedFromFile()) {
                         if (Utils.promptBoolean("Local configuration has changed, save changes ?", mainPanel)) {
                             db.updateExperiment();
-                            if (GUI.hasInstance())
-                                GUI.getInstance().updateConfigurationTabValidity(); // also update configuration tab display
                         }
                     }
                     logger.debug("Github IO Closed successfully");
