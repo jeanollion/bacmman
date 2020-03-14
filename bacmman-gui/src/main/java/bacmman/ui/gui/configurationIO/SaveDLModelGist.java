@@ -1,5 +1,7 @@
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.github.gist.DLModelMetadata;
+import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 
@@ -8,6 +10,7 @@ import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 
+import static bacmman.plugins.Hint.formatHint;
 import static bacmman.utils.Utils.SPECIAL_CHAR;
 
 public class SaveDLModelGist {
@@ -23,8 +26,11 @@ public class SaveDLModelGist {
     private JButton cancel;
     private JButton OK;
     private JPanel panelMain;
+    private JPanel metadataPanel;
+    private JScrollPane metadataScrollPane;
     boolean canceled = false;
-
+    private DLModelMetadata metadata = new DLModelMetadata();
+    private ConfigurationTreeGenerator metadataTG;
     public SaveDLModelGist() {
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
@@ -37,6 +43,8 @@ public class SaveDLModelGist {
         name.addKeyListener(ke);
         folder.addKeyListener(ke);
     }
+
+
 
     public void display(JFrame parent, String title) {
         JDialog dia = new Dial(parent, title);
@@ -105,17 +113,26 @@ public class SaveDLModelGist {
     private class Dial extends JDialog {
         Dial(JFrame parent, String title) {
             super(parent, title, true);
+            metadataTG = new ConfigurationTreeGenerator(null, metadata, v -> {
+            }, (s, l) -> {
+            }, s -> {
+            }, null, null);
+            //metadataTG.getTree().setShowsRootHandles(false);
+            metadataTG.getTree().setRootVisible(false);
+            metadataScrollPane.setViewportView(metadataTG.getTree());
             getContentPane().add(panelMain);
             setDefaultCloseOperation(DISPOSE_ON_CLOSE);
             pack();
             cancel.addActionListener(e -> {
                 canceled = true;
                 setVisible(false);
+                ToolTipManager.sharedInstance().unregisterComponent(metadataTG.getTree());
                 dispose();
             });
             OK.addActionListener(e -> {
                 canceled = false;
                 setVisible(false);
+                ToolTipManager.sharedInstance().unregisterComponent(metadataTG.getTree());
                 dispose();
             });
         }
@@ -161,6 +178,12 @@ public class SaveDLModelGist {
         return this;
     }
 
+    public SaveDLModelGist setMetadata(DLModelMetadata metadata) {
+        this.metadata.setContentFrom(metadata);
+        if (metadataTG!=null) metadataTG.getTree().updateUI();
+        return this;
+    }
+
     public boolean visible() {
         return publicJCB.isSelected();
     }
@@ -180,4 +203,6 @@ public class SaveDLModelGist {
     public String url() {
         return url.getText();
     }
+
+    public DLModelMetadata metadata() {return metadata;}
 }

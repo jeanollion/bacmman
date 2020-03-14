@@ -732,9 +732,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             dlModelLib.addActionListener(e -> {
                 new DLModelsLibrary(githubPasswords).display(this);
             });
-            JMenuItem dlModelLib = new JMenuItem("DL Model library");
-            this.exportMenu.add(dlModelLib);
-            dlModelLib.addActionListener(e -> {
+            JMenuItem dlModelLib2 = new JMenuItem("DL Model library");
+            this.importMenu.add(dlModelLib);
+            dlModelLib2.addActionListener(e -> {
                 new DLModelsLibrary(githubPasswords).display(this);
             });
         }

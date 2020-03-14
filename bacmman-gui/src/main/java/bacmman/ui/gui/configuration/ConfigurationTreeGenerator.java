@@ -42,10 +42,7 @@ import java.awt.event.MouseEvent;
 import java.io.File;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.BiConsumer;
-import java.util.function.BiPredicate;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
+import java.util.function.*;
 import javax.swing.Action;
 import javax.swing.DropMode;
 import javax.swing.Icon;
@@ -82,7 +79,6 @@ public class ConfigurationTreeGenerator {
     private boolean expertMode = true;
     private boolean showRootHandle = true;
     public ConfigurationTreeGenerator(Experiment xp, ContainerParameter root, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
-        if (xp==null) throw new IllegalArgumentException("Experiment cannot be null");
         if (root == null) throw new IllegalArgumentException("Root cannot be null");
         rootParameter = root;
         experiment = xp;
@@ -119,8 +115,8 @@ public class ConfigurationTreeGenerator {
                 tree.expandPath(path);
             }
             treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
-            logger.debug("changing module ... : {}, hint: {}", pp, getHint(pp, false));
-            setHint.accept(getHint(pp, false));
+            logger.debug("changing module ... : {}, hint: {}", pp, getHint(pp, false, expertMode, getObjectClassIdxNameF()));
+            setHint.accept(getHint(pp, false, expertMode, getObjectClassIdxNameF()));
         };
     }
     public JTree getTree() {
@@ -137,7 +133,7 @@ public class ConfigurationTreeGenerator {
             rootParameter = null;
         }
     }
-    private String getParameterHint(Parameter p) {
+    private static String getParameterHint(Parameter p, boolean expertMode) {
         if (expertMode) {
             String hint = p.getHintText();
             if (hint == null || hint.length()==0) return p.getSimpleHintText();
@@ -148,7 +144,7 @@ public class ConfigurationTreeGenerator {
             else return hint;
         }
     }
-    private String getPluginHint(Plugin p) {
+    private static String getPluginHint(Plugin p, boolean expertMode) {
         if (expertMode) {
             if (p instanceof Hint) return ((Hint)p).getHintText();
             else if (p instanceof HintSimple) return ((HintSimple)p).getSimpleHintText();
@@ -159,13 +155,17 @@ public class ConfigurationTreeGenerator {
             else return null;
         }
     }
-    private String getHint(Object parameter, boolean limitWidth) {
+    private IntFunction<String> getObjectClassIdxNameF() {
+        if (experiment==null) return i -> ((Integer)i).toString();
+        return i -> (i>=0 && i<experiment.getStructureCount()) ? experiment.getStructure(i).getName() : ((Integer)i).toString();
+    }
+    public static String getHint(Object parameter, boolean limitWidth, boolean expertMode, IntFunction<String> getObjectClassIdxName) {
         if (!(parameter instanceof Parameter)) return null;
-        String t = getParameterHint((Parameter)parameter);
+        String t = getParameterHint((Parameter)parameter, expertMode);
         if (t==null) t = "";
         if (parameter instanceof PluginParameter) {
             Plugin p = ((PluginParameter)parameter).instantiatePlugin();
-            String t2 = getPluginHint(p);
+            String t2 = getPluginHint(p, expertMode);
             if (t2!=null && t2.length()>0) {
                 if (t.length()>0) t = t+"<br /><br />";
                 t = t+"<b>Current Module:</b><br />"+t2;
@@ -175,13 +175,14 @@ public class ConfigurationTreeGenerator {
                 if (!keys.isEmpty()) {
                     if (t.length()>0) t= t+"<br /><br />";
                     t = t+ "<b>Measurement Names:</b><ul>";
-                    for (MeasurementKey k : keys) t=t+"<li>"+k.getKey()+ (k.getStoreStructureIdx()>=0 && k.getStoreStructureIdx()<experiment.getStructureCount() ? " ("+experiment.getStructure(k.getStoreStructureIdx()).getName()+")":"")+"</li>";
+
+                    for (MeasurementKey k : keys) t=t+"<li>"+k.getKey()+ " ("+getObjectClassIdxName.apply(k.getStoreStructureIdx()) + ")</li>";
                     t = t+"</ul>(list of column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears)";
                 }
             }
         } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter
             Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
-            String t2 = getParameterHint(action);
+            String t2 = getParameterHint(action ,expertMode);
             if (t2!=null && t2.length()>0) {
                 if (t.length()>0) t = t+"<br /><br />";
                 t = t+t2;
@@ -194,7 +195,7 @@ public class ConfigurationTreeGenerator {
     private void generateTree() {
         treeModel = new ConfigurationTreeModel(rootParameter, () -> xpChanged(), p->{
             // called when update a tree node that is a plugin parameter
-            setHint.accept(getHint(p, false));
+            setHint.accept(getHint(p, false, expertMode, getObjectClassIdxNameF()));
             setModules.accept(p.getPluginName(), p.getPluginNames()); // in order to select module in list
         });
         treeModel.setCompareTree(compareTree);
@@ -204,7 +205,7 @@ public class ConfigurationTreeGenerator {
             public String getToolTipText(MouseEvent evt) {
                 if (getRowForLocation(evt.getX(), evt.getY()) == -1) return null;
                 TreePath curPath = getPathForLocation(evt.getX(), evt.getY());
-                return getHint(curPath.getLastPathComponent(), true);
+                return getHint(curPath.getLastPathComponent(), true, expertMode, getObjectClassIdxNameF());
             }
             @Override
             public Point getToolTipLocation(MouseEvent evt) {
@@ -265,7 +266,7 @@ public class ConfigurationTreeGenerator {
         renderer.setOpenIcon(icon);
         tree.setCellRenderer(renderer);
         tree.setOpaque(false);
-        
+
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -294,9 +295,9 @@ public class ConfigurationTreeGenerator {
                                 //menu.addSeparator();
                             }
                         }
-                        
+
                         menu.show(tree, pathBounds.x, pathBounds.y + pathBounds.height);
-                        
+
                     }
                 }
                 xpChanged();
@@ -309,7 +310,7 @@ public class ConfigurationTreeGenerator {
                     Object lastO = tree.getSelectionPath().getLastPathComponent();
                     if (lastO instanceof PluginParameter) setModules.accept(((PluginParameter)lastO).getPluginName(), ((PluginParameter)lastO).getPluginNames());
                     else setModules.accept(null, Collections.emptyList());
-                    String hint = getHint(tree.getSelectionPath().getLastPathComponent(), false);
+                    String hint = getHint(tree.getSelectionPath().getLastPathComponent(), false, expertMode, getObjectClassIdxNameF());
                     if (hint==null) setHint.accept("No hint available");
                     else setHint.accept(hint);
                     //logger.debug("set modules for : {}. hint: {}", tree.getSelectionPath().getLastPathComponent(),hint);
@@ -335,19 +336,21 @@ public class ConfigurationTreeGenerator {
                     return source.getChildClass().equals(dest.getChildClass());
                 }
         ));
-
-        // configure call back for structures (update display)
-        experiment.getStructures().addNewInstanceConfiguration(s->s.setParameterChangeCallBack( p -> treeModel.nodeChanged(p)));
-        // configure call back for position (delete position from DAO)
-        Predicate<Position> erasePosition = p -> {
-            logger.debug("erase position: {}", p.getName());
-            if (mDAO!=null) mDAO.getDao(p.getName()).deleteAllObjects();
-            if (p.getInputImages()!=null) p.getInputImages().deleteFromDAO();
-            for (int s =0; s<experiment.getStructureCount(); ++s) experiment.getImageDAO().deleteTrackImages(p.getName(), s);
-            Utils.deleteDirectory(experiment.getOutputDirectory()+ File.separator+p.getName());
-            return true;
-        };
-        experiment.getPositionParameter().addNewInstanceConfiguration(p->p.setDeletePositionCallBack(erasePosition));
+        if (experiment!=null) {
+            // configure call back for structures (update display)
+            experiment.getStructures().addNewInstanceConfiguration(s -> s.setParameterChangeCallBack(p -> treeModel.nodeChanged(p)));
+            // configure call back for position (delete position from DAO)
+            Predicate<Position> erasePosition = p -> {
+                logger.debug("erase position: {}", p.getName());
+                if (mDAO != null) mDAO.getDao(p.getName()).deleteAllObjects();
+                if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
+                for (int s = 0; s < experiment.getStructureCount(); ++s)
+                    experiment.getImageDAO().deleteTrackImages(p.getName(), s);
+                Utils.deleteDirectory(experiment.getOutputDirectory() + File.separator + p.getName());
+                return true;
+            };
+            experiment.getPositionParameter().addNewInstanceConfiguration(p -> p.setDeletePositionCallBack(erasePosition));
+        }
     }
 
     public void xpChanged() {

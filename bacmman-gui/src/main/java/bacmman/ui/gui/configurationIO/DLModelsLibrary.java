@@ -113,7 +113,7 @@ public class DLModelsLibrary {
                 GUI.log("Invalid folder name");
                 return;
             }
-            GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url()).setVisible(form.visible());
+            GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateGistDisplay();
@@ -145,11 +145,12 @@ public class DLModelsLibrary {
                     .setName(gist.name).disableNameField()
                     .setDescription(gist.getDescription())
                     .setURL(gist.getModelURL())
+                    .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible()).disableVisibleField();
             form.display(displayingFrame, "Update model...");
             if (form.canceled) return;
             gist.setDescription(form.description());
-            gist.setContent(form.url());
+            gist.setContent(form.url(), form.metadata());
 
             gist.updateContent(getAuth());
             updateGistDisplay();
@@ -163,6 +164,7 @@ public class DLModelsLibrary {
                     .setName(gist.name)
                     .setDescription(gist.getDescription())
                     .setURL(gist.getModelURL())
+                    .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible());
             form.display(displayingFrame, "Duplicate model...");
             if (form.canceled) return;
@@ -180,7 +182,7 @@ public class DLModelsLibrary {
                 GUI.log("Invalid folder name");
                 return;
             }
-            GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url()).setVisible(form.visible());
+            GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateGistDisplay();
@@ -188,6 +190,10 @@ public class DLModelsLibrary {
         });
         // persistence of username account:
         PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "", true);
+        if (username.getText().length()>0) {
+            fetchGists();
+            updateGistDisplay();
+        }
     }
 
     private void updateGistDisplay() {
@@ -215,7 +221,7 @@ public class DLModelsLibrary {
         char[] p = password.getPassword();
         String t = token.getText();
         boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
-        boolean enableLoad = u.length() != 0 && p.length != 0;
+        boolean enableLoad = u.length() != 0; // && p.length != 0;
         loadToken.setEnabled(enableLoad);
         storeToken.setEnabled(enableSave);
     }

@@ -18,7 +18,10 @@
  */
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.configuration.parameters.Parameter;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistDLModel;
+import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configuration.TransparentTreeCellRenderer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,8 +120,11 @@ public class DLModelGistTreeGenerator {
                 if (curPath==null) return null;
                 if (curPath.getLastPathComponent() instanceof GistTreeNode) {
                     return formatHint(((GistTreeNode)curPath.getLastPathComponent()).gist.getHintText());
-                } else if (((String)((DefaultMutableTreeNode)curPath.getLastPathComponent()).getUserObject()).startsWith("<html>URL")) {
+                } else if (curPath.getLastPathComponent() instanceof DefaultMutableTreeNode && (((String)((DefaultMutableTreeNode)curPath.getLastPathComponent()).getUserObject()).startsWith("<html>URL"))) {
                     return "Double click to download file";
+                } else if (curPath.getLastPathComponent() instanceof Parameter) {
+                    return ConfigurationTreeGenerator.getHint(curPath.getLastPathComponent(), true, true, i->((Integer)i).toString());
+
                 } else return "Folder containing model files";
             }
             @Override
@@ -137,7 +143,7 @@ public class DLModelGistTreeGenerator {
             public void mousePressed(final MouseEvent e) {
                 final int selRow = tree.getRowForLocation(e.getX(), e.getY());
                 final TreePath selPath = tree.getPathForLocation(e.getX(), e.getY());
-                if (selRow != -1) {
+                if (selRow != -1 && selPath.getLastPathComponent() instanceof DefaultMutableTreeNode) {
                     final DefaultMutableTreeNode node = (DefaultMutableTreeNode) selPath.getLastPathComponent();
                     if (node.getUserObject() instanceof String && ((String)node.getUserObject()).startsWith("<html>URL") && e.getClickCount() == 2) {
                         GistTreeNode gtn = (GistTreeNode)node.getParent();
@@ -186,6 +192,7 @@ public class DLModelGistTreeGenerator {
                 String url = gist.getModelURL();
                 MutableTreeNode urltn = new DefaultMutableTreeNode("<html>URL: <a href=\""+url+"\">"+url+"</a></html>", false);
                 insert(urltn, 0);
+                insert(gist.getMetadata(), 1);
             }
         }
         @Override
