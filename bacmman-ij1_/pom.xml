@@ -5,7 +5,7 @@
     <parent>
         <artifactId>bacmman</artifactId>
         <groupId>com.github.jeanollion.bacmman</groupId>
-        <version>2.2.9</version>
+        <version>3.0.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -28,27 +28,27 @@
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-core</artifactId>
-            <version>2.2.9</version>
+            <version>3.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-gui</artifactId>
-            <version>2.2.9</version>
+            <version>3.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-modules-mother-machine</artifactId>
-            <version>2.2.9</version>
+            <version>3.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-dl</artifactId>
-            <version>2.2.9</version>
+            <version>3.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-tf</artifactId>
-            <version>2.2.9</version>
+            <version>3.0.0</version>
         </dependency>
     </dependencies>
     <repositories>
