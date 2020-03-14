@@ -710,17 +710,27 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             hasGitubModule = false;
         }
         if (hasGitubModule) {
+            Runnable onClose = () -> {
+                if (configurationTreeGenerator!=null) this.configurationTreeGenerator.getTree().updateUI();
+                if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
+                updateConfigurationTabValidity();
+            };
             JMenuItem remoteIO = new JMenuItem("Import/Export configuration from Github server");
             this.importMenu.add(remoteIO);
             remoteIO.addActionListener(e -> {
                 if (!checkConnection()) return;
-                new ConfigurationIO(db, githubPasswords).display(this);
+                new ConfigurationIO(db, githubPasswords, onClose).display(this);
             });
             JMenuItem remoteIO2 = new JMenuItem("Import/Export configuration from Github server");
             this.exportMenu.add(remoteIO2);
             remoteIO2.addActionListener(e -> {
                 if (!checkConnection()) return;
-                new ConfigurationIO(db, githubPasswords).display(this);
+                new ConfigurationIO(db, githubPasswords, onClose).display(this);
+            });
+            JMenuItem dlModelLib = new JMenuItem("DL Model library");
+            this.exportMenu.add(dlModelLib);
+            dlModelLib.addActionListener(e -> {
+                new DLModelsLibrary(githubPasswords).display(this);
             });
             JMenuItem dlModelLib = new JMenuItem("DL Model library");
             this.exportMenu.add(dlModelLib);

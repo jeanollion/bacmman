@@ -40,6 +40,16 @@
             <artifactId>bacmman-modules-mother-machine</artifactId>
             <version>2.2.9</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-dl</artifactId>
+            <version>2.2.9</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-tf</artifactId>
+            <version>2.2.9</version>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>

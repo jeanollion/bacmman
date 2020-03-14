@@ -26,12 +26,12 @@ public class TestOverlapRegions {
         Region o3D = new Region(other3D, 1, false, 1, 1);
         logger.debug("bounds o2D: {}, o2D1{}, o3D: {}", o2D.getBounds(), o2D1.getBounds(), o3D.getBounds());
         // spot - mask
-        assertEquals("overlap spot2D - o 2D", 3, s2D.getOverlapArea(o2D, null, null));
-        assertEquals("overlap spot3D - o 2D", 7, o2D.getOverlapArea(s3D, null, null));
-        assertEquals("overlap spot2D - o 2D(z1)", 0, o2D1.getOverlapArea(s2D, null, null));
-        assertEquals("overlap spot3D - o 2D(z1)", 4, o2D1.getOverlapArea(s3D, null, null));
-        assertEquals("overlap spot2D - o 3D", 5, o3D.getOverlapArea(s2D, null, null));
-        assertEquals("overlap spot3D - o 3D", 4, o3D.getOverlapArea(s3D, null, null));
+        assertEquals("overlap spot2D - o 2D", 3.0, s2D.getOverlapArea(o2D, null, null), 1e-3);
+        assertEquals("overlap spot3D - o 2D", 7, o2D.getOverlapArea(s3D, null, null),1e-3);
+        assertEquals("overlap spot2D - o 2D(z1)", 0, o2D1.getOverlapArea(s2D, null, null),1e-3);
+        assertEquals("overlap spot3D - o 2D(z1)", 4, o2D1.getOverlapArea(s3D, null, null),1e-3);
+        assertEquals("overlap spot2D - o 3D", 5, o3D.getOverlapArea(s2D, null, null),1e-3);
+        assertEquals("overlap spot3D - o 3D", 4, o3D.getOverlapArea(s3D, null, null),1e-3);
 
 
         // intersect spot - voxels
