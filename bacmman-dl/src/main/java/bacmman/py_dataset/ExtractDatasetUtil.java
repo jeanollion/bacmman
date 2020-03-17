@@ -11,6 +11,9 @@ import bacmman.processing.EDT;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
+import net.imglib2.interpolation.InterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,7 +62,7 @@ public class ExtractDatasetUtil {
                 for (Triplet<String, FeatureExtractor, Integer> feature : features) {
                     logger.debug("feature: {}", feature);
                     Function<SegmentedObject, Image> extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
-                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, SCALE_MODE.NO_SCALE, feature.v2.isBinary(), null, saveLabels,  saveLabels, dimensions);
+                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, saveLabels,  saveLabels, dimensions);
                     saveLabels=false;
                     t.incrementProgress();
                 }
@@ -85,14 +88,6 @@ public class ExtractDatasetUtil {
         });
     }
 
-    public static void extractWeightMap(Path outputPath, String dsName, Selection sel, String position, Map<SegmentedObject, RegionPopulation> ressampledMap, final double wo, final double sigma, WEIGHT_MAP weightMap, int... dimensions) {
-        Function<SegmentedObject, Image> dis = e -> {
-            RegionPopulation curPop = ressampledMap.get(e);
-            return computeWeightMap(curPop, wo, sigma, weightMap); // if one is short, all should be converted to short
-        };
-        extractFeature(outputPath, dsName, sel, position, dis, SCALE_MODE.MAX_MIN_BYTE_SAFE_FLOAT, false, null, false, false, dimensions);
-    }
-
     public static Selection getAllElements(MasterDAO mDAO, int objectClassIdx) {
         Selection sel = new Selection();
         for (String pos : mDAO.getExperiment().getPositionsAsString()) {
@@ -101,71 +96,16 @@ public class ExtractDatasetUtil {
         return sel;
     }
 
-    @FunctionalInterface
-    private interface GetWeight {
-        double apply(int x, int y, int z);
-    }
-    public static Image computeWeightMap(RegionPopulation pop, final double wo, final double sigma, WEIGHT_MAP weightMap) {
-        if (pop.getRegions().isEmpty() || WEIGHT_MAP.NONE.equals(weightMap)) {
-            Image res = new ImageFloat("", pop.getImageProperties());
-            ImageOperations.fill(res, 1, null);
-            return res;
-        }
-        // compute class frequency
-        double foreground = pop.getRegions().stream().mapToDouble(r->r.size()).sum();
-        int total = pop.getImageProperties().sizeXY();
-        double background = total - foreground;
-        double[] wc = new double[]{1, background  / foreground};
-        ImageInteger allRegions = pop.getLabelMap();
-        GetWeight getWeight;
-        switch (weightMap) {
-            case UNET:
-            case DELTA:
-            default:
-            {   // compute distance maps from each object
-                ImageFloat[] edms = pop.getRegions().stream().map(r -> {
-                    ImageByte mask = new ImageByte("", pop.getImageProperties());
-                    r.draw(mask, 1, mask);
-                    return EDT.transform(mask, false, 1, 1, false); // computeWeightMap is already called in MT
-                }).toArray(ImageFloat[]::new);
-                double s2 = sigma * sigma * 2;
-                getWeight = (x, y, z) -> {
-                    if (allRegions.insideMask(x, y, z)) return wc[1];
-                    if (edms.length>1) {
-                        double[] minDists = Arrays.stream(edms).mapToDouble(edm -> edm.getPixel(x, y, z)).sorted().limit(2).toArray();
-                        return wc[0] + wo * Math.exp( - Math.pow(minDists[0] + minDists[1], 2) / s2);
-                    } else return wc[0];
-                };
-                break;
-            }
-            case DY: {
-                getWeight = (x, y, z) -> {
-                    if (allRegions.insideMask(x, y, z)) return wc[1];
-                    else return wc[0];
-                };
-                break;
-            }
-        }
-        ImageFloat res = new ImageFloat("weight map", pop.getImageProperties());
-        BoundingBox.loop(res, (x, y, z) -> res.setPixel(x, y, z, getWeight.apply(x, y, z)));
-        if (WEIGHT_MAP.DELTA.equals(weightMap) || WEIGHT_MAP.DY.equals(weightMap)) {
-            pop.getRegions().forEach(r -> {
-                r.getContour().forEach(v -> res.setPixel(v.x, v.y, v.z, 0));
-            });
-        }
-        return res;
-    }
-
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
 
-    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, SCALE_MODE scaleMode, boolean binary, Map<String, Object> metadata, boolean saveLabels, boolean saveDimensions, int... dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> sel.getAllElements().stream().parallel() : () -> sel.getElements(position).stream().parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);
-            Image out = resample(im, binary, dimensions);
+            Image out = resample(im, interpolation, dimensions);
             out.setName(getLabel(e));
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
@@ -259,38 +199,6 @@ public class ExtractDatasetUtil {
         }).toArray(int[][]::new) : null;
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
         HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, 4, saveLabels, originalDimensions, metadata );
-    }
-
-    public static void extractLabel(Path outputPath, String dsName, Selection sel, String position, Map<SegmentedObject, RegionPopulation> resampledMap, int... dimensions) {
-        Function<SegmentedObject, Image> dis = e -> {
-            RegionPopulation curPop = resampledMap.get(e);
-            return curPop.getLabelMap(); // if one is short, all should be converted to short
-        };
-        extractFeature(outputPath, dsName, sel, position, dis, SCALE_MODE.NO_SCALE, true, null, false, false, dimensions);
-    }
-
-    public static void extractPreviousLabel(Path outputPath, String dsName, Selection sel, String position, int objectClassIdx, Map<SegmentedObject, RegionPopulation> ressampledMap, int... dimensions) {
-        Function<SegmentedObject, Image> dis = e -> {
-            RegionPopulation curPop = ressampledMap.get(e);
-            Image prevLabel = new ImageByte("", curPop.getImageProperties());
-            if (e.getPrevious()!=null) { // if first frame previous image is self: no previous labels
-                e.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null).forEach(c -> {
-                    Region r = curPop.getRegion(c.getIdx()+1);
-                    r.draw(prevLabel, c.getPrevious().getIdx()+1);
-                });
-            }
-            return prevLabel;
-        };
-        extractFeature(outputPath, dsName, sel, position, dis, SCALE_MODE.NO_SCALE, true, null, false, false, dimensions);
-    }
-
-    public static void extractRaw(Path outputPath, String dsName, Selection sel, String position, int objectClassIdx, boolean convertToByte, int... dimensions) {
-        Function<SegmentedObject, Image> extractRaw = e -> {
-            Image im = e.getRawImage(objectClassIdx);
-            if (convertToByte) im = TypeConverter.toFloat(im, null); // so that only one conversion float->int is done during resampling
-            return im;
-        };
-        extractFeature(outputPath, dsName, sel, position, extractRaw, convertToByte ? SCALE_MODE.MAX_MIN_BYTE : SCALE_MODE.NO_SCALE, false, null, true,  true, dimensions);
     }
 
     public enum WEIGHT_MAP {NONE, UNET, DELTA, DY}

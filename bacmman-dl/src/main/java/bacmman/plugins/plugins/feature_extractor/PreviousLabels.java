@@ -8,6 +8,8 @@ import bacmman.image.Image;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
 import bacmman.plugins.FeatureExtractor;
+import net.imglib2.interpolation.InterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 
 import java.util.Map;
 
@@ -31,8 +33,8 @@ public class PreviousLabels implements FeatureExtractor {
     }
 
     @Override
-    public boolean isBinary() {
-        return true;
+    public InterpolatorFactory interpolation() {
+        return new NearestNeighborInterpolatorFactory();
     }
 
     @Override

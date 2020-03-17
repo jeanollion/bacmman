@@ -5,6 +5,8 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.plugins.FeatureExtractor;
+import net.imglib2.interpolation.InterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 
 import java.util.Map;
 
@@ -20,8 +22,8 @@ public class Labels implements FeatureExtractor {
     }
 
     @Override
-    public boolean isBinary() {
-        return true;
+    public InterpolatorFactory interpolation() {
+        return new NearestNeighborInterpolatorFactory();
     }
 
     @Override

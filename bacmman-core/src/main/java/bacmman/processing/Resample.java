@@ -29,10 +29,9 @@ public class Resample {
         NEAREST(NearestNeighborInterpolatorFactory::new),
         NLINEAR(NLinearInterpolatorFactory::new),
         CLAMPING_NLINEAR(ClampingNLinearInterpolatorFactory::new),
-        LANCZOS1(()->new LanczosInterpolatorFactory(1, false)),
         LANCZOS3(()->new LanczosInterpolatorFactory(3, false)),
-        LANCZOS5(()->new LanczosInterpolatorFactory(5, false));
-
+        LANCZOS5(()->new LanczosInterpolatorFactory(5, false)),
+        LANCZOS7(()->new LanczosInterpolatorFactory(7, false));
         private final Supplier<InterpolatorFactory> factory;
         INTERPOLATION(Supplier<InterpolatorFactory> factory) {
             this.factory=factory;
@@ -80,7 +79,7 @@ public class Resample {
      * @return
      */
     public static <T extends Image<T>> T resample(T input, boolean binary, int... dimensions) {
-        return resample(input, binary?INTERPOLATION.NEAREST.factory():INTERPOLATION.LANCZOS3.factory(), dimensions);
+        return resample(input, binary?INTERPOLATION.NEAREST.factory():INTERPOLATION.LANCZOS5.factory(), dimensions);
     }
     public static Image resampleBack(Image im, BoundingBox target, boolean binary, int... dimensions) {
         if (im.sameDimensions(target)) return im;
@@ -89,7 +88,7 @@ public class Resample {
             BoundingBox cropBB = new SimpleBoundingBox(0, dimensions[0]<0 && im.sizeX()<target.sizeX() ? target.sizeX()-1 : im.sizeX()-1, 0, dimensions.length>1 && dimensions[1]<0 && im.sizeY()<target.sizeY() ? target.sizeY()-1 : im.sizeY()-1, 0, dimensions.length>2 && dimensions[2]<0 && im.sizeZ()<target.sizeZ() ? target.sizeZ()-1 : im.sizeZ()-1);
             im = im.crop(cropBB);
         }
-        return resample(im, binary?INTERPOLATION.NEAREST:INTERPOLATION.LANCZOS3, target.sizeX(), target.sizeY(), target.sizeZ());
+        return resample(im, binary?INTERPOLATION.NEAREST:INTERPOLATION.LANCZOS5, target.sizeX(), target.sizeY(), target.sizeZ());
     }
 
 

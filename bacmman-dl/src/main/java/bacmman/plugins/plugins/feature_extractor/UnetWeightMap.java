@@ -2,6 +2,7 @@ package bacmman.plugins.plugins.feature_extractor;
 
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
+import bacmman.configuration.parameters.InterpolationParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -10,6 +11,7 @@ import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.processing.EDT;
 import bacmman.py_dataset.ExtractDatasetUtil;
+import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -19,7 +21,7 @@ public class UnetWeightMap implements FeatureExtractor {
     BoundedNumberParameter wo = new BoundedNumberParameter("wo", 2, 10, 0, null).setHint("Controls the value between regions. If 0: value at contours of a segmented region do not depend on neighboring segmented regions.");
     BooleanParameter eraseConoutrs = new BooleanParameter("Erase contours", false).setHint("Set contours of segmented regions to zero");
     BoundedNumberParameter limitClassFrequencyRatio = new BoundedNumberParameter("Limit class frequency ratio", 1, 0, 0, null).setHint("If a value greater than 0 is set, the class frequency ratio is limited to this ratio");
-
+    InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
     @FunctionalInterface
     private interface GetWeight {
         double apply(int x, int y, int z);
@@ -63,13 +65,13 @@ public class UnetWeightMap implements FeatureExtractor {
     }
 
     @Override
-    public boolean isBinary() {
-        return false;
+    public InterpolatorFactory interpolation() {
+        return interpolation.getInterpolation();
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{sigma, wo, eraseConoutrs, limitClassFrequencyRatio};
+        return new Parameter[]{sigma, wo, eraseConoutrs, limitClassFrequencyRatio, interpolation};
     }
 
     @Override
