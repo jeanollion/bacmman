@@ -7,16 +7,19 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.processing.EDT;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
+import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -25,6 +28,7 @@ import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static bacmman.processing.Resample.resample;
@@ -69,8 +73,31 @@ public class ExtractDatasetUtil {
                 resampledPops.clear();
             }
         }
+        // write histogram for raw features
+        features.stream().filter(f->f.v2 instanceof RawImage).map(f->f.v1).forEach(channelName -> {
+            write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions);
+        });
     }
-
+    public static void write_histogram(File outputPath, List<String> selectionNames, String dbName, String channelName, int[] dimensions) {
+        PyDatasetReader reader = new PyDatasetReader(outputPath);
+        Map<String, Histogram> histos = new HashMap<>(selectionNames.size());
+        for (String selName : selectionNames) {
+            PyDatasetReader.DatasetAccess dsA = reader.getDatasetAccess(selName, dbName);
+            Supplier<Stream<Image>> imageStream = () -> dsA.extractImagesForPositions(channelName, null, false, false, dimensions);
+            double[] minAndMax = HistogramFactory.getMinAndMax(imageStream.get());
+            double binSize = HistogramFactory.getBinSize(minAndMax[0], minAndMax[1], 256);
+            Histogram h = HistogramFactory.getHistogram(imageStream.get(), binSize, 256, minAndMax[0]);
+            histos.put(dsA.dsName(), h);
+        }
+        reader.close();
+        IHDF5Writer writer = HDF5IO.getWriter(outputPath, true);
+        histos.forEach((s, h) -> {
+            writer.int64().setArrayAttr(s, "raw_histogram", h.getData());
+            writer.float64().setAttr(s, "raw_histogram_bin_size", h.getBinSize());
+            writer.float64().setArrayAttr(s, "raw_percentiles", h.getQuantiles(IntStream.range(0, 101).mapToDouble(i -> i / 100d).toArray()));
+        });
+        writer.close();
+    }
     public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, boolean shortMask, int[] dimensions, boolean eraseTouchingContours) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> {
             Image mask = o.getChildRegionPopulation(objectClassIdx).getLabelMap();
