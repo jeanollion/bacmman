@@ -57,7 +57,7 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
     }
     public SplitAndMergeEDM setInterfaceValue(double quantile, boolean normalizeEdgeValues) {
         if (normalizeEdgeValues && this.edmLocalMax==null) {
-            ImageInteger lmMask = Filters.localExtrema(edm, null, true, 0.5, null, Filters.getNeighborhood(3, edm));
+            ImageInteger lmMask = Filters.localExtrema(edm, null, true, quantile, null, Filters.getNeighborhood(3, edm));
             edmLocalMax = new ImageFloat("edm local max", lmMask);
             ImageMask.loop(lmMask, (x, y, z) -> edmLocalMax.setPixel(x, y, z, edm.getPixel(x, y, z)));
         }

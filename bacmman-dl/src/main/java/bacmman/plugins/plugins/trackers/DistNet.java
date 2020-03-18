@@ -20,10 +20,10 @@ import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DistNet implements TrackerSegmenter, TestableProcessingPlugin {
-    PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("Segmenter from EDM", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true);
-    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3));
-    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
+public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint {
+    PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("EDM Segmenter", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
+    PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
     //BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
@@ -407,6 +407,12 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin {
             }
         }
     }
+
+    @Override
+    public String getHintText() {
+        return "DistNet is a method for Segmentation and Tracking of bacteria in microchannels, based on a Deep Neural Network (DNN). <br />See this tutorial to download the trained weights: <a href='https://github.com/jeanollion/bacmman/wiki/DistNet'>https://github.com/jeanollion/bacmman/wiki/DistNet</a><br />The model was trained with data similar to the example <a href='https://github.com/jeanollion/bacmman/wiki/Example-Datasets'>dataset1</a>. A tutorial is provided to adapt DistNet to other datasets is provided here: <a href='https://github.com/jeanollion/bacmman/wiki/FineTune-DistNet'>https://github.com/jeanollion/bacmman/wiki/FineTune-DistNet</a><br />The main parameter to adapt in this method is the split threshold of the BacteriaEDM segmenter module.<br />If you use this method please cite: <a href='https://arxiv.org/abs/2003.07790'>https://arxiv.org/abs/2003.07790</a>.";
+    }
+
     static class TrackingObject{ //extends fiji.plugin.trackmate.Spot {
         final Region r;
         final BoundingBox cur, curToPrev;

@@ -3,6 +3,7 @@ package bacmman.plugins.plugins.dl_engines;
 import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
+import bacmman.plugins.Hint;
 import bacmman.tf.TensorWrapper;
 import bacmman.utils.ReflexionUtils;
 import bacmman.utils.Utils;
@@ -17,12 +18,12 @@ import java.util.stream.IntStream;
 
 import static bacmman.processing.ResizeUtils.getShapes;
 
-public class TFengine implements DLengine {
+public class TFengine implements DLengine, Hint {
     Logger logger = LoggerFactory.getLogger(DLengine.class);
-    FileChooser modelFile = new FileChooser("Tensorflow SavedModelBundle folder", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true);
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null);
-    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue())));
-    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue())));
+    FileChooser modelFile = new FileChooser("Tensorflow SavedModelBundle folder", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model (this folder should contain the .pb file). Model must be compiled with a tensorflow version inferior or equal to the java-tensorflow version");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
+    SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue()))).setEmphasized(true).setHint("Name of the input layer(s): must correspond to the corresponding placeholder name in the saved model bundle");
+    SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue()))).setEmphasized(true).setHint("Name of the output layer(s): must correspond to the corresponding output name in the saved model bundle");;
     String[] inputNames, outputNames;
     Graph graph;
     Session session;
@@ -233,5 +234,10 @@ public class TFengine implements DLengine {
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{modelFile, batchSize, inputs, outputs};
+    }
+
+    @Override
+    public String getHintText() {
+        return "Deep Learning engine based on tensorflow 1.x. <br />For GPU computing, the <em>libtensorflow_jni</em> jar should be replaced by <em>libtensorflow_jni_gpu</em>";
     }
 }
