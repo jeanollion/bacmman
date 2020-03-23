@@ -48,7 +48,21 @@ public class TypeConverter {
         }
         return output;
     }
-    
+    public static ImageShort toShort(Image image, ImageShort output, boolean copyIfShort) {
+        if (copyIfShort || !(image instanceof ImageShort)) return toShort(image, output);
+        else return (ImageShort)image;
+    }
+
+    public static ImageByte toByte(Image image, ImageByte output, boolean copyIfByte) {
+        if (copyIfByte || !(image instanceof ImageByte)) return toByte(image, output);
+        else return (ImageByte)image;
+    }
+
+    public static ImageFloat toFloat(Image image, ImageFloat output, boolean copyIfFloat) {
+        if (copyIfFloat || !(image instanceof ImageFloat)) return toFloat(image, output);
+        else return (ImageFloat)image;
+    }
+
     /**
      * 
      * @param image input image to be converted
