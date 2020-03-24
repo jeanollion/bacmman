@@ -24,6 +24,7 @@ import com.google.common.io.Files;
 import bacmman.core.DefaultWorker.WorkerTask;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -76,9 +77,9 @@ public class Daemon {
             ui.setMessage("Cannot set watch directory: "+dir);
             return;
         }
-        File pd = new File(dir+File.separator+"ParsedJobs");
-        File ed = new File(dir+File.separator+"Errors");
-        File ld = new File(dir+File.separator+"Logs");
+        File pd = Paths.get(dir, "ParsedJobs").toFile();
+        File ed = Paths.get(dir, "Errors").toFile();
+        File ld = Paths.get(dir, "Logs").toFile();
         pd.mkdirs();
         ed.mkdirs();
         ld.mkdirs();
@@ -99,7 +100,7 @@ public class Daemon {
                     Task t = jobQueue.poll();
                     if (t!=null) {
                         logUI.setAppend(!oneJobHasBeenRun.contains(taskFileNameMap.get(t)));
-                        logUI.setLogFile(logDir.getAbsolutePath()+File.separator+taskFileNameMap.get(t).getName().replace(".json", ".txt"));
+                        logUI.setLogFile(Paths.get(logDir.getAbsolutePath(), taskFileNameMap.get(t).getName().replace(".json", ".txt")).toString());
                         t.publishMemoryUsage("");
                         ui.setMessage("Running Job: "+t+" remaining jobs: "+jobQueue.size());
                         t.runTask();
@@ -160,7 +161,7 @@ public class Daemon {
             Entry<File, Boolean> e = it.next();
             if (!taskFileNameMap.containsValue(e.getKey())) { // all jobs are done
                 try { // move file to subfolder so that it is not scanned again
-                    Files.move(e.getKey(), new File((e.getValue()?errorDir.getAbsolutePath():parsedJobDir.getAbsolutePath())+File.separator+e.getKey().getName()));
+                    Files.move(e.getKey(), Paths.get((e.getValue()?errorDir.getAbsolutePath():parsedJobDir.getAbsolutePath()),e.getKey().getName()).toFile());
                 } catch (IOException ex) {
                     ui.setMessage("Cannot move file: "+e.getKey().getName() + " "+ ex.getMessage());
                 }

@@ -22,6 +22,8 @@ import bacmman.data_structure.Selection;
 
 import static bacmman.data_structure.dao.DBMapMasterDAO.logger;
 import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -39,7 +41,7 @@ import bacmman.utils.JSONUtils;
  */
 public class DBMapSelectionDAO implements SelectionDAO {
     
-    final String dir;
+    final Path dir;
     final DBMapMasterDAO mDAO;
     DB db;
     HTreeMap<String, String> dbMap;
@@ -47,8 +49,8 @@ public class DBMapSelectionDAO implements SelectionDAO {
     private final boolean readOnly;
     public DBMapSelectionDAO(DBMapMasterDAO mDAO, String dir, boolean readOnly) {
         this.mDAO=mDAO;
-        this.dir= dir+File.separator+"Selections"+File.separator;
-        new File(this.dir).mkdirs();
+        this.dir = Paths.get(dir, "Selections");
+        this.dir.toFile().mkdirs();
         this.readOnly=readOnly;
         makeDB();
     }
@@ -83,7 +85,7 @@ public class DBMapSelectionDAO implements SelectionDAO {
             idCache.put(sel.getName(), sel);
         }
         // local files
-        File dirFile = new File(dir);
+        File dirFile = dir.toFile();
         for (File f : dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"))) {
             List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s));
             for (Selection s : sels) {

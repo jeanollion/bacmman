@@ -40,6 +40,8 @@ import bacmman.image.ImageFloat;
 import bacmman.image.ImageInt;
 import bacmman.image.ImageShort;
 import bacmman.utils.Pair;
+
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -74,7 +76,6 @@ public class ImageReader {
         this.imageTitle=imageTitle;
         this.invertTZ=extension.getInvertTZ();
         this.supportView=extension.getSupportView();
-        //System.out.println("path: "+path+File.separator+imageTitle+extension);
         initReader();
     }
     
@@ -118,7 +119,7 @@ public class ImageReader {
     
     public String getImagePath() {
         if (fullPath!=null) return fullPath;
-        else return path+File.separator+imageTitle+extension;
+        else return Paths.get(path, imageTitle+extension).toString();
     }
     //loci.formats.ImageReader ifr;
     private void initReader() {

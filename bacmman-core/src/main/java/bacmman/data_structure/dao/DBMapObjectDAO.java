@@ -26,6 +26,7 @@ import bacmman.data_structure.SegmentedObjectUtils;
 
 import java.io.File;
 import java.io.IOError;
+import java.nio.file.*;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -47,10 +48,6 @@ import bacmman.utils.Utils;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.function.Consumer;
 
 /**
@@ -61,11 +58,10 @@ public class DBMapObjectDAO implements ObjectDAO {
     public static final Logger logger = LoggerFactory.getLogger(DBMapObjectDAO.class);
     final DBMapMasterDAO mDAO;
     final String positionName;
-    //List<StructureObject> rootCache;
     final HashMapGetCreate<Pair<String, Integer>, Map<String, SegmentedObject>> cache = new HashMapGetCreate<>(new HashMapGetCreate.MapFactory()); // parent trackHead id -> id cache
     final HashMapGetCreate<Pair<String, Integer>, Boolean> allObjectsRetrievedInCache = new HashMapGetCreate<>(p -> false);
     final Map<Pair<String, Integer>, HTreeMap<String, String>> dbMaps = new HashMap<>();
-    final String dir;
+    final Path dir;
     final Map<Integer, DB> dbS = new HashMap<>();
     final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMap<>();
     public final boolean readOnly;
@@ -74,8 +70,8 @@ public class DBMapObjectDAO implements ObjectDAO {
     public DBMapObjectDAO(DBMapMasterDAO mDAO, String positionName, String dir, boolean readOnly) {
         this.mDAO=mDAO;
         this.positionName=positionName;
-        this.dir = dir+File.separator+positionName+File.separator+"segmented_objects"+File.separator;
-        File folder = new File(this.dir);
+        this.dir = Paths.get(dir, positionName, "segmented_objects");
+        File folder = this.dir.toFile();
         if (!folder.exists()) folder.mkdirs();
         // lock system is on a ".lock" file temporarily created in position folder
         if (!readOnly) {
@@ -88,7 +84,8 @@ public class DBMapObjectDAO implements ObjectDAO {
         return readOnly;
     }
     private Path getLockedFilePath() {
-        return FileSystems.getDefault().getPath(new File(dir).getParent(), ".lock");
+        return dir.getParent().resolve(".lock");
+        //return FileSystems.getDefault().getPath(new File(dir).getParent(), ".lock");
     }
     private synchronized boolean lock() {
         if (lock!=null) return true;
@@ -155,9 +152,7 @@ public class DBMapObjectDAO implements ObjectDAO {
 
     
     private String getDBFile(int structureIdx) {
-        String res = dir+"objects_"+structureIdx+".db";
-        //logger.debug("db file: {}", res);
-        return res;
+        return dir.resolve("objects_"+structureIdx+".db").toString();
     }
     
     protected DB getDB(int structureIdx) {
@@ -445,7 +440,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         cache.clear();
         allObjectsRetrievedInCache.clear();
         if (readOnly) return;
-        File f = new File(dir);
+        File f = dir.toFile();
         if (f.exists() && f.isDirectory()) for (File subF : f.listFiles())  subF.delete();
     }
     private synchronized void closeAllObjectFiles(boolean commit) {
@@ -545,7 +540,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                 store(relabeled, false);
             } else if (deleteFromParent) {
                 toRemove.stream().filter((o) -> (o.getParent()!=null)).forEachOrdered((o) -> {
-                    accessor.getDirectChildren(o.getParent(),o.getStructureIdx()).remove(o);
+                    accessor.getDirectChildren(o.getParent(),key.value).remove(o);
                 });
             }
         }
@@ -651,7 +646,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     // measurements
     // store by structureIdx in another folder. Id = same as objectId
     private String getMeasurementDBFile(int structureIdx) {
-        return dir+"measurements_"+structureIdx+".db";
+        return dir.resolve("measurements_"+structureIdx+".db").toString();
     }
     protected Pair<DB, HTreeMap<String, String>> getMeasurementDB(int structureIdx) {
         Pair<DB, HTreeMap<String, String>> res = this.measurementdbS.get(structureIdx);

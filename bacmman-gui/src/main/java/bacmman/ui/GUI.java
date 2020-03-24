@@ -290,7 +290,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     File f = dbFiles.get(dbName);
                     if (f==null) l.setToolTipText(null);
                     else {
-                        String dir = f.getAbsolutePath() + File.separator + dbName + "_config.json"; // TODO use DAO method to get path
+                        String dir = Paths.get(f.getAbsolutePath() , dbName + "_config.json").toString(); // TODO use DAO method to get path
                         if (!new File(dir).exists()) l.setToolTipText(null);
                         else {
                             try {
@@ -2942,7 +2942,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     private static String createSubdir(String path, String dbName) {
         if (!new File(path).isDirectory()) return null;
-        File newDBDir = new File(path+File.separator+ExperimentSearchUtils.removePrefix(dbName, GUI.DBprefix));
+        File newDBDir = Paths.get(path, ExperimentSearchUtils.removePrefix(dbName, GUI.DBprefix)).toFile();
         if (newDBDir.exists()) {
             logger.info("folder : {}, already exists", newDBDir.getAbsolutePath());
             if (!ExperimentSearchUtils.listExperiments(newDBDir.getAbsolutePath(), false, null).isEmpty()) {
@@ -3000,7 +3000,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 return false;
             }
             Experiment xp2 = new Experiment(name);
-            if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) xp2.setOutputDirectory(adress+File.separator+"Output");
+            if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
             db2.setExperiment(xp2);
             db2.updateExperiment();
             db2.unlockConfiguration();
@@ -3049,7 +3049,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Experiment xp2 = db1.getExperiment().duplicate();
             xp2.clearPositions();
             xp2.setName(name);
-            xp2.setOutputDirectory(adress+File.separator+"Output");
+            xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
             xp2.setOutputImageDirectory(xp2.getOutputDirectory());
             db2.setExperiment(xp2);
             db2.updateExperiment();
@@ -3084,7 +3084,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             logger.info("Exporting whole XP : {}/{}", ++count, xpToExport.size());
             //CommandExecuter.dumpDB(getCurrentHostNameOrDir(), xp, dir, jsonFormatMenuItem.isSelected());
             MasterDAO mDAO = MasterDAOFactory.createDAO(xp, this.getHostNameOrDir(xp));
-            ZipWriter w = new ZipWriter(dir+File.separator+mDAO.getDBName()+".zip");
+            ZipWriter w = new ZipWriter(Paths.get(dir,mDAO.getDBName()+".zip").toString());
             ImportExportJSON.exportConfig(w, mDAO);
             ImportExportJSON.exportSelections(w, mDAO);
             ImportExportJSON.exportPositions(w, mDAO, true, true, true, ProgressCallback.get(INSTANCE));
@@ -3102,7 +3102,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (dir==null) return;
         List<String> sel = getSelectedPositions(false);
         if (sel.isEmpty()) return;
-        ZipWriter w = new ZipWriter(dir+File.separator+db.getDBName()+".zip");
+        ZipWriter w = new ZipWriter(Paths.get(dir,db.getDBName()+".zip").toString());
         ImportExportJSON.exportConfig(w, db);
         ImportExportJSON.exportSelections(w, db);
         ImportExportJSON.exportPositions(w, db, true, true, true, sel, ProgressCallback.get(INSTANCE, sel.size()));
@@ -3126,10 +3126,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         File f = Utils.chooseFile("Write config to...", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.getParentFile().isDirectory()) return;
         promptSaveUnsavedChanges();
-        //CommandExecuter.dump(getCurrentHostNameOrDir(), db.getDBName(), "Dataset", dir, jsonFormatMenuItem.isSelected());
-        //ZipWriter w = new ZipWriter(dir+File.separator+db.getDBName()+".zip");
-        //ImportExportJSON.exportConfig(w, db);
-        //w.close();
         // export config as text file, without positions
         String save = f.getAbsolutePath();
         if (!save.endsWith(".json")&&!save.endsWith(".txt")) save+=".json";
@@ -3293,7 +3289,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void importConfigurationMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationMenuItemActionPerformed
         
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, IJ.getDir("plugins")+File.separator+"BACMMAN");
+        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, Paths.get(IJ.getDir("plugins"),"BACMMAN").toString());
         File f = Utils.chooseFile("Select configuration file or exported zip containing configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
         if (!Utils.promptBoolean("This will erase configutation on "+(db==null ? "all selected" : "current ")+" xp", this)) return;
@@ -3433,7 +3429,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
     }//GEN-LAST:event_extractMeasurementMenuItemActionPerformed
     private void extractMeasurements(String dir, int... structureIdx) {
-        String file = dir+File.separator+db.getDBName()+Utils.toStringArray(structureIdx, "_", "", "_")+".csv";
+        String file = Paths.get(dir,db.getDBName()+Utils.toStringArray(structureIdx, "_", "", "_")+".csv").toString();
         logger.info("measurements will be extracted to: {}", file);
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structureIdx);
         MeasurementExtractor.extractMeasurementObjects(db, file, getSelectedPositions(true), keys);
@@ -3492,7 +3488,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         String defDir = PropertyUtils.get(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), new File(db.getExperiment().getOutputDirectory()).getParent());
         File outputDir = Utils.chooseFile("Choose directory", defDir, FileChooser.FileChooserOption.DIRECTORIES_ONLY, this);
         if (outputDir!=null) {
-            String file = outputDir.getAbsolutePath()+File.separator+db.getDBName()+"_Selections.csv";
+            String file = Paths.get(outputDir.getAbsolutePath(),db.getDBName()+"_Selections.csv").toString();
             SelectionExtractor.extractSelections(db, getSelectedSelections(true), file);
             PropertyUtils.set(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR+"_"+db.getDBName(), outputDir.getAbsolutePath());
             PropertyUtils.set(PropertyUtils.LAST_EXTRACT_MEASUREMENTS_DIR, outputDir.getAbsolutePath());
@@ -3528,7 +3524,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             PropertyUtils.set(PropertyUtils.LOG_FILE, null);
             setLogFile(null);
         } else {
-            if (f.isDirectory()) f = new File(f.getAbsolutePath()+File.separator+"Log.txt");
+            if (f.isDirectory()) f = Paths.get(f.getAbsolutePath(),"Log.txt").toFile();
             setLogFile(f.getAbsolutePath());
             PropertyUtils.set(PropertyUtils.LOG_FILE, f.getAbsolutePath());
         }
@@ -3565,7 +3561,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             log("exporting: "+xp+ " config:"+config+" selections: "+selections+ " objects: "+objects+ " pp images: "+preProcessedImages+ " trackImages: "+trackImages);
             MasterDAO mDAO = positions.isEmpty() ? new Task(xp).getDB() : db;
             logger.debug("dao ok");
-            String file = mDAO.getDir()+File.separator+mDAO.getDBName()+"_dump.zip";
+            String file = mDAO.getDir().resolve(mDAO.getDBName()+"_dump.zip").toString();
             boolean error = false;
             try {
                 ZipWriter w = new ZipWriter(file);
@@ -3825,7 +3821,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     String outDir = out.getAbsolutePath();
                     List<Task> tasks = Collections.list(actionPoolListModel.elements());
                     Task.getProcessingTasksByPosition(tasks).entrySet().forEach(en -> {
-                        String fileName = outDir + File.separator + en.getKey().dbName + "_P"+en.getKey().position+".json";
+                        String fileName = Paths.get(outDir , en.getKey().dbName + "_P"+en.getKey().position+".json").toString();
                         FileIO.writeToFile(fileName, en.getValue(), t->t.toJSON().toJSONString());
                     });
                     
@@ -3966,7 +3962,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_workingDirectoryMousePressed
 
     private void newXPFromTemplateMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPFromTemplateMenuItemActionPerformed
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, IJ.getDir("plugins")+File.separator+"BACMMAN");
+        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, Paths.get(IJ.getDir("plugins"),"BACMMAN").toString());
         logger.debug("defDir: {}", defDir);
         String config = promptDir("Select configuration file (or zip containing config file)", defDir, false);
         if (config==null) return;

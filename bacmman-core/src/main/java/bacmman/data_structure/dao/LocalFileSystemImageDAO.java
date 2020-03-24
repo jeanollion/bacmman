@@ -31,6 +31,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.nio.file.Paths;
 
 import bacmman.utils.FileIO;
 import bacmman.utils.Pair;
@@ -137,13 +138,13 @@ public class LocalFileSystemImageDAO implements ImageDAO {
     }
 
     protected String getPreProcessedImagePath(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        return directory+File.separator+microscopyFieldName+File.separator+"pre_processed"+File.separator+"t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif";
+        return Paths.get(directory, microscopyFieldName, "pre_processed", "t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif").toString();
     }
     private String getTrackImageFolder(String position, int parentStructureIdx) {
-        return directory+File.separator+position+File.separator+"track_images_"+parentStructureIdx;
+        return Paths.get(directory, position, "track_images_"+parentStructureIdx).toString();
     }
     private String getTrackImagePath(SegmentedObject o, int channelImageIdx) {
-        return getTrackImageFolder(o.getPositionName(), o.getStructureIdx())+File.separator+ Selection.indicesString(o)+"_"+channelImageIdx+".tif";
+        return Paths.get(getTrackImageFolder(o.getPositionName(), o.getStructureIdx()), Selection.indicesString(o)+"_"+channelImageIdx+".tif").toString();
     }
     
     @Override

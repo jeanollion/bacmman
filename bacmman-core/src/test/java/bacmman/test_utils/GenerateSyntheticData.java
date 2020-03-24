@@ -57,7 +57,16 @@ public class GenerateSyntheticData {
         
         ImageWriter.writeToFile("/data/Images/Test", "syntheticData", ImageFormat.OMETIF, imageTC);
     }
-    
+
+    /**
+     * Generate images with one object (value=2) per time point / channel
+     * @param name
+     * @param dir
+     * @param timePoints
+     * @param channels
+     * @param size
+     * @return
+     */
     public static ImageByte[][] generateImages(String name, String dir, int timePoints, int channels, int size) {
         if (size<1 || timePoints<1 || channels<1) throw new IllegalArgumentException("invalid dimension");
         ImageByte[][] imageTC = new ImageByte[timePoints][channels];

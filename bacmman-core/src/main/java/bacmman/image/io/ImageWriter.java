@@ -35,6 +35,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -82,8 +83,8 @@ public class ImageWriter {
         new File(path).mkdirs();
         image = TypeConverter.toCommonImageType(image);
         if (image instanceof ImageFloat && extension.equals(ImageFormat.PNG)) throw new IllegalArgumentException("Float image cannot be written as PNG");
-        String fullPath = path+File.separator+fileName+extension.getExtension();
-        File f = new File(fullPath);
+        File f = Paths.get(path, fileName+extension.getExtension()).toFile();
+        String fullPath = f.toString();
         if (f.exists()) f.delete();
         if (extension.equals(ImageFormat.TIF)) writeToFileTIF(image, fullPath);
         else writeToFileBioFormat(image, fullPath);
@@ -99,7 +100,7 @@ public class ImageWriter {
         //if (!extension.getSupportMultipleTimeAndChannel() && imageTC.length>1 || imageTC[0].length>1) throw new IllegalArgumentException("the format does not support multiple time points and channels");
         if (extension.equals(ImageFormat.TIF)) { // write as IJ tif
             if (imageTC.length>1) throw new IllegalArgumentException("TIF do not support series");
-            writeToFileTIF(imageTC[0], 0, folderPath+File.separator+fileName+".tif");
+            writeToFileTIF(imageTC[0], 0, Paths.get(folderPath,fileName+".tif").toString());
             return;
         }
         try {
@@ -108,7 +109,7 @@ public class ImageWriter {
                 if (Arrays.stream(imageTC[s]).mapToInt(mx -> mx.length).distinct().count()>1) throw new IllegalArgumentException("at least 2 times points have different channel number");
                 logger.debug("ImageWriter: serie #:"+s+ " time points: "+imageTC[s].length+ " channels: "+imageTC[s][0].length);
             }
-            String fullPath = folderPath+File.separator+fileName+extension;
+            String fullPath = Paths.get(folderPath, fileName+extension).toString();
             IFormatWriter writer = new loci.formats.ImageWriter();
             writer.setMetadataRetrieve(generateMetadata(imageTC));
             new File(folderPath).mkdirs();

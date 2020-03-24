@@ -32,6 +32,7 @@ import bacmman.image.io.ImageWriter;
 import bacmman.image.TypeConverter;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -86,7 +87,7 @@ public class ProcessingTest {
         ImageByte[][] images3 = createDummyImagesTC(6, 5 ,4, timePoint+1, channel);
         
         ImageWriter.writeToFile(folder.getAbsolutePath(), title, format, images);
-        File folder2 = new File(folder.getAbsolutePath()+File.separator+"subFolder");
+        File folder2 = Paths.get(folder.getAbsolutePath(), "subFolder").toFile();
         folder2.mkdir();
         ImageWriter.writeToFile(folder2.getAbsolutePath(), title, format, images);
         ImageWriter.writeToFile(folder2.getAbsolutePath(), title+"2", format, images, images, images2, images3);
@@ -120,7 +121,7 @@ public class ProcessingTest {
         ImageWriter.writeToFile(folder.getAbsolutePath(), title+"3_c1", format, images);
         ImageWriter.writeToFile(folder.getAbsolutePath(), title+"3_c2", format, images2);
         
-        File folder2 = new File(folder.getAbsolutePath()+File.separator+"subFolder");
+        File folder2 = Paths.get(folder.getAbsolutePath(),"subFolder").toFile();
         folder2.mkdir();
         ImageWriter.writeToFile(folder2.getAbsolutePath(), title+"_c1", format, images);
         ImageWriter.writeToFile(folder2.getAbsolutePath(), title+"_c2", format, images);

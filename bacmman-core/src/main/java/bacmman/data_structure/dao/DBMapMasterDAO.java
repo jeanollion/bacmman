@@ -153,7 +153,7 @@ public class DBMapMasterDAO implements MasterDAO {
     }
     
     private File getConfigFile(String dbName) {
-        return new File(configDir + File.separator + dbName + "_config.json");
+        return configDir.resolve(dbName + "_config.json").toFile();
     }
     
     @Override

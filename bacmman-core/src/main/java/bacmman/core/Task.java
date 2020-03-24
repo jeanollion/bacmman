@@ -40,6 +40,7 @@ import static bacmman.data_structure.Processor.getOrCreateRootTrack;
 
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -765,7 +766,7 @@ public class Task implements ProgressCallback{
         publish(message+Utils.getMemoryUsage());
     }
     public void extractMeasurements(String dir, int[] structures, List<String > positions) {
-        String file = dir+File.separator+db.getDBName()+Utils.toStringArray(structures, "_", "", "_")+".csv";
+        String file = Paths.get(dir, db.getDBName()+Utils.toStringArray(structures, "_", "", "_")+".csv").toString();
         publish("extracting measurements from object class: "+Utils.toStringArray(structures));
         publish("measurements will be extracted to: "+ file);
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structures);
@@ -776,7 +777,7 @@ public class Task implements ProgressCallback{
     }
     public void exportData() {
         try {
-            String file = db.getDir()+File.separator+db.getDBName()+"_dump.zip";
+            String file = db.getDir().resolve(db.getDBName()+"_dump.zip").toString();
             ZipWriter w = new ZipWriter(file);
             if (exportObjects || exportPreProcessedImages || exportTrackImages) {
                 ImportExportJSON.exportPositions(w, db, exportObjects, exportPreProcessedImages, exportTrackImages , getPositions(), this);
@@ -982,7 +983,7 @@ public class Task implements ProgressCallback{
         DefaultWorker.execute(i -> {
             //if (ui!=null && i==0) ui.setRunning(true);
             tasks.get(i).initDB();
-            Consumer<FileProgressLogger> setLF = l->{if (l.getLogFile()==null) l.setLogFile(tasks.get(i).getDir()+File.separator+"Log.txt");};
+            Consumer<FileProgressLogger> setLF = l->{if (l.getLogFile()==null) l.setLogFile(Paths.get(tasks.get(i).getDir(),"Log.txt").toString());};
             Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);

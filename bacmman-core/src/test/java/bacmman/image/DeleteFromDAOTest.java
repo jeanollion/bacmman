@@ -174,13 +174,15 @@ public class DeleteFromDAOTest {
         ObjectDAO dao11 = masterDAO.getDao("field11");
         SegmentedObject root = dao.getRoots().get(0);
         SegmentedObject mc = root.getChildren( 0).findFirst().get();
-        assertEquals(prefix+"number of stored objects ", 15, countObjects(masterDAO, SegmentedObject.class));
-        assertEquals(prefix+"number of measurements ", 5, countObjects(masterDAO, Measurements.class));
+        assertEquals(prefix+"number of stored objects ", 15, countObjects(masterDAO, SegmentedObject.class)); // 5 roots + 5 MC + 5 bact
+        assertEquals(prefix+"number of measurements ", 5, countObjects(masterDAO, Measurements.class)); // 5 BACT
         assertTrue(prefix+"object retrieved: ", mc.getRegion().getVoxels().size()>=1);
         logger.debug("before delete children");
         dao.deleteChildren(mc, 1);
-        assertEquals(prefix+"number of objects after delete children", 14, countObjects(masterDAO, SegmentedObject.class));
+        logger.debug("number of bact: {}, mc: {}", masterDAO.getExperiment().getPositions().stream().mapToInt(p -> (int)SegmentedObjectUtils.getAllObjectsAsStream(masterDAO.getDao(p.getName()), 1).count()).sum(), masterDAO.getExperiment().getPositions().stream().mapToInt(p -> (int)SegmentedObjectUtils.getAllObjectsAsStream(masterDAO.getDao(p.getName()), 0).count()).sum());
         assertEquals(prefix+"number of measurements after delete children", 4, countObjects(masterDAO, Measurements.class));
+        assertEquals(prefix+"number of objects after delete children", 14, countObjects(masterDAO, SegmentedObject.class));
+
         logger.debug("before delete ");
         dao.delete(root, true, false, false);
         assertEquals(prefix+"number of objects after delete root", 12, countObjects(masterDAO, SegmentedObject.class));

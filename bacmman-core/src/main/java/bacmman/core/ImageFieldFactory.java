@@ -27,6 +27,7 @@ import bacmman.data_structure.image_container.MultipleImageContainerSingleFile;
 import bacmman.image.io.ImageReader;
 import java.io.File;
 import java.io.FileFilter;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -141,7 +142,7 @@ public class ImageFieldFactory {
             allChannels[0] = f.getAbsolutePath();
             boolean allFiles = true;
             for (int c = 1; c < channelKeywords.length; ++c) {
-                String name = input + File.separator + f.getName().replace(channelKeywords[0], channelKeywords[c]);
+                String name = Paths.get(input.getAbsolutePath(), f.getName().replace(channelKeywords[0], channelKeywords[c])).toString();
                 File channel = new File(name);
                 if (!channel.exists()) {
                     Processor.logger.warn("missing file: {}", name);

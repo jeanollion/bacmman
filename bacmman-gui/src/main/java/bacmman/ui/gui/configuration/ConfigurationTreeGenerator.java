@@ -40,6 +40,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
@@ -346,7 +347,7 @@ public class ConfigurationTreeGenerator {
                 if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
                 for (int s = 0; s < experiment.getStructureCount(); ++s)
                     experiment.getImageDAO().deleteTrackImages(p.getName(), s);
-                Utils.deleteDirectory(experiment.getOutputDirectory() + File.separator + p.getName());
+                Utils.deleteDirectory(Paths.get(experiment.getOutputDirectory() , p.getName()).toString());
                 return true;
             };
             experiment.getPositionParameter().addNewInstanceConfiguration(p -> p.setDeletePositionCallBack(erasePosition));
