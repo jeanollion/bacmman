@@ -11,6 +11,7 @@ import bacmman.processing.ImageOperations;
 public class MinMaxScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double offset, scale;
+    boolean transformInputImage = false;
 
     @Override
     public void setHistogram(Histogram histogram) {
@@ -26,6 +27,18 @@ public class MinMaxScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOperation2(image, null, scale, offset);
         else return ImageOperations.normalize(image, null, null);
+    }
+
+    @Override
+    public Image reverseScale(Image image) {
+        if (isConfigured()) return ImageOperations.affineOperation(image, null, 1/scale, -offset);
+        else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
+    }
+
+    @Override
+    public MinMaxScaler transformInputImage(boolean transformInputImage) {
+        this.transformInputImage = transformInputImage;
+        return this;
     }
 
     @Override

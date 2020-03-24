@@ -19,6 +19,12 @@ public class InterpolationParameter extends ConditionalParameter {
         setActionParameters(INTERPOLATION.LANCZOS.toString(), lanczosAlpha, lanczosClipping);
     }
 
+    @Override
+    public InterpolationParameter setHint(String tip) {
+        this.toolTipText= tip;
+        return this;
+    }
+
     public InterpolatorFactory getInterpolation() {
         switch (choice.getSelectedEnum()) {
             case NEAREAST:

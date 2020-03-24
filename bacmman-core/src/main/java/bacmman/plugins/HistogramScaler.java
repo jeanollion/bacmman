@@ -15,5 +15,7 @@ import java.util.stream.Stream;
 public interface HistogramScaler extends Plugin {
     void setHistogram(Histogram histogram);
     Image scale(Image image);
+    Image reverseScale(Image image);
     boolean isConfigured();
+    HistogramScaler transformInputImage(boolean transformInputImage);
 }

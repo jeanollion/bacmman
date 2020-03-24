@@ -13,7 +13,7 @@ public class IQRScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center, scale, IQR;
     IntervalParameter quantiles = new IntervalParameter("Quantiles", 3, 0, 1, 0.05, 0.5, 0.95).setHint("IQR = (3rd value - 1st value), center is 2nd value");
-
+    boolean transformInputImage = false;
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
@@ -32,13 +32,24 @@ public class IQRScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, null, scale, -center);
+        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage?image:null, scale, -center);
         else { // perform on single image
             double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(()->image.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-            return ImageOperations.affineOperation2(image, null, IQR_scale_center[1], -IQR_scale_center[2]);
+            return ImageOperations.affineOperation2(image, transformInputImage?image:null, IQR_scale_center[1], -IQR_scale_center[2]);
         }
     }
 
+    @Override
+    public Image reverseScale(Image image) {
+        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?image:null, 1/scale, center);
+        else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
+    }
+
+    @Override
+    public IQRScaler transformInputImage(boolean transformInputImage) {
+        this.transformInputImage = transformInputImage;
+        return this;
+    }
     @Override
     public boolean isConfigured() {
         return histogram != null;

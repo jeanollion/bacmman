@@ -1,6 +1,7 @@
 package bacmman.processing;
 
 import bacmman.image.Image;
+import net.imglib2.interpolation.InterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,6 +88,14 @@ public class ResizeUtils {
         return output;
     }
     public static <T extends Image> T[] resample(T[] imagesN, T[] output, Resample.INTERPOLATION interpolation, int[][] imageShapeN) {
+        logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
+        Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
+                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+        List<T> res = s.collect(Collectors.toList());
+        res.toArray(output);
+        return output;
+    }
+    public static <T extends Image> T[] resample(T[] imagesN, T[] output, InterpolatorFactory interpolation, int[][] imageShapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
         Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
                 .mapToObj(idx -> (T)Resample.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
