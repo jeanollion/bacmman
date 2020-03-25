@@ -41,11 +41,11 @@ public class DLFilter implements TrackPreFilter, Hint {
 
     static Pair<Image[][], int[][]> scaleAndResampleInput(Image[] in, InterpolatorFactory interpolation, HistogramScaler scaler, int[] targetImageShape) {
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        if (scaler!=null) { // scale by min/max
+        if (scaler!=null) { // scale
             scaler.setHistogram(HistogramFactory.getHistogram(()-> Image.stream(Arrays.asList(in)), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
             scaler.transformInputImage(true);
             IntStream.range(0, in.length).parallel().forEach(i -> in[i] = scaler.scale(in[i]));
-        }
+        } else IntStream.range(0, in.length).parallel().forEach(i -> in[i] = TypeConverter.toFloat(in[i], null, false));
         Image[] inResampled = ResizeUtils.resample(in, in, interpolation, new int[][]{targetImageShape});
         Image[][] input = Arrays.stream(inResampled).map(image -> new Image[]{image}).toArray(Image[][]::new);
         return new Pair<>(input, shapes);
