@@ -5,6 +5,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
+import bacmman.image.TypeConverter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
@@ -21,9 +22,9 @@ public class MeanSdScaler implements HistogramScaler, Hint {
         double[] meanSd = getMeanSd(histogram);
         this.mean=meanSd[0];
         this.sd = meanSd[1];
-        logger.debug("Mean SD scaler: mean: {}, sd: {}", mean, sd);
+        //logger.debug("Mean SD scaler: mean: {}, sd: {}", mean, sd);
     }
-    public double[] getMeanSd(Histogram histogram) {
+    public static double[] getMeanSd(Histogram histogram) {
         double total = histogram.count();
         double mean = IntStream.range(0, histogram.getData().length).mapToDouble(i->histogram.getValueFromIdx(i) * histogram.getData()[i]).sum() / total;
         double sd = IntStream.range(0, histogram.getData().length).mapToDouble(i-> Math.pow(histogram.getValueFromIdx(i) - mean, 2) * histogram.getData()[i]).sum() / total;
@@ -31,16 +32,16 @@ public class MeanSdScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage?image:null, 1 / sd, -mean);
+        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, 1 / sd, -mean);
         else { // perform on single image
             double[] meanSd = ImageOperations.getMeanAndSigma(image, null, null, false);
-            return ImageOperations.affineOperation2(image, transformInputImage?image:null, 1/meanSd[1], -meanSd[0]);
+            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloat(image, null, false):null, 1/meanSd[1], -meanSd[0]);
         }
     }
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?image:null, sd, mean);
+        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloat(image, null, false):null, sd, mean);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

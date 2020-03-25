@@ -5,6 +5,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
+import bacmman.image.TypeConverter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
@@ -21,7 +22,7 @@ public class IQRScaler implements HistogramScaler, Hint {
         this.IQR=IQR_scale_center[0];
         this.scale = IQR_scale_center[1];
         this.center = IQR_scale_center[2];
-        logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
+        //logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
     }
     public double[] getIQR_Scale_Center(Histogram histogram) {
         double[] quantiles = histogram.getQuantiles(this.quantiles.getValuesAsDouble());
@@ -32,16 +33,16 @@ public class IQRScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage?image:null, scale, -center);
+        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, scale, -center);
         else { // perform on single image
             double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(()->image.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-            return ImageOperations.affineOperation2(image, transformInputImage?image:null, IQR_scale_center[1], -IQR_scale_center[2]);
+            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloat(image, null, false):null, IQR_scale_center[1], -IQR_scale_center[2]);
         }
     }
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?image:null, 1/scale, center);
+        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloat(image, null, false):null, 1/scale, center);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 
