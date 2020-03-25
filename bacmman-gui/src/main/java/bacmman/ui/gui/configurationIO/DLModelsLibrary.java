@@ -190,7 +190,7 @@ public class DLModelsLibrary {
         });
         // persistence of username account:
         PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "", true);
-        if (username.getText().length()>0) {
+        if (username.getText().length() > 0) {
             fetchGists();
             updateGistDisplay();
         }

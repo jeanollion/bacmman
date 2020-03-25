@@ -481,7 +481,7 @@ public class ConfigurationIO {
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(WindowEvent evt) {
-                    if (onClose!=null) onClose.run();
+                    if (onClose != null) onClose.run();
                     if (db.experimentChangedFromFile()) {
                         if (Utils.promptBoolean("Local configuration has changed, save changes ?", mainPanel)) {
                             db.updateExperiment();

@@ -31,6 +31,7 @@ public class SaveDLModelGist {
     boolean canceled = false;
     private DLModelMetadata metadata = new DLModelMetadata();
     private ConfigurationTreeGenerator metadataTG;
+
     public SaveDLModelGist() {
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
@@ -43,7 +44,6 @@ public class SaveDLModelGist {
         name.addKeyListener(ke);
         folder.addKeyListener(ke);
     }
-
 
 
     public void display(JFrame parent, String title) {
@@ -67,7 +67,7 @@ public class SaveDLModelGist {
      */
     private void $$$setupUI$$$() {
         panelMain = new JPanel();
-        panelMain.setLayout(new GridLayoutManager(4, 1, new Insets(0, 0, 0, 0), -1, -1));
+        panelMain.setLayout(new GridLayoutManager(5, 1, new Insets(0, 0, 0, 0), -1, -1));
         namePanel = new JPanel();
         namePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         panelMain.add(namePanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -88,7 +88,7 @@ public class SaveDLModelGist {
         urlPanel.add(url, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         descPanel = new JPanel();
         descPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
-        panelMain.add(descPanel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panelMain.add(descPanel, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         descPanel.setBorder(BorderFactory.createTitledBorder("Description"));
         description = new JTextArea();
         descPanel.add(description, new GridConstraints(0, 0, 1, 3, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_WANT_GROW, null, new Dimension(150, 50), null, 0, false));
@@ -101,6 +101,12 @@ public class SaveDLModelGist {
         OK = new JButton();
         OK.setText("OK");
         descPanel.add(OK, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        metadataPanel = new JPanel();
+        metadataPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        panelMain.add(metadataPanel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        metadataPanel.setBorder(BorderFactory.createTitledBorder("Metadata"));
+        metadataScrollPane = new JScrollPane();
+        metadataPanel.add(metadataScrollPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
     }
 
     /**
@@ -180,7 +186,7 @@ public class SaveDLModelGist {
 
     public SaveDLModelGist setMetadata(DLModelMetadata metadata) {
         this.metadata.setContentFrom(metadata);
-        if (metadataTG!=null) metadataTG.getTree().updateUI();
+        if (metadataTG != null) metadataTG.getTree().updateUI();
         return this;
     }
 
@@ -204,5 +210,7 @@ public class SaveDLModelGist {
         return url.getText();
     }
 
-    public DLModelMetadata metadata() {return metadata;}
+    public DLModelMetadata metadata() {
+        return metadata;
+    }
 }
