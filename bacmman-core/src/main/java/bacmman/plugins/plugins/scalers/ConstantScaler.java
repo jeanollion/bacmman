@@ -11,8 +11,8 @@ import bacmman.processing.ImageOperations;
 
 public class ConstantScaler implements HistogramScaler, Hint {
     boolean transformInputImage = false;
-    NumberParameter scale = (NumberParameter)new NumberParameter("Scale factor", 5, 1).addValidationFunction(n->((NumberParameter)n).getValue().doubleValue()!=0);
-    NumberParameter center = new NumberParameter("Center", 5, 0);
+    NumberParameter scale = (NumberParameter)new NumberParameter("Scale factor", 5, 1).addValidationFunction(n->((NumberParameter)n).getValue().doubleValue()!=0).setEmphasized(true);
+    NumberParameter center = (NumberParameter)new NumberParameter("Center", 5, 0).setEmphasized(true);
     @Override
     public void setHistogram(Histogram histogram) {
 
@@ -20,12 +20,12 @@ public class ConstantScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, scale.getValue().doubleValue(), center.getValue().doubleValue());
+        return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
     }
 
     @Override
     public Image reverseScale(Image image) {
-        return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
+        return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, scale.getValue().doubleValue(), center.getValue().doubleValue());
     }
 
     @Override

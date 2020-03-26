@@ -13,7 +13,7 @@ import bacmman.processing.ImageOperations;
 public class IQRScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center, scale, IQR;
-    IntervalParameter quantiles = new IntervalParameter("Quantiles", 3, 0, 1, 0.05, 0.5, 0.95).setHint("IQR = (3rd value - 1st value), center is 2nd value");
+    IntervalParameter quantiles = new IntervalParameter("Quantiles", 3, 0, 1, 0.05, 0.5, 0.95).setHint("IQR = (3rd value - 1st value), center is 2nd value").setEmphasized(true);
     boolean transformInputImage = false;
     @Override
     public void setHistogram(Histogram histogram) {
@@ -22,7 +22,7 @@ public class IQRScaler implements HistogramScaler, Hint {
         this.IQR=IQR_scale_center[0];
         this.scale = IQR_scale_center[1];
         this.center = IQR_scale_center[2];
-        //logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
+        logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
     }
     public double[] getIQR_Scale_Center(Histogram histogram) {
         double[] quantiles = histogram.getQuantiles(this.quantiles.getValuesAsDouble());
