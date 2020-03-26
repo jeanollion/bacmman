@@ -247,11 +247,12 @@ public class PluginConfigurationUtils {
 
         } else if (plugin instanceof PreFilter || plugin instanceof TrackPreFilter) {
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage("input raw image", p.getRawImage(structureIdx))); // add input image
-            List<SegmentedObject> parentTrack = (plugin instanceof PreFilter) ? parentTrackDup : wholeParentTrackDup; // if track pre-filters need to compute on whole parent track
+            boolean runPreFiltersOnWholeTrack = plugin instanceof TrackPreFilter && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals());
+            List<SegmentedObject> parentTrack = runPreFiltersOnWholeTrack ? wholeParentTrackDup : parentTrackDup; // if track pre-filters need to compute on whole parent track
             // remove children of structureIdx
             SegmentedObjectFactory facto = getFactory(structureIdx);
             parentTrack.forEach(p->facto.setChildren(p, null));
-
+            if (plugin instanceof TrackPreFilter) pluginIdx+=psc.getPreFilters().getActivatedChildCount();
             TrackPreFilterSequence seq = psc.getTrackPreFilters(true);
             List<TrackPreFilter> before = seq.getChildren().subList(0, pluginIdx).stream().filter(p->p.isActivated()).map(p->p.instantiatePlugin()).collect(Collectors.toList());
             boolean first = true;
