@@ -157,7 +157,12 @@ public class Structure extends ContainerParameterImpl<Structure> {
     public void ensureScalerConfiguration(String position) {
         if (scalerP.containsKey(position)) {
             Parameter[] scalerParams =  scalerP.get(position).getParameters();
-            Parameter[] currentParams = scaler.instantiatePlugin().getParameters();
+            HistogramScaler hs = scaler.instantiatePlugin();
+            if (hs==null) { // was removed during session
+                scalerP.clear();
+                return;
+            }
+            Parameter[] currentParams = hs.getParameters();
             if (!ParameterUtils.sameContent(scalerParams, currentParams)) {
                 logger.debug("scaler configuration changed from: {} to {}", Arrays.deepToString(scalerParams), Arrays.deepToString(currentParams) );
                 scalerP.remove(position); // configuration has changed -> reset scaler
