@@ -66,7 +66,7 @@ public class TensorWrapper {
         }
         TransferToBuffer trans =  (flipXYZ!=null && flipXYZ.length>0) ? new TransferToBufferFlip(zSize, ySize, xSize, cSize, flipXYZ.length>=3 && flipXYZ[2], flipXYZ.length>=2 && flipXYZ[1], flipXYZ[0], false)
                 : new TransferToBufferSimple(zSize, ySize, xSize, cSize, false);
-        for (int n = 0; n<nSize; ++n) idx = trans.toBuffer(buffer, res[n], idx);
+        for (int n = 0; n<nSize; ++n) idx = trans.fromBuffer(buffer, res[n], idx);
         return res;
     }
 
@@ -86,7 +86,7 @@ public class TensorWrapper {
         int idx = 0;
         TransferToBuffer trans =  (flipXYZ!=null && flipXYZ.length>0) ? new TransferToBufferFlip(zSize, ySize, xSize, cSize, flipXYZ.length>=3 && flipXYZ[2], flipXYZ.length>=2 && flipXYZ[1], flipXYZ[0], true)
                 : new TransferToBufferSimple(zSize, ySize, xSize, cSize, true);
-        for (int n = 0; n<nSize; ++n) idx = trans.toBuffer(buffer, targetNC[n], idx);
+        for (int n = 0; n<nSize; ++n) idx = trans.fromBuffer(buffer, targetNC[n], idx);
     }
 
     private static long[] shape(final Dimensions image) {
@@ -108,7 +108,7 @@ public class TensorWrapper {
             this.add=add;
         }
         abstract int toBuffer(float[] buffer, Image[] imageC, int offset);
-        abstract int fromBuffer(float[] buffer, ImageFloat[] imageC, int offset);
+        abstract int fromBuffer(float[] buffer, Image[] imageC, int offset);
     }
     private static class TransferToBufferSimple extends TransferToBuffer {
 
@@ -128,12 +128,24 @@ public class TensorWrapper {
             }
             return offset;
         }
-        public int fromBuffer (float[] buffer, ImageFloat[] imageC, int offset) {
-            for (int z = 0; z<zSize; ++z) {
-                for (int y = 0; y<ySize; ++y) {
-                    for (int x = 0; x<xSize; ++x) {
-                        for (int c = 0; c<cSize; ++c) {
-                            imageC[c].setPixel(x, y, z, buffer[offset++]);
+        public int fromBuffer (float[] buffer, Image[] imageC, int offset) {
+            if (add) {
+                for (int z = 0; z<zSize; ++z) {
+                    for (int y = 0; y<ySize; ++y) {
+                        for (int x = 0; x<xSize; ++x) {
+                            for (int c = 0; c<cSize; ++c) {
+                                imageC[c].addPixel(x, y, z, buffer[offset++]);
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (int z = 0; z<zSize; ++z) {
+                    for (int y = 0; y<ySize; ++y) {
+                        for (int x = 0; x<xSize; ++x) {
+                            for (int c = 0; c<cSize; ++c) {
+                                imageC[c].setPixel(x, y, z, buffer[offset++]);
+                            }
                         }
                     }
                 }
@@ -149,9 +161,9 @@ public class TensorWrapper {
         IntToIntFunction fZ, fY, fX;
         public TransferToBufferFlip(int zSize, int ySize, int xSize, int cSize, boolean flipZ, boolean flipY, boolean flipX, boolean add) {
             super(zSize, ySize, xSize, cSize, add);
-            fX = flipX ? x -> xSize - x : x->x;
-            fY = flipY ? y -> ySize - y : y->y;
-            fZ = flipZ ? z -> zSize - z : z->z;
+            fX = flipX ? x -> xSize - 1 - x : x->x;
+            fY = flipY ? y -> ySize - 1 - y : y->y;
+            fZ = flipZ ? z -> zSize - 1 - z : z->z;
         }
         public int toBuffer ( float[] buffer, Image[] imageC, int offset) {
             for (int z = 0; z < zSize; ++z) {
@@ -165,7 +177,7 @@ public class TensorWrapper {
             }
             return offset;
         }
-        public int fromBuffer (float[] buffer, ImageFloat[] imageC, int offset) {
+        public int fromBuffer (float[] buffer, Image[] imageC, int offset) {
             if (add) {
                 for (int z = 0; z < zSize; ++z) {
                     for (int y = 0; y < ySize; ++y) {

@@ -197,21 +197,21 @@ public class TFengine implements DLengine, Hint {
             logger.debug("batch: [{};{})", idx, idxMax);
             long t0 = System.currentTimeMillis();
             predict(inputNC, idx, idxMax, bufferContainer, res);
-            if (flipXYZ!=null) { // flipped predictions will be summed
+            if (flipXYZ!=null && flipXYZ.length>0) { // flipped predictions will be summed
                 double norm = 1;
                 if (flipXYZ[0]) {
                     predict(inputNC, idx, idxMax, bufferContainer, res, true);
                     ++norm;
                 }
-                if (flipXYZ[1]) {
+                if (flipXYZ.length>1 && flipXYZ[1]) {
                     predict(inputNC, idx, idxMax, bufferContainer, res, false, true);
                     ++norm;
                 }
-                if (flipXYZ[1] && flipXYZ[0]) {
+                if (flipXYZ.length>1 && flipXYZ[1] && flipXYZ[0]) {
                     predict(inputNC, idx, idxMax, bufferContainer, res, true, true);
                     ++norm;
                 }
-                if (flipXYZ[2]) {
+                if (flipXYZ.length>2 && flipXYZ[2]) {
                     predict(inputNC, idx, idxMax, bufferContainer, res, false, false, true);
                     ++norm;
                 }
