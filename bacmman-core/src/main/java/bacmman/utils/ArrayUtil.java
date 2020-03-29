@@ -31,6 +31,7 @@ import java.util.function.DoublePredicate;
 import java.util.function.Function;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -668,5 +669,8 @@ public class ArrayUtil {
         if (array instanceof char[]) return Arrays.toString((char[])array);
         if (array instanceof Object[]) return Arrays.toString((Object[])array);
         else throw new IllegalArgumentException("array type not supported");
+    }
+    public static <T> Stream<T> flatmap(T[][] array) { // TODO optimize for matrices: use Stream.concate
+        return Arrays.stream(array).flatMap(Arrays::stream);
     }
 }

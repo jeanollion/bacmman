@@ -1,26 +1,35 @@
 package bacmman.configuration.parameters;
 
 import java.util.Arrays;
+import java.util.function.Predicate;
 
 public class InputShapesParameter extends SimpleListParameter<ArrayNumberParameter> {
-    boolean allowZero;
     public InputShapesParameter(String name, int unMutableIndex, boolean includeChannel) {
-        this(name, unMutableIndex, includeChannel, false);
+        this(name, unMutableIndex, includeChannel, false, includeChannel ? new int[]{2, 256, 32} : new int[]{256, 32}, null);
     }
-    public InputShapesParameter(String name, int unMutableIndex, boolean includeChannel, boolean allowNoneShape) {
-        super(name, unMutableIndex, getInputShapeParameter(includeChannel));
+    public InputShapesParameter(String name, int unMutableIndex, boolean includeChannel, boolean allowNoneShape, int[] defValues, Integer upperBound) {
+        super(name, unMutableIndex, getInputShapeParameter(includeChannel, allowNoneShape, defValues, upperBound));
         setAllowDeactivable(false);
-        this.allowZero = allowNoneShape;
+        this.addValidationFunctionToChildren(sameRankValidation()); // all shapes must have same number of axis
+    }
+    public static Predicate<ArrayNumberParameter> sameRankValidation() {
+        return v->v.getParent().getChildren().stream().filter(c->c instanceof ArrayNumberParameter).mapToInt(c->((ArrayNumberParameter)c).getChildCount()).allMatch(c->c==v.getChildCount());
+    }
+    @Override
+    public InputShapesParameter setHint(String hint) {
+        super.setHint(hint);
+        return this;
     }
     public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel) {
-        return getInputShapeParameter(includeChannel, false);
+        int[] defValues = includeChannel ? new int[]{2, 256, 32} : new int[]{256, 32};
+        return getInputShapeParameter(includeChannel, false, defValues, null);
     }
-    public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel, boolean allowNoneShape) {
+    public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel, boolean allowNoneShape, int[] defValues, Integer upperBound) {
         int max = includeChannel ? 4 : 3;
         String yx = includeChannel ? "CYX" : "YX";
         String zyx = includeChannel ? "CZYX" : "ZYX";
-        int[] defValues = includeChannel ? new int[]{2, 256, 32} : new int[]{256, 32};
-        ArrayNumberParameter res = new ArrayNumberParameter("Input shape", includeChannel?2:1, new BoundedNumberParameter("", 0, 0, allowNoneShape ? 0 : 1, null))
+        //
+        ArrayNumberParameter res = new ArrayNumberParameter("Input shape", includeChannel?2:1, new BoundedNumberParameter("", 0, 0, allowNoneShape ? 0 : 1, upperBound))
             .setMaxChildCount(max)
             .setNewInstanceNameFunction((l,i) -> {
                 if (l.getChildCount()<=max-1 && i<max-1) return yx.substring(i, i+1);

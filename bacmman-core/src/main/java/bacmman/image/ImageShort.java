@@ -201,6 +201,16 @@ public class ImageShort extends ImageInteger<ImageShort> {
     }
 
     @Override
+    public void addPixel(int x, int y, int z, double value) {
+        pixels[z][x + y * sizeX] += value<0?0:(value>65535?(short)65535:(short)value);
+    }
+
+    @Override
+    public void addPixelWithOffset(int x, int y, int z, double value) {
+        pixels[z-zMin][x-offsetXY + y * sizeX] += value<0?0:(value>65535?(short)65535:(short)value);
+    }
+
+    @Override
     public void setPixel(int xy, int z, double value) {
         pixels[z][xy] = value<0?0:(value>65535?(short)65535:(short)value);
     }

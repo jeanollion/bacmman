@@ -127,6 +127,11 @@ public class ImageFloat extends Image<ImageFloat> {
     }
 
     @Override
+    public void addPixel(int x, int y, int z, double value) {
+        pixels[z][x+y*sizeX]+=(float)value;
+    }
+
+    @Override
     public void setPixel(int xy, int z, double value) {
         pixels[z][xy]=(float)value;
     }
@@ -134,7 +139,7 @@ public class ImageFloat extends Image<ImageFloat> {
     public void setPixel(int x, int y, int z, float value) {
         pixels[z][x+y*sizeX]=value;
     }
-    
+
     public void setPixelWithOffset(int x, int y, int z, float value) {
         pixels[z-zMin][x-offsetXY + y * sizeX] = value;
     }
@@ -142,6 +147,13 @@ public class ImageFloat extends Image<ImageFloat> {
     @Override
     public void setPixelWithOffset(int x, int y, int z, double value) {
         pixels[z-zMin][x-offsetXY + y * sizeX] = (float)value;
+    }
+    @Override
+    public void addPixelWithOffset(int x, int y, int z, double value) {
+        pixels[z-zMin][x-offsetXY + y * sizeX] += (float)value;
+    }
+    public void addPixelWithOffset(int x, int y, int z, float value) {
+        pixels[z-zMin][x-offsetXY + y * sizeX] += value;
     }
 
     public void setPixel(int xy, int z, float value) {

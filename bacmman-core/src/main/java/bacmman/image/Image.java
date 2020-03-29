@@ -270,6 +270,8 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     public abstract float getPixelWithOffset(int xy, int z);
     public abstract void setPixel(int x, int y, int z, double value);
     public abstract void setPixelWithOffset(int x, int y, int z, double value);
+    public abstract void addPixel(int x, int y, int z, double value);
+    public abstract void addPixelWithOffset(int x, int y, int z, double value);
     public abstract void setPixel(int xy, int z, double value);
     public abstract void setPixelWithOffset(int xy, int z, double value);
     public abstract Object[] getPixelArray();

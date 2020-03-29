@@ -71,6 +71,7 @@ public class ResizeUtils {
                 .map(a -> ImageOperations.average(null, a)) // average on outputs
                 .toArray(Image[]::new);
     }
+
     public static Image[][] resample(Image[][] imagesNC, boolean[] isBinaryC, int[][] imageShapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
@@ -102,6 +103,13 @@ public class ResizeUtils {
         List<T> res = s.collect(Collectors.toList());
         res.toArray(output);
         return output;
+    }
+    public static Image[][] resample(Image[][] imagesNC, InterpolatorFactory interpolation, int[][] imageShapeN) {
+        return IntStream.range(0, imagesNC.length).parallel()
+                .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
+                        .mapToObj(c -> Resample.resample(imagesNC[idx][c], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
+                        .toArray(Image[]::new))
+                .toArray(Image[][]::new);
     }
     public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {
         return IntStream.range(0, shapes.length).allMatch(i -> Arrays.equals(shapes[i], referenceShape));

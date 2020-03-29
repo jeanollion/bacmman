@@ -201,6 +201,16 @@ public class ImageInt extends ImageInteger<ImageInt> {
     }
 
     @Override
+    public void addPixel(int x, int y, int z, double value) {
+        pixels[z][x + y * sizeX] += (int)value;
+    }
+
+    @Override
+    public void addPixelWithOffset(int x, int y, int z, double value) {
+        pixels[z-zMin][x-offsetXY + y * sizeX] += (int)value;
+    }
+
+    @Override
     public void setPixel(int xy, int z, double value) {
         pixels[z][xy] = (int)value;
     }

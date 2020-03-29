@@ -18,5 +18,4 @@ public interface DLengine extends Plugin {
     DLengine setOutputNumber(int outputNumber);
     DLengine setInputNumber(int outputNumber);
     void close();
-
 }

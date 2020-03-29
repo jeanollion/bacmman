@@ -24,6 +24,11 @@ public class InterpolationParameter extends ConditionalParameter {
         this.toolTipText= tip;
         return this;
     }
+    @Override
+    public InterpolationParameter setEmphasized(boolean empasized) {
+        super.setEmphasized(empasized);
+        return this;
+    }
 
     public InterpolatorFactory getInterpolation() {
         switch (choice.getSelectedEnum()) {
