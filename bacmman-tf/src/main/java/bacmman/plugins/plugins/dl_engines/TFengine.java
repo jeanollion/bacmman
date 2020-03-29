@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.Hint;
+import bacmman.processing.ImageOperations;
 import bacmman.tf.TensorWrapper;
 import bacmman.utils.ReflexionUtils;
 import bacmman.utils.Utils;
@@ -24,6 +25,7 @@ public class TFengine implements DLengine, Hint {
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue()))).setEmphasized(true).setHint("Name of the input layer(s): must correspond to the corresponding placeholder name in the saved model bundle");
     SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue()))).setEmphasized(true).setHint("Name of the output layer(s): must correspond to the corresponding output name in the saved model bundle");;
+    ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
     String[] inputNames, outputNames;
     Graph graph;
     Session session;
@@ -184,6 +186,8 @@ public class TFengine implements DLengine, Hint {
             if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
         }
         init();
+        boolean[] flipXYZ = new boolean[flip.getChildCount()];
+        for (int i = 0;i<flipXYZ.length; ++i) flipXYZ[i] = flip.getChildAt(i).getValue().intValue()==1;
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
         float[][] bufferContainer = new float[1][];
         long wrapTime = 0, predictTime = 0;
@@ -191,49 +195,92 @@ public class TFengine implements DLengine, Hint {
         for (int idx = 0; idx<nSamples; idx+=batchSize) {
             int idxMax = Math.min(idx+batchSize, nSamples);
             logger.debug("batch: [{};{})", idx, idxMax);
-            final int fidx = idx;
             long t0 = System.currentTimeMillis();
-            Tensor<Float>[] input = Arrays.stream(inputNC).map(imNC ->  TensorWrapper.fromImagesNC(imNC, fidx, idxMax, bufferContainer)).toArray(Tensor[]::new);
-            long t1 = System.currentTimeMillis();
-            Session.Runner r = session.runner();
-            for (int ii = 0; ii<inputNames.length; ++ii)  r.feed(inputNames[ii], input[ii]);
-                for (int io = 0; io < outputNames.length; ++io) {
-                    try {
-                        r.fetch(outputNames[io]);
-                    } catch (IllegalArgumentException e) {
-                        logger.error("No output named: {} in the graph. Check operation list:", outputNames[io]);
-                        logOperations();
-                        throw e;
+            predict(inputNC, idx, idxMax, bufferContainer, res);
+            if (flipXYZ!=null) { // flipped predictions will be summed
+                double norm = 1;
+                if (flipXYZ[0]) {
+                    predict(inputNC, idx, idxMax, bufferContainer, res, true);
+                    ++norm;
+                }
+                if (flipXYZ[1]) {
+                    predict(inputNC, idx, idxMax, bufferContainer, res, false, true);
+                    ++norm;
+                }
+                if (flipXYZ[1] && flipXYZ[0]) {
+                    predict(inputNC, idx, idxMax, bufferContainer, res, true, true);
+                    ++norm;
+                }
+                if (flipXYZ[2]) {
+                    predict(inputNC, idx, idxMax, bufferContainer, res, false, false, true);
+                    ++norm;
+                }
+                if (norm>1) { // average of summed flipped predictions
+                    for (int oi = 0; oi<res.length; ++oi) {
+                        for (int i = idx; i < idxMax; ++i) {
+                            for (int c = 0; c<res[oi][i].length; ++c) ImageOperations.affineOperation(res[oi][i][c], res[oi][i][c], 1/norm, 0);
+                        }
                     }
                 }
-
-            List<Tensor<?>> outputs=null;
-            try {
-                outputs = r.run();
-            } catch (UnsupportedOperationException e) {
-                logger.error("An error occurred during NN execution. Check input shapes: #{} inputs given with shapes: {}", input.length, Arrays.stream(input).map(Tensor::shape).toArray());
-                if (outputs!=null) for (Tensor o : outputs) o.close();
-                throw e;
-            } finally {
-                for (Tensor i : input) i.close();
             }
-            long t2 = System.currentTimeMillis();
-            for (int io = 0; io<outputNames.length; ++io) {
-                Image[][] resIm = TensorWrapper.getImagesNC((Tensor<Float>)outputs.get(io), bufferContainer);
-                outputs.get(io).close();
-                for (int i = idx;  i<idxMax; ++i) res[io][i] = resIm[i-idx];
-            }
-            long t3 = System.currentTimeMillis();
-            wrapTime+=t1-t0 + t3 - t2;
-            predictTime += t2-t1;
+            long t1 = System.currentTimeMillis();
+            predictTime += t1-t0;
         }
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
     }
+    private void predict(Image[][][] inputNC, int idx, int idxMax, float[][] bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
+        Tensor<Float>[] input = Arrays.stream(inputNC).map(imNC ->  TensorWrapper.fromImagesNC(imNC, idx, idxMax, bufferContainer, flipXYZ)).toArray(Tensor[]::new);
+        Tensor<Float>[] output = predict(input);
+        if (flipXYZ==null || flipXYZ.length==0) {
+            for (int io = 0; io < outputNames.length; ++io) {
+                Image[][] resIm = TensorWrapper.getImagesNC(output[io], bufferContainer);
+                output[io].close();
+                for (int i = idx; i < idxMax; ++i) outputONC[io][i] = resIm[i - idx];
+            }
+        } else { // supposes outputON already contains images
+            for (int io = 0; io < outputNames.length; ++io) {
+                int fio = io;
+                Image[][] resImNC = IntStream.range(idx, idxMax).mapToObj(i -> outputONC[fio][i]).toArray(Image[][]::new);
+                TensorWrapper.addToImagesNC(resImNC, output[io], bufferContainer, flipXYZ);
+                output[io].close();
+            }
+        }
+    }
+
+    private Tensor<Float>[] predict(Tensor<Float>[] input) {
+        Session.Runner r = session.runner();
+        for (int ii = 0; ii<inputNames.length; ++ii)  r.feed(inputNames[ii], input[ii]);
+        for (int io = 0; io < outputNames.length; ++io) {
+            try {
+                r.fetch(outputNames[io]);
+            } catch (IllegalArgumentException e) {
+                logger.error("No output named: {} in the graph. Check operation list:", outputNames[io]);
+                logOperations();
+                throw e;
+            }
+        }
+
+        List<Tensor<?>> outputs=null;
+        try {
+            outputs = r.run();
+        } catch (UnsupportedOperationException e) {
+            logger.error("An error occurred during NN execution. Check input shapes: #{} inputs given with shapes: {}", input.length, Arrays.stream(input).map(Tensor::shape).toArray());
+            if (outputs!=null) for (Tensor o : outputs) o.close();
+            throw e;
+        } finally {
+            for (Tensor i : input) i.close();
+        }
+        Tensor<Float>[] output = new Tensor[outputNames.length];
+        for (int io = 0; io<outputNames.length; ++io) {
+            output[io] = (Tensor<Float>)outputs.get(io);
+        }
+        return output;
+    }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, inputs, outputs};
+        return new Parameter[]{modelFile, batchSize, inputs, outputs, flip};
     }
 
     @Override
