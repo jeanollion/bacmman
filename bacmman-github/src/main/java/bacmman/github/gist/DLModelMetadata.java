@@ -9,8 +9,8 @@ import java.util.stream.Stream;
 public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata> {
     TextParameter inputLayerName = new TextParameter("layer name", "input", true, false).setHint("Input tensor name, as exported in the model graph");
     TextParameter outputLayerName = new TextParameter("layer name", "output", true, false).setHint("Output tensor name, as exported in the model graph");
-    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(true, true).setValue(0, 0, 0).setHint("Input tensor shape. 0 means no constraint on axis (None)");
-    ArrayNumberParameter outputShape = InputShapesParameter.getInputShapeParameter(true, true).setValue(0, 0, 0).setHint("Output tensor shape. 0 means no constraint on axis (None)");;
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(true, true, new int[]{0,0,0}, null).setHint("Input tensor shape. 0 means no constraint on axis (None)");
+    ArrayNumberParameter outputShape = InputShapesParameter.getInputShapeParameter(true, true, new int[]{0,0,0}, null).setHint("Output tensor shape. 0 means no constraint on axis (None)");;
     GroupParameter inputLayer = new GroupParameter("input layer", inputLayerName, inputShape);
     GroupParameter outputLayer = new GroupParameter("output layer", outputLayerName, outputShape);
 
