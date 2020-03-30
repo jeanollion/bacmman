@@ -679,4 +679,19 @@ public class ArrayUtil {
     public static <T> Stream<T> flatmap(T[][] array) { // TODO optimize for matrices: use Stream.concate
         return Arrays.stream(array).flatMap(Arrays::stream);
     }
+    public static int[] reverse(int[] array, boolean inplace) {
+        int l = array.length - 1;
+        if (inplace) {
+            for (int i = 0; i < array.length/2; ++i) {
+                int value = array[i];
+                array[i] = array[l - i];
+                array[l-i] = value;
+            }
+            return array;
+        } else {
+            int[] rev = new int[array.length];
+            for (int i = 0; i<array.length; ++i) rev[i] = array[l-i];
+            return rev;
+        }
+    }
 }

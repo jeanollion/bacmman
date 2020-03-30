@@ -133,8 +133,8 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
     }
 
     public int[] getTargetImageShape(Image[][] imageNC) {
-        int[] shape = targetShape.getArrayInt();
-        int[] nContractions = contractionNumber.getArrayInt();
+        int[] shape = ArrayUtil.reverse(targetShape.getArrayInt(), true);
+        int[] nContractions = ArrayUtil.reverse(contractionNumber.getArrayInt(), true);
         for (int i = 0; i<shape.length; ++i) {
             if (shape[i]==0) {
                 int dim = i;
