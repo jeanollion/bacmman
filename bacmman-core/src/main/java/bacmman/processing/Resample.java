@@ -44,7 +44,7 @@ public class Resample {
     /**
      *
      * @param input
-     * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
+     * @param dimensions dimension of the final image order = (X, Y (Z)). If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
      * @return
      */
     public static <T extends Image<T>> T resample(T input, InterpolatorFactory interpolation, int... dimensions) {
@@ -66,7 +66,7 @@ public class Resample {
     /**
      *
      * @param input
-     * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
+     * @param dimensions dimension of the final image order = (X, Y (Z)). If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
      * @return
      */
     public static <T extends Image<T>> T resample(T input, INTERPOLATION interpolation, int... dimensions) {
@@ -75,7 +75,7 @@ public class Resample {
     /**
      *
      * @param input
-     * @param dimensions dimension of the final image. If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
+     * @param dimensions dimension of the final image order = (X, Y (Z)). If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
      * @return
      */
     public static <T extends Image<T>> T resample(T input, boolean binary, int... dimensions) {

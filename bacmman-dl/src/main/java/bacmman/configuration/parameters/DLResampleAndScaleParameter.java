@@ -13,6 +13,8 @@ import bacmman.utils.Pair;
 import bacmman.utils.Triplet;
 import bacmman.utils.Utils;
 import net.imglib2.interpolation.InterpolatorFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -22,6 +24,7 @@ import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DLResampleAndScaleParameter> {
+    Logger logger = LoggerFactory.getLogger(DLResampleAndScaleParameter.class);
     enum MODE {NO_RESAMPLING, HOMOGENIZE, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{256, 32}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
     ArrayNumberParameter contractionNumber = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{2, 2}, null).setEmphasized(true).setName("Contraction number").setHint("Number of contraction of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by 2**(contraction number)");
@@ -102,7 +105,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
     }
     private static int getSize(double[] sizes, int nContraction) {
         int div = (int)Math.pow(2, nContraction);
-        Histogram histo = HistogramFactory.getHistogram(()-> DoubleStream.of(sizes), 1);
+        Histogram histo = HistogramFactory.getHistogram(()-> DoubleStream.of(sizes), 1.0);
         double total = (int)histo.count();
         int maxIdx = ArrayUtil.max(histo.getData());
         int[] candidate=null;
@@ -134,7 +137,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         int[] nContractions = contractionNumber.getArrayInt();
         for (int i = 0; i<shape.length; ++i) {
             if (shape[i]==0) {
-                int dim = shape.length==2 ? 1 - i : 2 - i ;
+                int dim = i;
                 double[] sizes = Arrays.stream(imageNC).mapToDouble(a -> a[0].size(dim)).toArray();
                 // get modal shape
                 shape[i] = getSize(sizes, nContractions[i]);
@@ -191,6 +194,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
                     if (scalerIndex>=0) outputONC[i] = scaleAndRessampleBack(input.v1[0], predictionsONC[i], null, input.v3[scalerIndex], null);
                     else outputONC[i] = predictionsONC[i];
                 }
+                return outputONC;
             }
             case HOMOGENIZE:
             default: {
@@ -201,6 +205,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
                     int scalerIndex = ((NumberParameter)params.getChildAt(1)).getValue().intValue();
                     outputONC[i] = scaleAndRessampleBack(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0]);
                 }
+                return outputONC;
             }
             case TILE:
                 throw new UnsupportedOperationException("TILE processing Not supported yet");
