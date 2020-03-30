@@ -39,7 +39,6 @@ import static bacmman.plugins.Hint.formatHint;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.File;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
@@ -181,8 +180,8 @@ public class ConfigurationTreeGenerator {
                     t = t+"</ul>(list of column names in the extracted table and associated object class in brackets; the associated object class determines in which table the measurement appears)";
                 }
             }
-        } else if (parameter instanceof ConditionalParameter) { // also display hint of action parameter
-            Parameter action = ((ConditionalParameter)parameter).getActionableParameter();
+        } else if (parameter instanceof ConditionalParameterAbstract) { // also display hint of action parameter
+            Parameter action = ((ConditionalParameterAbstract)parameter).getActionableParameter();
             String t2 = getParameterHint(action ,expertMode);
             if (t2!=null && t2.length()>0) {
                 if (t.length()>0) t = t+"<br /><br />";

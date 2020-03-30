@@ -35,7 +35,6 @@ import bacmman.processing.RegionFactory;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import bacmman.processing.split_merge.SplitAndMergeHessian;
-import bacmman.utils.ArrayUtil;
 import bacmman.utils.geom.Point;
 import ij.process.AutoThresholder;
 

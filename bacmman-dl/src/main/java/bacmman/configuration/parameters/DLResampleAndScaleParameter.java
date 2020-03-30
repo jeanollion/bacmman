@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class DLResampleAndScaleParameter extends ConditionalParameter {
+public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DLResampleAndScaleParameter> {
     enum MODE {NO_RESAMPLING, HOMOGENIZE, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{256, 32}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
     ArrayNumberParameter contractionNumber = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{2, 2}, null).setEmphasized(true).setName("Contraction number").setHint("Number of contraction of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by 2**(contraction number)");
@@ -243,5 +243,13 @@ public class DLResampleAndScaleParameter extends ConditionalParameter {
             }
         }
         return predictionResizedNC;
+    }
+
+    @Override
+    public DLResampleAndScaleParameter duplicate() {
+        DLResampleAndScaleParameter res = new DLResampleAndScaleParameter(name);
+        res.setContentFrom(this);
+        transferStateArguments(this, res);
+        return res;
     }
 }

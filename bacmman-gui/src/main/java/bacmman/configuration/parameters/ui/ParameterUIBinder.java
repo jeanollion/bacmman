@@ -72,7 +72,7 @@ public class ParameterUIBinder {
         if (p instanceof NoteParameter) return new NoteEditorUI((NoteParameter)p, model);
         if (p instanceof TextParameter) return new TextEditorUI((TextParameter)p, model);
         if (p instanceof FileChooser) return new FileChooserUI((FileChooser)p, model);
-        if (p instanceof ConditionalParameter) return getUI(((ConditionalParameter)p).getActionableParameter(), model, pcb);
+        if (p instanceof ConditionalParameterAbstract) return getUI(((ConditionalParameterAbstract)p).getActionableParameter(), model, pcb);
 
         // experiment parameters
         if (p instanceof ChannelImage || p instanceof ChannelImageDuplicated || p instanceof Structure) return new NameEditorUI(p, false ,model);

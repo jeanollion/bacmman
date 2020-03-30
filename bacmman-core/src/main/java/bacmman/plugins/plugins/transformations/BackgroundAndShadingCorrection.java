@@ -13,7 +13,6 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
-import bacmman.plugins.MultichannelTransformation;
 
 import java.io.File;
 

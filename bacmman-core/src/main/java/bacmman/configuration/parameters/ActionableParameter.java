@@ -25,6 +25,6 @@ package bacmman.configuration.parameters;
 public interface ActionableParameter<P extends ActionableParameter<P>> extends Parameter<P> {
     public String getValue();
     public void setValue(String value);
-    public void setConditionalParameter(ConditionalParameter cond);
-    public ConditionalParameter getConditionalParameter();
+    public void setConditionalParameter(ConditionalParameterAbstract cond);
+    public ConditionalParameterAbstract getConditionalParameter();
 }

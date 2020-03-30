@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.measurements;
 
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.image.Image;
@@ -29,13 +30,7 @@ import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.LinearRegression;
 import bacmman.utils.Utils;
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.TextParameter;
 
 import java.util.ArrayList;
 import java.util.List;

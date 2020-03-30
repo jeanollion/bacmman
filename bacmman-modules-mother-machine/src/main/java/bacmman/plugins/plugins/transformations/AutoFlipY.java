@@ -18,15 +18,11 @@
  */
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;

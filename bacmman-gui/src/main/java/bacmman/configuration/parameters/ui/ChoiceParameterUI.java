@@ -20,10 +20,7 @@ package bacmman.configuration.parameters.ui;
 
 import static bacmman.ui.GUI.logger;
 
-import bacmman.configuration.parameters.ActionableParameter;
-import bacmman.configuration.parameters.ChoosableParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.plugins.HintSimple;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.plugins.Plugin;
@@ -39,7 +36,6 @@ import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
 import javax.swing.JSeparator;
-import bacmman.utils.Utils;
 
 /**
  *
@@ -47,7 +43,7 @@ import bacmman.utils.Utils;
  */
 public class ChoiceParameterUI implements ArmableUI {
     ChoosableParameter choice;
-    ConditionalParameter cond;
+    ConditionalParameterAbstract cond;
     ConfigurationTreeModel model;
     JMenuItem[] actionChoice;
     List allActions;

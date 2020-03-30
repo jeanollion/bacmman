@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -31,14 +32,7 @@ import bacmman.plugins.Segmenter;
 import bacmman.plugins.Hint;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.utils.Utils;
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.PreFilterSequence;
 import ij.process.AutoThresholder;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;

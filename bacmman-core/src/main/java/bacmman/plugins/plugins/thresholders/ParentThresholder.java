@@ -18,12 +18,8 @@
  */
 package bacmman.plugins.plugins.thresholders;
 
-import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.ParentObjectClassParameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;

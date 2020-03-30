@@ -18,11 +18,8 @@
  */
 package bacmman.plugins.plugins.transformations;
 
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageShort;

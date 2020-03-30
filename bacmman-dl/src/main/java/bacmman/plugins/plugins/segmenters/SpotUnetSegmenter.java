@@ -12,12 +12,10 @@ import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.LocalS
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
-import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.gaussian_fit.GaussianFit;
-import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 

@@ -31,7 +31,7 @@ public abstract class AbstractChoiceParameter<P extends AbstractChoiceParameter<
     protected String[] listChoice;
     boolean allowNoSelection;
     private int selectedIndex=-2;
-    ConditionalParameter cond;
+    ConditionalParameterAbstract cond;
     
     public AbstractChoiceParameter(String name, String[] listChoice, String selectedItem, boolean allowNoSelection) {
         super(name);
@@ -130,14 +130,14 @@ public abstract class AbstractChoiceParameter<P extends AbstractChoiceParameter<
         this.setSelectedItem(value);
     }
     
-    public void setConditionalParameter(ConditionalParameter cond) {
+    public void setConditionalParameter(ConditionalParameterAbstract cond) {
         this.cond=cond;
     }
     /**
      * 
      * @return the associated conditional parameter, or null if no conditionalParameter is associated
      */
-    public ConditionalParameter getConditionalParameter() {
+    public ConditionalParameterAbstract getConditionalParameter() {
         return cond;
     }
     

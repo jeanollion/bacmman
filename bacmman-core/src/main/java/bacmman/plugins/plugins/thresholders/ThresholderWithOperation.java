@@ -18,13 +18,8 @@
  */
 package bacmman.plugins.plugins.thresholders;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.ChoiceParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
