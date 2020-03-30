@@ -184,7 +184,7 @@ public class EdgeDetector implements Segmenter, Hint {
             case INTENSITY_MAP: {
                     double thld = threshold.instantiatePlugin().runSimpleThresholder(input, mask);
                     if (addTestImage!=null) addTestImage.accept(generateRegionValueMap(pop, input).setName("Intensity value Map"));
-                    pop.filter(new RegionPopulation.MedianIntensity(thld, darkBackground.getSelected(), input));
+                    pop.filter(new RegionPopulation.QuantileIntensity(thld, darkBackground.getSelected(), input));
                     return;
             } case VALUE_MAP:
             default: {

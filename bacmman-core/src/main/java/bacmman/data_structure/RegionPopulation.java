@@ -1151,13 +1151,17 @@ public class RegionPopulation {
             return mean >= threshold == keepOverThreshold;
         }
     }
-    public static class MedianIntensity implements Filter {
-
+    public static class QuantileIntensity implements Filter {
+        double quantile;
         double threshold;
         Image intensityMap;
         boolean keepOverThreshold;
         
-        public MedianIntensity(double threshold, boolean keepOverThreshold, Image intensityMap) {
+        public QuantileIntensity(double threshold, boolean keepOverThreshold, Image intensityMap) {
+            this(0.5, threshold, keepOverThreshold, intensityMap);
+        }
+        public QuantileIntensity(double quantile, double threshold, boolean keepOverThreshold, Image intensityMap) {
+            this.quantile=quantile;
             this.threshold = threshold;
             this.intensityMap = intensityMap;
             this.keepOverThreshold=keepOverThreshold;
@@ -1165,7 +1169,7 @@ public class RegionPopulation {
         @Override public void init(RegionPopulation population) {}
         @Override
         public boolean keepObject(Region object) {
-            double median = BasicMeasurements.getQuantileValue(object, intensityMap, 0.5)[0];
+            double median = BasicMeasurements.getQuantileValue(object, intensityMap, quantile)[0];
             return median >= threshold == keepOverThreshold;
         }
     }
