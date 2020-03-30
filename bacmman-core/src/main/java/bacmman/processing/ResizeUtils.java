@@ -111,6 +111,20 @@ public class ResizeUtils {
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
+    public static <T extends Image> T[] pad(T[] imagesN, T[] output, Resample.EXPAND_MODE mode, Resample.EXPAND_POSITION position, int[][] imageShapeN) {
+        Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
+                .mapToObj(idx -> (T)Resample.pad(imagesN[idx], mode, position, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+        List<T> res = s.collect(Collectors.toList());
+        res.toArray(output);
+        return output;
+    }
+    public static Image[][] pad(Image[][] imagesNC, Resample.EXPAND_MODE mode, Resample.EXPAND_POSITION position, int[][] imageShapeN) {
+        return IntStream.range(0, imagesNC.length).parallel()
+                .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
+                        .mapToObj(c -> Resample.pad(imagesNC[idx][c], mode, position, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
+                        .toArray(Image[]::new))
+                .toArray(Image[][]::new);
+    }
     public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {
         return IntStream.range(0, shapes.length).allMatch(i -> Arrays.equals(shapes[i], referenceShape));
     }

@@ -1,5 +1,6 @@
 package bacmman.processing;
 
+import bacmman.core.Core;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
@@ -107,4 +108,48 @@ public class Resample {
 
         return interval;
     }
+    public enum EXPAND_MODE {MIRROR, BORDER, ZERO}
+    public enum EXPAND_POSITION {BEFORE, CENTER, AFTER}
+
+    public static <T extends Image<T>> T pad(T input, EXPAND_MODE mode, EXPAND_POSITION position, int... dimensions) {
+        if (dimensions==null || dimensions.length==0) return input;
+        Img in = ImgLib2ImageWrapper.getImage(input);
+        return (T)ImgLib2ImageWrapper.wrap(pad(in, mode, position, dimensions));
+    }
+
+    public static <T extends RealType<T>> RandomAccessibleInterval<T> pad(RandomAccessibleInterval<T> input, EXPAND_MODE mode, EXPAND_POSITION position, int... newDimensions) {
+        if (newDimensions.length==0) return input;
+        long[] oldDims = Intervals.dimensionsAsLongArray(input);
+        long[] mins = new long[oldDims.length];
+        long[] sizes = new long[oldDims.length];
+
+        for (int dimIdx = 0; dimIdx<oldDims.length; ++dimIdx) {
+            sizes[dimIdx] = dimIdx<newDimensions.length ? newDimensions[dimIdx] : oldDims[dimIdx];
+            long delta = sizes[dimIdx] - oldDims[dimIdx];
+            if (delta!=0) {
+                switch (position) {
+                    case CENTER:
+                    default:
+                        mins[dimIdx] = - delta / 2;
+                        break;
+                    case BEFORE:
+                        mins[dimIdx] = - delta;
+                        break;
+                    case AFTER:
+                        break;
+                }
+            }
+        }
+        FinalInterval newInterval = FinalInterval.createMinSize(mins, sizes);
+        switch (mode) {
+            case MIRROR:
+                return Views.interval( Views.extendMirrorSingle( input ), newInterval );
+            case BORDER:
+            default:
+                return Views.interval( Views.expandBorder( input ), newInterval );
+            case ZERO:
+                return Views.interval( Views.expandZero( input ), newInterval );
+        }
+    }
+
 }

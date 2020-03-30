@@ -7,6 +7,7 @@ import bacmman.image.TypeConverter;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.scalers.IQRScaler;
+import bacmman.processing.Resample;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
@@ -25,12 +26,14 @@ import java.util.stream.IntStream;
 
 public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DLResampleAndScaleParameter> {
     Logger logger = LoggerFactory.getLogger(DLResampleAndScaleParameter.class);
-    enum MODE {NO_RESAMPLING, HOMOGENIZE, TILE}
+    enum MODE {NO_RESAMPLING, HOMOGENIZE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
     ArrayNumberParameter contractionNumber = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{2, 2}, null).setEmphasized(true).setName("Contraction number").setHint("Number of contraction of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by 2**(contraction number)");
 
     ArrayNumberParameter tileShape = InputShapesParameter.getInputShapeParameter(false, false,  new int[]{64, 64}, null).setEmphasized(true).setName("Tile Shape");
     ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
+    EnumChoiceParameter<Resample.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resample.EXPAND_MODE.values(), Resample.EXPAND_MODE.MIRROR, false);
+    ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Min Pad").setHint("Minimum Padding added on each side of the image");
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
@@ -47,14 +50,16 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         super(new EnumChoiceParameter<>(name, MODE.values(), MODE.HOMOGENIZE, false));
         this.setActionParameters(MODE.NO_RESAMPLING.toString(), inputScaling, outputScaling);
         this.setActionParameters(MODE.HOMOGENIZE.toString(), targetShape, contractionNumber, inputInterpAndScaling, outputInterpAndScaling);
+        this.setActionParameters(MODE.PAD.toString(), targetShape, contractionNumber, paddingMode, minPad, inputScaling, outputScaling);
         this.setActionParameters(MODE.TILE.toString(), tileShape, minOverlap, inputInterpAndScaling, outputInterpAndScaling);
         targetShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         contractionNumber.addValidationFunction(InputShapesParameter.sameRankValidation());
         tileShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         minOverlap.addValidationFunction(InputShapesParameter.sameRankValidation());
+        minPad.addValidationFunction(InputShapesParameter.sameRankValidation());
         setMinInputNumber(1);
         setMinOutputNumber(1);
-        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>TILE: image is split into tiles on which predictions are made. NOT SUPPORTED YET</li></ul>");
+        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>PAD: expand image to a fixed shape</li><li>TILE: image is split into tiles on which predictions are made. NOT SUPPORTED YET</li></ul>");
     }
     public DLResampleAndScaleParameter addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
@@ -103,8 +108,12 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
     public MODE getMode() {
         return ((EnumChoiceParameter<MODE>)action).getSelectedEnum();
     }
-    private static int getSize(double[] sizes, int nContraction) {
+    private static int getSize(double[] sizes, int nContraction, boolean pad, int minPad) {
         int div = (int)Math.pow(2, nContraction);
+        if (pad) {
+            int maxSize = (int)sizes[ArrayUtil.max(sizes)] + 2 * minPad;
+            return closestNumber(maxSize, div, true);
+        }
         Histogram histo = HistogramFactory.getHistogram(()-> DoubleStream.of(sizes), 1.0);
         double total = (int)histo.count();
         int maxIdx = ArrayUtil.max(histo.getData());
@@ -112,35 +121,41 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         if (histo.getData()[maxIdx]>=total/2.0) {
             int cand = (int)histo.getValueFromIdx(maxIdx);
             if (nContraction==0) return cand;
-            int divisible = closestNumber(cand, div);
+            int divisible = closestNumber(cand, div, false);
             if (divisible==cand) return cand;
             candidate = new int[]{cand, divisible};
         }
         // mediane:
         int cand = (int)Math.round(ArrayUtil.median(sizes));
-        int divisible = closestNumber(cand, div);
+        int divisible = closestNumber(cand, div, false);
         if (candidate == null || divisible==cand) return divisible;
         if (Math.abs(candidate[0]-candidate[1])<Math.abs(cand-divisible)) return candidate[1];
         else return divisible;
     }
-    static int closestNumber(int n, int m) {
-        int q = n / m;
-        int n1 = m * q;
-        int n2 = (n * m) > 0 ? (m * (q + 1)) : (m * (q - 1));
+    private static int closestNumber(int n, int div, boolean max) {
+        int q = n / div;
+        int n1 = div * q;
+        if (n1==n) return n1;
+        int n2 = (n * div) > 0 ? (div * (q + 1)) : (div * (q - 1));
+        if (max) return Math.max(n1, n2);
         if (Math.abs(n - n1) < Math.abs(n - n2))
             return n1;
         return n2;
     }
 
-    public int[] getTargetImageShape(Image[][] imageNC) {
+    public int[] getTargetImageShape(Image[][] imageNC, boolean pad) {
         int[] shape = ArrayUtil.reverse(targetShape.getArrayInt(), true);
         int[] nContractions = ArrayUtil.reverse(contractionNumber.getArrayInt(), true);
+        int[] minPadA = ArrayUtil.reverse(minPad.getArrayInt(), true);
         for (int i = 0; i<shape.length; ++i) {
+            int dim = i;
             if (shape[i]==0) {
-                int dim = i;
                 double[] sizes = Arrays.stream(imageNC).mapToDouble(a -> a[0].size(dim)).toArray();
                 // get modal shape
-                shape[i] = getSize(sizes, nContractions[i]);
+                shape[i] = getSize(sizes, nContractions[i], pad, minPadA[i]);
+            } else if (pad) { // check that size is smaller than target size
+                int minTargetShape = Arrays.stream(imageNC).mapToInt(a -> a[0].size(dim)).max().getAsInt() + 2 * minPadA[i];
+                if (shape[i]<minTargetShape) throw new RuntimeException("Error while resizing in padding mode on axis="+i+":  max image size (with min pad)="+minTargetShape+" > target size="+shape[i]);
             }
         }
         logger.debug("Target shape: {}", Utils.toStringArray(shape));
@@ -175,12 +190,21 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Pair<Image[][], int[][]> res = scaleAndResampleInput(inputINC[i], interpols[i], scalers[i], getTargetImageShape(inputINC[i]));
+                    Pair<Image[][], int[][]> res = scaleAndResampleInput(inputINC[i], interpols[i], scalers[i], getTargetImageShape(inputINC[i], false));
                     imINC[i] = res.key;
                     shapesIN[i] = res.value;
                 }
                 return new Triplet<>(imINC, shapesIN, scalers);
             }
+            case PAD:
+                Image[][][] imINC = new Image[inputINC.length][][];
+                int[][][] shapesIN = new int[inputINC.length][][];
+                for (int i = 0; i < inputINC.length; ++i) {
+                    Pair<Image[][], int[][]> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), scalers[i], getTargetImageShape(inputINC[i], true));
+                    imINC[i] = res.key;
+                    shapesIN[i] = res.value;
+                }
+                return new Triplet<>(imINC, shapesIN, scalers);
             case TILE:
                 throw new UnsupportedOperationException("TILE processing Not supported yet");
         }
@@ -191,8 +215,16 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
                     int scalerIndex = outputScaling.getChildCount()>i ? outputScaling.getChildAt(i).getValue().intValue() : -1;
-                    if (scalerIndex>=0) outputONC[i] = scaleAndRessampleBack(input.v1[0], predictionsONC[i], null, input.v3[scalerIndex], null);
+                    if (scalerIndex>=0) outputONC[i] = scaleAndResampleBack(input.v1[scalerIndex], predictionsONC[i], null, input.v3[scalerIndex], null);
                     else outputONC[i] = predictionsONC[i];
+                }
+                return outputONC;
+            }
+            case PAD: {
+                Image[][][] outputONC = new Image[predictionsONC.length][][];
+                for (int i = 0;i<predictionsONC.length; ++i) {
+                    int scalerIndex = outputScaling.getChildCount()>i ? outputScaling.getChildAt(i).getValue().intValue() : -1;
+                    outputONC[i] = scaleAndPadBack(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i], input.v3[scalerIndex], input.v2[scalerIndex>=0?scalerIndex:0]);
                 }
                 return outputONC;
             }
@@ -203,7 +235,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
                     GroupParameter params = outputInterpAndScaling.getChildAt(i);
                     InterpolatorFactory interpol = ((InterpolationParameter)params.getChildAt(0) ).getInterpolation();
                     int scalerIndex = ((NumberParameter)params.getChildAt(1)).getValue().intValue();
-                    outputONC[i] = scaleAndRessampleBack(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0]);
+                    outputONC[i] = scaleAndResampleBack(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0]);
                 }
                 return outputONC;
             }
@@ -233,7 +265,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         return new Pair<>(inResampledNC, shapes);
     }
 
-    public static Image[][] scaleAndRessampleBack(Image[][] inputNC, Image[][] predNC, InterpolatorFactory interpolation, HistogramScaler scaler, int[][] shapes) {
+    public static Image[][] scaleAndResampleBack(Image[][] inputNC, Image[][] predNC, InterpolatorFactory interpolation, HistogramScaler scaler, int[][] shapes) {
         if (scaler!=null){
             scaler.transformInputImage(true);
             IntStream.range(0, predNC.length).parallel().forEach(i -> IntStream.range(0, predNC[i].length).forEach(j -> predNC[i][j] = scaler.reverseScale(predNC[i][j]) ));
@@ -249,7 +281,34 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         }
         return predictionResizedNC;
     }
-
+    public static Pair<Image[][], int[][]> scaleAndPadInput(Image[][] inNC, Resample.EXPAND_MODE mode, HistogramScaler scaler, int[] targetImageShape) {
+        int[][] shapes = ResizeUtils.getShapes(inNC, false);
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloat(inNC[i][j], null, false) ));
+        if (scaler!=null) { // scale
+            List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
+            scaler.setHistogram(HistogramFactory.getHistogram(()-> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            scaler.transformInputImage(true);
+        }
+        Image[][] inResampledNC = ResizeUtils.pad(inNC, mode, Resample.EXPAND_POSITION.CENTER, new int[][]{targetImageShape});
+        if (scaler!=null) IntStream.range(0, inResampledNC.length).parallel().forEach(i -> IntStream.range(0, inResampledNC[i].length).forEach(j -> inResampledNC[i][j] = scaler.scale(inResampledNC[i][j]) ));
+        return new Pair<>(inResampledNC, shapes);
+    }
+    public static Image[][] scaleAndPadBack(Image[][] inputNC, Image[][] predNC, HistogramScaler scaler, int[][] shapes) {
+        if (scaler!=null){
+            scaler.transformInputImage(true);
+            IntStream.range(0, predNC.length).parallel().forEach(i -> IntStream.range(0, predNC[i].length).forEach(j -> predNC[i][j] = scaler.reverseScale(predNC[i][j]) ));
+        }
+        Image[][] predictionResizedNC = ResizeUtils.pad(predNC, Resample.EXPAND_MODE.MIRROR, Resample.EXPAND_POSITION.CENTER, shapes);
+        if (inputNC!=null) {
+            for (int idx = 0; idx < predictionResizedNC.length; ++idx) {
+                for (int c = 0; c < predictionResizedNC[idx].length; ++c) {
+                    predictionResizedNC[idx][c].setCalibration(inputNC[idx][0]);
+                    predictionResizedNC[idx][c].resetOffset().translate(inputNC[idx][0]);
+                }
+            }
+        }
+        return predictionResizedNC;
+    }
     @Override
     public DLResampleAndScaleParameter duplicate() {
         DLResampleAndScaleParameter res = new DLResampleAndScaleParameter(name);
