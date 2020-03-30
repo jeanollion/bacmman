@@ -180,8 +180,11 @@ public class PluginConfigurationUtils {
             if (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) { // run pre-filters on whole track
                 psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
                 psc.getTrackPreFilters(false).removeAll();
+                psc.getPreFilters().removeAll();
             } else {
                 psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup);
+                psc.getTrackPreFilters(false).removeAll();
+                psc.getPreFilters().removeAll();
             }
             if (!usePresentSegmentedObjects) {
                 // need to be able to run track-parametrizable on whole parentTrack....
