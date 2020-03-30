@@ -281,7 +281,7 @@ public class JSONUtils {
     private static <P extends Parameter> boolean initParameterMap(List<P> list, JSONArray json) {
         int count = 0;
         Map<String, P> receiveMap = list.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
-        logger.debug("init param map: receive map: {}, json: {}", list, json);
+        //logger.debug("init param map: receive map: {}, json: {}", list, json);
         for (Object o : json) {
             if (!(o instanceof JSONObject)) {
                 logger.error("Could not initialize parameters: {} with json entry: {}", list, json);
