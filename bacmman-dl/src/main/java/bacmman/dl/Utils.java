@@ -84,4 +84,5 @@ public class Utils {
             imageNC[im_idx][chan_idx] =  scaler.scale(imageNC[im_idx][chan_idx]);
         });
     }
+
 }
