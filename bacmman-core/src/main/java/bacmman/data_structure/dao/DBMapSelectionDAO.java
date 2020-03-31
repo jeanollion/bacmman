@@ -60,7 +60,7 @@ public class DBMapSelectionDAO implements SelectionDAO {
     }
     
     private String getSelectionFile() {
-        return dir+"selections.db";
+        return dir.resolve("selections.db").toString();
     }
     @Override
     public synchronized Selection getOrCreate(String name, boolean clearIfExisting) {
