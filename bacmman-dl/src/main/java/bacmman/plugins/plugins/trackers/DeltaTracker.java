@@ -12,7 +12,7 @@ import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.processing.ImageOperations;
-import bacmman.processing.Resample;
+import bacmman.processing.Resize;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.matching.SimpleTrackGraph;
 import bacmman.utils.ArrayUtil;
@@ -26,7 +26,6 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     private final static Logger logger = LoggerFactory.getLogger(DeltaTracker.class);
@@ -69,7 +68,7 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
                 }
                 if (stores!=null) {
                     SegmentedObject parent = parentTrack.get(input.populationIdx(rIdx)+1);
-                    Function<Image, Image> resample = im -> (Image)Resample.resample(im, false, parent.getBounds().sizeX(), parent.getBounds().sizeY()).resetOffset().translate(parent.getBounds());
+                    Function<Image, Image> resample = im -> (Image) Resize.resample(im, false, parent.getBounds().sizeX(), parent.getBounds().sizeY()).resetOffset().translate(parent.getBounds());
                     stores.get(parent).addIntermediateImage("MotherPredictionRegion"+input.regionIdx(rIdx), resample.apply(outputNC[i][1]));
                     stores.get(parent).addIntermediateImage("DaughterPredictionRegion"+input.regionIdx(rIdx), resample.apply(outputNC[i][2]));
                 }

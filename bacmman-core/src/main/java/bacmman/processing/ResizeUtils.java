@@ -75,7 +75,7 @@ public class ResizeUtils {
     public static Image[][] resample(Image[][] imagesNC, boolean[] isBinaryC, int[][] imageShapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
-                        .mapToObj(c -> Resample.resample(imagesNC[idx][c], isBinaryC[c], imageShapeN.length==1 ? imageShapeN[0] : imageShapeN[idx]))
+                        .mapToObj(c -> Resize.resample(imagesNC[idx][c], isBinaryC[c], imageShapeN.length==1 ? imageShapeN[0] : imageShapeN[idx]))
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
@@ -83,15 +83,15 @@ public class ResizeUtils {
     public static <T extends Image> T[] resample(T[] imagesN, T[] output, boolean isBinary, int[][] imageShapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
         Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], isBinary, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+                .mapToObj(idx -> (T) Resize.resample(imagesN[idx], isBinary, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
         List<T> res = s.collect(Collectors.toList());
         res.toArray(output);
         return output;
     }
-    public static <T extends Image> T[] resample(T[] imagesN, T[] output, Resample.INTERPOLATION interpolation, int[][] imageShapeN) {
+    public static <T extends Image> T[] resample(T[] imagesN, T[] output, Resize.INTERPOLATION interpolation, int[][] imageShapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
         Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+                .mapToObj(idx -> (T) Resize.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
         List<T> res = s.collect(Collectors.toList());
         res.toArray(output);
         return output;
@@ -99,7 +99,7 @@ public class ResizeUtils {
     public static <T extends Image> T[] resample(T[] imagesN, T[] output, InterpolatorFactory interpolation, int[][] imageShapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", imageShapeN.length, imageShapeN[0]);
         Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> (T)Resample.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+                .mapToObj(idx -> (T) Resize.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
         List<T> res = s.collect(Collectors.toList());
         res.toArray(output);
         return output;
@@ -107,21 +107,21 @@ public class ResizeUtils {
     public static Image[][] resample(Image[][] imagesNC, InterpolatorFactory interpolation, int[][] imageShapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
-                        .mapToObj(c -> Resample.resample(imagesNC[idx][c], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
+                        .mapToObj(c -> Resize.resample(imagesNC[idx][c], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
-    public static <T extends Image> T[] pad(T[] imagesN, T[] output, Resample.EXPAND_MODE mode, Resample.EXPAND_POSITION position, int[][] imageShapeN) {
+    public static <T extends Image> T[] pad(T[] imagesN, T[] output, Resize.EXPAND_MODE mode, Resize.EXPAND_POSITION position, int[][] imageShapeN) {
         Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> (T)Resample.pad(imagesN[idx], mode, position, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
+                .mapToObj(idx -> (T) Resize.pad(imagesN[idx], mode, position, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
         List<T> res = s.collect(Collectors.toList());
         res.toArray(output);
         return output;
     }
-    public static Image[][] pad(Image[][] imagesNC, Resample.EXPAND_MODE mode, Resample.EXPAND_POSITION position, int[][] imageShapeN) {
+    public static Image[][] pad(Image[][] imagesNC, Resize.EXPAND_MODE mode, Resize.EXPAND_POSITION position, int[][] imageShapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
-                        .mapToObj(c -> Resample.pad(imagesNC[idx][c], mode, position, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
+                        .mapToObj(c -> Resize.pad(imagesNC[idx][c], mode, position, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]))
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }

@@ -2,7 +2,7 @@ package bacmman.dl;
 
 import bacmman.image.Image;
 import bacmman.plugins.HistogramScaler;
-import bacmman.processing.Resample;
+import bacmman.processing.Resize;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,14 +60,14 @@ public class Utils {
     public static Image[][] resample(Image[][] imagesNC, boolean[] isBinaryC, int[][] shapeN) {
         return IntStream.range(0, imagesNC.length).parallel()
                 .mapToObj(idx ->  IntStream.range(0, imagesNC[idx].length)
-                        .mapToObj(c -> Resample.resample(imagesNC[idx][c], isBinaryC[c], shapeN.length==1 ? shapeN[0] : shapeN[idx]))
+                        .mapToObj(c -> Resize.resample(imagesNC[idx][c], isBinaryC[c], shapeN.length==1 ? shapeN[0] : shapeN[idx]))
                         .toArray(Image[]::new))
                 .toArray(Image[][]::new);
     }
     public static Image[] resample(Image[] imagesN, boolean isBinary, int[][] shapeN) {
         logger.debug("resample: shape l :{} shape0 '= {}", shapeN.length, shapeN[0]);
         Stream<Image> s = IntStream.range(0, imagesN.length).parallel()
-                .mapToObj(idx -> Resample.resample(imagesN[idx], isBinary, shapeN.length==1 ? shapeN[0] : shapeN[idx]));
+                .mapToObj(idx -> Resize.resample(imagesN[idx], isBinary, shapeN.length==1 ? shapeN[0] : shapeN[idx]));
         return s.toArray(Image[]::new);
     }
     public static boolean allShapeEqual(int[][] shapes, int[] referenceShape) {

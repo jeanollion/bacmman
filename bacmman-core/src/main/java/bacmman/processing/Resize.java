@@ -24,7 +24,7 @@ import net.imglib2.view.Views;
 import java.util.Arrays;
 import java.util.function.Supplier;
 
-public class Resample {
+public class Resize {
 
     public enum INTERPOLATION {
         NEAREST(NearestNeighborInterpolatorFactory::new),

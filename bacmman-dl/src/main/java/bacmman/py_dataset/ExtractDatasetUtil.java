@@ -1,21 +1,16 @@
 package bacmman.py_dataset;
 
 import bacmman.core.Core;
-import bacmman.core.ProgressCallback;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
-import bacmman.processing.EDT;
-import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +26,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static bacmman.processing.Resample.resample;
+import static bacmman.processing.Resize.resample;
 
 public class ExtractDatasetUtil {
     public static boolean display=false, test=false;
