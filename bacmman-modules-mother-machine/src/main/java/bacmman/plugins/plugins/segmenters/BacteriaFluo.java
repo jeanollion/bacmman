@@ -68,12 +68,12 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     
     PluginParameter<SimpleThresholder> bckThresholderFrame = new PluginParameter<>("Method", bacmman.plugins.SimpleThresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for selection of foreground regions after watershed-based partitioning on the edge map. All regions whose median value is lower than this threshold are considered as background").setEmphasized(true);
     PluginParameter<ThresholderHisto> bckThresholder = new PluginParameter<>("Method", ThresholderHisto.class, new BackgroundFit(10), false).setHint("Threshold for selection of foreground regions after watershed-based partitioning on the edge map. All regions whose median value is lower than this threshold are considered as background. Computed on the whole parent track.").setEmphasized(true);
-    EnumChoiceParameter<THRESHOLD_COMPUTATION> bckThresholdMethod=  new EnumChoiceParameter<>("Background Threshold", THRESHOLD_COMPUTATION.values(), THRESHOLD_COMPUTATION.ROOT_TRACK);
-    static String thldSourceHint = "If <em>CURRENT_FRAME</em> is selected, the threshold is be computed at each frame. If <em>PARENT_BRANCH</em> is selected, the threshold is be computed on the whole parent track (e.g. for segmenting bacteria, the threshold is computed on the images of the microchannel at all frames). If <em>ROOT_TRACK</em> is selected, the threshold is be computed on the whole viewfield on all raw images (so do not choose this option if pre-filters are set).";
+    EnumChoiceParameter<THRESHOLD_COMPUTATION> bckThresholdMethod=  new EnumChoiceParameter<>("Background Threshold", THRESHOLD_COMPUTATION.values(), THRESHOLD_COMPUTATION.PARENT_TRACK);
+    static String thldSourceHint = "If <em>CURRENT_FRAME</em> is selected, the threshold is be computed at each frame. <br />If <em>PARENT_TRACK</em> is selected, the threshold is be computed on the whole parent track (e.g. for segmenting bacteria, the threshold is computed on the images of the microchannel at all frames). <br />If <em>ROOT_TRACK</em> is selected, the threshold is be computed on the whole viewfield on all raw images (so do not choose this option if pre-filters are set).";
     ConditionalParameter bckThldCond = new ConditionalParameter(bckThresholdMethod).setActionParameters(THRESHOLD_COMPUTATION.CURRENT_FRAME.toString(), bckThresholderFrame).setActionParameters(THRESHOLD_COMPUTATION.ROOT_TRACK.toString(), bckThresholder).setActionParameters(THRESHOLD_COMPUTATION.PARENT_TRACK.toString(), bckThresholder).setEmphasized(true).setHint("Threshold for filtering of background regions after watershed-based partitioning on the edge map. All regions whose median value is lower than this threshold are considered as background. <br />"+thldSourceHint+"<br />Configuration Hint: the value of this threshold is displayed from the right click menu: <em>display thresholds</em> command. Tune the value using the <em>Foreground detection: Region values after partitioning</em> intermediate image. Only background regions should be under this threshold");
     PluginParameter<bacmman.plugins.SimpleThresholder> foreThresholderFrame = new PluginParameter<>("Method", bacmman.plugins.SimpleThresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setEmphasized(true);
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Method", ThresholderHisto.class, new BackgroundFit(20), false).setEmphasized(true).setHint("Threshold for selection of foreground regions, use depend on the method. Computed on the whole parent-track.");
-    EnumChoiceParameter<THRESHOLD_COMPUTATION> foreThresholdMethod=  new EnumChoiceParameter<>("Foreground Threshold", THRESHOLD_COMPUTATION.values(), THRESHOLD_COMPUTATION.ROOT_TRACK).setEmphasized(true);
+    EnumChoiceParameter<THRESHOLD_COMPUTATION> foreThresholdMethod=  new EnumChoiceParameter<>("Foreground Threshold", THRESHOLD_COMPUTATION.values(), THRESHOLD_COMPUTATION.PARENT_TRACK).setEmphasized(true);
     ConditionalParameter foreThldCond = new ConditionalParameter(foreThresholdMethod).setActionParameters(THRESHOLD_COMPUTATION.CURRENT_FRAME.toString(), foreThresholderFrame).setActionParameters(THRESHOLD_COMPUTATION.ROOT_TRACK.toString(), foreThresholder).setActionParameters(THRESHOLD_COMPUTATION.PARENT_TRACK.toString(), foreThresholder)
             .setHint("Threshold for foreground region selection after watershed-based partitioning on the edge map. All regions whose median value is larger than this threshold are considered as foreground. <br />"+thldSourceHint+"<br />Configuration Hint: value is displayed on right click menu: <em>display thresholds</em> command. Tune the value using intermediate image <em>Foreground detection: Region values after partitioning</em>, only foreground regions should be over this threshold");
     static String bckEdgeAlgoHint = "<br />Definition of the criterion:<br />Criterion is Dec(E)@Inter / BCK_SD where the word <em>Interface</em> refers to the area of contact between two regions, Dec(E)@Inter refers to the first decile of intensity values of the edge map at the interface (as defined by the <em>Edge Map</em> parameter) and BCK_SD refers to the standard deviation of the background pixel intensities.";
@@ -82,14 +82,16 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     NumberParameter foregroundEdgeFusionThld = new BoundedNumberParameter("Foreground Edge Fusion Threshold", 4, 0.2, 0, null).setHint("Threshold for fusion of foreground regions. Allows merging foreground regions whose median value are low in order to avoid removing them at thresholding<br /><br />Two adjacent regions are merged if Mean(E)@Inter / Mean(PF)@Regions &lt; this threshold, where <em>Interface</em> refers to the area of contact between two regions, Mean(E)@Inter refers to the mean value of the <em>Edge Map</em> at the interface, Mean(PF)@Regions refers to the mean value of the pre-filtered image within the union of the two regions.<br />This step requires sharp edges (decrease smoothing in edge map to increase sharpness).<br /><br />Configuration Hint: Tune the value using the <em>Foreground detection: interface values (foreground fusion)</em> image. No interface between foreground and background regions should have a value under this threshold");
 
     EnumChoiceParameter<BACKGROUND_REMOVAL> backgroundSel=  new EnumChoiceParameter<>("Background Removal", BACKGROUND_REMOVAL.values(), BACKGROUND_REMOVAL.BORDER_CONTACT);
-    ConditionalParameter backgroundSelCond = new ConditionalParameter(backgroundSel).setActionParameters(BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING.toString(), foregroundEdgeFusionThld, bckThldCond).setActionParameters(BACKGROUND_REMOVAL.THRESHOLDING.toString(), foregroundEdgeFusionThld, bckThldCond)
+    ConditionalParameter backgroundSelCond = new ConditionalParameter(backgroundSel)
+            .setActionParameters(BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING.toString(), foregroundEdgeFusionThld, bckThldCond)
+            .setActionParameters(BACKGROUND_REMOVAL.THRESHOLDING.toString(), foregroundEdgeFusionThld, bckThldCond)
             .setHint("Method to remove background regions after merging.<br/><ul>" +
                     "<li><em>"+BACKGROUND_REMOVAL.BORDER_CONTACT.toString()+"</em>: Removes all regions directly in contact with upper, left and right borders of the microchannel. Length & width of microchannels should be adjusted so that bacteria going out of the microchannels are not within the segmented regions of the microchannel otherwise they may touch the left/right sides of the microchannels and be erased</li>" +
                     "<li><em>"+BACKGROUND_REMOVAL.THRESHOLDING.toString()+"</em>: Removes regions whose median value is smaller than the <em>Background Threshold</em></li>" +
                     "<li><em>"+BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING.toString()+"</em>: Combination of the two previous methods</li></ul>" +
                     "When <em>"+BACKGROUND_REMOVAL.THRESHOLDING.toString()+"</em> or <em>"+BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING.toString()+"</em> methods are selected, all adjacent regions that verify the condition defined in <em>Foreground Edge Fusion Threshold</em> are merged before removing background regions");
 
-    EnumChoiceParameter<FOREGROUND_SELECTION_METHOD> foregroundSelectionMethod=  new EnumChoiceParameter<>("Foreground selection Method", FOREGROUND_SELECTION_METHOD.values(), FOREGROUND_SELECTION_METHOD.EDGE_FUSION).setEmphasized(true);
+    EnumChoiceParameter<FOREGROUND_SELECTION_METHOD> foregroundSelectionMethod=  new EnumChoiceParameter<>("Foreground selection Method", FOREGROUND_SELECTION_METHOD.values(), FOREGROUND_SELECTION_METHOD.HYSTERESIS_THRESHOLDING).setEmphasized(true);
     ConditionalParameter foregroundSelectionCond = new ConditionalParameter(foregroundSelectionMethod)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.SIMPLE_THRESHOLDING.toString(), bckThldCond)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.HYSTERESIS_THRESHOLDING.toString(), bckThldCond, foreThldCond)
@@ -370,7 +372,26 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
-        return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
+        THRESHOLD_COMPUTATION back = bckThresholdMethod.getSelectedEnum();
+        switch(this.foregroundSelectionMethod.getSelectedEnum()) {
+            case SIMPLE_THRESHOLDING:
+                if (!back.equals(THRESHOLD_COMPUTATION.PARENT_TRACK)) return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+                else return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
+            case HYSTERESIS_THRESHOLDING:
+            default:
+                THRESHOLD_COMPUTATION fore = foreThresholdMethod.getSelectedEnum();
+                if (!back.equals(THRESHOLD_COMPUTATION.PARENT_TRACK) && !fore.equals(THRESHOLD_COMPUTATION.PARENT_TRACK)) return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+                else return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
+            case EDGE_FUSION:
+                switch (backgroundSel.getSelectedEnum()) {
+                    case THRESHOLDING:
+                    case BORDER_CONTACT_AND_THRESHOLDING:
+                        if (!back.equals(THRESHOLD_COMPUTATION.PARENT_TRACK)) return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+                        else return ProcessingPipeline.PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY;
+                    default:
+                        return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
+                }
+        }
     }
 
     protected double[] getTrackThresholds(List<SegmentedObject> parentTrack, int structureIdx, Set<SegmentedObject> voidMC) {
