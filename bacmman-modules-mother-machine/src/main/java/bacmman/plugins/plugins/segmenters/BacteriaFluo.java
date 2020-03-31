@@ -292,6 +292,8 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             sm.merge(pop, sm.objectNumberLimitCondition(backgroundL.size()+foregroundL.size()));
             //if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Foreground detection: region values after fusion (foreground fusion)"));
             pop.getRegions().removeAll(backgroundL);
+            // filter regions that have median value < background threshold
+            pop.filter(new RegionPopulation.QuantileIntensity(0.5, true, parent.getPreFilteredImage(structureIdx)));
         } else pop.getRegions().removeAll(backgroundL);
         pop.relabel(true);
         return pop;
