@@ -24,16 +24,16 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DLResampleAndScaleParameter> {
-    Logger logger = LoggerFactory.getLogger(DLResampleAndScaleParameter.class);
+public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLResizeAndScaleParameter> {
+    Logger logger = LoggerFactory.getLogger(DLResizeAndScaleParameter.class);
     enum MODE {NO_RESAMPLING, HOMOGENIZE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
-    ArrayNumberParameter contractionNumber = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{2, 2}, null).setEmphasized(true).setName("Contraction number").setHint("Number of contraction of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by 2**(contraction number)");
+    ArrayNumberParameter contractionNumber = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{2, 2}, null).setEmphasized(true).setName("Contraction number").setHint("Contraction/Upsampling level number of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by 2<sup>contraction number</sup>");
 
     ArrayNumberParameter tileShape = InputShapesParameter.getInputShapeParameter(false, false,  new int[]{64, 64}, null).setEmphasized(true).setName("Tile Shape");
     ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
     EnumChoiceParameter<Resample.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resample.EXPAND_MODE.values(), Resample.EXPAND_MODE.MIRROR, false);
-    ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Min Pad").setHint("Minimum Padding added on each side of the image");
+    ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
@@ -43,15 +43,11 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. Set -1 for no rescaling");
     GroupParameter outputGrp = new GroupParameter("Output", interpolation, outputScalerIndex).setEmphasized(true);
-    SimpleListParameter<GroupParameter> outputInterpAndScaling = new SimpleListParameter<>("Output Interpolation/Scaling", outputGrp).setNewInstanceNameFunction((s, i)->"output #"+i).setEmphasized(true).addValidationFunctionToChildren(grp -> ((BoundedNumberParameter)grp.getChildAt(1)).getValue().intValue()<inputInterpAndScaling.getChildCount()).setHint("For each output, set the interpolation mode and the index of the input scaler used to rescale back");
-    SimpleListParameter<BoundedNumberParameter> outputScaling = new SimpleListParameter<>("Output Scaling", outputScalerIndex).setNewInstanceNameFunction((s, i)->"scaler for output #"+i).addValidationFunctionToChildren(idx -> idx.getValue().intValue()<inputScaling.getChildCount()).setEmphasized(true).setHint("For each output, set the index of the input scaler used to rescale back");
+    SimpleListParameter<GroupParameter> outputInterpAndScaling = new SimpleListParameter<>("Output Interpolation/Scaling", outputGrp).setNewInstanceNameFunction((s, i)->"Output #"+i).setEmphasized(true).addValidationFunctionToChildren(grp -> ((BoundedNumberParameter)grp.getChildAt(1)).getValue().intValue()<inputInterpAndScaling.getChildCount()).setHint("For each output, set the interpolation mode and the index of the input scaler used to rescale back");
+    SimpleListParameter<BoundedNumberParameter> outputScaling = new SimpleListParameter<>("Output Scaling", outputScalerIndex).setNewInstanceNameFunction((s, i)->"Scaler index for output #"+i).addValidationFunctionToChildren(idx -> idx.getValue().intValue()<inputScaling.getChildCount()).setEmphasized(true).setHint("For each output, set the index of the input scaler used to rescale back");
 
-    public DLResampleAndScaleParameter(String name) {
-        super(new EnumChoiceParameter<>(name, MODE.values(), MODE.HOMOGENIZE, false));
-        this.setActionParameters(MODE.NO_RESAMPLING.toString(), inputScaling, outputScaling);
-        this.setActionParameters(MODE.HOMOGENIZE.toString(), targetShape, contractionNumber, inputInterpAndScaling, outputInterpAndScaling);
-        this.setActionParameters(MODE.PAD.toString(), targetShape, contractionNumber, paddingMode, minPad, inputScaling, outputScaling);
-        this.setActionParameters(MODE.TILE.toString(), tileShape, minOverlap, inputInterpAndScaling, outputInterpAndScaling);
+    public DLResizeAndScaleParameter(String name) {
+        super(new EnumChoiceParameter<>(name, MODE.values(), MODE.PAD, false));
         targetShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         contractionNumber.addValidationFunction(InputShapesParameter.sameRankValidation());
         tileShape.addValidationFunction(InputShapesParameter.sameRankValidation());
@@ -59,19 +55,20 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         minPad.addValidationFunction(InputShapesParameter.sameRankValidation());
         setMinInputNumber(1);
         setMinOutputNumber(1);
+        setConditionalParameter();
         setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>PAD: expand image to a fixed shape</li><li>TILE: image is split into tiles on which predictions are made. NOT SUPPORTED YET</li></ul>");
     }
-    public DLResampleAndScaleParameter addInputNumberValidation(IntSupplier inputNumber) {
+    public DLResizeAndScaleParameter addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         inputScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         return this;
     }
-    public DLResampleAndScaleParameter addOutputNumberValidation(IntSupplier outputNumber) {
+    public DLResizeAndScaleParameter addOutputNumberValidation(IntSupplier outputNumber) {
         outputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==outputNumber.getAsInt());
         outputScaling.addValidationFunction(list -> list.getChildCount()==outputNumber.getAsInt());
         return this;
     }
-    public DLResampleAndScaleParameter setMinInputNumber(int min) {
+    public DLResizeAndScaleParameter setMinInputNumber(int min) {
         inputInterpAndScaling.setUnmutableIndex(min-1);
         if (inputInterpAndScaling.getChildCount()<min) inputInterpAndScaling.setChildrenNumber(min);
         inputScaling.setUnmutableIndex(min-1);
@@ -79,14 +76,15 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         return this;
     }
 
-    public DLResampleAndScaleParameter setMaxInputNumber(int max) {
+    public DLResizeAndScaleParameter setMaxInputNumber(int max) {
         inputInterpAndScaling.setMaxChildCount(max);
         if (inputInterpAndScaling.getChildCount()>max) inputInterpAndScaling.setChildrenNumber(max);
         inputScaling.setMaxChildCount(max);
         if (inputScaling.getChildCount()>max) inputScaling.setChildrenNumber(max);
+        setConditionalParameter();
         return this;
     }
-    public DLResampleAndScaleParameter setMinOutputNumber(int min) {
+    public DLResizeAndScaleParameter setMinOutputNumber(int min) {
         outputInterpAndScaling.setUnmutableIndex(min-1);
         if (outputInterpAndScaling.getChildCount()<min) outputInterpAndScaling.setChildrenNumber(min);
         outputScaling.setUnmutableIndex(min-1);
@@ -94,14 +92,26 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         return this;
     }
 
-    public DLResampleAndScaleParameter setMaxOutputNumber(int max) {
+    public DLResizeAndScaleParameter setMaxOutputNumber(int max) {
         outputInterpAndScaling.setMaxChildCount(max);
         if (outputInterpAndScaling.getChildCount()>max) outputInterpAndScaling.setChildrenNumber(max);
         outputScaling.setMaxChildCount(max);
         if (outputScaling.getChildCount()>max) outputScaling.setChildrenNumber(max);
+        setConditionalParameter();
         return this;
     }
-    public DLResampleAndScaleParameter setEmphasized(boolean emp) {
+    private void setConditionalParameter() {
+        Parameter iS = inputScaling.getMaxChildCount()==1 ? inputScaling.getChildAt(0) : inputScaling;
+        Parameter oS = outputScaling.getMaxChildCount()==1 ? outputScaling.getChildAt(0) : outputScaling;
+        Parameter iIS = inputInterpAndScaling.getMaxChildCount()==1 ? inputInterpAndScaling.getChildAt(0) : inputInterpAndScaling;
+        Parameter oIS = outputInterpAndScaling.getMaxChildCount()==1 ? outputInterpAndScaling.getChildAt(0) : outputInterpAndScaling;
+        this.setActionParameters(MODE.NO_RESAMPLING.toString(), iS, oS);
+        this.setActionParameters(MODE.HOMOGENIZE.toString(), targetShape, contractionNumber, iIS, oIS);
+        this.setActionParameters(MODE.PAD.toString(), targetShape, contractionNumber, paddingMode, minPad, iS, oS);
+        this.setActionParameters(MODE.TILE.toString(), tileShape, minOverlap, iIS, oIS);
+        initChildList();
+    }
+    public DLResizeAndScaleParameter setEmphasized(boolean emp) {
         super.setEmphasized(emp);
         return this;
     }
@@ -224,7 +234,7 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
                     int scalerIndex = outputScaling.getChildCount()>i ? outputScaling.getChildAt(i).getValue().intValue() : -1;
-                    outputONC[i] = scaleAndPadBack(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i], input.v3[scalerIndex], input.v2[scalerIndex>=0?scalerIndex:0]);
+                    outputONC[i] = scaleAndPadBack(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i], scalerIndex>=0 ? input.v3[scalerIndex] : null, input.v2[scalerIndex>=0?scalerIndex:0]);
                 }
                 return outputONC;
             }
@@ -310,8 +320,8 @@ public class DLResampleAndScaleParameter extends ConditionalParameterAbstract<DL
         return predictionResizedNC;
     }
     @Override
-    public DLResampleAndScaleParameter duplicate() {
-        DLResampleAndScaleParameter res = new DLResampleAndScaleParameter(name);
+    public DLResizeAndScaleParameter duplicate() {
+        DLResizeAndScaleParameter res = new DLResizeAndScaleParameter(name);
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;
