@@ -823,7 +823,7 @@ public class RegionPopulation {
         @Override
         public boolean keepObject(Region object) {
             double testValue = feature.performMeasurement(object);
-            logger.debug("FeatureFilter: {}, object: {}, testValue: {}, threshold: {}", feature.getClass().getSimpleName(), object.getLabel(), testValue, threshold);
+            //logger.debug("FeatureFilter: {}, object: {}, testValue: {}, threshold: {}", feature.getClass().getSimpleName(), object.getLabel(), testValue, threshold);
             if (Double.isNaN(testValue)) return true;
             if (keepOverThreshold) {
                 if (strict) return testValue>threshold;
