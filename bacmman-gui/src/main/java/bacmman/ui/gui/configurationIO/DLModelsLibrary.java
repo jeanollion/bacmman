@@ -189,7 +189,7 @@ public class DLModelsLibrary {
             tree.setSelectedGist(toSave);
         });
         // persistence of username account:
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "", true);
+        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true);
         if (username.getText().length() > 0) {
             fetchGists();
             updateGistDisplay();

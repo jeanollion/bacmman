@@ -21,6 +21,7 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistDLModel;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configuration.TransparentTreeCellRenderer;
 import org.slf4j.Logger;
@@ -32,6 +33,7 @@ import javax.swing.text.Element;
 import javax.swing.text.html.HTML;
 import javax.swing.tree.*;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
@@ -149,8 +151,14 @@ public class DLModelGistTreeGenerator {
                         GistTreeNode gtn = (GistTreeNode)node.getParent();
                         try {
                             Desktop.getDesktop().browse(new URI(mapURL(gtn.gist.getModelURL())));
-                        } catch (final IOException | URISyntaxException er) {
+                        } catch (final IOException | URISyntaxException | UnsupportedOperationException er) {
+                            GUI.log("Error while trying to access URL: "+ mapURL(gtn.gist.getModelURL()));
+                            GUI.log("Error: "+ er.toString());
                             logger.info("Error while trying to access URL", er);
+                            Toolkit.getDefaultToolkit()
+                                    .getSystemClipboard()
+                                    .setContents( new StringSelection(mapURL(gtn.gist.getModelURL())), null);
+                            GUI.log("URL copied to clipboard");
                         }
                         // TODO: direct download. gdrive case -> something like: wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=FILEID' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=FILEID" -O FILENAME && rm -rf /tmp/cookies.txt
                     }
