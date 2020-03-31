@@ -36,7 +36,7 @@ import bacmman.utils.Utils;
  * @author Jean Ollion
  */
 public class ThicknessAxis implements GeometricalFeature, Hint {
-    EnumChoiceParameter<ImageTransformation.MainAxis> axis = new EnumChoiceParameter<>("Axis", ImageTransformation.MainAxis.values(), null, false);
+    EnumChoiceParameter<ImageTransformation.MainAxis> axis = new EnumChoiceParameter<>("Axis", ImageTransformation.MainAxis.values(), null);
     ChoiceParameter statistics = new ChoiceParameter("Statistics", new String[]{"Mean", "Median", "Max"}, "Mean", false).setEmphasized(true);
     String toolTip = "Estimates the thickness of a region along a given axis (X, Y or Z) using a user-defined statistics";
     public ThicknessAxis setAxis(ImageTransformation.MainAxis axis) {

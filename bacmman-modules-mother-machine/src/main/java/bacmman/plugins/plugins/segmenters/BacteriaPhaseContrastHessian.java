@@ -27,7 +27,7 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
     NumberParameter maxYCoordinateR = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
     ConditionalParameter condR = new ConditionalParameter(upperCellCorrectionR).setActionParameters("true", upperCellLocalThresholdFactorR, maxYCoordinateR);
     protected NumberParameter localThresholdFactorRaw = new BoundedNumberParameter("Local Threshold Factor (on raw image)", 2, 2, 0, null).setEmphasized(true).setHint(localThresholdFactor.getHintText());
-    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodRaw = new EnumChoiceParameter<>("Contour Adjustment (on raw image)", CONTOUR_ADJUSTMENT_METHOD.values(), null, true).setHint("Method for contour adjustment, performed on raw input image");
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodRaw = new EnumChoiceParameter<>("Contour Adjustment (on raw image)", CONTOUR_ADJUSTMENT_METHOD.values(), null).setHint("Method for contour adjustment, performed on raw input image");
     ConditionalParameter contourAdjustmentCondRaw = new ConditionalParameter(contourAdjustmentMethodRaw).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactorRaw, condR);
 
     public BacteriaPhaseContrastHessian() {

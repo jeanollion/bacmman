@@ -41,7 +41,7 @@ import java.util.function.BiPredicate;
 public class RemoveTracksStartingAfterFrame implements TrackPostFilter, Hint {
     
     BoundedNumberParameter startFrame = new BoundedNumberParameter("Maximum starting frame", 0, 0, 0, null).setEmphasized(true);
-    EnumChoiceParameter<PostFilter.MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy", PostFilter.MERGE_POLICY.values(), PostFilter.MERGE_POLICY.ALWAYS_MERGE, false).setHint(MERGE_POLICY_TT);
+    EnumChoiceParameter<PostFilter.MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy", PostFilter.MERGE_POLICY.values(), PostFilter.MERGE_POLICY.ALWAYS_MERGE).setHint(MERGE_POLICY_TT);
     Parameter[] parameters = new Parameter[]{startFrame, mergePolicy};
     
     @Override

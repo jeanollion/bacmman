@@ -88,7 +88,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
         }
     }
     public final static String MERGE_POLICY_TT = "When an object p is linked to two objects n and m at the next frame, if the object m is removed by this post-filter p is then linked to one single object n at the next frame. This parameter controls whether the tracks of the objects p and n should be merged.<br/><ul><li>NEVER_MERGE: never merge tracks</li><li>ALWAYS_MERGE: always merge tracks</li><li>MERGE_TRACKS_SIZE_COND: merge tracks only if size(n) > 0.8 x size(p). <br />For bacteria, if a cell p divides into two cells m and n and the daughter m is removed, this option allows deciding whether division really occurred and n is the daughter of p or if the detected division was a false positive event and p and n are the same cell</li></ul>";
-    EnumChoiceParameter<MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",MERGE_POLICY.values(), MERGE_POLICY.ALWAYS_MERGE, false).setHint(MERGE_POLICY_TT);
+    EnumChoiceParameter<MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",MERGE_POLICY.values(), MERGE_POLICY.ALWAYS_MERGE).setHint(MERGE_POLICY_TT);
     @Override 
     public String getHintText() {
         return "Performs regular post-filter (frame-by-frame). If the post-filter removes segmented objects, lineage breaks are managed as defined in <em>Delete method</em> parameter";

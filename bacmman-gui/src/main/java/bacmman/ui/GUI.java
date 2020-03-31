@@ -614,7 +614,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 toggleDisplaySelection(1);
             }
         });
-        EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY, false);
+        EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY);
         PropertyUtils.setPersistant(shortcutPreset, "shortcut_preset");
         
         this.shortcuts = new Shortcuts(actionMap, Shortcuts.PRESET.valueOf(shortcutPreset.getValue()), ()->ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage());

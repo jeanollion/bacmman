@@ -64,9 +64,9 @@ public class SNR extends IntensityMeasurement implements Hint {
     protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class").setEmphasized(true);
     protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null).setHint("Dilated foreground objects will be excluded from background mask");
     protected BoundedNumberParameter erodeBorders = new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null).setHint("Background mask will be eroded in order to avoid border effects");
-    protected EnumChoiceParameter<FORMULA> formula = new EnumChoiceParameter<>("Formula", FORMULA.values(), FORMULA.AMPLITUDE_NORM_STD, e->e.name, false).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
-    protected EnumChoiceParameter<FOREGROUND_FORMULA> foregroundFormula = new EnumChoiceParameter<>("Foreground", FOREGROUND_FORMULA.values(), FOREGROUND_FORMULA.MEAN, e->e.name, false).setEmphasized(true).setHint("Foreground estimation method");
-    protected EnumChoiceParameter<BACKGROUND_FORMULA> backgroundFormula = new EnumChoiceParameter<>("Background", BACKGROUND_FORMULA.values(), BACKGROUND_FORMULA.MEAN, e->e.name, false).setEmphasized(true).setHint("Background estimation method");
+    protected EnumChoiceParameter<FORMULA> formula = new EnumChoiceParameter<>("Formula", FORMULA.values(), FORMULA.AMPLITUDE_NORM_STD, e->e.name).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
+    protected EnumChoiceParameter<FOREGROUND_FORMULA> foregroundFormula = new EnumChoiceParameter<>("Foreground", FOREGROUND_FORMULA.values(), FOREGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Foreground estimation method");
+    protected EnumChoiceParameter<BACKGROUND_FORMULA> backgroundFormula = new EnumChoiceParameter<>("Background", BACKGROUND_FORMULA.values(), BACKGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Background estimation method");
 
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, backgroundFormula, dilateExcluded, erodeBorders};}
     HashMap<Region, Region> foregroundMapBackground;

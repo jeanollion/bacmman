@@ -41,7 +41,7 @@ public class TrackLengthFilter implements TrackPostFilter, Hint {
     
     BoundedNumberParameter minSize = new BoundedNumberParameter("Minimum Length", 0, 0, 0, null).setEmphasized(true).setHint("Minimal track length (number of frames). The tracks whose length is smaller than this value will be removed");
     BoundedNumberParameter maxSize = new BoundedNumberParameter("Maximum Length", 0, 0, 0, null).setEmphasized(true).setHint("Maximal track length (number of frames). The tracks whose length is larger than this value will be removed. If this parameter is set to 0 no maximal length will be used.");
-    EnumChoiceParameter<PostFilter.MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",PostFilter.MERGE_POLICY.values(), PostFilter.MERGE_POLICY.ALWAYS_MERGE, false).setHint(PostFilter.MERGE_POLICY_TT);
+    EnumChoiceParameter<PostFilter.MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy",PostFilter.MERGE_POLICY.values(), PostFilter.MERGE_POLICY.ALWAYS_MERGE).setHint(PostFilter.MERGE_POLICY_TT);
     Parameter[] parameters = new Parameter[]{minSize, maxSize, mergePolicy};
     
     @Override

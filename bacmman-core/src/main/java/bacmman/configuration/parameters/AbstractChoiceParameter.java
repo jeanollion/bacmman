@@ -49,6 +49,7 @@ public abstract class AbstractChoiceParameter<P extends AbstractChoiceParameter<
     public void setSelectedItem(String selectedItem) {
         if (selectedItem==null || selectedItem.length()==0 || getNoSelectionString().equals(selectedItem)) {
             this.selectedItem = getNoSelectionString();
+            selectedIndex=-1;
         } else {
             this.selectedIndex=Utils.getIndex(listChoice, selectedItem);
             if (selectedIndex>=0) this.selectedItem=selectedItem;

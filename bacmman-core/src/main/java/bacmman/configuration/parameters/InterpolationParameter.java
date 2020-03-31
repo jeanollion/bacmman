@@ -13,7 +13,7 @@ public class InterpolationParameter extends ConditionalParameterAbstract<Interpo
     public enum INTERPOLATION {NEAREAST, NLINEAR, NLINEAR_CLAMPING, LANCZOS}
 
     public InterpolationParameter(String name, INTERPOLATION defaultValue) {
-        super(new EnumChoiceParameter<>(name, INTERPOLATION.values(), defaultValue, false));
+        super(new EnumChoiceParameter<>(name, INTERPOLATION.values(), defaultValue));
         setActionParameters(INTERPOLATION.LANCZOS.toString(), lanczosAlpha, lanczosClipping);
     }
 

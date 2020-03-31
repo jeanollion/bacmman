@@ -38,7 +38,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 3, 1, null ).setHint("Region with size (in pixels) inferior to this value will be erased");
     IntervalParameter probaRange = new IntervalParameter("Probability Range", 3, 0.001, 1, 0.25, 0.5).setHint("Threshold on predicted probability map. Lower value defines boundaries of spots, upper value is minimal value for seeds (local maxima)");
     enum METHOD {GAUSSIAN_FIT_ON_PREDICTION, THRESHOLD_ON_PREDICTION}
-    EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), GAUSSIAN_FIT_ON_PREDICTION, false);
+    EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), GAUSSIAN_FIT_ON_PREDICTION);
     ConditionalParameter methodCond = new ConditionalParameter(method)
             .setActionParameters(THRESHOLD_ON_PREDICTION.toString(), probaRange)
             .setActionParameters(GAUSSIAN_FIT_ON_PREDICTION.toString(), minimalProbability).setEmphasized(true);

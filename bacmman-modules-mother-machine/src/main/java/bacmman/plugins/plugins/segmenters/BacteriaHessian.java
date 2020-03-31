@@ -51,7 +51,7 @@ import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
  * @author Jean Ollion
  */
 public abstract class BacteriaHessian<T extends BacteriaHessian> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter { //implements DevPlugin {
-    public enum CONTOUR_ADJUSTMENT_METHOD {LOCAL_THLD_W_EDGE}
+    public enum CONTOUR_ADJUSTMENT_METHOD {NO_ADJUSTMENT, LOCAL_THLD_W_EDGE}
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
     NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 4, 0.3, 0, null).setEmphasized(true).setHint("After partitioning regions A and B are merged if mean(hessian) @ interface(A-B) / mean(intensity) @ interface(A-B)  is inferior to (this parameter). <br />Configuration Hint: Tune the value using intermediate image <em>Split cells: Interface values</em>, interface with a value over this threshold will not be merged. The chosen value should be set so that cells are not merged with background but each cell should not be over-segmented. Result of merging is shown in the image <em>Region values after merge partition</em>");
@@ -61,7 +61,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     NumberParameter upperCellLocalThresholdFactorHess = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinateHess = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
     ConditionalParameter upperCellCorrectionCondHess = new ConditionalParameter(upperCellCorrectionHess).setActionParameters("true", upperCellLocalThresholdFactorHess, maxYCoordinateHess);
-    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodHess = new EnumChoiceParameter<>("Contour Adjustment (hessian)", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment using hessian");
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodHess = new EnumChoiceParameter<>("Contour Adjustment (hessian)", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE).setHint("Method for contour adjustment using hessian");
     ConditionalParameter contourAdjustmentCondHess = new ConditionalParameter(contourAdjustmentMethodHess).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactorHess, upperCellCorrectionCondHess);
 
     BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
@@ -69,12 +69,12 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
     ConditionalParameter upperCellCorrectionCond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit edges. A lower value results in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this threshold (edges as defined by <em>Edge Map</em>). Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
-    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, true).setHint("Method for contour adjustment");
+    EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE).setHint("Method for contour adjustment");
     ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, upperCellCorrectionCond);
 
 
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};
-    EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN, false).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
+    EnumChoiceParameter<SPLIT_METHOD> splitMethod = new EnumChoiceParameter<>("Split method", SPLIT_METHOD.values(), SPLIT_METHOD.HESSIAN).setHint("Method for splitting objects (manual correction or tracker with local correction): MIN_WIDTH: splits at the interface of minimal width. Hessian: splits at the interface of maximal hessian value");
 
     // attributes parametrized during track parametrization
     double filterThld=Double.NaN;
@@ -191,6 +191,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
                 localThresholdWEdge(pop, splitAndMerge.getWatershedMap(), smooth, parent.getMask(), true, this.upperCellCorrectionHess.getSelected(), maxYCoordinateHess.getValue().intValue(), this.localThresholdFactorHess.getValue().doubleValue(), upperCellLocalThresholdFactorHess.getValue().doubleValue());
                 break;
             default:
+                break;
         }
         if (contourAdjustmentMethod.getSelectedIndex()<0) return;
 
@@ -200,6 +201,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
                 localThresholdWEdge(pop, edges, smooth, parent.getMask(), true, this.upperCellCorrection.getSelected(), maxYCoordinate.getValue().intValue(), this.localThresholdFactor.getValue().doubleValue(), upperCellLocalThresholdFactor.getValue().doubleValue());
                 break;
             default:
+                break;
         }
 
         if (stores != null) {

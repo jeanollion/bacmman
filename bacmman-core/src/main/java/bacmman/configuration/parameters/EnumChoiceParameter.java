@@ -29,25 +29,25 @@ import java.util.function.Function;
 public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameter<EnumChoiceParameter<E>>  {
     final E[] enumChoiceList;
     final Function<E, String> toString;
-    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, Function<E, String> toString, boolean allowNoSelection) {
+    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, Function<E, String> toString) {
         super(name, Arrays.stream(enumChoiceList)
                         .map(toString)
                         .toArray(String[]::new),
-                selectedItem==null ? null : toString.apply(selectedItem), allowNoSelection);
+                selectedItem==null ? null : toString.apply(selectedItem), false);
         this.enumChoiceList=enumChoiceList;
         this.toString=toString;
     }
-    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, boolean allowNoSelection) {
+    public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem) {
         super(name, Arrays.stream(enumChoiceList)
                 .map(Enum::toString)
                 .toArray(String[]::new),
-                selectedItem==null ? null : selectedItem.toString(), allowNoSelection);
+                selectedItem==null ? null : selectedItem.toString(), false);
         this.enumChoiceList=enumChoiceList;
         this.toString = Enum::toString;
     }
 
     @Override public EnumChoiceParameter<E> duplicate() {
-        EnumChoiceParameter<E> res = new EnumChoiceParameter<E>(name, enumChoiceList ,getSelectedEnum(), toString, allowNoSelection);
+        EnumChoiceParameter<E> res = new EnumChoiceParameter<E>(name, enumChoiceList ,getSelectedEnum(), toString);
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         res.setHint(toolTipText);

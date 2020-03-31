@@ -33,7 +33,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
 
     ArrayNumberParameter tileShape = InputShapesParameter.getInputShapeParameter(false, false,  new int[]{64, 64}, null).setEmphasized(true).setName("Tile Shape");
     ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
-    EnumChoiceParameter<Resize.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resize.EXPAND_MODE.values(), Resize.EXPAND_MODE.MIRROR, false);
+    EnumChoiceParameter<Resize.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resize.EXPAND_MODE.values(), Resize.EXPAND_MODE.MIRROR);
     ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
@@ -48,7 +48,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     SimpleListParameter<BoundedNumberParameter> outputScaling = new SimpleListParameter<>("Output Scaling", outputScalerIndex).setNewInstanceNameFunction((s, i)->"Scaler index for output #"+i).addValidationFunctionToChildren(idx -> idx.getValue().intValue()<inputScaling.getChildCount()).setEmphasized(true).setHint("For each output, set the index of the input scaler used to reverse histogram scaling");
 
     public DLResizeAndScaleParameter(String name) {
-        super(new EnumChoiceParameter<>(name, MODE.values(), MODE.PAD, false));
+        super(new EnumChoiceParameter<>(name, MODE.values(), MODE.PAD));
         targetShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         contractionNumber.addValidationFunction(InputShapesParameter.sameRankValidation());
         tileShape.addValidationFunction(InputShapesParameter.sameRankValidation());
