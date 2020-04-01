@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.DoublePredicate;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -625,9 +626,14 @@ public class ArrayUtil {
         for (int i = 0; i<array.length; ++i) res[i] = Math.round(array[i]);
         return res;
     }
+    public static long[] toLong(int[] array) {
+        long[] res= new long[array.length];
+        for (int i = 0; i<array.length; ++i) res[i] = array[i];
+        return res;
+    }
     public static double[] toDouble(int[] array) {
         double[] res= new double[array.length];
-        for (int i = 0; i<array.length; ++i) res[i] = (double)array[i];
+        for (int i = 0; i<array.length; ++i) res[i] = array[i];
         return res;
     }
     public static double[] toPrimitive(List<Double> coll) {
@@ -678,6 +684,9 @@ public class ArrayUtil {
     }
     public static <T> Stream<T> flatmap(T[][] array) { // TODO optimize for matrices: use Stream.concate
         return Arrays.stream(array).flatMap(Arrays::stream);
+    }
+    public static <T> List<T> concatenateLists(List<T>... collections) {
+        return Arrays.stream(collections).flatMap(Collection::stream).collect(Collectors.toList());
     }
     public static int[] reverse(int[] array, boolean inplace) {
         int l = array.length - 1;

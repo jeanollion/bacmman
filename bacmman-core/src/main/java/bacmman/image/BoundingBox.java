@@ -117,7 +117,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     public static SimpleBoundingBox getIntersection2D(BoundingBox b1, BoundingBox b2) {
         return new SimpleBoundingBox(Math.max(b1.xMin(), b2.xMin()), Math.min(b1.xMax(), b2.xMax()), Math.max(b1.yMin(), b2.yMin()), Math.min(b1.yMax(), b2.yMax()), b1.zMin(), b1.zMax());
     }
-    
+
     /**
      * Test inclusion in 3D
      * @param contained element that could be contained in {@param contained}

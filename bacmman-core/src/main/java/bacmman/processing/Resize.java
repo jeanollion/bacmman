@@ -16,13 +16,16 @@ import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.realtransform.RealViews;
 import net.imglib2.realtransform.Scale;
+import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
+import net.imglib2.view.ExtendedRandomAccessibleInterval;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 
 import java.util.Arrays;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 public class Resize {
 
@@ -152,4 +155,42 @@ public class Resize {
         }
     }
 
+    public static <T extends RealType<T>> RandomAccessibleInterval<T> crop(RandomAccessibleInterval<T> input, long[] coords, long[] sizes, EXPAND_MODE mode) {
+        FinalInterval newInterval = FinalInterval.createMinSize(coords, sizes);
+        switch (mode) {
+            case MIRROR:
+                return Views.interval( Views.extendMirrorSingle( input ), newInterval );
+            case BORDER:
+            default:
+                return Views.interval( Views.expandBorder( input ), newInterval );
+            case ZERO:
+                return Views.interval( Views.expandZero( input ), newInterval );
+        }
+    }
+
+    public static Image[] crop(Image input, long[][] coords, long[][] sizes, EXPAND_MODE mode) {
+        RandomAccessibleInterval<? extends RealType<?>> in = ImgLib2ImageWrapper.getImage(input);
+        RandomAccessible<? extends RealType<?>> inView;
+        switch (mode) {
+            case MIRROR:
+                inView = Views.extendMirrorSingle(  in );
+                break;
+            case BORDER:
+            default:
+                inView = Views.expandBorder(  in );
+                break;
+            case ZERO:
+                inView = Views.expandZero( (RandomAccessibleInterval<? extends NumericType>) in );
+                break;
+        }
+        Image[] res = IntStream.range(0, coords.length)
+                .mapToObj(i -> FinalInterval.createMinSize(coords[i], sizes.length>1 ? sizes[i] : sizes[0]))
+                .map(interval -> Views.interval( inView, interval )).map(im->ImgLib2ImageWrapper.wrap(im))
+                .toArray(Image[]::new);
+        for (int i = 0; i<res.length; ++i) { // absolute offset
+            res[i].setCalibration(input);
+            res[i].resetOffset().translate(input).translate((int)coords[i][0], (int)coords[i][1], coords[i].length>2 ? (int)coords[i][2] : 0);
+        }
+        return res;
+    }
 }

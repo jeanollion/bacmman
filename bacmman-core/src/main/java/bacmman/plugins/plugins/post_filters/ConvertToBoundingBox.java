@@ -38,7 +38,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
         return "Transforms a segmented object into a rectangular object corresponding to the bounding box of the region, modified by user-defined parameters in each direction. <br /> Similar to ExtendBounds module but with more options";
     }
     public enum METHOD { CONSTANT_SIZE, EXTEND_ON_SIDES, FROM_OBJECT_CLASS, NO_MODIFICATION }
-    public enum OUT_OF_BOUNDS_CONDITION { TRIM, KEEP_SIZE, KEEP_CENTER}
+    public enum OUT_OF_BOUNDS_CONDITION { TRIM, KEEP_SIZE, KEEP_CENTER, KEEP_START, KEEP_END}
     public enum CONSTANT_SIZE_CONDITION { ALWAYS, TARGET_SIZE_IS_SMALLER, TARGET_SIZE_IS_LARGER}
 
     EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), METHOD.CONSTANT_SIZE);
@@ -69,24 +69,37 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
                 EnumChoiceParameter<OUT_OF_BOUNDS_CONDITION> outOfBound = (EnumChoiceParameter<OUT_OF_BOUNDS_CONDITION>) parameters.get(1);
                 EnumChoiceParameter<CONSTANT_SIZE_CONDITION> constantSizeCondition = (EnumChoiceParameter<CONSTANT_SIZE_CONDITION>) parameters.get(2);
                 int newSize = size.getValue().intValue();
-                int delta = newSize - getDim(toModify, axisNumber);
-                logger.trace("modifiy axis: {}, oob: {}, cond: {}, target: {}, delta: {}", axisNumber, outOfBound.getSelectedEnum(), constantSizeCondition.getSelectedEnum(), newSize, delta);
-                if (delta == 0 ) return;
+                int deltaSize = newSize - getDim(toModify, axisNumber);
+                logger.trace("modifiy axis: {}, oob: {}, cond: {}, target: {}, delta: {}", axisNumber, outOfBound.getSelectedEnum(), constantSizeCondition.getSelectedEnum(), newSize, deltaSize);
+                if (deltaSize == 0 ) return;
                 switch (constantSizeCondition.getSelectedEnum()) {
                     case TARGET_SIZE_IS_LARGER:
-                        if (delta < 0) return;
+                        if (deltaSize < 0) return;
                         break;
                     case TARGET_SIZE_IS_SMALLER:
-                        if (delta>0) return;
+                        if (deltaSize>0) return;
                         break;
                 }
+                int vMin, vMax;
+                OUT_OF_BOUNDS_CONDITION oob;
+                if (OUT_OF_BOUNDS_CONDITION.KEEP_START.equals(outOfBound.getSelectedEnum())) {
+                    vMin = getBound(toModify, axisNumber, true);
+                    vMax = getBound(toModify, axisNumber, false) + deltaSize;
+                    oob = OUT_OF_BOUNDS_CONDITION.TRIM;
+                } else if (OUT_OF_BOUNDS_CONDITION.KEEP_END.equals(outOfBound.getSelectedEnum())) {
+                    vMin = getBound(toModify, axisNumber, true) - deltaSize;
+                    vMax = getBound(toModify, axisNumber, false);
+                    oob = OUT_OF_BOUNDS_CONDITION.TRIM;
+                } else {
+                    vMin = getBound(toModify, axisNumber, true) - (deltaSize - deltaSize / 2 );
+                    vMax = getBound(toModify, axisNumber, false) + deltaSize / 2;
+                    oob = outOfBound.getSelectedEnum();
+                }
 
-                int vMin = getBound(toModify, axisNumber, true) - (delta - delta / 2 );
-                int vMax = getBound(toModify, axisNumber, false) + delta / 2;
                 logger.trace("new vmin: {}, new vmax: {}", vMin, vMax);
                 setBound(toModify, vMin, axisNumber, true);
                 setBound(toModify, vMax, axisNumber, false);
-                ensureOutOfBound(toModify, parentBounds, axisNumber, outOfBound.getSelectedEnum());
+                ensureOutOfBound(toModify, parentBounds, axisNumber, oob);
                 return;
             }
             case EXTEND_ON_SIDES: {
