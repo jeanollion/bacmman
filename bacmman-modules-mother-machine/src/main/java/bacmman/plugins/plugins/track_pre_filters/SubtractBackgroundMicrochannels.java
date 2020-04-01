@@ -112,7 +112,7 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         // recover data
         idx = 0;
         for (SegmentedObject o : tm.parents) {
-            Image.pasteImage(allImagesY, preFilteredImages.get(o), null, tm.getObjectOffset(idx++, 1));
+            Image.pasteImageView(allImagesY, preFilteredImages.get(o), null, tm.getObjectOffset(idx++, 1));
             //fillOutsideMask(o.getRegion(), preFilteredImages.get(o));
         }
         long t3 = System.currentTimeMillis();
@@ -125,8 +125,8 @@ public class SubtractBackgroundMicrochannels implements TrackPreFilter, Hint, Hi
         ImageFloat res = new ImageFloat("", input.sizeX(), input.sizeY()+2*size, input.sizeZ());
         Image.pasteImage(input, res, new SimpleOffset(0, size, 0));
         Image imageFlip = ImageTransformation.flip(input, ImageTransformation.Axis.Y);
-        Image.pasteImage(imageFlip, res, null, input.getBoundingBox().resetOffset().setyMin(input.sizeY()-size));
-        Image.pasteImage(imageFlip, res, new SimpleOffset(0, size+input.sizeY(), 0), input.getBoundingBox().resetOffset().setyMax(size-1));
+        Image.pasteImageView(imageFlip, res, null, input.getBoundingBox().resetOffset().setyMin(input.sizeY()-size));
+        Image.pasteImageView(imageFlip, res, new SimpleOffset(0, size+input.sizeY(), 0), input.getBoundingBox().resetOffset().setyMax(size-1));
         return res;
     }
     private static void fillOutsideMask(Region o, Image input) {
