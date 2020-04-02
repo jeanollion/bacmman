@@ -1,10 +1,8 @@
 package bacmman.configuration.parameters;
 
 import bacmman.core.Core;
-import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
-import bacmman.image.Image;
-import bacmman.image.TypeConverter;
+import bacmman.dl.TileUtils;
+import bacmman.image.*;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.scalers.IQRScaler;
@@ -35,6 +33,8 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
     EnumChoiceParameter<Resize.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resize.EXPAND_MODE.values(), Resize.EXPAND_MODE.MIRROR);
     ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
+    BooleanParameter padTiles = new BooleanParameter("Pad border tiles", true).setHint("If true, border tiles will be padded by minimum overlap");
+    ConditionalParameter padTilesCond = new ConditionalParameter(padTiles).setActionParameters("true", paddingMode);
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
@@ -57,7 +57,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         setMinInputNumber(1);
         setMinOutputNumber(1);
         setConditionalParameter();
-        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>PAD: expand image to a fixed shape</li><li>TILE: image is split into tiles on which predictions are made. NOT SUPPORTED YET</li></ul>");
+        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>PAD: expand image to a fixed shape</li><li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
     }
     public DLResizeAndScaleParameter addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
@@ -109,7 +109,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         this.setActionParameters(MODE.SCALE_ONLY.toString(), iS, oS);
         this.setActionParameters(MODE.RESAMPLE.toString(), targetShape, contractionNumber, iIS, oIS);
         this.setActionParameters(MODE.PAD.toString(), targetShape, contractionNumber, paddingMode, minPad, iS, oS);
-        this.setActionParameters(MODE.TILE.toString(), tileShape, minOverlap, iS, oS);
+        this.setActionParameters(MODE.TILE.toString(), tileShape, minOverlap, padTilesCond, iS, oS);
         initChildList();
     }
     public DLResizeAndScaleParameter setEmphasized(boolean emp) {
@@ -208,7 +208,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
                 }
                 return new Triplet<>(imINC, shapesIN, scalers);
             }
-            case PAD:
+            case PAD: {
                 HistogramScaler[] scalers = inputScaling.get().toArray(new HistogramScaler[0]);
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
@@ -218,8 +218,21 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
                     shapesIN[i] = res.value;
                 }
                 return new Triplet<>(imINC, shapesIN, scalers);
-            case TILE:
-                throw new UnsupportedOperationException("TILE processing Not supported yet");
+            }
+            case TILE: {
+                Resize.EXPAND_MODE padding = padTiles.getSelected() ? paddingMode.getSelectedEnum() : null;
+                HistogramScaler[] scalers = inputScaling.get().toArray(new HistogramScaler[0]);
+                Image[][][] imINC = new Image[inputINC.length][][];
+                int[][][] shapesIN = new int[inputINC.length][][];
+                int[] tileShapeXYZ = ArrayUtil.reverse(tileShape.getArrayInt(), true);
+                int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
+                for (int i = 0; i < inputINC.length; ++i) {
+                    Pair<Image[][], int[][]> res = scaleAndTileInput(inputINC[i], padding, scalers[i], tileShapeXYZ, minOverlapXYZ);
+                    imINC[i] = res.key;
+                    shapesIN[i] = res.value;
+                }
+                return new Triplet<>(imINC, shapesIN, scalers);
+            }
         }
     }
     public Image[][][] processPrediction(Image[][][] predictionsONC, Triplet<Image[][][], int[][][], HistogramScaler[]> input) {
@@ -253,7 +266,16 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
                 return outputONC;
             }
             case TILE:
-                throw new UnsupportedOperationException("TILE processing Not supported yet");
+                Image[][][] outputONC = new Image[predictionsONC.length][][];
+                int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
+                for (int i = 0;i<predictionsONC.length; ++i) {
+                    int scalerIndex = outputScaling.getChildCount()>i ? outputScaling.getChildAt(i).getValue().intValue() : -1;
+                    for (int n = 0; n<predictionsONC[i].length; ++n) {
+                        for (int c = 0; c<predictionsONC[i][n].length; ++c) predictionsONC[i][n][c].resetOffset().translate(input.v1[scalerIndex>=0?scalerIndex:0][n][0]);
+                    }
+                    outputONC[i] = scaleAndTileReverse(input.v2[scalerIndex>=0?scalerIndex:0], predictionsONC[i], scalerIndex>=0 ? input.v3[scalerIndex] : null, minOverlapXYZ);
+                }
+                return outputONC;
         }
     }
     public static Pair<Image[][], int[][]> scaleInput(Image[][] inNC, HistogramScaler scaler) {
@@ -321,6 +343,44 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
             }
         }
         return predictionResizedNC;
+    }
+    public static Pair<Image[][], int[][]> scaleAndTileInput(Image[][] inNC, Resize.EXPAND_MODE padding, HistogramScaler scaler, int[] targetTileShape, int[] minOverlap) {
+        int[][] shapes = ResizeUtils.getShapes(inNC, false);
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloat(inNC[i][j], null, false) ));
+        if (scaler!=null) { // scale
+            List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
+            scaler.setHistogram(HistogramFactory.getHistogram(()-> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            scaler.transformInputImage(true);
+        }
+        Image[][] tilesNtC = TileUtils.splitTiles(inNC, targetTileShape, minOverlap, padding);
+        int nTiles = tilesNtC.length / inNC.length;
+        if (scaler!=null) IntStream.range(0, tilesNtC.length).parallel().forEach(n -> IntStream.range(0, tilesNtC[n].length).forEach(c -> {
+            tilesNtC[n][c] = scaler.scale(tilesNtC[n][c]);
+            tilesNtC[n][c].translate(inNC[n/nTiles][c].getBoundingBox().reverseOffset()); // tiles offset are relative to each input image because when merging them we don't have access to input offset
+        } ));
+        return new Pair<>(tilesNtC, shapes);
+    }
+
+    /**
+     *
+     * @param targetShape images of same type as tiles, tiles will be copied on them
+     * @param predNtC
+     * @param scaler
+     * @param minOverlap
+     * @return {@param targetNC} for convinience
+     */
+    public static Image[][] scaleAndTileReverse(int[][] targetShape, Image[][] predNtC, HistogramScaler scaler, int[] minOverlap) {
+        if (scaler!=null){
+            scaler.transformInputImage(true);
+            IntStream.range(0, predNtC.length).parallel().forEach(i -> IntStream.range(0, predNtC[i].length).forEach(j -> predNtC[i][j] = scaler.reverseScale(predNtC[i][j]) ));
+        }
+        Image[][] targetNC = IntStream.range(0, targetShape.length)
+                .mapToObj(i -> IntStream.range(0, predNtC[i].length)
+                        .mapToObj(c -> Image.createEmptyImage("", predNtC[i][c], new SimpleImageProperties(new SimpleBoundingBox(0, targetShape[i][0]-1, 0, targetShape[i][1]-1, 0, targetShape[i].length>2 ? targetShape[i][2]-1: 0), predNtC[i][c].getScaleXY(), predNtC[i][c].getScaleZ())
+                        )).toArray(Image[]::new)
+                ).toArray(Image[][]::new);
+        TileUtils.mergeTiles(targetNC, predNtC, minOverlap);
+        return targetNC;
     }
     @Override
     public DLResizeAndScaleParameter duplicate() {

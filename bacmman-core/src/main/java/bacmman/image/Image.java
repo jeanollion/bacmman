@@ -64,15 +64,6 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         }
     }
 
-    /**
-     * Paste
-     * @param source
-     * @param dest
-     * @param sourceView
-     */
-    public static void pasteImageView(Image source, Image dest, BoundingBox sourceView) {
-        pasteImageView(source, dest, source.getBoundingBox(), sourceView);
-    }
     public static void pasteImageView(Image source, Image dest, Offset destinationOffset, BoundingBox sourceView) {
         if (source.getClass() != dest.getClass()) {
             throw new IllegalArgumentException("Paste Image: source and destination should be of the same type (source: " + source.getClass().getSimpleName() + " destination: " + dest.getClass().getSimpleName() + ")");

@@ -626,6 +626,11 @@ public class ArrayUtil {
         for (int i = 0; i<array.length; ++i) res[i] = Math.round(array[i]);
         return res;
     }
+    public static int[] toInt(long[] array) {
+        int[] res= new int[array.length];
+        for (int i = 0; i<array.length; ++i) res[i] = (int)(array[i]);
+        return res;
+    }
     public static long[] toLong(int[] array) {
         long[] res= new long[array.length];
         for (int i = 0; i<array.length; ++i) res[i] = array[i];
@@ -702,5 +707,14 @@ public class ArrayUtil {
             for (int i = 0; i<array.length; ++i) rev[i] = array[l-i];
             return rev;
         }
+    }
+
+    public static <T> T[][] transpose(T[][] source, T[][] target) {
+        for (int i = 0; i<source.length; ++i) {
+            for (int j = 0; j<source[i].length; ++j) {
+                target[j][i] = source[i][j];
+            }
+        }
+        return target;
     }
 }

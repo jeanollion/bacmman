@@ -338,6 +338,9 @@ public class Utils {
     public static <T> String toStringArray(int[] array) {
         return toStringArray(array, "[", "]", "; ").toString();
     }
+    public static <T> String toStringArray(long[] array) {
+        return toStringArray(array, "[", "]", "; ").toString();
+    }
     public static <T> String toStringArrayShort(List<Integer> array) {
         return toStringArrayShort(array.stream().mapToInt(i->i).toArray());
     }
@@ -418,7 +421,20 @@ public class Utils {
         sb.append(end);
         return sb;
     }
-    
+    public static <T> StringBuilder toStringArray(long[] array, String init, String end, String sep) {
+        StringBuilder sb = new StringBuilder(init);
+        if (array.length==0) {
+            sb.append(end);
+            return sb;
+        }
+        for (int i = 0; i<array.length-1; ++i) {
+            sb.append(array[i]);
+            sb.append(sep);
+        }
+        sb.append(array[array.length-1]);
+        sb.append(end);
+        return sb;
+    }
     public static <T> StringBuilder toStringArray(int[] array, String init, String end, String sep) {
         StringBuilder sb = new StringBuilder(init);
         if (array.length==0) {

@@ -54,6 +54,18 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
     @Override public int yMax() { return yMax; }
     @Override public int zMin() { return zMin; }
     @Override public int zMax() { return zMax; }
+    @Override public int getMax(int dim) {
+        switch(dim) {
+            case 0:
+                return xMax;
+            case 1:
+                return yMax;
+            case 2:
+                return zMax;
+            default:
+                throw new IllegalArgumentException("out-of-dimension");
+        }
+    }
     @Override public int sizeX() { return xMax-xMin+1; }
     @Override public int sizeY() { return yMax-yMin+1; }
     @Override public int sizeZ() { return zMax-zMin+1; }

@@ -34,6 +34,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     int xMax();
     int yMax();
     int zMax();
+    int getMax(int dim);
     int sizeX();
     int sizeY();
     int sizeZ();
