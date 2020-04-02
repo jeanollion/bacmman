@@ -65,7 +65,6 @@ public class Utils {
                 .toArray(Image[][]::new);
     }
     public static Image[] resample(Image[] imagesN, boolean isBinary, int[][] shapeN) {
-        logger.debug("resample: shape l :{} shape0 '= {}", shapeN.length, shapeN[0]);
         Stream<Image> s = IntStream.range(0, imagesN.length).parallel()
                 .mapToObj(idx -> Resize.resample(imagesN[idx], isBinary, shapeN.length==1 ? shapeN[0] : shapeN[idx]));
         return s.toArray(Image[]::new);
