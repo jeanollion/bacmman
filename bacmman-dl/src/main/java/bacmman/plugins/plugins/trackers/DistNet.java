@@ -13,6 +13,7 @@ import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
+import com.google.common.collect.Sets;
 
 import java.util.*;
 import java.util.function.Function;
@@ -37,7 +38,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
         if (stores!=null && edm_div_dy_np[1]!=null) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
         segment(objectClassIdx, parentTrack, edm_div_dy_np[0], edm_div_dy_np[2], postFilters, factory);
-        track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], editor);
+        track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], editor, factory);
     }
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
@@ -163,7 +164,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             factory.setChildObjects(p, pop);
         });
     }
-    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> noPrev, TrackLinkEditor editor) {
+    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         if (stores!=null) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
         if (stores!=null && noPrev!=null) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
 
@@ -217,6 +218,33 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             nextToPrevMap.entrySet().stream().filter(e -> e.getValue()!=null)
                     .filter(e->nextCount.get(e.getValue())>1)
                     .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
+
+            if (division!=null) { // Take into account div map: when 2 object have same previous cell
+                Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
+                while(it.hasNext()) {
+                    Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
+                    if (div.getValue().size()>=2) {
+                        if (div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).allMatch(d->d<0.5)) {
+                            logger.debug("Repairing division ... frame: {} probas: {}", div.getKey().getFrame()+1, div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).toArray());
+                            // try to merge all objects if they are in contact...
+                            List<SegmentedObject> divL = new ArrayList<>(div.getValue());
+                            divL.sort(Comparator.comparingInt(o -> o.getBounds().yMin()));
+                            int gap = 0;
+                            while(divL.size()>1+gap) {
+                                if (divL.get(1).getBounds().yMin() <= divL.get(0).getBounds().yMax()) { // TODO refine contact criterium
+                                    divL.get(0).getRegion().merge(divL.remove(1).getRegion());
+                                } else ++gap;
+                            }
+                            if (divL.size()<div.getValue().size()) {
+                                factory.removeFromParent(Sets.difference(div.getValue(), new HashSet<>(divL)).toArray(new SegmentedObject[0]));
+                                factory.relabelChildren(divL.get(0).getParent());
+                                div.getValue().clear();
+                                div.getValue().addAll(divL);
+                            }
+                        }
+                    }
+                }
+            }
 
             // artifact of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
             // when a division is detected: check if the mother cell divided at previous frame.
