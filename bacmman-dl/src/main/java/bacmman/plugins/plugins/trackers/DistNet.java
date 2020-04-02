@@ -219,20 +219,25 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     .filter(e->nextCount.get(e.getValue())>1)
                     .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
 
-            if (division!=null) { // Take into account div map: when 2 object have same previous cell
+            /*if (division!=null) { // Take into account div map: when 2 object have same previous cell
                 Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
                 while(it.hasNext()) {
                     Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
                     if (div.getValue().size()>=2) {
                         if (div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).allMatch(d->d<0.5)) {
-                            logger.debug("Repairing division ... frame: {} probas: {}", div.getKey().getFrame()+1, div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).toArray());
                             // try to merge all objects if they are in contact...
                             List<SegmentedObject> divL = new ArrayList<>(div.getValue());
                             divL.sort(Comparator.comparingInt(o -> o.getBounds().yMin()));
+                            logger.debug("Repairing division ... frame: {} candidates: {} probas: {}", frame, divL.stream().map(o->o.getBounds()).toArray(BoundingBox[]::new), divL.stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).toArray());
+
                             int gap = 0;
                             while(divL.size()>1+gap) {
                                 if (divL.get(1).getBounds().yMin() <= divL.get(0).getBounds().yMax()) { // TODO refine contact criterium
-                                    divL.get(0).getRegion().merge(divL.remove(1).getRegion());
+                                    SegmentedObject toRemove = divL.remove(1);
+                                    nextToPrevMap.remove(toRemove);
+                                    objects.remove(toRemove);
+                                    divL.get(0).getRegion().merge(toRemove.getRegion());
+                                    logger.debug("merging: {} with {}", toRemove, divL.get(0));
                                 } else ++gap;
                             }
                             if (divL.size()<div.getValue().size()) {
@@ -244,7 +249,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                         }
                     }
                 }
-            }
+            }*/
 
             // artifact of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
             // when a division is detected: check if the mother cell divided at previous frame.
