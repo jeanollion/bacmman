@@ -58,10 +58,17 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     @Override public Duplicate addPostFilters(Collection<PostFilter> postFilter){
         throw new IllegalArgumentException("No post filters allowed for duplicate processing scheme");
     }
+
     @Override
-    public Segmenter getSegmenter() {
+    public ObjectSplitter getObjectSplitter() {
         return null;
     }
+
+    @Override
+    public ManualSegmenter getManualSegmenter() {
+        return null;
+    }
+
     @Override
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         segmentOnly(structureIdx, parentTrack, factory, editor);

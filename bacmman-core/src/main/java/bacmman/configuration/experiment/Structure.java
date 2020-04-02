@@ -182,10 +182,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         ObjectSplitter res = objectSplitter.instantiatePlugin();
         if (res == null) {
             ProcessingPipeline ps = this.processingPipeline.instantiatePlugin();
-            if (ps!=null) {
-                Segmenter s = ps.getSegmenter();
-                if (s instanceof ObjectSplitter) return (ObjectSplitter)s;
-            }
+            if (ps!=null) return ps.getObjectSplitter();
         }
         return res;
     }
@@ -194,10 +191,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         ManualSegmenter res= manualSegmenter.instantiatePlugin();
         if (res == null) {
             ProcessingPipeline ps = this.processingPipeline.instantiatePlugin();
-            if (ps!=null) {
-                Segmenter s = ps.getSegmenter();
-                if (s instanceof ManualSegmenter) return (ManualSegmenter)s;
-            }
+            if (ps!=null) return ps.getManualSegmenter();
         }
         return res;
     }

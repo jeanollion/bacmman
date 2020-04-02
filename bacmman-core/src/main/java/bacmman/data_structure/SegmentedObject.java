@@ -650,9 +650,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         }
     }
 
-    SegmentedObject split(ObjectSplitter splitter) { // in 2 objects
+    SegmentedObject split(Image input, ObjectSplitter splitter) { // in 2 objects
         // get cropped image
-        RegionPopulation pop = splitter.splitObject(getParent(), structureIdx, getRegion());
+        if (input==null) input = getParent().getPreFilteredImage(structureIdx);
+        RegionPopulation pop = splitter.splitObject(input, getParent(), structureIdx, getRegion());
         if (pop==null || pop.getRegions().size()==1) {
             logger.warn("split error: {}", this);
             return null;

@@ -87,8 +87,23 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
 
     @Override public String getHintText() {return simpleTT + toolTip + toolTipAlgo;}
 
-    @Override public SegmenterSplitAndMerge getSegmenter() {
+    public SegmenterSplitAndMerge getSegmenter() {
         return segmenter.instantiatePlugin();
+    }
+
+
+    @Override
+    public ObjectSplitter getObjectSplitter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ObjectSplitter) return (ObjectSplitter)seg;
+        return null;
+    }
+
+    @Override
+    public ManualSegmenter getManualSegmenter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ObjectSplitter) return (ManualSegmenter)seg;
+        return null;
     }
 
     // tracker-related attributes 

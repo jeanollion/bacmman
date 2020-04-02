@@ -1,5 +1,6 @@
 package bacmman.data_structure;
 
+import bacmman.image.Image;
 import bacmman.plugins.ObjectSplitter;
 
 import java.util.Collection;
@@ -41,8 +42,8 @@ public class SegmentedObjectFactory {
         if (object.getStructureIdx()!=editableObjectClassIdx) throw new IllegalArgumentException("Object is not editable");
         object.setIdx(idx);
     }
-    public SegmentedObject split(SegmentedObject object, ObjectSplitter splitter) {
-        return object.split(splitter);
+    public SegmentedObject split(Image input, SegmentedObject object, ObjectSplitter splitter) {
+        return object.split(input, splitter);
     }
 
     public void removeFromParent(SegmentedObject... objects) {

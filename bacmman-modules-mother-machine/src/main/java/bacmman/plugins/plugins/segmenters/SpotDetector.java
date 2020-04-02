@@ -334,8 +334,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
     }
 
     @Override
-    public RegionPopulation splitObject(SegmentedObject parent, int structureIdx, Region object) {
-        Image input = parent.getPreFilteredImage(structureIdx);
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         Image wsMap = FastRadialSymmetryTransformUtil.runTransform(input, radii.getArrayDouble(), FastRadialSymmetryTransformUtil.fluoSpotKappa, false, FastRadialSymmetryTransformUtil.GRADIENT_SIGN.POSITIVE_ONLY, 1.5, 1, 0);
         wsMap = object.isAbsoluteLandMark() ? wsMap.cropWithOffset(object.getBounds()) : wsMap.crop(object.getBounds());
         RegionPopulation res =  WatershedObjectSplitter.splitInTwo(wsMap, object.getMask(), true, true, manualSplitVerbose);

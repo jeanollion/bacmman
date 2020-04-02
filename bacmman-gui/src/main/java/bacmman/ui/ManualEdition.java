@@ -28,6 +28,7 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.processing_pipeline.SegmentationAndTrackingProcessingPipeline;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
@@ -434,14 +435,11 @@ public class ManualEdition {
     }
     public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, Experiment xp , ObjectDAO dao) {
         Processor.ensureScalerConfiguration(dao, structureIdx);
-        int parentStructureIdx = xp.getStructure(structureIdx).getParentStructure();
-        TrackPreFilterSequence tpf = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(false);
-        ProcessingPipeline.PARENT_TRACK_MODE mode = tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(ProcessingPipeline.PARENT_TRACK_MODE.COMPARATOR).orElse(ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
-        if (xp.getStructure(structureIdx).getProcessingScheme().getSegmenter() instanceof TrackConfigurable) {
-            ProcessingPipeline.PARENT_TRACK_MODE  m = ((TrackConfigurable)xp.getStructure(structureIdx).getProcessingScheme().getSegmenter()).parentTrackMode();
-            if (m.value<mode.value) mode = m;
-        }
-        TrackPreFilterSequence tpfWithPF = xp.getStructure(structureIdx).getProcessingScheme().getTrackPreFilters(true);
+        ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
+        if (pipeline instanceof SegmentationAndTrackingProcessingPipeline) ((SegmentationAndTrackingProcessingPipeline)pipeline).getTrackPostFilters().removeAllElements(); // we remove track post filter so that they do not inlfuence mode
+        ProcessingPipeline.PARENT_TRACK_MODE mode = ProcessingPipeline.parentTrackMode(pipeline);
+
+        TrackPreFilterSequence tpfWithPF = pipeline.getTrackPreFilters(true);
         List<List<SegmentedObject>> tracks;
         parents = parents.filter(p -> p.getPreFilteredImage(structureIdx)==null);
         switch (mode) {
@@ -507,9 +505,9 @@ public class ManualEdition {
             for (SegmentedObject objectToSplit : objectsToSplit) {
                 if (defaultSplitter==null) splitter = xp.getStructure(structureIdx).getObjectSplitter();
                 splitter.setSplitVerboseMode(test);
-                if (test) splitter.splitObject(objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
+                if (test) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                 else {
-                    SegmentedObject newObject = factory.split(objectToSplit, splitter);
+                    SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
                     if (newObject==null) logger.warn("Object could not be split!");
                     else {
                         newObjects.add(newObject);

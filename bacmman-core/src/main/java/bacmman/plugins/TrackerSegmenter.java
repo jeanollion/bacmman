@@ -41,7 +41,12 @@ public interface TrackerSegmenter extends Tracker {
     void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor);
     /**
      * Optional method, can return null
-     * @return the segmenter used for the tracking process
+     * @return ObjectSplitter for manual curation
      */
-    Segmenter getSegmenter();
+    ObjectSplitter getObjectSplitter();
+    /**
+     * Optional method, can return null
+     * @return ManualSegmenter for manual curation
+     */
+    ManualSegmenter getManualSegmenter();
 }

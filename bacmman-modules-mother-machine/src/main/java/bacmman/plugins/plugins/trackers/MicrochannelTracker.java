@@ -477,10 +477,20 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         }
         return false;
     }
-    
-    @Override
+
     public MicrochannelSegmenter getSegmenter() {
         return this.segmenter.instantiatePlugin();
+    }
+
+
+    @Override
+    public ObjectSplitter getObjectSplitter() {
+        return null;
+    }
+
+    @Override
+    public ManualSegmenter getManualSegmenter() {
+        return null;
     }
 
     @Override

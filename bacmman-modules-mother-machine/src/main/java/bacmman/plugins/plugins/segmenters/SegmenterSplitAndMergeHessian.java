@@ -67,7 +67,7 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
     @Override
     public double split(SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
         result.clear();
-        RegionPopulation pop =  splitObject(parent, structureIdx, o); // after this step pop is in same landmark as o's landmark
+        RegionPopulation pop =  splitObject(parent.getPreFilteredImage(structureIdx), parent, structureIdx, o); // after this step pop is in same landmark as o's landmark
         if (pop.getRegions().size()<=1) return Double.POSITIVE_INFINITY;
         else {
             if (tempSplitMask==null) tempSplitMask = new ImageByte("split mask", parent.getMask());

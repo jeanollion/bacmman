@@ -12,6 +12,7 @@ import bacmman.processing.ResizeUtils;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
+import bacmman.utils.geom.Point;
 
 import java.util.*;
 import java.util.function.Function;
@@ -326,9 +327,68 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         double relativeMeanY =  IntStream.range(0, size.length).mapToDouble(i -> size[i] * yCoord[i]).sum() / sumSize;
         return relativeMeanY - objects.iterator().next().getParent().getBounds().yMin();
     }
-    @Override
     public Segmenter getSegmenter() {
         return edmSegmenter.instantiatePlugin();
+    }
+
+    public Image predictEDM(SegmentedObject parent, int objectClassIdx) {
+        List<SegmentedObject> parentTrack = new ArrayList<>(3);
+        if (parent.getPrevious()!=null) parentTrack.add(parent.getPrevious());
+        else parentTrack.add(parent);
+        parentTrack.add(parent);
+        if (parent.getNext()!=null) parentTrack.add(parent.getNext());
+        Map<SegmentedObject, Image> predicitons = predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""))[0];
+        return predicitons.get(parent);
+    }
+
+    @Override
+    public ObjectSplitter getObjectSplitter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ObjectSplitter) { // Predict EDM and delegate method to segmenter
+            ObjectSplitter splitter = new ObjectSplitter() {
+                @Override
+                public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
+                    Image EDM = predictEDM(parent, structureIdx);
+                    return ((ObjectSplitter)seg).splitObject(EDM, parent, structureIdx, object);
+                }
+
+                @Override
+                public void setSplitVerboseMode(boolean verbose) {
+                    ((ObjectSplitter) seg).setSplitVerboseMode(verbose);
+                }
+
+                @Override
+                public Parameter[] getParameters() {
+                    return seg.getParameters();
+                }
+            };
+            return splitter;
+        } else return null;
+    }
+
+    @Override
+    public ManualSegmenter getManualSegmenter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ManualSegmenter) {
+            ManualSegmenter ms = new ManualSegmenter() {
+                @Override
+                public void setManualSegmentationVerboseMode(boolean verbose) {
+                    ((ManualSegmenter)seg).setManualSegmentationVerboseMode(verbose);
+                }
+
+                @Override
+                public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
+                    Image EDM = predictEDM(parent, objectClassIdx);
+                    return ((ManualSegmenter)seg).manualSegment(EDM, parent, segmentationMask, objectClassIdx, seedsXYZ);
+                }
+
+                @Override
+                public Parameter[] getParameters() {
+                    return seg.getParameters();
+                }
+            };
+            return ms;
+        } else return null;
     }
 
     @Override

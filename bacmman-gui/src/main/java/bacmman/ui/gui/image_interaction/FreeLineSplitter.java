@@ -22,13 +22,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.BoundingBox;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
-import bacmman.image.ImageMask;
-import bacmman.image.Offset;
-import bacmman.image.SimpleOffset;
-import bacmman.image.TypeConverter;
+import bacmman.image.*;
 
 import java.util.*;
 
@@ -58,7 +52,7 @@ public class FreeLineSplitter implements ObjectSplitter {
         });
     }
     @Override
-    public RegionPopulation splitObject(SegmentedObject parent, int structureIdx, Region object) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         ImageMask mask = object.getMask();
         ImageInteger splitMask = mask instanceof ImageInteger ? ((ImageInteger)mask).duplicate("splitMask") : TypeConverter.toImageInteger(mask, null);
         Offset off=offsetMap.get(object);

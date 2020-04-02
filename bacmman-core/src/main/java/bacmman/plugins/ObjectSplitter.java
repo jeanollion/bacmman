@@ -21,12 +21,13 @@ package bacmman.plugins;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.Image;
 
 /**
  *
  * @author Jean Ollion
  */
 public interface ObjectSplitter extends ImageProcessingPlugin {
-    RegionPopulation splitObject(SegmentedObject parent, int structureIdx, Region object);
+    RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object);
     void setSplitVerboseMode(boolean verbose);
 }

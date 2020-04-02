@@ -30,12 +30,10 @@ import java.util.List;
 import java.util.Map.Entry;
 
 import bacmman.image.SimpleBoundingBox;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.Hint;
+import bacmman.plugins.*;
 import bacmman.utils.HashMapGetCreate;
 import java.util.stream.Collectors;
 
-import bacmman.plugins.TrackConfigurable;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
@@ -176,5 +174,17 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     public Parameter[] getParameters() {
         return parameters;
     }
-    @Override public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
+    public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
+
+    public ObjectSplitter getObjectSplitter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ObjectSplitter) return (ObjectSplitter)seg;
+        else return null;
+    }
+
+    public ManualSegmenter getManualSegmenter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ManualSegmenter) return (ManualSegmenter)seg;
+        else return null;
+    }
 }

@@ -31,6 +31,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
+import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 import bacmman.ui.gui.image_interaction.*;
 
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
@@ -107,7 +108,15 @@ public class PluginConfigurationUtils {
         if (plugin instanceof Segmenter || plugin instanceof PostFilter) { // case segmenter -> segment only & call to test method
             boolean pf = plugin instanceof PostFilter;
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
-            Segmenter segmenter = pf ? psc.getSegmenter() : (Segmenter)plugin;
+            Segmenter segmenter= null;
+            if (psc instanceof SegmentOnly) segmenter = ((SegmentOnly)psc).getSegmenter();
+            else if (psc instanceof SegmentThenTrack) segmenter = ((SegmentThenTrack)psc).getSegmenter();
+
+            if (segmenter == null) {
+                GUI.log("WARNING: Segmentation may differ from the context of selected pipeline");
+                segmenter = (Segmenter)plugin;
+            }
+
             boolean runPreFiltersOnWholeTrack = (!psc.getTrackPreFilters(false).isEmpty() && psc.getTrackPreFilters(false).get().stream().anyMatch(f->!f.parentTrackMode().allowIntervals())) || (plugin instanceof TrackConfigurable && !((TrackConfigurable)plugin).parentTrackMode().allowIntervals());
             if (runPreFiltersOnWholeTrack)  psc.getTrackPreFilters(true).filter(structureIdx, wholeParentTrackDup);
             else  psc.getTrackPreFilters(true).filter(structureIdx, parentTrackDup); // only segmentation pre-filter -> run only on parentTrack

@@ -25,6 +25,8 @@ import bacmman.configuration.parameters.TrackPreFilterSequence;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectFactory;
 import bacmman.data_structure.TrackLinkEditor;
+import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
+import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 
 import java.util.Collection;
 import java.util.Comparator;
@@ -38,18 +40,19 @@ import java.util.function.BiFunction;
  * @param <T> type of ProcessingScheme
  */
 public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin { //Multithreaded
-    public  T addPreFilters(PreFilter... preFilters);
-    public  T addPostFilters(PostFilter... postFilters);
-    public  T addTrackPreFilters(TrackPreFilter... trackPreFilters);
-    public  T addPreFilters(Collection<PreFilter> preFilters);
-    public  T addPostFilters(Collection<PostFilter> postFilters);
-    public  T addTrackPreFilters(Collection<TrackPreFilter> trackPreFilters);
-    public TrackPreFilterSequence getTrackPreFilters(boolean addPreFilters);
-    public PreFilterSequence getPreFilters();
-    public PostFilterSequence getPostFilters();
-    public Segmenter getSegmenter();
-    public void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
-    public void trackOnly(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
+    T addPreFilters(PreFilter... preFilters);
+    T addPostFilters(PostFilter... postFilters);
+    T addTrackPreFilters(TrackPreFilter... trackPreFilters);
+    T addPreFilters(Collection<PreFilter> preFilters);
+    T addPostFilters(Collection<PostFilter> postFilters);
+    T addTrackPreFilters(Collection<TrackPreFilter> trackPreFilters);
+    TrackPreFilterSequence getTrackPreFilters(boolean addPreFilters);
+    PreFilterSequence getPreFilters();
+    PostFilterSequence getPostFilters();
+    ObjectSplitter getObjectSplitter();
+    ManualSegmenter getManualSegmenter();
+    void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
+    void trackOnly(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
     void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores);
 
     enum PARENT_TRACK_MODE {
@@ -72,12 +75,6 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
         TrackPreFilterSequence tpf = ps.getTrackPreFilters(false);
         PARENT_TRACK_MODE mode =  tpf.get().stream().map(TrackPreFilter::parentTrackMode).min(PARENT_TRACK_MODE.COMPARATOR).orElse(PARENT_TRACK_MODE.MULTIPLE_INTERVALS);
         if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(mode)) return mode;
-        Segmenter seg = ps.getSegmenter();
-        if (seg instanceof TrackConfigurable) {
-            PARENT_TRACK_MODE m = ((TrackConfigurable) seg).parentTrackMode();
-            if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(m)) return m;
-            mode = compare.apply(mode, m);
-        }
         if (ps instanceof ProcessingPipelineWithTracking) {
             ProcessingPipelineWithTracking pst = (ProcessingPipelineWithTracking)ps;
             TrackPostFilterSequence tpof = pst.getTrackPostFilters();
@@ -88,6 +85,16 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
             m = t.parentTrackMode();
             if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(m)) return m;
             mode = compare.apply(mode, m);
+        } else  {
+
+            Segmenter seg=null;
+            if (ps instanceof SegmentOnly) seg = ((SegmentOnly)ps).getSegmenter();
+            else if (ps instanceof SegmentThenTrack) seg = ((SegmentThenTrack)ps).getSegmenter();
+            if (seg instanceof TrackConfigurable) {
+                PARENT_TRACK_MODE m = ((TrackConfigurable) seg).parentTrackMode();
+                if (PARENT_TRACK_MODE.WHOLE_PARENT_TRACK_ONLY.equals(m)) return m;
+                mode = compare.apply(mode, m);
+            }
         }
         return mode;
     }

@@ -129,7 +129,21 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         track(structureIdx, parentTrack, true, allowSplitting.getSelected(), allowMerging.getSelected(), factory, editor);
     }
 
-    @Override public Segmenter getSegmenter() {
+    @Override
+    public ObjectSplitter getObjectSplitter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ObjectSplitter) return (ObjectSplitter)seg;
+        return null;
+    }
+
+    @Override
+    public ManualSegmenter getManualSegmenter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ManualSegmenter) return (ManualSegmenter)seg;
+        return null;
+    }
+
+    public Segmenter getSegmenter() {
         return segmenter.instantiatePlugin();
     }
     @Override public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {

@@ -317,9 +317,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
      * @param object
      * @return split objects in absolute landmark if {@param object} is in absolute landmark or in relative landmark to {@param parent}
      */
-    @Override public RegionPopulation splitObject(SegmentedObject parent, int structureIdx, Region object) {
-        Image input = parent.getPreFilteredImage(structureIdx);
-        if (input==null) throw new IllegalArgumentException("No prefiltered image set");
+    @Override public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;

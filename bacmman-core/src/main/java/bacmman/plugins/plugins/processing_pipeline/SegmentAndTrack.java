@@ -54,7 +54,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
         if (stores!=null && t instanceof TestableProcessingPlugin) ((TestableProcessingPlugin) t).setTestDataStore(stores);
         return t;
     }
-    
+
     @Override
     public void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (!tracker.isOnePluginSet()) {
@@ -95,11 +95,18 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
         nThreads = numThreads;
         return nThreads;
     }*/
-    @Override public Segmenter getSegmenter() {
+
+    @Override
+    public ObjectSplitter getObjectSplitter() {
         TrackerSegmenter t = tracker.instantiatePlugin();
-        if (t!=null) return t.getSegmenter();
+        if (t!=null) return t.getObjectSplitter();
         else return null;
     }
 
-    
+    @Override
+    public ManualSegmenter getManualSegmenter() {
+        TrackerSegmenter t = tracker.instantiatePlugin();
+        if (t!=null) return t.getManualSegmenter();
+        else return null;
+    }
 }

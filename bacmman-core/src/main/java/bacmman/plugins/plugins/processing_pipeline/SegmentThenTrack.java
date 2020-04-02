@@ -25,10 +25,7 @@ import java.util.List;
 
 import bacmman.data_structure.SegmentedObjectFactory;
 import bacmman.data_structure.TrackLinkEditor;
-import bacmman.plugins.Segmenter;
-import bacmman.plugins.Hint;
-import bacmman.plugins.TestableProcessingPlugin;
-import bacmman.plugins.Tracker;
+import bacmman.plugins.*;
 
 /**
  *
@@ -49,10 +46,21 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
     public String getHintText() {
         return "Performs the segmentation step followed by the Tracking step (independently)";
     }
-    
-    @Override
+
     public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
-    
+
+    public ObjectSplitter getObjectSplitter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ObjectSplitter) return (ObjectSplitter)seg;
+        else return null;
+    }
+
+    public ManualSegmenter getManualSegmenter() {
+        Segmenter seg = getSegmenter();
+        if (seg instanceof ManualSegmenter) return (ManualSegmenter)seg;
+        else return null;
+    }
+
     @Override
     public Tracker getTracker() {
         Tracker t =  tracker.instantiatePlugin();

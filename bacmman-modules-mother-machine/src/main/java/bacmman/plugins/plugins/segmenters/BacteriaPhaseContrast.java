@@ -409,9 +409,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         }
     }
     
-    @Override public RegionPopulation splitObject(SegmentedObject parent, int structureIdx, Region object) {
-        Image input = parent.getPreFilteredImage(structureIdx);
-        if (input==null) throw new IllegalArgumentException("No prefiltered image set");
+    @Override public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (splitAndMerge==null || !parent.equals(currentParent)) {
             currentParent = parent;
