@@ -23,13 +23,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint {
-    PluginParameter<Segmenter> edmSegmenter = new PluginParameter<>("EDM Segmenter", Segmenter.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
+    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
-    //BoundedNumberParameter maxLinkingDistance = new BoundedNumberParameter("Max linking distance", 1, 50, 0, null);
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, growthRateRange};
+    BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 0.75, 0, null);
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange};
 
     private static boolean next = false;
     private static boolean averagePredictions = true;
@@ -38,7 +38,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
         if (stores!=null && edm_div_dy_np[1]!=null) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
         segment(objectClassIdx, parentTrack, edm_div_dy_np[0], edm_div_dy_np[2], postFilters, factory);
-        track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], editor, factory);
+        track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], edm_div_dy_np[0], editor, factory);
     }
 
     private Map<SegmentedObject, Image>[] predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
@@ -164,7 +164,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             factory.setChildObjects(p, pop);
         });
     }
-    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, Map<SegmentedObject, Image> edm, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         if (stores!=null) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
         if (stores!=null && noPrev!=null) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
 
@@ -179,6 +179,8 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         // link each object to the closest previous object
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
+        double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
+        SegmenterSplitAndMerge seg = getSegmenter();
         Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
         for (int frame = minFrame+1; frame<=maxFrame; ++frame) {
             List<SegmentedObject> objects = objectsF.get(frame);
@@ -219,7 +221,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     .filter(e->nextCount.get(e.getValue())>1)
                     .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
 
-            /*if (division!=null) { // Take into account div map: when 2 object have same previous cell
+            /*if (division!=null && maxCorrectionCost>0) { // Take into account div map: when 2 object have same previous cell
                 Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
                 while(it.hasNext()) {
                     Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
@@ -228,23 +230,31 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                             // try to merge all objects if they are in contact...
                             List<SegmentedObject> divL = new ArrayList<>(div.getValue());
                             divL.sort(Comparator.comparingInt(o -> o.getBounds().yMin()));
-                            logger.debug("Repairing division ... frame: {} candidates: {} probas: {}", frame, divL.stream().map(o->o.getBounds()).toArray(BoundingBox[]::new), divL.stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).toArray());
-
-                            int gap = 0;
-                            while(divL.size()>1+gap) {
-                                if (divL.get(1).getBounds().yMin() <= divL.get(0).getBounds().yMax()) { // TODO refine contact criterium
-                                    SegmentedObject toRemove = divL.remove(1);
+                            SegmentedObject parent = divL.get(0).getParent();
+                            List<Region> regions = divL.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                            Offset off = new SimpleOffset((parent.getBounds())).reverseOffset();
+                            regions.forEach(r -> {
+                                r.translate(off);
+                                r.setIsAbsoluteLandmark(false);
+                            });
+                            double cost = seg.computeMergeCost(edm.get(parent), parent, divL.get(0).getStructureIdx(), regions);
+                            off.reverseOffset();
+                            regions.forEach(r -> {
+                                r.translate(off);
+                                r.setIsAbsoluteLandmark(true);
+                            });
+                            logger.debug("Repairing division ... frame: {} cost: {} candidates: {}  probas: {}", frame, cost, divL.stream().map(o->o.getBounds()).toArray(BoundingBox[]::new), divL.stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).toArray());
+                            if (cost<=maxCorrectionCost) {
+                                SegmentedObject merged = divL.remove(0);
+                                for (SegmentedObject toRemove : divL) {
                                     nextToPrevMap.remove(toRemove);
                                     objects.remove(toRemove);
-                                    divL.get(0).getRegion().merge(toRemove.getRegion());
-                                    logger.debug("merging: {} with {}", toRemove, divL.get(0));
-                                } else ++gap;
-                            }
-                            if (divL.size()<div.getValue().size()) {
-                                factory.removeFromParent(Sets.difference(div.getValue(), new HashSet<>(divL)).toArray(new SegmentedObject[0]));
-                                factory.relabelChildren(divL.get(0).getParent());
+                                    merged.getRegion().merge(toRemove.getRegion());
+                                }
+                                factory.removeFromParent(divL.toArray(new SegmentedObject[0]));
+                                factory.relabelChildren(parent);
                                 div.getValue().clear();
-                                div.getValue().addAll(divL);
+                                div.getValue().add(merged);
                             }
                         }
                     }
@@ -360,7 +370,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         double relativeMeanY =  IntStream.range(0, size.length).mapToDouble(i -> size[i] * yCoord[i]).sum() / sumSize;
         return relativeMeanY - objects.iterator().next().getParent().getBounds().yMin();
     }
-    public Segmenter getSegmenter() {
+    public SegmenterSplitAndMerge getSegmenter() {
         return edmSegmenter.instantiatePlugin();
     }
 

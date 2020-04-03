@@ -42,7 +42,7 @@ public class MergeScenario extends CorrectionScenario {
             listO = new ArrayList<>(objects); // avoid concurent modifications
             idxMin =  tracker.populations.get(frameMin).indexOf(listO.get(0));
             if (!listO.isEmpty()) {
-                this.cost = tracker.segmenters.getAndCreateIfNecessary(frame).computeMergeCost(tracker.getParent(frame), tracker.structureIdx, listO);
+                this.cost = tracker.segmenters.getAndCreateIfNecessary(frame).computeMergeCost(tracker.getParent(frame).getPreFilteredImage(tracker.structureIdx), tracker.getParent(frame), tracker.structureIdx, listO);
             } else cost = Double.POSITIVE_INFINITY;
             if (debugCorr) Plugin.logger.debug("Merge scenario: tp: {}, idxMin: {}, #objects: {}, cost: {}", frame, getIdxMin(), listO.size(), cost);
         }

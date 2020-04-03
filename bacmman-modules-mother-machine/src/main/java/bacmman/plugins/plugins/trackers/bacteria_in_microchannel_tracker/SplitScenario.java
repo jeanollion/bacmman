@@ -45,7 +45,7 @@ public class SplitScenario extends CorrectionScenario {
             super(frame, frame, tracker);
             this.o=o;
             splitObjects= new ArrayList<>();
-            cost = tracker.segmenters.getAndCreateIfNecessary(frame).split(tracker.getParent(frame), tracker.structureIdx, o, splitObjects);
+            cost = tracker.segmenters.getAndCreateIfNecessary(frame).split(tracker.getParent(frame).getPreFilteredImage(tracker.structureIdx), tracker.getParent(frame), tracker.structureIdx, o, splitObjects);
             idx = tracker.populations.get(frame).indexOf(o);
             if (idx<0) throw new IllegalArgumentException("Error SplitScenario at frame: "+frame+" object with bounds: "+o.getBounds()+ " not found");
             if (debugCorr) Plugin.logger.debug("Split scenario: tp: {}, idx: {}, cost: {} # objects: {}", frame, idx, cost, splitObjects.size());
@@ -56,7 +56,7 @@ public class SplitScenario extends CorrectionScenario {
             TreeMap<Pair<Double, Region>, List<Region>> res = new TreeMap(comp);
             for (Region oo : objects) {
                 List<Region> so= new ArrayList<>();
-                double c = tracker.segmenters.getAndCreateIfNecessary(frameMin).split(tracker.getParent(frameMin), tracker.structureIdx, oo, so);
+                double c = tracker.segmenters.getAndCreateIfNecessary(frameMin).split(tracker.getParent(frameMin).getPreFilteredImage(tracker.structureIdx), tracker.getParent(frameMin), tracker.structureIdx, oo, so);
                 if (so.size()>=2 && Double.isFinite(c) && !Double.isNaN(c)) res.put(new Pair(c, oo), so);
             }
             return res;

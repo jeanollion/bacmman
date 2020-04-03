@@ -20,6 +20,7 @@ package bacmman.plugins;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.Image;
 
 import java.util.List;
 
@@ -36,7 +37,7 @@ public interface SegmenterSplitAndMerge extends Segmenter {
      * @param result list in which put the resulting objects
      * @return a value representing the cost of splitting the object, NaN if the object could not be split
      */
-    double split(SegmentedObject parent, int structureIdx, Region o, List<Region> result);
+    double split(Image input, SegmentedObject parent, int structureIdx, Region o, List<Region> result);
     /**
      * Compute Merge Cost & removes from the list objects that are not in contact with the first object from the list
      * @param parent
@@ -44,5 +45,5 @@ public interface SegmenterSplitAndMerge extends Segmenter {
      * @param objects objects to be merged
      * @return a value representing the cost of merging the objects, NaN if none of the objects are in contact. 
      */
-    double computeMergeCost(SegmentedObject parent, int structureIdx, List<Region> objects);
+    double computeMergeCost(Image input, SegmentedObject parent, int structureIdx, List<Region> objects);
 }

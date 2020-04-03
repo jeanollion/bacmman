@@ -65,9 +65,10 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
         return inter;
     }
     @Override
-    public double split(SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
+    public double split(Image input, SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
         result.clear();
-        RegionPopulation pop =  splitObject(parent.getPreFilteredImage(structureIdx), parent, structureIdx, o); // after this step pop is in same landmark as o's landmark
+        if (input==null) input = parent.getPreFilteredImage(structureIdx);
+        RegionPopulation pop =  splitObject(input, parent, structureIdx, o); // after this step pop is in same landmark as o's landmark
         if (pop.getRegions().size()<=1) return Double.POSITIVE_INFINITY;
         else {
             if (tempSplitMask==null) tempSplitMask = new ImageByte("split mask", parent.getMask());
@@ -82,9 +83,9 @@ public abstract class SegmenterSplitAndMergeHessian implements SegmenterSplitAnd
 
     }
 
-    @Override public double computeMergeCost(SegmentedObject parent, int structureIdx, List<Region> objects) {
+    @Override public double computeMergeCost(Image input, SegmentedObject parent, int structureIdx, List<Region> objects) {
         if (objects.isEmpty() || objects.size()==1) return 0;
-        Image input = parent.getPreFilteredImage(structureIdx);
+        if (input==null) input = parent.getPreFilteredImage(structureIdx);
         RegionPopulation mergePop = new RegionPopulation(objects, objects.get(0).isAbsoluteLandMark() ? input : new BlankMask(input).resetOffset());
         mergePop.relabel(false); // ensure distinct labels , if not cluster cannot be found
         if (splitAndMerge==null || !parent.equals(currentParent)) {
