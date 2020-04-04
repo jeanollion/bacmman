@@ -68,10 +68,13 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
                 int size = i.getVoxels().size() + i.getDuplicatedVoxels().size();
                 double val = ArrayUtil.quantile(Stream.concat(i.getVoxels().stream(), i.getDuplicatedVoxels().stream()).mapToDouble(v -> edm.getPixel(v.x, v.y, v.z)).sorted(), size, 0.5); // max/median value @ interface
                 if (normalizeEdgeValues) {// normalize by mean edm value
+                    // mean within
+                    //double norm = ArrayUtil.quantile(DoubleStream.concat(edm.stream(i.getE1().getMask(), i.getE1().isAbsoluteLandMark()), edm.stream(i.getE2().getMask(), i.getE2().isAbsoluteLandMark())).filter(d->d>0).sorted(), (int)i.getE1().size()+(int)i.getE2().size(), 0.5);
                     // median local max edm value within 2 regions
                     double[] edmLM = DoubleStream.concat(edmLocalMax.stream(i.getE1().getMask(), i.getE1().isAbsoluteLandMark()), edmLocalMax.stream(i.getE2().getMask(), i.getE2().isAbsoluteLandMark())).filter(d->d>0).sorted().toArray();
                     double norm = ArrayUtil.median(edmLM);
-                    val =  val / norm;
+                    // min of 2 local max:
+                    return norm / val;
                 }
                 return 1/val;
             }

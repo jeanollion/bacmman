@@ -16,9 +16,7 @@ import bacmman.utils.geom.Point;
 import com.google.common.collect.Sets;
 
 import java.util.*;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -28,7 +26,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
-    BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 0.75, 0, null);
+    BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.25, 0, null).setHint("Increase this parameter to correct over-segmentation. The value corresponds to the maximum difference between interface value and split threshold (defined in the segmenter) for over-segmented interface. <br />Over-segmented cells are detected using the predicted division state: when a cell has several next cells and that their predicted division stated is less than 0.5, they are merged if they verify the criterion defined above.");
     Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange};
 
     private static boolean next = false;
@@ -61,7 +59,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         int channelEdmCur = predictions[predictions.length-1][0].length==1 ? 0 : 1;
         Image[] dy = ResizeUtils.getChannel(predictions[0], 0);
         Image[] edm = ResizeUtils.getChannel(predictions[predictions.length-1], channelEdmCur);
-        Image[] divMap = stores==null||!categories ? null : ResizeUtils.getChannel(predictions[1], 2);
+        Image[] divMap = categories ? ResizeUtils.getChannel(predictions[1], 2) : null;
         Image[] noPrevMap = categories ? ResizeUtils.getChannel(predictions[1], 3) : null;
         boolean[] noPrevParent = new boolean[parentTrack.size()];
         noPrevParent[0] = true;
@@ -164,16 +162,19 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             factory.setChildObjects(p, pop);
         });
     }
+    @FunctionalInterface
+    interface TriConsumer<A, B, C> {
+        void consume(A a, B b, C c);
+    }
     public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, Map<SegmentedObject, Image> edm, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         if (stores!=null) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
         if (stores!=null && noPrev!=null) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
-
-        Map<Region, Double> displacementMap = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(
-                o->o.getRegion(),
-                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0] * o.getParent().getBounds().sizeY() / 256d // / 256d factor is due to rescaling: dy is computed in pixels in the 32x256 image.
-        ));
-        Map<SegmentedObject, TrackingObject> objectSpotMap = parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel().collect(Collectors.toMap(o->o, o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), displacementMap.get(o.getRegion()))));
-
+        Map<SegmentedObject, Double> displacementMap = HashMapGetCreate.getRedirectedMap(
+                parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
+                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0] * o.getParent().getBounds().sizeY() / 256d, // / 256d factor is due to rescaling: dy is computed in pixels in the 32x256 image.
+                HashMapGetCreate.Syncronization.NO_SYNC
+        );
+        Map<SegmentedObject, TrackingObject> objectSpotMap = HashMapGetCreate.getRedirectedMap(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(), o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), displacementMap.get(o)), HashMapGetCreate.Syncronization.NO_SYNC);
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
         removeCrossingLinks(objectsF, objectSpotMap);
         // link each object to the closest previous object
@@ -188,12 +189,12 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             List<SegmentedObject> objectsPrev = objectsF.get(frame-1);
             if (objectsPrev==null || objectsPrev.isEmpty()) continue;
             Map<SegmentedObject, SegmentedObject> nextToPrevMap = Utils.toMapWithNullValues(objects.stream(), o->o, o->getClosest(o, objectsPrev, objectSpotMap), true);
-            // take into account noPrev : remove link with previous cell if object is detected as noPrev and there is another cell linked to the previous cell
+            // take into account noPrev  predicted state: remove link with previous cell if object is detected as noPrev and there is another cell linked to the previous cell
             if (noPrev!=null) {
                 Image np = noPrev.get(objects.get(0).getParent());
                 Map<SegmentedObject, Double> noPrevO = objects.stream()
                         .filter(o -> nextToPrevMap.get(o) != null)
-                        .filter(o -> Math.abs(objectSpotMap.get(o).dy) < 1) // only when no displacement is computed
+                        .filter(o -> Math.abs(objectSpotMap.get(o).dy) < 1) // only when null displacement is predicted
                         .collect(Collectors.toMap(o -> o, o -> BasicMeasurements.getMeanValue(o.getRegion(), np)));
                 noPrevO.entrySet().removeIf(e -> e.getValue() < 0.5);
                 noPrevO.forEach((o, npV) -> {
@@ -221,45 +222,97 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     .filter(e->nextCount.get(e.getValue())>1)
                     .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
 
-            /*if (division!=null && maxCorrectionCost>0) { // Take into account div map: when 2 object have same previous cell
+
+            // NEXT SECTION :USE OF PREDICTION OF DIVISION STATE AND DY TO REDUCE OVER-SEGMENTATION. MINOR EFFECT
+            TriConsumer<SegmentedObject, SegmentedObject, Collection<SegmentedObject>> mergeFun = (prev, result, toMergeL) -> {
+                for (SegmentedObject toRemove : toMergeL) {
+                    nextToPrevMap.remove(toRemove);
+                    objects.remove(toRemove);
+                    result.getRegion().merge(toRemove.getRegion());
+                    displacementMap.remove(toRemove);
+                    objectSpotMap.remove(toRemove);
+                }
+                nextCount.put(prev, nextCount.get(prev)-toMergeL.size());
+                // also erase segmented objects
+                factory.removeFromParent(toMergeL.toArray(new SegmentedObject[0]));
+                factory.relabelChildren(result.getParent());
+                displacementMap.remove(result);
+                objectSpotMap.remove(result);
+                objectSpotMap.get(result);
+            };
+            ToDoubleFunction<List<SegmentedObject>> computeMergeCost = toMergeL -> {
+                SegmentedObject parent = toMergeL.get(0).getParent();
+                List<Region> regions = toMergeL.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                Offset off = new SimpleOffset((parent.getBounds())).reverseOffset();
+                regions.forEach(r -> { // go to relative landmark to perform  computeMergeCost
+                    r.translate(off);
+                    r.setIsAbsoluteLandmark(false);
+                });
+                double cost = seg.computeMergeCost(edm.get(parent), parent, toMergeL.get(0).getStructureIdx(), regions);
+                off.reverseOffset();
+                regions.forEach(r -> { // go back to absolute landmark
+                    r.translate(off);
+                    r.setIsAbsoluteLandmark(true);
+                });
+                return cost;
+            };
+            ToDoubleFunction<SegmentedObject> getY = o -> o.getBounds().yMean() - o.getParent().getBounds().yMin();
+            if (division!=null && maxCorrectionCost>0) { // Take into account div map: when 2 object have same previous cell
                 Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
                 while(it.hasNext()) {
                     Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
                     if (div.getValue().size()>=2) {
-                        if (div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).allMatch(d->d<0.5)) {
+                        if (div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).allMatch(d->d<0.7)) {
                             // try to merge all objects if they are in contact...
                             List<SegmentedObject> divL = new ArrayList<>(div.getValue());
-                            divL.sort(Comparator.comparingInt(o -> o.getBounds().yMin()));
-                            SegmentedObject parent = divL.get(0).getParent();
-                            List<Region> regions = divL.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-                            Offset off = new SimpleOffset((parent.getBounds())).reverseOffset();
-                            regions.forEach(r -> {
-                                r.translate(off);
-                                r.setIsAbsoluteLandmark(false);
-                            });
-                            double cost = seg.computeMergeCost(edm.get(parent), parent, divL.get(0).getStructureIdx(), regions);
-                            off.reverseOffset();
-                            regions.forEach(r -> {
-                                r.translate(off);
-                                r.setIsAbsoluteLandmark(true);
-                            });
-                            logger.debug("Repairing division ... frame: {} cost: {} candidates: {}  probas: {}", frame, cost, divL.stream().map(o->o.getBounds()).toArray(BoundingBox[]::new), divL.stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).toArray());
-                            if (cost<=maxCorrectionCost) {
+                            double cost = computeMergeCost.applyAsDouble(divL);
+                            logger.debug("Repairing division ... frame: {} cost: {}", frame, cost);
+                            if (cost<=maxCorrectionCost) { // merge all regions
                                 SegmentedObject merged = divL.remove(0);
-                                for (SegmentedObject toRemove : divL) {
-                                    nextToPrevMap.remove(toRemove);
-                                    objects.remove(toRemove);
-                                    merged.getRegion().merge(toRemove.getRegion());
+                                mergeFun.consume(div.getKey(), merged, divL);
+                                it.remove();
+                            }
+                        } else if (div.getValue().size()==3) { // CASE OF OVER-SEGMENTED DIVIDING CELLS : try to keep only 2 cells
+                            List<SegmentedObject> divL = new ArrayList<>(div.getValue());
+                            divL.sort(Comparator.comparingInt(o->o.getBounds().yMin()));
+                            double cost1  = computeMergeCost.applyAsDouble(new ArrayList<SegmentedObject>(){{add(divL.get(0)); add(divL.get(1));}});
+                            double cost2  = computeMergeCost.applyAsDouble(new ArrayList<SegmentedObject>(){{add(divL.get(1)); add(divL.get(2));}});
+                            // criterion: displacement that matches most
+                            double crit01=Double.POSITIVE_INFINITY, crit12=Double.POSITIVE_INFINITY;
+                            double[] predDY = divL.stream().mapToDouble(o -> displacementMap.get(o)).toArray();
+                            /*double[] DY = divL.stream().mapToDouble(o->getY.applyAsDouble(o) - getY.applyAsDouble(div.getKey())).toArray();
+                            double[] size = divL.stream().mapToDouble(o -> o.getRegion().size()).toArray();
+                            double split = (Math.abs(DY[0]-predDY[0]) * size[0] + Math.abs(DY[1]-predDY[1]) * size[1] + Math.abs(DY[2]-predDY[2]) * size[2]) / (size[0]+size[1]+size[2]);
+                            if (cost1<maxCorrectionCost) {
+                                double merge = (Math.abs(DY[0] * size[0] + DY[1] * size[1] - predDY[0]*size[0] + predDY[1] * size[1]) + Math.abs(DY[2]-predDY[2]) * size[2]) / (size[0] + size[1] + size[2]);
+                                if (merge<split) crit01 = split - merge;
+                            }
+                            if (cost2<maxCorrectionCost) {
+                                double merge = (Math.abs( DY[2] * size[2] + DY[1] * size[1] - predDY[2]*size[2] + predDY[1] * size[1])+Math.abs(DY[0]-predDY[0]) * size[0]) / (size[0] + size[1] + size[2]);
+                                if (merge<split) crit12 = split - merge;
+                            }*/
+
+                            logger.debug("merge div3: crit 0+1={}, crit 1+2={} cost {} vs {}", crit01, crit12, cost1, cost2);
+                            if (cost1<maxCorrectionCost) {
+                                crit01 = Math.abs(predDY[0] - predDY[1]);
+                            }
+                            if (cost2<maxCorrectionCost) {
+                                crit12 = Math.abs(predDY[2] - predDY[1]);
+                            }
+
+                            if (Double.isFinite(Math.min(crit01, crit12))) {
+                                if (crit01<crit12) {
+                                    mergeFun.consume(div.getKey(), divL.get(0), new ArrayList<SegmentedObject>(){{add(divL.get(1));}});
+                                    div.getValue().remove(divL.get(1));
+                                } else {
+                                    mergeFun.consume(div.getKey(), divL.get(1), new ArrayList<SegmentedObject>(){{add(divL.get(2));}});
+                                    div.getValue().remove(divL.get(2));
                                 }
-                                factory.removeFromParent(divL.toArray(new SegmentedObject[0]));
-                                factory.relabelChildren(parent);
-                                div.getValue().clear();
-                                div.getValue().add(merged);
                             }
                         }
                     }
                 }
-            }*/
+            }
 
             // artifact of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
             // when a division is detected: check if the mother cell divided at previous frame.

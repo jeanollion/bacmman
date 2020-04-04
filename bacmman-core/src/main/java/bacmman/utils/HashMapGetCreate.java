@@ -26,19 +26,21 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  *
  * @author Jean Ollion
  */
 public class HashMapGetCreate<K, V> extends HashMap<K, V> {
-    Factory<K, V> factory;
-    public HashMapGetCreate(Factory<K, V> factory) {
+    Function<K, V> factory;
+    public HashMapGetCreate(Function<K, V> factory) {
         super();
         this.factory=factory;
     }
-    public HashMapGetCreate(int initialCapacity, Factory<K, V> factory) {
+    public HashMapGetCreate(int initialCapacity, Function<K, V> factory) {
         super(initialCapacity);
         this.factory=factory;
     }
@@ -49,13 +51,13 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
      * @return the same map for convinience
      */
     public synchronized HashMapGetCreate<K, V> enshure(Set<K> keys, boolean parallele) {
-        putAll(Utils.parallele(Sets.difference(keys, this.keySet()).stream(), parallele).collect(Collectors.toMap(k->k, k->factory.create(k))));
+        putAll(Utils.parallele(Sets.difference(keys, this.keySet()).stream(), parallele).collect(Collectors.toMap(Function.identity(), k->factory.apply(k))));
         return this;
     }
     public V getAndCreateIfNecessary(Object key) {
         V v = super.get(key);
         if (v==null) {
-            v = factory.create((K)key);
+            v = factory.apply((K)key);
             super.put((K)key, v);
         }
         return v;
@@ -66,7 +68,7 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
             synchronized(this) {
                 v = super.get(key);
                 if (v==null) {
-                    v = factory.create((K)key);
+                    v = factory.apply((K)key);
                     super.put((K)key, v);
                 }
             }
@@ -84,7 +86,7 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
             synchronized(key) {
                 v = super.get(key);
                 if (v==null) {
-                    v = factory.create((K)key);
+                    v = factory.apply((K)key);
                     synchronized(this){
                         super.put((K)key, v);
                     }
@@ -93,40 +95,39 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         }
         return v;
     }
-    public static interface Factory<K, V> {
-        public V create(K key);
-    }
-    public static class ArrayListFactory<K, V> implements Factory<K, ArrayList<V>>{
-        @Override public ArrayList<V> create(K key) {
+
+
+    public static class ArrayListFactory<K, V> implements Function<K, ArrayList<V>>{
+        @Override public ArrayList<V> apply(K key) {
             return new ArrayList<>();
         }
     }
-    public static class ListFactory<K, V> implements Factory<K, List<V>>{
-        @Override public List<V> create(K key) {
+    public static class ListFactory<K, V> implements Function<K, List<V>>{
+        @Override public List<V> apply(K key) {
             return new ArrayList<>();
         }
     }
-    public static class SetFactory<K, V> implements Factory<K, Set<V>>{
-        @Override public Set<V> create(K key) {
+    public static class SetFactory<K, V> implements Function<K, Set<V>>{
+        @Override public Set<V> apply(K key) {
             return new HashSet<>();
         }
     }
-    public static class MapFactory<K, L, V> implements Factory<K, Map<L, V>>{
-        @Override public Map<L, V> create(K key) {
+    public static class MapFactory<K, L, V> implements Function<K, Map<L, V>>{
+        @Override public Map<L, V> apply(K key) {
             return new HashMap<>();
         }
     }
-    public static class HashMapGetCreateFactory<K, L, V> implements Factory<K, HashMapGetCreate<L, V>> {
-        final Factory<L, V> factory;
-        public HashMapGetCreateFactory(Factory<L, V> factory) {
+    public static class HashMapGetCreateFactory<K, L, V> implements Function<K, HashMapGetCreate<L, V>> {
+        final Function<L, V> factory;
+        public HashMapGetCreateFactory(Function<L, V> factory) {
             this.factory=factory;
         }
-        @Override public HashMapGetCreate<L, V> create(K key) {
+        @Override public HashMapGetCreate<L, V> apply(K key) {
             return new HashMapGetCreate<>(factory);
         }
     }
     public enum Syncronization {NO_SYNC, SYNC_ON_KEY, SYNC_ON_MAP};
-    public static <K, V> HashMapGetCreate<K, V> getRedirectedMap(Factory<K, V> factory, Syncronization sync) {
+    public static <K, V> HashMapGetCreate<K, V> getRedirectedMap(Function<K, V> factory, Syncronization sync) {
         switch(sync) {
             case NO_SYNC:
             default:
@@ -137,7 +138,7 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
                 return new HashMapGetCreateRedirectedSync(factory);
         }
     }
-    public static <K, V> HashMapGetCreate<K, V> getRedirectedMap(int initialCapacity, Factory<K, V> factory, Syncronization sync) {
+    public static <K, V> HashMapGetCreate<K, V> getRedirectedMap(int initialCapacity, Function<K, V> factory, Syncronization sync) {
         switch(sync) {
             case NO_SYNC:
             default:
@@ -148,11 +149,18 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
                 return new HashMapGetCreateRedirectedSync(initialCapacity, factory);
         }
     }
+    public static <K, V> HashMapGetCreate<K, V> getRedirectedMap(Stream<K> keys, Function<K, V> factory, Syncronization sync) {
+        Map<K, V> map = keys.collect(Collectors.toMap(Function.identity(), factory));
+        HashMapGetCreate<K, V> res = getRedirectedMap(map.size(), factory, sync);
+        res.putAll(map);
+        return res;
+    }
+
     public static class HashMapGetCreateRedirected<K, V> extends HashMapGetCreate<K, V> {
-        public HashMapGetCreateRedirected(Factory<K, V> factory) {
+        public HashMapGetCreateRedirected(Function<K, V> factory) {
             super(factory);
         }
-        public HashMapGetCreateRedirected(int initialCapacity, Factory<K, V> factory) {
+        public HashMapGetCreateRedirected(int initialCapacity, Function<K, V> factory) {
             super(initialCapacity, factory);
         }
         @Override
@@ -161,10 +169,10 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         }
     }
     public static class HashMapGetCreateRedirectedSyncKey<K, V> extends HashMapGetCreate<K, V> {
-        public HashMapGetCreateRedirectedSyncKey(Factory<K, V> factory) {
+        public HashMapGetCreateRedirectedSyncKey(Function<K, V> factory) {
             super(factory);
         }
-        public HashMapGetCreateRedirectedSyncKey(int initialCapacity, Factory<K, V> factory) {
+        public HashMapGetCreateRedirectedSyncKey(int initialCapacity, Function<K, V> factory) {
             super(initialCapacity, factory);
         }
         @Override
@@ -173,10 +181,10 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         }
     }
     public static class HashMapGetCreateRedirectedSync<K, V> extends HashMapGetCreate<K, V> {
-        public HashMapGetCreateRedirectedSync(Factory<K, V> factory) {
+        public HashMapGetCreateRedirectedSync(Function<K, V> factory) {
             super(factory);
         }
-        public HashMapGetCreateRedirectedSync(int initialCapacity, Factory<K, V> factory) {
+        public HashMapGetCreateRedirectedSync(int initialCapacity, Function<K, V> factory) {
             super(initialCapacity, factory);
         }
         @Override

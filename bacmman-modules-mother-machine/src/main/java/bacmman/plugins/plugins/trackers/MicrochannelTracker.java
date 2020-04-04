@@ -33,6 +33,7 @@ import bacmman.image.SimpleBoundingBox;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.plugins.segmenters.MicrochannelPhase2D;
@@ -307,10 +308,10 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         if (debug) logger.debug("mc after remove: {}", Utils.toStringList(parentTrack, p->"t:"+p.getFrame()+"->"+p.getChildren(structureIdx).count()));
 
         // relabel by trackHead order of appearance
-        HashMapGetCreate<SegmentedObject, Integer> trackHeadIdxMap = new HashMapGetCreate<>(new HashMapGetCreate.Factory<SegmentedObject, Integer>() {
+        HashMapGetCreate<SegmentedObject, Integer> trackHeadIdxMap = new HashMapGetCreate<>(new Function<SegmentedObject, Integer>() {
             int count = -1;
             @Override
-            public Integer create(SegmentedObject key) {
+            public Integer apply(SegmentedObject key) {
                 ++count;
                 return count;
             }
