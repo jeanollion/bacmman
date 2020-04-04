@@ -63,6 +63,7 @@ public class PluginFactory {
         Enumeration ks = table.keys();
         while (ks.hasMoreElements()) {
             String command = (String) ks.nextElement();
+            if (command.length()==0 || command.equals(" ")) continue;
             String className = table.get(command);
             testIJ1Class(command, className, loader);
         }
@@ -91,10 +92,11 @@ public class PluginFactory {
         }
     }
     private static void addPlugin(String command, Class c) {
+        if (command.length()==0 || command.equals(" ")) return;
         if (PLUGIN_NAMES_MAP_CLASS.containsKey(command)) {
             Class otherC = PLUGIN_NAMES_MAP_CLASS.get(c.getSimpleName());
             if (!otherC.equals(c)) {
-                logger.warn("Duplicate class name: {} & {}", otherC.getName(), c.getName());
+                logger.warn("Duplicate class name: {} & {} (command: {} simpleName: {})", otherC.getName(), c.getName(), command, c.getSimpleName());
                 Core.userLog("Duplicate class name: "+otherC.getName()+" & "+c.getName());
             }
         } else {
