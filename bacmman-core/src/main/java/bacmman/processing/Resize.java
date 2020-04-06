@@ -62,8 +62,8 @@ public class Resize {
             dimensions=dims;
         }
         double[] scaleFactors = new double[input.sizeZ()>1? 3:2];
-        if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
         for (int i = 0; i<scaleFactors.length;++i) scaleFactors[i] = dimensions.length>i && dimensions[i]>0 ? (double)dimensions[i]/input.size(i) : 1;
+        if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
         Img in = ImgLib2ImageWrapper.getImage(input);
         return (T)ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, interpolation));
     }
@@ -100,6 +100,7 @@ public class Resize {
     // * @author Martin Horn (University of Konstanz)
     // * @author Stefan Helfrich (University of Konstanz)
     public static <T extends RealType<T>> RandomAccessibleInterval<T> resample(RandomAccessibleInterval<T> input, double[] scaleFactors, InterpolatorFactory<T, RandomAccessible<T>> interpolator) {
+        if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
         final long[] newDims = Intervals.dimensionsAsLongArray(input);
         for (int i = 0; i < Math.min(scaleFactors.length, input.numDimensions()); i++) {
             newDims[i] = Math.round(input.dimension(i) * scaleFactors[i]);

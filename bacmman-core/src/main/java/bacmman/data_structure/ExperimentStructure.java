@@ -5,6 +5,7 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.utils.Utils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -128,6 +129,7 @@ public class ExperimentStructure {
      * @return
      */
     public int[] getPathToStructure(int startStructureIdx, int stopStructureIdx) {
+        if (startStructureIdx==-1 && startStructureIdx==stopStructureIdx) return new int[0];
         ArrayList<Integer> pathToStructure = new ArrayList<>(xp.getStructureCount());
         pathToStructure.add(stopStructureIdx);
         if (startStructureIdx!=stopStructureIdx) {
