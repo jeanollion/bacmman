@@ -27,10 +27,13 @@ import bacmman.image.BlankMask;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
+import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.image.ThresholdMask;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.ConfigurableTransformation;
+
+import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -52,11 +55,14 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     PluginParameter<SimpleThresholder> signalExclusionThreshold2 = new PluginParameter<>("Signal Exclusion Threshold 2", SimpleThresholder.class, new BackgroundFit(5), false);
     ConditionalParameter signalExclusionCond = new ConditionalParameter(signalExclusionBool2).setActionParameters("true", new Parameter[]{signalExclusion2, signalExclusionThreshold2});
     BooleanParameter addGlobalMean = new BooleanParameter("Add global mean", false).setEmphasized(true).setHint("If this option is set to <em>true</em>, the global mean value of pixel intensities is added to all pixels. This option ensures that this operation will not set negative values to pixels. There is also the option to add local mean instead of global mean, for this set this parameter to false and set the sub-parameter <em>Sliding half-window</em>. Use this option in case of uneven background along Y-axis");
-    BooleanParameter trimNegativeValues = new BooleanParameter("Set Negative values to Zero", false);
     BoundedNumberParameter slidingHalfWindow = new BoundedNumberParameter("Sliding mean half-window", 0, 40, 0, null).setEmphasized(true).setHint("If a positive value is set, the sliding mean of background values along Y axis will be added to each pixel");
-    ConditionalParameter addGMCond = new ConditionalParameter(addGlobalMean).setActionParameters("false", new Parameter[]{trimNegativeValues, slidingHalfWindow});
-    Parameter[] parameters = new Parameter[]{signalExclusion, signalExclusionThreshold, signalExclusionCond, addGMCond};
+    ConditionalParameter addGMCond = new ConditionalParameter(addGlobalMean).setActionParameters("false", slidingHalfWindow);
+    ScaleXYZParameter maskSmoothScale = new ScaleXYZParameter("Smooth Scale for mask", 3, 1, true).setHint("if zero -> mask channel is not smoothed");
+    ScaleXYZParameter smoothScale = new ScaleXYZParameter("RemoveBackground: Smooth Scale", 0, 1, true).setHint("Background removal. If a value greater than zero is set, the input image will be blurred (excluding values within mask) and subtracted to the image").setEmphasized(true);
+
+    Parameter[] parameters = new Parameter[]{signalExclusion, signalExclusionThreshold, maskSmoothScale, signalExclusionCond, addGMCond, smoothScale};
     float[][][] meanFZY;
+    Image[] backgroundMask;
     public RemoveStripesSignalExclusion() {}
     
     public RemoveStripesSignalExclusion(int signalExclusion) {
@@ -70,10 +76,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         this.addGlobalMean.setSelected(addGlobalMean);
         return this;
     }
-    public RemoveStripesSignalExclusion setTrimNegativeValues(boolean trim) {
-        this.trimNegativeValues.setSelected(trim);
-        return this;
-    }
+
     public RemoveStripesSignalExclusion setMethod(SimpleThresholder thlder) {
         this.signalExclusionThreshold.setPlugin(thlder);
         return this;
@@ -95,22 +98,6 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
             testMasks = new ConcurrentHashMap<>();
             if (chExcl2>=0) testMasks2 = new ConcurrentHashMap<>();
         }
-        // one threshold for all frames or one threshold per frame ? 
-        /*double thld1=Double.NaN, thld2=Double.NaN;
-        if (chExcl>=0) {
-            long t0 = System.currentTimeMillis();
-            List<Integer> imageIdx = InputImages.chooseNImagesWithSignal(inputImages, chExcl, 10); // faire image moyenne = moyenne des thld? 
-            long t1= System.currentTimeMillis();
-            List<Double> thdls1 = Utils.transform(imageIdx, i->signalExclusionThreshold.instanciatePlugin().runSimpleThresholder(inputImages.getImage(chExcl, i), null));
-            long t2 = System.currentTimeMillis();
-            logger.debug("choose 10 images: {}, apply bckThlder: {}", t1-t0, t2-t1);
-            thld1 = ArrayUtil.median(thdls1);
-            if (chExcl2>=0) {
-                List<Double> thdls2 = Utils.transform(imageIdx, i->signalExclusionThreshold2.instanciatePlugin().runSimpleThresholder(inputImages.getImage(chExcl2, i), null));
-                thld2 = ArrayUtil.median(thdls2);
-            }
-        }
-        final double[] exclThld = chExcl>=0?(chExcl2>=0? new double[]{thld1, thld2} : new double[]{thld1} ) : new double[0];*/
         final boolean addGlobalMean = this.addGlobalMean.getSelected();
         final int slidingHalfWindow = this.slidingHalfWindow.getValue().intValue();
         //logger.debug("remove stripes thld: {}", exclThld);
@@ -118,16 +105,23 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         Image[] allImages = InputImages.getImageForChannel(inputImages, channelIdx, false);
         Image[] allImagesExcl = chExcl<0 ? null : (chExcl == channelIdx ? allImages : InputImages.getImageForChannel(inputImages, chExcl, false));
         Image[] allImagesExcl2 = chExcl2<0 ? null : (chExcl2 == channelIdx ? allImages : InputImages.getImageForChannel(inputImages, chExcl2, false));
+        double scale = smoothScale.getScaleXY();
+        double scaleZ = smoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
+        if (scale>0) backgroundMask = new Image[allImages.length];
+        double mScale = maskSmoothScale.getScaleXY();
+        double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
         IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(frame -> {
                 Image currentImage = allImages[frame];
                 ImageMask m;
                 if (chExcl>=0) {
                     Image se1 = allImagesExcl[frame];
+                    if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
                     double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
                     ThresholdMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new ThresholdMask(se1, thld1, true, true, 0):new ThresholdMask(se1, thld1, true, true);
                     if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
                     if (chExcl2>=0) {
                         Image se2 = allImagesExcl2[frame];
+                        if (mScale>0) se2 = ImageFeatures.gaussianSmooth(se2, mScale, mScaleZ, false);
                         double thld2 = signalExclusionThreshold2.instantiatePlugin().runSimpleThresholder(se2, null);
                         ThresholdMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new ThresholdMask(se2, thld2, true, true, 0):new ThresholdMask(se2, thld2, true, true);
                         if (testMode.testExpert()) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
@@ -136,6 +130,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                     m = mask;
                 } else m = new BlankMask(currentImage);
                 meanFZY[frame] = computeMeanX(currentImage, m, addGlobalMean, slidingHalfWindow);
+                if (backgroundMask!=null) backgroundMask[frame] = SubtractGaussSignalExclusion.getBackgroundImage(currentImage, m, scale, scaleZ);
                 if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());      
             }
         );
@@ -165,6 +160,10 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                 for (Map.Entry<Integer, Image> e : testMasks2.entrySet()) maskTC[e.getKey()][0] = e.getValue();
                 Core.showImage5D("Exclusion signal mask2", maskTC);
                 testMasks2.clear();
+            }
+            if (backgroundMask!=null) {
+                Image[][] maskTC = Arrays.stream(backgroundMask).map(a->new Image[]{a}).toArray(Image[][]::new);
+                Core.showImage5D("Background subtraction", maskTC);
             }
         }
     }
@@ -225,7 +224,7 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         if (meanFZY==null || meanFZY.length<timePoint) throw new RuntimeException("RemoveStripes transformation not configured");
         Image res = removeMeanX(image, image instanceof ImageFloat ? image : null, meanFZY[timePoint]);
-        if (trimNegativeValues.getSelected()) ImageOperations.trimValues(res, 0, 0, true);
+        if (backgroundMask!=null) res = ImageOperations.addImage(res, backgroundMask[timePoint], res, -1);
         if (timePoint%100==0) logger.debug(Utils.getMemoryUsage());
         return res;
     }

@@ -62,18 +62,12 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
         IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(frame -> {
             Image currentImage = allImages[frame];
             Image se1 = allImagesExcl[frame];
-            if (mScaleZ>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
+            if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
             double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
             ThresholdMask maskT = currentImage.sizeZ() > 1 && se1.sizeZ() == 1 ? new ThresholdMask(se1, thld1, true, true, 0) : new ThresholdMask(se1, thld1, true, true);
-            RegionPopulation pop = new RegionPopulation(maskT);
-            if (testMode.testExpert()) mask[frame] = pop.getLabelMap();
-            Image toBlur = TypeConverter.toFloat(currentImage, null, true);
-            pop.getRegions().forEach(r -> {
-                double[] values = r.getContour().stream().mapToDouble(v -> currentImage.getPixel(v.x, v.y, v.z)).toArray();
-                double median = ArrayUtil.median(values);
-                r.draw(toBlur, median);
-            });
-            bck[frame] = ImageFeatures.gaussianSmooth(toBlur, scale, scaleZ, true);
+            bck[frame] = getBackgroundImage(currentImage, maskT, scale, scaleZ);
+            if (testMode.testExpert()) mask[frame] = new RegionPopulation(maskT).getLabelMap();
+
         });
         if (testMode.testSimple()) {
             Image[][] maskTC = Arrays.stream(bck).map(a->new Image[]{a}).toArray(Image[][]::new);
@@ -84,7 +78,16 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
             Core.showImage5D("Exclusion Mask", maskTC);
         }
     }
-
+    public static Image getBackgroundImage(Image input, ImageMask mask, double scale, double scaleZ) {
+        RegionPopulation pop = new RegionPopulation(mask);
+        Image toBlur = TypeConverter.toFloat(input, null, true);
+        pop.getRegions().forEach(r -> {
+            double[] values = r.getContour().stream().mapToDouble(v -> input.getPixel(v.x, v.y, v.z)).toArray();
+            double median = ArrayUtil.median(values);
+            r.draw(toBlur, median);
+        });
+        return ImageFeatures.gaussianSmooth(toBlur, scale, scaleZ, true);
+    }
     Image[] bck;
     Image[] mask; // testing
     @Override
