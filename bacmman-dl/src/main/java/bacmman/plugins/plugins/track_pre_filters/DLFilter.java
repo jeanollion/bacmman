@@ -18,7 +18,7 @@ public class DLFilter implements TrackPreFilter, Hint {
     EnumChoiceParameter<INPUT_TYPE> type = new EnumChoiceParameter<>("Input Type", INPUT_TYPE.values(), INPUT_TYPE.BINARY_MASK);
     ObjectClassParameter oc = new ObjectClassParameter("Object class");
     GroupParameter grp = new GroupParameter("Input", oc, type);
-    SimpleListParameter<GroupParameter> inputs = new SimpleListParameter<>("Additional Inputs", grp).addValidationFunction(list -> list.getChildCount()+1 == engineNumIn());
+    SimpleListParameter<GroupParameter> inputs = new SimpleListParameter<>("Additional Inputs", grp).setHint("Total input number must correspond to model inputs");//.addValidationFunction(list -> list.getChildCount()+1 == engineNumIn());
     DLResizeAndScaleParameter dlResample = new DLResizeAndScaleParameter("ResizeAndScale").setMaxOutputNumber(1).addInputNumberValidation(()->1+inputs.getChildCount()).setEmphasized(true);
 
     @Override
@@ -82,6 +82,6 @@ public class DLFilter implements TrackPreFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "Runs a deep network on pre-filtered images that returns a pre-filtered image";
+        return "Filter images by running a deep neural network. <br />DL network can have several inputs (pre-filtered / labels) and must output only one image";
     }
 }
