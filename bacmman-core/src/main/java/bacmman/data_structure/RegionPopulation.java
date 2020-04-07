@@ -94,6 +94,11 @@ public class RegionPopulation {
         }
     }
 
+    public RegionPopulation(ImageMask mask) {
+        properties = new SimpleImageProperties(mask);
+        objects = ImageLabeller.labelImageList(mask);
+    }
+
     public RegionPopulation setConnectivity(boolean low) {
         this.lowConnectivity = low;
         return this;
