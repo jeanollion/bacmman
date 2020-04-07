@@ -40,11 +40,11 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
     GroupParameter grp = new GroupParameter("Input", interpolation, scaler).setEmphasized(true);
     SimpleListParameter<GroupParameter> inputInterpAndScaling = new SimpleListParameter<>("Input Interpolation/Scaling", grp).setNewInstanceNameFunction((s, i)->"Input #"+i).setEmphasized(true).setHint("Define here Interpolation mode and scaling mode for each input. All channels of each input will be processed together");
-    SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new IQRScaler(), true).setNewInstanceNameFunction((s, i)->"scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
+    SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new IQRScaler(), true).setNewInstanceNameFunction((s, i)->"Scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
     BooleanParameter scaleFrameByFrame = new BooleanParameter("Scale Frame by Frame", false).setHint("If true, scaling factors are computed on the histogram of the whole track, if false scale is computed frame by frame");
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. -1 no reverse scaling");
-    BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true);
+    BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true).setEmphasized(true);
     GroupParameter outputGrp;
     SimpleListParameter<GroupParameter> outputInterpAndScaling;
     SimpleListParameter<? extends Parameter> outputScaling;
@@ -63,7 +63,6 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
             outputScaling.setNewInstanceNameFunction((s, i)->"Scaler index for output #"+i);
             outputScaling.setEmphasized(true).setHint("For each output, set the index of the input scaler used to reverse histogram scaling");
         }
-
         setMinOutputNumber(1);
     }
 
@@ -99,9 +98,18 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
 
     public DLResizeAndScaleParameter setMaxInputNumber(int max) {
         inputInterpAndScaling.setMaxChildCount(max);
+        if (max==1) {
+            inputInterpAndScaling.setNewInstanceNameFunction((s, i)->"Input");
+            inputInterpAndScaling.resetName((s, i)->"Input");
+        }
         if (inputInterpAndScaling.getChildCount()>max) inputInterpAndScaling.setChildrenNumber(max);
         inputScaling.setMaxChildCount(max);
+        if (max==1) {
+            inputScaling.setNewInstanceNameFunction((s, i)->"Input Scaler");
+            inputScaling.resetName((s, i)->"Input Scaler");
+        }
         if (inputScaling.getChildCount()>max) inputScaling.setChildrenNumber(max);
+        // As output parameter depend on input parameters, also re-init output parameters
         int maxOut = outputInterpAndScaling==null? 0 : outputInterpAndScaling.getMaxChildCount();
         if (maxOut!=0) {
             setMaxOutputNumber(maxOut);
@@ -128,12 +136,16 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         setConditionalParameter();
         return this;
     }
-    private void setConditionalParameter() {
 
+    private void setConditionalParameter() {
         Parameter iS = inputScaling.getMaxChildCount()==1 ? inputScaling.getChildAt(0) : inputScaling;
         Parameter oS = outputScaling.getMaxChildCount()==1 ? outputScaling.getChildAt(0) : outputScaling;
         Parameter iIS = inputInterpAndScaling.getMaxChildCount()==1 ? inputInterpAndScaling.getChildAt(0) : inputInterpAndScaling;
         Parameter oIS = outputInterpAndScaling.getMaxChildCount()==1 ? outputInterpAndScaling.getChildAt(0) : outputInterpAndScaling;
+        iS.setEmphasized(true);
+        oS.setEmphasized(true);
+        iIS.setEmphasized(true);
+        oIS.setEmphasized(true);
         this.setActionParameters(MODE.SCALE_ONLY.toString(), iS, oS, scaleFrameByFrame);
         this.setActionParameters(MODE.RESAMPLE.toString(), targetShape, contractionNumber, iIS, oIS ,scaleFrameByFrame);
         this.setActionParameters(MODE.PAD.toString(), targetShape, contractionNumber, paddingMode, minPad, iS, oS, scaleFrameByFrame);
