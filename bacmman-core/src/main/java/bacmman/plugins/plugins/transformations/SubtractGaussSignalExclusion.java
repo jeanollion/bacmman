@@ -12,6 +12,7 @@ import bacmman.image.TypeConverter;
 import bacmman.image.io.ImageReader;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
+import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.ArrayUtil;
@@ -27,8 +28,8 @@ import java.util.stream.IntStream;
 public class SubtractGaussSignalExclusion implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
     public final static Logger logger = LoggerFactory.getLogger(SubtractGaussSignalExclusion.class);
     ChannelImageParameter signalExclusion = new ChannelImageParameter("Channel for Signal Exclusion", -1, false).setEmphasized(true);
-    PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundFit(5), false).setEmphasized(true); //new ConstantValue(150)
-    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 50, 1, true).setEmphasized(true);
+    PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(), false).setEmphasized(true); //new ConstantValue(150)
+    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 40, 1, true).setEmphasized(true);
     ScaleXYZParameter maskSmoothScale = new ScaleXYZParameter("Smooth Scale for mask", 3, 1, true).setHint("if zero -> mask channel is not smoothed");
 
     @Override
