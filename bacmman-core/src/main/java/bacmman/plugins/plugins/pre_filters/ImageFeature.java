@@ -25,6 +25,7 @@ import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.processing.ImageFeatures;
 import bacmman.plugins.PreFilter;
@@ -38,7 +39,7 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class ImageFeature implements PreFilter, Hint {
+public class ImageFeature implements PreFilter, Filter, Hint {
 
     @Override
     public String getHintText() {
@@ -50,6 +51,7 @@ public class ImageFeature implements PreFilter, Hint {
                 "<li><em>Structure</em>: The structure tensor, also referred to as the second-moment matrix, is a matrix derived from the gradient of the image. <em>Structure Max</em> is the maximum eigenvalue of the structure matrix. <em>Structure Det</em> is the determinant of the structure matrix.</li></ul>" +
                 "Using <em>ImageScience</em> library: <a href='https://imagescience.org/meijering/software/featurej/'>https://imagescience.org/meijering/software/featurej/</a>";
     }
+
     public static enum Feature {
         GAUSS("Gaussian Smooth"),
         GRAD("Gradient"), 
@@ -100,7 +102,7 @@ public class ImageFeature implements PreFilter, Hint {
         //logger.debug("ImageFeauture: feature: {}, scale: {}, scaleZ: {} (from image: {}) normScale: {}", feature.getSelectedItem(), scale.getScaleXY(), scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), scale.getUseImageCalibration(), normScale.getValue());
         Feature f = Feature.getFeature(feature.getSelectedItem());
         double scaleXY = scale.getScaleXY();
-        double scaleZ = scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ());
+        double scaleZ = scale.getScaleZ(input.getScaleXY(), input.getScaleZ());
         switch(f) {
             case GAUSS:
                 return ImageFeatures.gaussianSmooth(input, scaleXY, scaleZ, canModifyImage);
@@ -123,6 +125,12 @@ public class ImageFeature implements PreFilter, Hint {
                 throw new IllegalArgumentException("Feature "+feature.getSelectedItem()+"not supported");
         }
     }
+
+    @Override
+    public Image applyTransformation(int channelIdx, int timePoint, Image image) {
+        return runPreFilter(image, null, true);
+    }
+
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{cond};

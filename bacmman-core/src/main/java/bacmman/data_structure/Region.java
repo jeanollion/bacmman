@@ -62,6 +62,7 @@ import bacmman.utils.geom.Vector;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.Stream;
 
 /**
  * 
@@ -417,6 +418,12 @@ public class Region {
             }
         }
         return voxels;
+    }
+
+    public void loop(LoopFunction fun) {
+        if (voxelsCreated()) {
+            for (Voxel v : getVoxels()) fun.loop(v.x, v.y, v.z);
+        } else ImageMask.loopWithOffset(getMask(), fun);
     }
 
     public DoubleStream getValues(Image image) {

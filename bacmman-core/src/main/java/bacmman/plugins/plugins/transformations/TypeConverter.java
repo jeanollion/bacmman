@@ -21,10 +21,12 @@ package bacmman.plugins.plugins.transformations;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.image.Image;
+import bacmman.image.ImageByte;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageShort;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.Hint;
+import bacmman.processing.ImageOperations;
 import bacmman.utils.Utils;
 
 /**
@@ -33,10 +35,11 @@ import bacmman.utils.Utils;
  */
 public class TypeConverter implements MultichannelTransformation, Hint {
 
-    public enum METHOD {LIMIT_TO_16}
+    public enum METHOD {LIMIT_TO_16, LIMIT_TO_8, FLOAT}
     ChoiceParameter method = new ChoiceParameter("Method", Utils.toStringArray(METHOD.values()), METHOD.LIMIT_TO_16.toString(), false).setHint("<ul><li><b>"+METHOD.LIMIT_TO_16.toString()+"</b>: Only 32-bit Images are converted to 16-bits</li><</ul>");
-    NumberParameter constantValue = new BoundedNumberParameter("Add value", 0, 0, 0, Short.MAX_VALUE).setHint("Adds this value to all images. This is useful to avoid trimming negative during convertion from 32-bit to 8-bit or 16-bit. No check is done to enshure values will be within 16-bit range");
-    ConditionalParameter cond = new ConditionalParameter(method).setActionParameters(METHOD.LIMIT_TO_16.toString(), constantValue);
+    NumberParameter constantValue = new BoundedNumberParameter("Add value", 1, 0, 0, Short.MAX_VALUE).setHint("Adds this value to all images (after scaling). This is useful to avoid trimming negative during conversion from 32-bit to 8-bit or 16-bit. No check is done to enshure values will be within 16-bit / 8-bit range");
+    NumberParameter scale = new BoundedNumberParameter("Scale", 3, 1, 1, null).setHint("All images are multiplied by this value. This is useful to avoid loosing precision during conversion from 32-bit to 8-bit or 16-bit. No check is done to enshure values will be within 16-bit / 8-bit range");
+    ConditionalParameter cond = new ConditionalParameter(method).setActionParameters(METHOD.LIMIT_TO_16.toString(), constantValue, scale);
     Parameter[] parameters = new Parameter[]{cond};
     
     public TypeConverter() {
@@ -59,17 +62,23 @@ public class TypeConverter implements MultichannelTransformation, Hint {
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         switch(METHOD.valueOf(method.getSelectedItem())) {
             case LIMIT_TO_16:
-            default:
+            default: {
                 if (image instanceof ImageFloat) {
-                    double add = 0.5 + constantValue.getValue().doubleValue();
                     Image output = new ImageShort(image.getName(), image);
-                    for (int z = 0; z<image.sizeZ(); ++z) {
-                        for (int xy = 0; xy<image.sizeXY(); ++xy) {
-                            output.setPixel(xy, z, image.getPixel(xy, z)+add);
-                        }
-                    }
+                    ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
                     return output;
                 } else return image;
+            }
+            case LIMIT_TO_8: {
+                if (image.getBitDepth()>8) {
+                    Image output = new ImageByte(image.getName(), image);
+                    ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
+                    return output;
+                } else return image;
+            }
+            case FLOAT: {
+                return bacmman.image.TypeConverter.toFloat(image, null, false);
+            }
         }
     }
 

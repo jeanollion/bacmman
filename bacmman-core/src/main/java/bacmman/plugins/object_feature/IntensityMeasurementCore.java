@@ -23,9 +23,11 @@ import bacmman.data_structure.Region;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import java.util.HashMap;
+import java.util.Map;
 
 import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.DoubleStatistics;
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,7 +39,7 @@ import org.slf4j.LoggerFactory;
 public class IntensityMeasurementCore {
     private final static Logger logger = LoggerFactory.getLogger(IntensityMeasurementCore.class);
     Image intensityMap, transformedMap;
-    HashMap<Region, IntensityMeasurements> values = new HashMap<>();
+    Map<Region, IntensityMeasurements> values = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> new IntensityMeasurements(o));
     
     public void setUp(Image intensityMap, Image transformedMap) {
         this.intensityMap=intensityMap;    
@@ -48,12 +50,7 @@ public class IntensityMeasurementCore {
         return transformed ? transformedMap : intensityMap;
     }
     public IntensityMeasurements getIntensityMeasurements(Region o) {
-        IntensityMeasurements i = values.get(o);
-        if (i==null) {
-            i = new IntensityMeasurements(o);
-            values.put(o, i);
-        }
-        return i;
+        return values.get(o);
     }
     
     public class IntensityMeasurements {
