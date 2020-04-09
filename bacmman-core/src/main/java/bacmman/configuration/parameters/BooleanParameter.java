@@ -23,21 +23,23 @@ package bacmman.configuration.parameters;
  * ChoiceParameter with two elements, 1st = true, 2nd = false
  * @author Jean Ollion
  */
-public class BooleanParameter extends AbstractChoiceParameter<BooleanParameter> {
+public class BooleanParameter extends AbstractChoiceParameter<Boolean, BooleanParameter> {
     
     public BooleanParameter(String name) {
         this(name, false);
     }
     
     public BooleanParameter(String name, boolean defaultValue) {
-        super(name, new String[]{"true", "false"}, defaultValue?"true":"false", false);
+        super(name, new String[]{"true", "false"}, defaultValue?"true":"false", s-> "true".equals(s), false);
     }
     
     public BooleanParameter(String name, String trueLabel, String falseLabel, boolean defaultValue) {
-        super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, false);
+        super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, s-> trueLabel.equals(s), false);
         //if (listChoice.length!=2) throw new IllegalArgumentException("List choice should be of length 2");
     }
-    
+
+
+
     public boolean getSelected() {
         return this.getSelectedIndex()==0;
     }
@@ -54,5 +56,30 @@ public class BooleanParameter extends AbstractChoiceParameter<BooleanParameter> 
         res.setSimpleHint(toolTipTextSimple);
         res.setEmphasized(isEmphasized);
         return res;
+    }
+    @Override
+    public Boolean getValue() {
+        return getSelected();
+    }
+
+    @Override
+    public void setValue(Boolean value) {
+        this.setSelected(value);
+    }
+
+    @Override
+    public String getNoSelectionString() {
+        return null;
+    }
+    @Override
+    public Object toJSONEntry() {
+        return selectedItem;
+    }
+
+    @Override
+    public void initFromJSONEntry(Object json) {
+        if (json instanceof String) {
+            setSelectedItem((String)json);
+        } else throw new IllegalArgumentException("JSON Entry is not String");
     }
 }

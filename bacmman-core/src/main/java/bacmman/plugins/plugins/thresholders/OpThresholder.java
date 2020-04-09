@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
 public class OpThresholder  { //implements ThresholderHisto, SimpleThresholder 
     public final static Logger logger = LoggerFactory.getLogger(OpThresholder.class);
     ChoiceParameter method;
-    ConditionalParameter cond;
+    ConditionalParameter<String> cond;
     Map<String, OpInfo> allOps;
     public OpThresholder() {
         init();
@@ -90,7 +90,7 @@ public class OpThresholder  { //implements ThresholderHisto, SimpleThresholder
         method = new ChoiceParameter("Threshold method", allOps.keySet().toArray(new String[allOps.size()]), null, false);
         cond = new ConditionalParameter(method);
         cond.addListener(p->{
-            ConditionalParameter cond = (ConditionalParameter)p;
+            ConditionalParameter<String> cond = (ConditionalParameter)p;
             String m = cond.getActionableParameter().getValue();
             if (cond.getActionParameters(m)==null) cond.setActionParameters(m, OpHelpers.getParameters(allOps.get(m)));
         });

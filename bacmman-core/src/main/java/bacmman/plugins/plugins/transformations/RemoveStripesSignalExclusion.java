@@ -53,10 +53,10 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     BooleanParameter signalExclusionBool2 = new BooleanParameter("Second Signal Exclusion", false);
     ChannelImageParameter signalExclusion2 = new ChannelImageParameter("Channel for Signal Exclusion 2", -1, false);
     PluginParameter<SimpleThresholder> signalExclusionThreshold2 = new PluginParameter<>("Signal Exclusion Threshold 2", SimpleThresholder.class, new BackgroundFit(5), false);
-    ConditionalParameter signalExclusionCond = new ConditionalParameter(signalExclusionBool2).setActionParameters("true", new Parameter[]{signalExclusion2, signalExclusionThreshold2});
+    ConditionalParameter<Boolean> signalExclusionCond = new ConditionalParameter<>(signalExclusionBool2).setActionParameters(true, new Parameter[]{signalExclusion2, signalExclusionThreshold2});
     BooleanParameter addGlobalMean = new BooleanParameter("Add global mean", false).setEmphasized(true).setHint("If this option is set to <em>true</em>, the global mean value of pixel intensities is added to all pixels. This option ensures that this operation will not set negative values to pixels. There is also the option to add local mean instead of global mean, for this set this parameter to false and set the sub-parameter <em>Sliding half-window</em>. Use this option in case of uneven background along Y-axis");
     BoundedNumberParameter slidingHalfWindow = new BoundedNumberParameter("Sliding mean half-window", 0, 40, 0, null).setEmphasized(true).setHint("If a positive value is set, the sliding mean of background values along Y axis will be added to each pixel");
-    ConditionalParameter addGMCond = new ConditionalParameter(addGlobalMean).setActionParameters("false", slidingHalfWindow);
+    ConditionalParameter<Boolean> addGMCond = new ConditionalParameter<>(addGlobalMean).setActionParameters(false, slidingHalfWindow);
     ScaleXYZParameter maskSmoothScale = new ScaleXYZParameter("Smooth Scale for mask", 3, 1, true).setHint("if zero -> mask channel is not smoothed");
     ScaleXYZParameter smoothScale = new ScaleXYZParameter("RemoveBackground: Smooth Scale", 0, 1, true).setHint("Background removal. If a value greater than zero is set, the input image will be blurred (excluding values within mask) and subtracted to the image").setEmphasized(true);
 

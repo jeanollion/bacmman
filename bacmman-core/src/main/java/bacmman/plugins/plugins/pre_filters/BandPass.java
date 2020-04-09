@@ -34,7 +34,7 @@ public class BandPass implements PreFilter, Filter, Hint {
     IntervalParameter range = new IntervalParameter("Band-pass range", 1, 0, null, 0, 7).setHint("The filter will remove small structures (of size smaller than the first value (in pixels)) and large structures (of size larger than the second value (in pixels)).").setEmphasized(true);
     ChoiceParameter removeStripes = new ChoiceParameter("Remove Stripes", new String[]{"None", "Horizontal", "Vertical"}, "None", false);
     NumberParameter stripeTolerance = new BoundedNumberParameter("Stripes tolerance (%)", 2, 1, 0, 100);
-    ConditionalParameter stripes = new ConditionalParameter(removeStripes).setDefaultParameters(new Parameter[]{stripeTolerance}).setActionParameters("None", new Parameter[0]);
+    ConditionalParameter<String> stripes = new ConditionalParameter<>(removeStripes).setDefaultParameters(new Parameter[]{stripeTolerance}).setActionParameters("None", new Parameter[0]);
     Parameter[] parameters = new Parameter[]{range, stripes};
     
     public BandPass() {}

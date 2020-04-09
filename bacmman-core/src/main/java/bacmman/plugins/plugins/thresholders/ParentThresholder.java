@@ -46,7 +46,7 @@ public class ParentThresholder implements Thresholder {
     public BooleanParameter runThresholderOnWholeTrack = new BooleanParameter("Run On:", "Whole Track", "Each Object Separately", true);
     public PluginParameter<Thresholder> thresholder = new PluginParameter("Thresholder", Thresholder.class, false);
     public PluginParameter<ThresholderHisto> thresholderHisto = new PluginParameter("Thresholder", ThresholderHisto.class, false);
-    ConditionalParameter cond = new ConditionalParameter(runThresholderOnWholeTrack).setActionParameters("Whole Track", thresholderHisto).setActionParameters("Each Object Separately", thresholder);
+    ConditionalParameter<Boolean> cond = new ConditionalParameter<>(runThresholderOnWholeTrack).setActionParameters(true, thresholderHisto).setActionParameters(false, thresholder);
     Parameter[] parameters = new Parameter[]{parent, structureIdx, cond};
     
     public ParentThresholder setIndividualThresholder(Thresholder thresholder) {

@@ -26,14 +26,14 @@ import java.util.function.Function;
  * @author Jean Ollion
  */
 
-public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameter<EnumChoiceParameter<E>>  {
+public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameter<E, EnumChoiceParameter<E>>  {
     final E[] enumChoiceList;
     final Function<E, String> toString;
     public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, Function<E, String> toString) {
         super(name, Arrays.stream(enumChoiceList)
                         .map(toString)
                         .toArray(String[]::new),
-                selectedItem==null ? null : toString.apply(selectedItem), false);
+                selectedItem==null ? null : toString.apply(selectedItem), s->Arrays.stream(enumChoiceList).filter(e->toString.apply(e).equals(s)).findAny().get(), false);
         this.enumChoiceList=enumChoiceList;
         this.toString=toString;
     }
@@ -41,7 +41,7 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         super(name, Arrays.stream(enumChoiceList)
                 .map(Enum::toString)
                 .toArray(String[]::new),
-                selectedItem==null ? null : selectedItem.toString(), false);
+                selectedItem==null ? null : selectedItem.toString(), s->Arrays.stream(enumChoiceList).filter(e->e.toString().equals(s)).findAny().get(), false);
         this.enumChoiceList=enumChoiceList;
         this.toString = Enum::toString;
     }
@@ -65,5 +65,31 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         if (selectedEnum==null) this.setSelectedItem(null);
         else setSelectedItem(toString.apply(selectedEnum));
         return this;
+    }
+
+    @Override
+    public E getValue() {
+        return getSelectedEnum();
+    }
+
+    @Override
+    public void setValue(E value) {
+        this.setSelectedEnum(value);
+    }
+
+    @Override
+    public String getNoSelectionString() {
+        return null;
+    }
+    @Override
+    public Object toJSONEntry() {
+        return selectedItem;
+    }
+
+    @Override
+    public void initFromJSONEntry(Object json) {
+        if (json instanceof String) {
+            setSelectedItem((String)json);
+        } else throw new IllegalArgumentException("JSON Entry is not String");
     }
 }

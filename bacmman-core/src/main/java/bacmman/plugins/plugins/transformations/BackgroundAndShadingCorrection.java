@@ -21,7 +21,7 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
     FileChooser flatField = new FileChooser("Flat-field image", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     FileChooser darkField = new FileChooser("Dark-field image", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     BooleanParameter correctDarkField = new BooleanParameter("Correct dark-field", false);
-    ConditionalParameter correctDarkFieldCond = new ConditionalParameter(correctDarkField).setActionParameters("true", darkField).setEmphasized(true);
+    ConditionalParameter<Boolean> correctDarkFieldCond = new ConditionalParameter<>(correctDarkField).setActionParameters(true, darkField).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{flatField, correctDarkFieldCond};
 
     Image flatFieldImage, darkFieldImage;

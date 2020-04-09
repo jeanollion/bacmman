@@ -19,16 +19,17 @@
 package bacmman.configuration.parameters;
 
 import java.util.Arrays;
+import java.util.function.Function;
 
 /**
  *
  * @author Jean Ollion
  */
 
-public class ChoiceParameter extends AbstractChoiceParameter<ChoiceParameter>  {
+public class ChoiceParameter extends AbstractChoiceParameter<String, ChoiceParameter>  {
     
     public ChoiceParameter(String name, String[] listChoice, String selectedItem, boolean allowNoSelection) {
-        super(name, listChoice, selectedItem, allowNoSelection);
+        super(name, listChoice, selectedItem, Function.identity(), allowNoSelection);
     }
     @Override public ChoiceParameter duplicate() {
         ChoiceParameter res = new ChoiceParameter(name, Arrays.copyOf(listChoice, listChoice.length) ,this.selectedItem, this.allowNoSelection);
@@ -38,5 +39,32 @@ public class ChoiceParameter extends AbstractChoiceParameter<ChoiceParameter>  {
         res.setSimpleHint(toolTipTextSimple);
         res.setEmphasized(isEmphasized);
         return res;
+    }
+    @Override
+    public String getValue() {
+        return getSelectedItem();
+    }
+
+    @Override
+    public void setValue(String value) {
+        this.setSelectedItem(value);
+    }
+
+
+    public static String NO_SELECTION="no selection";
+    @Override
+    public String getNoSelectionString() {
+        return NO_SELECTION;
+    }
+    @Override
+    public Object toJSONEntry() {
+        return selectedItem;
+    }
+
+    @Override
+    public void initFromJSONEntry(Object json) {
+        if (json instanceof String) {
+            setSelectedItem((String)json);
+        } else throw new IllegalArgumentException("JSON Entry is not String");
     }
 }

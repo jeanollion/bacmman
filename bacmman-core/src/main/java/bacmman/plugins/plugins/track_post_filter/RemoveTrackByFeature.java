@@ -50,7 +50,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
     PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setEmphasized(true).setHint("Feature computed on each object of the track");
     EnumChoiceParameter<STAT> statistics = new EnumChoiceParameter("Statistics", STAT.values(), STAT.Mean);
     NumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
-    ConditionalParameter statCond = new ConditionalParameter(statistics).setActionParameters("Quantile", quantile).setHint("Statistics to summarize the distribution of computed features");
+    ConditionalParameter<STAT> statCond = new ConditionalParameter<>(statistics).setActionParameters(STAT.Quantile, quantile).setHint("Statistics to summarize the distribution of computed features");
     NumberParameter threshold = new NumberParameter<>("Threshold", 4, 0).setEmphasized(true);
     BooleanParameter keepOverThreshold = new BooleanParameter("Keep over threshold", true).setEmphasized(true).setHint("If true, track will be removed if the statitics value is under the threshold");
     EnumChoiceParameter<PostFilter.MERGE_POLICY> mergePolicy = new EnumChoiceParameter<>("Merge Policy", PostFilter.MERGE_POLICY.values(), PostFilter.MERGE_POLICY.ALWAYS_MERGE).setHint(MERGE_POLICY_TT);

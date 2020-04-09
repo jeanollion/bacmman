@@ -207,7 +207,7 @@ public class Utils {
         } else return array;
     }
     
-    public static int getIndex(String[] array, String key) {
+    public static <V> int getIndex(V[] array, V key) {
         if (key==null) return -1;
         for (int i = 0; i<array.length; i++) if (key.equals(array[i])) return i;
         return -1;

@@ -39,7 +39,7 @@ public class TypeConverter implements MultichannelTransformation, Hint {
     ChoiceParameter method = new ChoiceParameter("Method", Utils.toStringArray(METHOD.values()), METHOD.LIMIT_TO_16.toString(), false).setHint("<ul><li><b>"+METHOD.LIMIT_TO_16.toString()+"</b>: Only 32-bit Images are converted to 16-bits</li><</ul>");
     NumberParameter constantValue = new BoundedNumberParameter("Add value", 1, 0, 0, Short.MAX_VALUE).setHint("Adds this value to all images (after scaling). This is useful to avoid trimming negative during conversion from 32-bit to 8-bit or 16-bit. No check is done to enshure values will be within 16-bit / 8-bit range");
     NumberParameter scale = new BoundedNumberParameter("Scale", 3, 1, 1, null).setHint("All images are multiplied by this value. This is useful to avoid loosing precision during conversion from 32-bit to 8-bit or 16-bit. No check is done to enshure values will be within 16-bit / 8-bit range");
-    ConditionalParameter cond = new ConditionalParameter(method).setActionParameters(METHOD.LIMIT_TO_16.toString(), constantValue, scale);
+    ConditionalParameter<String> cond = new ConditionalParameter<>(method).setActionParameters(METHOD.LIMIT_TO_16.toString(), constantValue, scale);
     Parameter[] parameters = new Parameter[]{cond};
     
     public TypeConverter() {

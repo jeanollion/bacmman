@@ -61,9 +61,9 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel widths are normalized for each track: the width of a given microchannel at a given frame is replaced by the quantile of the distribution of the width of this microchannel at all frames");
     BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", true).setHint("If a frame contains no microchannels (typically when the focus is lost), allows connecting the microchannel track before and after the gap. This will results in microchannel tracks containing gaps. This will results in microchannel tracks containing gaps. If this parameter is set to false, the tracks will be cut");
     BooleanParameter normalizeWidths = new BooleanParameter("Normalize Widths", false).setHint("If set to <em>true</em>, the width of segmented microchannels will be normalized for the whole track (i.e. a given microchannel has the same width for all frames)");
-    ConditionalParameter widthCond = new ConditionalParameter(normalizeWidths).setActionParameters("true", new Parameter[]{widthQuantile});
+    ConditionalParameter<Boolean> widthCond = new ConditionalParameter<>(normalizeWidths).setActionParameters(true, new Parameter[]{widthQuantile});
     BooleanParameter normalizeYshift = new BooleanParameter("Normalize Y-shifts", false).setHint("the term <em>y-shift</em> refers to the difference between the y-coordinate of the closed-end of a microchannel and the mean y-coordinate of the closed-end of all microchannels.<br />If set to <em>true</em>, the y-shift of segmented microchannels will be normalized for the whole track (i.e. a given microchannel has the same y-shift for all frames)");
-    ConditionalParameter shiftCond = new ConditionalParameter(normalizeYshift).setActionParameters("true", new Parameter[]{yShiftQuantile});
+    ConditionalParameter<Boolean> shiftCond = new ConditionalParameter<>(normalizeYshift).setActionParameters(true, new Parameter[]{yShiftQuantile});
     Parameter[] parameters = new Parameter[]{segmenter, maxDistanceFTF, maxShiftGC, maxGapGC, shiftCond, widthCond, allowGaps};
     public static boolean debug = false;
     

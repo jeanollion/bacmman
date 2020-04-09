@@ -20,24 +20,28 @@ package bacmman.configuration.parameters;
 
 import bacmman.utils.Utils;
 
+import java.util.function.Function;
+
 /**
  *
  * @author Jean Ollion
  * @param <P>
  */
 
-public abstract class AbstractChoiceParameter<P extends AbstractChoiceParameter<P>> extends ParameterImpl<P> implements ActionableParameter<P>, ChoosableParameter<P>, Listenable<P> {
+public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, Listenable<P> {
     String selectedItem;
     protected String[] listChoice;
     boolean allowNoSelection;
     private int selectedIndex=-2;
-    ConditionalParameterAbstract cond;
-    
-    public AbstractChoiceParameter(String name, String[] listChoice, String selectedItem, boolean allowNoSelection) {
+    ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond;
+    Function<String, V> mapper;
+
+    public AbstractChoiceParameter(String name, String[] listChoice, String selectedItem, Function<String, V> mapper, boolean allowNoSelection) {
         super(name);
         this.listChoice=listChoice;
         setSelectedItem(selectedItem);
         this.allowNoSelection=allowNoSelection;
+        this.mapper = mapper;
     }
     
     public String getSelectedItem() {return selectedItem;}
@@ -47,7 +51,7 @@ public abstract class AbstractChoiceParameter<P extends AbstractChoiceParameter<
     
     @Override 
     public void setSelectedItem(String selectedItem) {
-        if (selectedItem==null || selectedItem.length()==0 || getNoSelectionString().equals(selectedItem)) {
+        if (selectedItem==null || selectedItem.length()==0 || selectedItem.equals(getNoSelectionString())) {
             this.selectedItem = getNoSelectionString();
             selectedIndex=-1;
         } else {
@@ -117,31 +121,22 @@ public abstract class AbstractChoiceParameter<P extends AbstractChoiceParameter<
     public String[] getChoiceList() {
         return listChoice;
     }
-    
-    
-    protected void setCondValue() {
-        if (cond!=null) cond.setActionValue(selectedItem);
-    }
-    
-    public String getValue() {
-        return getSelectedItem();
-    }
 
-    public void setValue(String value) {
-        this.setSelectedItem(value);
+    protected void setCondValue() {
+        if (cond!=null) cond.setActionValue(mapper.apply(selectedItem));
     }
-    
-    public void setConditionalParameter(ConditionalParameterAbstract cond) {
+    @Override
+    public void setConditionalParameter(ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond) {
         this.cond=cond;
     }
     /**
      * 
      * @return the associated conditional parameter, or null if no conditionalParameter is associated
      */
-    public ConditionalParameterAbstract getConditionalParameter() {
+    @Override
+    public ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> getConditionalParameter() {
         return cond;
     }
-    
     
     private AbstractChoiceParameter(String name, String selectedItem) {
         super(name);

@@ -34,11 +34,11 @@ import java.util.function.Function;
  * @author Jean Ollion
  */
 
-public abstract class ConditionalParameterAbstract<T extends ConditionalParameterAbstract<T>> extends ContainerParameterImpl<T> {
-    ActionableParameter action;
-    HashMap<String, List<Parameter>> parameters;
+public abstract class ConditionalParameterAbstract<V, T extends ConditionalParameterAbstract<V, T>> extends ContainerParameterImpl<T> {
+    ActionableParameter<V, ? extends ActionableParameter<V, ?>> action;
+    HashMap<V, List<Parameter>> parameters;
     List<Parameter> defaultParameters;
-    String currentValue;
+    V currentValue;
 
     @Override
     public T setName(String name) {
@@ -70,11 +70,11 @@ public abstract class ConditionalParameterAbstract<T extends ConditionalParamete
         } else throw new IllegalArgumentException("JSON Entry is not JSONObject");
     }
 
-    public ConditionalParameterAbstract(ActionableParameter action) {
+    public ConditionalParameterAbstract(ActionableParameter<V, ? extends ActionableParameter<V, ?>> action) {
         this(action, new HashMap<>(), null);
     }
 
-    public ConditionalParameterAbstract(ActionableParameter action, HashMap<String, List<Parameter>> parameters, List<Parameter> defaultParameters) {
+    public ConditionalParameterAbstract(ActionableParameter<V, ? extends ActionableParameter<V, ?>> action, HashMap<V, List<Parameter>> parameters, List<Parameter> defaultParameters) {
         super(action.getName());
         this.action=action;
         this.parameters=parameters;
@@ -82,11 +82,11 @@ public abstract class ConditionalParameterAbstract<T extends ConditionalParamete
         action.setConditionalParameter(this);
         setActionValue(action.getValue());
     }
-    public T setActionParameters(String actionValue, Parameter... parameters) {
+    public T setActionParameters(V actionValue, Parameter... parameters) {
         return setActionParameters(actionValue, parameters, false);
     }
 
-    public String getActionValue() {
+    public V getActionValue() {
         return this.currentValue;
     }
     public List<Parameter> getActionParameters(String actionValue) {
@@ -94,7 +94,7 @@ public abstract class ConditionalParameterAbstract<T extends ConditionalParamete
         else return defaultParameters;
     }
 
-    public T setActionParameters(String actionValue, Parameter[] parameters, boolean setContentFromAlreadyPresent) {
+    public T setActionParameters(V actionValue, Parameter[] parameters, boolean setContentFromAlreadyPresent) {
         List<Parameter> paramToSet = Arrays.asList(parameters);
         if (setContentFromAlreadyPresent) {
             List<Parameter> p = this.parameters.get(actionValue);
@@ -145,14 +145,14 @@ public abstract class ConditionalParameterAbstract<T extends ConditionalParamete
     public void setContentFrom(Parameter other) {
         if (other instanceof ConditionalParameterAbstract) {
             bypassListeners=true;
-            ConditionalParameterAbstract otherC = (ConditionalParameterAbstract)other;
+            ConditionalParameterAbstract<V, ?> otherC = (ConditionalParameterAbstract<V, ?>)other;
             action.setConditionalParameter(null);
             action.setContentFrom(otherC.action);
             action.setConditionalParameter(this);
-            String currentAction = otherC.currentValue;
+            V currentAction = otherC.currentValue;
             List<Parameter> currentParameters = currentAction==null? null : otherC.getParameters(currentAction);
-            Map<String, List<Parameter>> otherParams = otherC.parameters;
-            for (Entry<String, List<Parameter>> e : otherParams.entrySet()) {
+            Map<V, List<Parameter>> otherParams = otherC.parameters;
+            for (Entry<V, List<Parameter>> e : otherParams.entrySet()) {
                 if (e.getKey().equals(currentAction)) continue; // current action at the end, in case that parameters are used
                 ParameterUtils.setContent(parameters.get(e.getKey()), e.getValue());
             }
@@ -167,9 +167,9 @@ public abstract class ConditionalParameterAbstract<T extends ConditionalParamete
         } else throw new IllegalArgumentException("wrong parameter type");
     }
 
-    public ActionableParameter getActionableParameter() {return action;}
+    public ActionableParameter<V, ? extends ActionableParameter<V, ?>> getActionableParameter() {return action;}
 
-    protected void setActionValue(String actionValue) {
+    protected void setActionValue(V actionValue) {
         if (actionValue==null) return;
         currentValue = actionValue;
         if (!action.getValue().equals(actionValue)) this.action.setValue(actionValue); // avoid loop
@@ -178,7 +178,7 @@ public abstract class ConditionalParameterAbstract<T extends ConditionalParamete
         //logger.debug("setActionValue: {} value: {}, class: {}, children: {}, allActions: {}",this.hashCode(), actionValue, actionValue.getClass().getSimpleName(), getCurrentParameters()==null ? "null" : getCurrentParameters().size(), this.parameters.keySet());
     }
 
-    public List<Parameter> getParameters(String actionValue) {
+    public List<Parameter> getParameters(V actionValue) {
         List<Parameter> p = this.parameters.get(actionValue);
         if (p==null) return defaultParameters;
         else return p;

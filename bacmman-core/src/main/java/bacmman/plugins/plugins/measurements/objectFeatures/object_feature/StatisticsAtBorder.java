@@ -18,6 +18,10 @@
  */
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
+import bacmman.configuration.parameters.BoundedNumberParameter;
+import bacmman.configuration.parameters.ConditionalParameter;
+import bacmman.configuration.parameters.EnumChoiceParameter;
+import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.Hint;
@@ -27,7 +31,12 @@ import bacmman.plugins.object_feature.IntensityMeasurement;
  *
  * @author Jean Ollion
  */
-public class MeanAtBorder extends IntensityMeasurement implements Hint {
+public class StatisticsAtBorder extends IntensityMeasurement implements Hint {
+    enum STAT {MEAN, MAX, MIN, QUANTILE};
+    public EnumChoiceParameter<STAT> stat= new EnumChoiceParameter<>("Statistic", STAT.values(), STAT.MEAN);
+    public BoundedNumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
+    public ConditionalParameter<STAT> statCond = new ConditionalParameter<STAT>(stat).setActionParameters(STAT.QUANTILE, quantile).setHint("Statistics to apply on contour voxels");
+
     @Override
     public double performMeasurement(Region object) {
         return BasicMeasurements.getMeanValue(object.getContour(), core.getIntensityMap(true), object.isAbsoluteLandMark());
@@ -40,4 +49,7 @@ public class MeanAtBorder extends IntensityMeasurement implements Hint {
     public String getHintText() {
         return "Average intensity value at the border of the object";
     }
+
+    @Override public Parameter[] getParameters() {return new Parameter[]{intensity, statCond};}
+
 }

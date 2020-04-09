@@ -25,10 +25,10 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
     BooleanParameter upperCellCorrectionR = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
     NumberParameter upperCellLocalThresholdFactorR = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinateR = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
-    ConditionalParameter condR = new ConditionalParameter(upperCellCorrectionR).setActionParameters("true", upperCellLocalThresholdFactorR, maxYCoordinateR);
+    ConditionalParameter<Boolean> condR = new ConditionalParameter<>(upperCellCorrectionR).setActionParameters(true, upperCellLocalThresholdFactorR, maxYCoordinateR);
     protected NumberParameter localThresholdFactorRaw = new BoundedNumberParameter("Local Threshold Factor (on raw image)", 2, 2, 0, null).setEmphasized(true).setHint(localThresholdFactor.getHintText());
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodRaw = new EnumChoiceParameter<>("Contour Adjustment (on raw image)", CONTOUR_ADJUSTMENT_METHOD.values(), null).setHint("Method for contour adjustment, performed on raw input image");
-    ConditionalParameter contourAdjustmentCondRaw = new ConditionalParameter(contourAdjustmentMethodRaw).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactorRaw, condR);
+    ConditionalParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentCondRaw = new ConditionalParameter<>(contourAdjustmentMethodRaw).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, localThresholdFactorRaw, condR);
 
     public BacteriaPhaseContrastHessian() {
         super();

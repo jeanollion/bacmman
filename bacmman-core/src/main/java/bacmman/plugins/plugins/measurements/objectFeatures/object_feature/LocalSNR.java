@@ -58,7 +58,7 @@ public class LocalSNR extends SNR {
         final Region backgroundObject; 
         if (foregroundMapBackground==null) backgroundObject = super.parent.getRegion();
         else backgroundObject=this.foregroundMapBackground.get(object);
-        if (backgroundObject==null) return 0;
+        if (backgroundObject==null) return Double.NaN;
         
         // create mask
         ImageByte localBackgroundMask  = TypeConverter.toByteMask(object.getMask(), null, 1).setName("mask:");

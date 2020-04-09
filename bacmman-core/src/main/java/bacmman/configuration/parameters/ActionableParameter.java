@@ -22,9 +22,9 @@ package bacmman.configuration.parameters;
  * An actionable parameter is used by a conditional parameter: when its content is modified, it should also call the setObjectValue method of the conditional parameter, and its UI object should call the ConfigurationModel.nodeStructureChanged method to update the tree
  * @author Jean Ollion
  */
-public interface ActionableParameter<P extends ActionableParameter<P>> extends Parameter<P> {
-    public String getValue();
-    public void setValue(String value);
-    public void setConditionalParameter(ConditionalParameterAbstract cond);
-    public ConditionalParameterAbstract getConditionalParameter();
+public interface ActionableParameter<V, P extends ActionableParameter<V, P>> extends Parameter<P> {
+    public V getValue();
+    public void setValue(V value);
+    public void setConditionalParameter(ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond);
+    public ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> getConditionalParameter();
 }

@@ -60,17 +60,17 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
     BooleanParameter upperCellCorrectionHess = new BooleanParameter("Upper Cell Correction (Hessian)", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
     NumberParameter upperCellLocalThresholdFactorHess = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinateHess = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
-    ConditionalParameter upperCellCorrectionCondHess = new ConditionalParameter(upperCellCorrectionHess).setActionParameters("true", upperCellLocalThresholdFactorHess, maxYCoordinateHess);
+    ConditionalParameter<Boolean> upperCellCorrectionCondHess = new ConditionalParameter<>(upperCellCorrectionHess).setActionParameters(true, upperCellLocalThresholdFactorHess, maxYCoordinateHess);
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethodHess = new EnumChoiceParameter<>("Contour Adjustment (hessian)", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE).setHint("Method for contour adjustment using hessian");
-    ConditionalParameter contourAdjustmentCondHess = new ConditionalParameter(contourAdjustmentMethodHess).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactorHess, upperCellCorrectionCondHess);
+    ConditionalParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentCondHess = new ConditionalParameter<>(contourAdjustmentMethodHess).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, localThresholdFactorHess, upperCellCorrectionCondHess);
 
     BooleanParameter upperCellCorrection = new BooleanParameter("Upper Cell Correction", false).setHint("If true: when the upper cell is touching the top of the microchannel, a different local threshold factor is applied to the upper half of the cell");
     NumberParameter upperCellLocalThresholdFactor = new BoundedNumberParameter("Upper cell local threshold factor", 2, 2, 0, null).setHint("Local Threshold factor applied to the upper part of the cell");
     NumberParameter maxYCoordinate = new BoundedNumberParameter("Max yMin coordinate of upper cell", 0, 5, 0, null);
-    ConditionalParameter upperCellCorrectionCond = new ConditionalParameter(upperCellCorrection).setActionParameters("true", upperCellLocalThresholdFactor, maxYCoordinate);
+    ConditionalParameter<Boolean> upperCellCorrectionCond = new ConditionalParameter<>(upperCellCorrection).setActionParameters(true, upperCellLocalThresholdFactor, maxYCoordinate);
     protected NumberParameter localThresholdFactor = new BoundedNumberParameter("Local Threshold Factor", 2, 0.75, 0, null).setEmphasized(true).setHint("Factor for local thresholding to fit edges. A lower value results in smaller cells. <br />For each region a local threshold T is computed as the mean of intensity within the region weighed by the edge values - standard-deviation of intensity * this threshold (edges as defined by <em>Edge Map</em>). Each pixel of the cell contour is eliminated if its intensity is smaller than T. In this case, the same procedure is applied to the neighboring pixels, until all pixels in the contour have an intensity higher than  T");
     EnumChoiceParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentMethod = new EnumChoiceParameter<>("Contour Adjustment", CONTOUR_ADJUSTMENT_METHOD.values(), CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE).setHint("Method for contour adjustment");
-    ConditionalParameter contourAdjustmentCond = new ConditionalParameter(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE.toString(), localThresholdFactor, upperCellCorrectionCond);
+    ConditionalParameter<CONTOUR_ADJUSTMENT_METHOD> contourAdjustmentCond = new ConditionalParameter<>(contourAdjustmentMethod).setActionParameters(CONTOUR_ADJUSTMENT_METHOD.LOCAL_THLD_W_EDGE, localThresholdFactor, upperCellCorrectionCond);
 
 
     enum SPLIT_METHOD {MIN_WIDTH, HESSIAN};

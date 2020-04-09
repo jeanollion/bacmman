@@ -33,19 +33,19 @@ import bacmman.utils.JSONUtils;
  * @author Jean Ollion
  */
 
-public class ConditionalParameter extends ConditionalParameterAbstract<ConditionalParameter> {
+public class ConditionalParameter<V> extends ConditionalParameterAbstract<V, ConditionalParameter<V>> {
 
-    public ConditionalParameter(ActionableParameter action) {
+    public ConditionalParameter(ActionableParameter<V, ?> action) {
         super(action);
     }
     
-    public ConditionalParameter(ActionableParameter action, HashMap<String, List<Parameter>> parameters, List<Parameter> defaultParameters) {
+    public ConditionalParameter(ActionableParameter<V, ?> action, HashMap<V, List<Parameter>> parameters, List<Parameter> defaultParameters) {
         super(action, parameters, defaultParameters);
     }
 
     @Override
-    public ConditionalParameter duplicate() {
-        ConditionalParameter res = new ConditionalParameter((ActionableParameter)action.duplicate());
+    public ConditionalParameter<V> duplicate() {
+        ConditionalParameter<V> res = new ConditionalParameter(action.duplicate());
         parameters.forEach((v, p) -> res.setActionParameters(v, p.stream().map((Function<Parameter, Parameter>) Parameter::duplicate).toArray(Parameter[]::new)));
         res.setContentFrom(this);
         transferStateArguments(this, res);

@@ -49,14 +49,14 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
     EnumChoiceParameter<CONSTANT_SIZE_CONDITION> constantSizeCondition = new EnumChoiceParameter<>("Condition", CONSTANT_SIZE_CONDITION.values(), CONSTANT_SIZE_CONDITION.ALWAYS).setEmphasized(false).setHint("<ul><li><em>TARGET_SIZE_IS_SMALLER:</em>Target size is set to the object only if smaller than the object's size along this axis</li><li><em>TARGET_SIZE_IS_LARGER:</em>Target size is set to the object only if larger than the object's size along this axis</li></ul>");
     BooleanParameter useParentBounds = new BooleanParameter("Use parent bounds", true).setHint("If true, modified bounds are limited to the object's parent bounds. If false, limits are those of the whole pre-processed image ");
     ParentObjectClassParameter refObjectClass = new ParentObjectClassParameter("Reference Object class").setHint("Reference object class used to compute bounds. Bounding box in chosen axis will be used");
-    ConditionalParameter methodCond = new ConditionalParameter(method).setEmphasized(true)
-            .setActionParameters(METHOD.CONSTANT_SIZE.toString(), size, outOfBound, constantSizeCondition)
-            .setActionParameters(METHOD.CONSTANT_SIZE_START.toString(), size, outOfBound, constantSizeCondition)
-            .setActionParameters(METHOD.CONSTANT_SIZE_END.toString(), size, outOfBound, constantSizeCondition)
-            .setActionParameters(METHOD.EXTEND_ON_SIDES.toString(), addBefore, addAfter, outOfBound)
-            .setActionParameters(METHOD.FROM_OBJECT_CLASS.toString(), refObjectClass);
+    ConditionalParameter<METHOD> methodCond = new ConditionalParameter<>(method).setEmphasized(true)
+            .setActionParameters(METHOD.CONSTANT_SIZE, size, outOfBound, constantSizeCondition)
+            .setActionParameters(METHOD.CONSTANT_SIZE_START, size, outOfBound, constantSizeCondition)
+            .setActionParameters(METHOD.CONSTANT_SIZE_END, size, outOfBound, constantSizeCondition)
+            .setActionParameters(METHOD.EXTEND_ON_SIDES, addBefore, addAfter, outOfBound)
+            .setActionParameters(METHOD.FROM_OBJECT_CLASS, refObjectClass);
 
-    SimpleListParameter<ConditionalParameter> axisCond = new SimpleListParameter<>("Per axis modification", 0, methodCond)
+    SimpleListParameter<ConditionalParameter<METHOD>> axisCond = new SimpleListParameter<>("Per axis modification", 0, methodCond)
             .setNewInstanceNameFunction((l, idx)-> "XYZ".charAt(idx)+" axis").setEmphasized(true).setMaxChildCount(3).setChildrenNumber(2);
 
     private static void modifyBoundingBox(SegmentedObject parent, MutableBoundingBox toModify, BoundingBox parentBounds, ConditionalParameter axisParameter, int axisNumber) {
@@ -262,7 +262,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
         childPopulation.ensureEditableRegions();
         childPopulation.getRegions().forEach(r->{
             MutableBoundingBox bds = new MutableBoundingBox(r.getBounds());
-            List<ConditionalParameter> axisParam = this.axisCond.getChildren();
+            List<ConditionalParameter<METHOD>> axisParam = this.axisCond.getChildren();
             for (int axis = 0; axis<axisParam.size(); ++axis) modifyBoundingBox(parent, bds, parentBds, axisParam.get(axis), axis);
             r.setMask(new BlankMask(new SimpleImageProperties(bds, r.getScaleXY(), r.getScaleZ())));
         });

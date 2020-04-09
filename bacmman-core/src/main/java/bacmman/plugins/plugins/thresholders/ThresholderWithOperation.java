@@ -39,8 +39,8 @@ public class ThresholderWithOperation implements ThresholderHisto, SimpleThresho
     NumberParameter quantile = new BoundedNumberParameter("Quantile", 5, 0.25, 0, 1).setEmphasized(true);
     BooleanParameter overThld = new BooleanParameter("Perform stat over threshold", true).setEmphasized(true);
     enum STAT {MEAN, QUANTILE};
-    ChoiceParameter stat = new ChoiceParameter("Statistics", Utils.toStringArray(STAT.values()), STAT.QUANTILE.toString(), false).setEmphasized(true);
-    ConditionalParameter cond = new ConditionalParameter(stat).setActionParameters(STAT.QUANTILE.toString(), overThld,quantile ).setActionParameters(STAT.MEAN.toString(), overThld).setEmphasized(true);
+    EnumChoiceParameter<STAT> stat = new EnumChoiceParameter<>("Statistics", STAT.values(), STAT.QUANTILE).setEmphasized(true);
+    ConditionalParameter<STAT> cond = new ConditionalParameter<>(stat).setActionParameters(STAT.QUANTILE, overThld,quantile ).setActionParameters(STAT.MEAN, overThld).setEmphasized(true);
     
     @Override
     public String getHintText() {

@@ -68,9 +68,9 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     BooleanParameter landmarkUpperPeak = new BooleanParameter("Landmark is upper peak", false).setHint("Bounds of the crop area are computed for all frames and then the size of the image (in the y-direction) is homogenized. If this parameter is set to <em>true</em>, the upper peak will be the landmark for cropping. <br />Choose the peak that has the most stable location in relation to microchannels through time");
 
     BooleanParameter twoPeaks = new BooleanParameter("Two-peaks detection", false).setEmphasized(true).setHint("<ul><li>Set this parameter to <em>false</em> if the images contain a bright (side of the main channel) line that corresponds to the highest peak in a vertical intensity profile (refer to the <em>Peak Detection</em> graph displayed in test mode).</li><li>Set this parameter to <em>true</em> if there are two peaks of comparable intensity, one being located at the microchannel closed-end and the other located at the microchannel open-end (side of the main channel).</li></ul>See the description of the module for algorithmic details.");
-    ConditionalParameter twoPeaksCond = new ConditionalParameter(twoPeaks)
-            .setActionParameters("false", cropMarginY, maxDistanceRangeFromAberration)
-            .setActionParameters("true", aberrationPeakPropUp, yEndMarginUp, landmarkUpperPeak);
+    ConditionalParameter<Boolean> twoPeaksCond = new ConditionalParameter<>(twoPeaks)
+            .setActionParameters(false, cropMarginY, maxDistanceRangeFromAberration)
+            .setActionParameters(true, aberrationPeakPropUp, yEndMarginUp, landmarkUpperPeak);
     Parameter[] parameters = new Parameter[]{aberrationPeakProp, twoPeaksCond, yOpenedEndMargin, boundGroup};
     @Override public String getHintText() {
         return simpleToolTip + toolTip;

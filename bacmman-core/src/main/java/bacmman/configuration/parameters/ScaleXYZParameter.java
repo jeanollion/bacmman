@@ -31,7 +31,7 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("ScaleXY (pix)", 3, 1, 0, null).setEmphasized(true);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("ScaleZ (pix)", 3, 1, 0, null);
     BooleanParameter useImageCalibration = new BooleanParameter("Use image calibration for Z-scale", true);
-    ConditionalParameter cond = new ConditionalParameter(useImageCalibration).setActionParameters("false", new Parameter[]{scaleZ}, false);
+    ConditionalParameter<Boolean> cond = new ConditionalParameter<>(useImageCalibration).setActionParameters(false, new Parameter[]{scaleZ}, false);
     
     @Override
     public Object toJSONEntry() {

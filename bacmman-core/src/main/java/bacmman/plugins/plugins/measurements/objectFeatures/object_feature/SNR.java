@@ -122,7 +122,7 @@ public class SNR extends IntensityMeasurement implements Hint {
             }
         }
         
-        // remove foreground objects from background mask & erodeit
+        // remove foreground objects from background mask & erode it
         foregroundMapBackground = new HashMap<>();
         for (Region backgroundRegion : backgroundObjects) {
             ImageMask ref = backgroundRegion.getMask();
@@ -145,15 +145,15 @@ public class SNR extends IntensityMeasurement implements Hint {
     }
     @Override
     public double performMeasurement(Region object) {
-        
+
         if (core==null) synchronized(this) {setUpOrAddCore(null, null);}
-        Region parentObject; 
+        Region parentObject;
         if (foregroundMapBackground==null) parentObject = super.parent.getRegion();
         else parentObject=this.foregroundMapBackground.get(object);
-        if (parentObject==null) return 0;
+        if (parentObject==null) return Double.NaN;
         IntensityMeasurementCore.IntensityMeasurements iParent = super.core.getIntensityMeasurements(parentObject);
         IntensityMeasurementCore.IntensityMeasurements fore = super.core.getIntensityMeasurements(object);
-        //logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
+        logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
         return getValue(getForeValue(fore), getBackValue(iParent), iParent.sd);
     }
     protected double getBackValue(IntensityMeasurementCore.IntensityMeasurements back) {

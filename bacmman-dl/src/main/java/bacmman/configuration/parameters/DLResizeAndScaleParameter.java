@@ -23,7 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLResizeAndScaleParameter> {
+public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLResizeAndScaleParameter.MODE, DLResizeAndScaleParameter> {
     static Logger logger = LoggerFactory.getLogger(DLResizeAndScaleParameter.class);
     enum MODE {SCALE_ONLY, RESAMPLE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
@@ -34,7 +34,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     EnumChoiceParameter<Resize.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resize.EXPAND_MODE.values(), Resize.EXPAND_MODE.MIRROR);
     ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
     BooleanParameter padTiles = new BooleanParameter("Pad border tiles", true).setHint("If true, border tiles will be padded by minimum overlap");
-    ConditionalParameter padTilesCond = new ConditionalParameter(padTiles).setActionParameters("true", paddingMode);
+    ConditionalParameter<Boolean> padTilesCond = new ConditionalParameter<>(padTiles).setActionParameters(true, paddingMode);
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
@@ -146,10 +146,10 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         oS.setEmphasized(true);
         iIS.setEmphasized(true);
         oIS.setEmphasized(true);
-        this.setActionParameters(MODE.SCALE_ONLY.toString(), iS, oS, scaleFrameByFrame);
-        this.setActionParameters(MODE.RESAMPLE.toString(), targetShape, contractionNumber, iIS, oIS ,scaleFrameByFrame);
-        this.setActionParameters(MODE.PAD.toString(), targetShape, contractionNumber, paddingMode, minPad, iS, oS, scaleFrameByFrame);
-        this.setActionParameters(MODE.TILE.toString(), tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
+        this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleFrameByFrame);
+        this.setActionParameters(MODE.RESAMPLE, targetShape, contractionNumber, iIS, oIS ,scaleFrameByFrame);
+        this.setActionParameters(MODE.PAD, targetShape, contractionNumber, paddingMode, minPad, iS, oS, scaleFrameByFrame);
+        this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
         initChildList();
     }
     public DLResizeAndScaleParameter setEmphasized(boolean emp) {
