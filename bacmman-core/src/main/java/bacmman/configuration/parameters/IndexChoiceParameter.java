@@ -43,7 +43,8 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
     
     public IndexChoiceParameter(String name, int[] selectedIndicies, boolean allowNoSelection) {
         super(name);
-        this.selectedIndices = selectedIndicies;
+        if (selectedIndicies==null) this.selectedIndices=new int[0];
+        else this.selectedIndices = selectedIndicies;
         this.allowNoSelection=allowNoSelection;
         this.multipleSelection=true;
     }
@@ -153,6 +154,7 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
                 selectedIndices = new int[0];
             }
         }*/
+        if (selectedIndices==null) selectedIndices = new int[0];
         return selectedIndices;
     }
     @Override
