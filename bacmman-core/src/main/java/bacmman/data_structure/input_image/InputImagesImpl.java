@@ -94,7 +94,7 @@ public class InputImagesImpl implements InputImages {
     @Override public int getFrameNumber() {return frameNumber;}
     @Override public int getChannelNumber() {return imageCT.length;}
     @Override public int getDefaultTimePoint() {return defaultTimePoint;}
-    @Override public int getSizeZ(int channelIdx) {return imageCT[channelIdx][0].imageSources.getSizeZ(channelIdx);}
+    @Override public int getSourceSizeZ(int channelIdx) {return imageCT[channelIdx][0].imageSources.getSizeZ(channelIdx);}
     @Override public double getCalibratedTimePoint(int c, int t, int z) {
         if (imageCT==null) return Double.NaN;
         if (singleFrameChannel(c)) { // adjacent channel

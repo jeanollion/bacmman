@@ -246,7 +246,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                     }
                 }
             );
-            openPreprocessedAllFrames.setEnabled(generator.getExperiment().getImageDAO().getPreProcessedImageProperties(position)!=null);
+            openPreprocessedAllFrames.setEnabled(generator.getExperiment().getImageDAO().getPreProcessedImageProperties(0, position)!=null);
             rawSubMenu = new JMenu("Open Kymograph");
             actions[2] = rawSubMenu;
             List<String> directRootChild = new ArrayList<String>();

@@ -453,7 +453,7 @@ public class ImageReader {
             stcxyz[0][1] = 1; // currently no multichannel / multiframe supported...
             stcxyz[0][2] = info[0].width;
             stcxyz[0][3] = info[0].height;
-            stcxyz[0][4] = 1;//Arrays.stream(info).mapToInt(i->i.nImages).sum();
+            stcxyz[0][4] = Arrays.stream(info).mapToInt(i->i.nImages).sum();
             double[] scale = new double[3];
             scale[0] = info[0].pixelWidth;
             scale[1] = info[0].pixelHeight;

@@ -45,7 +45,7 @@ public interface InputImages {
     public int getFrameNumber();
     public int getChannelNumber();
     public int getDefaultTimePoint();
-    public int getSizeZ(int channelIdx);
+    public int getSourceSizeZ(int channelIdx);
     public int getBestFocusPlane(int timePoint);
     public void flush();
     public double getCalibratedTimePoint(int c, int t, int z);

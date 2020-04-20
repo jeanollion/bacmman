@@ -34,11 +34,11 @@ public interface ImageDAO {
     public InputStream openPreProcessedImageAsStream(int channelImageIdx, int timePoint, String microscopyFieldName);
     public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName);
     public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName, MutableBoundingBox bounds);
-    public BlankMask getPreProcessedImageProperties(String microscopyFieldName);
+    public BlankMask getPreProcessedImageProperties(int channelImageIdx, String microscopyFieldName);
     public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint, String microscopyFieldName);
     public void writePreProcessedImage(InputStream image, int channelImageIdx, int timePoint, String microscopyFieldName);
     public void deletePreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName);
-    
+
     // track images
     public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, Image image);
     public Image openTrackImage(SegmentedObject trackHead, int channelImageIdx);

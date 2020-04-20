@@ -268,7 +268,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma, 4*typicalSigma+1, true, 300, 0.001, 0.01);
         long t1 = System.currentTimeMillis();
         //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
-        List<Spot> res = seedsToSpots.stream().map(p -> fit.get(p)).map(d -> GaussianFit.spotMapper.apply(d, fitImage))
+        List<Spot> res = seedsToSpots.stream().map(fit::get).filter(Objects::nonNull).map(d -> GaussianFit.spotMapper.apply(d, fitImage))
                 .filter(s -> !Double.isNaN(s.getRadius()) || s.getRadius()<1)
                 .filter(s -> !Double.isNaN(s.getIntensity()))
                 .collect(Collectors.toList());

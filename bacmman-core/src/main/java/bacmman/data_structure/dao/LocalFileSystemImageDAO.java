@@ -99,15 +99,16 @@ public class LocalFileSystemImageDAO implements ImageDAO {
         File f = new File(path);
         if (f.exists()) f.delete();
     }
+
     @Override
-    public BlankMask getPreProcessedImageProperties(String microscopyFieldName) {
-        String path = getPreProcessedImagePath(0, 0, microscopyFieldName);
+    public BlankMask getPreProcessedImageProperties(int channelIdx, String microscopyFieldName) {
+        String path = getPreProcessedImagePath(channelIdx, 0, microscopyFieldName);
         File f = new File(path);
         if (f.exists()) {
             Pair<int[][], double[]> info = ImageReader.getImageInfo(path);
             int[][] STCXYZ = info.key;
             double[] scale = new double[]{info.value[0], info.value[2]};
-            //logger.debug("image info for: {}, sX={}, sY={}, sZ={}, T={} C={}", microscopyFieldName, STCXYZ[0][2], STCXYZ[0][3], STCXYZ[0][4], STCXYZ[0][0], STCXYZ[0][1]);
+            logger.debug("image info for: {}, sX={}, sY={}, sZ={}, T={} C={}", microscopyFieldName, STCXYZ[0][2], STCXYZ[0][3], STCXYZ[0][4], STCXYZ[0][0], STCXYZ[0][1]);
             return new BlankMask( STCXYZ[0][2], STCXYZ[0][3], STCXYZ[0][4], 0, 0, 0, (float)scale[0], (float)scale[1]);
         } else {
             logger.debug("getPreProcessedImageProperties: pre-processed image {} not found", path);

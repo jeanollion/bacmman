@@ -33,6 +33,7 @@ import bacmman.image.BlankMask;
 import java.util.ArrayList;
 import java.util.List;
 
+import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 
 import java.util.Map;
@@ -49,6 +50,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     BoundedNumberParameter defaultTimePoint = new BoundedNumberParameter("Default TimePoint", 0, defaultTP, 0, null).setHint("Frame used by default by transformations that requires a single frame");
     InputImagesImpl inputImages;
     public static final int defaultTP = 50;
+    HashMapGetCreate<Integer, Integer> channelMapSizeZ = HashMapGetCreate.getRedirectedMap(chan -> getExperiment().getImageDAO().getPreProcessedImageProperties(chan, name).sizeZ(), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
 
     @Override
     public Object toJSONEntry() {
@@ -169,7 +171,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     
     public BlankMask getMask() {
-        BlankMask mask = getExperiment().getImageDAO().getPreProcessedImageProperties(name);
+        BlankMask mask = getExperiment().getImageDAO().getPreProcessedImageProperties(0, name);
         if (mask==null) return null;
         // TODO: recreate image if configuration data has been already computed
         mask.setCalibration(getScaleXY(), getScaleZ());
@@ -236,10 +238,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         this.defaultTimePoint.setValue(frame);
         return this;
     }
-    
     public int getSizeZ(int channelIdx) {
-        if (sourceImages!=null) return sourceImages.getSizeZ(getExperiment().getSourceChannel(channelIdx));
-        else return -1;
+        logger.debug("get size Z channel: {} -> {}. prop: {}", channelIdx, channelMapSizeZ.get(channelIdx), getExperiment().getImageDAO().getPreProcessedImageProperties(0, getName()));
+        return channelMapSizeZ.get(channelIdx);
     }
     
     public void setImages(MultipleImageContainer images) {

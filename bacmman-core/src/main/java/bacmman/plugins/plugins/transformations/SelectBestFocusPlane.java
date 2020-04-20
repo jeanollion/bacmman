@@ -55,7 +55,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
     public void computeConfigurationData(final int channelIdx, final InputImages inputImages)  {
         final double scale = gradientScale.getValue().doubleValue();
         final Integer[] conf = new Integer[inputImages.getFrameNumber()];
-        if (inputImages.getSizeZ(channelIdx)>1) {
+        if (inputImages.getSourceSizeZ(channelIdx)>1) {
             IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(t -> { 
                 Image image = inputImages.getImage(channelIdx, t);
                 if (image.sizeZ()>1) {
