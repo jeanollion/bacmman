@@ -31,6 +31,7 @@ import static bacmman.data_structure.SegmentedObjectUtils.setTrackLinks;
 import bacmman.image.BlankMask;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import bacmman.utils.HashMapGetCreate;
@@ -50,7 +51,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     BoundedNumberParameter defaultTimePoint = new BoundedNumberParameter("Default TimePoint", 0, defaultTP, 0, null).setHint("Frame used by default by transformations that requires a single frame");
     InputImagesImpl inputImages;
     public static final int defaultTP = 50;
-    HashMapGetCreate<Integer, Integer> channelMapSizeZ = HashMapGetCreate.getRedirectedMap(chan -> getExperiment().getImageDAO().getPreProcessedImageProperties(chan, name).sizeZ(), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+    private final Map<Integer, Integer> channelMapSizeZ = new HashMap<>();
 
     @Override
     public Object toJSONEntry() {
@@ -240,7 +241,20 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     public int getSizeZ(int channelIdx) {
         logger.debug("get size Z channel: {} -> {}. prop: {}", channelIdx, channelMapSizeZ.get(channelIdx), getExperiment().getImageDAO().getPreProcessedImageProperties(0, getName()));
-        return channelMapSizeZ.get(channelIdx);
+        if (channelMapSizeZ.containsKey(channelIdx)) return channelMapSizeZ.get(channelIdx);
+        else {
+            synchronized (channelMapSizeZ) {
+                if (channelMapSizeZ.containsKey(channelIdx)) return channelMapSizeZ.get(channelIdx);
+                else {
+                    BlankMask props = getExperiment().getImageDAO().getPreProcessedImageProperties(channelIdx, name);
+                    if (props==null) return 1; // default
+                    else {
+                        channelMapSizeZ.put(channelIdx, props.sizeZ());
+                        return props.sizeZ();
+                    }
+                }
+            }
+        }
     }
     
     public void setImages(MultipleImageContainer images) {
