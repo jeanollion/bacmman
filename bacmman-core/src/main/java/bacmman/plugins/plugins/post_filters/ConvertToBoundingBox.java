@@ -59,9 +59,9 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
     SimpleListParameter<ConditionalParameter<METHOD>> axisCond = new SimpleListParameter<>("Per axis modification", 0, methodCond)
             .setNewInstanceNameFunction((l, idx)-> "XYZ".charAt(idx)+" axis").setEmphasized(true).setMaxChildCount(3).setChildrenNumber(2);
 
-    private static void modifyBoundingBox(SegmentedObject parent, MutableBoundingBox toModify, BoundingBox parentBounds, ConditionalParameter axisParameter, int axisNumber) {
+    private static void modifyBoundingBox(SegmentedObject parent, MutableBoundingBox toModify, BoundingBox parentBounds, ConditionalParameter<METHOD> axisParameter, int axisNumber) {
         METHOD method = ((EnumChoiceParameter<METHOD>)axisParameter.getActionableParameter()).getSelectedEnum();
-        List<Parameter> parameters = axisParameter.getActionParameters(method.toString());
+        List<Parameter> parameters = axisParameter.getActionParameters(method);
         switch (method) {
             case NO_MODIFICATION:
             default:

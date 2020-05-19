@@ -89,7 +89,7 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     public V getActionValue() {
         return this.currentValue;
     }
-    public List<Parameter> getActionParameters(String actionValue) {
+    public List<Parameter> getActionParameters(V actionValue) {
         if (parameters.containsKey(actionValue)) return parameters.get(actionValue);
         else return defaultParameters;
     }

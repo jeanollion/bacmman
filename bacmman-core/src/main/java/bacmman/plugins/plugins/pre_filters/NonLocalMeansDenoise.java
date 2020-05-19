@@ -44,7 +44,7 @@ public class NonLocalMeansDenoise implements PreFilter, Filter, Hint {
     BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 0, 5, 0, null).setHint("Estimation of standard deviation of noise.").setEmphasized(true);
     BoundedNumberParameter smoothingFactor = new BoundedNumberParameter("Smoothing factor", 2, 1, 0.1, null);
     BooleanParameter autoEstimateSigma = new BooleanParameter("Auto Estimate Sigma", false);
-    ConditionalParameter<Boolean> autoEstimateCond = new ConditionalParameter<>(autoEstimateSigma).setActionParameters(Boolean.TRUE, smoothingFactor).setActionParameters(Boolean.FALSE, sigma, smoothingFactor).setEmphasized(true).setHint("This parameter will appear as invalid if not installed").addValidationFunction(p -> {
+    ConditionalParameter<Boolean> autoEstimateCond = new ConditionalParameter<>(autoEstimateSigma).setActionParameters(true, smoothingFactor).setActionParameters(Boolean.FALSE, sigma, smoothingFactor).setEmphasized(true).setHint("This parameter will appear as invalid if not installed").addValidationFunction(p -> {
         try {
             NLMeansDenoising_ nlmean = new NLMeansDenoising_();
         } catch (NoClassDefFoundError e) {
