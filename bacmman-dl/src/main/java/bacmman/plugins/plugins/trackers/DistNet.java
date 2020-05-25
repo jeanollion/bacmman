@@ -314,7 +314,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 }
             }
 
-            // artifact of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
+            // limit of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
             // when a division is detected: check if the mother cell divided at previous frame.
 
             List<Pair<Set<SegmentedObject>, Set<SegmentedObject>>> toReMatch = new ArrayList<>();
