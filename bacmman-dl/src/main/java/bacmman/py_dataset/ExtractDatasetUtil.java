@@ -211,6 +211,7 @@ public class ExtractDatasetUtil {
                 converter = im -> im instanceof ImageFloat ? im : TypeConverter.toFloat(im, null);
                 break;
         }
+        if (images.isEmpty()) return;
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
