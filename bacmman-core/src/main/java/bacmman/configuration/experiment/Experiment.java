@@ -359,7 +359,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         return res;
     }
     
-    public int getChannelImageIdx(int structureIdx) {return getStructure(structureIdx).getChannelImage();}
+    public int getChannelImageIdx(int structureIdx) {return structureIdx==-1 ? 0 : getStructure(structureIdx).getChannelImage();}
     
     public SimpleListParameter<Structure> getStructures() {return structures;}
     

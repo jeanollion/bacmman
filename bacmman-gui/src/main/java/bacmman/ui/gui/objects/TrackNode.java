@@ -380,7 +380,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     Map<Integer, Set<SegmentedObject>> objects = new HashMapGetCreate.HashMapGetCreateRedirected<>(ocIdx -> selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(ocIdx, true)).collect(Collectors.toSet()));
                     SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
                     for (Selection s : GUI.getInstance().getSelectedSelections(false)) {
-                        Set<SegmentedObject> objectsToAdd = objects.get(s.getStructureIdx()==-1 ? trackHead.getStructureIdx() : s.getStructureIdx());
+                        Set<SegmentedObject> objectsToAdd = objects.get(s.getStructureIdx()==-2 ? trackHead.getStructureIdx() : s.getStructureIdx());
                         if (!objectsToAdd.isEmpty()) {
                             s.addElements(objectsToAdd);
                             dao.store(s);
@@ -395,7 +395,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     Map<Integer, Set<SegmentedObject>> objects = new HashMapGetCreate.HashMapGetCreateRedirected<>(ocIdx -> selectedNodes.stream().flatMap(tn->tn.getTrack().stream()).flatMap(p->p.getChildren(ocIdx, true)).collect(Collectors.toSet()));
                     SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
                     for (Selection s : GUI.getInstance().getSelectedSelections(false)) {
-                        if (s.getStructureIdx()==-1) continue;
+                        if (s.getStructureIdx()==-2) continue;
                         Set<SegmentedObject> objectsToRemove = objects.get(s.getStructureIdx());
                         if (!objectsToRemove.isEmpty()) {
                             s.removeElements(objectsToRemove);

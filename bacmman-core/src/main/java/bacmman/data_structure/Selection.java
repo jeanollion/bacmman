@@ -78,7 +78,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
 
     public Selection duplicate(String name) {
         Selection dup = new Selection(name, structureIdx, mDAO);
-        elements.forEach((p, e)->dup.addElements(p, e));
+        elements.forEach(dup::addElements);
         return dup;
     }
 
@@ -95,7 +95,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     MasterDAO mDAO;
     
     public Selection(String name, MasterDAO mDAO) {
-        this(name, -1, mDAO);
+        this(name, -2, mDAO);
     }
     public Selection(String name, int structureIdx, MasterDAO mDAO) {
         this.name=name;
@@ -371,7 +371,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     }
     
     public void addElement(SegmentedObject elementToAdd) {
-        if (this.structureIdx==-1) structureIdx=elementToAdd.getStructureIdx();
+        if (this.structureIdx==-2) structureIdx=elementToAdd.getStructureIdx();
         else if (structureIdx!=elementToAdd.getStructureIdx()) return;
         if (this.retrievedElements.containsKey(elementToAdd.getPositionName())) {
             Set<SegmentedObject> list = getElements(elementToAdd.getPositionName());
@@ -393,8 +393,8 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public synchronized Selection addElements(Collection<SegmentedObject> elementsToAdd) {
         if (elementsToAdd==null || elementsToAdd.isEmpty()) return this;
         Map<Integer, List<SegmentedObject>> objectBySIdx = SegmentedObjectUtils.splitByStructureIdx(elementsToAdd);
-        if (this.getStructureIdx()==-1) {
-            if (objectBySIdx.size()>1) throw new IllegalArgumentException("Cannot add objects from several strucutres");
+        if (this.getStructureIdx()==-2) {
+            if (objectBySIdx.size()>1) throw new IllegalArgumentException("Cannot add objects from several structures");
             this.structureIdx=objectBySIdx.keySet().iterator().next();
         } else if (objectBySIdx.size()>1) {
             elementsToAdd = objectBySIdx.get(this.structureIdx);
@@ -403,7 +403,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         Map<String, List<SegmentedObject>> elByPos = SegmentedObjectUtils.splitByPosition(elementsToAdd);
         for (String pos : elByPos.keySet()) {
             if (this.retrievedElements.containsKey(pos)) for (SegmentedObject o : elementsToAdd) addElement(o);
-            addElements(pos, Utils.transform(elByPos.get(pos), o->indicesString(o)));
+            addElements(pos, Utils.transform(elByPos.get(pos), Selection::indicesString));
         }
         return this;
     }
@@ -440,7 +440,7 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         for (SegmentedObject o : elementsToRemove) removeElement(o);
     }
     public synchronized void removeChildrenOf(List<SegmentedObject> parents) { // currently supports only direct children
-        if (structureIdx==-1) return;
+        if (structureIdx==-2) return;
         Map<String, List<SegmentedObject>> parentsByPosition = SegmentedObjectUtils.splitByPosition(parents);
         for (String position : parentsByPosition.keySet()) {
             Set<String> elements = getElementStrings(position);
@@ -477,7 +477,8 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(name).append(" (");
-        if (structureIdx==-1) sb.append("NO OBJECT CLASS");
+        if (structureIdx==-2) sb.append("NO OBJECT CLASS");
+        else if (structureIdx==-1) sb.append("Viewfield");
         else if (mDAO==null || mDAO.getExperiment().getStructureCount()<=structureIdx) sb.append("oc=").append(structureIdx);
         else sb.append(mDAO.getExperiment().getStructure(structureIdx).getName());
         sb.append("; n=").append(count()).append(")");

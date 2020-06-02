@@ -2812,7 +2812,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             ImageWindowManagerFactory.getImageManager().goToNextTrackError(null, this.trackTreeController.getLastTreeGenerator().getSelectedTrackHeads(), next);
             return;
         }
-        if (sel.getStructureIdx()==-1) return;
+        if (sel.getStructureIdx()==-2) return;
 
         InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
         if (structureDisplay<0) {

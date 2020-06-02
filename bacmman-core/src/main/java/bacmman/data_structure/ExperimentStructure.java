@@ -145,7 +145,7 @@ public class ExperimentStructure {
 
     /**
      *
-     * @return a matrix of structure indexes. the fisrt dimension represent the hierarchical orders, the second dimension the structures at the given hierarchical order, sorted by the index of the structure
+     * @return a matrix of structure indexes. the first dimension represent the hierarchical orders, the second dimension the structures at the given hierarchical order, sorted by the index of the structure
      */
     public int[][] getStructuresInHierarchicalOrder() {
         int[] orders = new int[xp.getStructureCount()];
@@ -174,6 +174,7 @@ public class ExperimentStructure {
         return res;
     }
     public String getObjectClassName(int objectClassIdx) {
+        if (objectClassIdx==-1) return "Viewfield";
         return xp.getStructure(objectClassIdx).getName();
     }
     public boolean singleFrame(String positionName, int objectClassIdx) {

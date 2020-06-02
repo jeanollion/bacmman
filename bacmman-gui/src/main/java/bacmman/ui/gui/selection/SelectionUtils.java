@@ -121,7 +121,7 @@ public class SelectionUtils {
         return res;
     }
     public static void removeAll(Selection sel, Selection... selections) {
-        if (sel.getStructureIdx()==-1) return;
+        if (sel.getStructureIdx()==-2) return;
         for (String pos:new ArrayList<>(sel.getAllPositions())) {
             Arrays.stream(selections)
                     .filter(s -> s.getStructureIdx() == sel.getStructureIdx() && s.getAllPositions().contains(pos))
@@ -570,9 +570,9 @@ public class SelectionUtils {
         if (selections.isEmpty()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
         for (Selection s : selections ) {
-            int[] structureIdx = s.getStructureIdx()==-1 ? new int[0] : new int[]{s.getStructureIdx()};
+            int[] structureIdx = s.getStructureIdx()==-2 ? new int[0] : new int[]{s.getStructureIdx()};
             List<SegmentedObject> objects = new ArrayList<>(sel);
-            SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(sel, structureIdx);
+            SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects, structureIdx);
             s.addElements(objects);
             dao.store(s);
         }
@@ -580,7 +580,7 @@ public class SelectionUtils {
     public static void removeCurrentObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao) {
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
         for (Selection s : selections ) {
-            if (s.getStructureIdx()==-1) continue;
+            if (s.getStructureIdx()==-2) continue;
             List<SegmentedObject> currentList = new ArrayList<>(sel);
             SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(currentList, s.getStructureIdx());
             s.removeElements(currentList);
