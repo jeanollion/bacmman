@@ -300,8 +300,10 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                 s.addElements(SegmentedObjectUtils.getAllObjectsAsStream(generator.db.getDao(selectedNodes.get(i).position), structureIdx).collect(Collectors.toList()));
                                 GUI.logger.debug("current objects: {}", s.getAllElementStrings().size());
                                 if (i==1 || (selectedNodes.size()>10 && i%(selectedNodes.size()/10)==0) || i==(selectedNodes.size()-1)) {
-                                    GUI.logger.debug("saving sel {}", s.getAllElementStrings().size());
-                                    generator.db.getSelectionDAO().store(s);
+                                    synchronized (s) {
+                                        GUI.logger.debug("saving sel {}", s.getAllElementStrings().size());
+                                        generator.db.getSelectionDAO().store(s);
+                                    }
                                 }
                                 
                                 return "";
