@@ -377,7 +377,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
             if (s.getName().equals(name)) return i;
             i++;
         }
-        return -2;
+        if ("Viewfield".equals(name)) return -1;
+        else return -2;
     }
     
     public int getChannelImageCount(boolean includeDuplicated) {

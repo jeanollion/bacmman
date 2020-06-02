@@ -249,14 +249,18 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             openPreprocessedAllFrames.setEnabled(generator.getExperiment().getImageDAO().getPreProcessedImageProperties(0, position)!=null);
             rawSubMenu = new JMenu("Open Kymograph");
             actions[2] = rawSubMenu;
-            List<String> directRootChild = new ArrayList<String>();
+            List<String> allObjectClasses = new ArrayList<>();
             for (int sIdx = 0; sIdx<generator.db.getExperiment().getStructureCount(); ++sIdx) {
-                if (true ||generator.db.getExperiment().getStructure(sIdx).getParentStructure()==-1) directRootChild.add(generator.db.getExperiment().getStructure(sIdx).getName());
+                allObjectClasses.add(generator.db.getExperiment().getStructure(sIdx).getName());
             }
-            openRaw=new JMenuItem[directRootChild.size()];
+            List<String> rootAndChildren = new ArrayList<>();
+            rootAndChildren.add("Viewfield");
+            rootAndChildren.addAll(allObjectClasses);
+
+            openRaw=new JMenuItem[allObjectClasses.size()];
             for (int i = 0; i < openRaw.length; i++) {
-                openRaw[i] = new JMenuItem(directRootChild.get(i));
-                openRaw[i].setAction(new AbstractAction(directRootChild.get(i)) {
+                openRaw[i] = new JMenuItem(allObjectClasses.get(i));
+                openRaw[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
@@ -279,10 +283,10 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             }
             createSelectionSubMenu = new JMenu("Create Selection");
             actions[3] = createSelectionSubMenu;
-            createSelection = new JMenuItem[directRootChild.size()];
+            createSelection = new JMenuItem[rootAndChildren.size()];
             for (int i = 0; i < createSelection.length; i++) {
-                createSelection[i] = new JMenuItem(directRootChild.get(i));
-                createSelection[i].setAction(new AbstractAction(directRootChild.get(i)) {
+                createSelection[i] = new JMenuItem(rootAndChildren.get(i));
+                createSelection[i].setAction(new AbstractAction(rootAndChildren.get(i)) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
