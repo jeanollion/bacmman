@@ -156,10 +156,14 @@ public class SegmentedObjectUtils {
     }
 
     public static Stream<SegmentedObject> getAllObjectsAsStream(ObjectDAO dao, int structureIdx) {
-        List<SegmentedObject> roots= dao.getRoots();
-        if (structureIdx == -1) return roots.stream();
-        setAllChildren(roots, structureIdx);
-        return getAllChildrenAsStream(roots.stream(), structureIdx);
+        try {
+            List<SegmentedObject> roots = Processor.getOrCreateRootTrack(dao);
+            if (structureIdx == -1) return roots.stream();
+            setAllChildren(roots, structureIdx);
+            return getAllChildrenAsStream(roots.stream(), structureIdx);
+        } catch (Exception e) {
+            return Stream.empty();
+        }
     }
 
     public static Stream<SegmentedObject> getAllChildrenAsStream(Stream<SegmentedObject> parentTrack, int structureIdx) {
