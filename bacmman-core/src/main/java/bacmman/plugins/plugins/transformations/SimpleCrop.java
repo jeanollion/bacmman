@@ -87,19 +87,22 @@ public class SimpleCrop implements MultichannelTransformation, Hint {
     }*/
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        ensureValidBounds(new SimpleBoundingBox(image).resetOffset());
-        return image.crop(bounds);
+        BoundingBox bds = ensureValidBounds(new SimpleBoundingBox(image).resetOffset());
+        return image.crop(bds);
     }
 
-    private void ensureValidBounds(BoundingBox bb) {
-        if (bounds!=null && bounds.getSizeXYZ()!=0) return;
+    private BoundingBox ensureValidBounds(BoundingBox bb) {
+        if (bounds!=null && bounds.getSizeXYZ()!=0) return bounds;
         else synchronized (this) {
-            if (bounds == null) bounds = new MutableBoundingBox(xMin.getValue().intValue(), yMin.getValue().intValue(), zMin.getValue().intValue());
-            bounds.setxMax(xLength.getValue().intValue()==0 ? bb.xMax() : bounds.xMin()+xLength.getValue().intValue()-1);
-            bounds.setyMax(yLength.getValue().intValue()==0 ? bb.yMax() : bounds.yMin()+yLength.getValue().intValue()-1);
-            bounds.setzMax(zLength.getValue().intValue()==0 ? bb.zMax() : bounds.zMin()+zLength.getValue().intValue()-1);
-            logger.debug("simple crop bounds: {}", bounds);
-            bounds.trim(bb);
+            MutableBoundingBox currentBounds;
+            if (bounds == null) currentBounds = new MutableBoundingBox(xMin.getValue().intValue(), yMin.getValue().intValue(), zMin.getValue().intValue());
+            else currentBounds = new MutableBoundingBox(bounds);
+            currentBounds.setxMax(xLength.getValue().intValue()==0 ? bb.xMax() : currentBounds.xMin()+xLength.getValue().intValue()-1);
+            currentBounds.setyMax(yLength.getValue().intValue()==0 ? bb.yMax() : currentBounds.yMin()+yLength.getValue().intValue()-1);
+            currentBounds.setzMax(zLength.getValue().intValue()==0 ? bb.zMax() : currentBounds.zMin()+zLength.getValue().intValue()-1);
+            logger.debug("simple crop bounds: {}", currentBounds);
+            currentBounds.trim(bb);
+            return currentBounds;
         }
         
     }
