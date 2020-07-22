@@ -277,7 +277,10 @@ public class ImageFieldFactory {
         int scaleChannel=0;
         ToIntFunction<Integer> getChannelIdx = idx -> (int)Arrays.stream(imageC).limit(idx).filter(s -> s.equals(imageC[idx])).count();
         int[] channelIdx = IntStream.range(0, imageC.length).boxed().mapToInt(getChannelIdx).toArray();
-        logger.debug("images: {} , channelIdx: {}", imageC, channelIdx);
+        int[] channelModulo = new int[channelIdx.length];
+        Arrays.fill(channelModulo, 1);
+        Map<String, Integer> channelNumber = Arrays.stream(imageC).collect(Collectors.groupingBy(c->c)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
+        logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelNumber);
         for (int c = 0; c< imageC.length; ++c) {
             ImageReader reader = null;
             try {
@@ -294,9 +297,17 @@ public class ImageFieldFactory {
                     return;
                 }
                 if (stc.length==0) return;
-                if (stc[0][1]<=channelIdx[c]) {
-                    logger.warn("File: {} contains {} channels, but is expected to contain at least {} channels", imageC[c], stc[0][1], channelIdx[c]);
-                    if (pcb!=null) pcb.log("File: "+imageC[c]+" contains "+stc[0][1]+" channels, but is expected to contain at least "+channelIdx[c]+" channels");
+                if (channelNumber.get(imageC[c])>1 && stc[0][1]==1) {
+                    channelModulo[c] = channelNumber.get(imageC[c]);
+                    if (stc[0][0]%channelModulo[c]!=0) {
+                        logger.warn("File: {} contains {} frames and one channel but is expected to contain {} channels: number of frames should be a multiple of number of expected channels", imageC[c], stc[0][0], channelModulo[c]);
+                        if (pcb!=null) pcb.log("File: "+imageC[c]+" contains "+stc[0][0]+" frames and one channel but is expected to contain "+channelModulo[c]+" channels: number of frames should be a multiple of number of expected channels");
+                        return;
+                    }
+                    stc[0][0] = stc[0][0] / channelModulo[c];
+                } else if (stc[0][1]<=channelIdx[c]) {
+                    logger.warn("File: {} contains {} channels, but is expected to contain at least {} channels", imageC[c], stc[0][1], channelIdx[c]+1);
+                    if (pcb!=null) pcb.log("File: "+imageC[c]+" contains "+stc[0][1]+" channels, but is expected to contain at least "+channelIdx[c]+1+" channels");
                     return;
                 }
                 //if (stc[0][1]>1) logger.warn("Import method selected = one file per channel and per microscopy field, but file: {} contains {} channels", imageC[c], stc[0][1]);
@@ -323,11 +334,9 @@ public class ImageFieldFactory {
             }
         }
         if (timePointNumber>0) {
-            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
+            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
             containersTC.add(c);
         }
-        
-        
     }
     
     
