@@ -38,8 +38,9 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
             IMPORT_METHOD method = xp.getImportImageMethod();
             if (IMPORT_METHOD.SINGLE_FILE.equals(method)) return true;
             if (xp.getChannelImageCount(false)>1 && method==IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION && this.getParent().getIndex(this)==0 && this.getImportImageChannelKeyword().length()==0) return false; // first must be non null if there are several channels
-            long distinctKW = xp.getChannelImages().getChildren().stream().map(c -> c.getImportImageChannelKeyword()).distinct().count();
-            return distinctKW == xp.getChannelImageCount(false);
+            return true;
+            //long distinctKW = xp.getChannelImages().getChildren().stream().map(c -> c.getImportImageChannelKeyword()).distinct().count();
+            //return distinctKW == xp.getChannelImageCount(false);
         } else return true;
     };
     TextParameter importKeyWord = new TextParameter("Channel keyword", "", true).addValidationFunction(kwValid).setHint("Keyword allowing to distinguish the file containing channel during image import, when dataset is composed of several files per position. <br />"

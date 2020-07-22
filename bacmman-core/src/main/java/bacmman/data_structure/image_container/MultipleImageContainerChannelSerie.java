@@ -24,6 +24,7 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import bacmman.utils.ArrayUtil;
@@ -50,6 +51,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     boolean[] singleFrameC;
     Map<String, Double> timePointCZT;
     private boolean invertTZ;
+    private int[] channelIdx;
     @Override
     public boolean sameContent(MultipleImageContainer other) {
         if (other instanceof MultipleImageContainerChannelSerie) {
@@ -65,6 +67,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
             if (!Arrays.equals(singleFrameC, otherM.singleFrameC)) return false;
             if (!timePointCZT.equals(otherM.timePointCZT)) return false;
             if (invertTZ!=otherM.invertTZ) return false;
+            if (!Arrays.equals(channelIdx, otherM.channelIdx)) return false;
             return true;
         } else return false;
     }
@@ -82,6 +85,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         if (bounds!=null) res.put("bounds", bounds.toJSONEntry());
         res.put("singleFrameC", JSONUtils.toJSONArray(singleFrameC));
         if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
+        res.put("channelIndices", JSONUtils.toJSONArray(channelIdx));
         return res;
     }
 
@@ -102,13 +106,16 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         }
         singleFrameC = JSONUtils.fromBooleanArray((JSONArray)jsonO.get("singleFrameC"));
         timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
+        if (jsonO.containsKey("channelIndices")) channelIdx = JSONUtils.fromIntArray((List)jsonO.get("channelIndices"));
+        else channelIdx = new int[filePathC.length];
+
     }
     protected MultipleImageContainerChannelSerie() {super(1, 1);} // only for JSON initialization
     
-    public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ) {
-        this(name, imagePathC, frameNumber, singleFrameC, sizeZC, scaleXY, scaleZ,invertTZ, null);
+    public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int[] channelIdx, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ) {
+        this(name, imagePathC, channelIdx, frameNumber, singleFrameC, sizeZC, scaleXY, scaleZ,invertTZ, null);
     }
-    public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ, Map<String, Double> timePointCZT) {
+    public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int[] channelIdx, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ, Map<String, Double> timePointCZT) {
         super(scaleXY, scaleZ);
         this.name = name;
         filePathC = imagePathC;
@@ -120,6 +127,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         this.sizeZC= sizeZC;
         if (timePointCZT!=null && !timePointCZT.isEmpty()) this.timePointCZT = new HashMap<>(timePointCZT);
         else initTimePointMap();
+        this.channelIdx=channelIdx;
     }
 
     private void initTimePointMap() {
@@ -139,7 +147,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     
     
     @Override public MultipleImageContainerChannelSerie duplicate() {
-        return new MultipleImageContainerChannelSerie(name, filePathC, timePointNumber, singleFrameC, sizeZC, scaleXY, scaleZ, invertTZ, timePointCZT);
+        return new MultipleImageContainerChannelSerie(name, filePathC, channelIdx, timePointNumber, singleFrameC, sizeZC, scaleXY, scaleZ, invertTZ, timePointCZT);
     }
     
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
@@ -185,8 +193,8 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         return sizeZC[channelNumber];
     }
     
-    protected ImageIOCoordinates getImageIOCoordinates(int timePoint) {
-        return new ImageIOCoordinates(0, 0, timePoint);
+    protected ImageIOCoordinates getImageIOCoordinates(int timePoint, int channeIdx) {
+        return new ImageIOCoordinates(0, channeIdx, timePoint);
     }
     
     protected synchronized ImageReader getReader(int channelIdx) {
@@ -214,7 +222,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     @Override
     public Image getImage(int timePoint, int channel) {
         if (singleFrame(channel)) timePoint=0;
-        ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint);
+        ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channelIdx[channel]);
         if (bounds!=null) ioCoordinates.setBounds(bounds);
         if (singleFrame(channel)) {
             if (singleFrameImages==null) {
@@ -241,7 +249,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     public synchronized Image getImage(int timePoint, int channel, MutableBoundingBox bounds) {
         
         if (this.timePointNumber==1) timePoint=0;
-        ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint);
+        ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channelIdx[channel]);
         ImageIOCoordinates ioCoords = ioCoordinates.duplicate();
         ioCoords.setBounds(bounds);
         Image image = getReader(channel).openImage(ioCoordinates);
