@@ -60,12 +60,6 @@ public class ImageFieldFactory {
                     // get keywords
                     String[] keyWords = xp.getChannelImages().getChildren().stream().map(c -> c.getImportImageChannelKeyword()).toArray(s->new String[s]);
                     logger.debug("import image channel: keywords: {}", (Object)keyWords);
-                    long countBlank = Arrays.stream(keyWords).filter(s->"".equals(s)).count();
-                    if (countBlank>1) {
-                        if (pcb!=null) pcb.log("When Experiment has several channels, one must specify channel keyword for this import method");
-                        logger.error("When Experiment has several channels, one must specify channel keyword for this import method");
-                        return res;
-                    }
                     for (String p : path) ImageFieldFactory.importImagesChannel(new File(p), xp, keyWords, res, pcb);
                     break;
                 }
