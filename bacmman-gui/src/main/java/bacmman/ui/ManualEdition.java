@@ -129,7 +129,7 @@ public class ManualEdition {
                 //logger.debug("current: {}, currentTh: {}, currentIsTh: {}, currentPrev: {}, currentNext: {}", Utils.toStringList(current), Utils.toStringList(current, o->o.getTrackHead()), Utils.toStringList(current, o->o.isTrackHead()), Utils.toStringList(current, o->o.getPrevious()), Utils.toStringList(current, o->o.getNext()));
                 if (prev.size()==1 && current.size()==1) {
                     if (unlink) {
-                        if (current.get(0).getPrevious()==prev.get(0) || prev.get(0).getNext()==current) { //unlink the 2 spots
+                        if (current.get(0).getPrevious()==prev.get(0) || prev.get(0).getNext()==current.get(0)) { //unlink the 2 spots
                             unlinkObjects(prev.get(0), current.get(0), ALWAYS_MERGE, editor);
                         }
                     } else linkObjects(prev.get(0), current.get(0), true, editor);
