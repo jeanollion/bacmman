@@ -103,10 +103,12 @@ public class ManualEdition {
             for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o, true));
             // update current image
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+            iwm.resetObjectsAndTracksRoi();
             if (!trackToDisp.isEmpty()) {
                 iwm.displayTracks(null, null, trackToDisp, true);
                 //GUI.updateRoiDisplayForSelections(null, null);
             }
+
         }
     }
     public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean allowMerge, boolean allowSplit, Set<SegmentedObject> modifiedObjects) {
