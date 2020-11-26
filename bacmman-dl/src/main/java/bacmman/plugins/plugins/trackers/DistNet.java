@@ -26,8 +26,10 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
+
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.25, 0, null).setHint("Increase this parameter to correct over-segmentation. The value corresponds to the maximum difference between interface value and split threshold (defined in the segmenter) for over-segmented interface. <br />Over-segmented cells are detected using the predicted division state: when a cell has several next cells and that their predicted division stated is less than 0.5, they are merged if they verify the criterion defined above.");
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange};
+    BooleanParameter openChannels = new BooleanParameter("Open Microchannels", false).setHint("Wether microchannels have two open ends or not. This only affects the detection of tracking errors.");
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange, openChannels};
 
     private static boolean next = false;
     private static boolean averagePredictions = true;
@@ -370,8 +372,12 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 e.getValue().setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
             });
             Map<SegmentedObject, Double> sizeMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().size());
-            Predicate<SegmentedObject> touchBorder = o -> o.getBounds().yMax() == o.getParent().getBounds().yMax();
+            boolean openChannels = this.openChannels.getSelected();
+            final Predicate<SegmentedObject> touchBorder = openChannels ?
+                    o -> o.getBounds().yMin() == o.getParent().getBounds().yMin() || o.getBounds().yMax() == o.getParent().getBounds().yMax()
+                    : o -> o.getBounds().yMax() == o.getParent().getBounds().yMax();
             final SegmentedObject last = objects.stream().max(Comparator.comparingInt(o -> o.getBounds().yMax())).get();
+            final SegmentedObject first = objects.stream().min(Comparator.comparingInt(o -> o.getBounds().yMin())).get();
             // set error for growth outside of user-defined range // except for end-of-channel divisions
             double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
             final double meanGr =(growthRateRange[0] + growthRateRange[1]) / 2.0;
@@ -379,14 +385,16 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 if (prev!=null) {
                     double growthrate;
                     if (divMap.containsKey(prev)) { // compute size of all next objects
-                        growthrate = divMap.get(prev).stream().mapToDouble(o->sizeMap.get(o)).sum() / sizeMap.get(prev);
+                        growthrate = divMap.get(prev).stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(next)) {
                         growthrate = Double.NaN; // growth rate cannot be computes bacteria are partly out of the channel
                     } else {
                         growthrate = sizeMap.get(next) / sizeMap.get(prev);
-                        if (next.equals(last) && growthrate<growthRateRange[0]) {
-                            // check that distance to end of channel is short
+                        if (next.equals(last) && growthrate<growthRateRange[0]) { // one of the daugther cell is out ? check that distance to end of channel is short
                             int delta = next.getParent().getBounds().yMax() - next.getBounds().yMax();
+                            if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = Double.NaN;
+                        } else if (openChannels && next.equals(first) && growthrate<growthRateRange[0]) { // one of the daugther cell is out ? check that distance to end of channel is short
+                            int delta = next.getParent().getBounds().yMin() - next.getBounds().yMin();
                             if (delta < meanGr * sizeMap.get(prev) - sizeMap.get(next)) growthrate = Double.NaN;
                         }
                     }
@@ -546,7 +554,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     }
 
     static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
-        // ensure no crossing // TODO for open channel start with middle object
+        // ensure no crossing // TODO for open channels start with middle object
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
         for (int frame = minFrame; frame<=maxFrame; ++frame) {
