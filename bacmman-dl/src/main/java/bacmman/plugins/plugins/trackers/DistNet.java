@@ -28,10 +28,11 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
 
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.25, 0, null).setHint("Increase this parameter to correct over-segmentation. The value corresponds to the maximum difference between interface value and split threshold (defined in the segmenter) for over-segmented interface. <br />Over-segmented cells are detected using the predicted division state: when a cell has several next cells and that their predicted division stated is less than 0.5, they are merged if they verify the criterion defined above.");
-    BooleanParameter openChannels = new BooleanParameter("Open Microchannels", false).setHint("Wether microchannels have two open ends or not. This only affects the detection of tracking errors.");
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange, openChannels};
+    BooleanParameter openChannels = new BooleanParameter("Open Microchannels", false).setHint("Whether microchannels have two open ends or not. This only affects the detection of tracking errors.");
+    BooleanParameter next = new BooleanParameter("Predict Next", false).setHint("Whether the network accept previous, current and next frames as input and predicts dY & category for current and next frame as well as EDM for previous current and next frame. The network has then 4 outputs (dy, category for current frame, category for next frame and EDM) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems such as microchannels that are open on both ends.");
 
-    private static boolean next = false;
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange, openChannels, next};
+
     private static boolean averagePredictions = true;
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -55,6 +56,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         Pair<Image[], int[][]> resampledImages = getResampledRawImages(objectClassIdx, parentTrack, imageShape);
         long t3= System.currentTimeMillis();
         logger.info("input resampled in {}ms", t3-t2);
+        boolean next = this.next.getSelected();
         Image[][] input = getInputs(resampledImages.key, true, next);
         Image[][][] predictions =  engine.process(input); // order: output# [dy / cat (cat_next) / edm] / batch / channel
         boolean categories = predictions.length>2;
@@ -71,30 +73,30 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             if (next) {
                 if (predictions[predictions.length-1][0].length==3) {
                     Function<Image[][], Image[]> average3 = pcn -> {
-                        Image[] prev = pcn[0];
-                        Image[] cur = pcn[1];
-                        Image[] next = pcn[2];
-                        int last = cur.length - 1;
-                        if (!noPrevParent[1]) ImageOperations.average(cur[0], cur[0], prev[1]);
+                        Image[] prevI = pcn[0];
+                        Image[] curI = pcn[1];
+                        Image[] nextI = pcn[2];
+                        int last = curI.length - 1;
+                        if (!noPrevParent[1]) ImageOperations.average(curI[0], curI[0], prevI[1]);
                         for (int i = 1; i < last; ++i) {
                             if (!noPrevParent[i + 1] && !noPrevParent[i])
-                                ImageOperations.average(cur[i], cur[i], prev[i + 1], next[i - 1]);
-                            else if (!noPrevParent[i + 1]) ImageOperations.average(cur[i], cur[i], prev[i + 1]);
-                            else if (!noPrevParent[i]) ImageOperations.average(cur[i], cur[i], next[i - 1]);
+                                ImageOperations.average(curI[i], curI[i], prevI[i + 1], nextI[i - 1]);
+                            else if (!noPrevParent[i + 1]) ImageOperations.average(curI[i], curI[i], prevI[i + 1]);
+                            else if (!noPrevParent[i]) ImageOperations.average(curI[i], curI[i], nextI[i - 1]);
                         }
-                        if (!noPrevParent[last]) ImageOperations.average(cur[last], cur[last], next[last - 1]);
-                        return cur;
+                        if (!noPrevParent[last]) ImageOperations.average(curI[last], curI[last], nextI[last - 1]);
+                        return curI;
                     };
                     edm = average3.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length - 1], 0), edm, ResizeUtils.getChannel(predictions[predictions.length - 1], 2)});
                 }
                 // average on dy
                 Function<Image[][], Image[]> average2 = cn -> {
-                    Image[] cur = cn[1];
-                    Image[] next = cn[2];
-                    for (int i = 1; i < cur.length; ++i) {
-                        if (!noPrevParent[i]) ImageOperations.average(cur[i], cur[i], next[i - 1]);
+                    Image[] curI = cn[0];
+                    Image[] nextI = cn[1];
+                    for (int i = 1; i < curI.length; ++i) {
+                        if (!noPrevParent[i]) ImageOperations.average(curI[i], curI[i], nextI[i - 1]);
                     }
-                    return cur;
+                    return curI;
                 };
                 if (predictions[0][0].length==2) {
                     dy = average2.apply(new Image[][]{dy, ResizeUtils.getChannel(predictions[0], 1)});
@@ -103,7 +105,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     Image[] noPrevMapN = ResizeUtils.getChannel(predictions[2], 3);
                     noPrevMap = average2.apply(new Image[][]{noPrevMap, noPrevMapN});
                 }
-            } else if (!next && channelEdmCur==1) {
+            } else if (channelEdmCur==1) {
                 Function<Image[][], Image[]> average = pc -> {
                     Image[] prev = pc[0];
                     Image[] cur = pc[1];
@@ -114,7 +116,20 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 };
                 edm = average.apply(new Image[][]{ResizeUtils.getChannel(predictions[predictions.length-1], 0), edm});
             }
-        }
+        } else if (false && next) { // use prediction at next frame instead of prediction at current frame
+            Image[] divMapN = categories ? ResizeUtils.getChannel(predictions[2], 2) : null;
+            Image[] noPrevMapN = categories ? ResizeUtils.getChannel(predictions[2], 3) : null;
+            Image[] dyN = ResizeUtils.getChannel(predictions[0], 1);
+            for (int i = 1; i<noPrevParent.length; ++i) {
+                if (!noPrevParent[i]) {
+                    if (categories) {
+                        divMap[i] = divMapN[i-1];
+                        noPrevMap[i] = noPrevMapN[i-1];
+                    }
+                    dy[i] = dyN[i-1];
+                }
+            }
+        } // TODO alternative to AVG for dy & next: use best prediction (most homogeneous)
         long t4= System.currentTimeMillis();
         logger.info("#{} dy predictions made in {}ms", dy.length, t4-t3);
         // resample, set offset & calibration
@@ -202,7 +217,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 noPrevO.forEach((o, npV) -> {
                     SegmentedObject prev = nextToPrevMap.get(o);
                     if (prev != null) {
-                        for (Map.Entry<SegmentedObject, Double> e : noPrevO.entrySet()) {
+                        for (Map.Entry<SegmentedObject, Double> e : noPrevO.entrySet()) { // check if other objects that have no previous objects are connected
                             if (e.getKey().equals(o)) continue;
                             if (!prev.equals(nextToPrevMap.get(e.getKey()))) continue;
                             if (npV > e.getValue()) {
@@ -212,6 +227,13 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                             } else {
                                 nextToPrevMap.put(e.getKey(), null);
                                 logger.debug("object: {} has no prev: (was: {}) p={}", e.getKey(), prev, e.getValue());
+                            }
+                        }
+                        if (nextToPrevMap.get(o)!=null) {
+                            List<SegmentedObject> nexts = Utils.getKeys(nextToPrevMap, prev);
+                            if (nexts.size()>1) {
+                                nextToPrevMap.put(o, null);
+                                logger.debug("object: {} has no prev: (was: {}) p={} (total nexts: {})", o, prev, npV, nexts.size());
                             }
                         }
                     }
@@ -554,7 +576,6 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     }
 
     static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
-        // ensure no crossing // TODO for open channels start with middle object
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
         for (int frame = minFrame; frame<=maxFrame; ++frame) {
@@ -563,10 +584,15 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             for (int idx = 1; idx<regions.size(); ++idx) {
                 TrackingObject up = objectSpotMap.get(regions.get(idx-1));
                 TrackingObject down = objectSpotMap.get(regions.get(idx));
-                int curMin=down.r.getBounds().yMin() + down.curToPrev.yMin();
-                int prevMax = up.r.getBounds().yMax() + up.curToPrev.yMin();
-                if (curMin<prevMax) {
-                    down.curToPrev.translate(new SimpleOffset(0, prevMax-curMin, 0));
+                int downTop=down.curToPrev.yMin();
+                int upTop=up.curToPrev.yMin();
+                if (downTop<upTop) {
+                    down.curToPrev.translate(new SimpleOffset(0, upTop-downTop, 0));
+                }
+                int downBottom=down.curToPrev.yMax();
+                int upBottom=up.curToPrev.yMax();
+                if (downBottom<upBottom) {
+                    down.curToPrev.translate(new SimpleOffset(0, upBottom-upBottom, 0));
                 }
             }
         }
@@ -617,7 +643,8 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
                 double overlap = Math.max(0, Math.min(cur.yMax(), next.curToPrev.yMax()) - Math.max(cur.yMin(), next.curToPrev.yMin()));
                 if (overlap==0) return Double.POSITIVE_INFINITY;
-                return 1 - overlap / next.curToPrev.sizeY();
+                //return 1 - overlap / next.curToPrev.sizeY();
+                return 1 - 2 * overlap / (next.curToPrev.sizeY() + cur.sizeY());
 
             } else return Double.POSITIVE_INFINITY;
         }
