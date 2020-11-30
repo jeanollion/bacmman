@@ -477,7 +477,7 @@ public class Utils {
     }
     public static <K, V> ArrayList<K> getKeys(Map<K, V> map, V value) {
         ArrayList<K> res = new ArrayList<>();
-        for (Entry<K, V> e : map.entrySet()) if (e.getValue().equals(value)) res.add(e.getKey());
+        for (Entry<K, V> e : map.entrySet()) if (value.equals(e.getValue())) res.add(e.getKey());
         return res;
     }
     
