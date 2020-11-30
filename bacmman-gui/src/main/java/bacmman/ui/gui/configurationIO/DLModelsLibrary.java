@@ -46,6 +46,13 @@ public class DLModelsLibrary {
 
     public DLModelsLibrary(Map<String, char[]> savedPassword) {
         this.savedPassword = savedPassword;
+        username.addActionListener(e -> {
+            if (password.getPassword().length == 0 && savedPassword.containsKey(username.getText()))
+                password.setText(String.valueOf(savedPassword.get(username.getText())));
+            fetchGists();
+            updateGistDisplay();
+            updateEnableButtons();
+        });
         updateEnableButtons();
         DocumentListener dl = new DocumentListener() {
             @Override
