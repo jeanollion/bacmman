@@ -66,7 +66,7 @@ public class RelativePosition implements Measurement, Hint {
     
     @Override
     public String getHintText() {
-        return "Computes the XYZ coordinates of objects (of class defined in the <em>Objects</em> parameter) relatively to objects from another object class (defined in the <em>Reference Objects</em> parameter)";
+        return "Computes the XYZ coordinates of objects (of class defined in the <em>Objects</em> parameter) relatively to objects from another object class (defined in the <em>Reference Objects</em> parameter), in unit";
     }
     
     public RelativePosition() {}
