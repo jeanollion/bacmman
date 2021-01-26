@@ -204,9 +204,9 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Image fitImage = getParent(parent, objectClassIdx).getPreFilteredImage(objectClassIdx); // we need full image to fit. In case segmentation is occurring in segmentation parent, then fit will occur in parent
 
         BiConsumer<List<Spot>, List<Point>> removeSpotsFarFromSeeds = (spots, seedList) -> { // filter by distance from original seed
-            Map<Spot, Double> distSqFromSeed = IntStream.range(0, spots.size()).mapToObj(i->i).collect(Collectors.toMap(i->spots.get(i), i->spots.get(i).getCenter().distSq(seedList.get((i)))));
+            Map<Spot, Double> distSqFromSeed = IntStream.range(0, spots.size()).mapToObj(i->i).collect(Collectors.toMap(spots::get, i->spots.get(i).getCenter().distSq(seedList.get((i)))));
             double maxDistSq = Math.pow(2 * typicalSigma.getValue().doubleValue(), 2);
-            spots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq).map(e->e.getKey()).collect(Collectors.toList()));
+            spots.removeAll(distSqFromSeed.entrySet().stream().filter(e->e.getValue()>=maxDistSq || Double.isNaN(e.getValue()) || Double.isInfinite(e.getValue()) ).map(e->e.getKey()).collect(Collectors.toList()));
         };
 
         if (seedMap.sizeZ()>1) { // fit 3D not taking into account anisotropy
