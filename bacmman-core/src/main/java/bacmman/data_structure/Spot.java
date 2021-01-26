@@ -70,9 +70,13 @@ public class Spot extends Region {
             voxels = voxels_;
             return;
         }
-        BoundingBox.loop(bounds,
-            (x, y, z)->voxels_.add(new Voxel(x, y, z)),
-            (x, y, z)-> (Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + (is2D ? 0 : Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2)) <= radiusSq));
+        if (bounds.xMin()!=bounds.xMax() || bounds.yMin()!=bounds.yMax()) { // avoid degenerated spots
+            BoundingBox.loop(bounds,
+                    (x, y, z) -> voxels_.add(new Voxel(x, y, z)),
+                    (x, y, z) -> (Math.pow(center.get(0) - x, 2) + Math.pow(center.get(1) - y, 2) + (is2D ? 0 : Math.pow((scaleZ / scaleXY) * (center.get(2) - z), 2)) <= radiusSq));
+        } else {
+            logger.error("DEGENERATED SPOT: {}", this);
+        }
         if (voxels_.isEmpty()) voxels_.add(center.asVoxel());
         voxels = voxels_;
     }
