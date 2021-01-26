@@ -131,7 +131,7 @@ public class SNR extends IntensityMeasurement implements Hint {
                 ImageByte mask  = TypeConverter.toByteMask(ref, null, 1).setName("SNR mask");
                 for (Pair<Region, Region> o : backgroundMapForeground.get(backgroundRegion)) o.value.draw(mask, 0, foregorundOffset);// was with offset: absolute = 0 / relative = parent
                 if (erodeRad>0) {
-                    ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeRad, erodeRad, mask), true, false); // erode mask // TODO dilate objects?
+                    ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeRad, erodeRad, mask), true, false);
                     if (maskErode.count()>0) mask = maskErode;
                 }
                 Region modifiedBackgroundRegion = new Region(mask, 1, backgroundRegion.is2D()).setIsAbsoluteLandmark(true);
@@ -140,20 +140,24 @@ public class SNR extends IntensityMeasurement implements Hint {
                 //ImageWindowManagerFactory.showImage( mask);
             }
         }
-        //logger.debug("init SNR: (s: {}/b:{}) foreground with back: {}/{}", intensity.getSelectedStructureIdx(), this.backgroundStructure.getSelectedStructureIdx(), foregroundMapBackground.size(), foregroundPopulation.getRegions().size());
+        //logger.debug("init SNR: parent {}, os: {} foreground with background: {}/{}", parent, childStructureIdx, foregroundMapBackground.size(), foregroundPopulation.getRegions().size());
         return this;
     }
     @Override
     public double performMeasurement(Region object) {
 
-        if (core==null) synchronized(this) {setUpOrAddCore(null, null);}
+        if (core==null) synchronized(this) {
+            if (core==null) {
+                setUpOrAddCore(null, null);
+            }
+        }
         Region parentObject;
         if (foregroundMapBackground==null) parentObject = super.parent.getRegion();
         else parentObject=this.foregroundMapBackground.get(object);
         if (parentObject==null) return Double.NaN;
         IntensityMeasurementCore.IntensityMeasurements iParent = super.core.getIntensityMeasurements(parentObject);
         IntensityMeasurementCore.IntensityMeasurements fore = super.core.getIntensityMeasurements(object);
-        logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
+        //logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
         return getValue(getForeValue(fore), getBackValue(iParent), iParent.sd);
     }
     protected double getBackValue(IntensityMeasurementCore.IntensityMeasurements back) {
