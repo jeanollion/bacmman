@@ -350,6 +350,7 @@ public class Region {
         }
     }
     protected void createMask() {
+        if (!this.getBounds().isValid()) throw new RuntimeException("Invalid bounds: cannot create mask");
         ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
         for (Voxel v : getVoxels()) {
             if (!mask_.containsWithOffset(v.x, v.y, v.z)) {

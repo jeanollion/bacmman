@@ -50,6 +50,8 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     @Override BoundingBox<T> duplicate();
     @Override BoundingBox<T> translate(Offset other);
     Point getCenter();
+
+    boolean isValid();
     /**
      * 
      * @param b1
@@ -66,6 +68,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return whether {@param b1} & {@param b2} intersect or not in XY space
      */
     public static boolean intersect2D(BoundingBox b1, BoundingBox b2) {
+        if (!b1.isValid() || !b2.isValid()) return false;
         return Math.max(b1.xMin(), b2.xMin())<=Math.min(b1.xMax(), b2.xMax()) && Math.max(b1.yMin(), b2.yMin())<=Math.min(b1.yMax(), b2.yMax());
     }
     /**
@@ -75,6 +78,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return whether {@param b1} & {@param b2} intersect or not in 3D space
      */
     public static boolean intersect(BoundingBox b1, BoundingBox b2) {
+        if (!b1.isValid() || !b2.isValid()) return false;
         return Math.max(b1.xMin(), b2.xMin())<=Math.min(b1.xMax(), b2.xMax()) && Math.max(b1.yMin(), b2.yMin())<=Math.min(b1.yMax(), b2.yMax()) && Math.max(b1.zMin(), b2.zMin())<=Math.min(b1.zMax(), b2.zMax());
     }
     /**
@@ -85,6 +89,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return whether {@param b1} & {@param b2} intersect or not in XY space with the tolerance {@param tolerance}
      */
     public static boolean intersect2D(BoundingBox b1, BoundingBox b2, int tolerance) {
+        if (!b1.isValid() || !b2.isValid()) return false;
         return Math.max(b1.xMin(), b2.xMin())<=Math.min(b1.xMax(), b2.xMax())+tolerance && Math.max(b1.yMin(), b2.yMin())<=Math.min(b1.yMax(), b2.yMax())+tolerance;
     }
     
@@ -96,6 +101,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return whether {@param b1} & {@param b2} intersect or not in 3D space with the tolerance {@param tolerance}
      */
     public static boolean intersect(BoundingBox b1, BoundingBox b2, int tolerance) {
+        if (!b1.isValid() || !b2.isValid()) return false;
         return Math.max(b1.xMin(), b2.xMin())<=Math.min(b1.xMax(), b2.xMax())+tolerance && Math.max(b1.yMin(), b2.yMin())<=Math.min(b1.yMax(), b2.yMax())+tolerance&& Math.max(b1.zMin(), b2.zMin())<=Math.min(b1.zMax(), b2.zMax())+tolerance;
     }
     
@@ -106,6 +112,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return intersection bounding box in 3D. If the size in one direction is negative => there are no intersection in this direction.
      */
     public static SimpleBoundingBox getIntersection(BoundingBox b1, BoundingBox b2) {
+        if (!b1.isValid() || !b2.isValid()) return new SimpleBoundingBox(1, -1, 1, -1, 1, -1);
         return new SimpleBoundingBox(Math.max(b1.xMin(), b2.xMin()), Math.min(b1.xMax(), b2.xMax()), Math.max(b1.yMin(), b2.yMin()), Math.min(b1.yMax(), b2.yMax()), Math.max(b1.zMin(), b2.zMin()), Math.min(b1.zMax(), b2.zMax()));
     }
     
@@ -116,6 +123,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return intersection bounding box in XY dimensions. If the size in one direction is negative => there are no intersection in this direction. Zmin and Zmax are u {@param b1}
      */
     public static SimpleBoundingBox getIntersection2D(BoundingBox b1, BoundingBox b2) {
+        if (!b1.isValid() || !b2.isValid()) return new SimpleBoundingBox(1, -1, 1, -1, 0, 0);
         return new SimpleBoundingBox(Math.max(b1.xMin(), b2.xMin()), Math.min(b1.xMax(), b2.xMax()), Math.max(b1.yMin(), b2.yMin()), Math.min(b1.yMax(), b2.yMax()), b1.zMin(), b1.zMax());
     }
 
@@ -126,6 +134,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return whether {@param contained} is included or not in {@param container}
      */
     public static boolean isIncluded(BoundingBox contained, BoundingBox container) {
+        if (!contained.isValid() || !container.isValid()) return false;
         return contained.xMin()>=container.xMin() && contained.xMax()<=container.xMax() && contained.yMin()>=container.yMin() && contained.yMax()<=container.yMax() && contained.zMin()>=container.zMin() && contained.zMax()<=container.zMax();
     }
     /**
@@ -135,6 +144,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
      * @return whether {@param contained} is included or not in {@param container} only taking into acount x & y dimensions
      */
     public static boolean isIncluded2D(BoundingBox contained, BoundingBox container) {
+        if (!contained.isValid() || !container.isValid()) return false;
         return contained.xMin()>=container.xMin() && contained.xMax()<=container.xMax() && contained.yMin()>=container.yMin() && contained.yMax()<=container.yMax();
     }
     

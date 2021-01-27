@@ -204,7 +204,8 @@ public class DBMapObjectDAO implements ObjectDAO {
                     Map<String, SegmentedObject> objectMap = cache.get(key);
                     Map<String, SegmentedObject> objectMapToAdd = getEntrySet(dbm).parallelStream()
                             .filter((e) -> (!objectMap.containsKey(e.getKey())))
-                            .map((e) -> accessor.createFromJSON(e.getValue())).map((o) -> {
+                            .map((e) -> accessor.createFromJSON(e.getValue()))
+                            .filter(o->o!=null).map((o) -> {
                                 accessor.setDAO(o,this);
                                 return o;
                             }).collect(Collectors.toMap(o->o.getId(), o->o));

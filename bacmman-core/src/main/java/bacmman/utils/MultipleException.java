@@ -58,7 +58,8 @@ public class MultipleException extends RuntimeException {
             added[0] = true;
         });
         if (!added[0]) exceptions.add(ex);
-        logger.debug("add ex: {}, total: {}", added[0], exceptions.size());
+        //logger.debug("add ex: {}, total: {}", added[0], exceptions.size());
+        //logger.debug(ex.key, ex.value);
     }
     
     private final static BiPredicate<Throwable, Throwable> tEq = (t1, t2) -> {

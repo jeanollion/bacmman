@@ -36,7 +36,15 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         yMax=Integer.MIN_VALUE;
         zMax=Integer.MIN_VALUE;
     }
-    
+    public boolean isValid() {
+        if (xMin==Integer.MIN_VALUE || xMin==Integer.MAX_VALUE) return false;
+        if (xMax==Integer.MIN_VALUE || xMax==Integer.MAX_VALUE) return false;
+        if (yMin==Integer.MIN_VALUE || yMin==Integer.MAX_VALUE) return false;
+        if (yMax==Integer.MIN_VALUE || yMax==Integer.MAX_VALUE) return false;
+        if (zMin==Integer.MIN_VALUE || zMin==Integer.MAX_VALUE) return false;
+        if (zMax==Integer.MIN_VALUE || zMax==Integer.MAX_VALUE) return false;
+        return true;
+    }
     public SimpleBoundingBox(int xMin, int xMax, int yMin, int yMax, int zMin, int zMax) {
         this.xMin = xMin;
         this.xMax = xMax;
@@ -66,9 +74,18 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
                 throw new IllegalArgumentException("out-of-dimension");
         }
     }
-    @Override public int sizeX() { return xMax-xMin+1; }
-    @Override public int sizeY() { return yMax-yMin+1; }
-    @Override public int sizeZ() { return zMax-zMin+1; }
+    @Override public int sizeX() {
+        //if (xMax==Integer.MAX_VALUE || xMin==Integer.MIN_VALUE || xMax==Integer.MIN_VALUE || xMin==Integer.MAX_VALUE) return -1;
+        return xMax-xMin+1;
+    }
+    @Override public int sizeY() {
+        //if (yMax==Integer.MAX_VALUE || yMin==Integer.MIN_VALUE || yMax==Integer.MIN_VALUE || yMin==Integer.MAX_VALUE) return -1;
+        return yMax-yMin+1;
+    }
+    @Override public int sizeZ() {
+        //if (zMax==Integer.MAX_VALUE || zMin==Integer.MIN_VALUE || zMax==Integer.MIN_VALUE || zMin==Integer.MAX_VALUE) return -1;
+        return zMax-zMin+1;
+    }
     @Override 
     public int getIntPosition(int dim) {
         switch(dim) {

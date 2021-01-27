@@ -20,6 +20,7 @@ package bacmman.plugins.object_feature;
 
 import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.data_structure.Region;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import java.util.HashMap;
@@ -59,6 +60,7 @@ public class IntensityMeasurementCore {
         
         public IntensityMeasurements(Region o) {
             this.o=o;
+            if (!o.getBounds().isValid()) throw new RuntimeException("invalid bounds"); // TODO understand why the error thrown by getMask blocks the whole process
             DoubleStatistics stats = DoubleStatistics.getStats(transformedMap.stream(o.getMask(), o.isAbsoluteLandMark()));
             mean = stats.getAverage();
             sd = stats.getStandardDeviation();

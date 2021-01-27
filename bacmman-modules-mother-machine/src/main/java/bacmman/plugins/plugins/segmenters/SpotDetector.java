@@ -271,6 +271,8 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         List<Spot> res = seedsToSpots.stream().map(fit::get).filter(Objects::nonNull).map(d -> GaussianFit.spotMapper.apply(d, fitImage))
                 .filter(s -> !Double.isNaN(s.getRadius()) || s.getRadius()<1)
                 .filter(s -> !Double.isNaN(s.getIntensity()))
+                .filter(s -> s.getCenter().isValid())
+                .filter(s->s.getBounds().isValid())
                 .collect(Collectors.toList());
         if (off!=null) {
             allSeeds.forEach(p->p.translateRev(off)); // translate back
