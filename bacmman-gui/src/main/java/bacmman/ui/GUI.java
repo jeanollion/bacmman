@@ -3400,15 +3400,20 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             }
-            Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), Utils.convertFilesToString(selectedFiles));
-            File dir = Utils.getOneDir(selectedFiles);
-            if (dir!=null) PropertyUtils.set(PropertyUtils.LAST_IMPORT_IMAGE_DIR, dir.getAbsolutePath());
-            db.updateExperiment(); //stores imported position
-            populateActionPositionList();
-            populateTestPositionJCB();
-            updateConfigurationTree();
-            // also lock all new positions
-            db.lockPositions();
+
+            DefaultWorker.execute(i -> {
+                Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), Utils.convertFilesToString(selectedFiles));
+                File dir = Utils.getOneDir(selectedFiles);
+                if (dir!=null) PropertyUtils.set(PropertyUtils.LAST_IMPORT_IMAGE_DIR, dir.getAbsolutePath());
+                db.updateExperiment(); //stores imported position
+                populateActionPositionList();
+                populateTestPositionJCB();
+                updateConfigurationTree();
+                // also lock all new positions
+                db.lockPositions();
+                return "";
+            }, 1);//.setEndOfWork( ()->{} );
+
         }
     }//GEN-LAST:event_importImagesMenuItemActionPerformed
 

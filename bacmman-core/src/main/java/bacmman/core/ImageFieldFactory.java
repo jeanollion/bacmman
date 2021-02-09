@@ -218,10 +218,14 @@ public class ImageFieldFactory {
             return;
         }
         logger.debug("Dir: {} # positions: {}", input.getAbsolutePath(), filesByPosition.size());
+        if (pcb!=null) {
+            pcb.log("Directory: "+input.getAbsolutePath()+ "number of position found: "+ filesByPosition.size()+ ". Checking validity...");
+            pcb.incrementTaskNumber(filesByPosition.size());
+        }
         PosLoop : for (Entry<String, List<File>> positionFiles : filesByPosition.entrySet()) {
             Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), channelKeywords, "")));
             logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
-            
+
             if (filesByChannel.size()==channelKeywords.length) {
                 Integer frameNumber = null;
                 boolean ok = true;
@@ -264,7 +268,11 @@ public class ImageFieldFactory {
                         ));
                 }
                 
-            } else logger.warn("Dir: {} Position: {}, {} channels instead of {}", input.getAbsolutePath(), positionFiles.getKey(), filesByChannel.size(), channelKeywords.length);
+            } else {
+                logger.warn("Dir: {} Position: {}, {} channels instead of {}", input.getAbsolutePath(), positionFiles.getKey(), filesByChannel.size(), channelKeywords.length);
+                if (pcb!=null) pcb.log("Dir: "+input.getAbsolutePath()+" Position: "+positionFiles.getKey()+". Wrong channel number: "+filesByChannel.size()+" channels instead of "+channelKeywords.length);
+            }
+            if (pcb!=null) pcb.incrementProgress();
         }
     }
     
