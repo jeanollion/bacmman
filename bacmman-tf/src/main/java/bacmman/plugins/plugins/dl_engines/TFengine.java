@@ -166,6 +166,10 @@ public class TFengine implements DLengine, Hint {
         while (ops.hasNext()) {
             Operation next = ops.next();
             if (next.name().startsWith(name) ) newName = next.name(); // ReadVariableOp is added in tf2.keras //&& !next.name().endsWith("ReadVariableOp")
+            else if (next.name().startsWith("tf_op_layer_"+name)) {
+                logger.debug("tensor name found for output: {} -> {}", name, next.name());
+                newName = next.name();
+            }
         }
         if (newName!=null) {
             logger.debug("output: {} was found with operation name: {}", name, newName);
