@@ -5,6 +5,7 @@ import bacmman.data_structure.*;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.scalers.ConstantScaler;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.processing.ImageOperations;
@@ -18,11 +19,14 @@ import com.google.common.collect.Sets;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint {
     PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
+    PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, new MinMaxScaler(), true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction. For phase contrast images, default is MinMaxScaler. For fluorescence images use either a constant scaler or ModePercentileScaler or IQRScaler");
+
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
@@ -31,7 +35,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     BooleanParameter openChannels = new BooleanParameter("Open Microchannels", false).setHint("Whether microchannels have two open ends or not. This only affects the detection of tracking errors.");
     BooleanParameter next = new BooleanParameter("Predict Next", false).setHint("Whether the network accept previous, current and next frames as input and predicts dY & category for current and next frame as well as EDM for previous current and next frame. The network has then 4 outputs (dy, category for current frame, category for next frame and EDM) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems such as microchannels that are open on both ends.");
 
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, edmSegmenter, correctionMaxCost, growthRateRange, openChannels, next};
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, scaler, edmSegmenter, correctionMaxCost, growthRateRange, openChannels, next};
 
     private static boolean averagePredictions = true;
     @Override
@@ -53,7 +57,8 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
         int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
-        Pair<Image[], int[][]> resampledImages = getResampledRawImages(objectClassIdx, parentTrack, imageShape);
+        HistogramScaler scaler_instance = scaler.instantiatePlugin();
+        Pair<Image[], int[][]> resampledImages = getResampledRawImages(objectClassIdx, parentTrack, imageShape, scaler_instance);
         long t3= System.currentTimeMillis();
         logger.info("input resampled in {}ms", t3-t2);
         boolean next = this.next.getSelected();
@@ -540,11 +545,15 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
 
     // utils
-    static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape) {
+    static Pair<Image[], int[][]> getResampledRawImages(int objectClassIdx, List<SegmentedObject> parentTrack, int[] targetImageShape, HistogramScaler scaler) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
+        if ( !(scaler instanceof MinMaxScaler) && !scaler.isConfigured()) {
+            Histogram histo = HistogramFactory.getHistogram(() -> Image.stream(Arrays.asList(in)), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+            scaler.setHistogram(histo);
+        }
+
         int[][] shapes = ResizeUtils.getShapes(in, false);
-        // also scale by min/max
-        MinMaxScaler scaler = new MinMaxScaler();
+        // also scale image
         IntStream.range(0, in.length).parallel().forEach(i -> in[i] = scaler.scale(in[i])); // scale before resample so that image is converted to float
         Image[] inResampled = ResizeUtils.resample(in, in, false, new int[][]{targetImageShape});
         return new Pair<>(inResampled, shapes);
