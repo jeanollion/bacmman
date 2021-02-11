@@ -181,6 +181,19 @@ public class Histogram implements JSONSerializable  {
         }
         return res;
     }
+
+    public double getMode() {
+        long maxcount = data[0];
+        int maxbin = 0;
+        for (int i = 1; i<data.length; ++i) {
+            if (data[i]>maxcount) {
+                maxcount = data[i];
+                maxbin = i;
+            }
+        }
+        return getValueFromIdx(maxbin);
+    }
+
     public double getCountLinearApprox(double histoIdx) {
         if (histoIdx<=0) return data[0];
         if (histoIdx>=data.length-1) return data[data.length-1];
