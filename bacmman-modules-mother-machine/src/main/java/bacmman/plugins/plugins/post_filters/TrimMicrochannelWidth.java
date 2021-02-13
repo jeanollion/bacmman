@@ -17,7 +17,7 @@ import bacmman.utils.SlidingOperatorDouble;
 import java.util.List;
 
 public class TrimMicrochannelWidth implements PostFilter, Hint {
-    BoundedNumberParameter width = new BoundedNumberParameter("Width", 0, 15, 1, null).setHint("Width of final microchannel").setEmphasized(true);
+    BoundedNumberParameter width = new BoundedNumberParameter("Width", 0, 15, 1, null).setHint("Width of final microchannel. Should be uneven").setEmphasized(true);
     BoundedNumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 2, 1.5, 1, null);
 
     @Override
@@ -27,7 +27,7 @@ public class TrimMicrochannelWidth implements PostFilter, Hint {
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        int halfwidth = width.getValue().intValue()/2;
+        int halfwidth = (width.getValue().intValue()-1)/2;
         double gradScale = gradientScale.getValue().doubleValue();
         Image img = parent.getPreFilteredImage(childStructureIdx);
         for (Region mc : childPopulation.getRegions()) {
