@@ -17,23 +17,25 @@ import bacmman.utils.SlidingOperatorDouble;
 import java.util.List;
 
 public class TrimMicrochannelWidth implements PostFilter, Hint {
-    BoundedNumberParameter width = new BoundedNumberParameter("Width", 0, 15, 1, null).setHint("Width of final microchannel. Should be uneven").setEmphasized(true);
+    BoundedNumberParameter width = new BoundedNumberParameter("Width", 0, 29, 1, null).setHint("Width of final microchannel. Should be uneven").setEmphasized(true);
+    BoundedNumberParameter microchannelWidth = new BoundedNumberParameter("Microchannel Width", 0, 19, 1, null).setHint("Exact Width of the microchannels").setEmphasized(true);
     BoundedNumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 2, 1.5, 1, null);
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{width, gradientScale};
+        return new Parameter[]{width, microchannelWidth, gradientScale};
     }
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         int halfwidth = (width.getValue().intValue()-1)/2;
+        int halfwidthMean = (microchannelWidth.getValue().intValue()-1)/2;
         double gradScale = gradientScale.getValue().doubleValue();
         Image img = parent.getPreFilteredImage(childStructureIdx);
         for (Region mc : childPopulation.getRegions()) {
             Image grad = ImageFeatures.getGradientMagnitude(img.crop(mc.getBounds()), gradScale, true);
             float[] gradProfileX = ImageOperations.meanProjection(grad, ImageOperations.Axis.X, null);
-            gradProfileX = SlidingOperatorDouble.performSlideFloatArray(gradProfileX, halfwidth, SlidingOperatorDouble.slidingMean());
+            gradProfileX = SlidingOperatorDouble.performSlideFloatArray(gradProfileX, halfwidthMean, SlidingOperatorDouble.slidingMean());
             int centerCoord = ArrayUtil.max(gradProfileX);
             BoundingBox source = mc.getBounds();
             MutableBoundingBox bds = new MutableBoundingBox(source);
@@ -46,6 +48,6 @@ public class TrimMicrochannelWidth implements PostFilter, Hint {
 
     @Override
     public String getHintText() {
-        return "This post-filter trims microchannels along X-axis to a fixed width. <br />The new center is located at the point that maximizes the averaged gradient along YZ axis.";
+        return "This post-filter trims microchannels along X-axis to a fixed width. <br />The new center is located at the center of the segment of length <i>Microchannel Width</i> that maximizes the averaged gradient along YZ axis. ";
     }
 }
