@@ -34,10 +34,10 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.25, 0, null).setHint("Increase this parameter to correct over-segmentation. The value corresponds to the maximum difference between interface value and split threshold (defined in the segmenter) for over-segmented interface. <br />Over-segmented cells are detected using the predicted division state: when a cell has several next cells and that their predicted division stated is less than 0.5, they are merged if they verify the criterion defined above.");
     BooleanParameter openChannels = new BooleanParameter("Open Microchannels", false).setHint("Whether microchannels have two open ends or not. This only affects the detection of tracking errors.");
     BooleanParameter next = new BooleanParameter("Predict Next", false).setHint("Whether the network accept previous, current and next frames as input and predicts dY & category for current and next frame as well as EDM for previous current and next frame. The network has then 4 outputs (dy, category for current frame, category for next frame and EDM) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems such as microchannels that are open on both ends.");
+    BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
 
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, scaler, edmSegmenter, correctionMaxCost, growthRateRange, openChannels, next};
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, scaler, edmSegmenter, correctionMaxCost, growthRateRange, openChannels, next, averagePredictions};
 
-    private static boolean averagePredictions = true;
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
@@ -74,7 +74,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         noPrevParent[0] = true;
         for (int i = 1; i<noPrevParent.length; ++i) if (parentTrack.get(i-1).getFrame()<parentTrack.get(i).getFrame()-1) noPrevParent[i]=true;
 
-        if (averagePredictions) {
+        if (averagePredictions.getSelected() && parentTrack.size()>1) {
             if (next) {
                 if (predictions[predictions.length-1][0].length==3) {
                     Function<Image[][], Image[]> average3 = pcn -> {
@@ -82,7 +82,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                         Image[] curI = pcn[1];
                         Image[] nextI = pcn[2];
                         int last = curI.length - 1;
-                        if (!noPrevParent[1]) ImageOperations.average(curI[0], curI[0], prevI[1]);
+                        if (!noPrevParent[1] && prevI.length>1) ImageOperations.average(curI[0], curI[0], prevI[1]);
                         for (int i = 1; i < last; ++i) {
                             if (!noPrevParent[i + 1] && !noPrevParent[i])
                                 ImageOperations.average(curI[i], curI[i], prevI[i + 1], nextI[i - 1]);
