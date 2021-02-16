@@ -4,6 +4,7 @@ import bacmman.core.Core;
 import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
@@ -73,6 +74,39 @@ public class ExtractDatasetUtil {
             write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions);
         });
     }
+    public static void runTaskRaw(Task t) {
+        logger.debug("extracting raw dataset 2...");
+        String outputFile = t.getExtractRawDSFile();
+        Path outputPath = Paths.get(outputFile);
+        BoundingBox bounds = t.getExtractRawDSBounds();
+        Map<String, List<Integer>> positionMapFrames = t.getExtractRawDSFrames();
+        int[] channels = t.getExtractRawDSChannels();
+        MasterDAO mDAO = t.getDB();
+        String ds = mDAO.getDBName();
+        String[] channelNames = mDAO.getExperiment().getChannelImagesAsString(false);
+        Function<Image, Image> crop = image -> {
+            if (bounds==null) return image;
+            MutableBoundingBox bds = new MutableBoundingBox(bounds);
+            bds.setzMax(image.zMax());
+            if (bds.sizeX()<=0) bds.setxMax(image.xMax());
+            if (bds.sizeY()<=0) bds.setyMax(image.yMax());
+            return image.crop(bds);
+        };
+        for (String position : positionMapFrames.keySet()) {
+            logger.debug("position: {}", position);
+            InputImages inputImages = mDAO.getExperiment().getPosition(position).getInputImages();
+            List<Integer> frames = positionMapFrames.get(position);
+            for (int channel : channels) {
+                String outputName = ds + "/" + position + "/" + channelNames[channel];
+                boolean saveLabels = true;
+                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx)).map(crop).collect(Collectors.toList());
+                extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null);
+            }
+            inputImages.flush();
+            t.incrementProgress();
+        }
+    }
+
     public static void write_histogram(File outputPath, List<String> selectionNames, String dbName, String channelName, int[] dimensions) {
         PyDatasetReader reader = new PyDatasetReader(outputPath);
         Map<String, Histogram> histos = new HashMap<>(selectionNames.size());
@@ -121,7 +155,6 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
-
     public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> sel.getAllElements().stream().parallel() : () -> sel.getElements(position).stream().parallel();
 
@@ -131,6 +164,16 @@ public class ExtractDatasetUtil {
             out.setName(getLabel(e));
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
+
+        int[][] originalDimensions = saveDimensions ? streamSupplier.get().sorted(Comparator.comparing(e->getLabel(e))).map(o->{
+            if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
+            else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};
+        }).toArray(int[][]::new) : null;
+        if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
+
+        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions);
+    }
+    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions) {
 
         if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
             int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
@@ -216,11 +259,6 @@ public class ExtractDatasetUtil {
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
 
-        int[][] originalDimensions = saveDimensions ? streamSupplier.get().sorted(Comparator.comparing(e->getLabel(e))).map(o->{
-            if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
-            else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};
-        }).toArray(int[][]::new) : null;
-        if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
         HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, 4, saveLabels, originalDimensions, metadata );
     }
 

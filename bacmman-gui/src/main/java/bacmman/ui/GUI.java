@@ -33,10 +33,7 @@ import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
-import bacmman.ui.gui.configurationIO.ConfigurationIO;
-import bacmman.ui.gui.configurationIO.DLModelsLibrary;
-import bacmman.ui.gui.configurationIO.ExtractDataset;
-import bacmman.ui.gui.configurationIO.NewDatasetFromGithub;
+import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -3707,6 +3704,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             menu.add(addExtractDBTask);
             addExtractDBTask.setEnabled(db!=null);
+
+            Action addExtractRawDBTask = new AbstractAction("Add new raw dataset extraction Task to List") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    Task t = ExtractRawDataset.promptExtractDatasetTask(db, actionPoolList.getSelectedValue(), getSelectedPositions(true));
+                    if (t!=null) actionPoolListModel.addElement(t);
+                }
+            };
+            menu.add(addExtractRawDBTask);
+            addExtractRawDBTask.setEnabled(db!=null);
 
             if (db!=null && db.getExperiment()!=null) {
                 // task on a selection

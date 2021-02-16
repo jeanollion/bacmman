@@ -25,6 +25,8 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.MasterDAOFactory;
+import bacmman.image.BoundingBox;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.FeatureExtractor;
@@ -41,12 +43,7 @@ import static bacmman.data_structure.Processor.getOrCreateRootTrack;
 import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.*;
 
 import bacmman.utils.*;
@@ -58,8 +55,6 @@ import bacmman.utils.FileIO.ZipWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Comparator;
-import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -84,11 +79,15 @@ public class Task implements ProgressCallback{
         ProgressLogger ui;
         String selectionName;
 
-        String extractDSFile;
+        String extractDSFile, extractRawDSFile;
         List<Triplet<String, FeatureExtractor, Integer>> extractDSFeatures;
         List<String> extractDSSelections;
         int[] extractDSDimensions;
         int[] extractDSEraseTouchingContoursOC;
+
+        SimpleBoundingBox extractDSRawBounds;
+        Map<String, List<Integer>> extractDSRawPositionMapFrames;
+        int[] extractDSRawChannels;
 
         public JSONObject toJSON() {
             JSONObject res=  new JSONObject();
@@ -137,6 +136,16 @@ public class Task implements ProgressCallback{
                 extractDS.put("features", extractDSFeats);
                 if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) extractDS.put("eraseTouchingContoursOC", JSONUtils.toJSONArray(extractDSEraseTouchingContoursOC));
                 res.put("extractDataset", extractDS);
+            }
+            if (extractRawDSFile!=null && extractDSRawPositionMapFrames!=null && !extractDSRawPositionMapFrames.isEmpty() && extractDSRawChannels!=null) {
+                JSONObject extractRawDS = new JSONObject();
+                extractRawDS.put("outputFile", extractRawDSFile);
+                extractRawDS.put("channels", JSONUtils.toJSONArray(extractDSRawChannels));
+                if (extractDSRawBounds!=null) extractRawDS.put("bounds", extractDSRawBounds.toJSONEntry());
+                JSONObject pf = new JSONObject();
+                for (String p : extractDSRawPositionMapFrames.keySet()) pf.put(p, JSONUtils.toJSONArray(extractDSRawPositionMapFrames.get(p)));
+                extractRawDS.put("positionMapFrame", pf);
+                res.put("extractRawDataset", extractRawDS);
             }
             return res;
         }
@@ -195,6 +204,18 @@ public class Task implements ProgressCallback{
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
                 else extractDSEraseTouchingContoursOC = new int[0];
+            }
+            if (data.containsKey("extractRawDataset")) {
+                JSONObject extractRawDS = (JSONObject)data.get("extractRawDataset");
+                extractRawDSFile = (String)extractRawDS.get("outputFile");
+                extractDSRawChannels = JSONUtils.fromIntArray((JSONArray)extractRawDS.get("channels"));
+                if (extractRawDS.containsKey("bounds")) {
+                    extractDSRawBounds = new SimpleBoundingBox();
+                    extractDSRawBounds.initFromJSONEntry(extractRawDS.get("bounds"));
+                }
+                JSONObject pf = (JSONObject)extractRawDS.get("positionMapFrame");
+                extractDSRawPositionMapFrames = new HashMap<>();
+                for (Object k: pf.keySet()) extractDSRawPositionMapFrames.put((String)k, JSONUtils.fromIntArrayToList((JSONArray)pf.get(k)));
             }
             return this;
         }
@@ -342,6 +363,10 @@ public class Task implements ProgressCallback{
         return extractDSFile;
     }
 
+    public String getExtractRawDSFile() {
+        return extractRawDSFile;
+    }
+
     public List<Triplet<String, FeatureExtractor, Integer>> getExtractDSFeatures() {
         return extractDSFeatures;
     }
@@ -356,6 +381,10 @@ public class Task implements ProgressCallback{
     public int[] getExtractDSEraseTouchingContoursOC() {
         return extractDSEraseTouchingContoursOC;
     }
+
+    public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
+    public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
+    public int[] getExtractRawDSChannels() {return extractDSRawChannels;}
 
     public Task setAllActions() {
         this.preProcess=true;
@@ -406,6 +435,13 @@ public class Task implements ProgressCallback{
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
+        return this;
+    }
+    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, Map<String, List<Integer>> positionMapFrames) {
+        this.extractRawDSFile = extractDSFile;
+        this.extractDSRawPositionMapFrames = positionMapFrames;
+        this.extractDSRawBounds = bounds;
+        this.extractDSRawChannels = channels;
         return this;
     }
     public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
@@ -515,7 +551,7 @@ public class Task implements ProgressCallback{
             else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
             else if (e.value!=null) checkArray(e.value, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
         }
-        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData && (extractDSFile==null)) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
+        if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData && extractDSFile==null && extractRawDSFile==null) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
         // check parametrization
         if (preProcess) {
             ensurePositionAndStructures(true, false);
@@ -542,6 +578,16 @@ public class Task implements ProgressCallback{
             if (extractDSFeatures.stream().map(f->f.v1).count()<extractDSFeatures.size()) errors.addExceptions(new Pair(dbName, "Duplicate feature name"));
             if (extractDSSelections==null || extractDSSelections.isEmpty()) errors.addExceptions(new Pair(dbName, "No selection to extract from"));
             if (extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).isEmpty())) errors.addExceptions(new Pair(dbName, "One or several selection is empty or absent"));
+        }
+        // raw dataset extraction
+        if (extractDSFile!=null || extractDSRawChannels!=null || extractDSRawPositionMapFrames!=null ) {
+            if (extractDSRawPositionMapFrames.isEmpty() || extractDSRawPositionMapFrames.values().iterator().next().isEmpty()) errors.addExceptions(new Pair(dbName, "No frames to extract"));
+            int nChannels = db.getExperiment().getChannelImageCount(false);
+            if (extractDSRawChannels == null || extractDSRawChannels.length==0) errors.addExceptions(new Pair(dbName, "No channel images to extract"));
+            else {
+                for (int c=0;c<extractDSRawChannels.length; ++c) if (extractDSRawChannels[c]>=nChannels) errors.addExceptions(new Pair(dbName, "Invalid channel"));
+            }
+            if (extractDSRawBounds!=null && (extractDSRawBounds.xMin()<0 || extractDSRawBounds.yMin()<0 || extractDSRawBounds.zMin()<0) ) errors.addExceptions(new Pair(dbName, "Invalid bounds for raw dataset extraction"));
         }
 
         logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
@@ -598,6 +644,9 @@ public class Task implements ProgressCallback{
                 logger.debug("count sub task: sel: {} = {} pos x {} feat", sel, countPosition.applyAsInt(sel), extractDSFeatures.size());
                 count += extractDSFeatures.size() * countPosition.applyAsInt(sel);
             }
+        }
+        if (extractRawDSFile!=null) {
+            count += extractDSRawPositionMapFrames.size();
         }
         return count;
     }
@@ -683,7 +732,20 @@ public class Task implements ProgressCallback{
                 errors.addExceptions(new Pair<>("Dataset extraction", e));
             }
         }
-
+        // extract raw dataset
+        if (extractRawDSFile!=null && extractDSRawChannels!=null && extractDSRawPositionMapFrames!=null && !extractDSRawPositionMapFrames.isEmpty()) {
+            // using reflection for now to avoid dependency
+            logger.debug("extracting raw dataset...");
+            try {
+                Class clazz = Class.forName("bacmman.py_dataset.ExtractDatasetUtil");
+                java.lang.reflect.Method m = clazz.getMethod("runTaskRaw", Task.class);
+                m.invoke(null, this);
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+                errors.addExceptions(new Pair<>("Raw Dataset extraction", new RuntimeException("Could not extract dataset. DL module not installed ?", e)));
+            } catch (Throwable e) {
+                errors.addExceptions(new Pair<>("Raw Dataset extraction", e));
+            }
+        }
         logger.debug("unlocking positions...");
         if (!keepDB) db.unlockPositions(positionsToProcess.toArray(new String[0]));
         else {
@@ -876,6 +938,22 @@ public class Task implements ProgressCallback{
         if (extractDSEraseTouchingContoursOC!=null && extractDSEraseTouchingContoursOC.length>0) {
             addSep.run();
             sb.append("extractDSEraseTouchingContoursOC:").append(Utils.toStringArray(extractDSEraseTouchingContoursOC));
+        }
+        if (extractRawDSFile!=null) {
+            addSep.run();
+            sb.append("ExtractRawDSFile:").append(extractRawDSFile);
+        }
+        if (extractDSRawChannels!=null) {
+            addSep.run();
+            sb.append("ExtractRawDatasetChannels:").append(ArrayUtil.toString(extractDSRawChannels));
+        }
+        if (extractDSRawBounds!=null) {
+            addSep.run();
+            sb.append("ExtractRawDatasetBounds:").append(extractDSRawBounds);
+        }
+        if (extractDSRawPositionMapFrames!=null) {
+            addSep.run();
+            sb.append("ExtractRawDatasetPositions:").append(extractDSRawPositionMapFrames.keySet());
         }
         addSep.run();
         sb.append("dir:").append(dir);

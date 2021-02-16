@@ -52,7 +52,7 @@ public class Resize {
      * @return
      */
     public static <T extends Image<T>> T resample(T input, InterpolatorFactory interpolation, int... dimensions) {
-        if (dimensions==null || dimensions.length==0) return input;
+        if (dimensions==null || dimensions.length==0 || interpolation==null) return input;
         // negative dimension = crop
         if (Arrays.stream(dimensions).anyMatch(i->i<0)) { // needs cropping
             BoundingBox cropBB = new SimpleBoundingBox(0, dimensions[0]<0 && -dimensions[0]<input.sizeX() ? -dimensions[0]-1 : input.sizeX()-1, 0, dimensions.length>1 && dimensions[1]<0 && -dimensions[1]<input.sizeY() ? -dimensions[1]-1 : input.sizeY()-1, 0, dimensions.length>2 && dimensions[2]<0 && -dimensions[2]<input.sizeZ() ? -dimensions[2]-1 : input.sizeZ()-1);
