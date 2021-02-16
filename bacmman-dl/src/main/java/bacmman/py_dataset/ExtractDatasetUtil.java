@@ -96,11 +96,12 @@ public class ExtractDatasetUtil {
             logger.debug("position: {}", position);
             InputImages inputImages = mDAO.getExperiment().getPosition(position).getInputImages();
             List<Integer> frames = positionMapFrames.get(position);
+            boolean saveLabels = true;
             for (int channel : channels) {
                 String outputName = ds + "/" + position + "/" + channelNames[channel];
-                boolean saveLabels = true;
-                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx)).map(crop).collect(Collectors.toList());
+                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName("Frame:"+fIdx)).map(crop).collect(Collectors.toList());
                 extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null);
+                saveLabels = false;
             }
             inputImages.flush();
             t.incrementProgress();
