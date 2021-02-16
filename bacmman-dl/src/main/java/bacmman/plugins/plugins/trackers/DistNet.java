@@ -5,7 +5,6 @@ import bacmman.data_structure.*;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.scalers.ConstantScaler;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.processing.ImageOperations;
@@ -14,12 +13,10 @@ import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
-import com.google.common.collect.Sets;
 
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
-import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint {
@@ -198,7 +195,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         );
         Map<SegmentedObject, TrackingObject> objectSpotMap = HashMapGetCreate.getRedirectedMap(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(), o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), displacementMap.get(o)), HashMapGetCreate.Syncronization.NO_SYNC);
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
-        removeCrossingLinks(objectsF, objectSpotMap);
+        preventCrossingLinks(objectsF, objectSpotMap);
         // link each object to the closest previous object
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
@@ -584,7 +581,8 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         else return null;
     }
 
-    static void removeCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
+    static void preventCrossingLinks(Map<Integer, List<SegmentedObject>> objectsF, Map<SegmentedObject, TrackingObject> objectSpotMap) {
+        // those links usually occur in the specific case that division is detected 1 frame earlier
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
         for (int frame = minFrame; frame<=maxFrame; ++frame) {
@@ -602,6 +600,11 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 int upBottom=up.curToPrev.yMax();
                 if (downBottom<upBottom) {
                     down.curToPrev.translate(new SimpleOffset(0, upBottom-upBottom, 0));
+                }
+                double downMid=down.curToPrev.yMean();
+                double upMid=up.curToPrev.yMean();
+                if (downMid<upMid) {
+                    down.curToPrev.translate(new SimpleOffset(0, (int)Math.round(upMid-downMid), 0));
                 }
             }
         }
