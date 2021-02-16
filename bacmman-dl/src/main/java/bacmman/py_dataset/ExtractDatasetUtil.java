@@ -87,9 +87,9 @@ public class ExtractDatasetUtil {
         Function<Image, Image> crop = image -> {
             if (bounds==null) return image;
             MutableBoundingBox bds = new MutableBoundingBox(bounds);
-            bds.setzMax(image.zMax());
-            if (bds.sizeX()<=0) bds.setxMax(image.xMax());
-            if (bds.sizeY()<=0) bds.setyMax(image.yMax());
+            if (bds.sizeX()<=0 || bds.xMax()>image.xMax()) bds.setxMax(image.xMax());
+            if (bds.sizeY()<=0 || bds.yMax()>image.yMax()) bds.setyMax(image.yMax());
+            if (bds.sizeZ()<=0 || bds.zMax()>image.zMax()) bds.setzMax(image.zMax());
             return image.crop(bds);
         };
         for (String position : positionMapFrames.keySet()) {

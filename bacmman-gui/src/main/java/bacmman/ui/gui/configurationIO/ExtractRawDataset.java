@@ -97,7 +97,7 @@ public class ExtractRawDataset extends JDialog {
     private final ChannelImageParameter channelImage;
     private final BoundedNumberParameter nFrames;
     private final GroupParameter bounds;
-    private final BoundedNumberParameter xMin, xSize, yMin, ySize;
+    private final BoundedNumberParameter xMin, xSize, yMin, ySize, zMin, zSize;
     private final ConfigurationTreeGenerator outputConfigTree;
     private final MasterDAO mDAO;
     private final List<String> selectedPositions;
@@ -127,7 +127,9 @@ public class ExtractRawDataset extends JDialog {
         xSize = new BoundedNumberParameter("X size", 0, 0, 0, null);
         yMin = new BoundedNumberParameter("Y start", 0, 0, 0, null);
         ySize = new BoundedNumberParameter("Y size", 0, 0, 0, null);
-        bounds = new GroupParameter("Crop Image", xMin, xSize, yMin, ySize);
+        zMin = new BoundedNumberParameter("Z start", 0, 0, 0, null);
+        zSize = new BoundedNumberParameter("Z size", 0, 0, 0, null);
+        bounds = new GroupParameter("Crop Image", xMin, xSize, yMin, ySize, zMin, zSize);
         container = new GroupParameter("", outputFile, frameChoiceCond, this.nFrames, bounds);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v -> {
@@ -178,6 +180,8 @@ public class ExtractRawDataset extends JDialog {
             xSize.setValue(bounds.sizeX());
             yMin.setValue(bounds.yMin());
             ySize.setValue(bounds.sizeY());
+            zMin.setValue(bounds.zMin());
+            zSize.setValue(bounds.sizeZ());
         }
         this.frameChoiceMode.setValue(mode);
         this.nFrames.setValue(nFrames);
@@ -187,7 +191,7 @@ public class ExtractRawDataset extends JDialog {
     private void onOK() {
         resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
         int[] channels = channelSelector.getSelectedIndices();
-        SimpleBoundingBox bounds = new SimpleBoundingBox(xMin.getValue().intValue(), xMin.getValue().intValue() + xSize.getValue().intValue() - 1, yMin.getValue().intValue(), yMin.getValue().intValue() + ySize.getValue().intValue() - 1, 0, 0);
+        SimpleBoundingBox bounds = new SimpleBoundingBox(xMin.getValue().intValue(), xMin.getValue().intValue() + xSize.getValue().intValue() - 1, yMin.getValue().intValue(), yMin.getValue().intValue() + ySize.getValue().intValue() - 1, zMin.getValue().intValue(), zMin.getValue().intValue() + zSize.getValue().intValue() - 1);
         Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), channelImage.getSelectedIndex())));
         resultingTask.setExtractRawDS(outputFile.getFirstSelectedFilePath(), channels, bounds, positionMapFrames);
         dispose();
