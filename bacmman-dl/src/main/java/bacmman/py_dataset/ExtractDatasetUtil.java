@@ -99,7 +99,7 @@ public class ExtractDatasetUtil {
             boolean saveLabels = true;
             for (int channel : channels) {
                 String outputName = ds + "/" + position + "/" + channelNames[channel];
-                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName("Frame:"+fIdx)).map(crop).collect(Collectors.toList());
+                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName(""+fIdx)).map(crop).collect(Collectors.toList());
                 extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null);
                 saveLabels = false;
             }
