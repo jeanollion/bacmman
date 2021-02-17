@@ -3043,8 +3043,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 this.setMessage("Could not modify dataset "+name+" @ "+  adress);
                 return;
             }
-            Experiment xp2 = db1.getExperiment().duplicate();
-            xp2.clearPositions();
+            //Experiment xp2 = db1.getExperiment().duplicate();
+            //xp2.clearPositions();
+            Experiment xp2 = db1.getExperiment().duplicateWithoutPositions();
             xp2.setName(name);
             xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
             xp2.setOutputImageDirectory(xp2.getOutputDirectory());

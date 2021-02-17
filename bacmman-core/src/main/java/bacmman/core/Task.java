@@ -580,7 +580,7 @@ public class Task implements ProgressCallback{
             if (extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).isEmpty())) errors.addExceptions(new Pair(dbName, "One or several selection is empty or absent"));
         }
         // raw dataset extraction
-        if (extractDSFile!=null || extractDSRawChannels!=null || extractDSRawPositionMapFrames!=null ) {
+        if (extractRawDSFile!=null || extractDSRawChannels!=null || extractDSRawPositionMapFrames!=null ) {
             if (extractDSRawPositionMapFrames.isEmpty() || extractDSRawPositionMapFrames.values().iterator().next().isEmpty()) errors.addExceptions(new Pair(dbName, "No frames to extract"));
             int nChannels = db.getExperiment().getChannelImageCount(false);
             if (extractDSRawChannels == null || extractDSRawChannels.length==0) errors.addExceptions(new Pair(dbName, "No channel images to extract"));

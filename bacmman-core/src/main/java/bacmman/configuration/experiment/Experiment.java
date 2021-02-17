@@ -469,6 +469,15 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         for (int s: structures) if (s==structureIdx) return true;
         return false;
     }
+    public synchronized Experiment duplicateWithoutPositions() {
+        SimpleListParameter<Position> positions_bck = this.positions;
+        this.positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowMoveChildren(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
+        initChildList();
+        Experiment res = super.duplicate();
+        this.positions = positions_bck;
+        initChildList();
+        return res;
+    }
     public String toString() {
         return name;
     }

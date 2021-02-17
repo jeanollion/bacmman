@@ -223,6 +223,7 @@ public class ImageFieldFactory {
             pcb.incrementTaskNumber(filesByPosition.size());
         }
         PosLoop : for (Entry<String, List<File>> positionFiles : filesByPosition.entrySet()) {
+            logger.debug("Pos: {}, grouping {} files by channels...", positionFiles.getKey(), positionFiles.getValue().size());
             Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), channelKeywords, "")));
             logger.debug("Pos: {}, channel found: {}", positionFiles.getKey(),filesByChannel.keySet() );
 
@@ -230,7 +231,9 @@ public class ImageFieldFactory {
                 Integer frameNumber = null;
                 boolean ok = true;
                 for (Entry<String, List<File>> channelFiles : filesByChannel.entrySet()) {
+                    logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
                     Map<Integer, File> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getName(), timePattern), Function.identity()));
+                    logger.debug("files grouped. cheking continuity...");
                     List<Integer> tpList = new ArrayList<>(new TreeMap<>(filesByTimePoint).keySet());
                     int minTimePoint = tpList.get(0);
                     int maxFrameNumberSuccessive=1;
@@ -255,8 +258,10 @@ public class ImageFieldFactory {
                             break;
                         }
                     }
+                    logger.debug("continuity checked");
                 }
                 if (ok) {
+                    logger.debug("creating container...");
                     containersTC.add(
                         new MultipleImageContainerPositionChannelFrame(
                             input.getAbsolutePath(), 
@@ -266,6 +271,7 @@ public class ImageFieldFactory {
                             channelKeywords, 
                             frameNumber
                         ));
+                    logger.debug("container created");
                 }
                 
             } else {
