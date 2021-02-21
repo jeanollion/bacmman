@@ -28,6 +28,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.data_structure.input_image.InputImages;
+import bacmman.data_structure.input_image.SimpleInputImages;
 import bacmman.plugins.TestableOperation;
 import ij.ImagePlus;
 import ij.process.FloatProcessor;
@@ -44,6 +45,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -156,7 +158,14 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         long tEnd = System.currentTimeMillis();
         logger.debug("ImageStabilizerXY: total estimation time: {}, reference timePoint: {}", tEnd-tStart, tRef);
     }
-    
+    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel) {
+        InputImages ii = new SimpleInputImages(images);
+        ImageStabilizerXY stab = new ImageStabilizerXY();
+        stab.segmentLength.setValue(segmentLength);
+        stab.pyramidLevel.setSelectedIndex(pyramidLevel);
+        stab.computeConfigurationData(0, ii);
+        return IntStream.range(0, images.length).parallel().mapToObj(t -> stab.applyTransformation(0, t, images[t])).toArray(Image[]::new);
+    }
     private void ccdSegments(final int channelIdx, final InputImages inputImages, int segmentLength, int tRef, final Double[][] translationTXYArray, final int maxIterations, final double tolerance, MutableBoundingBox cropBB) {
         if (segmentLength<2) segmentLength = 2;
         int nSegments = (int)(0.5 +(double)(inputImages.getFrameNumber()-1) / (double)segmentLength) ;
