@@ -158,13 +158,35 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         long tEnd = System.currentTimeMillis();
         logger.debug("ImageStabilizerXY: total estimation time: {}, reference timePoint: {}", tEnd-tStart, tRef);
     }
-    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel) {
+
+    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel, boolean allowInterpolation, boolean crop) {
         InputImages ii = new SimpleInputImages(images);
         ImageStabilizerXY stab = new ImageStabilizerXY();
         stab.segmentLength.setValue(segmentLength);
         stab.pyramidLevel.setSelectedIndex(pyramidLevel);
+        stab.allowInterpolation.setSelected(allowInterpolation);
         stab.computeConfigurationData(0, ii);
-        return IntStream.range(0, images.length).parallel().mapToObj(t -> stab.applyTransformation(0, t, images[t])).toArray(Image[]::new);
+        Image[] res = IntStream.range(0, images.length).parallel().mapToObj(t -> stab.applyTransformation(0, t, images[t])).toArray(Image[]::new);
+        if (allowInterpolation) {
+            int maxBitDepth = Arrays.stream(res).mapToInt(i -> i.getBitDepth()).max().getAsInt();
+            if (maxBitDepth==32) for (int t=0;t<res.length; ++t) res[t] = TypeConverter.toFloat(res[t], null, false);
+        }
+        if (crop) {
+            double dXmin = -stab.translationTXY.stream().mapToDouble(d->d.get(0)).min().getAsDouble();
+            double dXmax = stab.translationTXY.stream().mapToDouble(d->d.get(0)).max().getAsDouble();
+            double dYmin = -stab.translationTXY.stream().mapToDouble(d->d.get(1)).min().getAsDouble();
+            double dYmax = stab.translationTXY.stream().mapToDouble(d->d.get(1)).max().getAsDouble();
+            if (dXmin!=0 || dXmax!=0 || dYmin!=0 || dYmax!=0) {
+                MutableBoundingBox cropBB = new MutableBoundingBox(res[0]);
+                cropBB.setxMin(cropBB.xMin() + (int) Math.ceil(dXmax));
+                cropBB.setxMax(cropBB.xMax() - (int) Math.ceil(dXmin));
+                cropBB.setyMin(cropBB.yMin() + (int) Math.ceil(dYmax));
+                cropBB.setyMax(cropBB.yMax() - (int) Math.ceil(dYmin));
+                for (int t = 0; t < res.length; ++t) res[t] = res[t].crop(cropBB);
+                logger.debug("crop: x: [{}; {}] y: [{}; {}]", dXmin, dXmax, dYmin, dYmax);
+            }
+        }
+        return res;
     }
     private void ccdSegments(final int channelIdx, final InputImages inputImages, int segmentLength, int tRef, final Double[][] translationTXYArray, final int maxIterations, final double tolerance, MutableBoundingBox cropBB) {
         if (segmentLength<2) segmentLength = 2;
