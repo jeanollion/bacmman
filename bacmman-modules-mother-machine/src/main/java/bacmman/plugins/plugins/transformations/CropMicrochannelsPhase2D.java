@@ -31,11 +31,13 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.plugins.Plugin;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -88,7 +90,7 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     }
     
     @Override public MutableBoundingBox getBoundingBox(Image image) {
-        return getBoundingBox(image, cropMarginY.getValue().intValue(),xStart.getValue().intValue(), xStop.getValue().intValue(), yStart.getValue().intValue(), yStop.getValue().intValue());
+        return getBoundingBox(image, twoPeaks.getSelected() ? 0 : cropMarginY.getValue().intValue(),xStart.getValue().intValue(), xStop.getValue().intValue(), yStart.getValue().intValue(), yStop.getValue().intValue());
     }
     
     protected MutableBoundingBox getBoundingBox(Image image, int cropMargin,  int xStart, int xStop, int yStart, int yStop ) {
@@ -134,8 +136,8 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         
         xStart = Math.max(nonNullBound.xMin(), xStart);
         xStop = Math.min(xStop, nonNullBound.xMax());
-        return new MutableBoundingBox(xStart, xStop, yStart, yStop, 0, image.sizeZ()-1);
-        
+        MutableBoundingBox res = new MutableBoundingBox(xStart, xStop, yStart, yStop, 0, image.sizeZ()-1);
+        return res;
     }
     
     /**
@@ -248,12 +250,17 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     
     private static BoundingBox getNonNullBound(Image image, int yMin, int yMax) {
         int[] xMinMaxDown = getXMinAndMax(image, yMax);
-        if (xMinMaxDown[0]==0 && xMinMaxDown[1]==image.sizeX()-1) return  image.getBoundingBox().setyMax(yMax).setyMin(yMin); // no null values
-        int[] yMinMaxLeft = getYMinAndMax(image, xMinMaxDown[0]);
-        int[] yMinMaxRigth = getYMinAndMax(image, xMinMaxDown[1]);
-        yMin = Math.max(yMin, Math.min(yMinMaxLeft[0], yMinMaxRigth[0]));
         int[] xMinMaxUp = getXMinAndMax(image, yMin);
-        return new SimpleBoundingBox(Math.max(xMinMaxDown[0], xMinMaxUp[0]), Math.min(xMinMaxDown[1], xMinMaxUp[1]), yMin, yMax, image.zMin(), image.zMax());
+        int xMin = Math.max(xMinMaxDown[0], xMinMaxUp[0]);
+        int xMax = Math.min(xMinMaxDown[1], xMinMaxUp[1]);
+        if (yMin==0) {
+            int[] yMinMaxLeft = getYMinAndMax(image, xMin);
+            int[] yMinMaxRigth = getYMinAndMax(image, xMax);
+            yMin = Math.max(yMinMaxLeft[0], yMinMaxRigth[0]);
+        }
+
+
+        return new SimpleBoundingBox(xMin, xMax, yMin, yMax, image.zMin(), image.zMax());
     }
     
     @Override
@@ -264,13 +271,15 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     @Override
     protected void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx) {
         boolean stabFromDown = false;
+
         int maxSizeY = allBounds.values().stream().mapToInt(b->b.sizeY()).max().getAsInt();
         int sY = allBounds.entrySet().stream().mapToInt(b-> {
             int yMinNull = getYmin(inputImages.getImage(channelIdx, b.getKey()), b.getValue().xMin(), b.getValue().xMax()); // limit sizeY so that no null pixels (due to rotation) is present in the image & not out-of-bounds
+            logger.debug("yMinnull: {}", yMinNull);
             return b.getValue().yMax() - Math.max(b.getValue().yMax()-(maxSizeY-1), yMinNull)+1;
         }).min().getAsInt();
-        //logger.info("max size Y: {} uniformized sizeY: {}", maxSizeY, sY);
-        //logger.info("all bounds: {}", allBounds.entrySet().stream().filter(e->e.getKey()%100==0).sorted((e1, e2)->Integer.compare(e1.getKey(), e2.getKey())).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));
+        logger.info("max size Y: {} uniformized sizeY: {}", maxSizeY, sY);
+        logger.info("all bounds: {}", allBounds.entrySet().stream().filter(e->e.getKey()%100==0).sorted(Comparator.comparingInt(Map.Entry::getKey)).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));
         if (!landmarkUpperPeak.getSelected()) allBounds.values().stream().filter(bb->bb.sizeY()!=sY).forEach(bb-> bb.setyMin(bb.yMax()-(sY-1)));
         else allBounds.values().stream().filter(bb->bb.sizeY()!=sY).forEach(bb-> bb.setyMax(bb.yMin()+(sY-1)));
         //logger.info("all bounds after uniformize Y: {}", allBounds.entrySet().stream().filter(e->e.getKey()%100==0).sorted((e1, e2)->Integer.compare(e1.getKey(), e2.getKey())).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));
