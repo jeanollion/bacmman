@@ -71,7 +71,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         }
     }
     String toolTip = "Flips the image along the Y-axis if the closed-end of the microchannels is below the open-end. Microchannels must first be aligned along the Y-axis (use for instance <em>AutorotationXY</em> module)";
-    ChoiceParameter method = new ChoiceParameter("Method", Utils.transform(AutoFlipMethod.values(), new String[AutoFlipMethod.values().length], f->f.name), FLUO_HALF_IMAGE.name, false).setEmphasized(true);
+    ChoiceParameter method = new ChoiceParameter("Method", Utils.transform(AutoFlipMethod.values(), new String[AutoFlipMethod.values().length], f->f.name), OPTICAL_FLOW.name, false).setEmphasized(true);
     PluginParameter<SimpleThresholder> fluoThld = new PluginParameter<>("Threshold for bacteria Segmentation", SimpleThresholder.class, new BackgroundThresholder(3, 6, 3), false);
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");
     NumberParameter microchannelLength = new BoundedNumberParameter("Microchannel Length", 0, 400, 100, null).setEmphasized(true).setHint("Minimal Length of Microchannels");
@@ -196,8 +196,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     if (binFactor>1) images[t] = ImageOperations.spatialBinning(images[t], binFactor, 1, false);
                 }
                 if (stabilize.getSelected()) {
-                    images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0, true);
-                    for (int t=0;t<images.length; ++t) images[t] = TypeConverter.toFloat(images[t], null, false);
+                    images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0, true, true);
                 }
 
                 Image dt_ = ImageFeatures.getDerivative(Image.mergeZPlanes(images), 1, 1, 0, 0, 1, false);
