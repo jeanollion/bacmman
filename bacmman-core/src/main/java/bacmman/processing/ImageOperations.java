@@ -20,21 +20,11 @@ package bacmman.processing;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.Voxel;
+import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
-import bacmman.image.BlankMask;
-import bacmman.image.BoundingBox;
+
 import static bacmman.image.BoundingBox.loop;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
-import bacmman.image.Image;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
-import bacmman.image.ImageMask;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.TypeConverter;
+
 import bacmman.utils.DoubleStatistics;
 import java.util.ArrayList;
 import java.util.List;
@@ -549,6 +539,51 @@ public class ImageOperations {
             }
         }
     }
+    interface ValueLoopFunction {
+        double apply(int x, int y, int z);
+    }
+    public static Image spatialBinning(Image image, int factorXY, int factorZ, boolean max) {
+        int sizeX = Math.max(1, image.sizeX()/factorXY);
+        int sizeY = Math.max(1, image.sizeY()/factorXY);
+        int sizeZ = Math.max(1, image.sizeZ()/factorZ);
+        Image result = Image.createEmptyImage(image.getName()+"_binned", max ? image : new ImageFloat("", 0, 0, 0), new SimpleImageProperties(new SimpleBoundingBox(0, sizeX-1, 0, sizeY-1, 0, sizeZ-1), image.getScaleXY()*factorXY, image.getScaleZ()*factorZ));
+        ValueLoopFunction getValue;
+        if (max) {
+            getValue = (x, y, z) -> {
+                double res = Double.NEGATIVE_INFINITY;
+                for (int xx = x; xx < x + factorXY; ++xx) {
+                    for (int yy = y; yy < y + factorXY; ++yy) {
+                        for (int zz = z; zz < z + factorZ; ++zz) {
+                            double v = image.getPixel(xx, yy, zz);
+                            if (v>res) res = v;
+                        }
+                    }
+                }
+                return res;
+            };
+        } else {
+            getValue = (x, y, z) -> {
+                double res = 0;
+                double count = 0;
+                for (int xx = x; xx < x + factorXY; ++xx) {
+                    for (int yy = y; yy < y + factorXY; ++yy) {
+                        for (int zz = z; zz < z + factorZ; ++zz) {
+                            if (image.contains(xx, yy, zz)) {
+                                res += image.getPixel(xx, yy, zz);
+                                ++count;
+                            }
+                        }
+                    }
+                }
+                return res/count;
+            };
+        }
+        BoundingBox.loop(result, (x, y, z)-> {
+            result.setPixel(x, y, z, getValue.apply(x * factorXY, y * factorXY, z * factorZ));
+        }, true);
+        return result;
+    }
+
     /**
      * 
      * @param image
