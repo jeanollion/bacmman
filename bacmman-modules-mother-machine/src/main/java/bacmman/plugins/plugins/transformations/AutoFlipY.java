@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.transformations;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
+import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
@@ -74,11 +75,11 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     PluginParameter<SimpleThresholder> fluoThld = new PluginParameter<>("Threshold for bacteria Segmentation", SimpleThresholder.class, new BackgroundThresholder(3, 6, 3), false);
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");
     NumberParameter microchannelLength = new BoundedNumberParameter("Microchannel Length", 0, 400, 100, null).setEmphasized(true).setHint("Minimal Length of Microchannels");
-    NumberParameter binFactor = new BoundedNumberParameter("Bin factor", 0, 3, 1, null).setEmphasized(false).setHint("Spatial binning factor");
+    NumberParameter binFactor = new BoundedNumberParameter("Bin factor", 0, 2, 1, null).setEmphasized(false).setHint("Spatial binning factor");
     NumberParameter thresholdFactor_dt = new BoundedNumberParameter("dI/dt threshold factor", 3, 1, 0.1, null).setEmphasized(false).setHint("Threshold factor to filter dI/dt image");
     NumberParameter thresholdFactor_dy = new BoundedNumberParameter("dI/dy threshold factor", 3, 1, 0.1, null).setEmphasized(false).setHint("Threshold factor to filter dI/dy image");
     NumberParameter stabSegment = new BoundedNumberParameter("Frame segment", 0, 20, 5, null).setEmphasized(false).setHint("Frame segment for XY stabilization (see ImageStabilizerXY plugin)");
-    BooleanParameter stabilize = new BooleanParameter("Stabilize");
+    BooleanParameter stabilize = new BooleanParameter("Stabilize", true);
     ConditionalParameter<Boolean> stabCond = new ConditionalParameter<>(stabilize).setActionParameters(Boolean.TRUE, stabSegment);
     ConditionalParameter<String> cond = new ConditionalParameter<>(method)
             .setActionParameters(OPTICAL_FLOW.name, binFactor, thresholdFactor_dt, thresholdFactor_dy, stabCond)
@@ -194,7 +195,10 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     if (images[t].sizeZ()>1) images[t] = images[t].getZPlane(inputImages.getBestFocusPlane(t));
                     if (binFactor>1) images[t] = ImageOperations.spatialBinning(images[t], binFactor, 1, false);
                 }
-                if (stabilize.getSelected()) images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0);
+                if (stabilize.getSelected()) {
+                    images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0, true);
+                    for (int t=0;t<images.length; ++t) images[t] = TypeConverter.toFloat(images[t], null, false);
+                }
 
                 Image dt_ = ImageFeatures.getDerivative(Image.mergeZPlanes(images), 1, 1, 0, 0, 1, false);
                 // remove first and last images
