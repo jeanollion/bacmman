@@ -20,26 +20,27 @@ package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
-import bacmman.image.BlankMask;
+
 import static bacmman.image.BoundingBox.intersect2D;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageLabeller;
-import bacmman.image.ImageMask;
-import bacmman.image.SimpleBoundingBox;
+
+import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
-import bacmman.image.ThresholdMask;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.FLUO_HALF_IMAGE;
+import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.OPTICAL_FLOW;
+
 import bacmman.processing.ImageTransformation;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
@@ -52,9 +53,11 @@ import bacmman.utils.Utils;
 public class AutoFlipY implements ConfigurableTransformation, MultichannelTransformation, Hint, TestableOperation {
     
     public enum AutoFlipMethod {
+        OPTICAL_FLOW("Optical Flow", "Flips the image so that bacteria moves towards the lower part of the image.<br />Based on a simple estimation of bacteria motion along Y-axis"),
         FLUO("Bacteria Fluo", "Bacteria poles touching the closed-end of microchannels are often aligned in parallel to the main channel. This method estimates the alignment of bacteria at the top and the bottom of the image. If bacteria are more aligned at the bottom, the image is flipped."),
         FLUO_HALF_IMAGE("Bacteria Fluo: Upper Half of Image", "Flips the image if the fluorescence signal is higher  in the bottom half of the image."),
         PHASE("Phase Contrast Optical Aberration", "The optical aberration (i.e. the bright line corresponding to the sides of the main channel in phase contrast images) is detected. Then, the image is divided into two parts corresponding to the regions above and below the bright line, each part is projected onto the x-axis and the variance of the intensity of the projected pixels is computed for each part. The part with the maximal variance corresponds to the region of the image where the microchannels are. The image is therefore eventually flipped so that the part of the image containing the microchannels is above the bright line. <br />In case the y-coordinate of the bright line  is smaller than the value of the <em>Microchannel Length</em> parameter (i.e. the bright line is very close to the upper side of the image), the image is always flipped");
+
         final String name;
         final String toolTip;
         AutoFlipMethod(String name, String toolTip) {
@@ -71,7 +74,16 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     PluginParameter<SimpleThresholder> fluoThld = new PluginParameter<>("Threshold for bacteria Segmentation", SimpleThresholder.class, new BackgroundThresholder(3, 6, 3), false);
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");
     NumberParameter microchannelLength = new BoundedNumberParameter("Microchannel Length", 0, 400, 100, null).setEmphasized(true).setHint("Minimal Length of Microchannels");
-    ConditionalParameter<String> cond = new ConditionalParameter<>(method).setActionParameters("Bacteria Fluo", new Parameter[]{fluoThld, minObjectSize}).setActionParameters("Phase Contrast Optical Aberration", new Parameter[]{microchannelLength});
+    NumberParameter binFactor = new BoundedNumberParameter("Bin factor", 0, 3, 1, null).setEmphasized(false).setHint("Spatial binning factor");
+    NumberParameter thresholdFactor_dt = new BoundedNumberParameter("dI/dt threshold factor", 3, 1, 0.1, null).setEmphasized(false).setHint("Threshold factor to filter dI/dt image");
+    NumberParameter thresholdFactor_dy = new BoundedNumberParameter("dI/dy threshold factor", 3, 1, 0.1, null).setEmphasized(false).setHint("Threshold factor to filter dI/dy image");
+    NumberParameter stabSegment = new BoundedNumberParameter("Frame segment", 0, 20, 5, null).setEmphasized(false).setHint("Frame segment for XY stabilization (see ImageStabilizerXY plugin)");
+    BooleanParameter stabilize = new BooleanParameter("Stabilize");
+    ConditionalParameter<Boolean> stabCond = new ConditionalParameter<>(stabilize).setActionParameters(Boolean.TRUE, stabSegment);
+    ConditionalParameter<String> cond = new ConditionalParameter<>(method)
+            .setActionParameters(OPTICAL_FLOW.name, binFactor, thresholdFactor_dt, thresholdFactor_dy, stabCond)
+            .setActionParameters(AutoFlipMethod.FLUO.name, fluoThld, minObjectSize)
+            .setActionParameters(AutoFlipMethod.PHASE.name, microchannelLength);
     Boolean flip = null;
     public AutoFlipY() {
         cond.addListener(p->{ 
@@ -171,6 +183,48 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 flip = varLower>varUpper;
                 logger.info("AutoFlipY: {} (var upper: {}, var lower: {} aberration: [{};{};{}]", flip, varLower, varUpper,startOfPeakIdx, peakIdx, endOfPeakIdx );
                 break;
+            } case OPTICAL_FLOW: {
+                // TODO frame subset
+                // TODO stabilize as option
+                // compute dI/dy & dI/dt
+                int binFactor = this.binFactor.getValue().intValue();
+                Image[] images = new Image[inputImages.getFrameNumber()];
+                for (int t = 0; t<images.length; ++t) {
+                    images[t] = inputImages.getImage(channelIdx, t);
+                    if (images[t].sizeZ()>1) images[t] = images[t].getZPlane(inputImages.getBestFocusPlane(t));
+                    if (binFactor>1) images[t] = ImageOperations.spatialBinning(images[t], binFactor, 1, false);
+                }
+                if (stabilize.getSelected()) images = ImageStabilizerXY.stabilize(images, stabSegment.getValue().intValue(), binFactor==1 ? 1 : 0);
+
+                Image dt_ = ImageFeatures.getDerivative(Image.mergeZPlanes(images), 1, 1, 0, 0, 1, false);
+                // remove first and last images
+                Image[] images2 = Arrays.stream(images).skip(1).limit(images.length-2).toArray(Image[]::new);
+                Image image3D  = Image.mergeZPlanes(images2);
+                Image dt = Image.mergeZPlanes((List<Image>) IntStream.range(1, dt_.sizeZ()-1).mapToObj(i->dt_.getZPlane(i)).collect(Collectors.toList()));
+                Image dy = ImageFeatures.getDerivative(image3D, 2, 1, 0, 1, 0, false);
+
+                // filter immobile values
+                //Histogram hist_dt = HistogramFactory.getHistogram(()->dt.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                //Histogram hist_dy = HistogramFactory.getHistogram(()->dy.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                double sigma_dt = ImageOperations.getMeanAndSigma(dt, null, null)[1];
+                double thld_dt = sigma_dt*thresholdFactor_dt.getValue().doubleValue();
+                BoundingBox.loop(dt, (x, y, z)->dt.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dt.getPixel(x, y, z))<thld_dt, true);
+                double sigma_dy = ImageOperations.getMeanAndSigma(dy, null, null)[1];
+                double thld_dy = sigma_dy*thresholdFactor_dy.getValue().doubleValue();
+                BoundingBox.loop(dt, (x, y, z)->dy.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dy.getPixel(x, y, z))<thld_dy, true);
+
+                Image Vy = ImageOperations.divide(dt, dy, null,-1);
+
+                double meanVelocityY = ImageOperations.getMeanAndSigma(Vy, null, v->!Double.isNaN(v) && Double.isFinite(v), true)[0];
+                flip = meanVelocityY<0;
+                if (this.testMode.testSimple()) {
+                    logger.debug("Mean velocity : {}, thld_dt: {}, thld_dt {}", meanVelocityY, thld_dt, thld_dy);
+                    Core.showImage(image3D.setName("input"));
+                    Core.showImage(dy.setName("dI/dy"));
+                    Core.showImage(dt.setName("dI/dt"));
+                    BoundingBox.loop(Vy, (x, y, z)->Vy.setPixel(x, y, z, 0), (x, y, z)->Double.isNaN(Vy.getPixel(x, y, z)) || Double.isInfinite(Vy.getPixel(x, y, z)), true);
+                    Core.showImage(Vy.setName("Vy"));
+                }
             }
         }
     }
