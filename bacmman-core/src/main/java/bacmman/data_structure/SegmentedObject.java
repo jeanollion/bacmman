@@ -933,11 +933,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         for (int i = 0; i<preFilteredImagesS.getBucketSize(); ++i) preFilteredImagesS.setQuick(null, i);
         this.offsetInTrackImage=null;
     }
-    
-    public RegionPopulation getChildRegionPopulation(int structureIdx) {
-        Stream<SegmentedObject> children = this.getChildren(structureIdx, true);
+    public RegionPopulation getChildRegionPopulation(int structureIdx, boolean strictInclusion) {
+        Stream<SegmentedObject> children = this.getChildren(structureIdx, strictInclusion);
         if (children==null) children = Stream.empty();
         return new RegionPopulation(children.map(SegmentedObject::getRegion).collect(Collectors.toList()), this.getMaskProperties());
+    }
+    public RegionPopulation getChildRegionPopulation(int structureIdx) {
+        return getChildRegionPopulation(structureIdx, true);
     }
     public void setAttributeList(String key, List<Double> value) {
         if (this.attributes==null) attributes = new HashMap<>();

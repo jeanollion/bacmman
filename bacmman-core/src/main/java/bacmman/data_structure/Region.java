@@ -818,16 +818,29 @@ public class Region {
      * @param value
      */
     public void draw(Image image, double value) {
+        boolean included = isAbsoluteLandMark() ? ( is2D() ? BoundingBox.isIncluded2D(this.getBounds(), image.getBoundingBox()): BoundingBox.isIncluded(this.getBounds(), image.getBoundingBox())) : (is2D() ? BoundingBox.isIncluded2D(this.getBounds(), image.getBoundingBox().resetOffset()) : BoundingBox.isIncluded(this.getBounds(), image.getBoundingBox().resetOffset()));
         if (voxels !=null) {
             //logger.trace("drawing from VOXELS of object: {} with label: {} on image: {} ", this, label, image);
-            if (isAbsoluteLandMark()) for (Voxel v : getVoxels()) image.setPixelWithOffset(v.x, v.y, v.z, value);
-            else for (Voxel v : getVoxels()) image.setPixel(v.x, v.y, v.z, value);
+            if (isAbsoluteLandMark()) {
+                if (included) for (Voxel v : getVoxels()) image.setPixelWithOffset(v.x, v.y, v.z, value);
+                else for (Voxel v : getVoxels()) if (image.containsWithOffset(v.x, v.y, v.z)) image.setPixelWithOffset(v.x, v.y, v.z, value);
+            }
+            else {
+                if (included) for (Voxel v : getVoxels()) image.setPixel(v.x, v.y, v.z, value);
+                else for (Voxel v : getVoxels()) if (image.contains(v.x, v.y, v.z)) image.setPixel(v.x, v.y, v.z, value);
+            }
         }
         else {
             if (mask == null) throw new RuntimeException("Both voxels and mask are null: cannot draw region of class: "+getClass());
             //logger.debug("drawing from IMAGE of object: {} with label: {} on image: {} mask: {}, absolute landmark: {}", this, label, image, mask, isAbsoluteLandMark());
-            if (isAbsoluteLandMark()) ImageMask.loopWithOffset(mask, (x, y, z)-> { image.setPixelWithOffset(x, y, z, value); });
-            else ImageMask.loopWithOffset(mask, (x, y, z)-> { image.setPixel(x, y, z, value); });
+            if (isAbsoluteLandMark()) {
+                if (included) ImageMask.loopWithOffset(mask, (x, y, z)-> image.setPixelWithOffset(x, y, z, value));
+                else ImageMask.loopWithOffset(mask, (x, y, z)-> {if (image.containsWithOffset(x, y, z)) image.setPixelWithOffset(x, y, z, value);});
+            }
+            else {
+                if (included) ImageMask.loopWithOffset(mask, (x, y, z)-> image.setPixel(x, y, z, value));
+                else ImageMask.loopWithOffset(mask, (x, y, z)-> { if (image.contains(x, y, z)) image.setPixel(x, y, z, value);} );
+            }
         }
     }
     /**
