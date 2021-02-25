@@ -76,8 +76,8 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     NumberParameter minObjectSize = new BoundedNumberParameter("Minimal Object Size", 1, 100, 10, null).setHint("Object under this size (in pixels) will be removed");
     NumberParameter microchannelLength = new BoundedNumberParameter("Microchannel Length", 0, 400, 100, null).setEmphasized(true).setHint("Minimal Length of Microchannels");
     NumberParameter binFactor = new BoundedNumberParameter("Bin factor", 0, 2, 1, null).setEmphasized(false).setHint("Spatial binning factor");
-    NumberParameter thresholdFactor_dt = new BoundedNumberParameter("dI/dt threshold factor", 3, 1, 0.1, null).setEmphasized(false).setHint("Threshold factor to filter dI/dt image");
-    NumberParameter thresholdFactor_dy = new BoundedNumberParameter("dI/dy threshold factor", 3, 1, 0.1, null).setEmphasized(false).setHint("Threshold factor to filter dI/dy image");
+    NumberParameter thresholdFactor_dt = new BoundedNumberParameter("dI/dt threshold factor", 3, 0.5, 0.01, null).setEmphasized(false).setHint("Threshold factor to filter dI/dt image");
+    NumberParameter thresholdFactor_dy = new BoundedNumberParameter("dI/dy threshold factor", 3, 0.5, 0.01, null).setEmphasized(false).setHint("Threshold factor to filter dI/dy image");
     NumberParameter stabSegment = new BoundedNumberParameter("Frame segment", 0, 20, 5, null).setEmphasized(false).setHint("Frame segment for XY stabilization (see ImageStabilizerXY plugin)");
     BooleanParameter stabilize = new BooleanParameter("Stabilize", true);
     ConditionalParameter<Boolean> stabCond = new ConditionalParameter<>(stabilize).setActionParameters(Boolean.TRUE, stabSegment);
@@ -185,8 +185,8 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 logger.info("AutoFlipY: {} (var upper: {}, var lower: {} aberration: [{};{};{}]", flip, varLower, varUpper,startOfPeakIdx, peakIdx, endOfPeakIdx );
                 break;
             } case OPTICAL_FLOW: {
+                if (inputImages.getFrameNumber()<3) throw new RuntimeException("AutoFlipY > Optical flow method requires at least 3 frames");
                 // TODO frame subset
-                // TODO stabilize as option
                 // compute dI/dy & dI/dt
                 int binFactor = this.binFactor.getValue().intValue();
                 Image[] images = new Image[inputImages.getFrameNumber()];
@@ -207,8 +207,6 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 Image dy = ImageFeatures.getDerivative(image3D, 2, 1, 0, 1, 0, false);
 
                 // filter immobile values
-                //Histogram hist_dt = HistogramFactory.getHistogram(()->dt.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
-                //Histogram hist_dy = HistogramFactory.getHistogram(()->dy.stream(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
                 double sigma_dt = ImageOperations.getMeanAndSigma(dt, null, null)[1];
                 double thld_dt = sigma_dt*thresholdFactor_dt.getValue().doubleValue();
                 BoundingBox.loop(dt, (x, y, z)->dt.setPixel(x, y, z, 0), (x, y, z)->Math.abs(dt.getPixel(x, y, z))<thld_dt, true);
