@@ -38,7 +38,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
-        if (stores!=null && edm_div_dy_np[1]!=null) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
+        if (stores!=null && edm_div_dy_np[1]!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
         segment(objectClassIdx, parentTrack, edm_div_dy_np[0], edm_div_dy_np[2], postFilters, factory);
         track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], edm_div_dy_np[0], editor, factory);
     }
@@ -50,7 +50,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         long t1= System.currentTimeMillis();
         logger.info("engine instanciated in {}ms, class: {}", t1-t0, engine.getClass());
         trackPreFilters.filter(objectClassIdx, parentTrack);
-        if (stores!=null) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
+        if (stores!=null && !trackPreFilters.isEmpty()) parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2= System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2-t1);
         int[] imageShape = new int[]{inputShape.getChildAt(1).getValue().intValue(), inputShape.getChildAt(0).getValue().intValue()};
@@ -186,8 +186,8 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         void consume(A a, B b, C c);
     }
     public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, Map<SegmentedObject, Image> edm, TrackLinkEditor editor, SegmentedObjectFactory factory) {
-        if (stores!=null) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
-        if (stores!=null && noPrev!=null) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
+        if (stores!=null  && this.stores.get(parentTrack.get(0)).isExpertMode()) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
+        if (stores!=null && noPrev!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
         Map<SegmentedObject, Double> displacementMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
                 o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0] * o.getParent().getBounds().sizeY() / 256d, // / 256d factor is due to rescaling: dy is computed in pixels in the 32x256 image.
