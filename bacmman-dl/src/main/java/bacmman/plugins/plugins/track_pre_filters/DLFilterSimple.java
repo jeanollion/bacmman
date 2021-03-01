@@ -2,6 +2,7 @@ package bacmman.plugins.plugins.track_pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 import bacmman.image.TypeConverter;
@@ -11,6 +12,7 @@ import bacmman.processing.ResizeUtils;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 public class DLFilterSimple implements TrackPreFilter, Filter, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1].<br /Output: pre-filtered image>");
@@ -45,12 +47,6 @@ public class DLFilterSimple implements TrackPreFilter, Filter, Hint {
         for (Map.Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) e.setValue(out[idx++]);
     }
 
-    @Override
-    public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        Image[][][] input = new Image[][][]{{{image}}};
-        Image[] out = predict(input);
-        return out[0];
-    }
 
     @Override
     public Parameter[] getParameters() {
@@ -62,5 +58,26 @@ public class DLFilterSimple implements TrackPreFilter, Filter, Hint {
         return "Filter an image by running a deep neural network";
     }
 
+    // transformation implementation
+//    Image[] processedFrames;
+//    @Override
+//    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+//        int nFrames = inputImages.singleFrameChannel(channelIdx) ? 1 : inputImages.getFrameNumber();
+//        Image[][][] input = new Image[1][nFrames][1];
+//        for (int t = 0; t<nFrames;++t) input[0][t][0] = inputImages.getImage(channelIdx, t);
+//        processedFrames = predict(input);
+//    }
+//
+//    @Override
+//    public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber) {
+//        return processedFrames!=null;
+//    }
 
+    @Override
+    public Image applyTransformation(int channelIdx, int timePoint, Image image) {
+        Image[][][] input = new Image[][][]{{{image}}};
+        Image[] out = predict(input);
+        return out[0];
+//        return processedFrames.length>1 ? processedFrames[timePoint] : processedFrames[0];
+    }
 }

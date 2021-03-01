@@ -26,6 +26,7 @@ public class PreviousLabels implements FeatureExtractor {
         if (parent.getPrevious()!=null && resampledPopulation.get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
             parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null).forEach(c -> {
                 Region r = curPop.getRegion(c.getIdx()+1);
+                if (r==null) throw new RuntimeException("Invalid lineage: @ bacteria: "+c);
                 r.draw(prevLabel, c.getPrevious().getIdx()+1);
             });
         }
