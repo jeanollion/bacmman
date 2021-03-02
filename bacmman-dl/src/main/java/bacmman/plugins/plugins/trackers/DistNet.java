@@ -29,11 +29,13 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
 
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.25, 0, null).setHint("Increase this parameter to correct over-segmentation. The value corresponds to the maximum difference between interface value and split threshold (defined in the segmenter) for over-segmented interface. <br />Over-segmented cells are detected using the predicted division state: when a cell has several next cells and that their predicted division stated is less than 0.5, they are merged if they verify the criterion defined above.");
+    BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setHint("Increase this parameter to correct over-segmentation. The value corresponds to the maximum difference between interface value and split threshold (defined in the segmenter) for over-segmented interface. <br /> if the difference between the interface value of two cells in the same line and <em>Split Threshold</em> is lower than this value, cells are merged");
+
     BooleanParameter openChannels = new BooleanParameter("Open Microchannels", false).setHint("Whether microchannels have two open ends or not. This only affects the detection of tracking errors.");
     BooleanParameter next = new BooleanParameter("Predict Next", false).setHint("Whether the network accept previous, current and next frames as input and predicts dY & category for current and next frame as well as EDM for previous current and next frame. The network has then 4 outputs (dy, category for current frame, category for next frame and EDM) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems such as microchannels that are open on both ends.");
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
 
-    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, scaler, edmSegmenter, correctionMaxCost, growthRateRange, openChannels, next, averagePredictions};
+    Parameter[] parameters =new Parameter[]{dlEngine, inputShape, scaler, edmSegmenter, divisionCost, correctionMaxCost, growthRateRange, openChannels, next, averagePredictions};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -200,6 +202,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
         double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
+        double divisionCost = this.divisionCost.getValue().doubleValue();
         SegmenterSplitAndMerge seg = getSegmenter();
         Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
         for (int frame = minFrame+1; frame<=maxFrame; ++frame) {
@@ -249,7 +252,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
 
 
-            // NEXT SECTION :USE OF PREDICTION OF DIVISION STATE AND DY TO REDUCE OVER-SEGMENTATION. MINOR EFFECT
+
             TriConsumer<SegmentedObject, SegmentedObject, Collection<SegmentedObject>> mergeFun = (prev, result, toMergeL) -> {
                 for (SegmentedObject toRemove : toMergeL) {
                     nextToPrevMap.remove(toRemove);
@@ -282,13 +285,26 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 });
                 return cost;
             };
+            // NEXT SECTION :USE OF PREDICTION OF DIVISION STATE AND DY TO REDUCE OVER-SEGMENTATION. MINOR EFFECT
             ToDoubleFunction<SegmentedObject> getY = o -> o.getBounds().yMean() - o.getParent().getBounds().yMin();
             if (division!=null && maxCorrectionCost>0) { // Take into account div map: when 2 object have same previous cell
                 Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
                 while(it.hasNext()) {
+                    boolean corr = false;
                     Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
                     if (div.getValue().size()>=2) {
-                        if (div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).allMatch(d->d<0.7)) {
+                        if (divisionCost>0 && div.getValue().size()==2) {
+                            List<SegmentedObject> divL = new ArrayList<>(div.getValue());
+                            double cost = computeMergeCost.applyAsDouble(divL);
+                            logger.debug("Merging division ... frame: {} cost: {}", frame, cost);
+                            if (cost<=divisionCost) { // merge all regions
+                                SegmentedObject merged = divL.remove(0);
+                                mergeFun.consume(div.getKey(), merged, divL);
+                                it.remove();
+                                corr=true;
+                            }
+                        }
+                        if (!corr && div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), division.get(o.getParent()))).allMatch(d->d<0.7)) {
                             // try to merge all objects if they are in contact...
                             List<SegmentedObject> divL = new ArrayList<>(div.getValue());
                             double cost = computeMergeCost.applyAsDouble(divL);
@@ -297,8 +313,10 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                                 SegmentedObject merged = divL.remove(0);
                                 mergeFun.consume(div.getKey(), merged, divL);
                                 it.remove();
+                                corr=true;
                             }
-                        } else if (div.getValue().size()==3) { // CASE OF OVER-SEGMENTED DIVIDING CELLS : try to keep only 2 cells
+                        }
+                        if (!corr && div.getValue().size()==3) { // CASE OF OVER-SEGMENTED DIVIDING CELLS : try to keep only 2 cells
                             List<SegmentedObject> divL = new ArrayList<>(div.getValue());
                             divL.sort(Comparator.comparingInt(o->o.getBounds().yMin()));
                             double cost1  = computeMergeCost.applyAsDouble(new ArrayList<SegmentedObject>(){{add(divL.get(0)); add(divL.get(1));}});
