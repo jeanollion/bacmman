@@ -568,7 +568,7 @@ public class Task implements ProgressCallback{
 
         // dataset extraction
         if (extractDSFile!=null || extractDSFeatures!=null || extractDSSelections!=null || extractDSDimensions!=null) {
-            if (extractDSDimensions==null || extractDSDimensions.length!=2 || extractDSDimensions[0]<=0 || extractDSDimensions[1]<=0) {
+            if (extractDSDimensions==null || extractDSDimensions.length!=2) {
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
             }
             if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair(dbName, "No features to extract"));

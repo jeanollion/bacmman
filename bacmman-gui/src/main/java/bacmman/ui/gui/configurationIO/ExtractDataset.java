@@ -81,9 +81,9 @@ public class ExtractDataset extends JDialog {
                 .setNewInstanceNameFunction((p, i) -> "Object class");
         outputFeatureList = new SimpleListParameter<>("Features", 0, defOutput)
                 .setNewInstanceNameFunction((l, i) -> "Feature #" + i).setChildrenNumber(1).setHint("List here all extracted feature");
-        outputShape = InputShapesParameter.getInputShapeParameter(false)
-                .setValue(256, 32).setMaxChildCount(2)
-                .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions");
+        outputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, null)
+                .setMaxChildCount(2)
+                .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions. Set [0, 0] to keep original image size");
         container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v -> {
