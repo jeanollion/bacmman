@@ -3127,8 +3127,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // export config as text file, without positions
         String save = f.getAbsolutePath();
         if (!save.endsWith(".json")&&!save.endsWith(".txt")) save+=".json";
-        Experiment dup = db.getExperiment().duplicate();
-        dup.clearPositions();
+        Experiment dup = db.getExperiment().duplicateWithoutPositions();
         try {
             FileIO.write(new RandomAccessFile(save, "rw"), dup.toJSONEntry().toJSONString(), false);
         } catch (IOException ex) {
