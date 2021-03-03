@@ -79,7 +79,7 @@ public class InputImagesImpl implements InputImages {
                 }
             }
         }
-        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo));
+        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1-frameMin, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo));
     }
 
     @Override public int getBestFocusPlane(int timePoint) {
