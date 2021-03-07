@@ -50,24 +50,24 @@
             <artifactId>tensorflow</artifactId>
             <version>1.15.0</version>
             <!-- enable the following exclusion for gpu supports-->
-            <exclusions>
+            <!--exclusions>
                 <exclusion>
                     <groupId>org.tensorflow</groupId>
                     <artifactId>libtensorflow_jni</artifactId>
                 </exclusion>
-            </exclusions>
+            </exclusions-->
         </dependency>
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow</artifactId>
             <version>1.15.0</version>
         </dependency>
-        <!-- enable the two following dep for gpu supports-->
-        <dependency>
+        <!-- enable the following dep for gpu supports-->
+        <!--dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>libtensorflow_jni_gpu</artifactId>
             <version>1.15.0</version>
-        </dependency>
+        </dependency-->
     </dependencies>
 
 </project>
