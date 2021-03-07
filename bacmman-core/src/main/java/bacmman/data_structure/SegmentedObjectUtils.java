@@ -580,6 +580,11 @@ public class SegmentedObjectUtils {
         return res;
     }
 
+    public static  Stream<SegmentedObject> getAllTrackHeadsInPosition(SegmentedObject object) {
+        if (object.isRoot()) return Stream.of(object.getTrackHead());
+        return getAllChildrenAsStream(object.getDAO().getRoots().stream(), object.getStructureIdx()).filter(SegmentedObject::isTrackHead);
+    }
+
     /**
      *
      * @param object

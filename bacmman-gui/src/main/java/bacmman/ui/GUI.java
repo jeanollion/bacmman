@@ -48,7 +48,7 @@ import bacmman.ui.gui.image_interaction.ImageObjectListener;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 
-import static bacmman.data_structure.SegmentedObjectUtils.getSiblings;
+import static bacmman.data_structure.SegmentedObjectUtils.*;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 
 import bacmman.ui.gui.objects.TrackNode;
@@ -2768,12 +2768,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             // get next parent
             SegmentedObject nextParent = null;
             //if (i.getParent().isRoot()) return;
-            List<SegmentedObject> siblings = getSiblings(i.getParent()).collect(Collectors.toList());
+            List<SegmentedObject> siblings = getAllTrackHeadsInPosition(i.getParent()).collect(Collectors.toList());
             int idx = siblings.indexOf(i.getParent());
             // current image structure: 
             InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2());
             int currentImageStructure = key ==null ? i.getChildStructureIdx() : key.displayedStructureIdx;
-            if (i.getChildStructureIdx() == currentImageStructure) idx += (next ? 1 : -1) ; // only increment if same structure
+            idx += (next ? 1 : -1) ;
             logger.debug("current inter object class: {}, current image child: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure);
             if (siblings.size()==idx || idx<0) { // next position
                 List<String> positions = Arrays.asList(db.getExperiment().getPositionsAsString());
@@ -2796,8 +2796,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (nextParent==null) return;
             List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent, false);
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx());
-            Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, ii.getChildStructureIdx());
-            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(ii.getChildStructureIdx(), true), ii, ii.getChildStructureIdx(), true);
+            Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
+            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
             else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
@@ -2819,6 +2819,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
                     if (key != null) {
                         structureDisplay = key.displayedStructureIdx;
+                        logger.debug("current disp object class: {}", structureDisplay);
                     }
                 }
             }

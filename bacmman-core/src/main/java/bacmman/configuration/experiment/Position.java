@@ -89,6 +89,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         return false;
     }
     public int getIndex() {
+        if (getParent()==null) return -1;
         return getParent().getIndex(this);
     }
     
