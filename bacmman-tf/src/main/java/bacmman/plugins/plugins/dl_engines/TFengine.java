@@ -90,7 +90,7 @@ public class TFengine implements DLengine, Hint {
     }
 
     @Override
-    public void init() {
+    public synchronized void init() {
         //ReflexionUtils.setvalueOnFinalField(DataType.FLOAT, "value", 20);
         if (graph!=null && session !=null) return; // already init
         if (graph==null && session== null) {
