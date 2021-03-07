@@ -204,6 +204,48 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
         double divisionCost = this.divisionCost.getValue().doubleValue();
         SegmenterSplitAndMerge seg = getSegmenter();
+        ToDoubleFunction<List<SegmentedObject>> computeMergeCost = toMergeL -> {
+            SegmentedObject parent = toMergeL.get(0).getParent();
+            List<Region> regions = toMergeL.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+            Offset off = new SimpleOffset((parent.getBounds())).reverseOffset();
+            regions.forEach(r -> { // go to relative landmark to perform  computeMergeCost
+                r.translate(off);
+                r.setIsAbsoluteLandmark(false);
+            });
+            double cost = seg.computeMergeCost(edm.get(parent), parent, toMergeL.get(0).getStructureIdx(), regions);
+            off.reverseOffset();
+            regions.forEach(r -> { // go back to absolute landmark
+                r.translate(off);
+                r.setIsAbsoluteLandmark(true);
+            });
+            return cost;
+        };
+
+        TriConsumer<List<SegmentedObject>, Collection<SegmentedObject>, Map<SegmentedObject, SegmentedObject>> mergeFunNoPrev = (noPrevObjects, allObjects, map) -> {
+            int i = 0;
+            while(i<noPrevObjects.size()-1) {
+                List<SegmentedObject> toMerge = noPrevObjects.subList(i, i+2);
+                double cost = computeMergeCost.applyAsDouble(toMerge);
+                if (cost<=divisionCost) {
+                    SegmentedObject rem = noPrevObjects.remove(i+1);
+                    SegmentedObject result = noPrevObjects.get(i);
+                    if (map != null) map.remove(rem);
+                    allObjects.remove(rem);
+                    result.getRegion().merge(rem.getRegion());
+                    displacementMap.remove(rem);
+                    factory.removeFromParent(rem);
+                    objectSpotMap.remove(rem);
+                    factory.relabelChildren(result.getParent());
+                    displacementMap.remove(result);
+                    objectSpotMap.remove(result);
+                    objectSpotMap.get(result);
+                } else ++i;
+            }
+        };
+        if (divisionCost>0 && objectsF.get(minFrame).size()>1) { // merge objects of first frame
+            mergeFunNoPrev.consume(objectsF.get(minFrame), objectsF.get(minFrame), null);
+        }
+
         Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
         for (int frame = minFrame+1; frame<=maxFrame; ++frame) {
             List<SegmentedObject> objects = objectsF.get(frame);
@@ -251,8 +293,6 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     .filter(e->nextCount.get(e.getValue())>1)
                     .forEach(e-> divMap.get(e.getValue()).add(e.getKey()));
 
-
-
             TriConsumer<SegmentedObject, SegmentedObject, Collection<SegmentedObject>> mergeFun = (prev, result, toMergeL) -> {
                 for (SegmentedObject toRemove : toMergeL) {
                     nextToPrevMap.remove(toRemove);
@@ -269,22 +309,13 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                 objectSpotMap.remove(result);
                 objectSpotMap.get(result);
             };
-            ToDoubleFunction<List<SegmentedObject>> computeMergeCost = toMergeL -> {
-                SegmentedObject parent = toMergeL.get(0).getParent();
-                List<Region> regions = toMergeL.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-                Offset off = new SimpleOffset((parent.getBounds())).reverseOffset();
-                regions.forEach(r -> { // go to relative landmark to perform  computeMergeCost
-                    r.translate(off);
-                    r.setIsAbsoluteLandmark(false);
-                });
-                double cost = seg.computeMergeCost(edm.get(parent), parent, toMergeL.get(0).getStructureIdx(), regions);
-                off.reverseOffset();
-                regions.forEach(r -> { // go back to absolute landmark
-                    r.translate(off);
-                    r.setIsAbsoluteLandmark(true);
-                });
-                return cost;
-            };
+            // REDUCE OVER-SEGMENTATION ON OBJECTS WITH NO PREV
+            if (divisionCost>0) {
+                List<SegmentedObject> noPrevO = objects.stream().filter(o -> nextToPrevMap.get(o) == null).sorted(Comparator.comparingDouble(o->o.getBounds().yMean())).collect(Collectors.toList());
+                if (noPrevO.size()>1) {
+                    mergeFunNoPrev.consume(noPrevO, objects, nextToPrevMap);
+                }
+            }
             // NEXT SECTION :USE OF PREDICTION OF DIVISION STATE AND DY TO REDUCE OVER-SEGMENTATION. MINOR EFFECT
             ToDoubleFunction<SegmentedObject> getY = o -> o.getBounds().yMean() - o.getParent().getBounds().yMin();
             if (division!=null && maxCorrectionCost>0) { // Take into account div map: when 2 object have same previous cell
