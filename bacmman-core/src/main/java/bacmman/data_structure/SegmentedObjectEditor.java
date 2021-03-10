@@ -41,7 +41,15 @@ public class SegmentedObjectEditor {
     }
 
     public static void unlinkObjects(SegmentedObject prev, SegmentedObject next, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, TrackLinkEditor editor) {
-        if (prev==null || next==null) return;
+        if (prev==null && next==null) return;
+        if (prev==null)  {
+            for (SegmentedObject p : getPrevious(next) ) unlinkObjects(p, next, mergeTracks, editor);
+            return;
+        }
+        if (next==null) {
+            for (SegmentedObject n :  getNext(prev)) unlinkObjects(prev, n, mergeTracks, editor);
+            return;
+        }
         if (next.getFrame()<prev.getFrame()) unlinkObjects(next, prev, mergeTracks, editor);
         else {
             if (next.getPrevious()==prev) {
@@ -53,12 +61,14 @@ public class SegmentedObjectEditor {
                 if (editor.manualEditing()) next.setAttribute(SegmentedObject.EDITED_LINK_PREV, true);
             }
             // fix remaining links
+            logger.debug("unlinking: {} from {} ...", prev, next);
             List<SegmentedObject> allNext = getNext(prev);
             if (allNext.size()==1 && mergeTracks.test(prev, allNext.get(0))) { // set trackHead
                 unlinkObjects(prev, allNext.get(0), NERVE_MERGE, editor);
                 linkObjects(prev, allNext.get(0), true, editor);
+                logger.debug("unlinking.. double link link: {} to {}", prev, allNext.get(0));
             }
-            //logger.debug("unlinking: {} to {}", sel.get(0), sel.get(1));
+
         }
     }
     public static void linkObjects(SegmentedObject prev, SegmentedObject next, boolean allowDoubleLink, TrackLinkEditor editor) {
@@ -76,7 +86,6 @@ public class SegmentedObjectEditor {
                 if (allPrev.contains(prev) ? allPrev.size()>1 : !allPrev.isEmpty()) doubleLink = false;
             }
             if (allowMerge && !doubleLink) { // mergeLink
-                doubleLink = false;
                 boolean allowMergeLink = true;
                 if (!allNext.contains(next)) {
                     if (!allowSplit) {
@@ -92,7 +101,6 @@ public class SegmentedObjectEditor {
 
             }
             if (allowSplit && !doubleLink) { // split link
-                doubleLink=false;
                 boolean allowSplitLink = true;
                 if (!allPrev.contains(prev)) {
                     if (!allowMerge) {
@@ -113,7 +121,7 @@ public class SegmentedObjectEditor {
 
             }
             if (doubleLink) {
-                if (allNext.size()==1 && allPrev.size()==1 && allNext.get(0).equals(next) && allPrev.get(0).equals(prev)) { // only remove errors but do not set modified tag
+                if (allNext.size()==1 && allPrev.size()==1 && allNext.get(0).equals(next) && allPrev.get(0).equals(prev) && !next.isTrackHead()) { // only remove errors but do not set modified tag
                     prev.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, null);
                     next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, null);
                     return;

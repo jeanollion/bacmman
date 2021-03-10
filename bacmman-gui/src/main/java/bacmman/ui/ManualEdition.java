@@ -171,11 +171,13 @@ public class ManualEdition {
                         if (prev.contains(n.getPrevious())) {
                             unlinkObjects(n.getPrevious(), n, ALWAYS_MERGE, editor);
                         }
+                        unlinkObjects(null, n, ALWAYS_MERGE, editor);
                     }
                     for (SegmentedObject p : prev) {
                         if (current.contains(p.getNext())) {
                             unlinkObjects(p, p.getNext(), ALWAYS_MERGE, editor);
                         }
+                        unlinkObjects(p, null, ALWAYS_MERGE, editor);
                     }
                 }
 
@@ -201,7 +203,7 @@ public class ManualEdition {
                 if (p.value.equals(p.key.getNext())) p.key.setAttribute(SegmentedObject.EDITED_LINK_NEXT, null);
                 if (p.key.equals(p.value.getPrevious())) p.value.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
             });
-            // for multiple links : edited flat remains
+            // for multiple links : edited flag remains
             existingUneditedLinks.forEach((p)-> {
                 // check split links
                 if (p.key.equals(p.value.getPrevious()) && p.value.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null && Boolean.TRUE.equals(p.key.getAttribute(SegmentedObject.EDITED_LINK_NEXT))) {
