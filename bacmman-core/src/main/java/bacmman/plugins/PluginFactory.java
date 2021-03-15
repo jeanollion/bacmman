@@ -116,6 +116,7 @@ public class PluginFactory {
         logger.info("looking for plugins in package: {}", packageName);
         try {
             for (Class c : getClasses(packageName)) {
+                //logger.debug("inspecting class: {}", c);
                 if (Plugin.class.isAssignableFrom(c) && !Modifier.isAbstract( c.getModifiers()) && (includeDev || !DevPlugin.class.isAssignableFrom(c)) ) { // ne check pas l'heritage indirect!!
                     addPlugin(c.getSimpleName(), c);
                 }
@@ -178,7 +179,7 @@ public class PluginFactory {
             List<Class> classes = new ArrayList<>();
             for (File directory : dirs) findClasses(directory, packageName, classes);
             for (String pathToJar : pathToJars) findClassesFromJar(pathToJar, packageName, classes);
-            //logger.info("looking for plugin in package: {}, path: {}, #dirs: {}, #classes: {} 10 first : {}", packageName, path, dirs.size()+(!dirs.isEmpty()?"first: "+dirs.get(0).getAbsolutePath():""), classes.size(), classes.subList(0, Math.min(10, classes.size())));
+            logger.debug("looking for plugin in package: {}, path: {}, #dirs: {}, dirs: {}, #classes: {} 10 last : {}", packageName, path, dirs.size(), dirs.stream().map(d->d.getAbsolutePath()).toArray(), classes.size(), classes.subList(Math.max(classes.size()-10, 0), classes.size())); //Math.min(10, classes.size())
             return classes;
         }
     }
@@ -188,6 +189,7 @@ public class PluginFactory {
         File[] files = directory.listFiles();
         for (File file : files) {
             if (file.isDirectory()) {
+                //logger.debug("looking for classes in subdir: {}", file);
                 assert !file.getName().contains(".");
                 findClasses(file, packageName + "." + file.getName(), classes);
             } else if (file.getName().endsWith(".class")) {
@@ -195,7 +197,9 @@ public class PluginFactory {
                 Class c = null;
                 try {
                    c = Class.forName(packageName + '.' + file.getName().substring(0, file.getName().length() - 6));
-                } catch(Error e) { }
+                } catch(Error e) {
+                    //logger.debug(file.toString(), e);
+                }
                 if (c!=null) classes.add(c);
             }
         }

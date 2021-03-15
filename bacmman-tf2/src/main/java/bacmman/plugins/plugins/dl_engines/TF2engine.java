@@ -54,12 +54,12 @@ public class TF2engine implements DLengine, Hint {
 
     @Override
     public int getNumOutputArrays() {
-        return  inputNames.length;
+        return  outputNames.length;
     }
 
     @Override
     public int getNumInputArrays() {
-        return outputNames.length;
+        return inputNames.length;
     }
 
     @Override

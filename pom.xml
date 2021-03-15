@@ -17,7 +17,13 @@
             <distribution>repo</distribution>
         </license>
     </licenses>
-
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <tensorflow.version>2</tensorflow.version>
+    </properties>
     <modules>
         <module>bacmman-core</module>
         <module>bacmman-gui</module>
@@ -26,8 +32,7 @@
         <module>bacmman-headless</module>
         <module>bacmman-github</module>
         <module>bacmman-dl</module>
-        <module>bacmman-tf</module>
-        <module>bacmman-tf2</module>
+        <module>bacmman-tf${tensorflow.version}</module>
     </modules>
 
     <name>BACMMAN</name>
@@ -53,14 +58,8 @@
         <url>https://github.com/jeanollion/bacmman</url>
     </scm>
 
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
-    </properties>
 
-    
+
     <dependencies>
 
 

@@ -33,7 +33,7 @@
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
-            <artifactId>bacmman-tf</artifactId>
+            <artifactId>bacmman-tf${tensorflow.version}</artifactId>
             <version>3.0.1</version>
         </dependency>
     </dependencies>
