@@ -23,7 +23,7 @@ import java.util.stream.IntStream;
 
 public class TF2engine implements DLengine, Hint {
     public final static Logger logger = LoggerFactory.getLogger(TF2engine.class);
-    FileChooser modelFile = new FileChooser("Tensorflow model", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model");
+    FileChooser modelFile = new FileChooser("Tensorflow model", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
 
@@ -36,9 +36,10 @@ public class TF2engine implements DLengine, Hint {
         if (model==null) {
             model = SavedModelBundle.load(modelFile.getFirstSelectedFilePath(), "serve");
             Signature s = model.function("serving_default").signature();
-            inputNames = s.inputNames().stream().toArray(String[]::new);
-            outputNames = s.outputNames().stream().toArray(String[]::new);
-            logger.debug("model loaded: inputs: {}, outputs: {}", inputNames, outputNames);
+            logger.debug("model signature : {}", s.toString());
+            inputNames = s.inputNames().stream().sorted().toArray(String[]::new);
+            outputNames = s.outputNames().stream().sorted().toArray(String[]::new);
+            logger.debug("model loaded: inputs: {} (imported order: {}), outputs: {} (imported order: {})", inputNames, s.inputNames(), outputNames, s.outputNames());
             assert inputNames!=null && inputNames.length>1 && outputNames !=null && outputNames.length>1;
         }
     }
@@ -158,8 +159,7 @@ public class TF2engine implements DLengine, Hint {
         for (int i = 0; i<input.length; ++i) inputMap.put(inputNames[i], input[i]);
         Map<String, Tensor> output = model.call(inputMap);
         for (TFloat32 t : input) t.close();
-        output.forEach((s, t) -> logger.debug("output: {} class: {}",s, t.getClass()));
-        return Arrays.stream(outputNames).map(s->output.get(s)).toArray(TFloat32[]::new);
+        return Arrays.stream(outputNames).map(output::get).toArray(TFloat32[]::new);
     }
 
     @Override
