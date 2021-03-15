@@ -9,22 +9,11 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <properties>
+        <javacpp.platform>linux-x86_64</javacpp.platform>
         <javacpp.platform.extension></javacpp.platform.extension>
+        <!--javacpp.platform.extension>gpu</javacpp.platform.extension-->
     </properties>
     <artifactId>bacmman-tf2</artifactId>
-    <packaging>jar</packaging>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>8</source>
-                    <target>8</target>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
     <dependencies>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
@@ -43,14 +32,15 @@
         </dependency>
         <dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-platform${javacpp.platform.extension}</artifactId>
+            <artifactId>tensorflow-core-api</artifactId>
             <version>0.3.0-SNAPSHOT</version>
         </dependency>
-        <!--dependency>
+        <dependency>
             <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-platform-gpu${javacpp.platform.extension}</artifactId>
+            <artifactId>tensorflow-core-api</artifactId>
             <version>0.3.0-SNAPSHOT</version>
-        </dependency-->
+            <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>

@@ -8,25 +8,26 @@ import bacmman.processing.ImageOperations;
 import bacmman.tf2.TensorWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.tensorflow.ConcreteFunction;
 import org.tensorflow.SavedModelBundle;
-import org.tensorflow.Session;
 import org.tensorflow.Signature;
 import org.tensorflow.Tensor;
 import org.tensorflow.ndarray.buffer.FloatDataBuffer;
 import org.tensorflow.types.TFloat32;
 
 import java.util.Arrays;
-import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class TF2Engine  implements DLengine, Hint {
-    public final static Logger logger = LoggerFactory.getLogger(TF2Engine.class);
+public class TF2engine implements DLengine, Hint {
+    public final static Logger logger = LoggerFactory.getLogger(TF2engine.class);
     FileChooser modelFile = new FileChooser("Tensorflow model", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
+
+
     String[] inputNames, outputNames;
     SavedModelBundle model;
 
@@ -34,15 +35,21 @@ public class TF2Engine  implements DLengine, Hint {
     public synchronized void init() {
         if (model==null) {
             model = SavedModelBundle.load(modelFile.getFirstSelectedFilePath(), "serve");
-            for (Signature s : model.signatures()) {
-                if (s.key().equals("serving_default")) {
-                    inputNames = s.inputNames().stream().toArray(String[]::new);
-                    outputNames = s.outputNames().stream().toArray(String[]::new);
-                    logger.debug("model loaded: inputs: {}, outputs: {}", inputNames, outputNames);
-                }
-            }
+            Signature s = model.function("serving_default").signature();
+            inputNames = s.inputNames().stream().toArray(String[]::new);
+            outputNames = s.outputNames().stream().toArray(String[]::new);
+            logger.debug("model loaded: inputs: {}, outputs: {}", inputNames, outputNames);
             assert inputNames!=null && inputNames.length>1 && outputNames !=null && outputNames.length>1;
         }
+    }
+    public TF2engine setModelPath(String path) {
+        this.modelFile.setSelectedFilePath(path);
+        return this;
+    }
+
+    public TF2engine setBatchSize(int batchSize) {
+        this.batchSize.setValue(batchSize);
+        return this;
     }
 
     @Override
@@ -56,19 +63,23 @@ public class TF2Engine  implements DLengine, Hint {
     }
 
     @Override
-    public TF2Engine setOutputNumber(int outputNumber) {
+    public TF2engine setOutputNumber(int outputNumber) {
         return this;
     }
 
     @Override
-    public TF2Engine setInputNumber(int outputNumber) {
+    public TF2engine setInputNumber(int outputNumber) {
         return this;
     }
 
     @Override
     public void close() {
-        model.close();
-        model = null;
+        if (model!=null) {
+            model.close();
+            model = null;
+        }
+        inputNames = null;
+        outputNames = null;
     }
 
     public synchronized Image[][][] process(Image[][]... inputNC) {
@@ -142,9 +153,12 @@ public class TF2Engine  implements DLengine, Hint {
     }
 
     private TFloat32[] predict(TFloat32[] input) {
-        Map<String, Tensor> inputMap = IntStream.range(0, inputNames.length).mapToObj(i->i).collect(Collectors.toMap(i->inputNames[i], i->input[i]));
+        assert input.length == inputNames.length;
+        Map<String, Tensor> inputMap = new HashMap<>(inputNames.length);
+        for (int i = 0; i<input.length; ++i) inputMap.put(inputNames[i], input[i]);
         Map<String, Tensor> output = model.call(inputMap);
         for (TFloat32 t : input) t.close();
+        output.forEach((s, t) -> logger.debug("output: {} class: {}",s, t.getClass()));
         return Arrays.stream(outputNames).map(s->output.get(s)).toArray(TFloat32[]::new);
     }
 

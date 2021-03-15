@@ -45,7 +45,6 @@ public class TensorWrapper {
         newShape[hasZ ? 2 : 1] = ySize;
         newShape[hasZ ? 3 : 2] = xSize;
         newShape[hasZ ? 4 : 3] = cSize;
-
         return TFloat32.tensorOf(Shape.of(newShape), buffer);
     }
     public static Image[][] getImagesNC(TFloat32 tensor, boolean... flipXYZ) {
