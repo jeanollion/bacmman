@@ -10,19 +10,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>bacmman-tf1</artifactId>
-    <packaging>jar</packaging>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>8</source>
-                    <target>8</target>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+
     <dependencies>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
@@ -34,17 +22,6 @@
             <artifactId>bacmman-dl</artifactId>
             <version>3.0.1</version>
         </dependency>
-        <!--dependency>
-            <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-api</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>org.tensorflow</groupId>
-            <artifactId>tensorflow-core-api</artifactId>
-            <version>0.1.0-SNAPSHOT</version>
-            <classifier>linux-x86_64</classifier>
-        </dependency-->
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow</artifactId>
