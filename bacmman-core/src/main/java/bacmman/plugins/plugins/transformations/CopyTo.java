@@ -1,9 +1,6 @@
 package bacmman.plugins.plugins.transformations;
 
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.EnumChoiceParameter;
-import bacmman.configuration.parameters.IntervalParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.plugins.ConfigurableTransformation;
@@ -18,10 +15,11 @@ import java.util.stream.IntStream;
 
 public class CopyTo implements ConfigurableTransformation, MultichannelTransformation, Hint {
     Image[] source;
-    enum COPY_ZPLANES {COPY_ALL, MIDDLE_PLANE, TOP, BOTTOM, INTERVAL, AVERAGE};
+    enum COPY_ZPLANES {COPY_ALL, MIDDLE_PLANE, TOP, BOTTOM, INTERVAL, AVERAGE, SINGLE_PLANE};
     EnumChoiceParameter<COPY_ZPLANES> copyPlanes = new EnumChoiceParameter<>("Copy all Z- planes", COPY_ZPLANES.values(), COPY_ZPLANES.COPY_ALL).setHint("If the channel has several planes, this option allows to copy only one plane to another channel");
     IntervalParameter planeInterval = new IntervalParameter("Z-plane interval", 0, 0, null, 0, 1).setHint("Plane interval to copy: from lower (included) to upper (excluded)");
-    ConditionalParameter<COPY_ZPLANES> copyPlanesCond = new ConditionalParameter<>(copyPlanes).setActionParameters(COPY_ZPLANES.INTERVAL, planeInterval);
+    BoundedNumberParameter planeIdx = new BoundedNumberParameter("Z-Plane Index", 0, 0, 0, null);
+    ConditionalParameter<COPY_ZPLANES> copyPlanesCond = new ConditionalParameter<>(copyPlanes).setActionParameters(COPY_ZPLANES.INTERVAL, planeInterval).setActionParameters(COPY_ZPLANES.SINGLE_PLANE, planeIdx);
 
     @Override
     public String getHintText() {
@@ -73,6 +71,8 @@ public class CopyTo implements ConfigurableTransformation, MultichannelTransform
                     List<Image> ims = im.splitZPlanes();
                     return ImageOperations.average(null, ims.toArray(new Image[0]));
                 };
+            } case SINGLE_PLANE: {
+                dup = im -> im.getZPlane(planeIdx.getValue().intValue());
             }
         }
         source = Arrays.stream(allImages).map(dup).toArray(Image[]::new);

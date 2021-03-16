@@ -641,6 +641,11 @@ public class ArrayUtil {
         for (int i = 0; i<array.length; ++i) res[i] = array[i];
         return res;
     }
+    public static float[] toFloat(double[] array) {
+        float[] res= new float[array.length];
+        for (int i = 0; i<array.length; ++i) res[i] = (float)array[i];
+        return res;
+    }
     public static double[] toPrimitive(List<Double> coll) {
         double[] res = new double[coll.size()];
         for (int i = 0; i<res.length; ++i) res[i] = coll.get(i);
