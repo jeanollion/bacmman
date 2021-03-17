@@ -141,11 +141,13 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         Image[] dy_res = ResizeUtils.resample(dy, dy, true, resampledImages.value);
         Image[] divMap_res = divMap==null ? null : ResizeUtils.resample(divMap, divMap, false, resampledImages.value);
         Image[] noPrevMap_res = noPrevMap==null ? null : ResizeUtils.resample(noPrevMap, noPrevMap, true, resampledImages.value);
+        double yTargetSize = this.inputShape.getChildAt(0).getValue().doubleValue();
         for (int idx = 0;idx<parentTrack.size(); ++idx) {
             edm_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             edm_res[idx].translate(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
             dy_res[idx].translate(parentTrack.get(idx).getMaskProperties());
+            ImageOperations.affineOperation(dy_res[idx], dy_res[idx], dy_res[idx].sizeY() / yTargetSize, 0); // displacement dY is predicted in pixel in the scale seen by the network. we need to rescale to original scale
             if (divMap_res!=null) {
                 divMap_res[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
                 divMap_res[idx].translate(parentTrack.get(idx).getMaskProperties());
