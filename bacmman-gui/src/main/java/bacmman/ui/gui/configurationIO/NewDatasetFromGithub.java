@@ -201,6 +201,7 @@ public class NewDatasetFromGithub extends JDialog {
                 } else loggedIn = true;
             }
             PropertyUtils.set("GITHUB_USERNAME", username.getText());
+            PropertyUtils.addFirstStringToList("GITHUB_USERNAME", username.getText());
         }
         logger.debug("fetched gists: {}", gists.size());
     }
