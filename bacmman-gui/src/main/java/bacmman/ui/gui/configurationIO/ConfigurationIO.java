@@ -606,6 +606,7 @@ public class ConfigurationIO {
                     GUI.log("Could authenticate. Wrong username / password / token ?");
                 } else loggedIn = true;
             }
+            PropertyUtils.set("GITHUB_USERNAME", username.getText());
         }
         logger.debug("fetched gists: {}", gists.size());
         updateEnableButtons();

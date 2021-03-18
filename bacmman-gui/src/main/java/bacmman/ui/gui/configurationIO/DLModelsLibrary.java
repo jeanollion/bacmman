@@ -251,6 +251,7 @@ public class DLModelsLibrary {
                     GUI.log("Could authenticate. Wrong username / password / token ?");
                 } else loggedIn = true;
             }
+            PropertyUtils.set("GITHUB_USERNAME", username.getText());
         }
         logger.debug("fetched gists: {}", gists.size());
     }
@@ -273,7 +274,7 @@ public class DLModelsLibrary {
     }
 
     public void display(JFrame parent) {
-        JDialog dia = new Dial(parent, "Import/Export Configuration from Github");
+        JDialog dia = new Dial(parent, "Import/Export DL Model weights from Github");
         dia.setVisible(true);
     }
 

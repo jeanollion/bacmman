@@ -200,6 +200,7 @@ public class NewDatasetFromGithub extends JDialog {
                     GUI.log("Could authenticate. Wrong username / token ?");
                 } else loggedIn = true;
             }
+            PropertyUtils.set("GITHUB_USERNAME", username.getText());
         }
         logger.debug("fetched gists: {}", gists.size());
     }
