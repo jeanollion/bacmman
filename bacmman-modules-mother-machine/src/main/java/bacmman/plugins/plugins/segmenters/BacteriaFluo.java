@@ -23,6 +23,8 @@ import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Voxel;
+import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.SimpleThresholder;
 import bacmman.processing.ImageFeatures;
@@ -35,11 +37,6 @@ import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
-import bacmman.image.Histogram;
-import bacmman.image.HistogramFactory;
-import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
 
 import java.util.List;
 import java.util.Set;
@@ -80,7 +77,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     static String bckEdgeHint = "Threshold for fusion of background regions.<br />This threshold depends on the signal range. When this threshold is too low, background regions are segmented, and when it is too high, some bacteria or parts of bacteria are omitted<br />Each pair of adjacent regions are merged if a criterion is smaller than this threshold.<br />This method requires sharp edges (decrease smoothing in edge map to increase sharpness)<br />Configuration Hint: Tune the value using the <em>Foreground detection: Interface Values</em> image. No interface between foreground and background regions should have a value under this threshold";
     NumberParameter backgroundEdgeFusionThld = new BoundedNumberParameter("Background Edge Fusion Threshold", 4, 1.5, 0, null).setEmphasized(true).setHint(bckEdgeHint+"<br />"+bckEdgeAlgoHint).setSimpleHint(bckEdgeHint);
     NumberParameter foregroundEdgeFusionThld = new BoundedNumberParameter("Foreground Edge Fusion Threshold", 4, 0.2, 0, null).setHint("Threshold for fusion of foreground regions. Allows merging foreground regions whose median value are low in order to avoid removing them at thresholding<br /><br />Two adjacent regions are merged if Mean(E)@Inter / Mean(PF)@Regions &lt; this threshold, where <em>Interface</em> refers to the area of contact between two regions, Mean(E)@Inter refers to the mean value of the <em>Edge Map</em> at the interface, Mean(PF)@Regions refers to the mean value of the pre-filtered image within the union of the two regions.<br />This step requires sharp edges (decrease smoothing in edge map to increase sharpness).<br /><br />Configuration Hint: Tune the value using the <em>Foreground detection: interface values (foreground fusion)</em> image. No interface between foreground and background regions should have a value under this threshold");
-
+    BooleanParameter excludeContactSide = new BooleanParameter("Exclude regions in contact with sides", true).setHint("During Foreground selections, regions in contact with left or right sides of the parent object are considered as background (intended for bacteria growing in microchannels)");
     EnumChoiceParameter<BACKGROUND_REMOVAL> backgroundSel=  new EnumChoiceParameter<>("Background Removal", BACKGROUND_REMOVAL.values(), BACKGROUND_REMOVAL.BORDER_CONTACT);
     ConditionalParameter<BACKGROUND_REMOVAL> backgroundSelCond = new ConditionalParameter<>(backgroundSel)
             .setActionParameters(BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING, foregroundEdgeFusionThld, bckThldCond)
@@ -111,7 +108,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{vcThldForVoidMC, edgeMap, foregroundSelectionCond, hessianScale, splitThreshold, smoothScale, contourAdjustmentCond};
+        return new Parameter[]{vcThldForVoidMC, edgeMap, foregroundSelectionCond, excludeContactSide, hessianScale, splitThreshold, smoothScale, contourAdjustmentCond};
     }
     @Override
     public String getHintText() {
@@ -166,7 +163,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     }   
     
     private void ensureThresholds(SegmentedObject parent, int structureIdx, boolean bck, boolean fore) {
-        if (bck && Double.isNaN(bckThld) && THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(bckThresholdMethod)) {
+        if (bck && Double.isNaN(bckThld) && THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(bckThresholdMethod.getSelectedEnum())) {
             bckThld = bckThresholderFrame.instantiatePlugin().runSimpleThresholder(parent.getPreFilteredImage(structureIdx), parent.getMask());
         } 
         if (bck && Double.isNaN(bckThld)) throw new RuntimeException("Bck Threshold not computed");
@@ -241,13 +238,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
     private static Predicate<Region> touchSides(ImageMask parentMask) {
         RegionPopulation.ContactBorderMask contactLeft = new RegionPopulation.ContactBorderMask(1, parentMask, RegionPopulation.Border.Xl);
         RegionPopulation.ContactBorderMask contactRight = new RegionPopulation.ContactBorderMask(1, parentMask, RegionPopulation.Border.Xr);
-        return r-> {
-            //double l = GeometricalMeasurements.maxThicknessY(r);
-            int cLeft = contactLeft.getContact(r);
-            if (cLeft>0) return true;
-            int cRight = contactRight.getContact(r);
-            return cRight>0;
-        };
+        return r-> contactLeft.contact(r) || contactRight.contact(r);
     }
     
     // hysteresis thresholding
@@ -256,7 +247,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ensureThresholds(parent, structureIdx, true, true);
         Map<Region, Double> values = pop.getRegions().stream().collect(Collectors.toMap(o->o, valueFunction(parent.getPreFilteredImage(structureIdx))));
-        Predicate<Region> touchSides = touchSides(parent.getMask());
+        Predicate<Region> touchSides = this.excludeContactSide.getSelected() ? touchSides(parent.getMask()) : x->false;
         Set<Region> backgroundL = pop.getRegions().stream().filter(r->values.get(r)<=bckThld || touchSides.test(r) ).collect(Collectors.toSet());
         if (foreThld==bckThld) { // simple thresholding
             pop.getRegions().removeAll(backgroundL);
@@ -268,7 +259,9 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         if (pop.getRegions().size()>foregroundL.size()+backgroundL.size()) { // merge indeterminate regions with either background or foreground
             pop.getRegions().removeAll(backgroundL);
             pop.getRegions().removeAll(foregroundL);
-            pop.getRegions().addAll(0, backgroundL); // so that background region keep same instance when merged with indeterminate region
+            pop.getRegions().addAll(0, backgroundL); // so that background region keep same label when merged with indeterminate region
+            //if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Foreground detection: region values after fusion (foreground fusion)"));
+
             pop.getRegions().addAll(backgroundL.size(), foregroundL);
             pop.relabel(false);
             SplitAndMergeEdge sm = new SplitAndMergeEdge(edgeDetector.getWsMap(parent.getPreFilteredImage(structureIdx), parent.getMask()), parent.getPreFilteredImage(structureIdx), 1, false);
@@ -281,6 +274,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
                     return val;
                 }
             });
+            //if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(pop).setName("Foreground detection: Interface Values"));
             sm.addForbidFusionForegroundBackground(r->backgroundL.contains(r), r->foregroundL.contains(r));
             sm.merge(pop, sm.objectNumberLimitCondition(2));
             //if (stores!=null && stores.get(parent).isExpertMode()) imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, parent.getPreFilteredImage(structureIdx)).setName("Foreground detection: region values after fusion (foreground fusion)"));
@@ -402,13 +396,13 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             }
             return histoParent[0];
         };
-        boolean needToComputeGlobalMin = !THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(bckThresholdMethod) && (foregroundSelectionMethod.getSelectedIndex()!=2 || backgroundSel.getSelectedIndex()>0);
+        boolean needToComputeGlobalMin = !THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(bckThresholdMethod.getSelectedEnum()) && (foregroundSelectionMethod.getSelectedIndex()!=2 || backgroundSel.getSelectedIndex()>0);
         boolean needToComputeGlobalMax = this.foregroundSelectionMethod.getSelectedIndex()==1 && !THRESHOLD_COMPUTATION.CURRENT_FRAME.equals(foreThresholdMethod.getSelectedEnum());
         if (!needToComputeGlobalMin && !needToComputeGlobalMax) return new double[]{Double.NaN, Double.NaN};
         double bckThld = Double.NaN, foreThld = Double.NaN;
         if (needToComputeGlobalMin) {
             ThresholderHisto thlder = bckThresholder.instantiatePlugin();
-            if (THRESHOLD_COMPUTATION.ROOT_TRACK.equals(bckThresholdMethod)) { // root threshold
+            if (THRESHOLD_COMPUTATION.ROOT_TRACK.equals(bckThresholdMethod.getSelectedEnum())) { // root threshold
                 if (thlder instanceof BackgroundFit) {
                     double[] ms = getRootBckMeanAndSigma(parentTrack, structureIdx, histoRoot);
                     bckThld = ms[0] + ((BackgroundFit)thlder).getSigmaFactor() * ms[1];
