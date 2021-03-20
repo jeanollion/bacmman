@@ -1063,6 +1063,23 @@ public class RegionPopulation {
                 return count;
             }
         }
+        public boolean contact(Region object) {
+            if (object.isAbsoluteLandMark()) {
+                // first check if there is intersection of bounding box with considered borders
+                if (!intersectWithOffset(object.getBounds())) return false;
+                for (Voxel v : object.getContour()) {
+                    if (contactWithOffset(v)) return true;
+                }
+                return false;
+            } else {
+                // first check if there is intersection of bounding box with considered borders
+                if (!intersect(object.getBounds())) return false;
+                for (Voxel v : object.getContour()) {
+                    if (contact(v)) return true;
+                }
+                return false;
+            }
+        }
         public boolean intersect(BoundingBox bounds) {
             if (border.xl && bounds.xMin() <=tolerance) return true;
             if (border.xr && bounds.xMax() >= imageProperties.sizeX() - tolEnd) return true;
@@ -1085,8 +1102,6 @@ public class RegionPopulation {
         public ContactBorderMask(int contactLimit, ImageMask mask, Border border) {
             super(contactLimit, mask, border);
             this.mask = mask;
-            this.tolerance=0;
-            this.tolEnd=1;
         }
         @Override
         public ContactBorder setTolerance(int tolerance) {
@@ -1120,10 +1135,10 @@ public class RegionPopulation {
         @Override
         public boolean intersect(BoundingBox bounds) {
             if (border.xl && bounds.xMin() <=0) return true;
-            if (border.xr && bounds.xMax() > mask.sizeX()) return true;
+            if (border.xr && bounds.xMax() >= mask.sizeX()-1) return true;
             if (border.yup && bounds.yMin() <=0) return true;
-            if (border.ydown && bounds.yMax() > mask.sizeY()) return true;
-            if (border.z && (bounds.zMin() <=0 || bounds.zMax() > mask.sizeZ())) return true;
+            if (border.ydown && bounds.yMax() >= mask.sizeY()-1) return true;
+            if (border.z && (bounds.zMin() <=0 || bounds.zMax() >= mask.sizeZ()-1)) return true;
             return false;
         }
         @Override
