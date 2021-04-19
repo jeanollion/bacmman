@@ -27,7 +27,7 @@ import static bacmman.utils.Utils.parallele;
 
 public class TransmitedLightZStackCorrelation implements Transformation, TestableOperation, DevPlugin {
     public final static Logger logger = LoggerFactory.getLogger(TransmitedLightZStackCorrelation.class);
-    BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 40, 5, null);
+    BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 30, 5, null);
     BoundedNumberParameter scale = new BoundedNumberParameter("Z-scale", 5, 5, 1, null).setEmphasized(true);
     PluginParameter<SimpleThresholder> thresholder = new PluginParameter<>("Threshold", SimpleThresholder.class, new IJAutoThresholder(), false);
     BoundedNumberParameter tileThreshold = new BoundedNumberParameter("Include Tiles Threshold", 5, 0.2, 0, 1);
