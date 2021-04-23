@@ -34,7 +34,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
     ParentObjectClassParameter bacteriaObjectClass = new ParentObjectClassParameter("Bacteria");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
     BoundedNumberParameter minimalProbability = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 1 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted EDM is greater than this threshold");
-    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false, false).setValue(256, 32);
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 3, 1, null ).setHint("Region with size (in pixels) inferior to this value will be erased");
     IntervalParameter probaRange = new IntervalParameter("Probability Range", 3, 0.001, 1, 0.25, 0.5).setHint("Threshold on predicted probability map. Lower value defines boundaries of spots, upper value is minimal value for seeds (local maxima)");
     enum METHOD {GAUSSIAN_FIT_ON_PREDICTION, THRESHOLD_ON_PREDICTION}
