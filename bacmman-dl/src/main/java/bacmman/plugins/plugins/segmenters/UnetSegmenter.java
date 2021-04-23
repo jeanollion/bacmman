@@ -5,6 +5,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
+import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
@@ -26,10 +27,11 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 0.1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
-    BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setHint("Region with size (in pixels) inferior to this value will be erased");
+    BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setEmphasized(true).setHint("Region with size (in pixels) inferior to this value will be erased");
+    BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 4, 2, 1, null ).setEmphasized(true).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
     DLResizeAndScaleParameter dlResample = new DLResizeAndScaleParameter("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
 
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResample, splitThreshold, minimalProba, minimalSize};
+    Parameter[] parameters = new Parameter[]{dlEngine, dlResample, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -44,8 +46,12 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
-        res.filter(object -> object.size()>minimalSize.getValue().intValue());
-        // sort objects along largest dimension
+        // filter objects
+        double minMaxProba = this.minMaxProbaValue.getValue().doubleValue();
+        double minProba = this.minimalProba.getValue().doubleValue();
+        int minSize = this.minimalSize.getValue().intValue();
+        res.filter(object -> object.size()>minSize && (minMaxProba < minProba || BasicMeasurements.getMaxValue(object, proba)>minMaxProba));
+        // sort objects along largest dimension (for microchannels)
         if (input.sizeY()>input.sizeX()) {
             res.getRegions().sort(ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
             res.relabel(false);
