@@ -178,9 +178,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice());
                         if (selection.sizeX()==0 && selection.sizeY()==0) selection=null;
                         i.addClickedObjects(selection, selectedObjects);
+                        boolean is2D = i.is2D();
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
-                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, ip.getSlice()-1));
+                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, is2D ? -1 : ip.getSlice()-1));
                         }
                         if (!freeHandSplit || !strechObjects || !freeHandDraw) ip.deleteRoi();
                     }
@@ -283,7 +284,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
                 double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
                 double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
-                double z = sliceZ - offset.zMin()+seg.getBounds().zMin();
+                double z = sliceZ==-1 ? 0 : sliceZ - offset.zMin()+seg.getBounds().zMin();
                 Spot s = (Spot)seg.getRegion();
                 if (s.is2D()) return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)<=s.getRadius()*s.getRadius();
                 else return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)+ Math.pow(z-s.getCenter().getDoublePosition(2), 2)<=s.getRadius()*s.getRadius();
@@ -293,7 +294,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
                 int x= Math.round(selection.xpoints[i] - offset.xMin());
                 int y = Math.round(selection.ypoints[i] - offset.yMin());
-                int z = sliceZ - offset.zMin();
+                int z = seg.is2D() ? mask.zMin() : (sliceZ==-1 ? mask.zMin() : sliceZ - offset.zMin());
+                //logger.debug("intersect: is2D: {}, offset: {}, bds: {}, z: {}, convtains: {}, inside: {}", seg.is2D(), offset, seg.getBounds(), z, mask.contains(x, y, z), mask.insideMask(x, y, z));
                 return mask.contains(x, y, z) && mask.insideMask(x, y, z);
             });
         }
@@ -345,7 +347,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             o=new Overlay();
             image.setOverlay(o);
         }
-        if (image.getNSlices()>1 && roi.is2D()) roi.duplicateROIUntilZ(image.getNSlices());
+        if (image.getNSlices()>1 && roi.is2D()) {
+            roi.duplicateROIUntilZ(image.getNSlices());
+        }
         /*if (image.getNSlices()>1) {
             for (Roi r : roi.values()) {
                 o.add(r);
@@ -372,8 +376,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         SegmentedObjectAccessor accessor = getAccessor();
         if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI
             r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
-                    .translate(new SimpleOffset(object.value)
-                    .translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
+                    .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
 
         } else if (object.key.getRegion() instanceof Spot) {
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
@@ -400,7 +403,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     r.put(zz, roi);
                 }
             }
-        } else r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
+        } else {
+            r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
+        }
 
         if (object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
             double size = TRACK_ARROW_STROKE_WIDTH*1.5;

@@ -57,7 +57,7 @@ public abstract class Kymograph extends InteractiveImage {
     public static int INTERVAL_PIX=0;
     final int maxParentSize, maxParentSizeZ;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
-    
+
     public Kymograph(KymographFactory.KymographData data, int childStructureIdx) {
         super(data.parentTrack, childStructureIdx);
         maxParentSize = data.maxParentSize;
@@ -134,6 +134,7 @@ public abstract class Kymograph extends InteractiveImage {
         //if (trackObjects[0].parent.getOffsetInTrackImage()!=null && trackObjects[0].parent.getOffsetInTrackImage().xMin()==0 && trackObjects[0].parent.getTrackImage(structureIdx)!=null) return trackObjects[0].parent.getTrackImage(structureIdx);
         long t0 = System.currentTimeMillis();
         Image image0 = trackObjects[0].generateImage(structureIdx, false);
+        //GUI.logger.debug("image bounds: {}, parent {} bounds: {}. is2D: {}", image0.getBoundingBox(), trackObjects[0].parent, trackObjects[0].parent.getBounds(), is2D());
         if (image0==null) return null;
         String structureName;
         if (getParent().getExperimentStructure()!=null) structureName = getParent().getExperimentStructure().getObjectClassName(structureIdx);

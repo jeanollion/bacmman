@@ -45,16 +45,16 @@ public class KymographY extends Kymograph {
         super(data, childStructureIdx);
         if (!KymographFactory.DIRECTION.Y.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
     }
-    
-    
+
+
     @Override
     public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
         if (is2D()) z=0; //do not take in account z in 2D case.
-        // recherche du parent: 
+        // recherche du parent:
         int i = Arrays.binarySearch(trackOffset, new SimpleOffset(0, y, 0), new OffsetComparatorY());
         if (i<0) i=-i-2; // element inférieur à x puisqu'on compare les xmin des bounding box
-        //logger.debug("getClicked object: index: {}, parent: {}, #children: {}", i, i>=0?trackObjects[i]:"", i>=0? trackObjects[i].getObjects().size():"");
-        if (i>=0 && trackOffset[i].containsWithOffset(x, y, z)) return trackObjects[i].getClickedObject(x, y, z);
+        //GUI.logger.debug("getClicked object: index: {}, parent: {}, #children: {}", i, i>=0?trackObjects[i]:"", i>=0? trackObjects[i].getObjects().size():"");
+        if (i>=0 && trackOffset[i].containsWithOffset(trackOffset[i].xMin(), y, trackOffset[i].zMin())) return trackObjects[i].getClickedObject(x, y, z);
         else return null;
     }
     
@@ -65,7 +65,7 @@ public class KymographY extends Kymograph {
         if (iMin<0) iMin=-iMin-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         int iMax = Arrays.binarySearch(trackOffset, new SimpleOffset(0,selection.yMax(), 0), new OffsetComparatorY());
         if (iMax<0) iMax=-iMax-2; // element inférieur à x puisqu'on compare les xmin des bounding box
-        //logger.debug("looking for objects from time: {} to time: {}", iMin, iMax);
+        //GUI.logger.debug("looking for objects from frame: {} to frame: {}", iMin, iMax);
         if (iMin<0) iMin=0; // when a selection bounds is outside the image
         if (iMax>=trackObjects.length) iMax = trackObjects.length-1; // when a selection bounds is outside the image
         for (int i = iMin; i<=iMax; ++i) trackObjects[i].addClickedObjects(selection, list);
