@@ -31,7 +31,7 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
     Image edmLocalMax;
     public double splitThresholdValue, divCritValue;
     public enum DIVISION_CRITERION { NONE, DY, DIV_MAP }
-    DIVISION_CRITERION criterion;
+    DIVISION_CRITERION criterion = DIVISION_CRITERION.NONE;
     Function<SplitAndMergeEDM.Interface, Double> interfaceValue;
 
     public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, boolean normalizeEdgeValues) {
