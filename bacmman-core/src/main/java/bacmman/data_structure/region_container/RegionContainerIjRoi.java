@@ -54,7 +54,7 @@ public class RegionContainerIjRoi extends RegionContainer {
 
 
     private void createRoi(Region object) {
-        roi = createRoi(object.getMask(), object.getBounds(), object.is2D());
+        roi = createRoi(object.getMask(), object.getBounds(), !object.is2D());
     }
     private void encodeRoi() {
         if (roi==null) createRoi(segmentedObject.getRegion());
