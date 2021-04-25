@@ -5,6 +5,7 @@ import bacmman.image.Image;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.Hint;
 import bacmman.processing.ImageOperations;
+import bacmman.processing.ResizeUtils;
 import bacmman.tf.TensorWrapper;
 import bacmman.utils.ReflexionUtils;
 import bacmman.utils.Utils;
@@ -26,6 +27,8 @@ public class TFengine implements DLengine, Hint {
     SimpleListParameter<TextParameter> inputs = new SimpleListParameter<>("Input layer names", 0, new TextParameter("layer name", "input", true, false)).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue()))).setEmphasized(true).setHint("Name of the input layer(s): must correspond to the corresponding placeholder name in the saved model bundle");
     SimpleListParameter<TextParameter> outputs = new SimpleListParameter<>("Output layer names", 0, new TextParameter("layer name", "output", true, false)).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->((SimpleListParameter<TextParameter>)t.getParent()).getActivatedChildren().stream().filter(tt->!tt.equals(t)).map(TextParameter::getValue).noneMatch(v-> v.equals(t.getValue()))).setEmphasized(true).setHint("Name of the output layer(s): must correspond to the corresponding output name in the saved model bundle");;
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
+    BooleanParameter ZasChannel = new BooleanParameter("Z as Channel", false).setHint("If true, Z axis will be considered as channel axis. If tensor has several channels only the first one will be used.");
+
     String[] inputNames, outputNames;
     Graph graph;
     Session session;
@@ -189,6 +192,11 @@ public class TFengine implements DLengine, Hint {
         for (int i = 1; i<inputNC.length; ++i) {
             if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
         }
+        if (ZasChannel.getSelected()) {
+            for (int i = 0; i <inputNC.length; ++i) {
+                inputNC[i] = ResizeUtils.setZasChannel(inputNC[i], 0);
+            }
+        }
         init();
         boolean[] flipXYZ = new boolean[flip.getChildCount()];
         for (int i = 0;i<flipXYZ.length; ++i) flipXYZ[i] = flip.getChildAt(i).getValue().intValue()==1;
@@ -284,7 +292,7 @@ public class TFengine implements DLengine, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, inputs, outputs, flip};
+        return new Parameter[]{modelFile, batchSize, inputs, outputs, flip, ZasChannel};
     }
 
     @Override

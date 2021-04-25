@@ -5,6 +5,7 @@ import bacmman.image.Image;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.Hint;
 import bacmman.processing.ImageOperations;
+import bacmman.processing.ResizeUtils;
 import bacmman.tf2.TensorWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,7 +27,7 @@ public class TF2engine implements DLengine, Hint {
     FileChooser modelFile = new FileChooser("Tensorflow model", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
-
+    BooleanParameter ZasChannel = new BooleanParameter("Z as Channel", false).setHint("If true, Z axis will be considered as channel axis. If tensor has several channels only the first one will be used.");
 
     String[] inputNames, outputNames;
     SavedModelBundle model;
@@ -90,6 +91,12 @@ public class TF2engine implements DLengine, Hint {
         for (int i = 1; i<inputNC.length; ++i) {
             if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
         }
+        if (ZasChannel.getSelected()) {
+            for (int i = 0; i <inputNC.length; ++i) {
+                inputNC[i] = ResizeUtils.setZasChannel(inputNC[i], 0);
+            }
+        }
+
         init();
         boolean[] flipXYZ = new boolean[flip.getChildCount()];
         for (int i = 0;i<flipXYZ.length; ++i) flipXYZ[i] = flip.getChildAt(i).getValue().intValue()==1;
@@ -164,7 +171,7 @@ public class TF2engine implements DLengine, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, flip};
+        return new Parameter[]{modelFile, batchSize, flip, ZasChannel};
     }
 
     @Override
