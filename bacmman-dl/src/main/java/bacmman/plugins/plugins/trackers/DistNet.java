@@ -26,7 +26,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
 
-    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false).setValue(256, 32);
+    ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false, false).setValue(256, 32);
 
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.1, 0, null).setEmphasized(true).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and the <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified and the predicted division probability is lower than 0.7 for all cells, they are merged.");
     BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(true).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");

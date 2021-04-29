@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
+import bacmman.core.Core;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
@@ -13,11 +14,12 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
+import bacmman.plugins.TestableOperation;
 
 import java.io.File;
 
 
-public class BackgroundAndShadingCorrection implements ConfigurableTransformation, Hint {
+public class BackgroundAndShadingCorrection implements ConfigurableTransformation, Hint, TestableOperation {
     FileChooser flatField = new FileChooser("Flat-field image", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     FileChooser darkField = new FileChooser("Dark-field image", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
     BooleanParameter correctDarkField = new BooleanParameter("Correct dark-field", false);
@@ -53,7 +55,7 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
         if (!flatFieldImage.sameDimensions(refImage)) {
             flatFieldImage=null;
             throw new IllegalArgumentException("Flat-field image's dimensions ("+flatFieldImage.getBoundingBox()+") differ from input image's dimensions: "+refImage.getBoundingBox());
-        }
+        } else if (testMode.testSimple()) Core.showImage(flatFieldImage.setName("Flat Field"));
         if (correctDarkField.getSelected()) {
             path = darkField.getFirstSelectedFilePath();
             if (path==null || !new File(path).isFile()) throw new IllegalArgumentException("No dark-field image found");
@@ -61,12 +63,17 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
             if (!darkFieldImage.sameDimensions(refImage)) {
                 darkFieldImage = null;
                 throw new IllegalArgumentException("Dark-field image's dimensions ("+darkFieldImage.getBoundingBox()+") differ from input image's dimensions:"+refImage.getBoundingBox());
-            }
+            } else if (testMode.testSimple()) Core.showImage(darkFieldImage.setName("Dark Field"));
         }
+
     }
 
     @Override
     public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber) {
         return flatFieldImage!=null && (darkFieldImage!=null || !correctDarkField.getSelected());
     }
+
+    TEST_MODE testMode=TEST_MODE.NO_TEST;
+    @Override
+    public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}
 }

@@ -27,7 +27,7 @@ import static bacmman.utils.Utils.parallele;
 
 public class TransmitedLightZStackCorrelation implements Transformation, TestableOperation, DevPlugin {
     public final static Logger logger = LoggerFactory.getLogger(TransmitedLightZStackCorrelation.class);
-    BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 40, 5, null);
+    BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 30, 5, null);
     BoundedNumberParameter scale = new BoundedNumberParameter("Z-scale", 5, 5, 1, null).setEmphasized(true);
     PluginParameter<SimpleThresholder> thresholder = new PluginParameter<>("Threshold", SimpleThresholder.class, new IJAutoThresholder(), false);
     BoundedNumberParameter tileThreshold = new BoundedNumberParameter("Include Tiles Threshold", 5, 0.2, 0, 1);
@@ -74,7 +74,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
         logger.debug("z=[{};{}]", zMin, zMax);
         return convolveZ(image, zPlane, c1, c2, zMin, zMax);
     }
-    private static ZPlane getFocusPlane(Image zStack, int tileSize, ImageMask mask, double tileThreshold) {
+    public static ZPlane getFocusPlane(Image zStack, int tileSize, ImageMask mask, double tileThreshold) {
         double[][] points = Arrays.stream(tileImage(zStack.sizeX(), zStack.sizeY(), tileSize)).parallel()
                 .filter(bound -> getMaskProportion(mask, bound)>=tileThreshold)
                 .map(bound -> new double[]{bound.xMean(), bound.yMean(), getFocus(zStack, bound)})
@@ -117,7 +117,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
         return Math.sqrt(s_s2[1] / size - s_s2[0] * s_s2[0]);
     }
 
-    private static Image getSDProjection(Image zStack) {
+    public static Image getSDProjection(Image zStack) {
         Image res= new ImageFloat("SDProj", zStack.sizeX(), zStack.sizeY(), 1);
         int sizeZ = zStack.sizeZ();
         BoundingBox.loop(res, (x, y, z) -> {
@@ -135,7 +135,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
 
     static class ZPlane {
         // equation ax + ay + c = z
-        double a, b, c;
+        double a, b, c, avgZ;
         public ZPlane(double[][] points) {
             //https://stackoverflow.com/questions/20699821/find-and-draw-regression-plane-to-a-set-of-points
             RealMatrix A = MatrixUtils.createRealMatrix(Arrays.stream(points).map( p -> new double[]{p[0], p[1], 1}).toArray(double[][]::new));
@@ -147,6 +147,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
             a = fit.getEntry(0, 0);
             b = fit.getEntry(1, 0);
             c = fit.getEntry(2, 0);
+            avgZ = Arrays.stream(points).mapToDouble(p->p[2]).average().getAsDouble();
         }
         public double getZ(int x, int y) {
             return a*x+b*y + c;

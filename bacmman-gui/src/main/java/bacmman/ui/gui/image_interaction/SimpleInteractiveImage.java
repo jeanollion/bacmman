@@ -104,14 +104,12 @@ public class SimpleInteractiveImage extends InteractiveImage {
     @Override
     public Pair<SegmentedObject, BoundingBox> getClickedObject(int x, int y, int z) {
         if (objects == null) reloadObjects();
-        if (is2D()) {
-            z = 0; // or parent z min ?
-        }
         getOffsets();
-        //logger.debug("get clicked object @ frame = {}, @ point {};{};{}", this.parent.getFrame(), x, y, z);
+        //logger.debug("get clicked object @ frame = {}, @ point {};{};{}, is2D: {}, object 2D: {}", this.parent.getFrame(), x, y, z, is2D(), objects.isEmpty() || objects.get(0).is2D());
         for (int i = 0; i < offsets.length; ++i) {
-            if (offsets[i].containsWithOffset(x, y, z)) {
-                if (objects.get(i).getRegion().contains(new Voxel(x - offsets[i].xMin() + objects.get(i).getBounds().xMin(), y - offsets[i].yMin()+ objects.get(i).getBounds().yMin(), z - offsets[i].zMin()+ objects.get(i).getBounds().zMin()))) {
+            boolean is2D = is2D() || objects.get(i).is2D();
+            if (offsets[i].containsWithOffset(x, y, is2D ? offsets[i].zMin() : z )) {
+                if (objects.get(i).getRegion().contains(new Voxel(x - offsets[i].xMin() + objects.get(i).getBounds().xMin(), y - offsets[i].yMin()+ objects.get(i).getBounds().yMin(), is2D ? 0 : z - offsets[i].zMin()+ objects.get(i).getBounds().zMin()))) {
                 //if (objects.get(i).getMask().insideMask(x - offsets[i].xMin(), y - offsets[i].yMin(), z - offsets[i].zMin())) {
                     return new Pair(objects.get(i), offsets[i]);
                 }
@@ -123,12 +121,13 @@ public class SimpleInteractiveImage extends InteractiveImage {
     @Override
     public void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list) {
         getObjects();
-        if (is2D()) {
+        if (is2D() || objects.isEmpty() || objects.get(0).is2D()) {
+            //logger.debug("click objects: 2D interaction. sel: {}, offsets: {}", selection, offsets);
             for (int i = 0; i < offsets.length; ++i) if (BoundingBox.intersect2D(offsets[i], selection)) list.add(new Pair(objects.get(i), offsets[i]));
         } else {
             for (int i = 0; i < offsets.length; ++i) if (BoundingBox.intersect(offsets[i], selection)) list.add(new Pair(objects.get(i), offsets[i]));
         }
-        
+        //logger.debug("selected objects: n={} / {}", list.size(), list.stream().map(p->p.value).collect(Collectors.toList()));
         
     }
 

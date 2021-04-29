@@ -62,6 +62,16 @@ public class ResizeUtils {
         int cIdx = channelIdx>=0 ? channelIdx : imageNC[0].length + channelIdx;
         return Arrays.stream(imageNC).map(a -> a[cIdx]).toArray(Image[]::new);
     }
+
+    public static Image[][] setZasChannel(Image[] imageN) {
+        return Arrays.stream(imageN).map(im -> im.splitZPlanes().toArray(new Image[0])).toArray(Image[][]::new);
+    }
+
+    public static Image[][] setZasChannel(Image[][] imageNC, int channelIdx) {
+        Image[] imageN = getChannel(imageNC, channelIdx);
+        return Arrays.stream(imageN).map(im -> im.splitZPlanes().toArray(new Image[0])).toArray(Image[][]::new);
+    }
+
     public static Image[] averageChannelOnOutputs(Image[][][] imageONC, int channelIdx, int... outputIdx) {
         if (outputIdx.length==1) return getChannel(imageONC[outputIdx[0]], channelIdx);
         IntStream range =  (outputIdx.length==0) ? IntStream.range(0, imageONC.length) : IntStream.of(outputIdx);

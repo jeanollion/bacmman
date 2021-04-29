@@ -55,7 +55,7 @@ public class KymographX extends Kymograph {
         int i = Arrays.binarySearch(trackOffset, new SimpleOffset(x, 0, 0), new OffsetComparatorX());
         if (i<0) i=-i-2; // element inférieur à x puisqu'on compare les xmin des bounding box
         //logger.debug("getClicked object: index: {}, parent: {}, #children: {}", i, i>=0?trackObjects[i]:"", i>=0? trackObjects[i].getObjects().size():"");
-        if (i>=0 && trackOffset[i].containsWithOffset(x, y, z)) return trackObjects[i].getClickedObject(x, y, z);
+        if (i>=0 && trackOffset[i].containsWithOffset(x, trackOffset[i].yMin(), trackOffset[i].zMin())) return trackObjects[i].getClickedObject(x, y, z);
         else return null;
     }
     

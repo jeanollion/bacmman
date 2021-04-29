@@ -20,9 +20,9 @@ public class InputShapesParameter extends SimpleListParameter<ArrayNumberParamet
         super.setHint(hint);
         return this;
     }
-    public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel) {
+    public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel, boolean allowNoneShape) {
         int[] defValues = includeChannel ? new int[]{2, 256, 32} : new int[]{256, 32};
-        return getInputShapeParameter(includeChannel, false, defValues, null);
+        return getInputShapeParameter(includeChannel, allowNoneShape, defValues, null);
     }
     public static ArrayNumberParameter getInputShapeParameter(boolean includeChannel, boolean allowNoneShape, int[] defValues, Integer upperBound) {
         int max = includeChannel ? 4 : 3;

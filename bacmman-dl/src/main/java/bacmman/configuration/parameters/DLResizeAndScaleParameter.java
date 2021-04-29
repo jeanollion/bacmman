@@ -295,7 +295,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
             case SCALE_ONLY: {
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
-                    int scalerIndex = getOutputScalerIndex(true, i);
+                    int scalerIndex = getOutputScalerIndex(false, i);
                     if (scalerIndex>=0) outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex], predictionsONC[i], null, input.v3[scalerIndex], null, scaleFrameByFrame.getSelected());
                     else outputONC[i] = predictionsONC[i];
                 }
@@ -304,7 +304,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
             case PAD: {
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
-                    int scalerIndex = getOutputScalerIndex(true, i);
+                    int scalerIndex = getOutputScalerIndex(false, i);
                     outputONC[i] = scaleAndPadReverse(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i], scalerIndex>=0 ? input.v3[scalerIndex] : null, input.v2[scalerIndex>=0?scalerIndex:0]);
                 }
                 return outputONC;
@@ -315,7 +315,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
                 for (int i = 0;i<predictionsONC.length; ++i) {
                     GroupParameter params = outputInterpAndScaling.getChildAt(i);
                     InterpolatorFactory interpol = ((InterpolationParameter)params.getChildAt(0) ).getInterpolation();
-                    int scalerIndex = getOutputScalerIndex(false, i);
+                    int scalerIndex = getOutputScalerIndex(true, i);
                     outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0], scaleFrameByFrame.getSelected());
                 }
                 return outputONC;
@@ -324,7 +324,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
                 for (int i = 0;i<predictionsONC.length; ++i) {
-                    int scalerIndex = getOutputScalerIndex(true, i);
+                    int scalerIndex = getOutputScalerIndex(false, i);
                     for (int n = 0; n<predictionsONC[i].length; ++n) {
                         for (int c = 0; c<predictionsONC[i][n].length; ++c) predictionsONC[i][n][c].resetOffset().translate(input.v1[scalerIndex>=0?scalerIndex:0][n][0]);
                     }
