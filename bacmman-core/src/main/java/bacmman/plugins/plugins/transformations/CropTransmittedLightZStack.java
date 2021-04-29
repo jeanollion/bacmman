@@ -16,12 +16,19 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class CropTransmittedLightZStack implements Transformation {
+public class CropTransmittedLightZStack implements Transformation, DevPlugin {
     public final static Logger logger = LoggerFactory.getLogger(CropTransmittedLightZStack.class);
     BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 30, 5, null);
     PluginParameter<SimpleThresholder> thresholder = new PluginParameter<>("Threshold", SimpleThresholder.class, new IJAutoThresholder(), false);
     BoundedNumberParameter tileThreshold = new BoundedNumberParameter("Include Tiles Threshold", 5, 0.2, 0, 1);
-    GroupParameter focusGroup = new GroupParameter("Focus Detection", tileSize, thresholder, tileThreshold);
+    BoundedNumberParameter centerSlice = new BoundedNumberParameter("Center slice", 0, -1, 0, null).setEmphasized(true);
+    enum FOCUS_SELECTION {MANUAL, AUTOMATIC}
+    EnumChoiceParameter<FOCUS_SELECTION> centerSel = new EnumChoiceParameter<>("Focus Selection", FOCUS_SELECTION.values(), FOCUS_SELECTION.AUTOMATIC);
+    ConditionalParameter<FOCUS_SELECTION> centerSelCond = new ConditionalParameter<>(centerSel)
+            .setActionParameters(FOCUS_SELECTION.MANUAL, centerSlice)
+            .setActionParameters(FOCUS_SELECTION.AUTOMATIC, tileSize, thresholder, tileThreshold).setEmphasized(true);
+
+    // slices
     IntervalParameter frameInterval = new IntervalParameter("Frame interval", 0, null, null, 5, 11).setEmphasized(true);
     BooleanParameter includeOverFocus = new BooleanParameter("Include slices over focus", false).setEmphasized(true);
     ArrayNumberParameter indices = new ArrayNumberParameter("Indices (relative to focus)", 0, new BoundedNumberParameter("Index", 0, 0, null, null)).setEmphasized(true);
@@ -61,6 +68,6 @@ public class CropTransmittedLightZStack implements Transformation {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{sliceSelCond, focusGroup};
+        return new Parameter[]{sliceSelCond, centerSelCond};
     }
 }
