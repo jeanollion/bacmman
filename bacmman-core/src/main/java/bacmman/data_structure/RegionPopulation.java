@@ -968,16 +968,16 @@ public class RegionPopulation {
             return (min < 0 || size >= min) && (max < 0 || size < max);
         }
     }
-    public enum Border {
-        X(true, true, false, false, false), Xl(true, false, false, false, false), Xr(false, true, false, false, false), Y(false, false, true, true, false), YDown(false, false, false, true, false), YUp(false, false, true, false, false), Z(false, false, false, false, true), XY(true, true, true, true, false), XYup(true, true, true, false, false), XYZ(true, true, true, true, true), XlYup(true, false, true, false, false), XrYup(false, true, true, false, false);
-        boolean xl, xr, yup, ydown, z;
-
-        Border(boolean xl, boolean xr, boolean yup, boolean ydown, boolean z) {
+    public static class Border {
+        boolean xl, xr, yup, ydown, zdown, zup;
+        public static Border X = new Border(true, true, false, false, false, false), Xl=new Border(true, false, false, false, false, false), Xr=new Border(false, true, false, false, false, false), Y=new Border(false, false, true, true, false, false), YDown=new Border(false, false, false, true, false, false), YUp=new Border(false, false, true, false, false, false), Z=new Border(false, false, false, false, true, true), XY=new Border(true, true, true, true, false, false), XYup=new Border(true, true, true, false, false, false), XYZ=new Border(true, true, true, true, true, true), XlYup=new Border(true, false, true, false, false, false), XrYup=new Border(false, true, true, false, false, false);;
+        public Border(boolean xl, boolean xr, boolean yup, boolean ydown, boolean zdown, boolean zup) {
             this.xl = xl;
             this.xr = xr;
             this.yup = yup;
             this.ydown = ydown;
-            this.z = z;
+            this.zdown = zdown;
+            this.zup = zup;
         }
     };
     public static class ContactBorder implements Filter {
@@ -1007,7 +1007,9 @@ public class RegionPopulation {
             if (border.xr && v.x >= imageProperties.sizeX() - tolEnd) return true;
             if (border.yup && v.y <=tolerance) return true;
             if (border.ydown && v.y >= imageProperties.sizeY() - tolEnd) return true;
-            if (border.z && (v.z <=tolerance || v.z >= imageProperties.sizeZ() - tolEnd)) return true;
+            if (border.zdown && v.z <=tolerance ) return true;
+            if (border.zup && v.z >= imageProperties.sizeZ() - tolEnd) return true;
+
             return false;
         }
         public boolean contactWithOffset(Voxel v) {
@@ -1015,7 +1017,9 @@ public class RegionPopulation {
             if (border.xr && v.x > imageProperties.xMax() - tolEnd) return true;
             if (border.yup && v.y <= imageProperties.yMin() + tolerance) return true;
             if (border.ydown && v.y > imageProperties.yMax() - tolEnd) return true;
-            if (border.z && (v.z <= imageProperties.zMin() + tolerance || v.z > imageProperties.zMax() - tolEnd)) return true;
+            if (border.zdown && v.z <= imageProperties.zMin() + tolerance ) return true;
+            if (border.zup && v.z > imageProperties.zMax() - tolEnd) return true;
+
             return false;
         }
         @Override public void init(RegionPopulation population) {}
@@ -1085,7 +1089,9 @@ public class RegionPopulation {
             if (border.xr && bounds.xMax() >= imageProperties.sizeX() - tolEnd) return true;
             if (border.yup && bounds.yMin() <=tolerance) return true;
             if (border.ydown && bounds.yMax() >= imageProperties.sizeY() - tolEnd) return true;
-            if (border.z && (bounds.zMin() <=tolerance || bounds.zMax() >= imageProperties.sizeZ() - tolEnd)) return true;
+            if (border.zdown && bounds.zMin() <=tolerance) return true;
+            if (border.zup && bounds.zMax() >= imageProperties.sizeZ() - tolEnd) return true;
+
             return false;
         }
         public boolean intersectWithOffset(BoundingBox bounds) {
@@ -1093,7 +1099,9 @@ public class RegionPopulation {
             if (border.xr && bounds.xMax() > imageProperties.xMax() - tolEnd) return true;
             if (border.yup && bounds.yMin() <= imageProperties.yMin() + tolerance) return true;
             if (border.ydown && bounds.yMax() > imageProperties.yMin() - tolEnd) return true;
-            if (border.z && (bounds.zMin() <= imageProperties.zMin()+tolerance || bounds.zMax() > imageProperties.zMax() - tolEnd)) return true;
+            if (border.zdown && bounds.zMin() <= imageProperties.zMin()+tolerance ) return true;
+            if (border.zup && bounds.zMax() > imageProperties.zMax() - tolEnd) return true;
+
             return false;
         }
     }
@@ -1119,7 +1127,9 @@ public class RegionPopulation {
             if (border.xr && (!mask.contains(v.x+1, v.y, v.z) || !mask.insideMask(v.x+1, v.y, v.z))) return true;
             if (border.yup && (!mask.contains(v.x, v.y-1, v.z) || !mask.insideMask(v.x, v.y-1, v.z))) return true;
             if (border.ydown && (!mask.contains(v.x, v.y+1, v.z) || !mask.insideMask(v.x, v.y+1, v.z))) return true;
-            if (border.z && (!mask.contains(v.x, v.y, v.z-1) || !mask.insideMask(v.x, v.y, v.z-1) || !mask.contains(v.x, v.y, v.z+1) || !mask.insideMask(v.x, v.y, v.z+1))) return true;
+            if (border.zdown && (!mask.contains(v.x, v.y, v.z-1) || !mask.insideMask(v.x, v.y, v.z-1))) return true;
+            if (border.zup && (!mask.contains(v.x, v.y, v.z+1) || !mask.insideMask(v.x, v.y, v.z+1))) return true;
+
             return false;
         }
         @Override
@@ -1129,7 +1139,8 @@ public class RegionPopulation {
             if (border.xr && (!mask.containsWithOffset(v.x+1, v.y, v.z) || !mask.insideMaskWithOffset(v.x+1, v.y, v.z))) return true;
             if (border.yup && (!mask.containsWithOffset(v.x, v.y-1, v.z) || !mask.insideMaskWithOffset(v.x, v.y-1, v.z))) return true;
             if (border.ydown && (!mask.containsWithOffset(v.x, v.y+1, v.z) || !mask.insideMaskWithOffset(v.x, v.y+1, v.z))) return true;
-            if (border.z && (!mask.containsWithOffset(v.x, v.y, v.z-1) || !mask.insideMaskWithOffset(v.x, v.y, v.z-1) || !mask.containsWithOffset(v.x, v.y, v.z+1) || !mask.insideMaskWithOffset(v.x, v.y, v.z+1))) return true;
+            if (border.zdown && (!mask.containsWithOffset(v.x, v.y, v.z-1) || !mask.insideMaskWithOffset(v.x, v.y, v.z-1) )) return true;
+            if (border.zup && ( !mask.containsWithOffset(v.x, v.y, v.z+1) || !mask.insideMaskWithOffset(v.x, v.y, v.z+1))) return true;
             return false;
         }
         @Override
@@ -1138,7 +1149,8 @@ public class RegionPopulation {
             if (border.xr && bounds.xMax() >= mask.sizeX()-1) return true;
             if (border.yup && bounds.yMin() <=0) return true;
             if (border.ydown && bounds.yMax() >= mask.sizeY()-1) return true;
-            if (border.z && (bounds.zMin() <=0 || bounds.zMax() >= mask.sizeZ()-1)) return true;
+            if (border.zdown && bounds.zMin() <=0) return true;
+            if (border.zup && bounds.zMax() >= mask.sizeZ()-1) return true;
             return false;
         }
         @Override
@@ -1147,7 +1159,9 @@ public class RegionPopulation {
             if (border.xr && bounds.xMax() >= mask.xMax()) return true;
             if (border.yup && bounds.yMin() <=mask.yMin()) return true;
             if (border.ydown && bounds.yMax() >= mask.yMin()) return true;
-            if (border.z && (bounds.zMin() <=mask.zMin() || bounds.zMax() >= mask.zMax())) return true;
+            if (border.zdown && bounds.zMin() <=mask.zMin()) return true;
+            if (border.zup && bounds.zMax() >= mask.zMax()) return true;
+
             return false;
         }
     }

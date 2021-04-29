@@ -24,7 +24,7 @@ public class ContactWithMicrochannelOpenEnd implements ObjectFeature, Hint {
 
     @Override
     public ObjectFeature setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        if (childPopulation.getRegions().size()>1) {
+        if (!noContactIfOnlyOne.getSelected() || childPopulation.getRegions().size()>1) {
             yDown = new RegionPopulation.ContactBorder(0, parent.getMask(), RegionPopulation.Border.YDown)
                     .setTolerance(tolerance.getValue().intValue());
         }
