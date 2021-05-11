@@ -295,11 +295,13 @@ public class ImageFieldFactory {
         Arrays.fill(channelModulo, 1);
         Map<String, Integer> channelNumber = Arrays.stream(imageC).collect(Collectors.groupingBy(c->c)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
         logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelNumber);
+        Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
+        boolean[] invertZTbyC = new boolean[imageC.length];
         for (int c = 0; c< imageC.length; ++c) {
             ImageReader reader = null;
             try {
                 reader = new ImageReader(imageC[c]);
-                if (xp.isImportImageInvertTZ()) reader.setInvertTZ(true);
+                if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) reader.setInvertTZ(true);
             } catch (Exception e) {
                 logger.warn("Image {} could not be read: ", imageC[c], e);
             }
@@ -311,6 +313,13 @@ public class ImageFieldFactory {
                     return;
                 }
                 if (stc.length==0) return;
+
+                if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && stc[0][4]>1 && stc[0][0]==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && stc[0][4]==1 && stc[0][0]>1) ) {
+                    invertZTbyC[c] = true;
+                    reader.setInvertTZ(true);
+                    stc = reader.getSTCXYZNumbers();
+                }
+                logger.debug("channel : {} stc: {}, invert: {}", c, stc[0], invertZTbyC[c]);
                 if (channelNumber.get(imageC[c])>1 && stc[0][1]==1) {
                     channelModulo[c] = channelNumber.get(imageC[c]);
                     if (stc[0][0]%channelModulo[c]!=0) {
@@ -348,7 +357,7 @@ public class ImageFieldFactory {
             }
         }
         if (timePointNumber>0) {
-            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
+            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ(), invertZTbyC);
             containersTC.add(c);
         }
     }

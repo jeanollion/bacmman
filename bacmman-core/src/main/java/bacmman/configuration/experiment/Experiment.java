@@ -90,7 +90,13 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     TextParameter positionSeparator = new TextParameter("Position Separator", "xy", true).setHint("character sequence located just before the position index.  It should be shared by all image files of the dataset, and unique in the file name");
     TextParameter frameSeparator = new TextParameter("Frame Separator", "t", true).setHint("character sequence located just before the frame number. It should be shared by all image files of the dataset, and unique in the file name");
     BooleanParameter invertTZ = new BooleanParameter("Swap T & Z dimension", false).setHint("BACMMAN can analyze time series of Z-stacks. For some image formats, the Z and time dimensions may be swapped. In this case, set SWAP time and Z to TRUE. <br />The correct interpretation of time and Z dimensions can be checked after import by opening the images of a position through the <em>Open Input Images</em> command and checking the properties of the image (CTRL + SHIFT + P under imageJ/FIJI)<br />After changing this parameter, images should be re-imported (re-run the import / re-link command)");
-    ConditionalParameter<String> importCond = new ConditionalParameter<>(importMethod).setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator).setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ).setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ)
+    public enum AXIS_INTERPRETATION {AUTOMATIC, TIME, Z}
+    EnumChoiceParameter<AXIS_INTERPRETATION> axesInterpretation = new EnumChoiceParameter<>("Force axis", AXIS_INTERPRETATION.values(), AXIS_INTERPRETATION.AUTOMATIC).setHint("Defines how to interpret the third axis (after X, Y). Automatic: axis as defined in the image file, Z: axis is interpreted as Z if several frames and only one z-slice are detected, Time: axis is interpreted as time, if several z-slices and only one frame are detected. <br /> when Frame or Z are selected, the option invertTZ is not taken into account");
+
+    ConditionalParameter<String> importCond = new ConditionalParameter<>(importMethod)
+            .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator)
+            .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ, axesInterpretation)
+            .setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ)
             .setHint("<b>Define here the organization of input images</b><ol>"
                     + "<li>"+IMPORT_METHOD.SINGLE_FILE.getMethod()+": A single file contains all frames, detection channels and positions</li>"
                     + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod()+": For each position, there is one file per detection channel, which contains all frames<br /> File names must contain the user-defined channel keywords (defined in <em>Detection Channel</em>). For a given position, the file names should differ only by their channel keyword. In case one file contains several channels, several <em>Detection Channels</em> with the same channel keyword can be set. They will point to each channel in the corresponding file (in the same order)</li>"
@@ -196,6 +202,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public boolean isImportImageInvertTZ() {
         return this.invertTZ.getSelected();
     }
+
+    public AXIS_INTERPRETATION getAxisInterpretation() {return this.axesInterpretation.getSelectedEnum();}
 
     public void setImportImageMethod(IMPORT_METHOD method) {this.importMethod.setValue(method.getMethod());}
 
