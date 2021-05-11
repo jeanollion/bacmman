@@ -70,6 +70,7 @@ public class CropTransmittedLightZStack implements Transformation, DevPlugin {
                 int zMin = zCenter - range.getValue().intValue();
                 int zMax = zCenter + range.getValue().intValue();
                 int step = this.step.getValue().intValue();
+                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMin, zMax);
                 return Image.mergeZPlanes((List)selectInterval(planes, zMin, zMax, step).collect(Collectors.toList()));
             }
             case INDICES:
@@ -81,7 +82,7 @@ public class CropTransmittedLightZStack implements Transformation, DevPlugin {
 
     }
     private static Stream<Image> selectInterval(List<Image> planes, int zMin, int zMax, int step) {
-        return IntStream.rangeClosed(zMin, zMax).filter(i -> i%step==0).mapToObj(planes::get);
+        return IntStream.iterate(zMin, n->n+step).limit(zMax-zMin+1).mapToObj(planes::get);
     }
 
     @Override
