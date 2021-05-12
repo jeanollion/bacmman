@@ -48,7 +48,7 @@ public class TextEditorUI implements ParameterUI { //modified from NameEditorUI
                 }
                 p.setValue(text.getText());
                 p.fireListeners();
-                model.nodeChanged(p);
+                if (model!=null) model.nodeChanged(p);
             }
         });
 
