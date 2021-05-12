@@ -19,11 +19,13 @@
 package bacmman.configuration.parameters;
 
 
+import java.util.function.Consumer;
+
 /**
  *
  * @author Jean Ollion
  */
-public class TextParameter extends ParameterImpl<TextParameter> {
+public class TextParameter extends ParameterImpl<TextParameter> implements Listenable<TextParameter> {
     boolean allowSpecialCharacters, allowBlank;
     String value;
     
@@ -56,8 +58,6 @@ public class TextParameter extends ParameterImpl<TextParameter> {
         return !(!allowSpecialCharacters && containsIllegalCharacters(value));
     }
 
-
-
     @Override
     public boolean sameContent(Parameter other) {
         if (other instanceof TextParameter) {
@@ -83,7 +83,10 @@ public class TextParameter extends ParameterImpl<TextParameter> {
         return res;
     }
     
-    public void setValue(String value) {this.value=value;}
+    public void setValue(String value) {
+        this.value=value;
+        this.fireListeners();
+    }
     public String getValue() {return value;}
     
     @Override public String toString() {return name+": "+value;}
@@ -124,5 +127,4 @@ public class TextParameter extends ParameterImpl<TextParameter> {
         }
         return false;
     }
-
 }

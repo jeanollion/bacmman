@@ -21,6 +21,7 @@ package bacmman.ui;
 import bacmman.configuration.parameters.ChoiceParameter;
 import bacmman.configuration.parameters.Listenable;
 import bacmman.configuration.parameters.NumberParameter;
+import bacmman.configuration.parameters.TextParameter;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
@@ -254,8 +255,16 @@ public class PropertyUtils {
             cp.setValue(get(key, cp.getValue()));
             logger.debug("persit choice: {} -> {}", cp.getName(), cp.getValue());
             cp.addListener(p -> {
-                PropertyUtils.set(key, ((ChoiceParameter)p).getValue());
-                logger.debug("persit choice: {} -> {}", cp.getName(), cp.getValue());
+                PropertyUtils.set(key, p.getValue());
+                logger.debug("persit choice: {} -> {}", p.getName(), p.getValue());
+            });
+        } else if (parameter instanceof TextParameter) {
+            TextParameter tp = (TextParameter)parameter;
+            tp.setValue(get(key, tp.getValue()));
+            logger.debug("persit text: {} -> {}", tp.getName(), tp.getValue());
+            tp.addListener(p -> {
+                PropertyUtils.set(key, p.getValue());
+                logger.debug("persit text: {} -> {}", p.getName(), p.getValue());
             });
         } else logger.debug("persistance on parameter not supported yet!");
         
