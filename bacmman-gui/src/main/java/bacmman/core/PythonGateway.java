@@ -22,6 +22,8 @@ import bacmman.data_structure.Selection;
 import bacmman.measurement.SelectionExtractor;
 import bacmman.ui.GUI;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,9 +34,12 @@ import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import py4j.CallbackClient;
 import py4j.GatewayServer;
 import bacmman.utils.HashMapGetCreate;
+import py4j.Py4JNetworkException;
 
+import javax.net.ServerSocketFactory;
 import javax.swing.*;
 
 /**
@@ -44,15 +49,37 @@ import javax.swing.*;
 public class PythonGateway {
     public static final Logger logger = LoggerFactory.getLogger(PythonGateway.class);
     GatewayServer server;
-    public PythonGateway() {
+    final int port, pythonPort;
+    final String address;
+    public PythonGateway(int port, int pythonPort, String address) {
+        this.port=port;
+        this.pythonPort=pythonPort;
+        this.address=address;
     }
     
     public void startGateway() {
         try {
-        server = new GatewayServer(this);
-        server.start();
-        } catch(Exception e) {}
+            server = new GatewayServer(this, port, address(), 0, 0, null, new CallbackClient(pythonPort, address()), ServerSocketFactory.getDefault());
+            server.start();
+
+        } catch(Exception e) {
+            logger.error("Error with Python Gateway: binding with python will not be available", e);
+        }
     }
+
+    public void stopGateway() {
+        if (server!=null) server.shutdown();
+    }
+
+    public InetAddress address() {
+        try {
+            return InetAddress.getByName(address);
+        } catch (UnknownHostException e) {
+            logger.error("Invalid python gateway address. Localhost will be used", e);
+            return GatewayServer.defaultAddress();
+        }
+    }
+
     public void setExperimentToGUI(String xpName) {
         GUI.getInstance().openExperiment(xpName, null, false);
     }
@@ -72,6 +99,7 @@ public class PythonGateway {
      * @param interactiveObjectClassIdx
      */
     public void saveCurrentSelection(String dbName, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
+        logger.debug("saveCurrentSelection: db: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbName, objectClassIdx, selectionName, ids.size(), positions.size());
         if (ids.isEmpty()) return;
         if (ids.size()!=positions.size()) throw new IllegalArgumentException("idx & position lists should be of same size "+ids.size() +" vs "+ positions.size());
         if (selectionName.length()==0) selectionName=null;
@@ -126,8 +154,7 @@ public class PythonGateway {
         });
     }
 
-    private void connect(String dbName) {
-
+    public void testConnection(String message) {
+        GUI.getInstance().setMessage(message);
     }
-    
 }

@@ -169,6 +169,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("incase of HiDPI screen, a zoom factor is applied to the display, set here this factor");
+    private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
+    private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
+    private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
+
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
 
@@ -215,6 +219,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     db.unlockConfiguration();
                     db.clearCache();
                 }
+                if (pyGtw!=null) pyGtw.stopGateway();
                 githubPasswords.clear();
                 INSTANCE = null;
                 logger.debug("Closed successfully");
@@ -360,16 +365,34 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistant(localZoomFactor, "local_zoom_factor");
         PropertyUtils.setPersistant(localZoomArea, "local_zoom_area");
         PropertyUtils.setPersistant(localZoomScale, "local_zoom_scale");
+
         ConfigurationTreeGenerator.addToMenu(localZoomFactor.getName(), ParameterUIBinder.getUI(localZoomFactor).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomArea.getName(), ParameterUIBinder.getUI(localZoomArea).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomScale.getName(), ParameterUIBinder.getUI(localZoomScale).getDisplayComponent(), localZoomMenu);
+
+        // python gateway
+        PropertyUtils.setPersistant(pyGatewayPort, "py_gateway_port");
+        PropertyUtils.setPersistant(pyGatewayPythonPort, "py_gateway_python_port");
+        PropertyUtils.setPersistant(pyGatewayAddress, "py_gateway_address");
+        ConfigurationTreeGenerator.addToMenu(pyGatewayPort.getName(), ParameterUIBinder.getUI(pyGatewayPort).getDisplayComponent(), pyGatewayMenu);
+        ConfigurationTreeGenerator.addToMenu(pyGatewayPythonPort.getName(), ParameterUIBinder.getUI(pyGatewayPythonPort).getDisplayComponent(), pyGatewayMenu);
+        ConfigurationTreeGenerator.addToMenu(pyGatewayAddress.getName(), ParameterUIBinder.getUI(pyGatewayAddress).getDisplayComponent(), pyGatewayMenu);
+        Consumer pyGatewayListener = p -> {
+            if (p==null) logger.debug("starting python gateway...");
+            else logger.debug("restarting python gateway...");
+            if (pyGtw!=null) pyGtw.stopGateway();
+            pyGtw = new PythonGateway(pyGatewayPort.getValue().intValue(), pyGatewayPythonPort.getValue().intValue(), pyGatewayAddress.getValue());
+            pyGtw.startGateway();
+        };
+        pyGatewayAddress.addListener(pyGatewayListener);
+        pyGatewayPythonPort.addListener(pyGatewayListener);
+        pyGatewayAddress.addListener(pyGatewayListener);
         // load xp after persistent props loaded
         populateExperimentList();
         updateDisplayRelatedToXPSet();
-        
 
-        pyGtw = new PythonGateway();
-        pyGtw.startGateway();
+
+        pyGatewayListener.accept(null);
         
         // KEY shortcuts
         Map<Shortcuts.ACTION, Action> actionMap = new HashMap<>();
@@ -1497,6 +1520,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         openImageNumberLimitMenu = new javax.swing.JMenu();
         localZoomMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
+        pyGatewayMenu = new javax.swing.JMenu();
         logMenu = new javax.swing.JMenu();
         setLogFileMenuItem = new javax.swing.JMenuItem();
         activateLoggingMenuItem = new javax.swing.JCheckBoxMenuItem();
@@ -2642,6 +2666,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         kymographMenu.setText("Kymograph");
         miscMenu.add(kymographMenu);
+
+        pyGatewayMenu.setText("Python Gateway");
+        miscMenu.add(pyGatewayMenu);
 
         logMenu.setText("Log");
 
@@ -4693,6 +4720,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu jMenu2;
     private javax.swing.JPopupMenu.Separator jSeparator1;
     private javax.swing.JMenu kymographMenu;
+    private javax.swing.JMenu pyGatewayMenu;
     private javax.swing.JButton linkObjectsButton;
     private javax.swing.JMenu localDBMenu;
     private javax.swing.JRadioButtonMenuItem localFileSystemDatabaseRadioButton;
