@@ -53,7 +53,8 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     protected ObjectClassParameter bacteria = new ObjectClassParameter("Bacteria", -1, false, false);
     protected ObjectClassParameter spot = new ObjectClassParameter("Spot", -1, false, false);
     protected BooleanParameter scaled = new BooleanParameter("Scaled", "Unit", "Pixel", false).setHint(SCALED_TT);
-    protected Parameter[] parameters = new Parameter[]{bacteria, spot, scaled};
+    protected BooleanParameter setSpineLengthToParent = new BooleanParameter("Set SpineLength to parent", true);
+    protected Parameter[] parameters = new Parameter[]{bacteria, spot, scaled, setSpineLengthToParent};
     
     public SpineCoordinates() {}
     public SpineCoordinates(int spotIdx, int bacteriaIdx) {
@@ -84,7 +85,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
         res.add(new MeasurementKeyObject("SpineCurvilinearCoord", spot.getSelectedClassIdx()));
         res.add(new MeasurementKeyObject("SpineRadialCoord", spot.getSelectedClassIdx()));
         res.add(new MeasurementKeyObject("SpineLength", spot.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("SpineLength", bacteria.getSelectedClassIdx())); // also set to bacteria
+        if (setSpineLengthToParent.getSelected()) res.add(new MeasurementKeyObject("SpineLength", bacteria.getSelectedClassIdx())); // also set to bacteria
         res.add(new MeasurementKeyObject("SpineRadius", spot.getSelectedClassIdx()));
         return res;
     }
@@ -107,13 +108,13 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
                 e.getKey().getMeasurements().setValue("SpineCoord", null);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", null);
                 e.getKey().getMeasurements().setValue("SpineLength", null);
-                e.getValue().getMeasurements().setValue("SpineLength", null); // also set to bacteria
+                if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue("SpineLength", null); // also set to bacteria
                 e.getKey().getMeasurements().setValue("SpineRadius", null);
             } else {
                 e.getKey().getMeasurements().setValue("SpineCoord", coord.curvilinearCoord(false)*scale);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", coord.radialCoord(false)*scale);
                 e.getKey().getMeasurements().setValue("SpineLength", coord.spineLength()*scale);
-                e.getValue().getMeasurements().setValue("SpineLength", coord.spineLength()*scale); // also set to bacteria
+                if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue("SpineLength", coord.spineLength()*scale); // also set to bacteria
                 e.getKey().getMeasurements().setValue("SpineRadius", coord.spineLength()*scale); // radius at spot position
             }
         });
