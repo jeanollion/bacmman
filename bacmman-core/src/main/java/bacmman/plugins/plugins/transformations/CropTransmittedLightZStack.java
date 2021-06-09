@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class CropTransmittedLightZStack implements Transformation, DevPlugin {
+public class CropTransmittedLightZStack implements Transformation {
     public final static Logger logger = LoggerFactory.getLogger(CropTransmittedLightZStack.class);
     BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 30, 5, null);
     PluginParameter<SimpleThresholder> thresholder = new PluginParameter<>("Threshold", SimpleThresholder.class, new IJAutoThresholder(), false);
@@ -32,8 +32,8 @@ public class CropTransmittedLightZStack implements Transformation, DevPlugin {
     // slices
     IntervalParameter frameInterval = new IntervalParameter("Frame interval", 0, 0, null, 4, 17).setEmphasized(true);
     BooleanParameter includeOverFocus = new BooleanParameter("Include slices over focus", false).setEmphasized(true);
-    BoundedNumberParameter step = new BoundedNumberParameter("Step", 0, 1, 1, null);
-    BoundedNumberParameter range = new BoundedNumberParameter("Range", 0, 15, 1, null);
+    BoundedNumberParameter step = new BoundedNumberParameter("Step", 0, 1, 1, null).setEmphasized(true);
+    BoundedNumberParameter range = new BoundedNumberParameter("Range", 0, 15, 1, null).setEmphasized(true);
 
     ArrayNumberParameter indices = new ArrayNumberParameter("Indices (relative to focus)", 0, new BoundedNumberParameter("Index", 0, 0, null, null)).setEmphasized(true);
     enum SLICE_SELECTION {INTERVAL, INTERVAL_BOTH_SIDES, INDICES}
@@ -45,33 +45,42 @@ public class CropTransmittedLightZStack implements Transformation, DevPlugin {
 
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        Image sdImage = TransmitedLightZStackCorrelation.getSDProjection(image);
-        double thld = thresholder.instantiatePlugin().runSimpleThresholder(sdImage, null);
-        ImageMask mask = new ThresholdMask(sdImage, thld, true, false);
-        TransmitedLightZStackCorrelation.ZPlane zPlane = TransmitedLightZStackCorrelation.getFocusPlane(image, tileSize.getValue().intValue(), mask, tileThreshold.getValue().doubleValue());
-        int zCenter = (int)Math.round(zPlane.avgZ);
+        int zCenter;
+        switch(centerSel.getSelectedEnum()) {
+            case AUTOMATIC:
+            default: {
+                Image sdImage = TransmitedLightZStackCorrelation.getSDProjection(image);
+                double thld = thresholder.instantiatePlugin().runSimpleThresholder(sdImage, null);
+                ImageMask mask = new ThresholdMask(sdImage, thld, true, false);
+                TransmitedLightZStackCorrelation.ZPlane zPlane = TransmitedLightZStackCorrelation.getFocusPlane(image, tileSize.getValue().intValue(), mask, tileThreshold.getValue().doubleValue());
+                zCenter = (int)Math.round(zPlane.avgZ);
+                break;
+            } case MANUAL: {
+                zCenter  = centerSlice.getValue().intValue();
+            }
+        }
+
         List<Image> planes = image.splitZPlanes();
         switch (sliceSel.getSelectedEnum()) {
             case INTERVAL: {
                 int[] interval = frameInterval.getValuesAsInt();
                 int step = this.step.getValue().intValue();
-                int zMin = zCenter - interval[1];
-                int zMax = zCenter - interval[0];
-                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMin, zMax);
-
+                int[] zMinMax = new int[]{zCenter - interval[1], zCenter - interval[0]};
+                fixInterval(zMinMax, planes.size());
+                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
 
                 if (includeOverFocus.getSelected()) {
-                    int zMin2 = zCenter + interval[0];
-                    int zMax2 = zCenter + interval[1];
-                    return Image.mergeZPlanes((List) Stream.concat(selectInterval(planes, zMin, zMax, step), selectInterval(planes, zMin2, zMax2, step)).collect(Collectors.toList()));
-                } else return Image.mergeZPlanes((List)selectInterval(planes, zMin, zMax, step).collect(Collectors.toList()));
+                    int[] zMinMax2 = new int[]{zCenter + interval[0], zCenter + interval[1]};
+                    fixInterval(zMinMax2, planes.size());
+                    return Image.mergeZPlanes((List) Stream.concat(selectInterval(planes, zMinMax[0], zMinMax[1], step), selectInterval(planes, zMinMax2[0], zMinMax2[1], step)).collect(Collectors.toList()));
+                } else return Image.mergeZPlanes((List)selectInterval(planes, zMinMax[0], zMinMax[1], step).collect(Collectors.toList()));
             }
             case INTERVAL_BOTH_SIDES: {
-                int zMin = zCenter - range.getValue().intValue();
-                int zMax = zCenter + range.getValue().intValue();
+                int[] zMinMax = new int[]{zCenter - range.getValue().intValue(), zCenter + range.getValue().intValue()};
+                fixInterval(zMinMax, planes.size());
                 int step = this.step.getValue().intValue();
-                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMin, zMax);
-                return Image.mergeZPlanes((List)selectInterval(planes, zMin, zMax, step).collect(Collectors.toList()));
+                logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
+                return Image.mergeZPlanes((List)selectInterval(planes, zMinMax[0], zMinMax[1], step).collect(Collectors.toList()));
             }
             case INDICES:
             default: {
@@ -81,8 +90,19 @@ public class CropTransmittedLightZStack implements Transformation, DevPlugin {
         }
 
     }
+
+    private static void fixInterval(int[] interval, int nFrames) {
+        if (interval[0]<0) {
+            interval[1] -= interval[0];
+            interval[0] = 0;
+        } else if (interval[1]>=nFrames) {
+            interval[0] -= nFrames - interval[1] + 1;
+            interval[1] = nFrames - 1;
+        }
+    }
+
     private static Stream<Image> selectInterval(List<Image> planes, int zMin, int zMax, int step) {
-        return IntStream.iterate(zMin, n->n+step).limit(zMax-zMin+1).mapToObj(planes::get);
+        return IntStream.iterate(zMin, n->n+step).limit((zMax-zMin)/step+1).mapToObj(planes::get);
     }
 
     @Override
