@@ -113,11 +113,11 @@ public class DLModelsLibrary {
                 return;
             }
             if (!Utils.isValid(form.name(), false)) {
-                GUI.log("Invalid name");
+                GUI.log("Invalid name (no special chars allowed except underscores)");
                 return;
             }
-            if (!Utils.isValid(form.folder(), false)) {
-                GUI.log("Invalid folder name");
+            if (!Utils.isValid(form.folder(), false) || form.name().contains("_")) {
+                GUI.log("Invalid folder name (no special chars allowed)");
                 return;
             }
             GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
