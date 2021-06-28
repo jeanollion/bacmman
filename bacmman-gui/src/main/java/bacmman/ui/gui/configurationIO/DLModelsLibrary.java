@@ -116,7 +116,7 @@ public class DLModelsLibrary {
                 GUI.log("Invalid name (no special chars allowed except underscores)");
                 return;
             }
-            if (!Utils.isValid(form.folder(), false) || form.name().contains("_")) {
+            if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
                 GUI.log("Invalid folder name (no special chars allowed)");
                 return;
             }
@@ -185,7 +185,7 @@ public class DLModelsLibrary {
                 GUI.log("Invalid name");
                 return;
             }
-            if (!Utils.isValid(form.folder(), false)) {
+            if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
                 GUI.log("Invalid folder name");
                 return;
             }

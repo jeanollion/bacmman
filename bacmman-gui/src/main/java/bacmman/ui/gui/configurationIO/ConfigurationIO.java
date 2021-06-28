@@ -185,7 +185,7 @@ public class ConfigurationIO {
                 GUI.log("Invalid name");
                 return;
             }
-            if (!Utils.isValid(form.folder(), false)) {
+            if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
                 GUI.log("Invalid folder name");
                 return;
             }
@@ -325,7 +325,7 @@ public class ConfigurationIO {
                 GUI.log("Invalid name");
                 return;
             }
-            if (!Utils.isValid(form.folder(), false)) {
+            if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
                 GUI.log("Invalid folder name");
                 return;
             }
