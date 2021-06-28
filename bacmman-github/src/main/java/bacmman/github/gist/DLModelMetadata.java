@@ -18,7 +18,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata> {
     Function<GroupParameter, Stream<String>> getOtherNames = grp -> ((SimpleListParameter<GroupParameter>)grp.getParent()).getActivatedChildren().stream().filter(c->!c.equals(grp)).map(getName);
     SimpleListParameter<GroupParameter> inputs = new SimpleListParameter<>("Input layers", 0,inputLayer).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->getOtherNames.apply(t).noneMatch(v-> v.equals(getName.apply(t)))).setHint("Description of input tensor(s)");
     SimpleListParameter<GroupParameter> outputs = new SimpleListParameter<>("Output layers", 0,outputLayer).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).addValidationFunctionToChildren(t->getOtherNames.apply(t).noneMatch(v-> v.equals(getName.apply(t)))).setHint("Description of output tensor(s)");;
-    TextParameter exportLibrary = new TextParameter("Export Library", "tensorflow 1.15.0", true).setHint("Library the model was exported with");
+    TextParameter exportLibrary = new TextParameter("Export Library", "tensorflow 2.4.1", true).setHint("DL Library the model was exported with");
 
     public DLModelMetadata() {
         super("Metadata");

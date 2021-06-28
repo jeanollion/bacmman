@@ -1,6 +1,5 @@
 package bacmman.github.gist;
 
-import bacmman.configuration.experiment.Experiment;
 import bacmman.plugins.Hint;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONArray;
@@ -11,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -134,7 +132,8 @@ public class GistDLModel implements Hint {
     }
     public String getModelURL() {
         getContent();
-        return (String)jsonContent.get("url");
+        String url = (String)jsonContent.get("url");
+        return transformGDriveURL(url);
     }
 
     public DLModelMetadata getMetadata() {
@@ -170,5 +169,13 @@ public class GistDLModel implements Hint {
         }
         return res;
     }
+    static String GDRIVE_PREFIX = "https://drive.google.com/file/d/";
+    static String GIVE_SUFFIX = "/view?usp=sharing";
+    private static String transformGDriveURL(String url) {
+        if (url.startsWith(GDRIVE_PREFIX) && url.endsWith(GIVE_SUFFIX)) {
+            String id = url.substring(GDRIVE_PREFIX.length(), url.indexOf(GIVE_SUFFIX));
+            return "https://drive.google.com/uc?export=download&id=" + id;
+        } else return url;
 
+    }
 }
