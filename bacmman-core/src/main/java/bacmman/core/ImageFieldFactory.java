@@ -72,7 +72,7 @@ public class ImageFieldFactory {
                         logger.error("When Experiment has several channels, one must specify channel keyword for this import method");
                         return res;
                     }       
-                    for (String p : path) ImageFieldFactory.importImagesCTP(new File(p), xp, keyWords, res, pcb);
+                    for (String p : path) ImageFieldFactory.importImagesCTP(new File(p), xp, keyWords, res, pcb, null);
                     break;
                 }
             default:
@@ -160,16 +160,18 @@ public class ImageFieldFactory {
     }
     
     private static String[] IMAGE_EXTENSION_CTP = new String[]{"tif", "tiff", "nd2", "png"};
-    protected static void importImagesCTP(File input, Experiment xp, String[] channelKeywords, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
+    protected static void importImagesCTP(File input, Experiment xp, String[] channelKeywords, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb, String posName) {
         String posSep = xp.getImportImagePositionSeparator();
         String frameSep = xp.getImportImageFrameSeparator();
         if (channelKeywords.length==0) return;
         if (!input.isDirectory()) return;
         File[] subDirs = input.listFiles(getDirectoryFilter()); // recursivity
-        for (File dir : subDirs) importImagesCTP(dir, xp, channelKeywords, containersTC, pcb);// recursivity
+        for (File dir : subDirs) importImagesCTP(dir, xp, channelKeywords, containersTC, pcb, posName==null ? dir.getName() : posName);// recursivity
         // 1 : filter by extension
         Pattern allchanPattern = getAllChannelPattern(channelKeywords);
-        Map<String, List<File>> filesByExtension = Arrays.stream(input.listFiles((File dir, String name) -> allchanPattern.matcher(name).find() && !isIgnoredFile(name))).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
+        Pattern allExtPattern = getAllImageExtension(IMAGE_EXTENSION_CTP);
+        Map<String, List<File>> filesByExtension = Arrays.stream(input.listFiles((File dir, String name) -> name.charAt(0)!='.' && allExtPattern.matcher(name).find() && allchanPattern.matcher(name).find())).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
+        logger.debug("file by extension: {}, {}", filesByExtension.size(), filesByExtension.entrySet().stream().map(e-> e.getKey()+ " n="+ e.getValue().size()).toArray());
         List<File> files=null;
         String extension = null;
         if (filesByExtension.size()>1) { // keep most common extension
@@ -189,7 +191,7 @@ public class ImageFieldFactory {
             files = filesByExtension.entrySet().iterator().next().getValue();
             extension = filesByExtension.keySet().iterator().next();
         } else {
-            logger.error("Folder: {} contains several image extension: {}", input.getAbsolutePath(), filesByExtension.keySet());
+            logger.error("Folder: {} contains no image extension: {}", input.getAbsolutePath(), filesByExtension.keySet());
             return;
         }
         logger.debug("extension: {}, #files: {}", extension, files.size());
@@ -205,21 +207,26 @@ public class ImageFieldFactory {
         Map<String, File> filesMap= new HashMap<>(fileNames.size());
         for (File f : files) filesMap.put(f.getName().substring(startIndex+1, f.getName().length()), f);*/
         
-        // 3 split by position / channel (check number) / frames (check same number between channels & continity)
+        // 3 split by position / channel (check number) / frames (check same number between channels & continuity)
         
         Pattern timePattern = Pattern.compile(".*"+frameSep+"(\\d+).*");
         Map<String, List<File>> filesByPosition=null;
-        Pattern posPattern = Pattern.compile(".*("+posSep+"\\d+).*");
-        try {
-            filesByPosition = files.stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getAsString(f.getName(), posPattern)));
-        } catch (Exception e) {
-            if (pcb!=null) pcb.log("No position with keyword: "+posSep+" could be find in dir: "+input);
-            logger.error("no position could be identified for dir: {}", input);
-            return;
+        if (posSep.length()>0) {
+            Pattern posPattern = Pattern.compile(".*("+posSep+"\\d+).*");
+            try {
+                filesByPosition = files.stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getAsString(f.getName(), posPattern)));
+            } catch (Exception e) {
+                if (pcb!=null) pcb.log("No position with keyword: "+posSep+" could be find in dir: "+input);
+                logger.error("no position could be identified for dir: {}", input);
+                return;
+            }
+        } else { // only one position is considered
+            filesByPosition = new HashMap<>(1);
+            filesByPosition.put(posName, files);
         }
         logger.debug("Dir: {} # positions: {}", input.getAbsolutePath(), filesByPosition.size());
         if (pcb!=null) {
-            pcb.log("Directory: "+input.getAbsolutePath()+ "number of position found: "+ filesByPosition.size()+ ". Checking validity...");
+            pcb.log("Directory: "+input.getAbsolutePath()+ ". Number of position found: "+ filesByPosition.size()+ ". Checking validity...");
             pcb.incrementTaskNumber(filesByPosition.size());
         }
         PosLoop : for (Entry<String, List<File>> positionFiles : filesByPosition.entrySet()) {
@@ -233,7 +240,7 @@ public class ImageFieldFactory {
                 for (Entry<String, List<File>> channelFiles : filesByChannel.entrySet()) {
                     logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
                     Map<Integer, File> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getName(), timePattern), Function.identity()));
-                    logger.debug("files grouped. cheking continuity...");
+                    logger.debug("files grouped. checking continuity...");
                     List<Integer> tpList = new ArrayList<>(new TreeMap<>(filesByTimePoint).keySet());
                     int minTimePoint = tpList.get(0);
                     int maxFrameNumberSuccessive=1;
@@ -265,11 +272,12 @@ public class ImageFieldFactory {
                     containersTC.add(
                         new MultipleImageContainerPositionChannelFrame(
                             input.getAbsolutePath(), 
-                            extension, 
-                            positionFiles.getKey(), 
+                            extension,
+                            posSep.length()>0 ? positionFiles.getKey() : "",
                             frameSep, 
                             channelKeywords, 
-                            frameNumber
+                            frameNumber,
+                            positionFiles.getKey()
                         ));
                     logger.debug("container created");
                 }
@@ -393,5 +401,10 @@ public class ImageFieldFactory {
         pat+=".*";
         return Pattern.compile(pat);
     }
-    
+    private static Pattern getAllImageExtension(String[] extensions) {
+        String pat = "[(\\."+extensions[0]+")";
+        for (int i = 1; i<extensions.length; ++i) pat+="|(\\."+extensions[i]+")";
+        pat+="]$";
+        return Pattern.compile(pat);
+    }
 }
