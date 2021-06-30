@@ -72,6 +72,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         dest.setSimpleHint(source.toolTipTextSimple);
         dest.setListeners(source.listeners);
     }
+    @Override public boolean isEmpty() {return getChildren().isEmpty();}
     @Override
     public L addValidationFunction(Predicate<L> isValid) {
         additionalValidation = additionalValidation.and(isValid);

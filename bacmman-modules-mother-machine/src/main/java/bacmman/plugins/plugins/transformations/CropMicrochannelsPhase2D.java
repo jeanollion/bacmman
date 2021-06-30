@@ -286,4 +286,6 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
         uniformizeX(allBounds);
         
     }
+    @Override
+    public boolean highMemory() {return false;}
 }

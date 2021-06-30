@@ -149,7 +149,7 @@ public class DeleteFromDAOTest {
         // process
         assertEquals("number of files before preProcess", 0, countFiles(outputDir));
         try {
-            Processor.preProcessImages(masterDAO);
+            Processor.preProcessImages(masterDAO, 0.5);
         } catch (Exception ex) {
             logger.error("error while pre-processing", ex);
             assertTrue("failed to preProcess images", false);

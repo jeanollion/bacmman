@@ -16,6 +16,7 @@ import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import ij.ImageJ;
 import org.slf4j.Logger;
@@ -23,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 public class SubtractGaussSignalExclusion implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
@@ -59,7 +61,7 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
         double mScale = maskSmoothScale.getScaleXY();
         double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
         bck = new Image[allImages.length];
-        IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(frame -> {
+        Consumer<Integer> ex = frame -> {
             Image currentImage = allImages[frame];
             Image se1 = allImagesExcl[frame];
             if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
@@ -68,7 +70,8 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
             bck[frame] = getBackgroundImage(currentImage, maskT, scale, scaleZ);
             if (testMode.testExpert()) mask[frame] = new RegionPopulation(maskT).getLabelMap();
 
-        });
+        };
+        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
         if (testMode.testSimple()) {
             Image[][] maskTC = Arrays.stream(bck).map(a->new Image[]{a}).toArray(Image[][]::new);
             Core.showImage5D("Background", maskTC);
@@ -94,7 +97,8 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
         return bck!=null && bck.length==totalTimePointNumber;
     }
-
+    @Override
+    public boolean highMemory() {return true;}
     TEST_MODE testMode=TEST_MODE.NO_TEST;
     @Override
     public void setTestMode(TEST_MODE testMode) {this.testMode=testMode;}

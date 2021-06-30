@@ -25,13 +25,20 @@ import java.util.HashMap;
  * @author Jean Ollion
  */
 public class ImageDAOFactory {
-    
-    static HashMap<String, LocalFileSystemImageDAO> localDirDAO = new HashMap<String, LocalFileSystemImageDAO>(1);
-    
-    public static LocalFileSystemImageDAO getLocalFileSystemImageDAO(String localDirectory) {
-        LocalFileSystemImageDAO dao = localDirDAO.get(localDirectory);
+    public enum ImageDAOTypes {LocalTIF};
+    static HashMap<String, LocalTIFImageDAO> localDirDAO = new HashMap<String, LocalTIFImageDAO>(1);
+    public ImageDAO getImageDAO(ImageDAOTypes type, String localDir) {
+        switch (type) {
+            case LocalTIF:
+            default: {
+                return getLocalTIFImageDAO(localDir);
+            }
+        }
+    }
+    public static LocalTIFImageDAO getLocalTIFImageDAO(String localDirectory) {
+        LocalTIFImageDAO dao = localDirDAO.get(localDirectory);
         if (dao==null) {
-            dao = new LocalFileSystemImageDAO(localDirectory);
+            dao = new LocalTIFImageDAO(localDirectory);
             localDirDAO.put(localDirectory, dao);
         }
         return dao;

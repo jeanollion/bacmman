@@ -78,7 +78,6 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -172,6 +171,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
+    private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory");
 
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
@@ -369,6 +369,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(localZoomFactor.getName(), ParameterUIBinder.getUI(localZoomFactor).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomArea.getName(), ParameterUIBinder.getUI(localZoomArea).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomScale.getName(), ParameterUIBinder.getUI(localZoomScale).getDisplayComponent(), localZoomMenu);
+
+        ConfigurationTreeGenerator.addToMenu(memoryThreshold.getName(), ParameterUIBinder.getUI(memoryThreshold).getDisplayComponent(), memoryMenu);
+        PropertyUtils.setPersistant(memoryThreshold, "memory_threshold");
 
         // python gateway
         PropertyUtils.setPersistant(pyGatewayPort, "py_gateway_port");
@@ -840,7 +843,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public double getLocalZoomScale() {
         return this.localZoomScale.getValue().doubleValue();
     }
-
+    public double getPreProcessingMemoryThreshold() {return this.memoryThreshold.getValue().doubleValue();}
     //public StructureObjectTreeGenerator getObjectTree() {return this.objectTreeGenerator;}
     public TrackTreeController getTrackTrees() {return this.trackTreeController;}
     
@@ -1519,6 +1522,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         clearPPImageMenuItem = new javax.swing.JMenuItem();
         openImageNumberLimitMenu = new javax.swing.JMenu();
         localZoomMenu = new javax.swing.JMenu();
+        memoryMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         pyGatewayMenu = new javax.swing.JMenu();
         logMenu = new javax.swing.JMenu();
@@ -2460,7 +2464,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 importDataMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(importDataMenuItem);
+        //importMenu.add(importDataMenuItem);
 
         importPositionsToCurrentExperimentMenuItem.setText("Objects to Current Dataset");
         importPositionsToCurrentExperimentMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2468,7 +2472,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 importPositionsToCurrentExperimentMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(importPositionsToCurrentExperimentMenuItem);
+        //importMenu.add(importPositionsToCurrentExperimentMenuItem);
 
         importConfigurationMenuItem.setText("Configuration to Current Dataset");
         importConfigurationMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2476,7 +2480,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 importConfigurationMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(importConfigurationMenuItem);
+        //importMenu.add(importConfigurationMenuItem);
 
         importConfigurationForSelectedPositionsMenuItem.setText("Configuration for Selected Positions");
         importConfigurationForSelectedPositionsMenuItem.setEnabled(false);
@@ -2485,7 +2489,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 importConfigurationForSelectedPositionsMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(importConfigurationForSelectedPositionsMenuItem);
+        //importMenu.add(importConfigurationForSelectedPositionsMenuItem);
 
         importConfigurationForSelectedStructuresMenuItem.setText("Configuration for Selected Object Class");
         importConfigurationForSelectedStructuresMenuItem.setEnabled(false);
@@ -2494,7 +2498,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 importConfigurationForSelectedStructuresMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(importConfigurationForSelectedStructuresMenuItem);
+        //importMenu.add(importConfigurationForSelectedStructuresMenuItem);
 
         importNewExperimentMenuItem.setText("New Dataset(s)");
         importNewExperimentMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2502,7 +2506,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 importNewExperimentMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(importNewExperimentMenuItem);
+        //importMenu.add(importNewExperimentMenuItem);
 
         unDumpObjectsMenuItem.setText("Dumped Dataset(s)");
         unDumpObjectsMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2510,7 +2514,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 unDumpObjectsMenuItemActionPerformed(evt);
             }
         });
-        importMenu.add(unDumpObjectsMenuItem);
+        //importMenu.add(unDumpObjectsMenuItem);
 
         importOptionsSubMenu.setText("Import Options");
 
@@ -2699,6 +2703,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logMenu.add(appendToFileMenuItem);
 
         miscMenu.add(logMenu);
+
+        memoryMenu.setText("Memory");
+        miscMenu.add(memoryMenu);
 
         mainMenu.add(miscMenu);
 
@@ -3408,7 +3415,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         if (t.isPreProcess() || t.isSegmentAndTrack()) this.reloadObjectTrees=true; //|| t.reRunPreProcess
         
-        Task.executeTask(t, getUserInterface(), ()->updateConfigurationTree()); // update config because cache will be cleared
+        Task.executeTask(t, getUserInterface(), getPreProcessingMemoryThreshold(), this::updateConfigurationTree); // update config because cache will be cleared
     }//GEN-LAST:event_runSelectedActionsMenuItemActionPerformed
 
     private void importImagesMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importImagesMenuItemActionPerformed
@@ -3470,7 +3477,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         closeExperiment();
         List<Task> tasks = new ArrayList<>(xps.size());
         for (String xp : xps) tasks.add(getCurrentTask(xp));
-        Task.executeTasks(tasks, getUserInterface());
+        Task.executeTasks(tasks, getUserInterface(), getPreProcessingMemoryThreshold());
     }//GEN-LAST:event_runActionAllXPMenuItemActionPerformed
 
     private void closeAllWindowsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_closeAllWindowsMenuItemActionPerformed
@@ -3915,7 +3922,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     List<Task> jobs = Utils.applyWithNullCheck(Collections.list(actionPoolListModel.elements()), t->t.duplicate());
                     if (!jobs.isEmpty()) {
                         closeExperiment(); // avoid lock problems
-                        Task.executeTasks(jobs, getUserInterface());
+                        Task.executeTasks(jobs, getUserInterface(), getPreProcessingMemoryThreshold());
                     }
                 }
             };
@@ -3927,7 +3934,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     List<Task> jobs = Utils.applyWithNullCheck(sel, t->t.duplicate());
                     if (!jobs.isEmpty()) {
                         closeExperiment(); // avoid lock problems
-                        Task.executeTasks(jobs, getUserInterface());
+                        Task.executeTasks(jobs, getUserInterface(), getPreProcessingMemoryThreshold());
                     }
                 }
             };
@@ -4733,6 +4740,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JRadioButtonMenuItem measurementModeOverwriteRadioButton;
     private javax.swing.JButton mergeObjectsButton;
     private javax.swing.JList microscopyFieldList;
+    private javax.swing.JMenu memoryMenu;
     private javax.swing.JMenu miscMenu;
     private javax.swing.JList<String> moduleList;
     private javax.swing.JScrollPane moduleListJSP;

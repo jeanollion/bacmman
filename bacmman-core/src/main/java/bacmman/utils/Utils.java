@@ -157,6 +157,11 @@ public class Utils {
         String of = Utils.getOpenedFileCount();
         return " Used Memory: "+ (used/1000000)/1000d+"GB ("+ (int)Math.round(100d*used/((double)Runtime.getRuntime().maxMemory())) + "%)"; //+(of.length()==0?"": " OpenedFiles: "+of
     }
+    public static double getMemoryUsageProportion() {
+        long used = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+        long total = Runtime.getRuntime().maxMemory();
+        return (double)used / (double)total;
+    }
 
     public static String getOpenedFileCount() {
         OperatingSystemMXBean os = ManagementFactory.getOperatingSystemMXBean();

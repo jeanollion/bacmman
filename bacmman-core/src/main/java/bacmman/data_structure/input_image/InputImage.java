@@ -26,6 +26,7 @@ import bacmman.image.Image;
 import java.util.ArrayList;
 import java.util.Iterator;
 
+import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Transformation;
 
 /**
@@ -80,6 +81,13 @@ public class InputImage {
     public boolean imageOpened() {
         return image!=null;
     }
+    public boolean hasTransformations() {return !transformationsToApply.isEmpty();}
+    public boolean hasHighMemoryTransformations() {
+        for (Transformation t: transformationsToApply) {
+            if (t instanceof ConfigurableTransformation) return ((ConfigurableTransformation)t).highMemory();
+        }
+        return false;
+    }
     public Image getImage() {
         if (image == null) {
             synchronized (this) {
@@ -119,9 +127,11 @@ public class InputImage {
             }
         }
     }
-    
-    public void saveImage() { 
+
+    public void saveImage(boolean intermediate) {
         dao.writePreProcessedImage(image, channelIdx, frame, microscopyFieldName);
+        this.intermediateImageSavedToDAO = intermediate;
+        if (intermediate) modified=false;
     }
     
     void setTimePoint(int timePoint) {

@@ -212,5 +212,6 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
     @Override public Parameter[] getParameters() {
         return parameters;
     }
-
+    @Override
+    public boolean highMemory() {return false;}
 }

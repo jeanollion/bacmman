@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure;
 
+import bacmman.data_structure.dao.ImageDAOFactory;
 import bacmman.test_utils.TestUtils;
 import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
@@ -31,7 +32,6 @@ import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageWriter;
 import bacmman.image.TypeConverter;
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Paths;
 
 import static org.junit.Assert.assertEquals;
@@ -148,7 +148,7 @@ public class ProcessingTest {
         xp.getChannelImages().insert(ci1, ci2);
         xp.setOutputDirectory(daoFolder.getAbsolutePath());
         //xp.setOutputImageDirectory("/tmp");
-        xp.setImageDAOType(Experiment.ImageDAOTypes.LocalFileSystem);
+        xp.setImageDAOType(ImageDAOFactory.ImageDAOTypes.LocalTIF);
         
         // import fields
         ImageByte[][] images = createDummyImagesTC(6, 5 ,4, 3, 2);
@@ -169,7 +169,7 @@ public class ProcessingTest {
         //pre-process
         BasicMasterDAO masterDAO = new BasicMasterDAO(xp, new SegmentedObjectAccessor());
         try {
-            Processor.preProcessImages(masterDAO);
+            Processor.preProcessImages(masterDAO, 0.5);
         } catch (Exception ex) {
             assertTrue("Failed to preprocess images", false);
         }

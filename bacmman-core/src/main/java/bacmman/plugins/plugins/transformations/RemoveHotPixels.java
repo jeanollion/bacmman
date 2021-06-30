@@ -43,6 +43,8 @@ import bacmman.plugins.Hint;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.SlidingOperator;
+import bacmman.utils.ThreadRunner;
+
 import java.util.stream.IntStream;
 
 /**
@@ -61,6 +63,8 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
     public Map<Integer, Set<Voxel>> getDeadVoxels() {
         return configMapF;
     }
+    @Override
+    public boolean highMemory() {return false;}
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages)   { 
         configMapF = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
@@ -119,7 +123,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
         };
         List<Image> imList = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         if (frameRadius>=1) SlidingOperator.performSlideLeft(imList, frameRadius, operator);
-        else IntStream.range(0, imList.size()).parallel().forEach(i-> operator.compute(new Pair<>(i, imList.get(i))));
+        else ThreadRunner.parallelExecutionBySegments(i-> operator.compute(new Pair<>(i, imList.get(i))), 0, imList.size(), 100);
         if (testMode.testSimple()) {
             // first frames are not computed
             for (int f = 0; f<frameRadius-1; ++f) testMeanTC[f][0] = testMeanTC[frameRadius-1][0];

@@ -32,7 +32,8 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
     public String getHintText() {
         return "Corrects shading and background illumination using pre-computed flat-field (image acquired with no sample, that represents the change in effective illumination across an image) and optionally a dark-field image (Image acquired with no light, that represents the additive term, which is dominated by thermal noise, camera offset)";
     }
-
+    @Override
+    public boolean highMemory() {return false;}
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         Image res = (image instanceof ImageFloat) ? image : TypeConverter.toFloat(image, null);

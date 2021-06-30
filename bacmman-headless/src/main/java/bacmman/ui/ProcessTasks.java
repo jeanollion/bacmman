@@ -92,7 +92,7 @@ public class ProcessTasks {
         for (Task t : jobs) {
             t.setSubtaskNumber(counter);
             try {
-                t.runTask();
+                t.runTask(0.5);
             } catch (Throwable e) {
                 t.publishError("Task", e);
             } finally {

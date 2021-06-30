@@ -22,7 +22,7 @@
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <tensorflow.version>1</tensorflow.version>
+        <tensorflow.version>2</tensorflow.version>
     </properties>
     <modules>
         <module>bacmman-core</module>

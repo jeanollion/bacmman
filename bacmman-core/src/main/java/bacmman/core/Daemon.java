@@ -103,7 +103,7 @@ public class Daemon {
                         logUI.setLogFile(Paths.get(logDir.getAbsolutePath(), taskFileNameMap.get(t).getName().replace(".json", ".txt")).toString());
                         t.publishMemoryUsage("");
                         ui.setMessage("Running Job: "+t+" remaining jobs: "+jobQueue.size());
-                        t.runTask();
+                        t.runTask(0.5);
                         t.publishErrors();
                         if (!t.errors.isEmpty()) fileNameErrorMap.put(taskFileNameMap.get(t), true);
                         logUI.setLogFile(null);

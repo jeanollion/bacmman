@@ -25,7 +25,8 @@ public class CopyTo implements ConfigurableTransformation, MultichannelTransform
     public String getHintText() {
         return "This transformation simply copies the content of a channel to other channels. This is useful when using duplicated channels, in order to avoid computing several times the same transformations";
     }
-
+    @Override
+    public boolean highMemory() {return true;}
     @Override
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
         return OUTPUT_SELECTION_MODE.MULTIPLE;
@@ -62,7 +63,7 @@ public class CopyTo implements ConfigurableTransformation, MultichannelTransform
             } case INTERVAL: {
                 int[] interval = planeInterval.getValuesAsInt();
                 dup = im -> {
-                    Image[] ims = IntStream.range(interval[0], interval[1]).mapToObj(im::getZPlane).toArray(Image[]::new);
+                    Image[] ims = IntStream.range(interval[0], interval[1]).mapToObj((int idxZ) -> im.getZPlane(idxZ)).toArray(Image[]::new);
                     return Image.mergeZPlanes(ims);
                 };
                 break;

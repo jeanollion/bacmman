@@ -107,4 +107,6 @@ public class SaturateHistogramHyperfluoBacteria implements ConfigurableTransform
         return parameters;
     }
 
+    @Override
+    public boolean highMemory() {return false;}
 }

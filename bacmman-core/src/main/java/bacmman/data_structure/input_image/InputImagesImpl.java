@@ -25,9 +25,13 @@ import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.Transformation;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 /**
@@ -41,6 +45,7 @@ public class InputImagesImpl implements InputImages {
     int autofocusChannel=-1;
     Autofocus autofocusAlgo = null;
     Integer[] autofocusPlanes;
+    int freeMemoryFrameWindow = 0; // 200;
     public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig) {
         this.imageCT = imageCT;
         this.defaultTimePoint= defaultTimePoint;
@@ -138,13 +143,16 @@ public class InputImagesImpl implements InputImages {
     }
 
     @Override public Image getImage(int channelIdx, int timePoint) { 
-        // TODO: gestion de la memoire: si besoin save & close d'une existante. Attention a signal & réouvrir depuis le DAO et non depuis l'original
         if (imageCT[channelIdx].length==1) timePoint = 0;
+        if (freeMemoryFrameWindow>0 && timePoint > freeMemoryFrameWindow) freeMemory(timePoint - freeMemoryFrameWindow);
         return imageCT[channelIdx][timePoint].getImage();
     }
     public boolean imageOpened(int channelIdx, int timePoint) {
         if (imageCT[channelIdx].length==1) timePoint = 0;
         return imageCT[channelIdx][timePoint].imageOpened();
+    }
+    public void flush(int channelIdx, int timePoint) {
+        imageCT[channelIdx][timePoint].flush();
     }
     public Image[][] getImagesTC() {
         return getImagesTC(0, this.getFrameNumber());
@@ -174,7 +182,7 @@ public class InputImagesImpl implements InputImages {
         return imagesTC;
     }
 
-    public void applyTranformationsAndSave(boolean close) {
+    public void applyTranformationsAndSave(boolean close, boolean tempCheckPoint) {
         long tStart = System.currentTimeMillis();
         // start with modified channels
         List<Integer> modifiedChannels = IntStream.range(0, getChannelNumber()).filter(c -> IntStream.range(0, imageCT[c].length).anyMatch(f -> imageCT[c][f].modified())).mapToObj(c->c).sorted().collect(Collectors.toList());
@@ -183,21 +191,45 @@ public class InputImagesImpl implements InputImages {
         allChannels.addAll(modifiedChannels);
         allChannels.addAll(unmodifiedChannels);
         logger.debug("modified channels: {} unmodified: {}", modifiedChannels, unmodifiedChannels);
-        // TODO: if !close: compute necessary memory, and close other channels before computing (starting with unmodified opened channels), and close after processing
         allChannels.stream().forEachOrdered(c -> {
             InputImage[] imageF = imageCT[c];
-            IntStream.range(0, imageF.length).parallel().forEach(f-> {
-                imageF[f].getImage();
-                imageF[f].saveImage();
+            Consumer<Integer> ex = f-> {
+                if (!tempCheckPoint || ((imageF[f].imageOpened() || imageF[f].hasHighMemoryTransformations()) && (imageF[f].modified() || imageF[f].hasTransformations()) )) {
+                    imageF[f].getImage();
+                    imageF[f].saveImage(tempCheckPoint);
+                }
                 if (close) imageF[f].flush();
-            });
+            };
+            ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100);
             logger.debug("after applying transformation for channel: {} ", c, Utils.getMemoryUsage());
         });
         
         long tEnd = System.currentTimeMillis();
         logger.debug("apply transformation & save: total time: {}, for {} time points and {} channels", tEnd-tStart, getFrameNumber(), getChannelNumber() );
     }
-    
+
+    private void freeMemory(int maxFrame) {
+        Function<InputImage, Boolean> imTest1 = im -> im.imageOpened() || im.hasHighMemoryTransformations();
+        Function<InputImage, Boolean> imTest2 = im -> im.modified() || im.hasTransformations();
+        for (int c = 0; c<getChannelNumber(); ++c) {
+            InputImage[] imageF = imageCT[c];
+            for (int f = maxFrame-1; f>=0; --f) {
+                InputImage im = imageF[f];
+                if (imTest1.apply(im)) {
+                    synchronized (im) {
+                        if (imTest1.apply(im)) {
+                            if (imTest2.apply(im)) {
+                                im.getImage();
+                                im.saveImage(true);
+                            }
+                        }
+                        im.flush();
+                    }
+                }
+            }
+        }
+    }
+
     public void deleteFromDAO() {
         for (int c = 0; c<getChannelNumber(); ++c) {
             for (int t = 0; t<imageCT[c].length; ++t) {

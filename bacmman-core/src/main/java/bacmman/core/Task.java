@@ -654,7 +654,7 @@ public class Task implements ProgressCallback{
         this.taskCounter=taskCounter;
     }
 
-    public void runTask() {
+    public void runTask(double preProcessingMemoryThreshold) {
         //if (ui!=null) ui.setRunning(true);
         publish("Run task: "+this.toString());
         initDB();
@@ -690,7 +690,7 @@ public class Task implements ProgressCallback{
             try {
                 for (String position : positionsToProcess) {
                     try {
-                        process(position, deleteAllField, selection);
+                        process(position, deleteAllField, selection, preProcessingMemoryThreshold);
                     } catch (MultipleException e) {
                         errors.addExceptions(e.getExceptions());
                     } catch (Throwable e) {
@@ -765,13 +765,13 @@ public class Task implements ProgressCallback{
         }
     }
 
-    private void process(String position, boolean deleteAllField, Selection selection) {
+    private void process(String position, boolean deleteAllField, Selection selection, double preProcessingMemoryThreshold) {
         publish("Position: "+position);
         if (deleteAllField) db.getDao(position).deleteAllObjects();
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
             logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
-            Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), true, this);
+            Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), true, preProcessingMemoryThreshold, this);
             boolean createRoot = segmentAndTrack || trackOnly || generateTrackImages;
             if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
             db.getExperiment().getPosition(position).flushImages(true, true); 
@@ -1043,7 +1043,7 @@ public class Task implements ProgressCallback{
         publish(message);
     }
     
-    public static void executeTasks(List<Task> tasks, ProgressLogger ui, Runnable... endOfWork) {
+    public static void executeTasks(List<Task> tasks, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
         int totalSubtasks = 0;
         for (Task t : tasks) {
             logger.debug("checking task: {}", t);
@@ -1065,7 +1065,7 @@ public class Task implements ProgressCallback{
             Consumer<FileProgressLogger> unsetLF = l->l.setLogFile(null);
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(setLF);
             else if (ui instanceof FileProgressLogger) setLF.accept((FileProgressLogger)ui);
-            tasks.get(i).runTask(); // clears cache +  unlock if !keepdb
+            tasks.get(i).runTask(preProcessingMemoryThreshold); // clears cache +  unlock if !keepdb
             tasks.get(i).done();
             if (tasks.get(i).db!=null && !tasks.get(i).keepDB) tasks.get(i).db=null; 
             if (ui instanceof MultiProgressLogger) ((MultiProgressLogger)ui).applyToLogUserInterfaces(unsetLF);
@@ -1081,8 +1081,8 @@ public class Task implements ProgressCallback{
         }, tasks.size()).setEndOfWork(
                 ()->{for (Runnable r : endOfWork) r.run();});
     }
-    public static void executeTask(Task t, ProgressLogger ui, Runnable... endOfWork) {
-        executeTasks(new ArrayList<Task>(1){{add(t);}}, ui, endOfWork);
+    public static void executeTask(Task t, ProgressLogger ui, double preProcessingMemoryThreshold, Runnable... endOfWork) {
+        executeTasks(new ArrayList<Task>(1){{add(t);}}, ui, preProcessingMemoryThreshold, endOfWork);
     }
     private static Stream<Task> splitByPosition(Task task) {
         task.ensurePositionAndStructures(true, true);

@@ -99,14 +99,14 @@ public class Processor {
     
     // preProcessing-related methods
     
-    public static void preProcessImages(MasterDAO db)  throws Exception {
+    public static void preProcessImages(MasterDAO db, double memoryLimit)  throws Exception {
         Experiment xp = db.getExperiment();
         for (int i = 0; i<xp.getPositionCount(); ++i) {
-            preProcessImages(xp.getPosition(i), db.getDao(xp.getPosition(i).getName()), false, null);
+            preProcessImages(xp.getPosition(i), db.getDao(xp.getPosition(i).getName()), false, memoryLimit, null);
         }
     }
     
-    public static void preProcessImages(Position position, ObjectDAO dao, boolean deleteObjects, ProgressCallback pcb)  {
+    public static void preProcessImages(Position position, ObjectDAO dao, boolean deleteObjects, double memoryLimit, ProgressCallback pcb)  {
         if (!dao.getPositionName().equals(position.getName())) throw new IllegalArgumentException("field name should be equal");
         InputImagesImpl images = position.getInputImages();
         if (images==null || images.getImage(0, images.getDefaultTimePoint())==null) {
@@ -115,22 +115,25 @@ public class Processor {
         }
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         for (int s =0; s<dao.getExperiment().getStructureCount(); ++s) dao.getExperiment().getImageDAO().deleteTrackImages(position.getName(), s);
-        setTransformations(position, pcb);
+        setTransformations(position, memoryLimit, pcb);
         logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
-        images.applyTranformationsAndSave(false); // here : should be able to close if necessary
+        images.applyTranformationsAndSave(true, false); // here : should be able to close if necessary
+        if (pcb!=null) pcb.incrementSubTask();
         System.gc();
         logger.debug("after applying: {}", Utils.getMemoryUsage());
         if (deleteObjects) dao.deleteAllObjects();
     }
     
-    public static void setTransformations(Position position, ProgressCallback pcb)  {
+    public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb)  {
         InputImagesImpl images = position.getInputImages();
         PreProcessingChain ppc = position.getPreProcessingChain();
         if (pcb!=null) {
             int confTransfo = (int)ppc.getTransformations(true).stream().filter(t->t.instantiatePlugin() instanceof ConfigurableTransformation).count();
-            pcb.setSubtaskNumber(confTransfo);
+            pcb.setSubtaskNumber(confTransfo+1);
         }
-        for (TransformationPluginParameter<Transformation> tpp : ppc.getTransformations(true)) {
+        List<TransformationPluginParameter<Transformation>> transfos = ppc.getTransformations(true);
+        for (int i = 0; i<transfos.size(); ++i) {
+            TransformationPluginParameter<Transformation> tpp = transfos.get(i);
             Transformation transfo = tpp.instantiatePlugin();
             logger.info("adding transformation: {} of class: {} to position: {}, input channel:{}, output channel: {}", transfo, transfo.getClass(), position.getName(), tpp.getInputChannel(), tpp.getOutputChannels());
             if (transfo instanceof ConfigurableTransformation) {
@@ -141,6 +144,13 @@ public class Processor {
                 if (pcb!=null) pcb.incrementSubTask();
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
+            if (i<transfos.size()-1 && Utils.getMemoryUsageProportion()>memoryLimit) {
+                //if (pcb!=null) pcb.log(Utils.getMemoryUsage() + "limit is set to "+memoryLimit+" -> saving temporarily images to disk");
+                logger.debug("{} -> performing temp save & close", Utils.getMemoryUsage());
+                images.applyTranformationsAndSave(true, true);
+                System.gc();
+                logger.debug("after temp save: {}", Utils.getMemoryUsage());
+            }
         }
     }
     // processing-related methods

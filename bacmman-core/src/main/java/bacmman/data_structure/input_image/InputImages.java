@@ -32,7 +32,10 @@ import java.util.List;
 
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -52,9 +55,11 @@ public interface InputImages {
     public boolean singleFrameChannel(int channelIdx);
     public static Image[] getImageForChannel(InputImages images, int channelIdx, boolean ensure2D) {
         if(channelIdx<0 || channelIdx>=images.getChannelNumber()) throw new IllegalArgumentException("invalid channel idx: "+channelIdx+" max idx: "+(images.getChannelNumber()-1));
-        if (!ensure2D) return IntStream.range(0, images.getFrameNumber()).parallel().mapToObj(f -> images.getImage(channelIdx, f)).toArray(l -> new Image[l]);
-        else {
-            return IntStream.range(0, images.getFrameNumber()).parallel().mapToObj(f -> {
+        Function<Integer, Image> fun;
+        if (!ensure2D) {
+            fun  = f -> images.getImage(channelIdx, f);
+        } else {
+            fun = f -> {
                 Image<? extends Image> image = images.getImage(channelIdx, f);
                 if (image.sizeZ()>1) {
                     int plane = images.getBestFocusPlane(f);
@@ -62,8 +67,10 @@ public interface InputImages {
                     image = image.splitZPlanes().get(plane);
                 }
                 return image;
-            }).toArray(l -> new Image[l]);
+            };
         }
+        List<Image> res = ThreadRunner.parallelExecutionBySegmentsFunction(fun, 0,  images.getFrameNumber(), 100);
+        return res.toArray(new Image[0]);
     }
     
     public static Image getAverageFrame(InputImages images, int channelIdx, int frame,  int numberOfFramesToAverage) {

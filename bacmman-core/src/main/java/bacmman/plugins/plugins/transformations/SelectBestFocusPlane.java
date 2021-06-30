@@ -36,6 +36,9 @@ import bacmman.image.ThresholdMask;
 import java.util.List;
 import bacmman.plugins.Autofocus;
 import bacmman.plugins.ConfigurableTransformation;
+import bacmman.utils.ThreadRunner;
+
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 /**
  *
@@ -56,7 +59,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
         final double scale = gradientScale.getValue().doubleValue();
         final Integer[] conf = new Integer[inputImages.getFrameNumber()];
         if (inputImages.getSourceSizeZ(channelIdx)>1) {
-            IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(t -> { 
+            Consumer<Integer> ex = t -> {
                 Image image = inputImages.getImage(channelIdx, t);
                 if (image.sizeZ()>1) {
                     List<Image> planes = image.splitZPlanes();
@@ -64,7 +67,8 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
                     conf[t] = getBestFocusPlane(planes, scale, thlder, null);
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
-            });
+            };
+            ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
         }
         bestFocusPlaneIdxT.addAll(Arrays.asList(conf));
     }
@@ -126,7 +130,8 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {
         return bestFocusPlaneIdxT !=null && bestFocusPlaneIdxT.size() == totalTimePointNumber;
     }
-
+    @Override
+    public boolean highMemory() {return false;}
     @Override
     public String getHintText() {
         return "Selects the plane of best focus in a 3D stack, which is defined as the plane with the maximal gradient magnitude";

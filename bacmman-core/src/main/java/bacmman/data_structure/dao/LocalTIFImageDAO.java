@@ -43,12 +43,12 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class LocalFileSystemImageDAO implements ImageDAO {
-    private final static Logger logger = LoggerFactory.getLogger(LocalFileSystemImageDAO.class);
+public class LocalTIFImageDAO implements ImageDAO {
+    private final static Logger logger = LoggerFactory.getLogger(LocalTIFImageDAO.class);
     String directory;
     static final int idxZeros = 5;
     
-    public LocalFileSystemImageDAO(String localDirectory) {
+    public LocalTIFImageDAO(String localDirectory) {
         this.directory=localDirectory;
     }
     @Override

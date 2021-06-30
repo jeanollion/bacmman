@@ -64,7 +64,8 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
     public String getSimpleHintText() {
         return "Aligns Microchannel sides along the Y-axis<br />Based on Radon Transform implementation by Damien Farrel: <a href='https://imagej.nih.gov/ij/plugins/radon-transform.html'>https://imagej.nih.gov/ij/plugins/radon-transform.html</a>";
     }
-
+    @Override
+    public boolean highMemory() {return false;}
 
     public AutoRotationXY(double minAngle, double maxAngle, double precision1, double precision2, InterpolationScheme interpolation, SearchMethod method) {
         angleRange.setValues(minAngle, maxAngle);
@@ -135,7 +136,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
         if (fn<=1) frames = new ArrayList<Integer>(1){{add(inputImages.getDefaultTimePoint());}};
         else frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, fn); // TODO not necessary for phase contrast
         
-        List<Double> angles = frames.stream().map(f -> {
+        List<Double> angles = frames.stream().map(f -> { // sequential no need to segment indices
             Image<? extends Image> image = inputImages.getImage(channelIdx, f);
             image = prefilters.filter(image);
             if (image.sizeZ()>1) {

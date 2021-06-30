@@ -40,7 +40,10 @@ import java.util.concurrent.ConcurrentHashMap;
 import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.Hint;
 import bacmman.utils.SlidingOperatorDouble;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 /**
@@ -63,6 +66,8 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
     Parameter[] parameters = new Parameter[]{signalExclusion, signalExclusionThreshold, maskSmoothScale, signalExclusionCond, addGMCond, smoothScale};
     float[][][] meanFZY;
     Image[] backgroundMask;
+    @Override
+    public boolean highMemory() {return true;}
     public RemoveStripesSignalExclusion() {}
     
     public RemoveStripesSignalExclusion(int signalExclusion) {
@@ -110,30 +115,31 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
         if (scale>0) backgroundMask = new Image[allImages.length];
         double mScale = maskSmoothScale.getScaleXY();
         double mScaleZ = maskSmoothScale.getScaleZ(allImages[0].getScaleXY(), allImages[0].getScaleZ());
-        IntStream.range(0, inputImages.getFrameNumber()).parallel().forEach(frame -> {
-                Image currentImage = allImages[frame];
-                ImageMask m;
-                if (chExcl>=0) {
-                    Image se1 = allImagesExcl[frame];
-                    if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
-                    double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
-                    ThresholdMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new ThresholdMask(se1, thld1, true, true, 0):new ThresholdMask(se1, thld1, true, true);
-                    if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
-                    if (chExcl2>=0) {
-                        Image se2 = allImagesExcl2[frame];
-                        if (mScale>0) se2 = ImageFeatures.gaussianSmooth(se2, mScale, mScaleZ, false);
-                        double thld2 = signalExclusionThreshold2.instantiatePlugin().runSimpleThresholder(se2, null);
-                        ThresholdMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new ThresholdMask(se2, thld2, true, true, 0):new ThresholdMask(se2, thld2, true, true);
-                        if (testMode.testExpert()) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
-                        mask = ThresholdMask.or(mask, mask2);
-                    }
-                    m = mask;
-                } else m = new BlankMask(currentImage);
-                meanFZY[frame] = computeMeanX(currentImage, m, addGlobalMean, slidingHalfWindow);
-                if (backgroundMask!=null) backgroundMask[frame] = SubtractGaussSignalExclusion.getBackgroundImage(currentImage, m, scale, scaleZ);
-                if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());      
-            }
-        );
+        Consumer<Integer> ex = frame -> {
+            Image currentImage = allImages[frame];
+            ImageMask m;
+            if (chExcl>=0) {
+                Image se1 = allImagesExcl[frame];
+                if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
+                double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
+                ThresholdMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new ThresholdMask(se1, thld1, true, true, 0):new ThresholdMask(se1, thld1, true, true);
+                if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
+                if (chExcl2>=0) {
+                    Image se2 = allImagesExcl2[frame];
+                    if (mScale>0) se2 = ImageFeatures.gaussianSmooth(se2, mScale, mScaleZ, false);
+                    double thld2 = signalExclusionThreshold2.instantiatePlugin().runSimpleThresholder(se2, null);
+                    ThresholdMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new ThresholdMask(se2, thld2, true, true, 0):new ThresholdMask(se2, thld2, true, true);
+                    if (testMode.testExpert()) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
+                    mask = ThresholdMask.or(mask, mask2);
+                }
+                m = mask;
+            } else m = new BlankMask(currentImage);
+            meanFZY[frame] = computeMeanX(currentImage, m, addGlobalMean, slidingHalfWindow);
+            if (backgroundMask!=null) backgroundMask[frame] = SubtractGaussSignalExclusion.getBackgroundImage(currentImage, m, scale, scaleZ);
+            if (frame%100==0) logger.debug("tp: {} {}", frame, Utils.getMemoryUsage());
+        };
+        ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
+
         if (testMode.testExpert()) { // make stripes images
             Image[][] stripesTC = new Image[meanFZY.length][1];
             for (int f = 0; f<meanFZY.length; ++f) {

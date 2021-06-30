@@ -33,4 +33,5 @@ public interface ConfigurableTransformation extends Transformation {
      */
     public void computeConfigurationData(int channelIdx, InputImages inputImages);
     public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber);
+    boolean highMemory();
 }

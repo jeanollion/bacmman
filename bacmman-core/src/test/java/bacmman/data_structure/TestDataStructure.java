@@ -144,7 +144,7 @@ public class TestDataStructure {
         ObjectDAO dao = db.getDao(fieldName);
         
         try {
-            Processor.preProcessImages(db);
+            Processor.preProcessImages(db, 0.5);
         } catch (Exception ex) {
             logger.debug("", ex);
         }

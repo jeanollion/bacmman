@@ -88,6 +88,8 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
     public String getHintText() {
         return "XY-registration in time axis by image correlation. <br />Based on Lucas-Kanade algorithm, implementation: <a href='http://www.cs.cmu.edu/~kangli/code/Image_Stabilizer.html'>http://www.cs.cmu.edu/~kangli/code/Image_Stabilizer.html</a>";
     }
+    @Override
+    public boolean highMemory() {return false;}
     public ImageStabilizerXY setCropper(Cropper cropper) {
         this.cropper.setPlugin(cropper);
         return this;

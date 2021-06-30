@@ -36,6 +36,7 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -45,6 +46,7 @@ import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.O
 import bacmman.processing.ImageTransformation;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
 /**
@@ -97,6 +99,10 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     public String getHintText() {
         return toolTip;
     }
+
+    @Override
+    public boolean highMemory() {return false;}
+
     public AutoFlipY setMethod(AutoFlipMethod method) {
         this.method.setValue(method.name);
         return this;
@@ -114,7 +120,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 }
                 // rough segmentation and get side where cells are better aligned
                 List<Integer> frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, 200);
-                List<Boolean> flips = frames.stream().parallel().map(f->{
+                Function<Integer, Boolean> ex = f->{
                     Image<? extends Image> image = inputImages.getImage(channelIdx, f);
                     if (image.sizeZ()>1) {
                         int plane = inputImages.getBestFocusPlane(f);
@@ -122,7 +128,8 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                         image = image.splitZPlanes().get(plane);
                     }
                     return isFlipFluo(image);
-                }).collect(Collectors.toList());
+                };
+                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50);
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
                 if (testMode.testExpert()) {
@@ -138,7 +145,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
             case FLUO_HALF_IMAGE: {
                 // compares signal in upper half & lower half -> signal should be in upper half
                 List<Integer> frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, 20);
-                List<Boolean> flips = frames.stream().parallel().map(f->{
+                Function<Integer, Boolean> ex = f->{
                     Image<? extends Image> image = inputImages.getImage(channelIdx, f);
                     if (image.sizeZ()>1) {
                         int plane = inputImages.getBestFocusPlane(f);
@@ -146,7 +153,8 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                         image = image.splitZPlanes().get(plane);
                     }
                     return isFlipFluoUpperHalf(image);
-                }).collect(Collectors.toList());
+                };
+                List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50);
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
 

@@ -27,16 +27,14 @@ import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.plugins.ConfigurableTransformation;
-import java.util.ArrayList;
-import java.util.List;
+
+import java.util.*;
 
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.TestableOperation;
+import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -98,8 +96,9 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             default :
                 frames =  InputImages.chooseNImagesWithSignal(inputImages, channelIdx, framesN);
         }
+        List<Image> images = ThreadRunner.parallelExecutionBySegmentsFunction(f->inputImages.getImage(channelIdx, f), frames, 100);
         Function<Integer, MutableBoundingBox> getBds = i -> {
-            Image<? extends Image> im = inputImages.getImage(channelIdx, i);
+            Image<? extends Image> im = images.get(i);
             if (im.sizeZ()>1) {
                 int plane = inputImages.getBestFocusPlane(i);
                 if (plane<0) throw new RuntimeException("CropMicrochannel can only be run on 2D images AND no autofocus algorithm was set");
@@ -110,12 +109,13 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
         TEST_MODE test = testMode;
         logger.debug("test mode: {}", test);
         if (framesN!=1 && test.testSimple()) { // only test for one frame
-            logger.debug("testing for 1 frame");
-            getBds.apply(inputImages.getDefaultTimePoint());
+            int idx = frames.stream().min( Comparator.comparing(f -> Math.abs(f-inputImages.getDefaultTimePoint()))).get();
+            logger.debug("testing for 1 frame, closest frame to default timePoint: {}", idx);
+            getBds.apply(frames.indexOf(idx));
         }
         if (framesN!=1) this.setTestMode(TEST_MODE.NO_TEST);
-        Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(frames.stream().parallel(), i->i, i->getBds.apply(i), true); // not using Collectors.toMap because result of getBounds can be null
-        List<Integer> nullBounds = bounds.entrySet().stream().filter(e->e.getValue()==null).map(b->b.getKey()).collect(Collectors.toList());
+        Map<Integer, MutableBoundingBox> bounds = Utils.toMapWithNullValues(IntStream.range(0, frames.size()).boxed().parallel(), i->i, getBds::apply, true); // not using Collectors.toMap because result of getBounds can be null
+        List<Integer> nullBounds = bounds.entrySet().stream().filter(e->e.getValue()==null).map(Map.Entry::getKey).collect(Collectors.toList());
         if (!nullBounds.isEmpty()) logger.warn("bounds could not be computed for frames: {}", nullBounds);
         bounds.values().removeIf(b->b==null);
         if (bounds.isEmpty()) throw new RuntimeException("Bounds could not be computed");
