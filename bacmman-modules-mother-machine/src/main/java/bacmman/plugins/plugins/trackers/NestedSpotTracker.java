@@ -70,7 +70,8 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     BooleanParameter projectOnSameSide = new BooleanParameter("Correct Rotation", true).setHint("This option allows correcting for apparent motion of the spot due to rotation of the bacteria around its longitudinal axis when computing the distance between two spots at two different frames.");
     BooleanParameter allowSplitting = new BooleanParameter("Allow splitting", false).setHint("If set to <em>true</em>, a spot can split into two spots in the following frames");
     BooleanParameter allowMerging = new BooleanParameter("Allow merging", false).setHint("If set to <em>true</em>, two spots can merge in a following frame. Therefore two spots can be linked to the same spot observed in a following frame");
-    Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, spotQualityThreshold, allowSplitting, allowMerging};
+    BooleanParameter calibration = new BooleanParameter("Use calibrated distance", true).setHint("If set to <em>true</em>, Linking Distance and Gap Penalty are in unit otherwise in pixel.");
+    Parameter[] parameters = new Parameter[]{segmenter, compartmentStructure, projectionType, projectOnSameSide, maxLinkingDistance, maxLinkingDistanceGC, maxGap, gapPenalty, calibration, spotQualityThreshold, allowSplitting, allowMerging};
 
     static String toolTipSimple = "<b>Tracker for intracellular spots</b><br />" +
             "Algorithm allowing tracking spots located within bacteria. This algorithm provides a correction for bacteria motion and growth." +
@@ -165,9 +166,16 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         double spotQualityThreshold = LQSpots ? this.spotQualityThreshold.getValue().doubleValue() : Double.NEGATIVE_INFINITY;
         double maxLinkingDistance = this.maxLinkingDistance.getValue().doubleValue();
         double maxLinkingDistanceGC = this.maxLinkingDistanceGC.getValue().doubleValue();
+        double gapPenalty = this.gapPenalty.getValue().doubleValue();
+        if (!calibration.getSelected()) {
+            double scale = parentTrack.get(0).getScaleXY();
+            maxLinkingDistance *= scale;
+            maxLinkingDistanceGC *= scale;
+            gapPenalty *= scale;
+        }
         DistanceComputationParameters distParams = new DistanceComputationParameters()
                 .setQualityThreshold(spotQualityThreshold)
-                .setGapDistancePenalty(gapPenalty.getValue().doubleValue())
+                .setGapDistancePenalty(gapPenalty)
                 //.setAlternativeDistance(alternativeDistance.getValue().doubleValue())
                 .setAllowGCBetweenLQ(true)
                 .setMaxFrameDifference(maxFrameDiff)
