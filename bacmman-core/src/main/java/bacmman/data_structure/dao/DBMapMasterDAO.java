@@ -24,10 +24,12 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.HashMap;
 
@@ -55,6 +57,7 @@ public class DBMapMasterDAO implements MasterDAO {
     final Set<String> positionLock = new HashSet<>();
     protected Experiment xp;
     java.nio.channels.FileLock xpFileLock;
+    private FileChannel xpLockChannel;
     RandomAccessFile cfg;
     DBMapSelectionDAO selectionDAO;
     boolean readOnly = true; // default is read only
@@ -111,10 +114,7 @@ public class DBMapMasterDAO implements MasterDAO {
             }
         }
     }
-    
-    public boolean xpFileLock() {
-        return xpFileLock!=null;
-    }
+
     
     @Override
     public boolean isConfigurationReadOnly() {
@@ -202,9 +202,9 @@ public class DBMapMasterDAO implements MasterDAO {
             cfg = new RandomAccessFile(f, readOnly?"r":"rw");
             if (!readOnly) {
                 logger.debug("locking file: {} (cfg null? {})", getConfigFile(dbName), xp==null);
-                xpFileLock = cfg.getChannel().tryLock();
+                lock();
             }
-            //logger.debug("lock at creation: {}, for file: {}", xpFileLock, getConfigFile(dbName, false));
+            logger.debug("lock at creation: {}, for file: {}", xpFileLock, getConfigFile(dbName));
         } catch (FileNotFoundException ex) {
             logger.debug("no config file found!");
         } catch (OverlappingFileLockException e) {
@@ -213,17 +213,56 @@ public class DBMapMasterDAO implements MasterDAO {
             logger.debug("File could not be locked", ex);
         }
     }
-    private synchronized void unlockXP() {
+    private Path getLockedFilePath() {
+        return configDir.resolve(dbName + "_config.json.lock");
+    }
+    private synchronized boolean lock() {
+        try {
+            Path p = getLockedFilePath();
+            xpLockChannel = FileChannel.open(p, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
+            xpFileLock = xpLockChannel.tryLock();
+        } catch (IOException|OverlappingFileLockException ex) {
+            return false;
+        }
+        if (xpFileLock==null) {
+            if (xpLockChannel!=null) {
+                try {
+                    xpLockChannel.close();
+                } catch (IOException ex) {
+                    return false;
+                }
+            }
+            return false;
+        } else return true;
+    }
+    public synchronized void unlock() {
         if (this.xpFileLock!=null) {
             try {
-                logger.debug("releasing lock: {}", xpFileLock);
                 xpFileLock.release();
-                logger.debug("lock released: {} ", !xpFileLock.isValid());
                 xpFileLock = null;
             } catch (IOException ex) {
-                logger.debug("error releasing cfg lock", ex);
+                logger.debug("error realeasing dao lock", ex);
             }
         }
+        if (this.xpLockChannel!=null && xpLockChannel.isOpen()) {
+            try {
+                xpLockChannel.close();
+                xpLockChannel = null;
+            } catch (IOException ex) {
+                logger.debug("error realeasing dao lock channel", ex);
+            }
+        }
+        Path p = getLockedFilePath();
+        if (Files.exists(p)) {
+            try {
+                Files.delete(p);
+            } catch (IOException ex) {
+
+            }
+        }
+    }
+    private synchronized void unlockXP() {
+        unlock();
         if (cfg!=null) {
             try {
                 cfg.close();
