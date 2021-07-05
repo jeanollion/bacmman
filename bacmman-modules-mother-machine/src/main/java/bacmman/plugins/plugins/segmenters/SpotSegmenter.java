@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.segmenters;
 
-import bacmman.configuration.parameters.ArrayNumberParameter;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
 import bacmman.plugins.*;
@@ -79,8 +76,11 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
     NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode");
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
+    enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER}
+    EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. Backgroun threshold within the cell is determined by applying BackgroundThresholder to I within the cell. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN");
+
     boolean planeByPlane = false;
-    Parameter[] parameters = new Parameter[]{scale, smoothScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold};
+    Parameter[] parameters = new Parameter[]{scale, smoothScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold, normMode};
     ProcessingVariables pv = new ProcessingVariables();
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected using a seeded watershed algorithm applied on the Laplacian transform.</li> "
@@ -143,7 +143,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         else return res;
     }
     /**
-     * See {@link #run(Image, SegmentedObject, double[], int, double, double, double)}
+     * See {@link #run(Image, SegmentedObject, double[], int, double, double, double, NORMALIZATION_MODE)}
      * @param input
      * @param objectClassIdx
      * @param parent
@@ -151,7 +151,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      */
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        return run(input, parent, getScale(), minSpotSize.getValue().intValue(), thresholdHigh.getValue().doubleValue(), thresholdLow.getValue().doubleValue(), intensityThreshold.getValue().doubleValue());
+        return run(input, parent, getScale(), minSpotSize.getValue().intValue(), thresholdHigh.getValue().doubleValue(), thresholdLow.getValue().doubleValue(), intensityThreshold.getValue().doubleValue(), normMode.getSelectedEnum());
     }
     // testable
     Map<SegmentedObject, TestDataStore> stores;
@@ -166,15 +166,25 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         boolean lapScaled, smoothScaled;
         double[] ms;
         double smoothScale;
-        public void initPV(Image input, ImageMask mask, double smoothScale) {
+        public void initPV(Image input, ImageMask mask, double smoothScale, NORMALIZATION_MODE normMode) {
             this.input=input;
             this.smoothScale=smoothScale;
-            if (ms == null) {
+            if (ms == null && (NORMALIZATION_MODE.PER_CELL_CENTER.equals(normMode) || NORMALIZATION_MODE.PER_CELL_CENTER_SCALE.equals(normMode) )) {
                 //BackgroundFit.debug=debug;
                 ms = new double[2];
                 //double thld = BackgroundFit.backgroundFit(HistogramFactory.getHistogram(()->input.stream(mask, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS), 5, ms);
                 double thld = BackgroundThresholder.runThresholder(input, mask, 6, 6, 2, Double.MAX_VALUE, ms); // more robust than background fit because too few values to make histogram
                 if (debug) logger.debug("scaling thld: {} mean & sigma: {}", thld, ms); //if (debug) 
+            }
+            switch (normMode) {
+                case NO_NORM: {
+                    ms = new double[]{0, 1};
+                    break;
+                }
+                case PER_CELL_CENTER: {
+                    ms[1] = 1;
+                    break;
+                }
             }
         }
         public Image getScaledInput() {
@@ -218,11 +228,11 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      * @param intensityThreshold minimal gaussian value to semgent a spot
      * @return segmented spots
      */
-    public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, int minSpotSize, double thresholdSeeds, double thresholdPropagation, double intensityThreshold) {
+    public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, int minSpotSize, double thresholdSeeds, double thresholdPropagation, double intensityThreshold, NORMALIZATION_MODE normMode) {
         Arrays.sort(scale);
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
         if (this.parentSegTHMapmeanAndSigma!=null) pv.ms = parentSegTHMapmeanAndSigma.get(((SegmentedObject)parent).getTrackHead());
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
+        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode) ;
         if (pv.smooth==null || pv.getLaplacianMap()==null) throw new RuntimeException("Mutation Segmenter not parametrized");//setMaps(computeMaps(input, input));
         
         Image smooth = pv.getSmoothedMap();
@@ -361,7 +371,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public void setQuality(List<Region> objects, Offset offset, Image input, ImageMask parentMask) {
         if (objects.isEmpty()) return;
         if (offset==null) offset = new MutableBoundingBox();
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
+        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode.getSelectedEnum()) ;
         for (Region o : objects) {
             Point center = o.getCenter().duplicate().translateRev(offset);
             if (center==null) throw new IllegalArgumentException("No center for object: "+o);
@@ -384,7 +394,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
+        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), this.normMode.getSelectedEnum()) ;
         if (pv.smooth==null || pv.lap==null) setMaps(computeMaps(input, input));
         else logger.debug("manual seg: maps already set!");
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
