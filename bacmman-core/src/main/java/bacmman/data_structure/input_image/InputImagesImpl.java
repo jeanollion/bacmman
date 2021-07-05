@@ -46,6 +46,7 @@ public class InputImagesImpl implements InputImages {
     Autofocus autofocusAlgo = null;
     Integer[] autofocusPlanes;
     int freeMemoryFrameWindow = 0; // 200;
+
     public InputImagesImpl(InputImage[][] imageCT, int defaultTimePoint, Pair<Integer, Autofocus> autofocusConfig) {
         this.imageCT = imageCT;
         this.defaultTimePoint= defaultTimePoint;
@@ -209,21 +210,16 @@ public class InputImagesImpl implements InputImages {
     }
 
     private void freeMemory(int maxFrame) {
-        Function<InputImage, Boolean> imTest1 = im -> im.imageOpened() || im.hasHighMemoryTransformations();
-        Function<InputImage, Boolean> imTest2 = im -> im.modified() || im.hasTransformations();
         for (int c = 0; c<getChannelNumber(); ++c) {
             InputImage[] imageF = imageCT[c];
             for (int f = maxFrame-1; f>=0; --f) {
                 InputImage im = imageF[f];
-                if (imTest1.apply(im)) {
+                if (im.imageOpened()) {
                     synchronized (im) {
-                        if (imTest1.apply(im)) {
-                            if (imTest2.apply(im)) {
-                                im.getImage();
-                                im.saveImage(true);
-                            }
+                        if (im.imageOpened()) {
+                            if (im.modified()) im.saveImage(true);
+                            im.flush();
                         }
-                        im.flush();
                     }
                 }
             }
