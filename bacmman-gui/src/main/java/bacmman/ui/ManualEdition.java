@@ -78,8 +78,21 @@ public class ManualEdition {
         // update trackTree
         if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks();
     }
-
-
+    private static boolean canEdit(Stream<SegmentedObject> objects, MasterDAO db) {
+        if (db==null) return true;
+        if (objects.anyMatch(o->db.getDao(o.getPositionName()).isReadOnly())) {
+            Utils.displayTemporaryMessage("This position is already locked, segmentation and tracking cannot be edited", 10000);
+            return false;
+        }
+        return true;
+    }
+    private static boolean canEdit(String position, MasterDAO db) {
+        if (db==null) return true;
+        if (db.getDao(position).isReadOnly()) {
+            Utils.displayTemporaryMessage("This position is already locked, segmentation and tracking cannot be edited", 10000);
+            return false;
+        } return true;
+    }
     public static void modifyObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean unlink, boolean updateDisplay) {
         SegmentedObjectUtils.keepOnlyObjectsFromSameMicroscopyField(objects);
         SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
@@ -89,6 +102,7 @@ public class ManualEdition {
         boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
         boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
         Set<SegmentedObject> modifiedObjects = new HashSet<>();
+        if (!canEdit(objects.stream(), db)) return;
         modifyObjectLinks(objects, unlink, merge, split, modifiedObjects);
         if (db!=null) db.getDao(objects.get(0).getPositionName()).store(modifiedObjects);
         if (updateDisplay) {
@@ -223,7 +237,7 @@ public class ManualEdition {
 
     public static void createTracks(MasterDAO db, Collection<SegmentedObject> futureTrackHeads, boolean updateDisplay) {
         if (futureTrackHeads.isEmpty()) return;
-
+        if (!canEdit(futureTrackHeads.stream(), db)) return;
         if (updateDisplay) ImageWindowManagerFactory.getImageManager().removeTracks(SegmentedObjectUtils.getTrackHeads(futureTrackHeads));
         for (Entry<String, List<SegmentedObject>> e : SegmentedObjectUtils.splitByPosition(futureTrackHeads).entrySet()) {
             Set<SegmentedObject> modifiedObjects = new HashSet<>();
@@ -289,6 +303,7 @@ public class ManualEdition {
     
     public static void resetObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean updateDisplay) {
         SegmentedObjectUtils.keepOnlyObjectsFromSameMicroscopyField(objects);
+        if (!canEdit(objects.stream(), db)) return;
         int objectClassIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.isEmpty()) return;
         
@@ -339,6 +354,7 @@ public class ManualEdition {
         ManualSegmenter segInstance = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
         
         if (segInstance==null) {
+            Utils.displayTemporaryMessage("No manual segmenter found", 10000);
             logger.warn("No manual segmenter found for structure: {}", structureIdx);
             return;
         }
@@ -347,6 +363,7 @@ public class ManualEdition {
         if (points!=null && !points.isEmpty()) {
             String[] positions = points.keySet().stream().map(SegmentedObject::getPositionName).distinct().toArray(String[]::new);
             if (positions.length>1) throw new IllegalArgumentException("All points should come from same parent");
+            if (!canEdit(positions[0], db)) return;
             ensurePreFilteredImages(points.keySet().stream().map(p->p.getParent(parentStructureIdx)).distinct(), structureIdx, db.getExperiment(), db.getDao(positions[0]));
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
             HashMap<SegmentedObject, TrackConfigurer> parentThMapParam = new HashMap<>();
@@ -486,9 +503,11 @@ public class ManualEdition {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.isEmpty()) return;
         if (db==null) test = true;
+        if (!canEdit(objects.stream(), db)) return;
         Experiment xp = db!=null ? db.getExperiment() : getAccessor().getExperiment(objects.iterator().next());
         ObjectSplitter splitter = defaultSplitter==null ? xp.getStructure(structureIdx).getObjectSplitter() : defaultSplitter;
         if (splitter==null) {
+            Utils.displayTemporaryMessage("No splitter found for interactif object class", 10000);
             logger.warn("No splitter configured");
             return;
         }
@@ -573,6 +592,7 @@ public class ManualEdition {
 
     public static void mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
+        if (!canEdit(objects.stream(), db)) return;
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         SegmentedObjectFactory factory = getFactory(structureIdx);
         List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor);
@@ -606,6 +626,7 @@ public class ManualEdition {
         if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks();
     }
     public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean updateDisplay) {
+        if (!canEdit(objects.stream(), db)) return;
         Map<Integer, List<SegmentedObject>> objectsByStructureIdx = SegmentedObjectUtils.splitByStructureIdx(objects);
         for (int structureIdx : objectsByStructureIdx.keySet()) {
             SegmentedObjectEditor.deleteObjects(db, objects, mergeTracks, getFactory(structureIdx), getEditor(structureIdx, new HashSet<>()));
@@ -634,6 +655,7 @@ public class ManualEdition {
         for (String f : db.getExperiment().getPositionsAsString()) repairLinksForField(db, f, structureIdx);
     }
     public static void repairLinksForField(MasterDAO db, String fieldName, int structureIdx) {
+        if (!canEdit(fieldName, db)) return;
         logger.debug("repairing field: {}", fieldName);
         boolean allowSplit = db.getExperiment().getStructure(structureIdx).allowSplit();
         boolean allowMerge = db.getExperiment().getStructure(structureIdx).allowMerge();
@@ -698,6 +720,7 @@ public class ManualEdition {
     
     public static void deleteAllObjectsFromFrame(MasterDAO db, boolean after) {
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        if (!canEdit(selList.stream(), db)) return;
         if (!selList.isEmpty()) {
             SegmentedObject first = Collections.min(selList, (o1, o2) -> Integer.compare(o1.getFrame(), o2.getFrame()));
             List<SegmentedObject> toDelete = Pair.unpairKeys(ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface().getObjects());

@@ -944,9 +944,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         logger.info("Dataset found in db: {} ", db.getDBName());
         if (db.isConfigurationReadOnly()) {
+            logger.warn("Config file could not be locked");
             GUI.log(dbName+ ": Config file could not be locked. Dataset already open ? Dataset will be open in Read Only mode: all modifications on configuration or selections won't be saved. ");
             GUI.log("To open in read and write mode, close all other instances and re-open the dataset. ");
         } else {
+            logger.debug("Config file could be locked");
            setMessage("Dataset: "+db.getDBName()+" open");
         }
         updateConfigurationTree();
