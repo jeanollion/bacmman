@@ -160,6 +160,18 @@ public class SNR extends IntensityMeasurement implements Hint {
         //logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
         return getValue(getForeValue(fore), getBackValue(iParent), iParent.sd);
     }
+    public double[] getBackgroundMeanSD(Region foregroundRegion) {
+        if (core==null) synchronized(this) {
+            if (core==null) {
+                setUpOrAddCore(null, null);
+            }
+        }
+        Region parentObject;
+        if (foregroundMapBackground==null || foregroundRegion==null) parentObject = super.parent.getRegion();
+        else parentObject=this.foregroundMapBackground.get(foregroundRegion);
+        IntensityMeasurementCore.IntensityMeasurements iParent = super.core.getIntensityMeasurements(parentObject);
+        return new double[]{iParent.mean, iParent.sd};
+    }
     protected double getBackValue(IntensityMeasurementCore.IntensityMeasurements back) {
         switch (backgroundFormula.getSelectedEnum()) {
             case MEAN:

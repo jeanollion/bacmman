@@ -40,8 +40,13 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     protected IntensityMeasurementCore core;
     protected ObjectClassParameter intensity = new ObjectClassParameter("Intensity").setAutoConfiguration(ObjectClassParameter.defaultAutoConfiguration()).setHint("The channel image associated to the selected object class will be used for the intensity measurement");
     protected Image intensityMap;
+    protected boolean usePreFilteredImage = false;
     public IntensityMeasurement setIntensityStructure(int structureIdx) {
         this.intensity.setSelectedClassIdx(structureIdx);
+        return this;
+    }
+    public IntensityMeasurement setUsePreFilteredImage() {
+        this.usePreFilteredImage = true;
         return this;
     }
     @Override
@@ -52,7 +57,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         super.setUp(parent, childStructureIdx, childPopulation);
         this.parent=parent;
         if (intensity.getSelectedIndex()==-1) intensity.setSelectedIndex(childStructureIdx);
-        this.intensityMap=parent.getRawImage(intensity.getSelectedIndex());
+        this.intensityMap=usePreFilteredImage ? parent.getPreFilteredImage(intensity.getSelectedIndex()) : parent.getRawImage(intensity.getSelectedIndex());
         if (this.intensity==null) throw new RuntimeException("Could not open raw image of object class "+intensity.getSelectedIndex()+". Maybe experiment structure was modified after pre-processing was run ? ");
         return this;
     }
