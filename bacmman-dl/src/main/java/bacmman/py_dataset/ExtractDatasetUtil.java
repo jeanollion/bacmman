@@ -8,6 +8,7 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
+import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
@@ -56,7 +57,7 @@ public class ExtractDatasetUtil {
             }
             for (String position : sel.getAllPositions()) {
                 logger.debug("position: {}", position);
-                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc ->  ExtractDatasetUtil.getResampledPopMap(oc, false, dimensions, eraseTouchingContours.test(oc)));
+                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc ->  ExtractDatasetUtil.getResampledPopMap(oc, dimensions, eraseTouchingContours.test(oc)));
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
                 boolean saveLabels = true;
                 for (Triplet<String, FeatureExtractor, Integer> feature : features) {
@@ -128,15 +129,15 @@ public class ExtractDatasetUtil {
         });
         writer.close();
     }
-    public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, boolean shortMask, int[] dimensions, boolean eraseTouchingContours) {
+    public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, int[] dimensions, boolean eraseTouchingContours) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> {
             Image mask = o.getChildRegionPopulation(objectClassIdx, false).getLabelMap();
             ImageInteger maskR;
-            if (shortMask) {
-                if (!(mask instanceof ImageShort) || mask.sizeX()!=dimensions[0] || mask.sizeY()!=dimensions[1]) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
+            if (mask instanceof ImageShort) {
+                if (mask.sizeX()!=dimensions[0] || mask.sizeY()!=dimensions[1]) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
                 else maskR = (ImageShort) mask.resetOffset();
             } else {
-                if (!(mask instanceof ImageByte) || mask.sizeX()!=dimensions[0] || mask.sizeY()!=dimensions[1]) maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
+                if (mask.sizeX()!=dimensions[0] || mask.sizeY()!=dimensions[1]) maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
                 else maskR = (ImageByte)mask.resetOffset();
             }
             RegionPopulation res = new RegionPopulation(maskR, true);
@@ -175,12 +176,12 @@ public class ExtractDatasetUtil {
         extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions);
     }
     public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions) {
-
         if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
             int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
             if (images.stream().anyMatch(i->i.getBitDepth()!=maxBD)) {
                 if (maxBD==32) scaleMode = SCALE_MODE.TO_FLOAT;
                 else scaleMode = SCALE_MODE.TO_SHORT;
+                logger.debug("Scale mode changed to : {} (max BD: {})", scaleMode, maxBD);
             }
         }
 
