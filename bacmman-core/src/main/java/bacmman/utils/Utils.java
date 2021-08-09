@@ -95,6 +95,7 @@ public class Utils {
         return toMapWithNullValues(stream, keyMapper, valueMapper, allowNullValues, null);
     }
     public static <T, K, U> Map<K, U> toMapWithNullValues(Stream<T> stream, Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, boolean allowNullValues, MultipleException exceptionCollector) {
+        if (stream==null) return Collections.emptyMap();
         if (allowNullValues && exceptionCollector==null) return stream.collect(HashMap::new, (m, e)->m.put(keyMapper.apply(e), valueMapper.apply(e)), HashMap::putAll);
         return stream.collect(HashMap::new, (m, e)->{
             K k = keyMapper.apply(e);
