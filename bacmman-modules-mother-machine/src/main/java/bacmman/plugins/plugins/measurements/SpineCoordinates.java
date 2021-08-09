@@ -44,6 +44,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  *
@@ -96,14 +97,15 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
         List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead, false);
         Map<SegmentedObject, SegmentedObject> spotMapBacteria = new ConcurrentHashMap<>();
         parentTrack.parallelStream().forEach(parent -> {
-            Map<SegmentedObject, SegmentedObject> sMb = parent.getChildren(spot.getSelectedClassIdx()).collect(Collectors.toMap(Function.identity(), oo->getContainer(oo.getRegion(), parent.getChildren(bacteria.getSelectedClassIdx()), null)));
-            spotMapBacteria.putAll(sMb);
+            Stream<SegmentedObject> stream = parent.getChildren(spot.getSelectedClassIdx());
+            Map<SegmentedObject, SegmentedObject> sMb = Utils.toMapWithNullValues(stream, Function.identity(), oo -> getContainer(oo.getRegion(), parent.getChildren(bacteria.getSelectedClassIdx()), null), false);
+            if (sMb!=null) spotMapBacteria.putAll(sMb);
         });
         Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = new HashSet<>(spotMapBacteria.values()).parallelStream().collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()) ));
         Utils.parallele(spotMapBacteria.entrySet().stream(), parallel).forEach(e-> {
             Point center = e.getKey().getRegion().getCenter();
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
-            BacteriaSpineCoord coord = bacteriaMapLocalizer.get(e.getValue()).getSpineCoord(center);
+            BacteriaSpineCoord coord = e.getValue()==null? null : bacteriaMapLocalizer.get(e.getValue()).getSpineCoord(center);
             if (coord==null) {
                 e.getKey().getMeasurements().setValue("SpineCoord", null);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", null);
