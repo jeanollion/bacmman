@@ -107,17 +107,17 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
             BacteriaSpineCoord coord = e.getValue()==null? null : bacteriaMapLocalizer.get(e.getValue()).getSpineCoord(center);
             if (coord==null) {
-                e.getKey().getMeasurements().setValue("SpineCoord", null);
+                e.getKey().getMeasurements().setValue("SpineCurvilinearCoord", null);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", null);
                 e.getKey().getMeasurements().setValue("SpineLength", null);
                 if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue("SpineLength", null); // also set to bacteria
                 e.getKey().getMeasurements().setValue("SpineRadius", null);
             } else {
-                e.getKey().getMeasurements().setValue("SpineCoord", coord.curvilinearCoord(false)*scale);
+                e.getKey().getMeasurements().setValue("SpineCurvilinearCoord", coord.curvilinearCoord(false)*scale);
                 e.getKey().getMeasurements().setValue("SpineRadialCoord", coord.radialCoord(false)*scale);
                 e.getKey().getMeasurements().setValue("SpineLength", coord.spineLength()*scale);
                 if (setSpineLengthToParent.getSelected()) e.getValue().getMeasurements().setValue("SpineLength", coord.spineLength()*scale); // also set to bacteria
-                e.getKey().getMeasurements().setValue("SpineRadius", coord.spineLength()*scale); // radius at spot position
+                e.getKey().getMeasurements().setValue("SpineRadius", coord.spineRadius()*scale); // radius at spot position
             }
         });
     }
