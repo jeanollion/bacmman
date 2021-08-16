@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.processing.*;
 import bacmman.processing.neighborhood.ConicalNeighborhood;
 import bacmman.processing.neighborhood.CylindricalNeighborhood;
@@ -76,7 +77,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
     NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode");
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
-    enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER}
+    enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER, PER_FRAME_CENTER}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. Backgroun threshold within the cell is determined by applying BackgroundThresholder to I within the cell. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN");
 
     boolean planeByPlane = false;
@@ -231,7 +232,10 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, int minSpotSize, double thresholdSeeds, double thresholdPropagation, double intensityThreshold, NORMALIZATION_MODE normMode) {
         Arrays.sort(scale);
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        if (this.parentSegTHMapmeanAndSigma!=null) pv.ms = parentSegTHMapmeanAndSigma.get(((SegmentedObject)parent).getTrackHead());
+        if (this.parentMapMeanAndSigma !=null) {
+            pv.ms = parentMapMeanAndSigma.get(parent.getParent());
+            //logger.debug("set mean sd @ frame: {} = {}", parent.getFrame(), this.pv.ms);
+        }
         this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue(), normMode) ;
         if (pv.smooth==null || pv.getLaplacianMap()==null) throw new RuntimeException("Mutation Segmenter not parametrized");//setMaps(computeMaps(input, input));
         
@@ -441,42 +445,21 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     @Override
     public TrackConfigurer<SpotSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Map<SegmentedObject, Image[]> parentMapImages = parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p->computeMaps(p.getRawImage(structureIdx), p.getPreFilteredImage(structureIdx))));
-        // get scaling per segmentation parent track
         int segParent = parentTrack.iterator().next().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
-        int parentIdx = parentTrack.iterator().next().getStructureIdx();
-        Map<SegmentedObject, List<SegmentedObject>> segParentTracks = SegmentedObjectUtils.getAllTracks(parentTrack, segParent);
-        Function<List<SegmentedObject>, DoubleStream> valueStream = t -> {
-            DoubleStream[] ds = t.stream().map(so-> so.getParent(parentIdx).getPreFilteredImage(structureIdx).stream(so.getMask(), true)).toArray(s->new DoubleStream[s]);
-            return StreamConcatenation.concat(ds);
-        };
-        /*
-        // TODO IF A track normalization is used -> set allowSubset to false
-        // compute background per track -> not very effective because background can vary within track. To do -> sliding mean ?
-        Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma = segParentTracks.values().stream().parallel().collect(Collectors.toMap(t->t.get(0), t -> {
-            //DoubleStatistics ds = DoubleStatistics.getStats(valueStream.apply(t));
-            //logger.debug("track: {}: mean: {}, sigma: {}", t.get(0), ds.getAverage(), ds.getStandardDeviation());
-            //return new double[]{ds.getAverage(), ds.getStandardDeviation()}; // get mean & std 
-            // TEST  backgroundFit / background thlder
-            double[] ms = new double[2];
-            if (t.size()>2) {
-                Histogram histo = HistogramFactory.getHistogram(()->valueStream.apply(t), HistogramFactory.BIN_SIZE_METHOD.AUTO);
-                try {
-                    BackgroundFit.backgroundFit(histo, 0, ms);
-                } catch(Throwable e) { }
-                if (stores!=null && t.get(0).getFrame()==0) {
-                    histo.plotIJ1("values of track: "+t.get(0)+" (length: "+t.size()+ " total values: "+valueStream.apply(t).count()+")" + " mean: "+ms[0]+ " std: "+ms[1], true);
-                }
-            }
-            if (ms[1]==0) {
-                DoubleStatistics ds = DoubleStatistics.getStats(valueStream.apply(t));
-                ms[0] = ds.getAverage();
-                ms[1] = ds.getStandardDeviation();
-            }
-            return ms;
-        }));
-        */
+        logger.debug("track config: norm mode: {}", normMode.getSelectedEnum());
+        Map<SegmentedObject, double[]> parentMapMeanAndSigma = NORMALIZATION_MODE.PER_FRAME_CENTER.equals(normMode.getSelectedEnum()) ? parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p -> {
+            SNR snr = new SNR();
+            snr.setUsePreFilteredImage();
+            RegionPopulation bactPop = p.getChildRegionPopulation(segParent);
+            if (bactPop.getRegions().isEmpty()) return new double[0];
+            snr.setUp(p, structureIdx, bactPop);
+            if (p.getFrame()<10) logger.info("PER FRAME NORM: F= {} mean sd = {}", p.getFrame(), snr.getBackgroundMeanSD(bactPop.getRegions().get(0)));
+            //return snr.getBackgroundMeanSD(bactPop.getRegions().get(0));
+            return new double[]{snr.getBackgroundMeanSD(bactPop.getRegions().get(0))[0], 1};
+        })) : null;
+
         return (p, s) -> {
-            //s.parentSegTHMapmeanAndSigma = parentSegTHMapmeanAndSigma;
+            s.parentMapMeanAndSigma = parentMapMeanAndSigma;
             s.setMaps(parentMapImages.get(p));
         };
     }
@@ -486,7 +469,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
 
-    Map<SegmentedObject, double[]> parentSegTHMapmeanAndSigma;
+    Map<SegmentedObject, double[]> parentMapMeanAndSigma;
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
         double[] scale = getScale();
         double smoothScale = this.smoothScale.getValue().doubleValue();
