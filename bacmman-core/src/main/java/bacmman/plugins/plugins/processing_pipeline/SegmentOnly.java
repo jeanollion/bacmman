@@ -47,7 +47,7 @@ import static bacmman.utils.ThreadRunner.safeMap;
  *
  * @author Jean Ollion
  */
-public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> implements Hint {
+public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> implements ProcessingPipelineWithSegmenter, Hint {
     protected PluginParameter<Segmenter> segmenter = new PluginParameter<>("Segmentation algorithm", Segmenter.class, false);
     Parameter[] parameters = new Parameter[]{preFilters, trackPreFilters, segmenter, postFilters};
     
@@ -65,6 +65,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         this.segmenter.setPlugin(segmenter);
         if (p!=null) this.segmenter.setParent(p);
     }
+
     public SegmentOnly(PluginParameter<Segmenter> segmenter) {
         this.segmenter=segmenter;
     }
@@ -174,6 +175,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     public Parameter[] getParameters() {
         return parameters;
     }
+    @Override
     public Segmenter getSegmenter() {return segmenter.instantiatePlugin();}
 
     public ObjectSplitter getObjectSplitter() {

@@ -30,6 +30,7 @@ import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.processing_pipeline.ProcessingPipelineWithSegmenter;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 import bacmman.ui.gui.image_interaction.*;
@@ -109,10 +110,12 @@ public class PluginConfigurationUtils {
             boolean pf = plugin instanceof PostFilter;
             parentTrackDup.forEach(p->stores.get(p).addIntermediateImage(pf ? "after segmentation": "input raw image", p.getRawImage(structureIdx))); // add input image
             Segmenter segmenter= null;
-            if (psc instanceof SegmentOnly) segmenter = ((SegmentOnly)psc).getSegmenter();
-            else if (psc instanceof SegmentThenTrack) segmenter = ((SegmentThenTrack)psc).getSegmenter();
-
-            if (segmenter == null) {
+            if (psc instanceof ProcessingPipelineWithSegmenter) segmenter = ((ProcessingPipelineWithSegmenter)psc).getSegmenter();
+            else if (pf) {
+                GUI.log("WARNING: Cannot test post-filter only with this processing pipeline");
+                return storeList;
+            }
+            if (segmenter == null && !pf) {
                 GUI.log("WARNING: Segmentation may differ from the context of selected pipeline");
                 segmenter = (Segmenter)plugin;
             }
