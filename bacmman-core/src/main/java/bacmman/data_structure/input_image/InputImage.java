@@ -28,6 +28,8 @@ import java.util.Iterator;
 
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Transformation;
+import bacmman.plugins.TransformationNoInput;
+import bacmman.plugins.plugins.transformations.CopyTo;
 
 /**
  *
@@ -89,7 +91,7 @@ public class InputImage {
         return false;
     }
     public Image getImage() {
-        if (image == null) {
+        if (image == null && requiresInputImage()) {
             synchronized (this) {
                 if (image==null) {
                     if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame, microscopyFieldName); //try to open from DAO
@@ -112,7 +114,10 @@ public class InputImage {
         if (image!=null) image=null;
         //imageSources.close();
     }
-    
+    private boolean requiresInputImage() {
+        if (transformationsToApply.size()>=1 && transformationsToApply.get(0) instanceof TransformationNoInput) return false;
+        return true;
+    }
     private void applyTransformations() {
         if (transformationsToApply!=null && !transformationsToApply.isEmpty()) {
             synchronized(transformationsToApply) {
@@ -121,7 +126,7 @@ public class InputImage {
                 Iterator<Transformation> it = transformationsToApply.iterator();
                 while(it.hasNext()) {
                     Transformation t = it.next();
-                    image =t.applyTransformation(channelIdx, frame, image);
+                    image = t.applyTransformation(channelIdx, frame, image);
                     it.remove();
                 }
             }

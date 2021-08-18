@@ -34,18 +34,14 @@ import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
 import bacmman.image.io.KymographFactory;
 import bacmman.measurement.MeasurementKey;
-import bacmman.plugins.HistogramScaler;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 
 import java.util.*;
 import java.util.Map.Entry;
 
-import bacmman.plugins.ConfigurableTransformation;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.MultiThreaded;
-import bacmman.plugins.Transformation;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.StreamConcatenation;
@@ -54,7 +50,6 @@ import bacmman.utils.Utils;
 
 import java.util.function.Function;
 import java.util.stream.Stream;
-import bacmman.plugins.ProcessingPipeline;
 
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
@@ -144,7 +139,7 @@ public class Processor {
                 if (pcb!=null) pcb.incrementSubTask();
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
-            if (i<transfos.size()-1 && Utils.getMemoryUsageProportion()>memoryLimit) {
+            if (i<transfos.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // copyTo is a special case where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
                 //if (pcb!=null) pcb.log(Utils.getMemoryUsage() + "limit is set to "+memoryLimit+" -> saving temporarily images to disk");
                 logger.debug("{} -> performing temp save & close", Utils.getMemoryUsage());
                 images.applyTranformationsAndSave(true, true);
