@@ -391,6 +391,7 @@ public class PluginConfigurationUtils {
                     performTest.accept(false);
                 }
             });
+            if (!(xp.getStructure(objectClassIdx).getProcessingScheme() instanceof ProcessingPipelineWithSegmenter)) item.setEnabled(false);
             res.add(item);
         } else if (plugin instanceof TrackPostFilter) {
             JMenuItem segTrack = new JMenuItem("Test Track Post-Filter");
