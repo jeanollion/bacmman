@@ -202,7 +202,7 @@ public class ConfigurationIO {
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateRemoteSelector();
-            remoteSelector.setSelectedGist(toSave);
+            remoteSelector.setSelectedGist(toSave, -1);
         });
         deleteRemote.addActionListener(e -> {
             if (remoteSelector == null || !loggedIn) return;
@@ -238,13 +238,13 @@ public class ConfigurationIO {
                     case PROCESSING: {
                         Experiment xp = gist.getExperiment();
                         int sIdx = remoteSelector.getSelectedGistNode().getObjectClassIdx();
-                        xp.getStructure(sIdx).getProcessingPipelineParameter().initFromJSONEntry(content);
+                        xp.getStructure(sIdx).getProcessingPipelineParameter().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
                         content = xp.toJSONEntry();
                         break;
                     }
                     case PRE_PROCESSING: {
-                        Experiment xp = gist.getExperiment().duplicate();
-                        xp.getPreProcessingTemplate().initFromJSONEntry(content);
+                        Experiment xp = gist.getExperiment();
+                        xp.getPreProcessingTemplate().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
                         content = xp.toJSONEntry();
                         break;
                     }
@@ -333,7 +333,7 @@ public class ConfigurationIO {
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateRemoteSelector();
-            remoteSelector.setSelectedGist(toSave);
+            remoteSelector.setSelectedGist(toSave, -1);
         });
 
         // persistence of username account:
@@ -543,6 +543,7 @@ public class ConfigurationIO {
         }
         if (gists == null) fetchGists();
         GistConfiguration lastSel = remoteSelector == null ? null : remoteSelector.getSelectedGist();
+        int selectedOC = remoteSelector != null && GistConfiguration.TYPE.PROCESSING.equals(currentMode) ? remoteSelector.getSelectedGistOC() : -1;
         if (remoteSelector != null) remoteSelector.flush();
         remoteSelector = new ConfigurationGistTreeGenerator(gists, currentMode, gist -> {
             if (gist != null) {
@@ -583,7 +584,7 @@ public class ConfigurationIO {
         });
         remoteSelectorJSP.setViewportView(remoteSelector.getTree());
         if (lastSel != null) {
-            remoteSelector.setSelectedGist(lastSel);
+            remoteSelector.setSelectedGist(lastSel, selectedOC);
             remoteSelector.displaySelectedConfiguration();
         }
     }

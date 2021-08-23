@@ -168,6 +168,7 @@ public class NewDatasetFromGithub extends JDialog {
     private void updateRemoteSelector() {
         if (gists == null) fetchGists();
         GistConfiguration lastSel = remoteSelector == null ? null : remoteSelector.getSelectedGist();
+        int selectedOC = remoteSelector == null ? -1 : remoteSelector.getSelectedGistOC();
         if (remoteSelector != null) remoteSelector.flush();
         remoteSelector = new ConfigurationGistTreeGenerator(gists, GistConfiguration.TYPE.WHOLE, gist -> {
             if (gist != null) selectedXP = gist.gist.getContent();
@@ -176,7 +177,7 @@ public class NewDatasetFromGithub extends JDialog {
         });
         remoteSelectorJSP.setViewportView(remoteSelector.getTree());
         if (lastSel != null) {
-            remoteSelector.setSelectedGist(lastSel);
+            remoteSelector.setSelectedGist(lastSel, selectedOC);
             remoteSelector.displaySelectedConfiguration();
         }
 

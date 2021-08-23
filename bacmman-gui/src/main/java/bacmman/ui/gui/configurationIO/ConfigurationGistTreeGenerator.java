@@ -78,6 +78,13 @@ public class ConfigurationGistTreeGenerator {
         if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent()).gist;
         else return null;
     }
+    public int getSelectedGistOC() {
+        if (tree==null) return -1;
+        TreePath path = tree.getSelectionPath();
+        if (path==null) return -1;
+        if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent()).objectClassIdx;
+        else return -1;
+    }
     public GistTreeNode getSelectedGistNode() {
         if (tree==null) return null;
         TreePath path = tree.getSelectionPath();
@@ -86,11 +93,11 @@ public class ConfigurationGistTreeGenerator {
         else return null;
     }
 
-    public void setSelectedGist(GistConfiguration gist) {
+    public void setSelectedGist(GistConfiguration gist, int selectedOC) {
         TreeNode root = (TreeNode)tree.getModel().getRoot();
         TreeNode folder = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(gist.folder)).findAny().orElse(null);
         if (folder==null) return;
-        GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.gist.name.equals(gist.name)).findAny().orElse(null);
+        GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.gist.name.equals(gist.name) && (g.objectClassIdx==selectedOC) ).findAny().orElse(null);
         if (element==null) return;
         tree.setSelectionPath(new TreePath(new Object[]{root, folder, element}));
     }
