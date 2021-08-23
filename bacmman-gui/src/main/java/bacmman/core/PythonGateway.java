@@ -142,6 +142,7 @@ public class PythonGateway {
             savedSel.setIsDisplayingTracks(showTracks);
             savedSel.setHighlightingTracks(true);
             savedSel.setNavigate(true);
+            GUI.getInstance().getSelections().stream().filter(s -> !s.getName().equals(res.getName())).forEach(s->s.setNavigate(false));
 
             if (openWholeSelection) {
                 // limit to 200 objects
