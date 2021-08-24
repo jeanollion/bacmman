@@ -121,7 +121,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                 pop.translate(parent.getBounds().duplicate().reverseOffset(), false); // go back to relative landmark for post-filter
             }
             bacmman.plugins.PostFilter instance = filter.instantiatePlugin();
-            if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
+            if (instance instanceof TestableProcessingPlugin && stores!=null) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
             pop=instance.runPostFilter(parent, structureIdx, pop);
             if (!rootParent) {
                 Offset off = parent.getBounds();
@@ -145,18 +145,13 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                     newRegions.remove(nIdx);
                 } else ++idx; // no matching region
             }
-            /*if (pop.getRegions().size()==children.size()) { // map each object by index
-                for (int i = 0; i<pop.getRegions().size(); ++i) {
-                    factory.setRegion(children.get(i), pop.getRegions().get(i));
-                }
-            }*/
             // then if there are unmapped objects -> map by overlap
             if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
                 MaxOverlapMatcher<Region> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.regionOverlap(null, null));
                 Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> oldMaxOverlap = new HashMap<>();
                 Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> newMaxOverlap = new HashMap<>();
                 List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-                matcher.match(oldR, pop.getRegions(), oldMaxOverlap, newMaxOverlap);
+                matcher.match(oldR, newRegions, oldMaxOverlap, newMaxOverlap);
                 for (SegmentedObject o : children) {
                     MaxOverlapMatcher<Region>.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
                     if (maxNew==null) {
@@ -164,30 +159,30 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                         toRemove.add(o);
                     } else {
                         factory.setRegion(o, maxNew.o2);
+                        newRegions.remove(maxNew.o2);
                     }
                 }
-                if (!oldMaxOverlap.isEmpty()) { // creation of new segmented objects
-                    throw new RuntimeException("Object creation not supported");
-                }
-                /*for (SegmentedObject o : children) {
-                    int idx = pop.getRegions().indexOf(o.getRegion());
-                    if (idx<0) {
-                        if (toRemove==null) toRemove= new ArrayList<>();
-                        toRemove.add(o);
-                    } else {
-                        factory.setRegion(o, pop.getRegions().get(idx));
-                    }
-                }*/
             } else if (!children.isEmpty()) {
                 toRemove=children;
-            } else if (!newRegions.isEmpty()) throw new RuntimeException("Object creation not supported (2)");
+            }
+            if (!newRegions.isEmpty()) { // create unmatched objects // TODO untested
+                Stream<SegmentedObject> s = parent.getChildren(structureIdx);
+                List<SegmentedObject> newChildren = s==null ? new ArrayList<>(newRegions.size()) : s.collect(Collectors.toList());
+                int startLabel = newChildren.stream().mapToInt(o->o.getRegion().getLabel()).max().orElse(0)+1;
+                logger.debug("creating {} objects starting from label: {}", newRegions, startLabel);
+                for (Region r : newRegions) {
+                    SegmentedObject o =  new SegmentedObject(parent.getFrame(), structureIdx, startLabel++, r, parent);
+                    newChildren.add(o);
+                }
+                factory.setChildren(parent, children);
+                factory.relabelChildren(parent);
 
+            }
             if (toRemove!=null) {
                 synchronized(objectsToRemove) {
                     objectsToRemove.addAll(toRemove);
                 }
             }
-             // TODO ABLE TO INCLUDE POST-FILTERS THAT CREATE NEW OBJECTS -> CHECK INTERSECTION INSTEAD OF OBJECT EQUALITY
             
         };
         try {

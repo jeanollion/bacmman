@@ -398,6 +398,7 @@ public class RegionPopulation {
         }
         objects.addAll(addedObjects);
         relabel(true);
+        getLabelMap();
         constructObjects(); // updates bounds of objects
         return this;
     }
@@ -459,6 +460,7 @@ public class RegionPopulation {
         }
         objects.addAll(addedObjects);
         relabel(true);
+        getLabelMap();
         constructObjects(); // updates bounds of objects
         return this;
     }
@@ -488,6 +490,7 @@ public class RegionPopulation {
         }
         objects.addAll(addedObjects);
         relabel(true);
+        getLabelMap();
         constructObjects(); // updates bounds of objects
         return this;
     }
@@ -638,7 +641,7 @@ public class RegionPopulation {
         if (getRegions().isEmpty()) return;
         for (Region o : getRegions()) o.setLabel(1);
         this.relabel(false);
-        objects.clear();
+        getLabelMap();
         constructObjects();
     }
     public void mergeAllConnected() {
