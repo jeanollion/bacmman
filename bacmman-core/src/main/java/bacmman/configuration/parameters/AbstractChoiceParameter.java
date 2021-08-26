@@ -28,8 +28,8 @@ import java.util.function.Function;
  * @param <P>
  */
 
-public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, Listenable<P> {
-    String selectedItem;
+public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, ParameterWithLegacyInitialization, Listenable<P> {
+    String selectedItem, legacyInitItem;
     protected String[] listChoice;
     boolean allowNoSelection;
     private int selectedIndex=-2;
@@ -43,7 +43,14 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         this.allowNoSelection=allowNoSelection;
         this.mapper = mapper;
     }
-    
+    public P setLegacyInitializationValue(String value) {
+        this.legacyInitItem = value;
+        return (P)this;
+    }
+    @Override
+    public void legacyInit() {
+        if (legacyInitItem !=null) this.setSelectedItem(legacyInitItem);
+    }
     public String getSelectedItem() {return selectedItem;}
     public int getSelectedIndex() {
         return selectedIndex;

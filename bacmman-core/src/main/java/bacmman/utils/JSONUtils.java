@@ -20,20 +20,12 @@ package bacmman.utils;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.ParameterWithLegacyInitialization;
 import bacmman.data_structure.Measurements;
-import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.data_structure.Selection;
-import bacmman.data_structure.SegmentedObject;
 
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.json.simple.JSONArray;
@@ -281,6 +273,7 @@ public class JSONUtils {
     private static <P extends Parameter> boolean initParameterMap(List<P> list, JSONArray json) {
         int count = 0;
         Map<String, P> receiveMap = list.stream().collect(Collectors.toMap(Parameter::getName, Function.identity()));
+        Set<P> initP = new HashSet<>();
         //logger.debug("init param map: receive map: {}, json: {}", list, json);
         for (Object o : json) {
             if (!(o instanceof JSONObject)) {
@@ -293,11 +286,15 @@ public class JSONUtils {
                 try {
                     r.initFromJSONEntry(e.getValue());
                     ++count;
+                    initP.add((P)r);
                 } catch(Throwable ex) {
                     logger.error("Error While initializing parameter: {} (class: {}) with: {}", r, r.getClass(), e);
                     logger.error("Error while init:" ,ex);
                 }
             }
+        }
+        if (count<list.size()) {
+            list.stream().filter(p->p instanceof ParameterWithLegacyInitialization).map(p->(ParameterWithLegacyInitialization)p).filter(p->!initP.contains(p)).forEach(ParameterWithLegacyInitialization::legacyInit);
         }
         return count==json.size()||count==list.size();
     }

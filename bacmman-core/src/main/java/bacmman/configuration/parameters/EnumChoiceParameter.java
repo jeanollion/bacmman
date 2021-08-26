@@ -45,7 +45,10 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         this.enumChoiceList=enumChoiceList;
         this.toString = Enum::toString;
     }
-
+    public EnumChoiceParameter<E> setLegacyInitializationValue(E item) {
+        this.setLegacyInitializationValue(toString.apply(item));
+        return this;
+    }
     @Override public EnumChoiceParameter<E> duplicate() {
         EnumChoiceParameter<E> res = new EnumChoiceParameter<E>(name, enumChoiceList ,getSelectedEnum(), toString);
         res.setListeners(listeners);

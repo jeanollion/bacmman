@@ -29,8 +29,8 @@ import java.util.Locale;
  *
  * @author Jean Ollion
  */
-public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl<P> implements Listenable<P>, OpParameter<P> {
-    Number value;
+public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl<P> implements Listenable<P>, OpParameter<P>, ParameterWithLegacyInitialization {
+    Number value, legacyInitValue;
     int decimalPlaces;
     
     public NumberParameter(String name, int decimalPlaces) {
@@ -41,6 +41,11 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     public NumberParameter(String name, int decimalPlaces, Number defaultValue) {
         this(name, decimalPlaces);
         this.value=defaultValue;
+    }
+
+    public P setLegacyInitializationValue(Number legacyInitializationValue) {
+        this.legacyInitValue=legacyInitializationValue;
+        return (P)this;
     }
 
     public int getDecimalPlaceNumber() {
@@ -113,5 +118,10 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
         DecimalFormat df = (DecimalFormat)NumberFormat.getInstance(Locale.US);
         df.setMaximumFractionDigits(digits);
         return df.format(n);
+    }
+
+    @Override
+    public void legacyInit() {
+        if (this.legacyInitValue!=null) this.value = decimalPlaces>=1 ? legacyInitValue.doubleValue() : legacyInitValue.longValue();
     }
 }
