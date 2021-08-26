@@ -79,9 +79,11 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER, PER_FRAME_CENTER}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. Backgroun threshold within the cell is determined by applying BackgroundThresholder to I within the cell. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN");
+    enum QUALITY_FORMULA {GL, G, L}
+    EnumChoiceParameter<QUALITY_FORMULA> qualityFormula = new EnumChoiceParameter<>("Quality Formula", QUALITY_FORMULA.values(), QUALITY_FORMULA.GL).setHint("Formula for quality feature. <br />GL : sqrt(Gaussian x Laplacian). G: Gaussian. L: Laplacian. <br /> Gaussian (resp. Laplacian) correspond to the value of the Gaussian (resp Laplacian) transform at the center of the spot");
 
     boolean planeByPlane = false;
-    Parameter[] parameters = new Parameter[]{scale, smoothScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold, normMode};
+    Parameter[] parameters = new Parameter[]{scale, smoothScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold, normMode, qualityFormula};
     ProcessingVariables pv = new ProcessingVariables();
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected using a seeded watershed algorithm applied on the Laplacian transform.</li> "
@@ -278,7 +280,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         SubPixelLocalizator.debug=debug;
         for (int i = 0; i<pops.length; ++i) { // TODO voir si en 3D pas mieux avec gaussian
             int z = i/scale.length;
-            setCenterAndQuality(wsMap[i], smooth, pops[i], z);
+            setCenterAndQuality(wsMap[i], smooth, pops[i], z, qualityFormula.getSelectedEnum());
             for (Region o : pops[i].getRegions()) {
                 if (planeByPlane && lapSPZ.length>1) { // keep track of z coordinate
                     o.setCenter(o.getCenter().duplicate(3)); // adding z dimention
@@ -320,15 +322,29 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         return pop;
     }
     
-    private static void setCenterAndQuality(Image map, Image map2, RegionPopulation pop, int z) {
-        SubPixelLocalizator.setSubPixelCenter(map, pop.getRegions(), true); // lap -> better in case of close objects
+    private static void setCenterAndQuality(Image lap, Image gauss, RegionPopulation pop, int z, QUALITY_FORMULA quality_formula) {
+        SubPixelLocalizator.setSubPixelCenter(lap, pop.getRegions(), true); // lap -> better in case of close objects
         for (Region o : pop.getRegions()) { // quality criterion : sqrt (smooth * lap)
-            if (o.getQuality()==0 || o.getCenter()==null) o.setCenter( o.getMassCenter(map, false)); // localizator didnt work -> use center of mass
-            o.getCenter().ensureWithinBounds(map.getBoundingBox().resetOffset());
+            if (o.getQuality()==0 || o.getCenter()==null) o.setCenter( o.getMassCenter(lap, false)); // localizator didnt work -> use center of mass
+            o.getCenter().ensureWithinBounds(lap.getBoundingBox().resetOffset());
             double zz = o.getCenter().numDimensions()>2?o.getCenter().get(2):z;
             //logger.debug("size : {} set quality: center: {} : z : {}, bounds: {}, is2D: {}", o.getSize(), o.getCenter(), z, wsMap[i].getBoundingBox().translateToOrigin(), o.is2D());
-            if (zz>map.sizeZ()-1) zz=map.sizeZ()-1;
-            o.setQuality(Math.sqrt(map.getPixel(o.getCenter().get(0), o.getCenter().get(1), zz) * map2.getPixel(o.getCenter().get(0), o.getCenter().get(1), zz)));
+            if (zz>lap.sizeZ()-1) zz=lap.sizeZ()-1;
+            double L = lap.getPixel(o.getCenter().get(0), o.getCenter().get(1), zz);
+            double G = gauss.getPixel(o.getCenter().get(0), o.getCenter().get(1), zz);
+            switch (quality_formula) {
+                case GL:
+                default:
+                    o.setQuality(Math.sqrt(G * L));
+                    break;
+                case G:
+                    o.setQuality(G);
+                    break;
+                case L:
+                    o.setQuality(L);
+                    break;
+            }
+
         }
     }
     private static <T extends Image<T>> List<T> arrangeSpAndZPlanes(T[] spZ, boolean ZbyZ) {
@@ -406,7 +422,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         Image smooth = pv.getSmoothedMap();
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(this.thresholdLow.getValue().doubleValue())).fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSpotSize.getValue().intValue())).lowConectivity(false);
         RegionPopulation pop =  WatershedTransform.watershed(lap, parentMask, seedObjects, config);
-        setCenterAndQuality(lap, smooth, pop, 0);
+        setCenterAndQuality(lap, smooth, pop, 0, qualityFormula.getSelectedEnum());
         
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
