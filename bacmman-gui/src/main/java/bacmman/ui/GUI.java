@@ -4069,6 +4069,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         this.db.getSelectionDAO().store(sel);
         populateSelections();
+        if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }//GEN-LAST:event_createSelectionButtonActionPerformed
 
     private void microscopyFieldListMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_microscopyFieldListMousePressed
@@ -4397,6 +4398,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         SelectionUtils.addCurrentObjectsToSelections(selList, db.getSelectionDAO());
         selectionList.updateUI();
         GUI.updateRoiDisplayForSelections(null, null);
+        if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }
     
     public void removeFromSelectionActionPerformed(int selNumber) {
@@ -4405,6 +4407,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         SelectionUtils.removeCurrentObjectsFromSelections(selList, db.getSelectionDAO());
         selectionList.updateUI();
         GUI.updateRoiDisplayForSelections(null, null);
+        if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }
     
     public void removeAllFromSelectionActionPerformed(int selNumber) {
@@ -4413,6 +4416,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         SelectionUtils.removeAllCurrentImageObjectsFromSelections(selList, db.getSelectionDAO());
         selectionList.updateUI();
         GUI.updateRoiDisplayForSelections(null, null);
+        if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
     }
     public void toggleDisplaySelection(int selNumber) {
         if (!this.checkConnection()) return;
