@@ -43,12 +43,10 @@ import bacmman.image.ImageByte;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageMask2D;
-import bacmman.image.Offset;
 import bacmman.image.SimpleOffset;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -65,19 +63,21 @@ import java.util.stream.IntStream;
  */
 public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple {
     public static boolean debug = false;
-    ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setHint("Scale (in pixels) for Laplacian transform. <br />Configuration hint: determines the <em>Laplacian</em> image displayed in test mode");
-    ArrayNumberParameter gaussScale = new ArrayNumberParameter("Smooth Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 5)).setSorted(true).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
+    ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 10)).setSorted(true).setHint("Scale (in pixels) for Laplacian transform. <br />Configuration hint: determines the <em>Laplacian</em> image displayed in test mode");
+    ArrayNumberParameter gaussScale = new ArrayNumberParameter("Smooth Scale", 0, new BoundedNumberParameter("Scale", 1, 1, 0.5, 10)).setSorted(true).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     NumberParameter minSpotSize = new BoundedNumberParameter("Min. Spot Size", 0, 5, 1, null).setHint("Spots under this size (in voxel number) will be removed");
-    NumberParameter thresholdHigh = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
-    NumberParameter thresholdLow = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Laplacian threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode");
-    NumberParameter intensityThreshold = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
+    NumberParameter laplacianThld = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
+    NumberParameter propagationThld = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Lower threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode (or <em>Gaussian</em> if selected as watershed map)");
+    NumberParameter gaussianThld = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER, PER_FRAME_CENTER}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER).setLegacyInitializationValue(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. Backgroun threshold within the cell is determined by applying BackgroundThresholder to I within the cell. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN");
     enum QUALITY_FORMULA {GL, G, L}
     EnumChoiceParameter<QUALITY_FORMULA> qualityFormula = new EnumChoiceParameter<>("Quality Formula", QUALITY_FORMULA.values(), QUALITY_FORMULA.G).setLegacyInitializationValue(QUALITY_FORMULA.GL).setHint("Formula for quality feature. <br />GL : sqrt(Gaussian x Laplacian). G: Gaussian. L: Laplacian. <br /> Gaussian (resp. Laplacian) correspond to the value of the Gaussian (resp Laplacian) transform at the center of the spot");
+    enum WATERSHED_MAP {LAPLACIAN, GAUSSIAN}
+    EnumChoiceParameter<WATERSHED_MAP> watershedMap = new EnumChoiceParameter<>("Watershed Map", WATERSHED_MAP.values(), WATERSHED_MAP.LAPLACIAN).setHint("Feature Map to detect seeds and run watershed transform on.");
 
     boolean planeByPlane = false;
-    Parameter[] parameters = new Parameter[]{scale, gaussScale, minSpotSize, thresholdHigh,  thresholdLow, intensityThreshold, normMode, qualityFormula};
+    Parameter[] parameters = new Parameter[]{scale, gaussScale, minSpotSize, laplacianThld, propagationThld, gaussianThld, normMode, qualityFormula, watershedMap};
     ProcessingVariables pv = new ProcessingVariables();
     protected static String toolTipAlgo = "<br /><br /><em>Algorithmic Details</em>:<ul>"
             + "<li>Spots are detected using a seeded watershed algorithm applied on the Laplacian transform.</li> "
@@ -107,24 +107,24 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public SpotSegmenter() {}
     
     public SpotSegmenter(double thresholdSeeds, double thresholdPropagation, double thresholdIntensity) {
-        this.intensityThreshold.setValue(thresholdIntensity);
-        this.thresholdHigh.setValue(thresholdSeeds);
-        this.thresholdLow.setValue(thresholdPropagation);
+        this.gaussianThld.setValue(thresholdIntensity);
+        this.laplacianThld.setValue(thresholdSeeds);
+        this.propagationThld.setValue(thresholdPropagation);
     }
     
     public SpotSegmenter setThresholdSeeds(double threshold) {
-        this.thresholdHigh.setValue(threshold);
+        this.laplacianThld.setValue(threshold);
         return this;
     }
     
     public SpotSegmenter setThresholdPropagation(double threshold) {
         //this.thresholdLow.setPlugin(new ConstantValue(threshold));
-        this.thresholdLow.setValue(threshold);
+        this.propagationThld.setValue(threshold);
         return this;
     }
     
-    public SpotSegmenter setIntensityThreshold(double threshold) {
-        this.intensityThreshold.setValue(threshold);
+    public SpotSegmenter setGaussianThld(double threshold) {
+        this.gaussianThld.setValue(threshold);
         return this;
     }
     
@@ -133,6 +133,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         return this;
     }
     public double[] getScale() {
+        if (noLaplacian()) return new double[0];
         double[] res = scale.getArrayDouble();
         List<Double> res2 = Utils.toList(res);
         Utils.removeDuplicates(res2, true);
@@ -140,6 +141,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         else return res;
     }
     public double[] getGaussianScale() {
+        if (noGaussian()) return new double[0];
         double[] res = gaussScale.getArrayDouble();
         List<Double> res2 = Utils.toList(res);
         Utils.removeDuplicates(res2, true);
@@ -155,7 +157,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      */
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        return run(input, parent, getScale(), getGaussianScale(), minSpotSize.getValue().intValue(), thresholdHigh.getValue().doubleValue(), thresholdLow.getValue().doubleValue(), intensityThreshold.getValue().doubleValue(), normMode.getSelectedEnum());
+        return run(input, parent, getScale(), getGaussianScale(), minSpotSize.getValue().intValue(), laplacianThld.getValue().doubleValue(), propagationThld.getValue().doubleValue(), gaussianThld.getValue().doubleValue(), normMode.getSelectedEnum());
     }
     // testable
     Map<SegmentedObject, TestDataStore> stores;
@@ -169,8 +171,10 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         ImageFloat[] gauss;
         boolean lapScaled, gaussScaled;
         double[] ms;
-        public void initPV(Image input, ImageMask mask, NORMALIZATION_MODE normMode) {
+        double[] gaussianScale;
+        public void initPV(Image input, ImageMask mask, double[] gaussianScale, NORMALIZATION_MODE normMode) {
             this.input=input;
+            this.gaussianScale=gaussianScale;
             if (ms == null && (NORMALIZATION_MODE.PER_CELL_CENTER.equals(normMode) || NORMALIZATION_MODE.PER_CELL_CENTER_SCALE.equals(normMode) )) {
                 //BackgroundFit.debug=debug;
                 ms = new double[2];
@@ -193,12 +197,13 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             return ImageOperations.affineOperation2WithOffset(input, null, 1/ms[1], -ms[0]).setName("Scaled Input");
         }
         protected ImageFloat[] getGaussianMap() {
-            if (gauss==null) throw new RuntimeException("Gausian map not initialized");
+            if (gauss==null) throw new RuntimeException("Gaussian map not initialized");
             if (!gaussScaled) {
+
                 for (int i = 0; i<gauss.length; ++i) {
                     if (!gauss[i].sameDimensions(input)) gauss[i] = gauss[i].cropWithOffset(input.getBoundingBox()); // map was computed on parent that differs from segmentation parent
-                    ImageOperations.affineOperation2WithOffset(gauss[i], gauss[i], 1/ms[1], -ms[0]); // multiplied by scale during gaussian computation
-                } // no additive coefficient
+                    ImageOperations.affineOperation2WithOffset(gauss[i], gauss[i], gaussianScale[i]/ms[1], -ms[0]);
+                }
                 gaussScaled=true;
             }
             return gauss;
@@ -227,12 +232,12 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
      * @param parent segmentation parent
      * @param scale scale for laplacian filtering, corresponds to size of the objects to be detected, if several, objects will be detected in the scale space
      * @param minSpotSize under this size spots will be erased
-     * @param thresholdSeeds minimal laplacian value to segment a spot
+     * @param laplacianThld minimal laplacian value to segment a spot
      * @param thresholdPropagation laplacian value at the border of spots
-     * @param intensityThreshold minimal gaussian value to semgent a spot
+     * @param gaussianThreshold minimal gaussian value to semgent a spot
      * @return segmented spots
      */
-    public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, double[] gaussScale, int minSpotSize, double thresholdSeeds, double thresholdPropagation, double intensityThreshold, NORMALIZATION_MODE normMode) {
+    public RegionPopulation run(Image input, SegmentedObject parent, double[] scale, double[] gaussScale, int minSpotSize, double laplacianThld, double thresholdPropagation, double gaussianThreshold, NORMALIZATION_MODE normMode) {
         Arrays.sort(scale);
         Arrays.sort(gaussScale);
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
@@ -240,11 +245,31 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             pv.ms = parentMapMeanAndSigma.get(parent.getParent());
             //logger.debug("set mean sd @ frame: {} = {}", parent.getFrame(), this.pv.ms);
         }
-        this.pv.initPV(input, parentMask, normMode) ;
+        this.pv.initPV(input, parentMask, gaussScale, normMode);
         if (pv.getGaussianMap()==null || pv.getLaplacianMap()==null) throw new RuntimeException("Mutation Segmenter not parametrized");//setMaps(computeMaps(input, input));
-        
-        Image[] gaussSPZ = Image.mergeImagesInZ(Arrays.asList(pv.getGaussianMap())).toArray(new ImageFloat[0]); // in case there are several z
-        Image[] lapSPZ = Image.mergeImagesInZ(Arrays.asList(pv.getLaplacianMap())).toArray(new ImageFloat[0]); // in case there are several z
+
+        QUALITY_FORMULA qFormula;
+        Image[] secondarySPZ, primarySPZ; // in case there are several z
+        boolean invertedMaps = false;
+        double primaryThld, secondaryThld;
+        if (this.watershedMap.getSelectedEnum().equals(WATERSHED_MAP.GAUSSIAN)) {
+            secondarySPZ = noLaplacian()? new Image[0] : Image.mergeImagesInZ(Arrays.asList(pv.getLaplacianMap())).toArray(new ImageFloat[0]);
+            primarySPZ = Image.mergeImagesInZ(Arrays.asList(pv.getGaussianMap())).toArray(new ImageFloat[0]);
+            if (qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.G)) qFormula = QUALITY_FORMULA.L;
+            else if (qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.L)) qFormula = QUALITY_FORMULA.G;
+            else qFormula = QUALITY_FORMULA.GL;
+            scale = gaussScale;
+            primaryThld = gaussianThreshold;
+            secondaryThld = laplacianThld;
+            invertedMaps= true;
+        } else {
+            secondarySPZ = noGaussian()? new Image[0] : Image.mergeImagesInZ(Arrays.asList(pv.getGaussianMap())).toArray(new ImageFloat[0]);
+            primarySPZ = Image.mergeImagesInZ(Arrays.asList(pv.getLaplacianMap())).toArray(new ImageFloat[0]);
+            qFormula = qualityFormula.getSelectedEnum();
+            secondaryThld = gaussianThreshold;
+            primaryThld = laplacianThld;
+        }
+
         double[] radii = new double[scale.length];
         for (int z = 0; z<radii.length; ++z) radii[z] = Math.max(1, scale[z]); //-0.5
         Neighborhood n = radii.length>1 ? ConicalNeighborhood.generateScaleSpaceNeighborhood(radii, false) : new CylindricalNeighborhood(radii[0], 1, false);
@@ -252,23 +277,23 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         //Neighborhood n = new CylindricalNeighborhood(1.5, 1, false);
         
         // 4D local max
-        ImageByte[] seedsSPZ = new ImageByte[lapSPZ.length];
-        Filters.LocalMax[] lmZ = new Filters.LocalMax[lapSPZ.length];
-        for (int z = 0; z<lapSPZ.length; ++z) {
+        ImageByte[] seedsSPZ = new ImageByte[primarySPZ.length];
+        Filters.LocalMax[] lmZ = new Filters.LocalMax[primarySPZ.length];
+        for (int z = 0; z<primarySPZ.length; ++z) {
             lmZ[z] = new Filters.LocalMax(new ImageMask2D(parent.getMask(), parent.getMask().sizeZ()!=input.sizeZ()?0:z));
-            lmZ[z].setUp(lapSPZ[z], n);
-            seedsSPZ[z] = new ImageByte("", lapSPZ[z]);
+            lmZ[z].setUp(primarySPZ[z], n);
+            seedsSPZ[z] = new ImageByte("", primarySPZ[z]);
         }
 
-        for (int zz = 0; zz<lapSPZ.length; ++zz) {
+        for (int zz = 0; zz<primarySPZ.length; ++zz) {
             final int z = zz;
-            BoundingBox.loop(lapSPZ[z].getBoundingBox().resetOffset(), (x, y, sp)->{
-                float currentValue = lapSPZ[z].getPixel(x, y, sp);
-                if (parentMask.insideMask(x, y, z) && currentValue>=thresholdSeeds && getGaussianValueMaxZ(gaussSPZ[z], x, y)>=intensityThreshold) { // check pixel is over thresholds
+            BoundingBox.loop(primarySPZ[z].getBoundingBox().resetOffset(), (x, y, sp)->{
+                float currentValue = primarySPZ[z].getPixel(x, y, sp);
+                if (parentMask.insideMask(x, y, z) && currentValue>=primaryThld && (secondarySPZ.length==0 || getGaussianValueMaxZ(secondarySPZ[z], x, y)>=secondaryThld)) { // check pixel is over thresholds
                     if ( (z==0 || (z>0 && seedsSPZ[z-1].getPixel(x, y, sp)==0)) && lmZ[z].hasNoValueOver(currentValue, x, y, sp)) { // check if 1) was not already checked at previous plane [make it not parallelizable] && if is local max on this z plane
                         boolean lm = true;
                         if (z>0) lm = lmZ[z-1].hasNoValueOver(currentValue, x, y, sp); // check if local max on previous z plane
-                        if (lm && z<lapSPZ.length-1) lm = lmZ[z+1].hasNoValueOver(currentValue, x, y, sp); // check if local max on next z plane
+                        if (lm && z<primarySPZ.length-1) lm = lmZ[z+1].hasNoValueOver(currentValue, x, y, sp); // check if local max on next z plane
                         //logger.debug("candidate seed: x:{}, y:{}, z:{},value: {} local max ? {}, no value sup below:{} , no value sup over:{}", x, y, z, currentValue, lm, z>0?lmZ[z-1].hasNoValueOver(currentValue, x, y, sp):true, z<lapSPZ.length-1?lmZ[z+1].hasNoValueOver(currentValue, x, y, sp):true);
                         if (lm) seedsSPZ[z].setPixel(x, y, sp, 1);
                     }
@@ -277,16 +302,16 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         }
         
         ImageByte[] seedMaps = arrangeSpAndZPlanes(seedsSPZ, planeByPlane).toArray(new ImageByte[0]);
-        Image[] wsMap = ((List<Image>)arrangeSpAndZPlanes(lapSPZ, planeByPlane)).toArray(new Image[0]);
-        Image[] wsMapGauss = ((List<Image>)arrangeSpAndZPlanes(gaussSPZ, planeByPlane)).toArray(new Image[0]);
+        Image[] wsMap = ((List<Image>)arrangeSpAndZPlanes(primarySPZ, planeByPlane)).toArray(new Image[0]);
+        Image[] wsMapGauss = secondarySPZ.length==0 ? new Image[0] : ((List<Image>)arrangeSpAndZPlanes(secondarySPZ, planeByPlane)).toArray(new Image[0]);
         RegionPopulation[] pops =  MultiScaleWatershedTransform.watershed(wsMap, parentMask, seedMaps, true, new MultiScaleWatershedTransform.ThresholdPropagationOnWatershedMap(thresholdPropagation), null);
         //ObjectPopulation pop =  watershed(lap, parent.getMask(), seedPop.getObjects(), true, new ThresholdPropagationOnWatershedMap(thresholdPropagation), new SizeFusionCriterion(minSpotSize), false);
         SubPixelLocalizator.debug=debug;
         for (int i = 0; i<pops.length; ++i) { // TODO in 3D : check if better with Gaussian
             int z = i/scale.length;
-            setCenterAndQuality(wsMap[i], wsMapGauss, pops[i], z, qualityFormula.getSelectedEnum());
+            setCenterAndQuality(wsMap[i], wsMapGauss, pops[i], z, qFormula);
             for (Region o : pops[i].getRegions()) {
-                if (planeByPlane && lapSPZ.length>1) { // keep track of z coordinate
+                if (planeByPlane && primarySPZ.length>1) { // keep track of z coordinate
                     o.setCenter(o.getCenter().duplicate(3)); // adding z dimention
                     o.translate(new SimpleOffset(0, 0, z));
                 }  
@@ -300,43 +325,49 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         pop.filter(new RegionPopulation.RemoveFlatObjects(false));
         pop.filter(new RegionPopulation.Size().setMin(minSpotSize));
         if (stores!=null) {
+            String name1 = invertedMaps ? "Gaussian" : "Laplacian";
+            String name2 = invertedMaps ? "Laplacian" : "Gaussian";
             if (planeByPlane) {
                 if (scale.length>1) {
                     for (int z = 0; z<seedsSPZ.length; ++z) {
                         if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds: Scale-space z="+z, seedsSPZ[z]);
-                        stores.get(parent).addIntermediateImage("Laplacian: Scale-space z="+z, lapSPZ[z]);
+                        stores.get(parent).addIntermediateImage(name1+": Scale-space z="+z, primarySPZ[z]);
                     }
                 } else {
                     if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedsSPZ));
-                    stores.get(parent).addIntermediateImage("Laplacian", Image.mergeZPlanes(lapSPZ));
+                    stores.get(parent).addIntermediateImage(name1, Image.mergeZPlanes(primarySPZ));
                 }
-                if (gaussScale.length>1) {
-                    for (int z = 0; z<gaussSPZ.length; ++z) {
-                        stores.get(parent).addIntermediateImage("Gaussian: Scale-space z="+z, gaussSPZ[z]);
+                if (gaussScale.length>1 && secondarySPZ.length>0) {
+                    for (int z = 0; z<secondarySPZ.length; ++z) {
+                        stores.get(parent).addIntermediateImage(name2+": Scale-space z="+z, secondarySPZ[z]);
                     }
                 } else {
-                    stores.get(parent).addIntermediateImage("Gaussian", Image.mergeZPlanes(gaussSPZ));
+                    stores.get(parent).addIntermediateImage(name2, Image.mergeZPlanes(secondarySPZ));
                 }
             } else {
                 if (seedMaps[0].sizeZ()>1) {
                     for (int sp = 0; sp<wsMap.length; ++sp) {
                         if (stores.get(parent).isExpertMode())stores.get(parent).addIntermediateImage("Seeds Scale-space="+sp, seedMaps[sp]);
-                        stores.get(parent).addIntermediateImage("Laplacian Scale-space="+sp, wsMap[sp]);
+                        if (wsMap.length>0) stores.get(parent).addIntermediateImage(name1+" Scale-space="+sp, wsMap[sp]);
                     }
                     for (int sp = 0; sp<wsMapGauss.length; ++sp) {
-                        stores.get(parent).addIntermediateImage("Gaussian Scale-space="+sp, wsMapGauss[sp]);
+                        stores.get(parent).addIntermediateImage(name2+" Scale-space="+sp, wsMapGauss[sp]);
                     }
                 } else {
-                    stores.get(parent).addIntermediateImage("Gaussian", Image.mergeZPlanes(wsMapGauss));
+                    if (stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("Seeds", Image.mergeZPlanes(seedMaps));
+                    if (wsMap.length>0) stores.get(parent).addIntermediateImage(name1, Image.mergeZPlanes(wsMap));
+                    if (wsMapGauss.length>0) stores.get(parent).addIntermediateImage(name2, Image.mergeZPlanes(wsMapGauss));
                 }
             }
         }
         return pop;
     }
+
     private static double getGaussianValueMaxZ(Image gaussian, int x, int y) {
         if (gaussian.sizeZ()==1) return gaussian.getPixel(x, y, 0);
         return IntStream.range(0, gaussian.sizeZ()).mapToDouble(z -> gaussian.getPixel(x, y, z)).max().getAsDouble();
     }
+
     private static void setCenterAndQuality(Image lap, Image[] gauss, RegionPopulation pop, int z, QUALITY_FORMULA quality_formula) {
         SubPixelLocalizator.setSubPixelCenter(lap, pop.getRegions(), true); // lap -> better in case of close objects
         for (Region o : pop.getRegions()) { // quality criterion : sqrt (smooth * lap)
@@ -347,7 +378,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             double zzz = (zz>lap.sizeZ()-1) ? lap.sizeZ()-1 : zz;
             double L = lap.getPixel(o.getCenter().get(0), o.getCenter().get(1), zzz);
             ToDoubleFunction<Image> getGaussValue = g -> g.getPixel(o.getCenter().get(0), o.getCenter().get(1), zzz);
-            double G = gauss.length==1 ? getGaussValue.applyAsDouble(gauss[0]) : Arrays.stream(gauss).mapToDouble(getGaussValue).max().getAsDouble();
+            double G = gauss.length==1 ? getGaussValue.applyAsDouble(gauss[0]) : Arrays.stream(gauss).mapToDouble(getGaussValue).max().orElse(Double.NaN);
             switch (quality_formula) {
                 case GL:
                 default:
@@ -363,6 +394,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
         }
     }
+
     private static <T extends Image<T>> List<T> arrangeSpAndZPlanes(T[] spZ, boolean ZbyZ) {
         if (ZbyZ) {
             List<T> res = new ArrayList<>(spZ.length * spZ[0].sizeZ());
@@ -396,9 +428,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         pop.translate(b.duplicate().reverseOffset(), false);
         logger.debug("smooth values: {}", Utils.toStringList(objects, o->""+smooth.getPixel(o.getCenter().get(0), o.getCenter().get(1), o.getCenter().getWithDimCheck(2))) );
         logger.debug("lap values: {}", Utils.toStringList(objects, o->""+lap.getPixel(o.getCenter().get(0), o.getCenter().get(1), o.getCenter().getWithDimCheck(2))) );
-        
-        
-        
+
     }
     @Override
     public Parameter[] getParameters() {
@@ -413,15 +443,29 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
         ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        this.pv.initPV(input, parentMask, this.normMode.getSelectedEnum()) ;
+        this.pv.initPV(input, parentMask, getGaussianScale(), this.normMode.getSelectedEnum()) ;
         if (pv.gauss ==null || pv.lap==null) setMaps(computeMaps(input, input));
         else logger.debug("manual seg: maps already set!");
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
-        Image lap = pv.getLaplacianMap()[0]; // todo max in scale space for each seed?
-        Image[] smooth = pv.getGaussianMap(); // todo max in scale space for each seed?
-        WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(this.thresholdLow.getValue().doubleValue())).fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSpotSize.getValue().intValue())).lowConectivity(false);
+        Image lap;
+        Image[] smooth;
+        QUALITY_FORMULA qFormula;
+        if (watershedMap.getSelectedEnum().equals(WATERSHED_MAP.GAUSSIAN)) {
+            smooth = pv.getLaplacianMap(); // todo max in scale space for each seed?
+            lap = pv.getGaussianMap()[0]; // todo max in scale space for each seed?
+            if (qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.G)) qFormula = QUALITY_FORMULA.L;
+            else if (qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.L)) qFormula = QUALITY_FORMULA.G;
+            else qFormula = QUALITY_FORMULA.GL;
+
+        } else {
+            lap = pv.getLaplacianMap()[0]; // todo max in scale space for each seed?
+            smooth = pv.getGaussianMap(); // todo max in scale space for each seed?
+            qFormula = qualityFormula.getSelectedEnum();
+        }
+
+        WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(this.propagationThld.getValue().doubleValue())).fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSpotSize.getValue().intValue())).lowConectivity(false);
         RegionPopulation pop =  WatershedTransform.watershed(lap, parentMask, seedObjects, config);
-        setCenterAndQuality(lap, smooth, pop, 0, qualityFormula.getSelectedEnum());
+        setCenterAndQuality(lap, smooth, pop, 0, qFormula);
         
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
@@ -484,6 +528,8 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
     }
+    private boolean noGaussian() {return this.watershedMap.getSelectedEnum().equals(WATERSHED_MAP.LAPLACIAN) && this.qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.L);}
+    private boolean noLaplacian() {return this.watershedMap.getSelectedEnum().equals(WATERSHED_MAP.GAUSSIAN) && this.qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.G);}
 
     Map<SegmentedObject, double[]> parentMapMeanAndSigma;
     protected Image[] computeMaps(Image rawSource, Image filteredSource) {
@@ -493,7 +539,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
         for (int i = 0; i<gaussScale.length; ++i) {
             final int ii = i;
-            Function<Image, Image> gaussF = f->ImageFeatures.gaussianSmoothScaleIndep(f, gaussScale[ii], gaussScale[ii]*f.getScaleXY()/f.getScaleZ(), false).setName("gaussian: "+gaussScale[ii]);
+            Function<Image, Image> gaussF = f->ImageFeatures.gaussianSmooth(f, gaussScale[ii], false).setName("gaussian: "+gaussScale[ii]);
             maps[i] = planeByPlane ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource);
         }
         for (int i = 0; i<scale.length; ++i) {
@@ -504,14 +550,13 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         return maps;
     }
     
-    
     protected void setMaps(Image[] maps) {
         if (maps==null) return;
-        double[] gaussScale = this.getGaussianScale();
+        double[] gaussScale = getGaussianScale();
         double[] scale = getScale();
         if (maps.length!=scale.length+gaussScale.length) throw new IllegalArgumentException("Maps should be of length "+scale.length+gaussScale.length+" and contain Gaussian & Laplacian of Gaussian for each scale");
         this.pv.gauss = Arrays.stream(maps).limit(gaussScale.length).toArray(ImageFloat[]::new);
-        this.pv.lap=Arrays.stream(maps).skip(gaussScale.length).toArray(ImageFloat[]::new);
+        this.pv.lap = Arrays.stream(maps).skip(gaussScale.length).toArray(ImageFloat[]::new);
     }
     
 }
