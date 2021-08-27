@@ -369,8 +369,7 @@ public class ImageFeatures {
     private static double getNorm(double scale, int order) {
         //double[] kernel = kernel(scale, order, sizeMax);
         if (order == 0) {
-            //return 1;
-            return Math.pow(scale, 1);
+            return scale;
         } else if (order==2) {
             return Math.pow(scale, 2)*Math.sqrt(2 * Math.PI);
             //return Math.pow(scale, 3);

@@ -211,7 +211,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
      * 
      * @param <T> images type
      * @param images images to merge
-     * @return array of image, dimention of array = z dimention of original image, each image has the corresponding z plane of each image of {@param images}
+     * @return array of image, dimension of array = z dimension of original image, each image has the corresponding z plane of each image of {@param images}
      */
     public static <T extends Image<T>> List<T> mergeImagesInZ(List<T> images) {
         if (images==null || images.isEmpty()) return Collections.EMPTY_LIST;
