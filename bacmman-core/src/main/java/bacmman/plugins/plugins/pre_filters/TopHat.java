@@ -37,7 +37,7 @@ import bacmman.plugins.PreFilter;
  */
 public class TopHat implements PreFilter, Filter, Hint {
 
-    ScaleXYZParameter radius = new ScaleXYZParameter("Radius").setEmphasized(true);
+    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
     BooleanParameter darkBackground = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);
     BooleanParameter smooth = new BooleanParameter("Perform Smoothing", true);
     Parameter[] parameters = new Parameter[]{radius, darkBackground, smooth};
