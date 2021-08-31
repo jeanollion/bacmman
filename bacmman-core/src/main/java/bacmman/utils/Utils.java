@@ -528,6 +528,7 @@ public class Utils {
     }
     
     public static void addToSelectionPaths(JTree tree, TreePath... pathToSelect) {
+        if (pathToSelect==null) return;
         addToSelectionPaths(tree, Arrays.asList(pathToSelect));
     }
     public static void addToSelectionPaths(JTree tree, List<TreePath> pathToSelect) {
@@ -839,7 +840,7 @@ public class Utils {
         expandAll(tree, new TreePath(root), null);
       }
     
-    public static void expandAll(JTree tree, TreePath parent, ArrayList<TreePath> expandedPath) {
+    public static void expandAll(JTree tree, TreePath parent, List<TreePath> expandedPath) {
         TreeNode node = (TreeNode) parent.getLastPathComponent();
         if (expandedPath!=null) expandedPath.add(parent);
         

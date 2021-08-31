@@ -189,5 +189,6 @@ public class ConfigurationGistTreeGenerator {
     }
     public void flush() {
         if (tree!=null) ToolTipManager.sharedInstance().unregisterComponent(tree);
+        tree.removeAll();
     }
 }
