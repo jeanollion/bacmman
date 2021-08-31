@@ -2940,7 +2940,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 defaultRelPath = root.relativize(Paths.get(folder.getAbsolutePath())).toString() + File.separator;
             }
         } else defaultRelPath = dsTree.getRelativePath(currentDataset);
-        String relativePath = JOptionPane.showInputDialog("New dataset name:", defaultRelPath);
+        String relativePath = JOptionPane.showInputDialog("New dataset name or relative path (relative to working directory):", defaultRelPath);
         if (relativePath == null) return null;
         Pair<String, File> relPath = dsTree.parseRelativePath(relativePath);
         if (relPath == null) return null;
@@ -4025,39 +4025,40 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (!this.checkConnection()) return;
         if (SwingUtilities.isRightMouseButton(evt)) {
             List<String> positions = this.getSelectedPositions(false);
-            if (positions.isEmpty()) return;
+            boolean positionEmpty  = positions.isEmpty();
+            boolean singlePosition = positions.size()==1;
             JPopupMenu menu = new JPopupMenu();
-            if (positions.size()==1) {
-                String position = positions.get(0);
-                Action openRaw = new AbstractAction("Open Input Images") {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        db.getExperiment().flushImages(true, true, position);
-                        try {
-                            IJVirtualStack.openVirtual(db.getExperiment(), position, false);
-                        } catch(Throwable t) {
-                            setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command");
-                            logger.debug("Error while opening file position", t);
-                        }
+            String position = positionEmpty ? null : positions.get(0);
+            Action openRaw = new AbstractAction("Open Input Images") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    db.getExperiment().flushImages(true, true, position);
+                    try {
+                        IJVirtualStack.openVirtual(db.getExperiment(), position, false);
+                    } catch(Throwable t) {
+                        setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command");
+                        logger.debug("Error while opening file position", t);
                     }
-                };
-                menu.add(openRaw);
-                Action openPP = new AbstractAction("Open Pre-Processed Images") {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        db.getExperiment().flushImages(true, true, position);
-                        try {
-                            IJVirtualStack.openVirtual(db.getExperiment(), position, true);
-                        } catch(Throwable t) {
-                            setMessage("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
-                            logger.debug("error while trying to open pre-processed images", t);
-                        }
+                }
+            };
+            menu.add(openRaw);
+            openRaw.setEnabled(singlePosition);
+            Action openPP = new AbstractAction("Open Pre-Processed Images") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    db.getExperiment().flushImages(true, true, position);
+                    try {
+                        IJVirtualStack.openVirtual(db.getExperiment(), position, true);
+                    } catch(Throwable t) {
+                        setMessage("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
+                        logger.debug("error while trying to open pre-processed images", t);
                     }
-                };
-                openPP.setEnabled(db.getExperiment().getImageDAO().getPreProcessedImageProperties(0, position)!=null);
-                menu.add(openPP);
-                menu.add(new JSeparator());
-            }
+                }
+            };
+            openPP.setEnabled(singlePosition && db.getExperiment().getImageDAO().getPreProcessedImageProperties(0, position)!=null);
+            menu.add(openPP);
+            menu.add(new JSeparator());
+
             Action delete = new AbstractAction("Delete") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -4073,6 +4074,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             menu.add(delete);
+            delete.setEnabled(!positionEmpty);
+            Action importRelink = new AbstractAction("Import/re-link images") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    importImagesMenuItemActionPerformed(e);
+                }
+            };
+            menu.add(importRelink);
             menu.show(this.microscopyFieldList, evt.getX(), evt.getY());
         }
     }//GEN-LAST:event_microscopyFieldListMousePressed

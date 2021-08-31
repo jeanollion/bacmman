@@ -46,7 +46,7 @@ public class FileChooserUI implements ParameterUI {
         fc.setFileSelectionMode(fcParam.getOption().getOption());
         //fc.setFileHidingEnabled(false);
         fc.setMultiSelectionEnabled(fcParam.getOption().getMultipleSelectionEnabled());
-        if (curDir != null) fc.setCurrentDirectory(new File(curDir).getParentFile());
+        if (curDir != null && new File(curDir).exists()) fc.setCurrentDirectory(new File(curDir).getParentFile());
         else {
             Experiment xp = ParameterUtils.getExperiment(fcParam);
             if (xp!=null && xp.getPath()!=null) fc.setCurrentDirectory(xp.getPath().toFile());
