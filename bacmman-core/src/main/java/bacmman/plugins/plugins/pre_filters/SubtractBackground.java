@@ -39,7 +39,7 @@ import bacmman.processing.ImageOperations;
  */
 public class SubtractBackground implements PreFilter, Filter, Hint {
     enum METHOD {SUBTRACT_MEAN, SUBTRACT_GAUSSIAN}
-    EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), METHOD.SUBTRACT_GAUSSIAN);
+    EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), METHOD.SUBTRACT_MEAN);
     ConditionalParameter<METHOD> cond = new ConditionalParameter<>(method).setEmphasized(true);
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean transform to be subtracted").setEmphasized(true);
 
@@ -71,7 +71,7 @@ public class SubtractBackground implements PreFilter, Filter, Hint {
                 return ImageOperations.addImage(input, sub, sub, -1);
             }
             case SUBTRACT_MEAN: {
-                Image sub =  Filters.mean(input, null, Filters.getNeighborhood(radiusXY, radiusZ, input), parallele);
+                Image sub =  Filters.mean(input, new ImageFloat("", 0, 0, 0), Filters.getNeighborhood(radiusXY, radiusZ, input), parallele);
                 return ImageOperations.addImage(input, sub, sub, -1);
             }
         }
