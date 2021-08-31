@@ -111,7 +111,7 @@ public class DatasetTree {
                                 String xpString = raf.readLine();
                                 raf.close();
                                 JSONObject json = xpString==null ? null : JSONUtils.parse(xpString);
-                                String note = json==null ? "" : (String) json.get("note");
+                                String note = json==null ? "" : (json.get("note")==null? "" : (String) json.get("note"));
                                 if (note.length() == 0) tree.setToolTipText(null);
                                 else tree.setToolTipText(Hint.formatHint(note, true));
                             } catch (Exception ex) {
