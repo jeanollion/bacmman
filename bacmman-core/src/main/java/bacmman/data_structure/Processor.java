@@ -178,8 +178,9 @@ public class Processor {
                 logger.error("error while processing", e);
             }
             db.getDao(fieldName).clearCache();
+            xp.getDLengineProvider().closeAllEngines();
         }
-        xp.getDLengineProvider().closeAllEngines();
+
     }
     public static void deleteObjects(ObjectDAO dao, int...structures) {
         Experiment xp = dao.getExperiment();
