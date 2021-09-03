@@ -30,13 +30,11 @@ import java.util.List;
 
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.ui.logger.ExperimentSearchUtils;
-import bacmman.utils.FileIO;
-import bacmman.utils.JSONUtils;
+import bacmman.utils.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import py4j.CallbackClient;
 import py4j.GatewayServer;
-import bacmman.utils.HashMapGetCreate;
 import py4j.Py4JNetworkException;
 
 import javax.net.ServerSocketFactory;
@@ -86,7 +84,7 @@ public class PythonGateway {
 
     /**
      * Save a selection to the dataset {@param dbName}
-     * @param dbName name of the dataset
+     * @param dbRelPath relative path of the dataset
      * @param objectClassIdx index of the class of the objects contained the selection
      * @param selectionName name of the selection
      * @param ids indices of the objects contained in the selection
@@ -98,8 +96,8 @@ public class PythonGateway {
      * @param objectClassIdxDisplay
      * @param interactiveObjectClassIdx
      */
-    public void saveCurrentSelection(String dbName, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
-        logger.debug("saveCurrentSelection: db: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbName, objectClassIdx, selectionName, ids.size(), positions.size());
+    public void saveCurrentSelection(String dbRelPath, int objectClassIdx, String selectionName, List<String> ids, List<String> positions, boolean showObjects, boolean showTracks, boolean open, boolean openWholeSelection, int objectClassIdxDisplay, int interactiveObjectClassIdx) {
+        logger.debug("saveCurrentSelection: db: {}, oc: {}, sel: {}, ids: {}, pos: {}", dbRelPath, objectClassIdx, selectionName, ids.size(), positions.size());
         if (ids.isEmpty()) return;
         if (ids.size()!=positions.size()) throw new IllegalArgumentException("idx & position lists should be of same size "+ids.size() +" vs "+ positions.size());
         if (selectionName.length()==0) selectionName=null;
@@ -108,20 +106,21 @@ public class PythonGateway {
         Selection res = Selection.generateSelection(selectionName, objectClassIdx, idsByPosition);
         logger.info("Generating selection: size: {} ({})", positions.size(), res.count());
         SwingUtilities.invokeLater(() -> {
-            if (GUI.getDBConnection() == null || !GUI.getDBConnection().getDBName().equals(dbName)) {
+            Pair<String, String> dbRelPathAndName = Utils.splitNameAndRelpath(dbRelPath);
+            if (GUI.getDBConnection() == null || !GUI.getDBConnection().getDBName().equals(dbRelPathAndName.value)) {
                 if (GUI.getDBConnection() != null)
-                    logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbName);
-                logger.info("Connection to {}....", dbName);
-                String dir = ExperimentSearchUtils.searchForLocalDir(dbName);
-                if (dir == null) throw new IllegalArgumentException("Could find dataset:" + dbName);
-                GUI.getInstance().openExperiment(dbName, dir, false);
+                    logger.debug("current xp name : {} vs {}", GUI.getDBConnection().getDBName(), dbRelPath);
+                logger.info("Connection to {}....", dbRelPath);
+                String dir = ExperimentSearchUtils.searchForLocalDir(dbRelPath);
+                if (dir == null) throw new IllegalArgumentException("Could find dataset:" + dbRelPath);
+                GUI.getInstance().openExperiment(dbRelPath, dir, false);
                 if (GUI.getDBConnection().isConfigurationReadOnly()) {
                     String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
                     //SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);
                     FileIO.writeToFile(outputFile, new ArrayList<Selection>() {{
                         add(res);
                     }}, s -> s.toJSONEntry().toString());
-                    logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbName, outputFile);
+                    logger.debug("Could not open dataset {} in write mode: selection was save to file: {}", dbRelPath, outputFile);
                     return;
                 }
                 try {

@@ -22,12 +22,17 @@ package bacmman.data_structure;
 import bacmman.data_structure.dao.BasicMasterDAO;
 import bacmman.data_structure.dao.DBMapMasterDAO;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.utils.Pair;
+import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class MasterDAOFactory {
+    public static final Logger logger = LoggerFactory.getLogger(MasterDAOFactory.class);
     public enum DAOType {DBMap, Basic};
     private static DAOType currentType = DAOType.DBMap;
 
@@ -40,6 +45,9 @@ public class MasterDAOFactory {
     }
     
     public static MasterDAO createDAO(String dbName, String dir, DAOType daoType) {
+        Pair<String, String> correctedPath = Utils.convertRelPathToFilename(dir, dbName);
+        dbName = correctedPath.value;
+        dir = correctedPath.key;
         switch (daoType) {
             case DBMap:
                 return new DBMapMasterDAO(dir, dbName, new SegmentedObjectAccessor());

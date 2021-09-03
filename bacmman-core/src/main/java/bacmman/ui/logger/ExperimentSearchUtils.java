@@ -18,13 +18,11 @@
  */
 package bacmman.ui.logger;
 
-import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.PropertyUtils;
 import bacmman.core.ProgressCallback;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -73,13 +71,17 @@ public class ExperimentSearchUtils {
         return d;
     }
     public static String searchLocalDirForDB(String dbName, String dir) {
-        File config = Utils.seach(dir, dbName+"_config.json", 2);
+        File config = Utils.search(dir, dbName+"_config.json", 2);
         if (config!=null) return config.getParent();
         else {
-            config = Utils.seach(new File(dir).getParent(), dbName+"_config.json", 2);
+            config = Utils.search(new File(dir).getParent(), dbName+"_config.json", 2);
             if (config!=null) return config.getParent();
             else return null;
         }
+    }
+    public static boolean dbRelPathMatch(String dbRelPathToTest, String refDir, String refDbName) {
+        String refPath = Paths.get(refDir).resolve(refDbName).toString();
+        return refPath.endsWith(dbRelPathToTest);
     }
     public static Map<String, File> listExperiments(String path, boolean excludeDuplicated, ProgressCallback pcb) {
         File f = new File(path);

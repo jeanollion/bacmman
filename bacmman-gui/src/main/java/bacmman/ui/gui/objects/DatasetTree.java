@@ -123,7 +123,6 @@ public class DatasetTree {
                 }
             }
         });
-        // TODO: context menu : open (only one ds) / delete (folder or ds) /  / duplicate (only one ds)
     }
     public void setRecentSelection() {
         String old = PropertyUtils.get(PropertyUtils.LAST_SELECTED_EXPERIMENT);
@@ -257,13 +256,21 @@ public class DatasetTree {
         return root.relativize(p).toString();
     }
 
-    public static class DatasetTreeNode extends DefaultMutableTreeNode {
+    private String getRelativePath(File dir, String name) {
+        Path root = Paths.get(getRoot().file.getAbsolutePath());
+        Path p = Paths.get(dir.getAbsolutePath(), name);
+        return root.relativize(p).toString();
+    }
+
+    public class DatasetTreeNode extends DefaultMutableTreeNode {
         final File file;
         final String name;
+        final String relPath;
         final boolean isFolder;
         DatasetTreeNode(File file, String name, boolean isFolder) {
             this.file = file;
             this.name = name;
+            this.relPath = getRelativePath(file, name);
             this.isFolder = isFolder;
         }
 

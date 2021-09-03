@@ -36,6 +36,9 @@ import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
@@ -714,13 +717,44 @@ public class Utils {
         }
         searchAll(nextFiles, res, fileMatch, recLevels, currentLevel+1);
     }
-    
-    public static File seach(String path, String fileName, int recLevels) {
+    public static String removeLeadingSeparator(String path) {
+        if (path==null) return path;
+        String sep = FileSystems.getDefault().getSeparator();
+        while (path.startsWith(sep)) path = path.substring(sep.length());
+        if (path.length()==0) return null;
+        return path;
+    }
+    public static Pair<String, String> splitNameAndRelpath(String relPath) {
+        relPath = removeLeadingSeparator(relPath);
+        Path p = Paths.get(relPath);
+        String fileName = p.getFileName().toString();
+        String path = p.getParent()==null? null: p.getParent().toString();
+        return new Pair<>(path, fileName);
+    }
+    public static Pair<String, String> convertRelPathToFilename(String path, String relPath) {
+        Pair<String, String> split = splitNameAndRelpath(relPath);
+        if (path==null) return split;
+        if (split.key==null) {
+            split.key = path;
+            return split;
+        }
+        Path base = Paths.get(path);
+        split.key = base.resolve(split.key).toString();
+        return split;
+    }
+    public static File search(String path, String fileName, int recLevels) {
         if (path==null) return null;
         File f= new File(path);
         if (!f.exists()) return null;
-        if (f.isDirectory()) return search(new ArrayList<File>(1){{add(f);}}, fileName, recLevels, 0);
-        else if (f.getName().equals(fileName)) return f;
+        Pair<String, String> relPathAndName = splitNameAndRelpath(fileName);
+        File ff;
+        if (relPathAndName.key!=null) {
+            ff = Paths.get(path, relPathAndName.key).toFile();
+            if (!ff.exists()) return null;
+            fileName = relPathAndName.value;
+        } else ff=f;
+        if (ff.isDirectory()) return search(new ArrayList<File>(1){{add(ff);}}, fileName, recLevels, 0);
+        else if (ff.getName().equals(fileName)) return f;
         else return null;
     }
     private static File search(List<File> files, String fileName, int recLevels, int currentLevel) {

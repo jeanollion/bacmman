@@ -201,7 +201,13 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         return Arrays.stream(files).map(p -> toRelativePath(refPath, p)).toArray(String[]::new);
     }
     protected static String toRelativePath(Path ref, String toConvert) {
-        return ref.relativize(Paths.get(toConvert)).toString();
+        try {
+            return ref.relativize(Paths.get(toConvert)).toString();
+        } catch(Exception e) {
+            logger.error("toRelativePath error: ref: {}, toConvert: {}", ref, toConvert);
+            throw e;
+        }
+
     }
     protected  static String toAbsolutePath(Path ref, String toConvert) {
         return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
