@@ -697,6 +697,7 @@ public class Task implements ProgressCallback{
                         errors.addExceptions(new Pair("Error while processing: db: " + db.getDBName() + " pos: " + position, e));
                     } finally {
                         db.getExperiment().getPosition(position).flushImages(true, true);
+                        db.getExperiment().getDLengineProvider().closeAllEngines();
                         db.clearCache(position);
                         if (!db.isConfigurationReadOnly() && db.getSelectionDAO() != null)
                             db.getSelectionDAO().clearCache();
