@@ -257,6 +257,7 @@ public class DatasetTree {
     }
 
     private String getRelativePath(File dir, String name) {
+        if (getRoot()==null) return name;
         Path root = Paths.get(getRoot().file.getAbsolutePath());
         Path p = Paths.get(dir.getAbsolutePath(), name);
         return root.relativize(p).toString();
