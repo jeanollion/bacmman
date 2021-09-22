@@ -1,43 +1,52 @@
-/* 
- * Copyright (C) 2018 Jean Ollion
- *
- * This File is part of BACMMAN
- *
- * BACMMAN is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * BACMMAN is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
- */
-package bacmman.processing.matching;
+package bacmman.processing.matching.trackmate.tracking.sparselap;
 
-import bacmman.processing.matching.trackmate.Logger;
-import bacmman.processing.matching.trackmate.Spot;
-import static bacmman.processing.matching.trackmate.tracking.LAPUtils.checkFeatureMap;
-import bacmman.processing.matching.trackmate.tracking.SpotTracker;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALLOW_GAP_CLOSING;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALLOW_TRACK_MERGING;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALLOW_TRACK_SPLITTING;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_FEATURE_PENALTIES;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_DISTANCE;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_FRAME_GAP;
+import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.JaqamanSegmentCostMatrixCreator;
 import bacmman.processing.matching.trackmate.tracking.sparselap.linker.JaqamanLinker;
-import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
-import java.util.Map;
+import bacmman.processing.matching.trackmate.Logger;
+import bacmman.processing.matching.trackmate.Logger.SlaveLogger;
+import bacmman.processing.matching.trackmate.Spot;
+import bacmman.processing.matching.trackmate.tracking.SpotTracker;
 import net.imglib2.algorithm.Benchmark;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
+import java.util.Map;
+
+import static bacmman.processing.matching.trackmate.tracking.LAPUtils.checkFeatureMap;
+import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.*;
+import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
+
 /**
+ * This class tracks deals with the second step of tracking according to the LAP
+ * tracking framework formulated by Jaqaman, K. et al.
+ * "Robust single-particle tracking in live-cell time-lapse sequences." Nature
+ * Methods, 2008.
  *
- * @author fromTrackMate
+ * <p>
+ * In this tracking framework, tracking is divided into two steps:
+ *
+ * <ol>
+ * <li>Identify individual track segments</li>
+ * <li>Gap closing, merging and splitting</li>
+ * </ol>
+ * and this class does the second step.
+ * <p>
+ * It first extract track segment from a specified graph, and create a cost
+ * matrix corresponding to the following events: Track segments can be:
+ * <ul>
+ * <li>Linked end-to-tail (gap closing)</li>
+ * <li>Split (the start of one track is linked to the middle of another track)</li>
+ * <li>Merged (the end of one track is linked to the middle of another track</li>
+ * <li>Terminated (track ends)</li>
+ * <li>Initiated (track starts)</li>
+ * </ul>
+ * The cost matrix for this step is illustrated in Figure 1c in the paper.
+ * However, there is some important deviations from the paper: The alternative
+ * costs that specify the cost for track termination or initiation are all
+ * equals to the same fixed value.
+ * <p>
+ * The class itself uses a sparse version of the cost matrix and a solver that
+ * can exploit it. Therefore it is optimized for memory usage rather than speed.
  */
 public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 {
@@ -55,12 +64,11 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 	private long processingTime;
 
 	private int numThreads;
-    private final double alternativeDistance;
-	public SparseLAPSegmentTracker( final SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings, final double alternativeDistance)
+
+	public SparseLAPSegmentTracker( final SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings )
 	{
 		this.graph = graph;
 		this.settings = settings;
-		this.alternativeDistance=alternativeDistance;
 		setNumThreads();
 	}
 
@@ -110,19 +118,10 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 
 		logger.setProgress( 0d );
 		logger.setStatus( "Creating the segment linking cost matrix..." );
-		//final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, settings );
-                final double gcmd = ( Double ) settings.get( KEY_GAP_CLOSING_MAX_DISTANCE );
-                final CostThreshold<Spot, Spot> gcCostThreshold = new CostThreshold<Spot, Spot>() {
-                    final double threshold = gcmd * gcmd;
-                    public double linkingCostThreshold(Spot source, Spot target) {
-                        return threshold;
-                        //return threshold + distanceParameters.getDistancePenalty(source.getFeature(Spot.FRAME).intValue(), target.getFeature(Spot.FRAME).intValue());
-                    }
-                };
-                final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, settings, gcCostThreshold, alternativeDistance * alternativeDistance );
-                costMatrixCreator.setNumThreads(numThreads);
-		final Logger.SlaveLogger jlLogger = new Logger.SlaveLogger( logger, 0, 0.9 );
-		final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker< Spot, Spot >( costMatrixCreator, jlLogger );
+		final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, settings );
+		costMatrixCreator.setNumThreads( numThreads );
+		final SlaveLogger jlLogger = new SlaveLogger( logger, 0, 0.9 );
+		final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker<>( costMatrixCreator, jlLogger );
 		if ( !linker.checkInput() || !linker.process() )
 		{
 			errorMessage = linker.getErrorMessage();

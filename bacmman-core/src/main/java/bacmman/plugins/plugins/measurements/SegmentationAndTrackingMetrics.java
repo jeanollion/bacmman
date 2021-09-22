@@ -17,7 +17,7 @@ import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
-import fiji.plugin.trackmate.Spot;
+import bacmman.processing.matching.trackmate.Spot;
 import org.eclipse.collections.impl.factory.Sets;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultWeightedEdge;

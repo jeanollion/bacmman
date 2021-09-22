@@ -2,36 +2,19 @@ package bacmman.plugins.plugins.measurements;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageMask;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
-import bacmman.plugins.PostFilterFeature;
-import bacmman.plugins.plugins.post_filters.FeatureFilter;
 import bacmman.processing.matching.MaxOverlapMatcher;
-import bacmman.processing.matching.SimpleTrackGraph;
-import bacmman.processing.matching.TrackMateInterface;
-import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Pair;
 import bacmman.utils.Utils;
-import fiji.plugin.trackmate.Spot;
-import org.eclipse.collections.impl.factory.Sets;
-import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 
 import java.util.*;
-import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.ToDoubleBiFunction;
-import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toMap;
-import static java.util.stream.Collectors.toSet;
 
 public class SegmentationMetrics implements Measurement, Hint {
     ObjectClassParameter groundTruth = new ObjectClassParameter("Ground truth", -1, false, false).setHint("Reference object class");

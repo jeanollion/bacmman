@@ -1,64 +1,45 @@
-/* 
- * Copyright (C) 2018 Jean Ollion
- *
- * This File is part of BACMMAN
- *
- * BACMMAN is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * BACMMAN is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
- */
-package bacmman.processing.matching;
+package bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix;
 
-import bacmman.processing.matching.trackmate.Spot;
-import static bacmman.processing.matching.trackmate.tracking.LAPUtils.checkFeatureMap;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALLOW_GAP_CLOSING;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALLOW_TRACK_MERGING;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALLOW_TRACK_SPLITTING;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALTERNATIVE_LINKING_COST_FACTOR;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_CUTOFF_PERCENTILE;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_FEATURE_PENALTIES;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_DISTANCE;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_FRAME_GAP;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_MERGING_FEATURE_PENALTIES;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_MERGING_MAX_DISTANCE;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_SPLITTING_FEATURE_PENALTIES;
-import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_SPLITTING_MAX_DISTANCE;
 import bacmman.processing.matching.trackmate.tracking.sparselap.costfunction.CostFunction;
 import bacmman.processing.matching.trackmate.tracking.sparselap.costfunction.FeaturePenaltyCostFunction;
 import bacmman.processing.matching.trackmate.tracking.sparselap.costfunction.SquareDistCostFunction;
-import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.CostMatrixCreator;
-import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.DefaultCostMatrixCreator;
-import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.GraphSegmentSplitter;
-import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.ResizableDoubleArray;
 import bacmman.processing.matching.trackmate.tracking.sparselap.linker.SparseCostMatrix;
-import static bacmman.processing.matching.trackmate.util.TMUtils.checkMapKeys;
-import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import bacmman.processing.matching.trackmate.Spot;
 import net.imglib2.algorithm.MultiThreaded;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultWeightedEdge;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
+import static bacmman.processing.matching.trackmate.tracking.LAPUtils.checkFeatureMap;
+import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.*;
+import static bacmman.processing.matching.trackmate.util.TMUtils.checkMapKeys;
+import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
+
 /**
- *
- * @author from trackMate
+ * SOURCE CODE TAKEN FROM TRACKMATE: https://github.com/fiji/TrackMate
+ * This class generates the top-left quadrant of the LAP segment linking cost
+ * matrix, following <code>Jaqaman et al., 2008 Nature Methods</code>. It can
+ * also computes the alternative cost value, to use to complete this quadrant
+ * with the 3 others in the final LAP cost matrix.
+ * <p>
+ * Warning: we changed and simplified some things compared to the original paper
+ * and the MATLAB implementation by Khulud Jaqaman:
+ * <ul>
+ * <li>There is only one alternative cost for all segment linking, and it
+ * calculated as <code>alternativeCostFactor x 90% percentile</code> of all the
+ * non-infinite costs.
+ * <li>Costs are based on square distance +/- feature penalties.
+ * </ul>
+ * 
+ * @author Jean-Yves Tinevez - 2014
+ * 
  */
 public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot, Spot >, MultiThreaded
 {
@@ -82,19 +63,16 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 	private double alternativeCost = -1;
 
 	private int numThreads;
-        
-        protected final CostThreshold<Spot, Spot> gcCostThreshold;
+
 	/**
 	 * Instantiates a cost matrix creator for the top-left quadrant of the
 	 * segment linking cost matrix.
 	 * 
 	 */
-	public JaqamanSegmentCostMatrixCreator( final Graph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings, final CostThreshold<Spot, Spot> gcCostThreshold, final double alternativeCost )
+	public JaqamanSegmentCostMatrixCreator( final Graph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings )
 	{
 		this.graph = graph;
 		this.settings = settings;
-		this.gcCostThreshold=gcCostThreshold;
-		this.alternativeCost=alternativeCost;
 		setNumThreads();
 	}
 
@@ -131,7 +109,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		final CostFunction< Spot, Spot > gcCostFunction = getCostFunctionFor( gcFeaturePenalties );
 		final int maxFrameInterval = ( Integer ) settings.get( KEY_GAP_CLOSING_MAX_FRAME_GAP );
 		final double gcMaxDistance = ( Double ) settings.get( KEY_GAP_CLOSING_MAX_DISTANCE );
-		//final double gcCostThreshold = gcMaxDistance * gcMaxDistance;
+		final double gcCostThreshold = gcMaxDistance * gcMaxDistance;
 		final boolean allowGapClosing = ( Boolean ) settings.get( KEY_ALLOW_GAP_CLOSING );
 
 		// Merging
@@ -141,14 +119,16 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		final double mMaxDistance = ( Double ) settings.get( KEY_MERGING_MAX_DISTANCE );
 		final double mCostThreshold = mMaxDistance * mMaxDistance;
 		final boolean allowMerging = ( Boolean ) settings.get( KEY_ALLOW_TRACK_MERGING );
-                // Splitting
+
+		// Splitting
 		@SuppressWarnings( "unchecked" )
 		final Map< String, Double > sFeaturePenalties = ( Map< String, Double > ) settings.get( KEY_SPLITTING_FEATURE_PENALTIES );
 		final CostFunction< Spot, Spot > sCostFunction = getCostFunctionFor( sFeaturePenalties );
 		final boolean allowSplitting = ( Boolean ) settings.get( KEY_ALLOW_TRACK_SPLITTING );
 		final double sMaxDistance = ( Double ) settings.get( KEY_SPLITTING_MAX_DISTANCE );
 		final double sCostThreshold = sMaxDistance * sMaxDistance;
-                // Alternative cost
+
+		// Alternative cost
 		final double alternativeCostFactor = ( Double ) settings.get( KEY_ALTERNATIVE_LINKING_COST_FACTOR );
 		final double percentile = ( Double ) settings.get( KEY_CUTOFF_PERCENTILE );
 
@@ -176,34 +156,19 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		 * we will sort the unique list of targets, otherwise the SCM will
 		 * complains it does not receive columns in the right order.
 		 */
-		final List< Spot > allMiddlesMerge;
-                final List< Spot > allMiddlesSplit;
+		final List< Spot > allMiddles;
 		if ( mergingOrSplitting )
 		{
-			final List< List< Spot >> segmentMiddles = segmentSplitter.getSegmentMiddles();
-			List<Spot>allMiddles = new ArrayList< Spot >();
+			final List< List< Spot > > segmentMiddles = segmentSplitter.getSegmentMiddles();
+			allMiddles = new ArrayList< >();
 			for ( final List< Spot > segment : segmentMiddles )
 			{
 				allMiddles.addAll( segment );
 			}
-                        // also adds duplicated spots
-                        for (DefaultWeightedEdge e : graph.edgeSet()) {
-                            Spot source = graph.getEdgeSource(e);
-                            Spot target = graph.getEdgeTarget(e);
-                            if (Objects.equals(source.getFeature(Spot.FRAME), target.getFeature(Spot.FRAME))) {
-                                //logger.debug("adding middle: {}-{}", source.getFeature(Spot.FRAME), source.getFeature("Idx"));
-                                allMiddles.add(source);
-                            }
-                        }
-                        allMiddlesMerge = Stream.concat(allMiddles.stream(), segmentEnds.stream()).collect(Collectors.toList());
-                        allMiddlesSplit = Stream.concat(segmentStarts.stream(), allMiddles.stream()).collect(Collectors.toList());
-                        Collections.sort(allMiddlesMerge, Spot.frameComparator);
-                        Collections.sort(allMiddlesSplit, Spot.frameComparator);
 		}
 		else
 		{
-                        allMiddlesMerge = Collections.EMPTY_LIST;
-                        allMiddlesSplit = Collections.EMPTY_LIST;
+			allMiddles = Collections.emptyList();
 		}
 
 		final Object lock = new Object();
@@ -211,8 +176,8 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		/*
 		 * Sources and targets.
 		 */
-		final ArrayList< Spot > sources = new ArrayList< Spot >();
-		final ArrayList< Spot > targets = new ArrayList< Spot >();
+		final ArrayList< Spot > sources = new ArrayList< >();
+		final ArrayList< Spot > targets = new ArrayList< >();
 		// Corresponding costs.
 		final ResizableDoubleArray linkCosts = new ResizableDoubleArray();
 
@@ -221,7 +186,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		 * (gap-closing) then the segment middles (merging).
 		 */
 
-		final ExecutorService executorGCM = Executors.newFixedThreadPool( 1 );
+		final ExecutorService executorGCM = Executors.newFixedThreadPool( numThreads );
 		for ( final Spot source : segmentEnds )
 		{
 			executorGCM.submit( new Runnable()
@@ -250,7 +215,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 							// Check max distance
 							final double cost = gcCostFunction.linkingCost( source, target );
-                                                        if ( cost > gcCostThreshold.linkingCostThreshold(source, target) )
+							if ( cost > gcCostThreshold )
 							{
 								continue;
 							}
@@ -270,7 +235,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 					if ( allowMerging )
 					{
-						for ( final Spot target : allMiddlesMerge )
+						for ( final Spot target : allMiddles )
 						{
 							// Check frame interval, must be 1.
 							final int targetFrame = target.getFeature( Spot.FRAME ).intValue();
@@ -315,7 +280,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		if ( allowSplitting )
 		{
 			final ExecutorService executorS = Executors.newFixedThreadPool( numThreads );
-			for ( final Spot source : allMiddlesSplit )
+			for ( final Spot source : allMiddles )
 			{
 				executorS.submit( new Runnable()
 				{
@@ -336,11 +301,9 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 							// Check max distance
 							final double cost = sCostFunction.linkingCost( source, target );
-                                                        //logger.debug("link: F:{}I:{}+F:{}+I:{} cost: {}, thld: {}", source.getFeature(Spot.FRAME), source.getFeature("Idx"), target.getFeature(Spot.FRAME), target.getFeature("Idx"), target, cost,sCostThreshold );
 							if ( cost > sCostThreshold )
 							{
-								//logger.debug("link: {}+{} not accepted" );
-                                                                continue;
+								continue;
 							}
 							synchronized ( lock )
 							{
@@ -383,7 +346,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		else
 		{
 
-			final DefaultCostMatrixCreator< Spot, Spot > creator = new DefaultCostMatrixCreator< Spot, Spot >( sources, targets, linkCosts.data, alternativeCostFactor, percentile );
+			final DefaultCostMatrixCreator< Spot, Spot > creator = new DefaultCostMatrixCreator< >( sources, targets, linkCosts.data, alternativeCostFactor, percentile );
 			if ( !creator.checkInput() || !creator.process() )
 			{
 				errorMessage = "Linking track segments: " + creator.getErrorMessage();
@@ -392,9 +355,8 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 			/*
 			 * Compute the alternative cost from the cost array
 			 */
-			//alternativeCost = creator.computeAlternativeCosts();
-                        
-                        
+			alternativeCost = creator.computeAlternativeCosts();
+
 			scm = creator.getResult();
 			uniqueSources = creator.getSourceList();
 			uniqueTargets = creator.getTargetList();
@@ -405,7 +367,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		return true;
 	}
 
-	protected CostFunction< Spot, Spot > getCostFunctionFor( final Map< String, Double > featurePenalties )
+	protected CostFunction< Spot, Spot > getCostFunctionFor(final Map< String, Double > featurePenalties )
 	{
 		// Link Nick Perry original non sparse LAP framework.
 		final CostFunction< Spot, Spot > costFunction;
@@ -419,7 +381,6 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		}
 		return costFunction;
 	}
-        
 
 	@Override
 	public SparseCostMatrix getResult()
@@ -484,7 +445,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		ok = ok & checkParameter( settings, KEY_CUTOFF_PERCENTILE, Double.class, str );
 
 		// Check keys
-		final List< String > mandatoryKeys = new ArrayList< String >();
+		final List< String > mandatoryKeys = new ArrayList< >();
 		mandatoryKeys.add( KEY_ALLOW_GAP_CLOSING );
 		mandatoryKeys.add( KEY_GAP_CLOSING_MAX_DISTANCE );
 		mandatoryKeys.add( KEY_GAP_CLOSING_MAX_FRAME_GAP );
@@ -494,7 +455,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		mandatoryKeys.add( KEY_MERGING_MAX_DISTANCE );
 		mandatoryKeys.add( KEY_ALTERNATIVE_LINKING_COST_FACTOR );
 		mandatoryKeys.add( KEY_CUTOFF_PERCENTILE );
-		final List< String > optionalKeys = new ArrayList< String >();
+		final List< String > optionalKeys = new ArrayList< >();
 		optionalKeys.add( KEY_GAP_CLOSING_FEATURE_PENALTIES );
 		optionalKeys.add( KEY_SPLITTING_FEATURE_PENALTIES );
 		optionalKeys.add( KEY_MERGING_FEATURE_PENALTIES );

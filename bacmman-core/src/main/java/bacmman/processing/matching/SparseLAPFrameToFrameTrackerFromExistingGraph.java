@@ -18,22 +18,23 @@
  */
 package bacmman.processing.matching;
 
+import bacmman.processing.matching.trackmate.Logger;
+import bacmman.processing.matching.trackmate.Spot;
+import bacmman.processing.matching.trackmate.SpotCollection;
+import bacmman.processing.matching.trackmate.tracking.SpotTracker;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
-import fiji.plugin.trackmate.Logger;
-import fiji.plugin.trackmate.Spot;
-import fiji.plugin.trackmate.SpotCollection;
-import static fiji.plugin.trackmate.tracking.LAPUtils.checkFeatureMap;
-import fiji.plugin.trackmate.tracking.SpotTracker;
-import fiji.plugin.trackmate.tracking.sparselap.costfunction.CostFunction;
-import fiji.plugin.trackmate.tracking.sparselap.costfunction.FeaturePenaltyCostFunction;
-import fiji.plugin.trackmate.tracking.sparselap.costfunction.SquareDistCostFunction;
-import fiji.plugin.trackmate.tracking.sparselap.costmatrix.JaqamanLinkingCostMatrixCreator;
-import fiji.plugin.trackmate.tracking.sparselap.linker.JaqamanLinker;
+import static bacmman.processing.matching.trackmate.tracking.LAPUtils.checkFeatureMap;
+import bacmman.processing.matching.trackmate.tracking.SpotTracker;
+import bacmman.processing.matching.trackmate.tracking.sparselap.costfunction.CostFunction;
+import bacmman.processing.matching.trackmate.tracking.sparselap.costfunction.FeaturePenaltyCostFunction;
+import bacmman.processing.matching.trackmate.tracking.sparselap.costfunction.SquareDistCostFunction;
+import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.JaqamanLinkingCostMatrixCreator;
+import bacmman.processing.matching.trackmate.tracking.sparselap.linker.JaqamanLinker;
 
-import static fiji.plugin.trackmate.tracking.TrackerKeys.*;
-import static fiji.plugin.trackmate.util.TMUtils.checkMapKeys;
-import static fiji.plugin.trackmate.util.TMUtils.checkParameter;
+import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.*;
+import static bacmman.processing.matching.trackmate.util.TMUtils.checkMapKeys;
+import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -53,7 +54,7 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 {
 	private final static String BASE_ERROR_MESSAGE = "[SparseLAPFrameToFrameTracker] ";
 
-	private SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph;
+	private SimpleWeightedGraph<Spot, DefaultWeightedEdge > graph;
 
 	private Logger logger = Logger.VOID_LOGGER;
 
