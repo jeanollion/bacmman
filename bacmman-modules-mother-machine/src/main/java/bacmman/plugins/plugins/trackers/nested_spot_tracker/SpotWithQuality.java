@@ -20,7 +20,7 @@ package bacmman.plugins.plugins.trackers.nested_spot_tracker;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.utils.geom.Point;
-import fiji.plugin.trackmate.Spot;
+import bacmman.processing.matching.trackmate.Spot;
 
 /**
  *

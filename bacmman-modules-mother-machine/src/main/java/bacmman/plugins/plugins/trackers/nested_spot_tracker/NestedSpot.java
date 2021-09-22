@@ -22,7 +22,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
 import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
-import fiji.plugin.trackmate.Spot;
+import bacmman.processing.matching.trackmate.Spot;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

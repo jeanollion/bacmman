@@ -34,7 +34,7 @@ import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.utils.geom.Point;
-import fiji.plugin.trackmate.Spot;
+import bacmman.processing.matching.trackmate.Spot;
 
 import java.awt.Color;
 import java.lang.reflect.Constructor;

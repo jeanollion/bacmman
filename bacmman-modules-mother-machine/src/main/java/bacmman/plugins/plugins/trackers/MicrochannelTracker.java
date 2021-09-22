@@ -24,7 +24,7 @@ import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
 
 import bacmman.utils.geom.Point;
-import fiji.plugin.trackmate.Spot;
+import bacmman.processing.matching.trackmate.Spot;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
