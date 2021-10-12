@@ -52,7 +52,7 @@ public class Thickness implements GeometricalFeature, Hint {
     @Override
     public double performMeasurement(Region object) {
         double res = GeometricalMeasurements.getThickness(object);
-        if (scaled.getSelectedIndex()==1) res*=object.getScaleXY();
+        if (scaled.getSelected()) res*=object.getScaleXY();
         return res;
     }
 

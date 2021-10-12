@@ -53,7 +53,7 @@ public class LocalThickness implements GeometricalFeature, Hint {
     @Override
     public double performMeasurement(Region object) {
         double res = GeometricalMeasurements.localThickness(object);
-        if (scaled.getSelectedIndex()==1) res*=object.getScaleXY();
+        if (scaled.getSelected()) res*=object.getScaleXY();
         return res;
     }
 
