@@ -136,10 +136,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 boolean shift = e.isShiftDown();
                 //boolean ctrl = (IJ.isMacOSX() || IJ.isMacintosh()) ? e.isAltDown() : e.isControlDown(); // for mac: ctrl + click = right click -> alt instead of ctrl
                 boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && ctrl && !shift; //IJ.getToolName().equals("polyline")
-                boolean freeHandDraw = (IJ.getToolName().equals("freeline")) && ctrl && shift;
+                boolean freeHandDraw = (IJ.getToolName().equals("freeline") || IJ.getToolName().equals("oval") || IJ.getToolName().equals("ellipse")) && shift;
+                boolean freeHandDrawMerge = freeHandDraw && !ctrl;
                 boolean strechObjects = (IJ.getToolName().equals("line")) && ctrl;
-                //logger.debug("ctrl: {}, tool : {}, freeHandSplit: {}", ctrl, IJ.getToolName(), freeHandSplit);
                 boolean addToSelection = shift && (!freeHandSplit || !strechObjects || !freeHandDraw);
+                //logger.debug("ctrl: {}, tool : {}, freeHandSplit: {}, freehand draw: {}, addToSelection: {}", ctrl, IJ.getToolName(), freeHandSplit, freeHandDraw, addToSelection);
                 boolean displayTrack = displayTrackMode;
                 //logger.debug("button ctrl: {}, shift: {}, alt: {}, meta: {}, altGraph: {}, alt: {}", e.isControlDown(), e.isShiftDown(), e.isAltDown(), e.isMetaDown(), e.isAltGraphDown(), displayTrackMode);
                 InteractiveImage i = getImageObjectInterface(image);
@@ -168,14 +169,15 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 
                 // get all objects with intersection with ROI
                 if (r!=null) {
-                    boolean removeAfterwards = r.getType()==Roi.FREELINE || r.getType()==Roi.FREEROI || r.getType()==Roi.LINE || (r.getType()==Roi.POLYGON && r.getState()==Roi.NORMAL);
+                    boolean removeAfterwards = r.getType()==Roi.FREELINE || r.getType()==Roi.FREEROI || r.getType()==Roi.LINE || r.getType()==Roi.OVAL || (r.getType()==Roi.POLYGON && r.getState()==Roi.NORMAL);
                     //logger.debug("Roi: {}/{}, rem: {}", r.getTypeAsString(), r.getClass(), removeAfterwards);
                     if (r.getType()==Roi.RECTANGLE ||  removeAfterwards) {
                         // starts by getting all objects within bounding box of ROI
                         fromSelection=true;
-                        Rectangle rect = removeAfterwards ? r.getPolygon().getBounds() : r.getBounds();
+                        Rectangle rect = removeAfterwards && r.getType()!=Roi.OVAL ? r.getPolygon().getBounds() : r.getBounds();
                         if (rect.height==0 || rect.width==0) removeAfterwards=false;
                         MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice());
+                        //logger.debug("selection: {}", selection);
                         if (selection.sizeX()==0 && selection.sizeY()==0) selection=null;
                         i.addClickedObjects(selection, selectedObjects);
                         boolean is2D = i.is2D();
@@ -231,7 +233,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
                     ManualEdition.splitObjects(GUI.getDBConnection(), objects, true, false, splitter);
                 } else if (freeHandDraw && r!=null) {
-                    logger.debug("freehand draw object class: {}, ", i.getChildStructureIdx());
+                    //logger.debug("freehand draw object class: {}, ", i.getChildStructureIdx());
                     //if (selectedObjects.size()>1) return;
                     int parentStructure = i.getParent().getStructureIdx();
                     List<Pair<SegmentedObject, BoundingBox>> selectedParentObjects = new ArrayList<>();
@@ -252,8 +254,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     if (!seg.isEmpty()) {
                         reloadObjects_(parent, i.getChildStructureIdx(), true);
                         hideLabileObjects(image);
-                        displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
-                        displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor , true, false);
+                        if (freeHandDrawMerge) {
+                            seg.addAll(Pair.unpairKeys(selectedObjects));
+                            ManualEdition.mergeObjects(GUI.getDBConnection(), seg, true);
+                        } else {
+                            displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
+                            displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor , true, false);
+                        }
                     } else logger.debug("no object could be segmented");
 
                 }
