@@ -25,10 +25,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import javax.swing.Action;
-import javax.swing.JTable;
-import javax.swing.KeyStroke;
+import javax.swing.*;
+
 import static bacmman.ui.Shortcuts.ACTION.*;
 import java.awt.Color;
 import java.awt.Component;
@@ -40,9 +41,6 @@ import java.util.Arrays;
 import java.util.stream.Stream;
 import javax.print.attribute.HashPrintRequestAttributeSet;
 import javax.print.attribute.standard.MediaPrintableArea;
-import javax.swing.JFrame;
-import javax.swing.JScrollPane;
-import javax.swing.JTextPane;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableCellRenderer;
@@ -61,7 +59,7 @@ public class Shortcuts {
     public static final Logger logger = LoggerFactory.getLogger(Shortcuts.class);
     public enum PRESET {QWERTY, AZERTY}
     public enum ACTION {LINK("Link selected objects"), UNLINK("Remove link between selected objects"), RESET_LINKS("Reset lineage of selected object(s)"), CREATE_TRACK("Create track starting from selected object(s)"),
-        DELETE("Delete selected object(s)"), DELETE_AFTER_FRAME("Delete all object(s) after first selected object"), PRUNE("Prune track starting from selected object(s)"), MERGE("Merge selected objects"), SPLIT("Split selected object(s)"), MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "Ctrl + line"), MANUAL_CREATE("Creates an object draw with freehand line (use freehand line tool)", "ctrl + shift + line"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
+        DELETE("Delete selected object(s)"), DELETE_AFTER_FRAME("Delete all object(s) after first selected object"), PRUNE("Prune track starting from selected object(s)"), MERGE("Merge selected objects"), SPLIT("Split selected object(s)"), MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "ctrl + line"), MANUAL_CREATE("Creates an object manually drawn (use freehand-line/oval/ellipse tool)", "ctrl + shift + Line/Oval"), MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse tool)", "shift + Line/Oval"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
         SELECT_ALL_OBJECTS("Display all objects on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + mouse wheel"),
         NAV_NEXT("Navigate to next objects of the selection enabled for navigation"), NAV_PREV("Navigate to previous objects of the selection enabled for navigation"), OPEN_NEXT("Display next image"), OPEN_PREV("Display previous image"),
@@ -262,7 +260,7 @@ public class Shortcuts {
             if (o instanceof ACTION) return ((ACTION)o).description;
             else return o.toString();
         };
-        Function<String, String> formatString = (s) -> "<html>" + s + "</html>";
+        Function<String, String> formatString = (s) -> "<html><body style=\"text-align: justify;  text-justify: inter-word;\">" + s + "</body></html>";
         Object[] actions = {
             "<b>Display</b>",
             SELECT_ALL_OBJECTS, SELECT_ALL_TRACKS,TOGGLE_SELECT_MODE,CHANGE_INTERACTIVE_STRUCTURE,
@@ -278,11 +276,12 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL0, ADD_TO_SEL0, REM_FROM_SEL0, REM_ALL_FROM_SEL0,
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Object Edition: all action are performed on active image</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_SPLIT, MERGE, SPLIT,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_SPLIT, MERGE, SPLIT,
             "<b>Lineage Edition: all action are performed on active image</b>",
             RESET_LINKS, LINK, UNLINK, CREATE_TRACK
         };
-        int shortcutWidth = 165;
+        int shortcutWidth = 195;
+        int descWidth = 700;
         Stream<Object[]> lines = Arrays.stream(actions).map(o-> new Object[]{formatString.apply(getShortcutString.apply(o)), formatString.apply(getDescription.apply(o))});
         
         JTable table = new JTable();
@@ -300,54 +299,48 @@ public class Shortcuts {
         table.getColumnModel().getColumn(0).setMinWidth(shortcutWidth);    
         table.getColumnModel().getColumn(0).setMaxWidth(shortcutWidth);
         table.getColumnModel().getColumn(0).setResizable(false);
-        table.getColumnModel().getColumn(1).setPreferredWidth(500);
-        table.getColumnModel().getColumn(1).setMinWidth(printable ? 500 : 200);
+        table.getColumnModel().getColumn(1).setPreferredWidth(descWidth);
+        table.getColumnModel().getColumn(1).setMinWidth(printable ? descWidth : 250);
         table.getColumnModel().getColumn(0).setCellRenderer(new AlternatedColorTableCellRenderer());
         table.getColumnModel().getColumn(1).setCellRenderer(new AlternatedColorTableCellRenderer());
         
         return table;
     }
     private static final Color ROW_COLOR_1 = Color.WHITE, ROW_COLOR_2 = new Color(180, 180, 180), HEAD_ROW_COL = new Color(176,196,222);
+    private static final Pattern REMOVE_TAGS = Pattern.compile("<.+?>");
+
+    public static String removeTags(String string) {
+        if (string == null || string.length() == 0) {
+            return string;
+        }
+
+        Matcher m = REMOVE_TAGS.matcher(string);
+        return m.replaceAll("");
+    }
     private static class AlternatedColorTableCellRenderer extends DefaultTableCellRenderer {
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
             Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+            int fontHeight = this.getFontMetrics(this.getFont()).getHeight();
+            int textLength = this.getFontMetrics(this.getFont()).stringWidth(getText().replaceAll("\\<.*?>", "") ) + 10;
+            this.getHeight();
+            int lines = (int)Math.ceil(textLength / (double)table.getColumnModel().getColumn(column).getWidth());
+            if (lines == 0) lines = 1;
+
+            int height = fontHeight * lines;
+            //if (column==1 && row==1) logger.debug("row: {}, lines: {}, text: {}, length: {}, width: {}", row, lines, getText().replaceAll("\\<.*?>", ""), textLength, table.getColumnModel().getColumn(column).getWidth());
+            table.setRowHeight(row, height);
+            if (lines>1) this.setVerticalAlignment(JLabel.TOP);
+            else this.setVerticalAlignment(JLabel.CENTER);
+
+
             if (!isSelected) {
                 if (table.getValueAt(row, 1).toString().contains("<b>")) c.setBackground(HEAD_ROW_COL);
                 else c.setBackground(row%2==0?ROW_COLOR_1 : ROW_COLOR_2);
                 //logger.debug("selected: {}, row: {}, col0: {}, fore: {}, back: {}", isSelected, row, table.getValueAt(row, 0).toString(), c.getForeground(), c.getBackground());
             }
-            
+
             return c;
         }
-    }
-    static class WordWrapCellRenderer extends JTextPane implements TableCellRenderer {
-        WordWrapCellRenderer() {
-            //setLineWrap(true);
-            //setWrapStyleWord(true);
-            this.setContentType("text/html");
-            this.setBorder(javax.swing.BorderFactory.createEmptyBorder());
-        }
-
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
-            setText(value.toString());
-            setSize(table.getColumnModel().getColumn(column).getWidth(), getPreferredSize().height);
-            if (table.getRowHeight(row) != getPreferredSize().height) {
-                table.setRowHeight(row, getPreferredSize().height);
-            }
-            if (isSelected) {
-                super.setForeground(table.getSelectionForeground());
-                super.setBackground(table.getSelectionBackground());
-                logger.debug("selected: {}, fore: {}, back: {}", true, table.getSelectionForeground(), table.getSelectionBackground());
-            } else {
-                Color background = row%2==0?ROW_COLOR_1 : ROW_COLOR_2;
-                super.setForeground(table.getForeground());
-                super.setBackground(background);
-                logger.debug("selected: {}, row {}, fore: {}, back: {}", false, row,table.getForeground(), background);
-            }
-            setFont(table.getFont());
-            return this;
-        }
-        
     }
 }
