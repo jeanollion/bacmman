@@ -167,6 +167,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("incase of HiDPI screen, a zoom factor is applied to the display, set here this factor");
+    private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 0.5, 0.5, 5).setHint("Stoke width of displayed contours");
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
@@ -250,6 +251,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
         helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
         localZoomMenu.setToolTipText(formatHint("Local zoom is activated/deactivated with TAB"));
+        roiMenu.setToolTipText(formatHint("Controls on displayed annotations"));
         this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite pre-processing template"));
         this.selectionPanel.setToolTipText(formatHint("Selections are lists of segmented objects.<br />" +
                 "In the selection list, the object class and the number of objects in the selection is displayed in brackets" +
@@ -326,6 +328,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(localZoomFactor.getName(), ParameterUIBinder.getUI(localZoomFactor).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomArea.getName(), ParameterUIBinder.getUI(localZoomArea).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomScale.getName(), ParameterUIBinder.getUI(localZoomScale).getDisplayComponent(), localZoomMenu);
+
+        // roi
+        PropertyUtils.setPersistant(roiStrokeWidth, "roi_stroke_width");
+        ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue());
+        roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue()));
+        ConfigurationTreeGenerator.addToMenu(roiStrokeWidth.getName(), ParameterUIBinder.getUI(roiStrokeWidth).getDisplayComponent(), roiMenu);
 
         ConfigurationTreeGenerator.addToMenu(memoryThreshold.getName(), ParameterUIBinder.getUI(memoryThreshold).getDisplayComponent(), memoryMenu);
         PropertyUtils.setPersistant(memoryThreshold, "memory_threshold");
@@ -1465,6 +1473,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         clearPPImageMenuItem = new javax.swing.JMenuItem();
         openImageNumberLimitMenu = new javax.swing.JMenu();
         localZoomMenu = new javax.swing.JMenu();
+        roiMenu = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         pyGatewayMenu = new javax.swing.JMenu();
@@ -2604,6 +2613,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         localZoomMenu.setText("Local Zoom");
         miscMenu.add(localZoomMenu);
+
+        roiMenu.setText("Annotations");
+        miscMenu.add(roiMenu);
 
         kymographMenu.setText("Kymograph");
         miscMenu.add(kymographMenu);
@@ -4736,6 +4748,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu localDBMenu;
     private javax.swing.JRadioButtonMenuItem localFileSystemDatabaseRadioButton;
     private javax.swing.JMenu localZoomMenu;
+    private javax.swing.JMenu roiMenu;
     private javax.swing.JMenu logMenu;
     private javax.swing.JMenuBar mainMenu;
     private javax.swing.JButton manualSegmentButton;

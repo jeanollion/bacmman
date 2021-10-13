@@ -83,7 +83,7 @@ public abstract class ImageWindowManager<I, U, V> {
         return Palette.getColor(150, trackErrorColor, trackCorrectionColor);
     }
     final static double TRACK_ARROW_STROKE_WIDTH = 3;
-    final static double ROI_STROKE_WIDTH = 0.5;
+    double ROI_STROKE_WIDTH = 0.5;
     public static double TRACK_LINK_MIN_SIZE = 23;
     protected final HashMap<InteractiveImageKey, InteractiveImage> imageObjectInterfaces;
     protected final HashMap<Image, InteractiveImageKey> imageObjectInterfaceMap;
@@ -115,6 +115,9 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     public void setDisplayImageLimit(int limit) {
         this.displayedImageNumber=limit;
+    }
+    public void setRoiStrokeWidth(double width) {
+        this.ROI_STROKE_WIDTH = width;
     }
     public int getDisplayImageLimit() {
         return displayedImageNumber;

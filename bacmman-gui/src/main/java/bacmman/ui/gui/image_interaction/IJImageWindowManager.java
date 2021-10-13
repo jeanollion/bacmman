@@ -254,7 +254,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     if (!seg.isEmpty()) {
                         reloadObjects_(parent, i.getChildStructureIdx(), true);
                         hideLabileObjects(image);
-                        if (freeHandDrawMerge) {
+                        if (freeHandDrawMerge && !selectedObjects.isEmpty()) {
                             seg.addAll(Pair.unpairKeys(selectedObjects));
                             ManualEdition.mergeObjects(GUI.getDBConnection(), seg, true);
                         } else {
