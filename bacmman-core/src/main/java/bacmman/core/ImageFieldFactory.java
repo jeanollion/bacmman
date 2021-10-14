@@ -18,12 +18,14 @@
  */
 package bacmman.core;
 
+import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.image_container.MultipleImageContainerChannelSerie;
 import bacmman.data_structure.image_container.MultipleImageContainerPositionChannelFrame;
 import bacmman.data_structure.image_container.MultipleImageContainerSingleFile;
+import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import java.io.File;
 import java.io.FileFilter;
@@ -365,7 +367,8 @@ public class ImageFieldFactory {
             }
         }
         if (timePointNumber>0) {
-            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ(), invertZTbyC);
+            List<ImageIOCoordinates.RGB> rgbC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList());
+            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ(), invertZTbyC, rgbC);
             containersTC.add(c);
         }
     }

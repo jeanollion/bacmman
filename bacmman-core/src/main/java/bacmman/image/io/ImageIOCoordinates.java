@@ -26,10 +26,12 @@ import bacmman.image.SimpleBoundingBox;
  *
  * @author Jean Ollion
  */
+
 public class ImageIOCoordinates {
+    public enum RGB{R, G, B}
     int serie, channel, timePoint;
     BoundingBox bounds;
-
+    RGB rgb=RGB.R;
     public ImageIOCoordinates(int serie, int channel, int timePoint) {
         this.serie = serie;
         this.channel = channel;
@@ -42,7 +44,10 @@ public class ImageIOCoordinates {
         this.timePoint = timePoint;
         this.bounds = bounds;
     }
-    
+    public ImageIOCoordinates setRGB(RGB rgb) {
+        this.rgb = rgb;
+        return this;
+    }
     public ImageIOCoordinates(BoundingBox bounds) {
         this.bounds=bounds;
     }
@@ -68,7 +73,11 @@ public class ImageIOCoordinates {
     public void setBounds(BoundingBox bounds) {
         this.bounds=bounds;
     }
-    
+
+    public RGB getRGB() {
+        return rgb;
+    }
+
     public ImageIOCoordinates duplicate() {
         return new ImageIOCoordinates(serie, channel, timePoint, (bounds!=null)?new SimpleBoundingBox(bounds):null);
     }

@@ -20,10 +20,14 @@ package bacmman.configuration.experiment;
 
 import bacmman.configuration.experiment.Experiment.IMPORT_METHOD;
 import static bacmman.configuration.experiment.Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION;
+
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.configuration.parameters.ContainerParameterImpl;
 import bacmman.configuration.parameters.TextParameter;
 import java.util.function.Predicate;
+
+import bacmman.image.io.ImageIOCoordinates;
 import org.json.simple.JSONObject;
 
 /**
@@ -47,7 +51,8 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
             + "For a given position, the name of the file containing the detection channel must contain this keyword and all the files from the same position must differ only by this keyword (and eventually by frame number if each frame is in a separate file). "
             + "<br />First channel must have a non-null keyword is import method is <em>"+ONE_FILE_PER_CHANNEL_POSITION.getMethod()+"</em> and that there are several channels. "
             + "<br />All keywords should be distinct.");
-    
+    EnumChoiceParameter<ImageIOCoordinates.RGB> importRGBChannel = new EnumChoiceParameter<>("RGB Channel", ImageIOCoordinates.RGB.values(), ImageIOCoordinates.RGB.R).setHint("In case input images is a color image, choose which channel to import");
+
     public ChannelImage(String name) {
         super(name);
     }
@@ -59,10 +64,12 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
     
     public String getImportImageChannelKeyword() {return importKeyWord.getValue();}
     public void setImportImageChannelKeyword(String keyword) {importKeyWord.setValue(keyword);}
-    
+    public ImageIOCoordinates.RGB getRGB() {
+        return importRGBChannel.getSelectedEnum();
+    }
     @Override
     protected void initChildList() {
-        super.initChildren(importKeyWord);
+        super.initChildren(importKeyWord, importRGBChannel);
     }
     @Override 
     public boolean isEmphasized() {
@@ -74,6 +81,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         JSONObject res = new JSONObject();
         res.put("name", name);
         res.put("importKeyword", this.importKeyWord.toJSONEntry());
+        res.put("rgb", this.importRGBChannel.toJSONEntry());
         return res;
     }
 
@@ -82,6 +90,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         JSONObject jsonO = (JSONObject)jsonEntry;
         name = (String)jsonO.get("name");
         importKeyWord.initFromJSONEntry(jsonO.get("importKeyword"));
+        if (jsonO.containsKey("rgb")) this.importRGBChannel.initFromJSONEntry(jsonO.get("rgb"));
     }
     
 }

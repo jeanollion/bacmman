@@ -21,6 +21,7 @@ package bacmman.configuration.experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.DLengineProvider;
 import bacmman.data_structure.ExperimentStructure;
+import bacmman.image.io.ImageIOCoordinates;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;

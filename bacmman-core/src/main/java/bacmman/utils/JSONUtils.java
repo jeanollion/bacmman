@@ -155,6 +155,11 @@ public class JSONUtils {
         for (int i = 0; i<res.length; ++i) res[i]=((Boolean)array.get(i));
         return res;
     }
+    public static <E extends Enum<E>> List<E> fromEnumArray(List array, Class<E> enumType) {
+        List<E> res = new ArrayList<>(array.size());
+        for (int i = 0; i<array.size(); ++i) res.add(E.valueOf(enumType, (String)array.get(i)));
+        return res;
+    }
     public static JSONArray toJSONArray(long[] array) {
         JSONArray res = new JSONArray();
         for (long d : array) res.add(d);
@@ -180,6 +185,13 @@ public class JSONUtils {
         res.addAll(collection);
         return res;
     }
+    public static <E extends Enum<E>> JSONArray toJSONArrayEnum(Collection<E> array) {
+        JSONArray res = new JSONArray();
+        for (E d : array) res.add(d.toString());
+        return res;
+    }
+
+
     public static List<Integer> fromIntArrayList(JSONArray array) { // necessaire -> pas directement Integer ? 
         List<Integer> res = new ArrayList<>(array.size());
         for (Object o : array) res.add(((Number)o).intValue());

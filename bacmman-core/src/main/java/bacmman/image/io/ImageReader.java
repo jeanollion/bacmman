@@ -32,6 +32,7 @@ import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.common.services.ServiceFactory;
 import loci.formats.FormatException;
+import loci.formats.ImageTools;
 import loci.formats.meta.IMetadata;
 import loci.formats.services.OMEXMLService;
 import ome.units.quantity.Length;
@@ -203,9 +204,9 @@ public class ImageReader {
             int idx = getIndex(coords.getChannel(), coords.getTimePoint(), z);
             try {
                 if (coords.getBounds()==null || !supportView) {
-                    planes.add(openImage(idx, 0, 0, sizeX, sizeY));
+                    planes.add(openImage(idx, 0, 0, sizeX, sizeY, coords.getRGB()));
                 } else {
-                    planes.add(openImage(idx, coords.getBounds().xMin(), coords.getBounds().yMin(), coords.getBounds().sizeX(), coords.getBounds().sizeY()));
+                    planes.add(openImage(idx, coords.getBounds().xMin(), coords.getBounds().yMin(), coords.getBounds().sizeX(), coords.getBounds().sizeY(), coords.getRGB()));
                 }
                 res = Image.mergeZPlanes(planes);
                 if (!supportView && coords.getBounds()!=null) { // crop
@@ -225,10 +226,9 @@ public class ImageReader {
     }
     // code from loci.plugins.uti.ImageProcessorReader
     private byte[] buffer;
-    private Image openImage(int no, int x, int y, int w, int h) throws FormatException, IOException {
+    private Image openImage(int no, int x, int y, int w, int h, ImageIOCoordinates.RGB rgb) throws FormatException, IOException {
         // read byte array
         int c = reader.getRGBChannelCount();
-        if (c>1) throw new IllegalArgumentException("RGB image not supported!");
         int type = reader.getPixelType();
         int bpp = FormatTools.getBytesPerPixel(type);
         boolean interleave = reader.isInterleaved();
@@ -241,8 +241,23 @@ public class ImageReader {
         boolean isLittle = reader.isLittleEndian();
         boolean isSigned = FormatTools.isSigned(type);
 
-        //byte[] channel = ImageTools.splitChannels(buffer, 0, c, bpp, false, interleave);
-        byte[] channel = buffer;
+        // in case of RGB image -> only first channel is opened // TODO argument to choose which or compute luma ?
+        int index = 0;
+        if (c>1) {
+            switch (rgb) {
+                case R:
+                default:
+                    index=0;
+                    break;
+                case G:
+                    index = 1;
+                    break;
+                case B:
+                    index = 2;
+                    break;
+            }
+        }
+        byte[] channel = c>1? splitChannels(buffer, null, index, c, bpp, false, interleave) : buffer;
         Object pixels = DataTools.makeDataArray(channel, bpp, isFloat, isLittle);
         if (pixels instanceof byte[]) {
             byte[] q = (byte[]) pixels;
@@ -296,7 +311,38 @@ public class ImageReader {
             return new ImageFloat("", w, pix);
         } else throw new RuntimeException("Unrecognized pixel type");
     }
-    
+    private static byte[] splitChannels(byte[] array, byte[] rtn, int index, int c, int bytes, boolean reverse, boolean interleaved) {
+        if (c == 1) {
+            return array;
+        } else {
+            int channelLength = array.length / c;
+            if (rtn == null) {
+                rtn = new byte[channelLength];
+            }
+
+            if (reverse) {
+                index = c - index - 1;
+            }
+
+            if (!interleaved) {
+                System.arraycopy(array, channelLength * index, rtn, 0, channelLength);
+            } else {
+                int next = 0;
+
+                for(int i = 0; i < array.length; i += c * bytes) {
+                    for(int k = 0; k < bytes; ++k) {
+                        if (next < rtn.length) {
+                            rtn[next] = array[i + index * bytes + k];
+                        }
+
+                        ++next;
+                    }
+                }
+            }
+
+            return rtn;
+        }
+    }
     private int getIndex(int c, int t, int z) {
         return invertTZ ? reader.getIndex(t, c, z) : reader.getIndex(z, c, t);
     }
