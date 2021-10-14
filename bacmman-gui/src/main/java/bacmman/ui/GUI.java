@@ -4080,7 +4080,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (sel!=null) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
             else setSelectedExperimentMenuItem.setText("--");
         } else {
-            if (sel!=null && sel.equals(db.getDBName())) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
+            if (sel!=null && !sel.equals(db.getDBName())) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
             else setSelectedExperimentMenuItem.setText("Close Dataset: "+db.getDBName());
         }
     }//GEN-LAST:event_datasetListValueChanged
