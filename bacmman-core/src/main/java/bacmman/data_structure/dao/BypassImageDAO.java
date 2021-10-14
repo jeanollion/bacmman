@@ -1,6 +1,7 @@
 package bacmman.data_structure.dao;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.experiment.Position;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.input_image.InputImage;
 import bacmman.data_structure.input_image.InputImages;
@@ -13,12 +14,23 @@ import bacmman.utils.HashMapGetCreate;
 import java.io.InputStream;
 
 public class BypassImageDAO implements ImageDAO {
-    final Experiment xp;
-    final HashMapGetCreate<String, InputImagesImpl> inputImages;
+    InputImagesImpl inputImages;
+    final Position p;
+    public BypassImageDAO(Position p) {
+        this.p=p;
+    }
+    private InputImagesImpl getInputImages() {
+        if (inputImages==null) {
+            synchronized (p) {
+                if (inputImages==null) inputImages = p.getInputImages();
+            }
+        }
+        return inputImages;
+    }
 
-    public BypassImageDAO(Experiment xp) {
-        this.xp=xp;
-        this.inputImages = new HashMapGetCreate<>(p->xp.getPosition(p).getInputImages());
+    @Override
+    public void flush() {
+        inputImages.flush();
     }
 
     @Override
@@ -27,66 +39,31 @@ public class BypassImageDAO implements ImageDAO {
     }
 
     @Override
-    public InputStream openPreProcessedImageAsStream(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
-
-    @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        InputImagesImpl ii = inputImages.getAndCreateIfNecessary(microscopyFieldName);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint) {
+        InputImagesImpl ii = getInputImages();
         Image res = ii.getImage(channelImageIdx, timePoint);
         ii.flush(channelImageIdx, timePoint);
         return res;
     }
 
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName, MutableBoundingBox bounds) {
-        Image im = openPreProcessedImage(channelImageIdx, timePoint, microscopyFieldName);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, MutableBoundingBox bounds) {
+        Image im = openPreProcessedImage(channelImageIdx, timePoint);
         return im.crop(bounds);
     }
 
     @Override
-    public BlankMask getPreProcessedImageProperties(int channelImageIdx, String microscopyFieldName) {
-        return new BlankMask(openPreProcessedImage(channelImageIdx, 0, microscopyFieldName));
+    public BlankMask getPreProcessedImageProperties(int channelImageIdx) {
+        return new BlankMask(openPreProcessedImage(channelImageIdx, 0));
     }
 
     @Override
-    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint, String microscopyFieldName) {
+    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint) {
         throw new IllegalArgumentException("Unsupported operation");
     }
 
     @Override
-    public void writePreProcessedImage(InputStream image, int channelImageIdx, int timePoint, String microscopyFieldName) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
+    public void deletePreProcessedImage(int channelImageIdx, int timePoint) {
 
-    @Override
-    public void deletePreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
-
-    @Override
-    public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, Image image) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
-
-    @Override
-    public Image openTrackImage(SegmentedObject trackHead, int channelImageIdx) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
-
-    @Override
-    public InputStream openTrackImageAsStream(SegmentedObject trackHead, int channelImageIdx) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
-
-    @Override
-    public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, InputStream image) {
-        throw new IllegalArgumentException("Unsupported operation");
-    }
-
-    @Override
-    public void deleteTrackImages(String position, int parentStructureIdx) {
-        throw new IllegalArgumentException("Unsupported operation");
     }
 }

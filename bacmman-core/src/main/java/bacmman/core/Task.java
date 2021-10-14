@@ -444,7 +444,7 @@ public class Task implements ProgressCallback{
         this.extractDSRawChannels = channels;
         return this;
     }
-    public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
+    /*public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
         this.exportPreProcessedImages=preProcessedImages;
         this.exportTrackImages=trackImages;
         this.exportObjects=objects;
@@ -452,7 +452,7 @@ public class Task implements ProgressCallback{
         this.exportSelections=selections;
         if (preProcessedImages || trackImages || objects || config || selections) exportData= true;
         return this;
-    }
+    }*/
 
     public Task setPositions(int... positions) {
         if (positions!=null && positions.length>0) this.positions=Utils.toList(positions);
@@ -718,7 +718,7 @@ public class Task implements ProgressCallback{
         }
         logger.debug("extracting meas...");
         for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
-        if (exportData) exportData();
+        //if (exportData) exportData();
 
         // extract dataset
         if (extractDSFile!=null && extractDSSelections!=null && !extractDSSelections.isEmpty() && extractDSFeatures!=null && !extractDSFeatures.isEmpty()) {
@@ -838,7 +838,7 @@ public class Task implements ProgressCallback{
         MeasurementExtractor.extractMeasurementObjects(db, file, positions, keys);
         incrementProgress();
     }
-    public void exportData() {
+    /*public void exportData() {
         try {
             String file = db.getDir().resolve(db.getDBName()+"_dump.zip").toString();
             ZipWriter w = new ZipWriter(file);
@@ -852,7 +852,7 @@ public class Task implements ProgressCallback{
             publish("Error while dumping");
             this.errors.addExceptions(new Pair(this.dbName, e));
         }
-    }
+    }*/
     private List<String> getPositions() {
         this.ensurePositionAndStructures(true, false);
         List<String> res = new ArrayList<>(positions.size());

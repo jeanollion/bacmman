@@ -25,6 +25,7 @@ import bacmman.configuration.parameters.TransformationPluginParameter;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ImageDAO;
+import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
@@ -109,7 +110,10 @@ public class Processor {
             throw new RuntimeException("No images found for position");
         }
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
-        for (int s =0; s<dao.getExperiment().getStructureCount(); ++s) dao.getExperiment().getImageDAO().deleteTrackImages(position.getName(), s);
+        for (int s =0; s<dao.getExperiment().getStructureCount(); ++s) {
+            ImageDAO idao = position.getImageDAO();
+            if (idao instanceof ImageDAOTrack) ((ImageDAOTrack)idao).deleteTrackImages(s);
+        }
         setTransformations(position, memoryLimit, pcb);
         logger.debug("applying all transformation, save & close. {} ", Utils.getMemoryUsage());
         images.applyTranformationsAndSave(true, false); // here : should be able to close if necessary
@@ -186,9 +190,13 @@ public class Processor {
         Experiment xp = dao.getExperiment();
         if (structures.length==0 || structures.length==xp.getStructureCount()) dao.deleteAllObjects();
         else dao.deleteObjectsByStructureIdx(structures);
-        ImageDAO imageDAO = xp.getImageDAO();
-        if (structures.length==0) for (int s : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray()) imageDAO.deleteTrackImages(dao.getPositionName(), s);
-        else for (int s : structures) imageDAO.deleteTrackImages(dao.getPositionName(), s);
+        ImageDAO imageDAO = xp.getPosition(dao.getPositionName()).getImageDAO();
+        if (imageDAO instanceof ImageDAOTrack) {
+            ImageDAOTrack imageDAOt = (ImageDAOTrack) imageDAO;
+            if (structures.length == 0) for (int s : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray())
+                imageDAOt.deleteTrackImages(s);
+            else for (int s : structures) imageDAOt.deleteTrackImages(s);
+        }
     }
     public static void processAndTrackStructures(ObjectDAO dao, boolean deleteObjects, boolean trackOnly, int... structures) {
         Experiment xp = dao.getExperiment();
@@ -581,8 +589,10 @@ public class Processor {
             childStructureIdx = Utils.toArray(childStructures, false);
         }
         final int[] cSI = childStructureIdx;
-        ImageDAO imageDAO = dao.getExperiment().getImageDAO();
-        imageDAO.deleteTrackImages(dao.getPositionName(), parentStructureIdx);
+        ImageDAO imageDAO = dao.getExperiment().getPosition(dao.getPositionName()).getImageDAO();
+        if (!(imageDAO instanceof ImageDAOTrack)) throw new RuntimeException("Image DAO do not allow track images");
+        ImageDAOTrack iDAOt = (ImageDAOTrack)imageDAO;
+        iDAOt.deleteTrackImages(parentStructureIdx);
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(dao.getRoots(), parentStructureIdx);
         if (pcb!=null) pcb.log("Generating Image for structure: "+parentStructureIdx+". #tracks: "+allTracks.size()+", child structures: "+Utils.toStringArray(childStructureIdx));
         ThreadRunner.execute(allTracks.values(), false, (List<SegmentedObject> track, int idx) -> {
@@ -591,7 +601,7 @@ public class Processor {
                 //Core.userLog("Generating Image for track:"+track.get(0)+", structureIdx:"+childSIdx+" ...");
                 Image im = kymo.generateImage("", childSIdx, true);
                 int channelIdx = dao.getExperiment().getChannelImageIdx(childSIdx);
-                imageDAO.writeTrackImage(track.get(0), channelIdx, im);
+                iDAOt.writeTrackImage(track.get(0), channelIdx, im);
             }
         });
     }

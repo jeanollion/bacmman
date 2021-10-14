@@ -18,7 +18,6 @@
  */
 package bacmman.data_structure;
 
-import bacmman.data_structure.dao.ImageDAOFactory;
 import bacmman.test_utils.TestUtils;
 import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
@@ -148,8 +147,7 @@ public class ProcessingTest {
         xp.getChannelImages().insert(ci1, ci2);
         xp.setOutputDirectory(daoFolder.getAbsolutePath());
         //xp.setOutputImageDirectory("/tmp");
-        xp.setImageDAOType(ImageDAOFactory.ImageDAOTypes.LocalTIF);
-        
+
         // import fields
         ImageByte[][] images = createDummyImagesTC(6, 5 ,4, 3, 2);
         images[0][0].setPixel(0, 0, 0, 1);
@@ -175,8 +173,8 @@ public class ProcessingTest {
         }
        
         // test 
-        ImageDAO dao = xp.getImageDAO();
-        Image image = dao.openPreProcessedImage(0, 0, "field1");
+        ImageDAO dao = f.getImageDAO();
+        Image image = dao.openPreProcessedImage(0, 0);
         assertTrue("Image saved in DAO", image!=null);
         SimpleTranslation tInv = new SimpleTranslation(-1, -1, 0).setInterpolationScheme(ImageTransformation.InterpolationScheme.LINEAR);
         Image imageInv = tInv.applyTransformation(0, 0, image);

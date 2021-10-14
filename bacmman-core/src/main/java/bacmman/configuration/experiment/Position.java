@@ -20,11 +20,10 @@ package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.data_structure.dao.ImageDAO;
+import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.data_structure.image_container.MultipleImageContainer;
-import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.SegmentedObject;
 
 import static bacmman.data_structure.SegmentedObjectUtils.setTrackLinks;
@@ -52,6 +51,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     InputImagesImpl inputImages;
     public static final int defaultTP = 50;
     private final Map<Integer, Integer> channelMapSizeZ = new HashMap<>();
+    ImageDAO imageDAO;
 
     @Override
     public Object toJSONEntry() {
@@ -123,6 +123,21 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         if (sourceImages==null) return false;
         return sourceImages.singleFrame(getExperiment().getSourceChannel(channelIdx));
     }
+    public ImageDAO getImageDAO() {
+        return getImageDAO(true);
+    }
+    private ImageDAO getImageDAO(boolean allowByPass) {
+        if (imageDAO==null) {
+            synchronized(this) {
+                if (imageDAO==null) imageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory());
+            }
+        }
+        if (allowByPass && this.getPreProcessingChain().isEmpty() && imageDAO.getPreProcessedImageProperties(0)==null)  {
+            logger.debug("will return bypass dao");
+            return new BypassImageDAO(this);
+        }
+        return imageDAO;
+    }
 
     public InputImagesImpl getInputImages() {
         if (inputImages !=null && inputImages.getFrameNumber()!=getFrameNumber(false)) {
@@ -132,7 +147,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             synchronized(this) {
                 if (inputImages ==null) { //inputImages.getFrameNumber()!=getTimePointNumber(false)
                     logger.debug("generate input images with {} frames (old: {}) ", getFrameNumber(false), inputImages !=null? inputImages.getFrameNumber() : "null");
-                    ImageDAO dao = getExperiment().getImageDAO();
+                    ImageDAO dao = getImageDAO(false);
                     if (dao==null || sourceImages==null) return null;
                     int tpOff = getStartTrimFrame();
                     int tpNp = getEndTrimFrame() - tpOff+1;
@@ -170,10 +185,14 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             inputImages = null;
         }
         if (raw && sourceImages!=null) sourceImages.flush();
+        if (imageDAO!=null) {
+            imageDAO.flush();
+            imageDAO=null;
+        }
     }
     
     public BlankMask getMask() {
-        BlankMask mask = getExperiment().getImageDAO().getPreProcessedImageProperties(0, name);
+        BlankMask mask = getImageDAO().getPreProcessedImageProperties(0);
         if (mask==null) return null;
         // TODO: recreate image if configuration data has been already computed
         mask.setCalibration(getScaleXY(), getScaleZ());
@@ -247,7 +266,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             synchronized (channelMapSizeZ) {
                 if (channelMapSizeZ.containsKey(channelIdx)) return channelMapSizeZ.get(channelIdx);
                 else {
-                    BlankMask props = getExperiment().getImageDAO().getPreProcessedImageProperties(channelIdx, name);
+                    BlankMask props = getImageDAO().getPreProcessedImageProperties(channelIdx);
                     if (props==null) return 1; // default
                     else {
                         channelMapSizeZ.put(channelIdx, props.sizeZ());

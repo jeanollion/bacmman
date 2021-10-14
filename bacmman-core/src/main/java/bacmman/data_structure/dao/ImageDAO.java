@@ -30,20 +30,12 @@ import java.io.InputStream;
  * @author Jean Ollion
  */
 public interface ImageDAO {
+    public void flush();
     public String getImageExtension();
-    public InputStream openPreProcessedImageAsStream(int channelImageIdx, int timePoint, String microscopyFieldName);
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName);
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName, MutableBoundingBox bounds);
-    public BlankMask getPreProcessedImageProperties(int channelImageIdx, String microscopyFieldName);
-    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint, String microscopyFieldName);
-    public void writePreProcessedImage(InputStream image, int channelImageIdx, int timePoint, String microscopyFieldName);
-    public void deletePreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName);
-
-    // track images
-    public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, Image image);
-    public Image openTrackImage(SegmentedObject trackHead, int channelImageIdx);
-    public InputStream openTrackImageAsStream(SegmentedObject trackHead, int channelImageIdx);
-    public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, InputStream image);
-    public void deleteTrackImages(String position, int parentStructureIdx);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, MutableBoundingBox bounds);
+    public BlankMask getPreProcessedImageProperties(int channelImageIdx);
+    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint);
+    public void deletePreProcessedImage(int channelImageIdx, int timePoint);
     
 }

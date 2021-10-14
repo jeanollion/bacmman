@@ -46,7 +46,7 @@ public class PositionUI implements ParameterUI {
                                                 }
                                             }
         );
-        openPreprocessedAllFrames.setEnabled(p.getExperiment().getImageDAO().getPreProcessedImageProperties(0, p.getName())!=null);
+        openPreprocessedAllFrames.setEnabled(p.getImageDAO().getPreProcessedImageProperties(0)!=null);
 
     }
     public Object[] getDisplayComponent() {

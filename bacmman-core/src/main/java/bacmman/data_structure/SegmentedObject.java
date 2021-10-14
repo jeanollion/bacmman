@@ -20,6 +20,8 @@ package bacmman.data_structure;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.data_structure.dao.ImageDAO;
+import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.dao.BasicObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
@@ -775,7 +777,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                             if (getPosition().singleFrame(structureIdx) && timePoint>0 && trackHead!=null) { // getImage from trackHead
                                 rawImagesC.set(trackHead.getRawImage(structureIdx), channelIdx);
                             } else {
-                                Image im = getExperiment().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint, getPositionName());
+                                Image im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint);
                                 rawImagesC.set(im, channelIdx);
                                 if (im==null) logger.error("Could not find preProcessed Image for: {}", this);
                             }
@@ -857,7 +859,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             if (this.trackImagesC.get(channelIdx)==null) {
                 synchronized(trackImagesC) {
                     if (trackImagesC.getAndExtend(channelIdx)==null) {
-                        Image im = getExperiment().getImageDAO().openTrackImage(this, channelIdx);
+                        ImageDAO dao = getPosition().getImageDAO();
+                        Image im = dao instanceof ImageDAOTrack ? ((ImageDAOTrack)dao).openTrackImage(this, channelIdx) : null;
                         if (im!=null) { // set image && set offsets for all track
                             im.setCalibration(getScaleXY(), getScaleZ());
                             List<SegmentedObject> track = SegmentedObjectUtils.getTrack(this, false);

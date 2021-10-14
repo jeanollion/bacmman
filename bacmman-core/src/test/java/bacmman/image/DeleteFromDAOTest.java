@@ -159,7 +159,6 @@ public class DeleteFromDAOTest {
         Processor.processAndTrackStructures(masterDAO, true);
         //for (String p : xp.getPositionsAsString()) Processor.processAndTrackStructures(masterDAO.getDao(p), true, false, 0,1);
 
-
         xp.addMeasurement(new ObjectInclusionCount(1, 1, 50));
         Processor.performMeasurements(masterDAO, MEASUREMENT_MODE.ERASE_ALL, null, null);
 
@@ -168,7 +167,6 @@ public class DeleteFromDAOTest {
         SegmentedObject ob2 = r.getChildren(1).findFirst().get();
         logger.debug("object {}, {}, 2D?{}, meas {}", ob.getBounds(), ob.getRegion().getVoxels(), ob.is2D(), ob.getMeasurements().getKeys());
         logger.debug("object2 {}, {}, 2D? {}", ob2.getBounds(), ob2.getRegion().getVoxels(), ob2.is2D());
-
 
         ObjectDAO dao = masterDAO.getDao("field1");
         ObjectDAO dao11 = masterDAO.getDao("field11");

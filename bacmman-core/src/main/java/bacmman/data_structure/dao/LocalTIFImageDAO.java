@@ -43,32 +43,28 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class LocalTIFImageDAO implements ImageDAO {
+public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     private final static Logger logger = LoggerFactory.getLogger(LocalTIFImageDAO.class);
-    String directory;
+    final String directory;
+    final String microscopyFieldName;
     static final int idxZeros = 5;
     
-    public LocalTIFImageDAO(String localDirectory) {
+    public LocalTIFImageDAO(String microscopyFieldName, String localDirectory) {
+        this.microscopyFieldName = microscopyFieldName;
         this.directory=localDirectory;
     }
+
+    @Override
+    public void flush() {}
+
     @Override
     public String getImageExtension() {
         return ".tif";
     }
+
     @Override
-    public InputStream openPreProcessedImageAsStream(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        String path = getPreProcessedImagePath(channelImageIdx, timePoint, microscopyFieldName);
-        File f = new File(path);
-        try {
-            return new FileInputStream(f);
-        } catch (FileNotFoundException ex) {
-            logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {}", channelImageIdx, timePoint, microscopyFieldName);
-        }
-        return null;
-    }
-    @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        String path = getPreProcessedImagePath(channelImageIdx, timePoint, microscopyFieldName);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint) {
+        String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
             //long t0 = System.currentTimeMillis();
@@ -82,8 +78,8 @@ public class LocalTIFImageDAO implements ImageDAO {
         }
     }
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName, MutableBoundingBox bounds) {
-        String path = getPreProcessedImagePath(channelImageIdx, timePoint, microscopyFieldName);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, MutableBoundingBox bounds) {
+        String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
             logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, microscopyFieldName, bounds);
@@ -94,15 +90,15 @@ public class LocalTIFImageDAO implements ImageDAO {
         }
     }
     @Override
-    public void deletePreProcessedImage(int channelImageIdx, int timePoint, String microscopyFieldName) {
-        String path = getPreProcessedImagePath(channelImageIdx, timePoint, microscopyFieldName);
+    public void deletePreProcessedImage(int channelImageIdx, int timePoint) {
+        String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) f.delete();
     }
 
     @Override
-    public BlankMask getPreProcessedImageProperties(int channelIdx, String microscopyFieldName) {
-        String path = getPreProcessedImagePath(channelIdx, 0, microscopyFieldName);
+    public BlankMask getPreProcessedImageProperties(int channelIdx) {
+        String path = getPreProcessedImagePath(channelIdx, 0);
         File f = new File(path);
         if (f.exists()) {
             Pair<int[][], double[]> info = ImageReader.getImageInfo(path);
@@ -118,34 +114,23 @@ public class LocalTIFImageDAO implements ImageDAO {
 
     
     @Override
-    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint, String microscopyFieldName) {
-        String path = getPreProcessedImagePath(channelImageIdx, timePoint, microscopyFieldName);
+    public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint) {
+        String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         f.mkdirs();
         logger.trace("writing preprocessed image to path: {}", path);
         //if (f.exists()) f.delete();
         ImageWriter.writeToFile(image, path, ImageFormat.TIF);
     }
-    
-    @Override
-    public void writePreProcessedImage(InputStream image, int channelImageIdx, int timePoint, String microscopyFieldName) {
-        String path = getPreProcessedImagePath(channelImageIdx, timePoint, microscopyFieldName);
-        File f = new File(path);
-        f.delete();
-        f.getParentFile().mkdirs();
-        logger.trace("writing preprocessed image to path: {}", path);
-        //if (f.exists()) f.delete();
-        FileIO.writeFile(image, path);
-    }
 
-    protected String getPreProcessedImagePath(int channelImageIdx, int timePoint, String microscopyFieldName) {
+    protected String getPreProcessedImagePath(int channelImageIdx, int timePoint) {
         return Paths.get(directory, microscopyFieldName, "pre_processed", "t"+Utils.formatInteger(5, timePoint)+"_c"+Utils.formatInteger(2, channelImageIdx)+".tif").toString();
     }
-    private String getTrackImageFolder(String position, int parentStructureIdx) {
-        return Paths.get(directory, position, "track_images_"+parentStructureIdx).toString();
+    private String getTrackImageFolder(int parentStructureIdx) {
+        return Paths.get(directory, microscopyFieldName, "track_images_"+parentStructureIdx).toString();
     }
     private String getTrackImagePath(SegmentedObject o, int channelImageIdx) {
-        return Paths.get(getTrackImageFolder(o.getPositionName(), o.getStructureIdx()), Selection.indicesString(o)+"_"+channelImageIdx+".tif").toString();
+        return Paths.get(getTrackImageFolder(o.getStructureIdx()), Selection.indicesString(o)+"_"+channelImageIdx+".tif").toString();
     }
     
     @Override
@@ -156,15 +141,6 @@ public class LocalTIFImageDAO implements ImageDAO {
         f.getParentFile().mkdirs();
         logger.trace("writing track image to path: {}", path);
         ImageWriter.writeToFile(image, path, ImageFormat.TIF);
-    }
-    @Override
-    public void writeTrackImage(SegmentedObject trackHead, int channelImageIdx, InputStream image) {
-        String path = getTrackImagePath(trackHead, channelImageIdx);
-        File f = new File(path);
-        f.delete();
-        f.getParentFile().mkdirs();
-        logger.trace("writing track image to path: {}", path);
-        FileIO.writeFile(image, path);
     }
     @Override
     public Image openTrackImage(SegmentedObject trackHead, int channelImageIdx) {
@@ -178,24 +154,10 @@ public class LocalTIFImageDAO implements ImageDAO {
             return null;
         }
     }
-    @Override
-    public InputStream openTrackImageAsStream(SegmentedObject trackHead, int channelImageIdx) {
-        String path = getTrackImagePath(trackHead, channelImageIdx);
-        File f = new File(path);
-        try {
-            //logger.trace("Opening track image:  trackHead: {}", trackHead);
-            return new FileInputStream(f);
-        } catch (FileNotFoundException ex) {
-            
-            logger.debug("Error Opening track image:  trackHead: {} channelImage: {} ({})", trackHead, channelImageIdx, path);
-            logger.debug("error", ex);
-        } 
-        return null;
-    }
 
     @Override
-    public void deleteTrackImages(String position, int parentStructureIdx) {
-        String folder = getTrackImageFolder(position, parentStructureIdx);
+    public void deleteTrackImages(int parentStructureIdx) {
+        String folder = getTrackImageFolder(parentStructureIdx);
         Utils.deleteDirectory(folder);
     }
     

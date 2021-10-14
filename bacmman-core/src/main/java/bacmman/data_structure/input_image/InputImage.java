@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.input_image;
 
+import bacmman.data_structure.dao.BypassImageDAO;
 import bacmman.data_structure.dao.ImageDAO;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.image.BlankMask;
@@ -94,7 +95,7 @@ public class InputImage {
         if (image == null && requiresInputImage()) {
             synchronized (this) {
                 if (image==null) {
-                    if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame, microscopyFieldName); //try to open from DAO
+                    if (intermediateImageSavedToDAO) image = dao.openPreProcessedImage(channelIdx, frame); //try to open from DAO
                     if (image==null) {
                         image = imageSources.getImage(inputFrame, inputChannelIdx);
                         if (image==null) throw new RuntimeException("Image not found: position:"+microscopyFieldName+" channel:"+inputChannelIdx+" frame:"+inputFrame);
@@ -108,7 +109,7 @@ public class InputImage {
         return image;
     }
     
-    void deleteFromDAO() {dao.deletePreProcessedImage(channelIdx, frame, microscopyFieldName);}
+    void deleteFromDAO() {dao.deletePreProcessedImage(channelIdx, frame);}
     
     public void flush() {
         if (image!=null) image=null;
@@ -134,8 +135,8 @@ public class InputImage {
     }
 
     public void saveImage(boolean intermediate) {
-        dao.writePreProcessedImage(image, channelIdx, frame, microscopyFieldName);
-        this.intermediateImageSavedToDAO = intermediate;
+        dao.writePreProcessedImage(image, channelIdx, frame);
+        this.intermediateImageSavedToDAO = intermediate && !(dao instanceof BypassImageDAO);
         if (intermediate) modified=false;
     }
     

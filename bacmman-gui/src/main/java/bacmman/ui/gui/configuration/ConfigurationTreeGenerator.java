@@ -24,6 +24,7 @@ import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.*;
 import bacmman.core.ProgressCallback;
+import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.Hint;
@@ -345,7 +346,7 @@ public class ConfigurationTreeGenerator {
                 if (mDAO != null) mDAO.getDao(p.getName()).deleteAllObjects();
                 if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
                 for (int s = 0; s < experiment.getStructureCount(); ++s)
-                    experiment.getImageDAO().deleteTrackImages(p.getName(), s);
+                    if (p.getImageDAO() instanceof ImageDAOTrack) ((ImageDAOTrack) p.getImageDAO()).deleteTrackImages(s);
                 Utils.deleteDirectory(Paths.get(experiment.getOutputDirectory() , p.getName()).toString());
                 return true;
             };

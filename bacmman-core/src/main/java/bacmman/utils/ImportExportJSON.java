@@ -67,7 +67,7 @@ public class ImportExportJSON {
         if (pcb!=null) pcb.log(allObjects.size()+"# measurements found");
         writer.write(dao.getPositionName()+"/measurements.txt", allObjects, o -> serialize(o.getMeasurements()));
     }
-    public static void exportPreProcessedImages(FileIO.ZipWriter writer, ObjectDAO dao) {
+    /*public static void exportPreProcessedImages(FileIO.ZipWriter writer, ObjectDAO dao) {
         int ch = dao.getExperiment().getChannelImageCount(true);
         int fr = dao.getExperiment().getPosition(dao.getPositionName()).getFrameNumber(false);
         String dir = dao.getPositionName()+"/Images/";
@@ -79,7 +79,7 @@ public class ImportExportJSON {
             }
         }
         // todo check all exported
-    }
+    }*/
     private static Set<Triplet<SegmentedObject,Integer, Integer>> listAllTrackImages(ObjectDAO dao) {
         Set<Triplet<SegmentedObject,Integer, Integer>> res = new HashSet<>();
         for (int sIdx = 0; sIdx<dao.getExperiment().getStructureCount(); ++sIdx) {
@@ -97,14 +97,14 @@ public class ImportExportJSON {
         }
         return res;
     }
-    public static void exportTrackImages(FileIO.ZipWriter writer, ObjectDAO dao) {
+    /*public static void exportTrackImages(FileIO.ZipWriter writer, ObjectDAO dao) {
         ImageDAO iDao = dao.getExperiment().getImageDAO();
         for (Triplet<SegmentedObject, Integer, Integer> p : listAllTrackImages(dao)) {
             InputStream is = iDao.openTrackImageAsStream(p.v1, p.v3);
             if (is!=null) writer.appendFile(dao.getPositionName()+"/TrackImages_"+p.v2+"/"+ Selection.indicesString(p.v1)+"_"+p.v3, is);
         }
-    }
-    public static String importTrackImages(FileIO.ZipReader reader, ObjectDAO dao) {
+    }*/
+    /*public static String importTrackImages(FileIO.ZipReader reader, ObjectDAO dao) {
         ImageDAO iDao = dao.getExperiment().getImageDAO();
         Set<Triplet<SegmentedObject,Integer, Integer>> missingTrackImages = new HashSet<>();
         for (Triplet<SegmentedObject, Integer, Integer> p : listAllTrackImages(dao)) {
@@ -119,11 +119,12 @@ public class ImportExportJSON {
             return message;
         }
         return null;
-    }
-    public static void importPreProcessedImages(FileIO.ZipReader reader, ObjectDAO dao) {
+    }*/
+    /*public static void importPreProcessedImages(FileIO.ZipReader reader, ObjectDAO dao) {
         String dir = dao.getPositionName()+"/Images/";
-        ImageDAO iDao = dao.getExperiment().getImageDAO();
         String pos = dao.getPositionName();
+        ImageDAO iDao = dao.getExperiment().getPosition(pos).getImageDAO();
+
         List<String> files = reader.listsubFiles(dir);
         logger.debug("pos: {}, images: {}", pos, Utils.toStringList(files));
         for (String f : files) {
@@ -134,11 +135,11 @@ public class ImportExportJSON {
             InputStream is = reader.readFile(f);
             if (is!=null) {
                 //logger.debug("read images: f={}, c={} pos: {}", frame, channel, pos);
-                iDao.writePreProcessedImage(is, channel, frame, pos);
+                iDao.writePreProcessedImage(is, channel, frame);
             }
         }
         // todo check all imported
-    }
+    }*/
     public static void importObjects(FileIO.ZipReader reader, ObjectDAO dao) {
         logger.debug("reading objects..");
         List<SegmentedObject> allObjects = reader.readObjects(dao.getPositionName()+"/objects.txt", o->parse(SegmentedObject.class, o));
@@ -178,7 +179,7 @@ public class ImportExportJSON {
         return FileIO.readFromFile(path, s-> parse(clazz, s));
     }
     
-    public static void exportPositions(FileIO.ZipWriter w, MasterDAO dao, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {exportPositions(w, dao, objects, preProcessedImages, trackImages, null, pcb);}
+    /*public static void exportPositions(FileIO.ZipWriter w, MasterDAO dao, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {exportPositions(w, dao, objects, preProcessedImages, trackImages, null, pcb);}
     public static void exportPositions(FileIO.ZipWriter w, MasterDAO dao, boolean objects, boolean preProcessedImages, boolean trackImages, List<String> positions, ProgressCallback pcb) {
         if (!w.isValid()) return;
         if (positions==null) positions = Arrays.asList(dao.getExperiment().getPositionsAsString());
@@ -206,7 +207,7 @@ public class ImportExportJSON {
             if (pcb!=null) pcb.log("Position: "+p+" exported!");
         }
         logger.info("Exporting position done!");
-    }
+    }*/
     public static void exportConfig(FileIO.ZipWriter w, MasterDAO dao) {
         if (!w.isValid()) return;
         w.write("config.json", new ArrayList<Experiment>(1){{add(dao.getExperiment());}}, o->JSONUtils.serialize(o));
@@ -229,7 +230,7 @@ public class ImportExportJSON {
         }
         return null;
     }
-    public static void importConfigurationFromFile(String path, MasterDAO dao, boolean structures, boolean preProcessingTemplate, ProgressCallback pcb) {
+    /*public static void importConfigurationFromFile(String path, MasterDAO dao, boolean structures, boolean preProcessingTemplate, ProgressCallback pcb) {
         File f = new File(path);
         if (f.getName().endsWith(".json")||f.getName().endsWith(".txt")) { //FIJI allows only to upload .txt
             List<Experiment> xp = FileIO.readFromFile(path, o->JSONUtils.parse(Experiment.class, o));
@@ -257,8 +258,8 @@ public class ImportExportJSON {
             }
             
         }
-    }
-    public static void importFromFile(String path, MasterDAO dao, boolean config, boolean selections, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {
+    }*/
+    /*public static void importFromFile(String path, MasterDAO dao, boolean config, boolean selections, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {
         File f = new File(path);
         if (f.getName().endsWith(".json")||f.getName().endsWith(".txt")) {
             if (config) {
@@ -278,8 +279,8 @@ public class ImportExportJSON {
                 }
             }
         } else if (f.getName().endsWith(".zip")) importFromZip(path, dao, config, selections, objects, preProcessedImages, trackImages, pcb);
-    }
-    
+    }*/
+    /*
     public static boolean importFromZip(String path, MasterDAO dao, boolean config, boolean selections, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {
         FileIO.ZipReader r = new FileIO.ZipReader(path);
         boolean ok = true;
@@ -368,5 +369,5 @@ public class ImportExportJSON {
             return ok;
         } else return false;
     }
-    
+    */
 }

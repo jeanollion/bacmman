@@ -24,8 +24,6 @@ import bacmman.data_structure.ExperimentStructure;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.configuration.parameters.FileChooser.FileChooserOption;
-import bacmman.data_structure.dao.ImageDAO;
-import bacmman.data_structure.dao.ImageDAOFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -107,7 +105,6 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     GroupParameter bestFocusPlane = new GroupParameter("Best Focus plane computation", new Parameter[]{bestFocusPlaneChannel, autofocus}).setHint("This algorithm can be used to transform 3-D images (Z-stacks) into 2-D images. For each Z-stack the algorithm will select the plane corresponding to the best focalized image.");
     NoteParameter note = new NoteParameter("Note");
 
-    ImageDAOFactory.ImageDAOTypes imageDAOType= ImageDAOFactory.ImageDAOTypes.LocalTIF;
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
     
     @Override
@@ -215,20 +212,6 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         return bestFocusPlane;
     }
 
-    public void setImageDAOType(ImageDAOFactory.ImageDAOTypes type) {
-        this.imageDAOType=type;
-    }
-
-    public ImageDAO getImageDAO() {
-        return ImageDAOFactory.getLocalTIFImageDAO(getOutputImageDirectory());
-    }
-    public boolean noPreProcessing() {
-        for (Position p : this.getPositions()) {
-            if (!p.getPreProcessingChain().isEmpty()) return false;
-        }
-        return true;
-    }
-    
     protected void initChildList() {
         super.initChildren(importCond, channelImages, channelImagesDuplicated, template, positions, structures, measurements, outputPath, imagePath, bestFocusPlane, note);
     }
@@ -289,7 +272,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     }
 
     public int[] getDuplicatedChannelSources() {
-        return channelImagesDuplicated.getChildren().stream().mapToInt(c->c.getSourceChannel()).toArray();
+        return channelImagesDuplicated.getChildren().stream().mapToInt(ChannelImageDuplicated::getSourceChannel).toArray();
     }
     public int getSourceChannel(int channelIdx) {
         if (channelIdx<getChannelImageCount(false)) return channelIdx;

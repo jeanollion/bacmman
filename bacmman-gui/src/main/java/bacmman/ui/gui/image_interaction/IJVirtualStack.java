@@ -77,7 +77,7 @@ public class IJVirtualStack extends VirtualStack {
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
         Image[] bdsC = new Image[xp.getChannelImageCount(preProcessed)];
-        for (int c = 0; c<bdsC.length; ++c) bdsC[c]= preProcessed ? xp.getImageDAO().openPreProcessedImage(c, 0, position) : f.getInputImages().getImage(c, 0);
+        for (int c = 0; c<bdsC.length; ++c) bdsC[c]= preProcessed ? f.getImageDAO().openPreProcessedImage(c, 0) : f.getInputImages().getImage(c, 0);
         if (bdsC[0]==null) {
             GUI.log("No "+(preProcessed ? "preprocessed " : "input")+" images found for position: "+position);
             return;
@@ -86,7 +86,7 @@ public class IJVirtualStack extends VirtualStack {
         // case of reference image with only one Z -> duplicate
         int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
         int[] fcz = new int[]{frames, channels, maxZ};
-        BiFunction<Integer, Integer, Image> imageOpenerCT  = preProcessed ? (c, t) -> xp.getImageDAO().openPreProcessedImage(c, t, position) : (c, t) -> f.getInputImages().getImage(c, t);
+        BiFunction<Integer, Integer, Image> imageOpenerCT  = preProcessed ? (c, t) -> f.getImageDAO().openPreProcessedImage(c, t) : (c, t) -> f.getInputImages().getImage(c, t);
         IJVirtualStack s = new IJVirtualStack(bdsC[0].sizeX(), bdsC[0].sizeY(), fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());

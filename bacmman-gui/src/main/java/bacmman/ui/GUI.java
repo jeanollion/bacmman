@@ -27,6 +27,7 @@ import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.data_structure.dao.*;
 import bacmman.github.gist.GistConfiguration;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
@@ -59,12 +60,7 @@ import bacmman.core.ProgressCallback;
 import bacmman.core.PythonGateway;
 import bacmman.core.Task;
 import bacmman.data_structure.Processor.MEASUREMENT_MODE;
-import bacmman.data_structure.dao.ImageDAO;
-import bacmman.data_structure.dao.DBMapMasterDAO;
-import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.MasterDAOFactory;
-import bacmman.data_structure.dao.ObjectDAO;
-import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.ui.gui.configuration.TransparentListCellRenderer;
 import bacmman.ui.gui.image_interaction.Kymograph;
 import bacmman.image.Image;
@@ -247,7 +243,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Pre-computes kymographs and saves them in the dataset folder in order to have a faster display of kymograph, and to eventually allow erasing pre-processed images to save disk-space</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(5)+"</b>: Extract measurements of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected positions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export / Export Options</em></li></ol>"));
+                //+ "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected positions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export / Export Options</em></li></ol>"
+        ));
         this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
         helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
         localZoomMenu.setToolTipText(formatHint("Local zoom is activated/deactivated with TAB"));
@@ -1526,7 +1523,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         runActionList.setBackground(new java.awt.Color(247, 246, 246));
         runActionList.setModel(new javax.swing.AbstractListModel() {
-            String[] strings = { "Pre-Processing", "Segment and Track", "Track only", "Generate Kymographs", "Measurements", "Extract Measurements", "Export Data" };
+            String[] strings = { "Pre-Processing", "Segment and Track", "Track only", "Generate Kymographs", "Measurements", "Extract Measurements" }; //"Export Data"
             public int getSize() { return strings.length; }
             public Object getElementAt(int i) { return strings[i]; }
         });
@@ -2402,7 +2399,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         mainMenu.add(optionMenu);
 
-        importMenu.setText("Import");
+        importMenu.setText("Import/Export");
 
         importDataMenuItem.setText("Data From Selected File to Current Dataset (see import options)");
         importDataMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2489,8 +2486,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         importSelectionsMenuItem.setText("Selections");
         importOptionsSubMenu.add(importSelectionsMenuItem);
 
-        importMenu.add(importOptionsSubMenu);
-        importMenu.add(jSeparator1);
+        //importMenu.add(importOptionsSubMenu);
+        //importMenu.add(jSeparator1);
 
         mainMenu.add(importMenu);
 
@@ -2512,13 +2509,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         exportMenu.add(exportSelectedFieldsMenuItem);
 
-        exportXPConfigMenuItem.setText("Configuration Only");
+        exportXPConfigMenuItem.setText("Export Configuration Template");
         exportXPConfigMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 exportXPConfigMenuItemActionPerformed(evt);
             }
         });
-        exportMenu.add(exportXPConfigMenuItem);
+        importMenu.add(exportXPConfigMenuItem);
+        //exportMenu.add(exportXPConfigMenuItem);
 
         exportWholeXPMenuItem.setText("Whole Dataset(s)");
         exportWholeXPMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -2560,7 +2558,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         exportMenu.add(exportOptionsSubMenu);
 
-        mainMenu.add(exportMenu);
+        //mainMenu.add(exportMenu);
 
         miscMenu.setText("Misc");
 
@@ -3070,7 +3068,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         return outputFile.getAbsolutePath();
     }
     private void exportWholeXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exportWholeXPMenuItemActionPerformed
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
+        /*String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
         String dir = promptDir("Choose output directory", defDir, true);
         if (dir==null) return;
         List<String> xpToExport = dsTree.getSelectedDatasetNames();
@@ -3088,11 +3086,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             mDAO.clearCache();
         }
         logger.info("export done!");
-        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);
+        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);*/
     }//GEN-LAST:event_exportWholeXPMenuItemActionPerformed
 
     private void exportSelectedFieldsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exportSelectedFieldsMenuItemActionPerformed
-        if (!checkConnection()) return;
+        /*if (!checkConnection()) return;
         String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
         String dir = promptDir("Choose output directory", defDir, true);
         if (dir==null) return;
@@ -3103,22 +3101,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ImportExportJSON.exportSelections(w, db);
         ImportExportJSON.exportPositions(w, db, true, true, true, sel, ProgressCallback.get(INSTANCE, sel.size()));
         w.close();
-        /*
-        int[] sel  = getSelectedMicroscopyFields();
-        String[] fNames = db.getExperiment().getPositionsAsString();
-        String dbName = db.getDBName();
-        String hostname = getCurrentHostNameOrDir();
-        int count = 0;
-        for (int f : sel) {
-            String cName = MorphiumObjectDAO.getCollectionName(fNames[f]);
-            CommandExecuter.dump(hostname, dbName, cName, dir, jsonFormatMenuItem.isSelected()); 
-        }*/
-        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);
+
+        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);*/
     }//GEN-LAST:event_exportSelectedFieldsMenuItemActionPerformed
 
     private void exportXPConfigMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exportXPConfigMenuItemActionPerformed
         if (!checkConnection()) return;
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
+        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR, db.getDir().toFile().getAbsolutePath());
         File f = Utils.chooseFile("Write config to...", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null || !f.getParentFile().isDirectory()) return;
         promptSaveUnsavedChanges();
@@ -3139,7 +3128,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         String defDir = db.getDir().toFile().getAbsolutePath();
         File f = Utils.chooseFile("Select exported archive", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
-        
+        /*
         DefaultWorker.WorkerTask t= new DefaultWorker.WorkerTask() {
             @Override
             public String run(int i) {
@@ -3165,7 +3154,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 return "";
             };
         };
-        DefaultWorker.execute(t, 1);       
+        DefaultWorker.execute(t, 1);
+
+         */
     }//GEN-LAST:event_importPositionsToCurrentExperimentMenuItemActionPerformed
 
     private void importConfigurationForSelectedPositionsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationForSelectedPositionsMenuItemActionPerformed
@@ -3217,7 +3208,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_importConfigurationForSelectedStructuresMenuItemActionPerformed
 
     private void importNewExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importNewExperimentMenuItemActionPerformed
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
+        /*String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
         String dir = promptDir("Select folder containing dataset or datasets", defDir, false);
         if (dir==null) return;
         File directory = new File(dir);
@@ -3279,18 +3270,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         DefaultWorker.execute(t, 1);
 
         populateDatasetTree();
-        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);
+        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);*/
     }//GEN-LAST:event_importNewExperimentMenuItemActionPerformed
 
     private void importConfigurationMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationMenuItemActionPerformed
-        
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, Paths.get(IJ.getDir("plugins"),"BACMMAN").toString());
+        /*
+        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, this.workingDirectory.getText());
         File f = Utils.chooseFile("Select configuration file or exported zip containing configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
         if (!Utils.promptBoolean("This will erase configutation on "+(db==null ? "all selected" : "current ")+" xp", this)) return;
         if (db!=null) {
             PreProcessingChain oldppTemplate = db.getExperiment().getPreProcessingTemplate().duplicate();
-            ImportExportJSON.importConfigurationFromFile(f.getAbsolutePath(), db, true, true, ProgressCallback.get(this));
+            ImportExportJSON.importConfigurationFromFile(f.getAbsolutePath(), db, ProgressCallback.get(this));
             if (db.getExperiment().getPositionCount()>0 && !db.getExperiment().getPreProcessingTemplate().sameContent(oldppTemplate)) {
                 if (Utils.promptBoolean("Also copy pre-processing chain to all positions?", this)) {
                     for (Position p : db.getExperiment().getPositions()) p.getPreProcessingChain().setContentFrom(db.getExperiment().getPreProcessingTemplate());
@@ -3308,7 +3299,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     continue;
                 }
                 PreProcessingChain oldppTemplate = mDAO.getExperiment().getPreProcessingTemplate().duplicate();
-                ImportExportJSON.importConfigurationFromFile(f.getAbsolutePath(), mDAO, true, true, ProgressCallback.get(this));
+                ImportExportJSON.importConfigurationFromFile(f.getAbsolutePath(), mDAO, ProgressCallback.get(this));
                 if (mDAO.getExperiment().getPositionCount()>0 && !mDAO.getExperiment().getPreProcessingTemplate().sameContent(oldppTemplate)) {
                     if (overwritePos) {
                         for (Position p : mDAO.getExperiment().getPositions()) p.getPreProcessingChain().setContentFrom(mDAO.getExperiment().getPreProcessingTemplate());
@@ -3318,7 +3309,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 mDAO.unlockConfiguration();
             }
         }
-        PropertyUtils.set(PropertyUtils.LAST_IO_CONFIG_DIR, f.getAbsolutePath());
+        PropertyUtils.set(PropertyUtils.LAST_IO_CONFIG_DIR, f.getAbsolutePath());*/
     }//GEN-LAST:event_importConfigurationMenuItemActionPerformed
     
     private Task getCurrentTask(String dbName) {
@@ -3337,7 +3328,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (i==3) generateTrackImages=true;
             if (i==4) runMeasurements=true;
             if (i==5) extract=true;
-            if (i==6) export=true;
+            //if (i==6) export=true;
         }
         Task t;
         if (dbName==null && db!=null) {
@@ -3358,7 +3349,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         } else return null;
         t.setActions(preProcess, segmentAndTrack, segmentAndTrack || trackOnly, runMeasurements).setGenerateTrackImages(generateTrackImages);
         t.setMeasurementMode(this.measurementModeDeleteRadioButton.isSelected() ? MEASUREMENT_MODE.ERASE_ALL : (this.measurementModeOverwriteRadioButton.isSelected() ? MEASUREMENT_MODE.OVERWRITE : MEASUREMENT_MODE.ONLY_NEW));
-        if (export) t.setExportData(this.exportPPImagesMenuItem.isSelected(), this.exportTrackImagesMenuItem.isSelected(), this.exportObjectsMenuItem.isSelected(), this.exportConfigMenuItem.isSelected(), this.exportSelectionsMenuItem.isSelected());
+        //if (export) t.setExportData(this.exportPPImagesMenuItem.isSelected(), this.exportTrackImagesMenuItem.isSelected(), this.exportObjectsMenuItem.isSelected(), this.exportConfigMenuItem.isSelected(), this.exportSelectionsMenuItem.isSelected());
         
         return t;
     }
@@ -3401,13 +3392,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 File dir = Utils.getOneDir(selectedFiles);
                 if (dir!=null) PropertyUtils.set(PropertyUtils.LAST_IMPORT_IMAGE_DIR, dir.getAbsolutePath());
                 db.updateExperiment(); //stores imported position
-                populateActionPositionList();
-                populateTestPositionJCB();
-                updateConfigurationTree();
                 // also lock all new positions
                 db.lockPositions();
                 return "";
-            }, 1);//.setEndOfWork( ()->{} );
+            }, 1).setEndOfWork( ()->{
+                populateActionPositionList();
+                populateTestPositionJCB();
+                updateConfigurationTree();
+            } );
 
         }
     }//GEN-LAST:event_importImagesMenuItemActionPerformed
@@ -3498,9 +3490,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void clearTrackImagesMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_clearTrackImagesMenuItemActionPerformed
         if (!checkConnection()) return;
         if (!Utils.promptBoolean("Delete All Track Images ? (Irreversible)", this)) return;
-        ImageDAO iDAO = db.getExperiment().getImageDAO();
         for (String p : getSelectedPositions(true)) {
-            for (int sIdx = 0; sIdx<db.getExperiment().getStructureCount(); ++sIdx) iDAO.deleteTrackImages(p, sIdx);
+            for (int sIdx = 0; sIdx<db.getExperiment().getStructureCount(); ++sIdx) {
+                ImageDAO dao = db.getExperiment().getPosition(p).getImageDAO();
+                if (dao instanceof ImageDAOTrack) ((ImageDAOTrack)dao).deleteTrackImages(sIdx);
+            }
         }
     }//GEN-LAST:event_clearTrackImagesMenuItemActionPerformed
 
@@ -3543,9 +3537,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_CloseNonInteractiveWindowsMenuItemActionPerformed
 
     private void exportXPObjectsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exportXPObjectsMenuItemActionPerformed
-        exportSelectedExperiments(true, true, true, false, false, false);
+        //exportSelectedExperiments(true, true, true, false, false, false);
     }//GEN-LAST:event_exportXPObjectsMenuItemActionPerformed
-    private void exportSelectedExperiments(boolean config, boolean objects, boolean selections, boolean preProcessedImages, boolean trackImages, boolean eraseXP) {
+    /*private void exportSelectedExperiments(boolean config, boolean objects, boolean selections, boolean preProcessedImages, boolean trackImages, boolean eraseXP) {
         if (config) this.promptSaveUnsavedChanges();
         final List<String> xps = dsTree.getSelectedDatasetNames();
         final List<String> positions = new ArrayList<>();
@@ -3590,9 +3584,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return error ? xp+" NOT DUMPED : error": xp+" dumped!";
         };
         DefaultWorker.execute(t, xps.size());
-    }
+    }*/
     private void unDumpObjectsMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_unDumpObjectsMenuItemActionPerformed
-        closeExperiment();
+        /*closeExperiment();
         final List<File> dumpedFiles = Utils.seachAll(workingDirectory.getText(), s->s.endsWith("_dump.zip"), 1);
         if (dumpedFiles==null) return;
         // remove xp already undumped
@@ -3620,7 +3614,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return dbName+" undumped!";
 
         };
-        DefaultWorker.execute(t, dumpedFiles.size());
+        DefaultWorker.execute(t, dumpedFiles.size());*/
     }//GEN-LAST:event_unDumpObjectsMenuItemActionPerformed
 
     private void localFileSystemDatabaseRadioButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_localFileSystemDatabaseRadioButtonActionPerformed
@@ -3637,11 +3631,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_importObjectsMenuItemActionPerformed
 
     private void exportDataMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_exportDataMenuItemActionPerformed
-        exportSelectedExperiments(exportConfigMenuItem.isSelected(), exportObjectsMenuItem.isSelected(), exportSelectionsMenuItem.isSelected(), exportPPImagesMenuItem.isSelected(), exportTrackImagesMenuItem.isSelected(), false);
+        //exportSelectedExperiments(exportConfigMenuItem.isSelected(), exportObjectsMenuItem.isSelected(), exportSelectionsMenuItem.isSelected(), exportPPImagesMenuItem.isSelected(), exportTrackImagesMenuItem.isSelected(), false);
     }//GEN-LAST:event_exportDataMenuItemActionPerformed
 
     private void importDataMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importDataMenuItemActionPerformed
-        if (!checkConnection()) return;
+        /*if (!checkConnection()) return;
         String defDir = db.getDir().toFile().getAbsolutePath();
         File f = Utils.chooseFile("Select exported archive", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
         if (f==null) return;
@@ -3672,7 +3666,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 return "";
             };
         };
-        DefaultWorker.execute(t, 1);   
+        DefaultWorker.execute(t, 1);   */
     }//GEN-LAST:event_importDataMenuItemActionPerformed
 
     private void actionPoolListMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_actionPoolListMousePressed
@@ -3972,9 +3966,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_workingDirectoryMousePressed
 
     private void newXPFromTemplateMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPFromTemplateMenuItemActionPerformed
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, Paths.get(IJ.getDir("plugins"),"BACMMAN").toString());
+        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, this.workingDirectory.getText());
         logger.debug("defDir: {}", defDir);
-        String config = promptDir("Select configuration file (or zip containing config file)", defDir, false);
+        String config = promptDir("Select configuration file", defDir, false);
         if (config==null) return;
         if (!new File(config).isFile()) {
             log("Select config file");
@@ -3986,33 +3980,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         List<String> dbNames = dsTree.getDatasetNames();
         Experiment xp = FileIO.readFisrtFromFile(config, s->JSONUtils.parse(Experiment.class, s));
-        String name=null;
-        if (xp!=null) {
-            name = JOptionPane.showInputDialog("New Dataset name:", Utils.removeExtension(new File(config).getName()));
-            if (name==null) return;
-            name = ExperimentSearchUtils.addPrefix(name, currentDBPrefix);
-            if (!Utils.isValid(name, false)) {
-                log("Name should not contain special characters");
-                return;
-            } else if (dbNames.contains(name)) {
-                log("XP already present");
-                return;
-            } 
-        } else {
-            log("No xp found in file");
-            return;
-        }
-        MasterDAO mDAO = MasterDAOFactory.createDAO(name, this.getHostNameOrDir(name));
-        mDAO.setConfigurationReadOnly(false);
-        mDAO.lockPositions();
-        mDAO.deleteAllObjects();
-        ImportExportJSON.importFromFile(config, mDAO, true, false, false, false, false, ProgressCallback.get(INSTANCE));
-        mDAO.unlockPositions();
-        mDAO.unlockConfiguration();
-        populateDatasetTree();
-        PropertyUtils.set(PropertyUtils.LAST_IO_CONFIG_DIR, config);
-        openExperiment(name, null, false);
-        if (this.db!=null) setSelectedExperiment(name);
+        if (xp==null) return;
+        if (!newXPMenuItemActionPerformed(evt)) return;
+
+        String outputPath = db.getExperiment().getOutputDirectory();
+        String outputImagePath = db.getExperiment().getOutputImageDirectory();
+        db.getExperiment().initFromJSONEntry(xp.toJSONEntry());
+        db.getExperiment().setOutputDirectory(outputPath);
+        db.getExperiment().setOutputImageDirectory(outputImagePath);
+        this.updateConfigurationTabValidity();
     }//GEN-LAST:event_newXPFromTemplateMenuItemActionPerformed
 
     private void reloadSelectionsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_reloadSelectionsButtonActionPerformed
@@ -4067,7 +4043,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             };
-            openPP.setEnabled(singlePosition && db.getExperiment().getImageDAO().getPreProcessedImageProperties(0, position)!=null);
+            openPP.setEnabled(singlePosition && db.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
             menu.add(openPP);
             menu.add(new JSeparator());
 
