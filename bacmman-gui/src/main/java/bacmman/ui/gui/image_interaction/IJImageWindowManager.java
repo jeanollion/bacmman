@@ -423,7 +423,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             arrow.setStrokeColor(trackCorrectionColor);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(size);
-            new HashSet<>(r.keySet()).forEach((z) -> {
+            new HashSet<>(r.keySet()).stream().filter(z->z>=0).forEach((z) -> {
                 Arrow arrowS = r.size()>1 ? (Arrow)arrow.clone() : arrow;
                 arrowS.setPosition(z);
                 r.put(-z-1, arrowS);
