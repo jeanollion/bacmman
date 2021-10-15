@@ -86,7 +86,7 @@ public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implemen
     }
     public static ThresholdMask and(ThresholdMask mask1, ImageMask mask2) {
         if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
-        Predicate<ImageMask> is2D = m -> m instanceof ThresholdMask ? ((ThresholdMask)m).is2D : false;
+        Predicate<ImageMask> is2D = m -> m instanceof ThresholdMask ? ((ThresholdMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
         if (mask1.sizeZ()!=mask2.sizeZ() && !mask1.is2D && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
         return new ThresholdMask(mask1.is2D?mask2:mask1, (x, y, z)->mask1.insideMask.insideMask(x, y, z)&&mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)&&mask2.insideMask(xy, z), mask1.is2D && is2D.test(mask2));
     }
