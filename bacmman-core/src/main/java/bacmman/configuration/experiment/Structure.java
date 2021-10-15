@@ -48,6 +48,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     PluginParameter<ObjectSplitter> objectSplitter = new PluginParameter<>("Object Splitter", ObjectSplitter.class, true).setEmphasized(false).setHint("Algorithm used to split segmented in manual edition. <br />If no algorithm is defined here and the segmenter is able to split objects, the segmenter will be used instead");
     PluginParameter<ManualSegmenter> manualSegmenter = new PluginParameter<>("Manual Segmenter", ManualSegmenter.class, true).setEmphasized(false).setHint("Algorithm used to segment object from user-defined points (<em>Create Objects</em> command) in manual edition<br />If no algorithm is defined here and the segmenter is able to segment objects from user-defined points, the segmenter will be used instead");
     PluginParameter<ProcessingPipeline> processingPipeline = new PluginParameter<>("Processing Pipeline", ProcessingPipeline.class, true).setEmphasized(false);
+    PostFilterSequence manualPostFilters = new PostFilterSequence("Manual Post-Filters").setHint("Post-filter that can be applied on selected object by pressing ctrl + F");
     BooleanParameter allowSplit = new BooleanParameter("Allow Split", "yes", "no", false).setHint("If <em>true</em> is set, a track can divide in several tracks");
     BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Global Scaling", HistogramScaler.class, true).setHint("Define here a method to scale raw input images, using the histogram of all images of the parent structure in the same position");
@@ -62,6 +63,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         res.put("objectSplitter", objectSplitter.toJSONEntry());
         res.put("manualSegmenter", manualSegmenter.toJSONEntry());
         res.put("processingScheme", processingPipeline.toJSONEntry());
+        res.put("manualPostFilters", manualPostFilters.toJSONEntry());
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
         res.put("scaler", scaler.toJSONEntry());
@@ -78,7 +80,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         objectSplitter.initFromJSONEntry(jsonO.get("objectSplitter"));
         manualSegmenter.initFromJSONEntry(jsonO.get("manualSegmenter"));
         processingPipeline.initFromJSONEntry(jsonO.get("processingScheme"));
-        //brightObject.initFromJSONEntry(jsonO.get("brightObject"));
+        if (jsonO.containsKey("manualPostFilters")) manualPostFilters.initFromJSONEntry(jsonO.get("manualPostFilters"));
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
         if (jsonO.containsKey("scaler")) scaler.initFromJSONEntry(jsonO.get("scaler"));
@@ -130,7 +132,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, allowMerge, allowSplit); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowMerge, allowSplit); //brightObject
     }
     public boolean allowSplit() {
         return allowSplit.getSelected();
@@ -153,6 +155,9 @@ public class Structure extends ContainerParameterImpl<Structure> {
     public HistogramScaler getScalerForPosition(String position) {
         if (!scaler.isOnePluginSet()) return null;
         return scalerP.get(position);
+    }
+    public PostFilterSequence getManualPostFilters() {
+        return manualPostFilters;
     }
     public void ensureScalerConfiguration(String position) {
         if (scalerP.containsKey(position)) {
