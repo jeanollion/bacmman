@@ -12,7 +12,9 @@
         <!--javacpp.platform>macosx-x86_64</javacpp.platform-->
         <!--javacpp.platform>windows-x86_64</javacpp.platform-->
         <javacpp.platform>linux-x86_64</javacpp.platform>
+
         <javacpp.platform.extension></javacpp.platform.extension>
+        <!--javacpp.platform.extension>-gpu</javacpp.platform.extension-->
         <!-->set "-gpu" for gpu support <-->
     </properties>
     <artifactId>bacmman-tf2</artifactId>
@@ -30,19 +32,30 @@
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>ndarray</artifactId>
-            <version>0.3.1</version>
+            <version>0.4.0-SNAPSHOT</version>
         </dependency>
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
-            <version>0.3.1</version>
+            <version>0.4.0-SNAPSHOT</version>
+            <!--exclusions>
+                <exclusion>
+                    <groupId>com.google.protobuf</groupId>
+                    <artifactId>protobuf-java</artifactId>
+                </exclusion>
+            </exclusions-->
         </dependency>
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
-            <version>0.3.1</version>
+            <version>0.3.3</version>
             <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency>
+        <!--dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+            <version>3.11.4</version>
+        </dependency-->
     </dependencies>
     <repositories>
         <repository>
