@@ -42,6 +42,9 @@ public class Roi3D extends HashMap<Integer, Roi> {
         super.forEach((z, r)->res.put(z, (Roi)r.clone()));
         return res;
     }
+    public int size() {
+        return (int)keySet().stream().filter(z->z>=0).count();
+    }
     public void duplicateROIUntilZ(int zMax) {
         if (size()>1 || !containsKey(0)) return;
         Roi r = this.get(0);
