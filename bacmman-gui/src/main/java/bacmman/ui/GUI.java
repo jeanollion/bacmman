@@ -461,7 +461,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 logger.debug("C pressed: " + e);
             }
         });
-        
+        actionMap.put(Shortcuts.ACTION.POST_FILTER, new AbstractAction("Post-Filter") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                postFilterActionPerformed(e);
+            }
+        });
         actionMap.put(Shortcuts.ACTION.SELECT_ALL_OBJECTS, new AbstractAction("Select All Objects") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -4216,6 +4222,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
         else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) ManualEdition.splitObjects(db, selList, true, false);
     }//GEN-LAST:event_splitObjectsButtonActionPerformed
+
+    private void postFilterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_postFilterActionPerformed
+        if (!checkConnection()) return;
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        if (selList.isEmpty()) logger.warn("Select at least one object to apply post-filters on!");
+        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, true);
+    }//GEN-LAST:event_postFilterActionPerformed
 
     private void nextTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed
         if (!checkConnection()) return;

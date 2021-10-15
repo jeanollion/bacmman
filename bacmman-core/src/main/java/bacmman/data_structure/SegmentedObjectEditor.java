@@ -155,6 +155,7 @@ public class SegmentedObjectEditor {
     }
     @SuppressWarnings("unchecked")
     public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        if (objects.isEmpty()) return;
         Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
         for (Map.Entry<String, List<SegmentedObject>> e : objectsByPosition.entrySet()) {
             ObjectDAO dao = db != null ? db.getDao(e.getKey()) : null;

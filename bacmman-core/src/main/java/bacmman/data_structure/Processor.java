@@ -33,6 +33,7 @@ import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
+import bacmman.image.Offset;
 import bacmman.image.io.KymographFactory;
 import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
@@ -41,6 +42,7 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import java.util.*;
 import java.util.Map.Entry;
 
+import bacmman.processing.matching.MaxOverlapMatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.utils.MultipleException;
@@ -49,6 +51,7 @@ import bacmman.utils.StreamConcatenation;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -572,8 +575,79 @@ public class Processor {
         if (!globE.isEmpty()) throw globE;
         if (containsObjects && allModifiedObjects.isEmpty()) throw new RuntimeException("No Measurement preformed");
     }
-    
-    
+
+    public static List<SegmentedObject> applyFilterToSegmentedObjects(SegmentedObject parent, List<SegmentedObject> children, BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> filter, boolean requiresRelativeLandmark, SegmentedObjectFactory factory, Set<SegmentedObject> modifiedObjects) {
+        if (children.isEmpty()) return Collections.emptyList();
+        int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(children);
+        RegionPopulation pop = new RegionPopulation(children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), parent.getMaskProperties());
+        if (requiresRelativeLandmark && !parent.isRoot()) {
+            pop.translate(parent.getBounds().duplicate().reverseOffset(), false); // go back to relative landmark for post-filter
+        }
+        pop = filter.apply(parent, pop);
+        if (requiresRelativeLandmark) {
+            if (!parent.isRoot()) {
+                Offset off = parent.getBounds();
+                pop.translate(off, true); // go back to absolute landmark
+                // also translate old regions only if there were not translated back (i.e. new regions were created by post filter)
+                children.stream().map(SegmentedObject::getRegion).filter(r -> !r.isAbsoluteLandMark()).forEach(r -> {
+                    r.translate(off);
+                    r.setIsAbsoluteLandmark(true);
+                });
+            } else pop.getRegions().forEach(r -> r.setIsAbsoluteLandmark(true));
+        }
+        List<SegmentedObject> toRemove=null;
+        // first map regions with segmented object by hashcode
+        List<Region> newRegions = pop.getRegions();
+        int idx = 0;
+        while (idx<children.size()) {
+            SegmentedObject c = children.get(idx);
+            // look for a region with same hashcode:
+            int nIdx = newRegions.indexOf(c.getRegion());
+            if (nIdx>=0) {
+                children.remove(idx);
+                newRegions.remove(nIdx);
+                if (modifiedObjects!=null) modifiedObjects.add(c);
+            } else ++idx; // no matching region
+        }
+        // then if there are unmapped objects -> map by overlap
+        if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
+            MaxOverlapMatcher<Region> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.regionOverlap(null, null));
+            Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> oldMaxOverlap = new HashMap<>();
+            Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> newMaxOverlap = new HashMap<>();
+            List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+            matcher.match(oldR, newRegions, oldMaxOverlap, newMaxOverlap);
+            for (SegmentedObject o : children) {
+                MaxOverlapMatcher<Region>.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
+                if (maxNew==null) {
+                    if (toRemove==null) toRemove= new ArrayList<>();
+                    toRemove.add(o);
+                } else {
+                    factory.setRegion(o, maxNew.o2);
+                    newRegions.remove(maxNew.o2);
+                    if (modifiedObjects!=null) modifiedObjects.add(o);
+                }
+            }
+        } else if (!children.isEmpty()) {
+            toRemove=children;
+        }
+        if (!newRegions.isEmpty()) { // create unmatched objects // TODO untested
+            Stream<SegmentedObject> s = parent.getChildren(structureIdx);
+            List<SegmentedObject> newChildren = s==null ? new ArrayList<>(newRegions.size()) : s.collect(Collectors.toList());
+            int startLabel = newChildren.stream().mapToInt(o->o.getRegion().getLabel()).max().orElse(0)+1;
+            logger.debug("creating {} objects starting from label: {}", newRegions, startLabel);
+            for (Region r : newRegions) {
+                SegmentedObject o =  new SegmentedObject(parent.getFrame(), structureIdx, startLabel++, r, parent);
+                newChildren.add(o);
+                if (modifiedObjects!=null) modifiedObjects.add(o);
+            }
+            factory.setChildren(parent, newChildren);
+            factory.relabelChildren(parent);
+        }
+        if (toRemove==null) return Collections.emptyList();
+        return toRemove;
+    }
+
+
     private static Set<Integer> getOutputStructures(List<Measurement> mList) {
         Set<Integer> l = new HashSet<>(5);
         for (Measurement m : mList) for (MeasurementKey k : m.getMeasurementKeys()) l.add(k.getStoreStructureIdx());

@@ -372,7 +372,7 @@ public class SegmentedObjectUtils {
         list.removeIf(o -> o.getStructureIdx()!=sIdx);
         return sIdx;
     }
-    public static String keepOnlyObjectsFromSameMicroscopyField(Collection<SegmentedObject> list, String... fieldName) {
+    public static String keepOnlyObjectsFromSamePosition(Collection<SegmentedObject> list, String... fieldName) {
         if (list.isEmpty()) return null;
         String fName = fieldName.length>=1 ? fieldName[0] : list.iterator().next().getPositionName();
         list.removeIf(o -> !o.getPositionName().equals(fName));

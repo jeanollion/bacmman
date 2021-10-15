@@ -19,6 +19,7 @@
 package bacmman.ui;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.parameters.PostFilterSequence;
 import bacmman.configuration.parameters.TrackPreFilterSequence;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
@@ -46,6 +47,7 @@ import bacmman.processing.matching.TrackMateInterface;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.BiPredicate;
@@ -55,6 +57,7 @@ import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static bacmman.data_structure.Processor.applyFilterToSegmentedObjects;
 import static bacmman.data_structure.SegmentedObjectEditor.*;
 
 /**
@@ -94,7 +97,7 @@ public class ManualEdition {
         } return true;
     }
     public static void modifyObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean unlink, boolean updateDisplay) {
-        SegmentedObjectUtils.keepOnlyObjectsFromSameMicroscopyField(objects);
+        SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
         SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.size()<=1) return;
         if (updateDisplay) ImageWindowManagerFactory.getImageManager().removeTracks(SegmentedObjectUtils.getTrackHeads(objects));
@@ -302,7 +305,7 @@ public class ManualEdition {
     
     
     public static void resetObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean updateDisplay) {
-        SegmentedObjectUtils.keepOnlyObjectsFromSameMicroscopyField(objects);
+        SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
         if (!canEdit(objects.stream(), db)) return;
         int objectClassIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.isEmpty()) return;
@@ -598,6 +601,26 @@ public class ManualEdition {
         List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor);
         if (updateDisplay) updateDisplayAndSelectObjects(newObjects);
     }
+
+    public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay) {
+        int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
+        String position = SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
+        if (!canEdit(objects.stream(), db)) return;
+        SegmentedObjectFactory factory = getFactory(structureIdx);
+        TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
+        PostFilterSequence postFilters = db.getExperiment().getStructure(structureIdx).getManualPostFilters();
+        List<SegmentedObject> modifiedObjectAll = new ArrayList<>();
+        SegmentedObjectUtils.splitByParent(objects).forEach((parent, children) -> {
+            BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> f = (p, pop) -> postFilters.filter(pop, structureIdx, parent);;
+            Set<SegmentedObject> modifiedObjects = new HashSet<>();
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, modifiedObjects);
+            SegmentedObjectEditor.deleteObjects(db, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor);
+            modifiedObjectAll.addAll(modifiedObjects);
+        });
+        db.getDao(position).store(modifiedObjectAll);
+        if (updateDisplay) updateDisplayAndSelectObjects(modifiedObjectAll);
+    }
+
     public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects) {
         ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
         ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);

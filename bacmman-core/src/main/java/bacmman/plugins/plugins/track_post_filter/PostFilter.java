@@ -37,8 +37,13 @@ import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+import net.imglib2.loops.LoopBuilder;
 
+import static bacmman.data_structure.Processor.applyFilterToSegmentedObjects;
 import static bacmman.utils.Utils.parallele;
+
+import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -83,7 +88,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
         ALWAYS_MERGE(SegmentedObjectEditor.ALWAYS_MERGE),
         MERGE_TRACKS_BACT_SIZE_COND(SegmentedObjectEditor.MERGE_TRACKS_BACT_SIZE_COND);
         public final BiPredicate<SegmentedObject, SegmentedObject> mergePredicate;
-        private MERGE_POLICY(BiPredicate<SegmentedObject, SegmentedObject> mergePredicate) {
+        MERGE_POLICY(BiPredicate<SegmentedObject, SegmentedObject> mergePredicate) {
             this.mergePredicate=mergePredicate; 
         }
     }
@@ -109,76 +114,19 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
     
     @Override
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        boolean rootParent = parentTrack.stream().findAny().get().isRoot();
+
         Set<SegmentedObject> objectsToRemove = new HashSet<>();
-        Consumer<SegmentedObject> exe = p -> {
-            SegmentedObject parent = p;
+        Consumer<SegmentedObject> exe = parent -> {
             Stream<SegmentedObject> childrenS = parent.getChildren(structureIdx);
             if (childrenS==null) return;
-            RegionPopulation pop = parent.getChildRegionPopulation(structureIdx);
             List<SegmentedObject> children = childrenS.collect(Collectors.toList());
-            if (!rootParent) {
-                pop.translate(parent.getBounds().duplicate().reverseOffset(), false); // go back to relative landmark for post-filter
-            }
-            bacmman.plugins.PostFilter instance = filter.instantiatePlugin();
-            if (instance instanceof TestableProcessingPlugin && stores!=null) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
-            pop=instance.runPostFilter(parent, structureIdx, pop);
-            if (!rootParent) {
-                Offset off = parent.getBounds();
-                pop.translate(off, true); // go back to absolute landmark
-                // also translate old regions only if there were not translated back (i.e. new regions were created by post filter)
-                children.stream().map(SegmentedObject::getRegion).filter(r->!r.isAbsoluteLandMark()).forEach(r -> {
-                    r.translate(off);
-                    r.setIsAbsoluteLandmark(true);
-                });
-            }
-            List<SegmentedObject> toRemove=null;
-            // first map regions with segmented object by hashcode
-            List<Region> newRegions = pop.getRegions();
-            int idx = 0;
-            while (idx<children.size()) {
-                SegmentedObject c = children.get(idx);
-                // look for a region with same hashcode:
-                int nIdx = newRegions.indexOf(c.getRegion());
-                if (nIdx>=0) {
-                    children.remove(idx);
-                    newRegions.remove(nIdx);
-                } else ++idx; // no matching region
-            }
-            // then if there are unmapped objects -> map by overlap
-            if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
-                MaxOverlapMatcher<Region> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.regionOverlap(null, null));
-                Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> oldMaxOverlap = new HashMap<>();
-                Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> newMaxOverlap = new HashMap<>();
-                List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-                matcher.match(oldR, newRegions, oldMaxOverlap, newMaxOverlap);
-                for (SegmentedObject o : children) {
-                    MaxOverlapMatcher<Region>.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
-                    if (maxNew==null) {
-                        if (toRemove==null) toRemove= new ArrayList<>();
-                        toRemove.add(o);
-                    } else {
-                        factory.setRegion(o, maxNew.o2);
-                        newRegions.remove(maxNew.o2);
-                    }
-                }
-            } else if (!children.isEmpty()) {
-                toRemove=children;
-            }
-            if (!newRegions.isEmpty()) { // create unmatched objects // TODO untested
-                Stream<SegmentedObject> s = parent.getChildren(structureIdx);
-                List<SegmentedObject> newChildren = s==null ? new ArrayList<>(newRegions.size()) : s.collect(Collectors.toList());
-                int startLabel = newChildren.stream().mapToInt(o->o.getRegion().getLabel()).max().orElse(0)+1;
-                logger.debug("creating {} objects starting from label: {}", newRegions, startLabel);
-                for (Region r : newRegions) {
-                    SegmentedObject o =  new SegmentedObject(parent.getFrame(), structureIdx, startLabel++, r, parent);
-                    newChildren.add(o);
-                }
-                factory.setChildren(parent, children);
-                factory.relabelChildren(parent);
-
-            }
-            if (toRemove!=null) {
+            BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> f = (p, pop) -> {
+                bacmman.plugins.PostFilter instance = filter.instantiatePlugin();
+                if (instance instanceof TestableProcessingPlugin && stores!=null) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
+                return instance.runPostFilter(p, structureIdx, pop);
+            };
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, null);
+            if (!toRemove.isEmpty()) {
                 synchronized(objectsToRemove) {
                     objectsToRemove.addAll(toRemove);
                 }
@@ -217,5 +165,6 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
     public Parameter[] getParameters() {
         return new Parameter[]{filter, deleteMethod, mergePolicy};
     }
-    
+
+
 }

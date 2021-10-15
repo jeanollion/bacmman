@@ -607,7 +607,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     public List<SegmentedObject> getRoots() {
         // todo: root cache list to avoid sorting each time getRoot is called?
         List<SegmentedObject> res =  new ArrayList<>(getChildren(new Pair(null, -1)).values());
-        Collections.sort(res, (o1, o2) -> Integer.compare(o1.getFrame(), o2.getFrame()));
+        Collections.sort(res, Comparator.comparingInt(SegmentedObject::getFrame));
         return res;
     }
 
