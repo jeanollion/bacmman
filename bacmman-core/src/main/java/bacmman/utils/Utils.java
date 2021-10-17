@@ -1054,14 +1054,16 @@ public class Utils {
         for (Collection<V> c : map.values()) l.addAll(c);
         return l;
     }
-    
-    public static <T, K> List<K> transform(Collection<T> list, Function<T, K> func) {
+    public static <T, K> List<K> transform(Collection<T> list, Function<T, K> func, boolean parallel) {
         if (list==null) return null;
         if (list.isEmpty()) return Collections.EMPTY_LIST;
-        return list.stream().map(func).collect(Collectors.toList());
+        return Utils.parallele(list.stream(), parallel).map(func).collect(Collectors.toList());
         /*List<K> res = new ArrayList<>(list.size());
         for (T t : list)  res.add(func.apply(t));
         return res;*/
+    }
+    public static <T, K> List<K> transform(Collection<T> list, Function<T, K> func) {
+        return transform(list, func, false);
     }
     public static <T, K> List<K> applyWithNullCheck(Collection<T> list, Function<T, K> func) {
         if (list==null) return null;

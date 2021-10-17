@@ -33,6 +33,7 @@
         <module>bacmman-github</module>
         <module>bacmman-dl</module>
         <module>bacmman-tf${tensorflow.version}</module>
+        <module>bacmman-tango</module>
     </modules>
 
     <name>BACMMAN</name>

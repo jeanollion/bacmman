@@ -49,9 +49,25 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
         scaleZ.initFromJSONEntry(jsonO.get("scaleZ"));
         useImageCalibration.initFromJSONEntry(jsonO.get("useImageCalibration"));
     }
-    
+
+    public ScaleXYZParameter setDecimalPlaces(int decimalPlaces) {
+        scaleXY.setDecimalPlaces(decimalPlaces);
+        scaleZ.setDecimalPlaces(decimalPlaces);
+        return this;
+    }
+    public ScaleXYZParameter setParameterName(String nameXY, String nameZ) {
+        scaleXY.setName(nameXY);
+        scaleZ.setName(nameZ);
+        return this;
+    }
+
     public ScaleXYZParameter(String name) {
         super(name);
+    }
+    public ScaleXYZParameter(String name, double scaleXY) {
+        super(name);
+        this.scaleXY.setValue(scaleXY);
+        useImageCalibration.setSelected(true);
     }
     public ScaleXYZParameter(String name, double scaleXY, double scaleZ, boolean useCalibration) {
         super(name);

@@ -75,13 +75,16 @@ public class ImageOperations {
         if (output!=null) for (Region o : toRemove) o.draw(output, 0);
         return l;
     }
-    public static Image applyPlaneByPlane(Image image, Function<Image, Image> function) {
+    public static Image applyPlaneByPlane(Image image, Function<Image, Image> function, boolean parallel) {
         if (image.sizeZ()==1) return function.apply(image);
         else {
             List<Image> planes = image.splitZPlanes();
-            planes = Utils.transform(planes, function);
+            planes = Utils.transform(planes, function, parallel);
             return Image.mergeZPlanes(planes);
         }
+    }
+    public static Image applyPlaneByPlane(Image image, Function<Image, Image> function) {
+        return applyPlaneByPlane(image, function, false);
     }
     public static Image average(Image output, Image... images) {
         if (images.length==0) throw new IllegalArgumentException("Cannot average zero images!");

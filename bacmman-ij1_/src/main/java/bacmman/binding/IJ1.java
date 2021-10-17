@@ -119,6 +119,7 @@ public class IJ1 implements PlugIn {
                     gui.setVisible(true);
                     gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
                     IJ.setTool("freeline");
+                    IJ.setTool("ellipse");
                     IJ.setTool("rect");
                     Core.setUserLogger(gui);
 
