@@ -613,28 +613,22 @@ public class RegionPopulation {
     }
     
     public void keepOnlyLargestObject() {
-        if (getRegions().isEmpty()) {
+        if (getRegions().size()<=1) {
             return;
         }
-        if (labelImage!=null) {
-            for (Region o : getRegions()) {
-                draw(o, 0);
-            }
-        }
-        int maxIdx = 0;
-        double maxSize = objects.get(0).size();
+        Region max = objects.get(0);
+        double maxSize = max.size();
         for (int i = 1; i < objects.size(); ++i) {
-            if (objects.get(i).getVoxels().size() > maxSize) {
+            if (objects.get(i).size() > maxSize) {
                 maxSize = objects.get(i).size();
-                maxIdx = i;
+                max = objects.get(i);
             }
         }
-        ArrayList<Region> objectsTemp = new ArrayList<Region>(1);
-        Region o = objects.get(maxIdx);
-        o.setLabel(1);
-        objectsTemp.add(o);
+        ArrayList<Region> objectsTemp = new ArrayList<>();
+        objectsTemp.add(max);
+        max.setLabel(1);
         objects = objectsTemp;
-        if (labelImage!=null) draw(o, o.getLabel());
+        if (labelImage!=null) redrawLabelMap(true);
     }
     
     public void mergeAll() {
@@ -653,9 +647,8 @@ public class RegionPopulation {
      * @param fromLabel 
      */
     private void mergeAllConnected(int fromLabel) {
-        relabel(); // objects label start from 1 -> idx = label-1
-        getRegions();
-        List<Region> toRemove = new ArrayList<>();
+        relabel(true);
+        Map<Integer, Region> labelMapRegion = getRegions().stream().collect(Collectors.toMap(Region::getLabel, r->r));
         ImageInteger inputLabels = getLabelMap();
         int otherLabel;
         int[][] neigh = inputLabels.sizeZ()>1 ? (lowConnectivity ? ImageLabeller.neigh3DLowHalf : ImageLabeller.neigh3DHalf) : (lowConnectivity ? ImageLabeller.neigh2D4Half : ImageLabeller.neigh2D8Half);
@@ -665,27 +658,26 @@ public class RegionPopulation {
                 for (int x = 0; x<inputLabels.sizeX(); x++) {
                     int label = inputLabels.getPixelInt(x, y, z);
                     if (label==0) continue;
-                    if (label-1>=objects.size()) {
-                        logger.error("label map, error @ label: {}", label);
-                    }
-                    Region currentRegion = objects.get(label-1);
+                    Region currentRegion = labelMapRegion.get(label);
                     for (int i = 0; i<neigh.length; ++i) {
                         n = new Voxel(x+neigh[i][0], y+neigh[i][1], z+neigh[i][2]);
                         if (inputLabels.contains(n.x, n.y, n.z)) { 
                             otherLabel = inputLabels.getPixelInt(n.x, n.y, n.z);   
                             if (otherLabel>0 && otherLabel!=label) {
                                 if (label>=fromLabel || otherLabel>=fromLabel) {
-                                    Region otherRegion = objects.get(otherLabel-1);
-                                    if (otherLabel<label) { // switch
+                                    Region otherRegion = labelMapRegion.get(otherLabel);
+                                    if (otherLabel<label) { // switch so that lowest label remains
                                         Region temp = currentRegion;
                                         currentRegion = otherRegion;
                                         otherRegion = temp;
                                         label = currentRegion.getLabel();
+                                        otherLabel = otherRegion.getLabel();
                                     }
                                     Region newRegion = Region.merge(currentRegion, otherRegion);
+                                    newRegion.setLabel(label);
                                     draw(otherRegion, label);
-                                    toRemove.add(otherRegion);
-                                    objects.set(label-1, newRegion);
+                                    labelMapRegion.remove(otherLabel);
+                                    labelMapRegion.put(label, newRegion);
                                     currentRegion = newRegion;
                                 }
                             }
@@ -694,7 +686,7 @@ public class RegionPopulation {
                 }
             }
         }
-        objects.removeAll(toRemove);
+        objects = new ArrayList<>(labelMapRegion.values());
     }
     public void mergeWithConnected(Collection<Region> objectsToMerge) {
         // create a new list, with objects to merge at the end, and record the last label to merge
