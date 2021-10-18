@@ -22,6 +22,7 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.data_structure.region_container.roi.TrackRoi;
+import bacmman.image.*;
 import bacmman.ui.GUI;
 import bacmman.ui.ManualEdition;
 import ij.IJ;
@@ -29,12 +30,6 @@ import ij.ImagePlus;
 import ij.WindowManager;
 import ij.gui.*;
 import ij.process.FloatPolygon;
-import bacmman.image.BoundingBox;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.image.Offset;
-import bacmman.image.SimpleOffset;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -180,6 +175,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         //logger.debug("selection: {}", selection);
                         if (selection.sizeX()==0 && selection.sizeY()==0) selection=null;
                         i.addClickedObjects(selection, selectedObjects);
+                        //logger.debug("selection: {} #objects before remove afterwards, bounds: {}", selection, selectedObjects.size(), selectedObjects.stream().map(o->o.key.getBounds()).collect(Collectors.toList()));
                         boolean is2D = i.is2D();
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
@@ -188,7 +184,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         if (!freeHandSplit || !strechObjects || !freeHandDraw) ip.deleteRoi();
                     }
                 }
-                // simple click : get clicked object
+                // simple click : get clicked object // TODO not used anymore ?
                 if (!fromSelection && !strechObjects) {
                     int offscreenX = canvas.offScreenX(e.getX());
                     int offscreenY = canvas.offScreenY(e.getY());
@@ -288,7 +284,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection, int sliceZ) {
 
         if (seg.getRegion() instanceof Spot) {
-            return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
+            return IntStream.range(0, selection.npoints).anyMatch(i -> {
                 double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
                 double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
                 double z = sliceZ==-1 ? 0 : sliceZ - offset.zMin()+seg.getBounds().zMin();
@@ -298,11 +294,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             });
         } else {
             ImageMask mask = seg.getMask();
-            return IntStream.range(0, selection.npoints).parallel().anyMatch(i -> {
+            return IntStream.range(0, selection.npoints).anyMatch(i -> {
                 int x= Math.round(selection.xpoints[i] - offset.xMin());
                 int y = Math.round(selection.ypoints[i] - offset.yMin());
                 int z = seg.is2D() ? mask.zMin() : (sliceZ==-1 ? mask.zMin() : sliceZ - offset.zMin());
-                //logger.debug("intersect: is2D: {}, offset: {}, bds: {}, z: {}, convtains: {}, inside: {}", seg.is2D(), offset, seg.getBounds(), z, mask.contains(x, y, z), mask.insideMask(x, y, z));
                 return mask.contains(x, y, z) && mask.insideMask(x, y, z);
             });
         }
