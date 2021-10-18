@@ -59,7 +59,7 @@ public class RegionContainerIjRoi extends RegionContainer {
     private void encodeRoi() {
         if (roi==null) createRoi(segmentedObject.getRegion());
         roiZ = new ArrayList<>(roi.size());
-        roi.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey))
+        roi.entrySet().stream().filter(e->e.getKey()>=0).sorted(Comparator.comparingInt(Map.Entry::getKey))
                 .forEach(e->roiZ.add(RoiEncoder.saveAsByteArray(e.getValue())));
     }
     /**
@@ -84,6 +84,7 @@ public class RegionContainerIjRoi extends RegionContainer {
     private synchronized ImageByte getMask() {
         ImageStack stack = new ImageStack(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
         if (roi==null) decodeRoi();
+        MutableBoundingBox bounds2D= new MutableBoundingBox(bounds).setzMin(0).setzMax(0);
         IntStream.rangeClosed(bounds.zMin(), bounds.zMax()).forEachOrdered(z -> {
             Roi r = roi.get(z);
             Rectangle bds = r.getBounds();
@@ -92,13 +93,11 @@ public class RegionContainerIjRoi extends RegionContainer {
                 mask = IJImageWrapper.getImagePlus(TypeConverter.toImageInteger(new BlankMask(bds.width, bds.height, 1, bds.x, bds.y, 0, 1, 1), null)).getProcessor();
             } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
                 ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
-                //logger.debug("object: {} paste image during ij roi decoding: roi: {} object bounds: {}", structureObject, i.getBoundingBox(), bounds);
-                mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds)).getProcessor();
+                mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
             }
             stack.setProcessor(mask, z-bounds.zMin()+1);
         });
         ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
-        //logger.debug("creating object for: {}, scale: {}", structureObject, structureObject.getScaleXY());
         res.setCalibration(new SimpleImageProperties(bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ())).translate(bounds);
         return res;
     }
@@ -183,6 +182,7 @@ public class RegionContainerIjRoi extends RegionContainer {
                 roi.setPosition(z + 1 + offset.zMin()); 
                 res.put(z + offset.zMin(), roi);
             }
+
         }
         return res;
     }
