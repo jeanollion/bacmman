@@ -42,7 +42,7 @@ public class SegmentAndTrack extends SegmentationAndTrackingProcessingPipeline<S
     public SegmentAndTrack(TrackerSegmenter tracker){
         this.tracker.setPlugin(tracker);
     }
-    
+    public boolean objectClassOperations() {return false;}
     @Override
     public String getHintText() {
         return "Performs the segmentation and Tracking steps jointly. Allows some tracker correcting segmentation errors.";

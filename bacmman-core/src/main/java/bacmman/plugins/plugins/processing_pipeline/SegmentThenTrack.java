@@ -41,7 +41,7 @@ public class SegmentThenTrack extends SegmentationAndTrackingProcessingPipeline<
         this.segmenter.setPlugin(segmenter);
         this.tracker.setPlugin(tracker);
     }
-    
+    public boolean objectClassOperations() {return false;}
     @Override
     public String getHintText() {
         return "Performs the segmentation step followed by the Tracking step (independently)";

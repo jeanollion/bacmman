@@ -248,7 +248,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         int idx = getIndex();
         parentStructure.setMaxStructureIdx(idx);
         segmentationParent.setMaxStructureIdx(idx);
-        if (processingPipeline.isOnePluginSet() && processingPipeline.instantiatePlugin() instanceof Duplicate) {
+        if (processingPipeline.isOnePluginSet() && processingPipeline.instantiatePlugin().objectClassOperations()) {
             processingPipeline.getParameters().stream().filter(p->p instanceof ParentObjectClassParameter).map(p->(ParentObjectClassParameter)p).forEach(p->p.setMaxStructureIdx(idx));
         }
     }

@@ -54,7 +54,7 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
     void segmentAndTrack(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
     void trackOnly(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor);
     void setTestDataStore(Map<SegmentedObject, TestableProcessingPlugin.TestDataStore> stores);
-
+    boolean objectClassOperations();
     enum PARENT_TRACK_MODE {
         WHOLE_PARENT_TRACK_ONLY(0), SINGLE_INTERVAL(1), MULTIPLE_INTERVALS(2);
         public final int value;

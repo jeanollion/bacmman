@@ -52,7 +52,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
     Parameter[] parameters = new Parameter[]{preFilters, trackPreFilters, segmenter, postFilters};
     
     public SegmentOnly() {}
-    
+    public boolean objectClassOperations() {return false;}
     public SegmentOnly(Segmenter segmenter) {
         // insert segmenter parameter into experiment tree (do it before call to setPlugin)
         MutableTreeNode p=null;
