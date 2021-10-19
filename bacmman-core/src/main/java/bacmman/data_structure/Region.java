@@ -282,10 +282,20 @@ public class Region {
         this.bounds=null;
         regionModified=true;
     }
+    public synchronized void add(Region r) {
+        if (r.voxels!=null) addVoxels(r.voxels);
+        else add(r.getMask());
+        regionModified=true;
+    }
     public synchronized void remove(Region r) {
         if (this.mask!=null && r.mask!=null) andNot(r.mask);
         else if (this.voxels!=null && r.voxels!=null) removeVoxels(r.voxels);
         else andNot(r.getMask());
+        regionModified=true;
+    }
+    public synchronized void and(Region r) {
+        if (r.voxels!=null) retainVoxels(r.voxels);
+        else and(r.getMask());
         regionModified=true;
     }
     public synchronized void removeVoxels(Collection<Voxel> voxelsToRemove) {
@@ -295,6 +305,19 @@ public class Region {
             ImageInteger mask = getMaskAsImageInteger();
             for (Voxel v : voxelsToRemove) mask.setPixelWithOffset(v.x, v.y, v.z, 0);
         }
+        this.bounds=null;
+        regionModified=true;
+    }
+    public synchronized void retainVoxels(Collection<Voxel> voxelsToRetain) {
+        if (voxels!=null) this.voxels.retainAll(voxelsToRetain);
+        else {
+            Set<Voxel> newVoxels = new HashSet<>();
+            for (Voxel v : voxelsToRetain) {
+                if (mask.insideMaskWithOffset(v.x, v.y, v.z)) newVoxels.add(v.duplicate());
+            }
+            this.voxels = newVoxels;
+        }
+        mask = null;
         this.bounds=null;
         regionModified=true;
     }
@@ -316,13 +339,31 @@ public class Region {
         ensureMaskIsImageInteger();
         ImageInteger mask = getMaskAsImageInteger();
         LoopFunction function = (x, y, z)-> {
-            if (!mask.insideMaskWithOffset(x, y, z)) return;
-            if (!otherMask.insideMaskWithOffset(x, y, z)) {
+            if (!otherMask.containsWithOffset(x, y, z) || !otherMask.insideMaskWithOffset(x, y, z)) {
                 mask.setPixelWithOffset(x, y, z, 0);
                 if (voxels!=null) voxels.remove(new Voxel(x, y, z));
             }
         };
-        BoundingBox.loop(BoundingBox.getIntersection(otherMask, getBounds()), function);
+        ImageMask.loopWithOffset(mask, function);
+        resetMask();
+        regionModified=true;
+    }
+    public synchronized void add(ImageMask otherMask) {
+        getMask();
+        ensureMaskIsImageInteger();
+        ImageInteger mask = getMaskAsImageInteger();
+        BoundingBox newBounds = new MutableBoundingBox(this.getBounds()).union(otherMask);
+        ImageInteger newMask = new ImageByte("union", new SimpleImageProperties(newBounds, getScaleXY(), getScaleZ()));
+        LoopFunction function = (x, y, z)-> {
+            if (mask.containsWithOffset(x, y, z) && mask.insideMaskWithOffset(x, y, z)) newMask.setPixelWithOffset(x, y, z, 1);
+            else if (otherMask.containsWithOffset(x, y, z) && otherMask.insideMaskWithOffset(x, y, z)) {
+                newMask.setPixelWithOffset(x, y, z, 1);
+                if (voxels!=null) voxels.add(new Voxel(x, y, z));
+            }
+        };
+        BoundingBox.loop(newBounds, function);
+        this.mask = newMask;
+        this.bounds=newBounds;
         regionModified=true;
     }
     public boolean contains(Voxel v) {
@@ -341,7 +382,7 @@ public class Region {
     public synchronized void resetMask() {
         if (mask!=null) { // do it from mask
             if (mask instanceof BlankMask) return;
-            Region other = RegionFactory.getObjectImage(mask); // landmask = mask
+            Region other = RegionFactory.getObjectImage(mask); // landmark = mask
             this.mask=other.mask;
             this.bounds=  other.getBounds();
         } else { // mask will be created from voxels
