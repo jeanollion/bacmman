@@ -150,7 +150,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     
     public static MutableBoundingBox getMergedBoundingBox(Stream<BoundingBox> bounds) {
         MutableBoundingBox res = new MutableBoundingBox();
-        bounds.forEach(b->res.union(b));
+        bounds.forEach(res::union);
         return res;
     }
 
