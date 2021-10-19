@@ -19,11 +19,12 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.ExperimentStructure;
 import bacmman.plugins.HistogramScaler;
-import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 
 import javax.swing.tree.MutableTreeNode;
 
+import bacmman.plugins.plugins.processing_pipeline.ObjectClassOperation;
 import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 import bacmman.plugins.ManualSegmenter;
@@ -84,6 +85,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
         if (jsonO.containsKey("scaler")) scaler.initFromJSONEntry(jsonO.get("scaler"));
+        setParentStructure(parentStructure.getSelectedClassIdx()); // to initialize related parameters
     }
     
     public Structure(String name, int parentStructure, int channelImage) {
@@ -91,7 +93,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     public Structure(String name, int parentStructure, int segmentationParentStructure, int channelImage) {
         super(name);
-        this.parentStructure.setSelectedIndex(parentStructure);
+        setParentStructure(parentStructure);
         this.segmentationParent.setSelectedIndex(segmentationParentStructure);
         this.channelImage.setSelectedIndex(channelImage);
         this.parentStructure.addListener((ParentObjectClassParameter source) -> {
@@ -218,17 +220,22 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     
     public void setParentStructure(int parentIdx) {
-        if (parentStructure.getSelectedIndex()!=parentIdx) parentStructure.setSelectedIndex(parentIdx); // avoid loop with listeners
-        segmentationParent.setMaxStructureIdx(parentIdx+1);
+        if (parentStructure.getSelectedIndex()!=parentIdx) parentStructure.setSelectedIndex(parentIdx); // test to avoid loop with listeners
         int segParent = segmentationParent.getSelectedIndex();
         if (segParent<parentIdx) segmentationParent.setSelectedIndex(parentIdx);
+        if (getProcessingPipelineParameter().isOnePluginSet() && getProcessingPipelineParameter().instantiatePlugin() instanceof ObjectClassOperation) {
+            processingPipeline.getParameters().stream().filter(p->p instanceof SiblingObjectClassParameter).map(p->(SiblingObjectClassParameter)p).forEach(p->{
+                p.setParentObjectClassIdx(parentIdx);
+                if (!p.includeCurrent()) p.setMaxStructureIdx(getIndex());
+            });
+        }
     }
+
     public void setSegmentationParentStructure(int segmentationParentStructureIdx) {
         if (segmentationParentStructureIdx<parentStructure.getSelectedClassIdx()) segmentationParentStructureIdx = parentStructure.getSelectedClassIdx();
         if (segmentationParentStructureIdx != segmentationParent.getSelectedClassIdx()) segmentationParent.setSelectedIndex(segmentationParentStructureIdx);
     }
-    
-    
+
     public int getChannelImage() {
         return channelImage.getSelectedIndex();
     }
@@ -250,6 +257,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         segmentationParent.setMaxStructureIdx(idx);
         if (processingPipeline.isOnePluginSet() && processingPipeline.instantiatePlugin().objectClassOperations()) {
             processingPipeline.getParameters().stream().filter(p->p instanceof ParentObjectClassParameter).map(p->(ParentObjectClassParameter)p).forEach(p->p.setMaxStructureIdx(idx));
+            processingPipeline.getParameters().stream().filter(p->p instanceof SiblingObjectClassParameter).map(p->(SiblingObjectClassParameter)p).filter(p->!p.includeCurrent()).forEach(p->p.setMaxStructureIdx(idx));
         }
     }
     public PluginParameter<ProcessingPipeline>  getProcessingPipelineParameter() {

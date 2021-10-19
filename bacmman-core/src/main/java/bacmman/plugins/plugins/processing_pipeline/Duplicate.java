@@ -91,53 +91,67 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     }
     protected void segmentOnly(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
-        int parentStorage = parentTrack.get(0).getExperimentStructure().getParentObjectClassIdx(structureIdx);
+        //int parentStorage = parentTrack.get(0).getExperimentStructure().getParentObjectClassIdx(structureIdx); // always parentTrack oc idx
+        int parentObjectClassIdx = parentTrack.get(0).getStructureIdx();
         if (dup.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected structure to duplicate");
         logger.debug("dup: {} dup parent: {}, parentTrack: {}", dup.getSelectedClassIdx(), dup.getParentObjectClassIdx(), parentTrack.get(0).getStructureIdx());
         //if (dup.getParentStructureIdx()!=parentTrack.get(0).getStructureIdx() && dup.getSelectedStructureIdx()!=parentTrack.get(0).getStructureIdx()) throw new IllegalArgumentException("Parent Structure should be the same as duplicated's parent strucutre");
-        Stream<SegmentedObject> dupStream = dup.getSelectedClassIdx() == parentTrack.get(0).getStructureIdx() ? parentTrack.stream() : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), dup.getSelectedClassIdx());
+        Map<SegmentedObject, SegmentedObject> sourceMapDup = duplicate(parentTrack, dup.getSelectedClassIdx(), structureIdx, factory, editor);
+        setParents(sourceMapDup, parentObjectClassIdx, dup.getSelectedClassIdx(), factory);
+        getTrackPreFilters(true).filter(structureIdx, parentTrack);
+    }
+    @Override
+    public Parameter[] getParameters() {
+        return parameters;
+    }
+
+    public static Map<SegmentedObject, SegmentedObject> duplicate(List<SegmentedObject> parentTrack, int sourceObjectClassIdx, int targetObjectClassIdx, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        Stream<SegmentedObject> dupStream = sourceObjectClassIdx == parentTrack.get(0).getStructureIdx() ? parentTrack.stream() : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sourceObjectClassIdx);
         dupStream = dupStream.parallel();
         Map<SegmentedObject, SegmentedObject> sourceMapDup = dupStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s,true, true, false)));
-        logger.debug("duplicate for parentTrack: {} structure: {}: #{}objects", parentTrack.get(0), structureIdx, sourceMapDup.size());
+        logger.debug("duplicate for parentTrack: {} structure: {}: #{}objects", parentTrack.get(0), targetObjectClassIdx, sourceMapDup.size());
         // set trackHead, next & prev ids + structureIdx
+
+        // first set structureIdx because editor requires same structureIdx
         Field sIdx;
         try {
             sIdx = SegmentedObject.class.getDeclaredField("structureIdx");
             sIdx.setAccessible(true);
         } catch (NoSuchFieldException | SecurityException e) {
             throw new RuntimeException(e);
-            
-        }
-        // first set structureIdx because editor requires same structureIdx
-        sourceMapDup.entrySet().stream().forEach(e->{
-                try { //using reflexion
-                    sIdx.set(e.getValue(), structureIdx);
-                } catch(IllegalAccessException | IllegalArgumentException ex) {
-                    throw new RuntimeException(ex);
-                }
-        });
-        // copy track links
-        sourceMapDup.entrySet().stream().forEach(e->{
-            if (e.getKey().getNext()!=null) editor.setTrackLinks(e.getValue(), sourceMapDup.get(e.getKey().getNext()), false, true, false);
-            if (e.getKey().getPrevious()!=null) editor.setTrackLinks(sourceMapDup.get(e.getKey().getPrevious()), e.getValue(), true, false, false);
-        });
-        // sets trackHeads afterwards because trackHeads depends on the order of the previous operation
-        sourceMapDup.entrySet().stream().forEach(e->{
-            if (e.getKey().getTrackHead()!=null) editor.setTrackHead(e.getValue(), sourceMapDup.get(e.getKey().getTrackHead()), false, false);
-        });
 
-        // set to parents : collect by parent and set to parent. set parent will also set parent && parent track head Id to each object
-        if (parentStorage == parentTrack.get(0).getStructureIdx() && dup.getSelectedClassIdx() == parentStorage) { // simply store each object into parent
-            sourceMapDup.entrySet().forEach(e->factory.setChildren(e.getKey(), new ArrayList<SegmentedObject>(1){{add(e.getValue());}}));
-        } else { // group by parent & store
-            sourceMapDup.entrySet().stream().collect(Collectors.groupingBy(e->e.getKey().getParent(parentStorage))).entrySet().stream().forEach(p->{
-                factory.setChildren(p.getKey(), p.getValue().stream().map(e->e.getValue()).collect(Collectors.toList()));
+        }
+        sourceMapDup.entrySet().stream().forEach(e->{
+            try { //using reflexion
+                sIdx.set(e.getValue(), targetObjectClassIdx);
+            } catch(IllegalAccessException | IllegalArgumentException ex) {
+                throw new RuntimeException(ex);
+            }
+        });
+        if (editor!=null) {
+            // copy track links
+            sourceMapDup.entrySet().forEach(e -> {
+                if (e.getKey().getNext() != null)
+                    editor.setTrackLinks(e.getValue(), sourceMapDup.get(e.getKey().getNext()), false, true, false);
+                if (e.getKey().getPrevious() != null)
+                    editor.setTrackLinks(sourceMapDup.get(e.getKey().getPrevious()), e.getValue(), true, false, false);
+            });
+            // sets trackHeads afterwards because trackHeads depends on the order of the previous operation
+            sourceMapDup.entrySet().forEach(e -> {
+                if (e.getKey().getTrackHead() != null)
+                    editor.setTrackHead(e.getValue(), sourceMapDup.get(e.getKey().getTrackHead()), false, false);
             });
         }
-        getTrackPreFilters(true).filter(structureIdx, parentTrack);
+        return sourceMapDup;
     }
-    @Override
-    public Parameter[] getParameters() {
-        return parameters;
+    public static void setParents(Map<SegmentedObject, SegmentedObject> sourceMapDup, int parentObjectClassIdx, int sourceObjectClassIdx, SegmentedObjectFactory factory) {
+        // set to parents : collect by parent and set to parent. set parent will also set parent && parent track head Id to each object
+        if (sourceObjectClassIdx == parentObjectClassIdx) { // simply store each object into parent // previous condition included also: parentObjectClassIdx == parentTrack.get(0).getStructureIdx()
+            sourceMapDup.entrySet().forEach(e->factory.setChildren(e.getKey(), new ArrayList<SegmentedObject>(1){{add(e.getValue());}}));
+        } else { // group by parent & store
+            sourceMapDup.entrySet().stream().collect(Collectors.groupingBy(e->e.getKey().getParent(parentObjectClassIdx))).entrySet().forEach(p->{
+                factory.setChildren(p.getKey(), p.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList()));
+            });
+        }
     }
 }

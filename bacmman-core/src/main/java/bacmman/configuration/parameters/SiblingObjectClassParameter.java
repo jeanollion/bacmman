@@ -20,6 +20,8 @@ package bacmman.configuration.parameters;
 
 import bacmman.configuration.experiment.Structure;
 
+import java.util.Arrays;
+
 /**
  *
  * @author Jean Ollion
@@ -27,77 +29,78 @@ import bacmman.configuration.experiment.Structure;
 public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<SiblingObjectClassParameter> {
     int parentStructureIdx=-2;
     int[] idxStructureMap;
-    int selectedStructureIdx=-1;
-    boolean includeParent=false;
-    
-    public SiblingObjectClassParameter(String name, int selectedStructure, int parentStructureIdx, boolean includeParent, boolean allowNoSelection) {
+    boolean includeParent=false, includeCurrent=false;
+    int maxStructure=-1;
+
+    public SiblingObjectClassParameter(String name, int selectedStructure, int parentStructureIdx, boolean includeParent, boolean includeCurrent, boolean allowNoSelection) {
         super(name, -1, allowNoSelection, false);
         this.parentStructureIdx=parentStructureIdx;
-        this.selectedStructureIdx=selectedStructure;
         this.includeParent=includeParent;
+        this.includeCurrent=includeCurrent;
+        setSelectedClassIdx(selectedStructure);
     }
-    public SiblingObjectClassParameter(String name, int selectedStructure, boolean includeParent, boolean allowNoSelection) {
-        this(name, selectedStructure, -2, includeParent, allowNoSelection);
+    public SiblingObjectClassParameter(String name, int selectedStructure, boolean includeParent, boolean includeCurrent, boolean allowNoSelection) {
+        this(name, selectedStructure, -2, includeParent, includeCurrent, allowNoSelection);
     }
-    public SiblingObjectClassParameter(String name, boolean includeParent) {
-        this(name, -1, -2, includeParent, false);
+    public SiblingObjectClassParameter(String name, boolean includeParent, boolean includeCurrent) {
+        this(name, -1, -2, includeParent, includeCurrent, false);
     }
     public SiblingObjectClassParameter(String name) {
-        this(name, -1, -2, false, false);
+        this(name, -1, -2, true, false, false);
     }
-    
+    public void setMaxStructureIdx(int maxStructureExcl) {
+        this.maxStructure = maxStructureExcl;
+    }
     @Override public int getSelectedClassIdx() {
-        return selectedStructureIdx;
+        int idx = super.getSelectedIndex();
+        getIndexStructureMap();
+        if (idx<0 || idx>= idxStructureMap.length) return -2;
+        return idxStructureMap[idx];
     }
     
     @Override public void setSelectedIndex(int selectedIndex) {
         super.setSelectedIndex(selectedIndex);
-        selectedStructureIdx = getIndexStructureMap()[super.getSelectedIndex()];
     }
-    
+    public boolean includeCurrent() {
+        return includeCurrent;
+    }
     @Override public int getSelectedIndex() {
-        if (selectedStructureIdx<0) return super.getSelectedIndex();
-        else {
-            int idx;
-            if (selectedIndices==null) idx= -1;
-            else idx= selectedIndices[0];
-            if (idx==-1) {
-                getIndexStructureMap();
-                if (idxStructureMap!=null) {
-                    for (int i = 0; i<idxStructureMap.length; ++i) {
-                        if (idxStructureMap[i]==selectedStructureIdx) {
-                            super.setSelectedIndex(i);
-                            return i;
-                        }
-                    }
-                }
-                return -1;
-            } else return idx;
-        }
+        return super.getSelectedIndex();
     }
-    
-    public void setParentStructureIdx(int parentStructureIdx) {
-        String[] sel = this.getSelectedItemsNames();
-        this.parentStructureIdx=parentStructureIdx;
-        setIndexStructureMap();
-        if (sel.length==1) this.setSelectedItem(sel[0]);
+
+    public void setParentObjectClassIdx(int parentStructureIdx) {
+        if (this.parentStructureIdx==-2) {
+            this.parentStructureIdx = parentStructureIdx;
+        } else if (parentStructureIdx!=this.parentStructureIdx) {
+            String[] sel = this.getSelectedItemsNames();
+            this.parentStructureIdx = parentStructureIdx;
+            if (sel.length == 1) this.setSelectedItem(sel[0]);
+            setIndexStructureMap();
+        }
     }
     
     @Override public void setSelectedClassIdx(int structureIdx) {
-        selectedStructureIdx = structureIdx;
+        if (structureIdx<0) super.setSelectedIndex(-1);
+        else {
+            super.setSelectedIndex(-1);
+            getIndexStructureMap();
+            if (idxStructureMap!=null) {
+                for (int i = 0; i<idxStructureMap.length; ++i) {
+                    if (idxStructureMap[i]==structureIdx) {
+                        super.setSelectedIndex(i);
+                    }
+                }
+            }
+        }
     }
     
     protected void setIndexStructureMap() {
-        logger.debug("sibling structure parameter: setIndexStructureMap getXP null: {}", getXP()==null);
-        if (parentStructureIdx==-2) { //not configured -> look for a Structure in parents
-            Structure s= ParameterUtils.getFirstParameterFromParents(Structure.class, this, false);
-            if (s!=null) parentStructureIdx = s.getParentStructure();
-            else parentStructureIdx = -1;
-            //logger.debug("configuring parentStructureIdx: {}", parentStructureIdx);
-        }
-        if (getXP()==null && idxStructureMap==null) idxStructureMap=new int[]{-1};
+        //logger.debug("sibling structure parameter: setIndexStructureMap getXP null: {}", getXP()==null);
+        if (parentStructureIdx<-1) autoConfiguration();
+        if ((getXP()==null && idxStructureMap==null) || parentStructureIdx<-1) idxStructureMap=new int[]{-1};
         else {
             idxStructureMap =  getXP().experimentStructure.getAllChildStructures(parentStructureIdx);
+            if (maxStructure>=0) idxStructureMap = Arrays.stream(idxStructureMap).filter(i->i<maxStructure).toArray();
             if (includeParent && parentStructureIdx!=-1) { // add Parent before
                 int[] idxStructureMap2 = new int[idxStructureMap.length+1];
                 System.arraycopy(idxStructureMap, 0, idxStructureMap2, 1, idxStructureMap.length);
@@ -106,34 +109,13 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
             }
         }
     }
-    @Override public boolean sameContent(Parameter other) {
-        if (!super.sameContent(other)) return false;
-        if (other instanceof SiblingObjectClassParameter) {
-            SiblingObjectClassParameter otherP = (SiblingObjectClassParameter) other;
-            if (selectedStructureIdx!=otherP.selectedStructureIdx) {
-                logger.trace("SiblingStructureParameter {}!={}, selected structure idx: {} vs {}", name, otherP.name, selectedStructureIdx, otherP.selectedStructureIdx);
-                return false;
-            }
-            return true;
-        }else return false;
-        
-    }
-    @Override public void setContentFrom(Parameter other) {
-        super.setContentFrom(other);
-        if (other instanceof SiblingObjectClassParameter) {
-            SiblingObjectClassParameter otherP = (SiblingObjectClassParameter) other;
-            parentStructureIdx=otherP.parentStructureIdx;
-            selectedStructureIdx = otherP.selectedStructureIdx;
-            //includeParent=otherP.includeParent;
-        } else throw new IllegalArgumentException("wrong parameter type");
-    }
     
     @Override protected void autoConfiguration() {
         if (getXP()!=null) {
             Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, this, false);
             if (s!=null) {
-                if (includeParent) this.setSelectedClassIdx(s.getParentStructure());
-                else this.setSelectedClassIdx(s.getIndex());
+                this.setParentObjectClassIdx(s.getParentStructure());
+                if (!this.includeCurrent) this.setMaxStructureIdx(s.getIndex());
             }
         }
     }
@@ -151,5 +133,9 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
             return new String[]{"error: no xp found in tree"};
         }
     }
-
+    @Override
+    public boolean isValid() {
+        if (!super.isValid()) return false;
+        return maxStructure<0 || getSelectedClassIdx()<maxStructure;
+    }
 }

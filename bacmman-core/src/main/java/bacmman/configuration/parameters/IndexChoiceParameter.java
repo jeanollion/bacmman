@@ -119,7 +119,7 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
         if (selectedIndices==null || selectedIndices.length==0) return new String[0];
         String[] res = new String[selectedIndices.length];
         String[] choices = this.getChoiceList();
-        for (int i = 0 ; i<res.length; ++i) res[i] = selectedIndices[i]>=0?choices[selectedIndices[i]]:getNoSelectionString();
+        for (int i = 0 ; i<res.length; ++i) res[i] = selectedIndices[i]>=0&&selectedIndices[i]<choices.length?choices[selectedIndices[i]]:getNoSelectionString();
         return res;
     }
 
