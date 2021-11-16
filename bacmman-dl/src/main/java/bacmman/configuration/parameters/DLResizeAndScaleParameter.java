@@ -1,6 +1,5 @@
 package bacmman.configuration.parameters;
 
-import bacmman.core.Core;
 import bacmman.dl.TileUtils;
 import bacmman.image.*;
 import bacmman.plugins.DLengine;
@@ -27,13 +26,13 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     static Logger logger = LoggerFactory.getLogger(DLResizeAndScaleParameter.class);
     enum MODE {SCALE_ONLY, RESAMPLE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
-    ArrayNumberParameter contractionNumber = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{2, 2}, null).setEmphasized(true).setName("Contraction number").setHint("Contraction/Upsampling level number of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by 2<sup>contraction number</sup>");
+    ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Total Shape Contraction").setHint("Total Contraction/Upsampling of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by the contraction. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis</sup>");
 
     ArrayNumberParameter tileShape = InputShapesParameter.getInputShapeParameter(false, false,  new int[]{64, 64}, null).setEmphasized(true).setName("Tile Shape");
     ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
     EnumChoiceParameter<Resize.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resize.EXPAND_MODE.values(), Resize.EXPAND_MODE.MIRROR);
-    ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{5, 5}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
-    BooleanParameter padTiles = new BooleanParameter("Pad border tiles", true).setHint("If true, border tiles will be padded by minimum overlap");
+    ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
+    BooleanParameter padTiles = new BooleanParameter("Pad border tiles", false).setHint("If true, border tiles will be padded by minimum overlap");
     ConditionalParameter<Boolean> padTilesCond = new ConditionalParameter<>(padTiles).setActionParameters(true, paddingMode);
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
@@ -69,7 +68,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     public DLResizeAndScaleParameter(String name) {
         super(new EnumChoiceParameter<>(name, MODE.values(), MODE.PAD));
         targetShape.addValidationFunction(InputShapesParameter.sameRankValidation());
-        contractionNumber.addValidationFunction(InputShapesParameter.sameRankValidation());
+        contraction.addValidationFunction(InputShapesParameter.sameRankValidation());
         tileShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         minOverlap.addValidationFunction(InputShapesParameter.sameRankValidation());
         minPad.addValidationFunction(InputShapesParameter.sameRankValidation());
@@ -147,8 +146,8 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         iIS.setEmphasized(true);
         oIS.setEmphasized(true);
         this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleFrameByFrame);
-        this.setActionParameters(MODE.RESAMPLE, targetShape, contractionNumber, iIS, oIS ,scaleFrameByFrame);
-        this.setActionParameters(MODE.PAD, targetShape, contractionNumber, paddingMode, minPad, iS, oS, scaleFrameByFrame);
+        this.setActionParameters(MODE.RESAMPLE, targetShape, contraction, iIS, oIS ,scaleFrameByFrame);
+        this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, oS, scaleFrameByFrame);
         this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
         initChildList();
     }
@@ -159,8 +158,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     public MODE getMode() {
         return ((EnumChoiceParameter<MODE>)action).getSelectedEnum();
     }
-    private static int getSize(double[] sizes, int nContraction, boolean pad, int minPad) {
-        int div = (int)Math.pow(2, nContraction);
+    private static int getSize(double[] sizes, int div, boolean pad, int minPad) {
         if (pad) {
             int maxSize = (int)sizes[ArrayUtil.max(sizes)] + 2 * minPad;
             return closestNumber(maxSize, div, true);
@@ -171,7 +169,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         int[] candidate=null;
         if (histo.getData()[maxIdx]>=total/2.0) {
             int cand = (int)histo.getValueFromIdx(maxIdx);
-            if (nContraction==0) return cand;
+            if (div<=1) return cand;
             int divisible = closestNumber(cand, div, false);
             if (divisible==cand) return cand;
             candidate = new int[]{cand, divisible};
@@ -196,14 +194,14 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
 
     public int[] getTargetImageShape(Image[][] imageNC, boolean pad) {
         int[] shape = ArrayUtil.reverse(targetShape.getArrayInt(), true);
-        int[] nContractions = ArrayUtil.reverse(contractionNumber.getArrayInt(), true);
+        int[] totalContraction = ArrayUtil.reverse(contraction.getArrayInt(), true);
         int[] minPadA = ArrayUtil.reverse(minPad.getArrayInt(), true);
         for (int i = 0; i<shape.length; ++i) {
             int dim = i;
             if (shape[i]==0) {
                 double[] sizes = Arrays.stream(imageNC).mapToDouble(a -> a[0].size(dim)).toArray();
                 // get modal shape
-                shape[i] = getSize(sizes, nContractions[i], pad, minPadA[i]);
+                shape[i] = getSize(sizes, totalContraction[i], pad, minPadA[i]);
             } else if (pad) { // check that size is smaller than target size
                 int minTargetShape = Arrays.stream(imageNC).mapToInt(a -> a[0].size(dim)).max().getAsInt() + 2 * minPadA[i];
                 if (shape[i]<minTargetShape) throw new RuntimeException("Error while resizing in padding mode on axis="+i+":  max image size (with min pad)="+minTargetShape+" > target size="+shape[i]);
