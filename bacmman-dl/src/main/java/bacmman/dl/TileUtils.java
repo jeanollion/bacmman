@@ -17,23 +17,43 @@ public class TileUtils {
 
 
     public static Image[] splitTiles(Image input, int[] tileShapeXYZ, int[] minOverlapXYZ, Resize.EXPAND_MODE paddingMode) {
-        long[] size = new long[]{input.sizeX(), input.sizeY(), input.sizeZ()};
-        long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, paddingMode!=null);
-        return Resize.crop(input, coords, new long[][]{ArrayUtil.toLong(tileShapeXYZ)}, paddingMode);
+        long[] size = input.sizeZ()==1 ? new long[]{input.sizeX(), input.sizeY()} : new long[]{input.sizeX(), input.sizeY(), input.sizeZ()};
+        boolean[] padding = new boolean[]{paddingMode!=null, paddingMode!=null, paddingMode!=null};
+        if (size.length==3 && tileShapeXYZ.length==2) { // 2D tiling of 3D image : no tiling along Z-axis
+            tileShapeXYZ = new int[]{tileShapeXYZ[0], tileShapeXYZ[1], input.sizeZ()};
+            minOverlapXYZ = new int[]{minOverlapXYZ[0], minOverlapXYZ[1], 0};
+            padding[2] = false;
+        }
+        long[][] sizes = new long[][]{ArrayUtil.toLong(tileShapeXYZ)};
+        long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, padding);
+        return Resize.crop(input, coords, sizes, paddingMode);
     }
 
     public static Image[][] splitTiles(Image[] inputC, int[] tileShapeXYZ, int[] minOverlapXYZ, Resize.EXPAND_MODE paddingMode) {
-        long[] size = new long[]{inputC[0].sizeX(), inputC[0].sizeY(), inputC[0].sizeZ()};
-        long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, paddingMode!=null);
-        Image[][] CN = Arrays.stream(inputC).map(input -> Resize.crop(input, coords, new long[][]{ArrayUtil.toLong(tileShapeXYZ)}, paddingMode)).toArray(Image[][]::new);
+        long[] size = inputC[0].sizeZ()==1 ? new long[]{inputC[0].sizeX(), inputC[0].sizeY()} : new long[]{inputC[0].sizeX(), inputC[0].sizeY(), inputC[0].sizeZ()};
+        boolean[] padding = new boolean[]{paddingMode!=null, paddingMode!=null, paddingMode!=null};
+        if (size.length==3 && tileShapeXYZ.length==2) { // 2D tiling of 3D image : no tiling along Z-axis
+            tileShapeXYZ = new int[]{tileShapeXYZ[0], tileShapeXYZ[1], inputC[0].sizeZ()};
+            minOverlapXYZ = new int[]{minOverlapXYZ[0], minOverlapXYZ[1], 0};
+            padding[2] = false;
+        }
+        long[][] sizes = new long[][]{ArrayUtil.toLong(tileShapeXYZ)};
+        long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, padding);
+        Image[][] CN = Arrays.stream(inputC).map(input -> Resize.crop(input, coords, sizes, paddingMode)).toArray(Image[][]::new);
         return ArrayUtil.transpose(CN, new Image[coords.length][inputC.length]);
     }
 
     public static Image[][] splitTiles(Image[][] inputNC, int[] tileShapeXYZ, int[] minOverlapXYZ, Resize.EXPAND_MODE paddingMode) {
-        long[] size = tileShapeXYZ.length==2 ? new long[]{inputNC[0][0].sizeX(), inputNC[0][0].sizeY()} : new long[]{inputNC[0][0].sizeX(), inputNC[0][0].sizeY(), inputNC[0][0].sizeZ()};
+        long[] size = inputNC[0][0].sizeZ()==1 ? new long[]{inputNC[0][0].sizeX(), inputNC[0][0].sizeY()} : new long[]{inputNC[0][0].sizeX(), inputNC[0][0].sizeY(), inputNC[0][0].sizeZ()};
+        boolean[] padding = new boolean[]{paddingMode!=null, paddingMode!=null, paddingMode!=null};
+        if (size.length==3 && tileShapeXYZ.length==2) { // 2D tiling of 3D image : no tiling along Z-axis
+            tileShapeXYZ = new int[]{tileShapeXYZ[0], tileShapeXYZ[1], inputNC[0][0].sizeZ()};
+            minOverlapXYZ = new int[]{minOverlapXYZ[0], minOverlapXYZ[1], 0};
+            padding[2] = false;
+        }
         long[][] sizes = new long[][]{ArrayUtil.toLong(tileShapeXYZ)};
-        long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, paddingMode!=null);
-        logger.debug("tile coords: {}", Utils.toStringArray(coords[0]));
+        long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, padding);
+        //for (int i = 0; i<coords.length; ++i) logger.debug("tile {}/{} coords: {}, shape XYZ: {}/{}", i, coords.length, Utils.toStringArray(coords[i]), Utils.toStringArray(tileShapeXYZ), size);
         Image[][] res = new Image[coords.length * inputNC.length][inputNC[0].length];
         for (int i = 0; i<inputNC.length; ++i) {
             Image[][] CN = Arrays.stream(inputNC[i]).map(input -> Resize.crop(input, coords, sizes, paddingMode)).toArray(Image[][]::new);
@@ -58,6 +78,8 @@ public class TileUtils {
     }
 
     public static void mergeTiles(Image target, Image[] tiles, int[] minOverlapXYZ) {
+        //logger.debug("merge tiles target: {}", target.getBoundingBox());
+        //for (Image t : tiles) logger.debug("tile: {}", t.getBoundingBox());
         BoundingBox extend = minOverlapXYZ==null ? new MutableBoundingBox(0, 0, 0) :  new MutableBoundingBox(minOverlapXYZ[0]/2, -minOverlapXYZ[0]/2, minOverlapXYZ[1]/2, -minOverlapXYZ[1]/2, minOverlapXYZ.length>2 ? minOverlapXYZ[2]/2 : 0, minOverlapXYZ.length>2 ? -minOverlapXYZ[2]/2 : 0);
         Map<Image, BoundingBox> tileView = Arrays.stream(tiles).collect(Collectors.toMap(Function.identity(),  tile -> tile.getBoundingBox().extend(extend).trim(target)));
         Map<Integer, List<Image>> tilesPerX = Arrays.stream(tiles).collect(Collectors.groupingBy(SimpleBoundingBox::xMin));
@@ -161,6 +183,7 @@ public class TileUtils {
         }
     }
     public static long[] getTileCoordAxis(long size, int tileSize, int minOverlap, boolean padding) {
+        if (minOverlap==0) padding = false;
         if (tileSize==size && !padding) return new long[1];
         else if (tileSize>size) throw new IllegalArgumentException("Tile size must be inferior or equal to size");
         else if (minOverlap>=tileSize) throw new IllegalArgumentException("Min overlap must be inferior to tile size");
@@ -178,8 +201,8 @@ public class TileUtils {
         //logger.debug("size: {}, tile size: {}, min o: {}, padding: {}, tiles: {}", size, tileSize, minOverlap, padding, coords);
         return coords;
     }
-    public static long[][] getTilesCoords(long[] size, int[] tileSize, int[] minOverlap, boolean padding) {
-        long[][] coordsAxis = IntStream.range(0, size.length).mapToObj(i -> getTileCoordAxis(size[i], tileSize[i], minOverlap[i], padding)).toArray(long[][]::new);
+    public static long[][] getTilesCoords(long[] size, int[] tileSize, int[] minOverlap, boolean[] padding) {
+        long[][] coordsAxis = IntStream.range(0, size.length).mapToObj(i -> getTileCoordAxis(size[i], tileSize[i], minOverlap[i], padding[i])).toArray(long[][]::new);
         int totalTiles = Arrays.stream(coordsAxis).mapToInt(a->a.length).reduce(1, (a, b) -> a * b);
         long[][] tileCoords = new long[totalTiles][];
         int tIdx=0;

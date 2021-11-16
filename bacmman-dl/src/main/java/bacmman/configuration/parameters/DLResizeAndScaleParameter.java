@@ -437,9 +437,10 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
             scaler.transformInputImage(true);
             IntStream.range(0, predNtC.length).parallel().forEach(i -> IntStream.range(0, predNtC[i].length).forEach(j -> predNtC[i][j] = scaler.reverseScale(predNtC[i][j]) ));
         }
+        Boolean[] target2DC = IntStream.range(0, predNtC[0].length).mapToObj(c -> Arrays.stream(predNtC).map(a -> a[c]).filter(i->i.sizeZ()>1).findAny().orElse(null) == null).toArray(Boolean[]::new); // special case: when input is 3D and prediction is 2D.
         Image[][] targetNC = IntStream.range(0, targetShape.length)
                 .mapToObj(i -> IntStream.range(0, predNtC[i].length)
-                        .mapToObj(c -> Image.createEmptyImage("", predNtC[i][c], new SimpleImageProperties(new SimpleBoundingBox(0, targetShape[i][0]-1, 0, targetShape[i][1]-1, 0, targetShape[i].length>2 ? targetShape[i][2]-1: 0), predNtC[i][c].getScaleXY(), predNtC[i][c].getScaleZ())
+                        .mapToObj(c -> Image.createEmptyImage("", predNtC[i][c], new SimpleImageProperties(new SimpleBoundingBox(0, targetShape[i][0]-1, 0, targetShape[i][1]-1, 0, targetShape[i].length>2 ? (target2DC[c]?0:targetShape[i][2]-1): 0), predNtC[i][c].getScaleXY(), predNtC[i][c].getScaleZ())
                         )).toArray(Image[]::new)
                 ).toArray(Image[][]::new);
         TileUtils.mergeTiles(targetNC, predNtC, minOverlap);
