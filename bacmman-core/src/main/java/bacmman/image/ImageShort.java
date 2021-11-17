@@ -56,7 +56,7 @@ public class ImageShort extends ImageInteger<ImageShort> {
     public ImageShort getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageShort res = new ImageShort(name, sizeX, pixels[idxZ]);
+            ImageShort res = new ImageShort(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
             res.setCalibration(this);
             res.translate(xMin, yMin, zMin+idxZ);
             return res;

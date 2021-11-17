@@ -56,7 +56,7 @@ public class ImageInt extends ImageInteger<ImageInt> {
     public ImageInt getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageInt res = new ImageInt(name, sizeX, pixels[idxZ]);
+            ImageInt res = new ImageInt(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
             res.setCalibration(this);
             res.translate(xMin, yMin, zMin+idxZ);
             return res;

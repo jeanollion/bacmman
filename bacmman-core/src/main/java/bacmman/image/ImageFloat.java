@@ -55,7 +55,7 @@ public class ImageFloat extends Image<ImageFloat> {
     public ImageFloat getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageFloat res = new ImageFloat(name, sizeX, pixels[idxZ]);
+            ImageFloat res = new ImageFloat(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
             res.setCalibration(this);
             res.translate(xMin, yMin, zMin+idxZ);
             return res;

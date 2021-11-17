@@ -56,7 +56,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public ImageByte getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageByte res = new ImageByte(name, sizeX, pixels[idxZ]);
+            ImageByte res = new ImageByte(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
             res.setCalibration(this);
             res.translate(xMin, yMin, zMin+idxZ);
             return res;
