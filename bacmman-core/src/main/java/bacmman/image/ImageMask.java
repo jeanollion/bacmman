@@ -31,6 +31,9 @@ public interface ImageMask<I extends ImageMask<I>> extends ImageProperties<I> {
     public static void loop(ImageMask mask, LoopFunction function) {
         BoundingBox.loop(new SimpleBoundingBox(mask).resetOffset(), (x, y, z)-> {if (mask.insideMask(x, y, z)) function.loop(x, y, z);});
     }
+    public static void loop(ImageMask mask, LoopFunction function, LoopPredicate predicate) {
+        BoundingBox.loop(new SimpleBoundingBox(mask).resetOffset(), (x, y, z)-> {if (mask.insideMask(x, y, z) && predicate.test(x, y, z)) function.loop(x, y, z);});
+    }
     public static void loopWithOffset(ImageMask mask, LoopFunction function) {
         BoundingBox.loop(mask, (x, y, z)-> {if (mask.insideMaskWithOffset(x, y, z)) function.loop(x, y, z);});
     }
