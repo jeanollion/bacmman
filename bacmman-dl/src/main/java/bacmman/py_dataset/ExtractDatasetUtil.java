@@ -63,7 +63,8 @@ public class ExtractDatasetUtil {
                 for (Triplet<String, FeatureExtractor, Integer> feature : features) {
                     logger.debug("feature: {}", feature);
                     Function<SegmentedObject, Image> extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
-                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, saveLabels,  saveLabels, dimensions);
+                    boolean ZtoBatch = feature.v2 instanceof RawImage && ((RawImage)feature.v2).getExtractZDim() == RawImage.ExtractZDim.BATCH;
+                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, saveLabels,  saveLabels, dimensions);
                     saveLabels=false;
                     t.incrementProgress();
                 }
@@ -157,7 +158,7 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean saveLabels, boolean saveDimensions, int... dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> sel.getAllElements().stream().parallel() : () -> sel.getElements(position).stream().parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -171,6 +172,16 @@ public class ExtractDatasetUtil {
             if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
             else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};
         }).toArray(int[][]::new) : null;
+        if (zToBatch) {
+            logger.debug("before ZToBatch: {}", images.size());
+            Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());
+            images = s.collect(Collectors.toList());
+            logger.debug("after ZToBatch: {}", images.size());
+            if (saveDimensions) {
+                originalDimensions = streamSupplier.get().sorted(Comparator.comparing(ExtractDatasetUtil::getLabel)).flatMap(o -> Collections.nCopies(o.getBounds().sizeZ(), o).stream() ).map(o-> new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()}).toArray(int[][]::new);
+                logger.debug("after ZToBatch: dimensions {}", originalDimensions.length);
+            }
+        }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
 
         extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions);

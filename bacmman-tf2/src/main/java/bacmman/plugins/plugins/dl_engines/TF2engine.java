@@ -16,15 +16,23 @@ import org.tensorflow.types.TFloat32;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
+
+import static bacmman.processing.ResizeUtils.getSizeZ;
 
 public class TF2engine implements DLengine, Hint {
     public final static Logger logger = LoggerFactory.getLogger(TF2engine.class);
+    enum Z_AXIS {Z, CHANNEL, BATCH}
     FileChooser modelFile = new FileChooser("Tensorflow model", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
-    BooleanParameter ZasChannel = new BooleanParameter("Z as Channel", false).setHint("If true, Z axis will be considered as channel axis. If tensor has several channels only the first one will be used.");
-
+    EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z axis", Z_AXIS.values(), Z_AXIS.Z).setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");
+    BoundedNumberParameter channelIdx = new BoundedNumberParameter("Channel Index", 0, 0, 0, null).setHint("Channel Used when Z axis is transposed to channel axis");
+    ConditionalParameter<Z_AXIS> zAxisCond = new ConditionalParameter<>(zAxis)
+            .setActionParameters(Z_AXIS.CHANNEL, channelIdx)
+            .setLegacyParameter(new BooleanParameter("Z as Channel", false), p -> ((BooleanParameter)p).getSelected() ? Z_AXIS.CHANNEL : Z_AXIS.Z );
     String[] inputNames, outputNames;
     SavedModelBundle model;
 
@@ -79,6 +87,16 @@ public class TF2engine implements DLengine, Hint {
         inputNames = null;
         outputNames = null;
     }
+    private static int getSizeZ(Image[][]... inputNC) {
+        ToIntFunction<Image[][]> getZ = iNC -> {
+            int[] sizeZ = IntStream.range(0, iNC[0].length).map(c -> ResizeUtils.getSizeZ(iNC, c)).distinct().toArray();
+            assert sizeZ.length == 1 : "different sizeZ among channels";
+            return sizeZ[0];
+        };
+        int[] sizeZ = Arrays.stream(inputNC).mapToInt(getZ).distinct().toArray();
+        assert sizeZ.length == 1 : "different sizeZ among inputs";
+        return sizeZ[0];
+    }
 
     public synchronized Image[][][] process(Image[][]... inputNC) {
         if (inputNC.length!=getNumInputArrays()) throw new IllegalArgumentException("Invalid number of input provided. Expected:"+getNumInputArrays()+" provided:"+inputNC.length);
@@ -87,9 +105,30 @@ public class TF2engine implements DLengine, Hint {
         for (int i = 1; i<inputNC.length; ++i) {
             if (inputNC[i].length!=nSamples) throw new IllegalArgumentException("Input #"+i+" has #"+inputNC[i].length+" samples whereas input 0 has #"+nSamples+" samples");
         }
-        if (ZasChannel.getSelected()) {
-            for (int i = 0; i <inputNC.length; ++i) {
-                inputNC[i] = ResizeUtils.setZasChannel(inputNC[i], 0);
+        int sizeZ = 1;
+        switch (zAxis.getSelectedEnum()) {
+            case Z:
+            default: {
+                break;
+            }
+            case CHANNEL: {
+                for (int i = 0; i <inputNC.length; ++i) {
+                    inputNC[i] = ResizeUtils.setZasChannel(inputNC[i], channelIdx.getValue().intValue());
+                }
+                break;
+            }
+            case BATCH: {
+                sizeZ = getSizeZ(inputNC);
+                logger.debug("Z to batch: size Z = {}", sizeZ);
+                if (sizeZ>1) {
+                    for (int idx = 0; idx < inputNC.length; ++idx) {
+                        logger.debug("before Z to batch : input: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", idx, inputNC[idx].length, inputNC[idx][0].length, inputNC[idx][0][0].sizeX(), inputNC[idx][0][0].sizeY(), inputNC[idx][0][0].sizeZ());
+                        inputNC[idx] = ResizeUtils.setZtoBatch(inputNC[idx]);
+                        logger.debug("after Z to batch input: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", idx, inputNC[idx].length, inputNC[idx][0].length, inputNC[idx][0][0].sizeX(), inputNC[idx][0][0].sizeY(), inputNC[idx][0][0].sizeZ());
+                        nSamples = inputNC[0].length;
+                    }
+                }
+                break;
             }
         }
 
@@ -134,6 +173,13 @@ public class TF2engine implements DLengine, Hint {
             long t1 = System.currentTimeMillis();
             predictTime += t1-t0;
         }
+        if (zAxis.getSelectedEnum()==Z_AXIS.BATCH && sizeZ>1) {
+            for (int o = 0; o<res.length; ++o) {
+                logger.debug("before batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                res[o] = ResizeUtils.setBatchToZ(res[o], sizeZ);
+                logger.debug("after batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+            }
+        }
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
     }
@@ -167,7 +213,7 @@ public class TF2engine implements DLengine, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, flip, ZasChannel};
+        return new Parameter[]{modelFile, batchSize, flip, zAxisCond};
     }
 
     @Override

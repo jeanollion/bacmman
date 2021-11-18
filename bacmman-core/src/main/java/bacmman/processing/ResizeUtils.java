@@ -1,6 +1,7 @@
 package bacmman.processing;
 
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
 import net.imglib2.interpolation.InterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +71,42 @@ public class ResizeUtils {
     public static Image[][] setZasChannel(Image[][] imageNC, int channelIdx) {
         Image[] imageN = getChannel(imageNC, channelIdx);
         return Arrays.stream(imageN).map(im -> im.splitZPlanes().toArray(new Image[0])).toArray(Image[][]::new);
+    }
+    public static int getSizeZ(Image[][] imageNC, int c) {
+        int[] sizeZ = Arrays.stream(imageNC).map(imageC -> imageC[c]).mapToInt(SimpleBoundingBox::sizeZ).distinct().toArray();
+        assert sizeZ.length==1 : "different sizeZ within channel: "+c;
+        return sizeZ[0];
+    }
+    public static Image[][] setZtoBatch(Image[][] imageNC) {
+        // assert same number of planes for each channels
+        int[] sizeZ = IntStream.range(0, imageNC[0].length).map(c -> getSizeZ(imageNC, c)).distinct().toArray();
+        assert sizeZ.length == 1 : "different sizeZ among channels";
+        Image[][] imageNZC = new Image[imageNC.length * sizeZ[0]][imageNC[0].length];
+        for (int n = 0; n<imageNC.length; ++n) {
+            for (int z = 0; z<sizeZ[0]; ++z) {
+                int idx = n * sizeZ[0] + z;
+                for (int c = 0; c < imageNC[0].length; ++c) {
+                    imageNZC[idx][c] = imageNC[n][c].getZPlane(z);
+                }
+            }
+        }
+        return imageNZC;
+    }
+
+    public static Image[][] setBatchToZ(Image[][] imageNzC, int sizeZ) { // reverse from setZtoBatch
+        int[] sizeZa = IntStream.range(0, imageNzC[0].length).map(c -> getSizeZ(imageNzC, c)).distinct().toArray();
+        assert sizeZa.length == 1 : "different sizeZ among channels";
+        assert sizeZa[0] == 1 : "images should be only 2D";
+        assert imageNzC.length % sizeZ == 0 : "batch should be divisible by sizeZ";
+        Image[][] imageNCz = new Image[imageNzC.length/sizeZ][imageNzC[0].length];
+        for (int n = 0; n<imageNCz.length; ++n) {
+            for (int c = 0; c < imageNCz[0].length; ++c) {
+                int cc=c;
+                Image[] zPlanes = IntStream.range(n * sizeZ, (n+1) * sizeZ).mapToObj(i -> imageNzC[i][cc]).toArray(Image[]::new);
+                imageNCz[n][c] = Image.mergeZPlanes(zPlanes);
+            }
+        }
+        return imageNCz;
     }
 
     public static Image[] averageChannelOnOutputs(Image[][][] imageONC, int channelIdx, int... outputIdx) {

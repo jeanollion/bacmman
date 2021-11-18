@@ -11,22 +11,27 @@ import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory
 import java.util.Map;
 
 public class RawImage implements FeatureExtractor {
-    enum ExtractZDim {IMAGE3D, CHANNEL, SINGLE_PLANE}
+    public enum ExtractZDim {IMAGE3D, CHANNEL, SINGLE_PLANE, BATCH}
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS);
     EnumChoiceParameter<ExtractZDim> extractZ = new EnumChoiceParameter<>("Extract Z", ExtractZDim.values(), ExtractZDim.IMAGE3D);
     BoundedNumberParameter plane = new BoundedNumberParameter("Plane", 0, 0, 0, null);
     ConditionalParameter<ExtractZDim> extractZCond = new ConditionalParameter<>(extractZ).setActionParameters(ExtractZDim.SINGLE_PLANE, plane);
+
+    public ExtractZDim getExtractZDim() {
+        return this.extractZ.getSelectedEnum();
+    }
 
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
         Image res = parent.getRawImage(objectClassIdx);
         switch (extractZ.getSelectedEnum()) {
             case IMAGE3D:
+            case BATCH:
             default:
                 return res;
             case SINGLE_PLANE:
                 return res.getZPlane(plane.getValue().intValue());
-            case CHANNEL:
+            case CHANNEL: // simply transpose dimensions x,y,z -> z,y,x
                 int sizeZ = res.sizeY();
                 int sizeY = res.sizeX();
                 int sizeX = res.sizeZ();

@@ -239,14 +239,10 @@ public class PyDatasetReader {
         //final int[] trackHeadIndices;
         public ObjectCoordinates(String label) {
             this.label=label;
-            // label is: position _ track head _f + frame number
+            // label is: position _ track head _f + frame number (5 numbers) [+ z_ + zIdx (5 numbers) ]
             int i = label.lastIndexOf("_f");
-            frame = Integer.parseInt(label.substring(i+2));
+            frame = Integer.parseInt(label.substring(i+2, i+7));
             trackHeadIndices = label.substring(0, i);
-            //i = label.indexOf('_');
-            //position = Integer.parseInt(label.substring(0, i));
-            //trackHeadIndices = Selection.parseIndices(label.substring(i+1));
-            //trackHeadIndices = Selection.parseIndices(label);
         }
     }
 
