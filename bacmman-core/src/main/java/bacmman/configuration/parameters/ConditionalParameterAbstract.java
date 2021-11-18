@@ -34,7 +34,7 @@ import java.util.function.Function;
  * @author Jean Ollion
  */
 
-public abstract class ConditionalParameterAbstract<V, T extends ConditionalParameterAbstract<V, T>> extends ContainerParameterImpl<T> {
+public abstract class ConditionalParameterAbstract<V, T extends ConditionalParameterAbstract<V, T>> extends ContainerParameterImpl<T> implements ParameterWithLegacyInitialization<T, V> {
     ActionableParameter<V, ? extends ActionableParameter<V, ?>> action;
     HashMap<V, List<Parameter>> parameters;
     List<Parameter> defaultParameters;
@@ -199,4 +199,20 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         super.initChildren(getCurrentParameters());
     }
 
+    // legacy init: transfer to actionable parameter
+    public void legacyInit() {
+        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization)action).legacyInit();
+    }
+    public Parameter getLegacyParameter() {
+        if (action instanceof ParameterWithLegacyInitialization) return ((ParameterWithLegacyInitialization)action).getLegacyParameter();
+        else return null;
+    }
+    public T setLegacyParameter(Parameter p, Function<Parameter, V> setValue) {
+        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization<?, V>) action).setLegacyParameter(p, setValue);
+        return (T)this;
+    }
+    public T setLegacyInitializationValue(V value) {
+        if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization<?, V>) action).setLegacyInitializationValue(value);
+        return (T)this;
+    }
 }

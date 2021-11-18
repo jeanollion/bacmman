@@ -18,8 +18,10 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
+import java.util.Arrays;
 import java.util.function.Function;
 
 /**
@@ -28,8 +30,8 @@ import java.util.function.Function;
  * @param <P>
  */
 
-public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, ParameterWithLegacyInitialization, Listenable<P> {
-    String selectedItem, legacyInitItem;
+public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, ParameterWithLegacyInitialization<P, V>, Listenable<P> {
+    String selectedItem;
     protected String[] listChoice;
     boolean allowNoSelection;
     private int selectedIndex=-2;
@@ -43,14 +45,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         this.allowNoSelection=allowNoSelection;
         this.mapper = mapper;
     }
-    public P setLegacyInitializationValue(String value) {
-        this.legacyInitItem = value;
-        return (P)this;
-    }
-    @Override
-    public void legacyInit() {
-        if (legacyInitItem !=null) this.setSelectedItem(legacyInitItem);
-    }
+
     public String getSelectedItem() {return selectedItem;}
     public int getSelectedIndex() {
         return selectedIndex;
@@ -170,4 +165,32 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
             setSelectedItem((String)json);
         } else throw new IllegalArgumentException("JSON Entry is not String");
     }
+
+    // legacy init
+    @Override
+    public P setLegacyInitializationValue(V value) {
+        this.legacyInitItem = value;
+        return (P)this;
+    }
+    @Override
+    public void legacyInit() {
+        if (legacyParameter!=null && setValue!=null) legacyInitItem = setValue.apply(legacyParameter);
+        if (legacyInitItem !=null) {
+            String value = Arrays.stream(getChoiceList()).filter(s -> legacyInitItem.equals(mapper.apply(s))).findAny().orElse(null);
+            if (value!=null) this.setSelectedItem(value);
+        }
+    }
+    V legacyInitItem;
+    Parameter legacyParameter;
+    Function<Parameter, V> setValue;
+    public P setLegacyParameter(Parameter p, Function<Parameter, V> setValue) {
+        this.legacyParameter = p;
+        this.setValue = setValue;
+        return (P)this;
+    }
+    @Override
+    public Parameter getLegacyParameter() {
+        return legacyParameter;
+    }
+
 }

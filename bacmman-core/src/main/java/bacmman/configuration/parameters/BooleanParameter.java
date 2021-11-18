@@ -38,11 +38,6 @@ public class BooleanParameter extends AbstractChoiceParameter<Boolean, BooleanPa
         //if (listChoice.length!=2) throw new IllegalArgumentException("List choice should be of length 2");
     }
 
-    public BooleanParameter setLegacyInitializationValue(boolean selected) {
-        this.setLegacyInitializationValue(listChoice[selected?0:1]);
-        return this;
-    }
-
     public boolean getSelected() {
         return this.getSelectedIndex()==0;
     }

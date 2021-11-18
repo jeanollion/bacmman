@@ -19,20 +19,21 @@
 package bacmman.configuration.parameters;
 
 import bacmman.plugins.ops.OpParameter;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.Locale;
+import java.util.function.Function;
 
 /**
  *
  * @author Jean Ollion
  */
-public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl<P> implements Listenable<P>, OpParameter<P>, ParameterWithLegacyInitialization {
+public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl<P> implements Listenable<P>, OpParameter<P>, ParameterWithLegacyInitialization<P, Number> {
     Number value, legacyInitValue;
     int decimalPlaces;
-    
     public NumberParameter(String name, int decimalPlaces) {
         super(name);
         this.decimalPlaces=decimalPlaces;
@@ -41,11 +42,6 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     public NumberParameter(String name, int decimalPlaces, Number defaultValue) {
         this(name, decimalPlaces);
         this.value=defaultValue;
-    }
-
-    public P setLegacyInitializationValue(Number legacyInitializationValue) {
-        this.legacyInitValue=legacyInitializationValue;
-        return (P)this;
     }
 
     public int getDecimalPlaceNumber() {
@@ -123,5 +119,20 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     @Override
     public void legacyInit() {
         if (this.legacyInitValue!=null) this.value = decimalPlaces>=1 ? legacyInitValue.doubleValue() : legacyInitValue.longValue();
+    }
+
+    @Override
+    public Parameter getLegacyParameter() {
+        return null;
+    }
+
+    @Override
+    public P setLegacyParameter(Parameter p, Function<Parameter, Number> setValue) {
+        return (P)this;
+    }
+
+    public P setLegacyInitializationValue(Number legacyInitializationValue) {
+        this.legacyInitValue=legacyInitializationValue;
+        return (P)this;
     }
 }
