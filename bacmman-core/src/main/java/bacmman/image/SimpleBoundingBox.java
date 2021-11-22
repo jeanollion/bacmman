@@ -225,7 +225,7 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
         bds.add(xMax);
         bds.add(yMin);
         bds.add(yMax);
-        if (sizeZ()>1 || zMin()!=0) {
+        if (zMax()!=0 || zMin()!=0) {
             bds.add(zMin());
             bds.add(zMax());
         }
