@@ -47,11 +47,8 @@ import java.util.*;
 import java.util.function.*;
 
 import bacmman.utils.*;
-import net.imglib2.histogram.Histogram1d;
-import net.imglib2.type.numeric.RealType;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import bacmman.utils.FileIO.ZipWriter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,6 +61,7 @@ import java.util.stream.Stream;
  */
 public class Task implements ProgressCallback{
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
+        public enum ExtractZAxis {IMAGE3D, CHANNEL, SINGLE_PLANE, MIDDLE_PLANE, BATCH}
         String dbName, dir;
         boolean preProcess, segmentAndTrack, trackOnly, measurements, generateTrackImages, exportPreProcessedImages, exportTrackImages, exportObjects, exportSelections, exportConfig;
         MEASUREMENT_MODE measurementMode = MEASUREMENT_MODE.ERASE_ALL;
@@ -88,6 +86,8 @@ public class Task implements ProgressCallback{
         SimpleBoundingBox extractDSRawBounds;
         Map<String, List<Integer>> extractDSRawPositionMapFrames;
         int[] extractDSRawChannels;
+        ExtractZAxis extractZAxis = ExtractZAxis.IMAGE3D;
+        int extractZAxisPlaneIdx;
 
         public JSONObject toJSON() {
             JSONObject res=  new JSONObject();
@@ -145,6 +145,8 @@ public class Task implements ProgressCallback{
                 JSONObject pf = new JSONObject();
                 for (String p : extractDSRawPositionMapFrames.keySet()) pf.put(p, JSONUtils.toJSONArray(extractDSRawPositionMapFrames.get(p)));
                 extractRawDS.put("positionMapFrame", pf);
+                extractRawDS.put("extractZAxis", extractZAxis.toString());
+                extractRawDS.put("extractZAxisPlaneIdx", extractZAxisPlaneIdx);
                 res.put("extractRawDataset", extractRawDS);
             }
             return res;
@@ -213,6 +215,8 @@ public class Task implements ProgressCallback{
                     extractDSRawBounds = new SimpleBoundingBox();
                     extractDSRawBounds.initFromJSONEntry(extractRawDS.get("bounds"));
                 }
+                extractZAxis = ExtractZAxis.valueOf((String)extractRawDS.getOrDefault("extractZAxis", ExtractZAxis.IMAGE3D.toString()));
+                extractZAxisPlaneIdx = ((Number)extractRawDS.getOrDefault("extractZAxisPlaneIdx", 0)).intValue();
                 JSONObject pf = (JSONObject)extractRawDS.get("positionMapFrame");
                 extractDSRawPositionMapFrames = new HashMap<>();
                 for (Object k: pf.keySet()) extractDSRawPositionMapFrames.put((String)k, JSONUtils.fromIntArrayToList((JSONArray)pf.get(k)));
@@ -383,6 +387,8 @@ public class Task implements ProgressCallback{
     }
 
     public BoundingBox getExtractRawDSBounds() { return extractDSRawBounds; }
+    public ExtractZAxis getExtractRawZAxis() {return extractZAxis; }
+    public int getExtractRawZAxisPlaneIdx() {return extractZAxisPlaneIdx; }
     public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
     public int[] getExtractRawDSChannels() {return extractDSRawChannels;}
 
@@ -437,11 +443,13 @@ public class Task implements ProgressCallback{
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
         return this;
     }
-    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, Map<String, List<Integer>> positionMapFrames) {
+    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames) {
         this.extractRawDSFile = extractDSFile;
         this.extractDSRawPositionMapFrames = positionMapFrames;
         this.extractDSRawBounds = bounds;
         this.extractDSRawChannels = channels;
+        this.extractZAxis = zAxis;
+        this.extractZAxisPlaneIdx = zAxisPlaneIdx;
         return this;
     }
     /*public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {
@@ -943,6 +951,12 @@ public class Task implements ProgressCallback{
         if (extractRawDSFile!=null) {
             addSep.run();
             sb.append("ExtractRawDSFile:").append(extractRawDSFile);
+            addSep.run();
+            sb.append("ExtractRawZAxis:").append(extractZAxis);
+            if (getExtractRawZAxis().equals(ExtractZAxis.SINGLE_PLANE)) {
+                addSep.run();
+                sb.append("ExtractRawZAxisPlaneIDx:").append(extractZAxisPlaneIdx);
+            }
         }
         if (extractDSRawChannels!=null) {
             addSep.run();

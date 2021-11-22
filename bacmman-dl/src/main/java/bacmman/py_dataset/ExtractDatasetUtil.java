@@ -8,7 +8,6 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
-import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
@@ -63,7 +62,7 @@ public class ExtractDatasetUtil {
                 for (Triplet<String, FeatureExtractor, Integer> feature : features) {
                     logger.debug("feature: {}", feature);
                     Function<SegmentedObject, Image> extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
-                    boolean ZtoBatch = feature.v2 instanceof RawImage && ((RawImage)feature.v2).getExtractZDim() == RawImage.ExtractZDim.BATCH;
+                    boolean ZtoBatch = feature.v2 instanceof RawImage && ((RawImage)feature.v2).getExtractZDim() == Task.ExtractZAxis.BATCH;
                     extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, saveLabels,  saveLabels, dimensions);
                     saveLabels=false;
                     t.incrementProgress();
@@ -86,13 +85,46 @@ public class ExtractDatasetUtil {
         MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
         String[] channelNames = mDAO.getExperiment().getChannelImagesAsString(false);
-        Function<Image, Image> crop = image -> {
-            if (bounds==null) return image;
-            MutableBoundingBox bds = new MutableBoundingBox(bounds);
-            if (bds.sizeX()<=0 || bds.xMax()>image.xMax()) bds.setxMax(image.xMax());
-            if (bds.sizeY()<=0 || bds.yMax()>image.yMax()) bds.setyMax(image.yMax());
-            if (bds.sizeZ()<=0 || bds.zMax()>image.zMax()) bds.setzMax(image.zMax());
-            return image.crop(bds);
+        Function<Image, Image> extract = image -> {
+            if (bounds!=null) {
+                MutableBoundingBox bds = new MutableBoundingBox(bounds);
+                logger.debug("bounds before adjust: {}, image: {}", bds, image.getBoundingBox());
+                if (bds.sizeX() <= 0 || bds.xMax() > image.xMax()) bds.setxMax(image.xMax());
+                if (bds.sizeY() <= 0 || bds.yMax() > image.yMax()) bds.setyMax(image.yMax());
+                if (bds.sizeZ() <= 0 || bds.zMax() > image.zMax()) bds.setzMax(image.zMax());
+                image = image.crop(bds);
+                logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
+            }
+            switch (t.getExtractRawZAxis()) {
+                case IMAGE3D:
+                case BATCH:
+                default:
+                    return image;
+                case SINGLE_PLANE:
+                    return image.getZPlane(t.getExtractRawZAxisPlaneIdx());
+                case MIDDLE_PLANE:
+                    return image.getZPlane(image.sizeZ()/2);
+                case CHANNEL: // simply transpose dimensions x,y,z -> z,y,x
+                    int sizeZ = image.sizeY();
+                    int sizeY = image.sizeX();
+                    int sizeX = image.sizeZ();
+                    Image im;
+                    switch(image.getBitDepth()) {
+                        case 32:
+                        default:
+                            im = new ImageFloat(image.getName(), sizeX, sizeY, sizeZ);
+                            break;
+                        case 16:
+                            im = new ImageShort(image.getName(), sizeX, sizeY, sizeZ);
+                            break;
+                        case 8:
+                            im = new ImageByte(image.getName(), sizeX, sizeY, sizeZ);
+                            break;
+                    }
+                    Image i = image;
+                    BoundingBox.loop(image, (x, y, z) -> im.setPixel(z, x, y, i.getPixel(x, y, z)));
+                    return im;
+            }
         };
         for (String position : positionMapFrames.keySet()) {
             logger.debug("position: {}", position);
@@ -101,7 +133,13 @@ public class ExtractDatasetUtil {
             boolean saveLabels = true;
             for (int channel : channels) {
                 String outputName = ds + "/" + position + "/" + channelNames[channel];
-                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName(""+fIdx)).map(crop).collect(Collectors.toList());
+                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName(""+fIdx)).map(extract).collect(Collectors.toList());
+                if (t.getExtractRawZAxis().equals(Task.ExtractZAxis.BATCH)) {
+                    logger.debug("before ZToBatch: {}", images.size());
+                    Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());
+                    images = s.collect(Collectors.toList());
+                    logger.debug("after ZToBatch: {}", images.size());
+                }
                 extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null);
                 saveLabels = false;
             }

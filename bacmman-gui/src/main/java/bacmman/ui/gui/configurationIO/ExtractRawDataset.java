@@ -2,15 +2,11 @@ package bacmman.ui.gui.configurationIO;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Task;
-import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
-import bacmman.plugins.FeatureExtractor;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Triplet;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -90,14 +86,19 @@ public class ExtractRawDataset extends JDialog {
         return contentPane;
     }
 
-    enum FRAME_CHOICE_MODE {RANDOM, FLUO_SIGNAL}
+    enum FRAME_CHOICE_MODE {ALL, RANDOM, FLUO_SIGNAL}
 
     private final EnumChoiceParameter<FRAME_CHOICE_MODE> frameChoiceMode;
-    private final ConditionalParameter frameChoiceCond;
-    private final ChannelImageParameter channelImage;
+    private final ConditionalParameter<FRAME_CHOICE_MODE> frameChoiceCond;
+    private final ChannelImageParameter frameChoiceChannelImage;
     private final BoundedNumberParameter nFrames;
     private final GroupParameter bounds;
     private final BoundedNumberParameter xMin, xSize, yMin, ySize, zMin, zSize;
+    EnumChoiceParameter<Task.ExtractZAxis> extractZ = new EnumChoiceParameter<>("Extract Z", Task.ExtractZAxis.values(), Task.ExtractZAxis.IMAGE3D);
+    BoundedNumberParameter extractZPlaneIdx = new BoundedNumberParameter("Plane Index", 0, 0, 0, null);
+    ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
+            .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, extractZPlaneIdx)
+            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis.<em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
     private final ConfigurationTreeGenerator outputConfigTree;
     private final MasterDAO mDAO;
     private final List<String> selectedPositions;
@@ -116,13 +117,13 @@ public class ExtractRawDataset extends JDialog {
                 .setRelativePath(false)
                 .mustExist(false)
                 .setHint("Set file where dataset will be extracted. If file exists and is of same format, data will be appended to the file");
-        frameChoiceMode = new EnumChoiceParameter<>("Frame Choice", FRAME_CHOICE_MODE.values(), FRAME_CHOICE_MODE.RANDOM);
-        frameChoiceCond = new ConditionalParameter(frameChoiceMode);
-        channelImage = new ChannelImageParameter("Channel Image", 0);
-        channelImage.setIncludeDuplicatedChannels(false);
-        frameChoiceCond.setActionParameters(FRAME_CHOICE_MODE.FLUO_SIGNAL, channelImage);
         nFrames = new BoundedNumberParameter("Number of frame per position", 0, 10, 1, null);
-
+        frameChoiceMode = new EnumChoiceParameter<>("Frame Choice", FRAME_CHOICE_MODE.values(), FRAME_CHOICE_MODE.RANDOM);
+        frameChoiceCond = new ConditionalParameter<>(frameChoiceMode);
+        frameChoiceChannelImage = new ChannelImageParameter("Channel Image", 0);
+        frameChoiceChannelImage.setIncludeDuplicatedChannels(false);
+        frameChoiceCond.setActionParameters(FRAME_CHOICE_MODE.FLUO_SIGNAL, frameChoiceChannelImage, nFrames);
+        frameChoiceCond.setActionParameters(FRAME_CHOICE_MODE.RANDOM, nFrames);
         xMin = new BoundedNumberParameter("X start", 0, 0, 0, null);
         xSize = new BoundedNumberParameter("X size", 0, 0, 0, null);
         yMin = new BoundedNumberParameter("Y start", 0, 0, 0, null);
@@ -130,7 +131,7 @@ public class ExtractRawDataset extends JDialog {
         zMin = new BoundedNumberParameter("Z start", 0, 0, 0, null);
         zSize = new BoundedNumberParameter("Z size", 0, 0, 0, null);
         bounds = new GroupParameter("Crop Image", xMin, xSize, yMin, ySize, zMin, zSize);
-        container = new GroupParameter("", outputFile, frameChoiceCond, this.nFrames, bounds);
+        container = new GroupParameter("", outputFile, frameChoiceCond, bounds, extractZCond);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v -> {
         }, (s, l) -> {
@@ -140,7 +141,7 @@ public class ExtractRawDataset extends JDialog {
 
         channelSelector.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         channelSelector.addListSelectionListener(e -> setEnableOk());
-        channelImage.addListener(e -> setEnableOk());
+        frameChoiceChannelImage.addListener(e -> setEnableOk());
         outputFile.addListener(t -> setEnableOk());
         buttonOK.addActionListener(e -> onOK());
         buttonCancel.addActionListener(e -> onCancel());
@@ -172,7 +173,7 @@ public class ExtractRawDataset extends JDialog {
         buttonOK.setEnabled(true);
     }
 
-    private void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, FRAME_CHOICE_MODE mode, int nFrames) {
+    private void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, FRAME_CHOICE_MODE mode, int nFrames, Task.ExtractZAxis zAXis, int extractZPlaneIdx) {
         if (outputFile != null) this.outputFile.setSelectedFilePath(outputFile);
         channelSelector.setSelectedIndices(channels);
         if (bounds != null) {
@@ -183,8 +184,12 @@ public class ExtractRawDataset extends JDialog {
             zMin.setValue(bounds.zMin());
             zSize.setValue(bounds.sizeZ());
         }
-        this.frameChoiceMode.setValue(mode);
+        if (mode!=null) this.frameChoiceMode.setSelectedEnum(mode);
+        else this.frameChoiceMode.setSelectedEnum(null);
         this.nFrames.setValue(nFrames);
+        this.extractZ.setSelectedEnum(zAXis);
+        this.extractZPlaneIdx.setValue(extractZPlaneIdx);
+        this.frameChoiceChannelImage.setSelectedClassIdx(-1);
         outputConfigTree.getTree().updateUI();
     }
 
@@ -192,8 +197,8 @@ public class ExtractRawDataset extends JDialog {
         resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
         int[] channels = channelSelector.getSelectedIndices();
         SimpleBoundingBox bounds = new SimpleBoundingBox(xMin.getValue().intValue(), xMin.getValue().intValue() + xSize.getValue().intValue() - 1, yMin.getValue().intValue(), yMin.getValue().intValue() + ySize.getValue().intValue() - 1, zMin.getValue().intValue(), zMin.getValue().intValue() + zSize.getValue().intValue() - 1);
-        Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), channelImage.getSelectedIndex())));
-        resultingTask.setExtractRawDS(outputFile.getFirstSelectedFilePath(), channels, bounds, positionMapFrames);
+        Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), frameChoiceChannelImage.getSelectedIndex())));
+        resultingTask.setExtractRawDS(outputFile.getFirstSelectedFilePath(), channels, bounds, extractZ.getSelectedEnum(), extractZPlaneIdx.getValue().intValue(), positionMapFrames);
         dispose();
     }
 
@@ -207,6 +212,8 @@ public class ExtractRawDataset extends JDialog {
                 return choice.stream().limit(nFrames).collect(Collectors.toList());
             case FLUO_SIGNAL:
                 return InputImages.chooseNImagesWithSignal(images, channel, nFrames);
+            case ALL:
+                return IntStream.range(0, images.getFrameNumber()).boxed().collect(Collectors.toList());
         }
     }
 
@@ -217,7 +224,7 @@ public class ExtractRawDataset extends JDialog {
             int nFrames = 0;
             if (selectedTask.getExtractRawDSFrames() != null && !selectedTask.getExtractRawDSFrames().isEmpty())
                 nFrames = selectedTask.getExtractRawDSFrames().values().iterator().next().size();
-            dialog.setDefaultValues(selectedTask.getExtractRawDSFile(), selectedTask.getExtractRawDSChannels(), selectedTask.getExtractRawDSBounds(), FRAME_CHOICE_MODE.RANDOM, nFrames);
+            dialog.setDefaultValues(selectedTask.getExtractRawDSFile(), selectedTask.getExtractRawDSChannels(), selectedTask.getExtractRawDSBounds(), null, nFrames, selectedTask.getExtractRawZAxis(), selectedTask.getExtractRawZAxisPlaneIdx());
         }
         dialog.pack();
         dialog.setVisible(true);
