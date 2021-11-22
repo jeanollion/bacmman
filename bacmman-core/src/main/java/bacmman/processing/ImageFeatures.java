@@ -218,19 +218,21 @@ public class ImageFeatures {
         res.setCalibration(image).resetOffset().translate(image).setName(image.getName() + ":laplacian:"+scaleXY);
         return res;
     }
-    
     public static ImageFloat[] getHessian(Image image, double scale, boolean overrideIfFloat) {
+        return getHessian(image, scale, scale * image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
+    }
+    public static ImageFloat[] getHessian(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
         ImageFloat[] res = new ImageFloat[image.sizeZ()==1?2:3];
         final imagescience.image.Image is = ImagescienceWrapper.getImagescience(image);
-        double s = scale * image.getScaleXY();
+        is.aspects(new Aspects(1, 1, scaleXY / scaleZ));
         boolean duplicate = !((image instanceof ImageFloat) && overrideIfFloat);
-        Vector vector = new Hessian().run(duplicate?is.duplicate():is, s, false);
+        Vector vector = new Hessian().run(duplicate?is.duplicate():is, scaleXY, false);
         for (int i=0;i<res.length;i++) {
             res[i] = (ImageFloat)ImagescienceWrapper.wrap((imagescience.image.Image) vector.get(i));
             res[i].setCalibration(image);
             res[i].resetOffset().translate(image);
             res[i].setName(image.getName() + ":hessian" + (i + 1));
-            ImageOperations.affineOperation(res[i], res[i], getNorm(scale, 2), 0);
+            ImageOperations.affineOperation(res[i], res[i], getNorm(scaleXY, 2), 0);
         }
         return res;
     }

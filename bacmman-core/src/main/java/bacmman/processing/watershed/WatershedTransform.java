@@ -48,8 +48,9 @@ public class WatershedTransform {
         FusionCriterion fusionCriterion;
         PropagationType prop = PropagationType.NORMAL;
         public WatershedConfiguration() {}
-        public WatershedConfiguration propagationCriterion(PropagationCriterion c) {
-            this.propagationCriterion = c;
+        public WatershedConfiguration propagationCriterion(PropagationCriterion... c) {
+            if (c.length==1) this.propagationCriterion = c[0];
+            else if (c.length>1) this.propagationCriterion = new MultiplePropagationCriteria(c);
             return this;
         }
         public WatershedConfiguration propagation(PropagationType prop) {

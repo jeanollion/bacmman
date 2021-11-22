@@ -113,9 +113,9 @@ public class ImageFeature implements PreFilter, Filter, Hint {
             case HessianDet:
                 return ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, canModifyImage)[1];
             case HessianMax:
-                return ImageFeatures.getHessian(input, scaleXY, canModifyImage)[0];
+                return ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage)[0];
             case HessianMin:
-                ImageFloat[] hess = ImageFeatures.getHessian(input, scaleXY, canModifyImage);
+                ImageFloat[] hess = ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage);
                 return hess[hess.length-1];
             case StructureMax:
                 return ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[0];
