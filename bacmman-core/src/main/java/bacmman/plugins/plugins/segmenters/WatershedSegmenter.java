@@ -20,24 +20,23 @@ package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageMask;
+import bacmman.image.*;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Thresholder;
 import bacmman.plugins.plugins.thresholders.Percentile;
 import bacmman.processing.Filters;
+import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import ij.process.AutoThresholder;
-import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -47,7 +46,7 @@ public class WatershedSegmenter implements Segmenter, TestableProcessingPlugin {
     PreFilterSequence watershedMapFilters = new PreFilterSequence("Watershed Map").add(new ImageFeature().setFeature(ImageFeature.Feature.HessianMax).setScale(2, 2)).setEmphasized(true).setHint("Filter sequence to compute the map on which the watershed will be performed");
     BooleanParameter decreasePropagation = new BooleanParameter("Decreasing propagation", false).setEmphasized(true).setHint("Whether propagation is done from local minima towards increasing intensity or from local maxima towards decreasing intensities (local extrema and propagation are performed on watershed map)");
     ScaleXYZParameter localExtremaRadius = new ScaleXYZParameter("Local Extrema Radius", 2, 2, false).setEmphasized(true);
-    enum FOREGROUND_SELECTION_METHOD {REGION_INTENSITY, PROPAGATION_THRESHOLD}
+    enum FOREGROUND_SELECTION_METHOD {REGION_INTENSITY, SEED_AND_PROPAGATION_THRESHOLDS}
     EnumChoiceParameter<FOREGROUND_SELECTION_METHOD> foregroundSelMethod = new EnumChoiceParameter<>("Foreground Selection Method", FOREGROUND_SELECTION_METHOD.values(), FOREGROUND_SELECTION_METHOD.REGION_INTENSITY).setEmphasized(true);
 
     PreFilterSequence intensityFilter = new PreFilterSequence("Intensity Filter").setEmphasized(true).setHint("Filter sequence to compute intensity map used to select foreground regions");
@@ -60,7 +59,7 @@ public class WatershedSegmenter implements Segmenter, TestableProcessingPlugin {
 
     ConditionalParameter<FOREGROUND_SELECTION_METHOD> foregroundSelMethodCond = new ConditionalParameter<>(foregroundSelMethod)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.REGION_INTENSITY, intensityFilter, threshlod, foregroundOverThreshold)
-            .setActionParameters(FOREGROUND_SELECTION_METHOD.PROPAGATION_THRESHOLD, seedThreshlod, propagationThreshlod, propagationThresholdOnInputImage);
+            .setActionParameters(FOREGROUND_SELECTION_METHOD.SEED_AND_PROPAGATION_THRESHOLDS, seedThreshlod, propagationThreshlod, propagationThresholdOnInputImage);
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         // perform watershed on all local extrema
@@ -70,21 +69,20 @@ public class WatershedSegmenter implements Segmenter, TestableProcessingPlugin {
         ImageByte localExtrema = Filters.localExtrema(watershedMap, null, decreasePropagation.getSelected(), parent.getMask(), Filters.getNeighborhood(radXY, radZ, watershedMap));
         FOREGROUND_SELECTION_METHOD method = foregroundSelMethod.getSelectedEnum();
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(decreasePropagation.getSelected());
-        if (method.equals(FOREGROUND_SELECTION_METHOD.PROPAGATION_THRESHOLD)) {
+        if (method.equals(FOREGROUND_SELECTION_METHOD.SEED_AND_PROPAGATION_THRESHOLDS)) {
             // erase seed depending on threshold
             double seedThld = seedThreshlod.instantiatePlugin().runThresholder(watershedMap, parent);
             BoundingBox.LoopPredicate lp = decreasePropagation.getSelected() ? (x, y, z) -> watershedMap.getPixel(x, y, z)<seedThld : (x, y, z) -> watershedMap.getPixel(x, y, z)>seedThld;
             ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), lp);
+            if (stores!=null) Core.userLog("WatershedSegmenter: seed threshold: "+seedThld);
+        }
+        if (method.equals(FOREGROUND_SELECTION_METHOD.SEED_AND_PROPAGATION_THRESHOLDS)) {
             // set propagation criterion
             Image propEndMap = propagationThresholdOnInputImage.getSelected() ? input : watershedMap;
             double propThld = propagationThreshlod.instantiatePlugin().runThresholder(propEndMap, parent);
             config.propagationCriterion(new WatershedTransform.ThresholdPropagation(propEndMap, propThld, propagationThresholdOnInputImage.getSelected() || decreasePropagation.getSelected()));
-            if (stores!=null) {
-                Core.userLog("WatershedSegmenter: seed threshold: "+seedThld+ " propagation Thld: "+propThld);
-            }
-
+            if (stores!=null) Core.userLog("WatershedSegmenter: propagation Thld: "+propThld);
         }
-
         RegionPopulation pop = WatershedTransform.watershed(watershedMap, parent.getMask(), localExtrema, config);
 
 
