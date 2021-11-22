@@ -30,14 +30,8 @@ import bacmman.image.ImageInteger;
 import bacmman.image.ImageLabeller;
 import bacmman.image.ImageMask;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.TreeSet;
+import java.util.*;
+
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.utils.HashMapGetCreate;
 
@@ -557,6 +551,24 @@ public class WatershedTransform {
         }
         @Override public void setUp(WatershedTransform instance) {}
         @Override public boolean continuePropagation(Voxel currentVox, Voxel nextVox) {
+            return stopWhenInferior?image.getPixel(nextVox.x, nextVox.y, nextVox.z)>threshold:image.getPixel(nextVox.x, nextVox.y, nextVox.z)<threshold;
+        }
+    }
+    public static class LocalThresholdPropagation implements PropagationCriterion {
+        Image image;
+        Map<Integer, Double> thresholdMap;
+        boolean stopWhenInferior;
+        WatershedTransform wst;
+        public LocalThresholdPropagation(Image image, Map<Integer, Double> thresholdMap, boolean stopWhenInferior) {
+            this.image=image;
+            this.thresholdMap=thresholdMap;
+            this.stopWhenInferior=stopWhenInferior;
+        }
+        @Override public void setUp(WatershedTransform instance) {
+            this.wst = instance;
+        }
+        @Override public boolean continuePropagation(Voxel currentVox, Voxel nextVox) {
+            double threshold = thresholdMap.get(wst.segmentedMap.getPixelInt(currentVox.x, currentVox.y, currentVox.z));
             return stopWhenInferior?image.getPixel(nextVox.x, nextVox.y, nextVox.z)>threshold:image.getPixel(nextVox.x, nextVox.y, nextVox.z)<threshold;
         }
     }
