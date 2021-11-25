@@ -41,7 +41,10 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     public Point(float... coords) {
         this.coords=coords;
     }
-
+    public Point(double... coords) {
+        this.coords=new float[coords.length];
+        for (int i = 0; i<coords.length ; ++i) this.coords[i] = (float)coords[i];
+    }
     public boolean isValid() {
         for (float d : coords) {
             if (Float.isNaN(d) || Float.isInfinite(d) || d==Float.MAX_VALUE || d==-Float.MAX_VALUE || d==Integer.MAX_VALUE || d==Integer.MIN_VALUE) return false;

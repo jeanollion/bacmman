@@ -693,7 +693,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                     //logger.debug("Region: {} attributes: {}", this, attributes);
                     if (attributes!=null) {
                         if (attributes.containsKey("Quality")) region.setQuality((Double)attributes.get("Quality"));
-                        if (!(region instanceof Spot) && attributes.containsKey("Center")) region.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
+                        if (!(region instanceof Analytical) && attributes.containsKey("Center")) region.setCenter(new Point(JSONUtils.fromFloatArray((List)attributes.get("Center"))));
                     }
                 }
             }
@@ -720,6 +720,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (region instanceof Spot) {
             setAttribute("Radius", ((Spot) region).getRadius());
             setAttribute("Intensity", ((Spot) region).getIntensity());
+        } else if (region instanceof Ellipse2D) {
+            setAttribute("MajorAxis", ((Ellipse2D) region).getMajor());
+            setAttribute("MinorAxis", ((Ellipse2D) region).getMinor());
+            setAttribute("AspectRatio", ((Ellipse2D) region).getAspectRatio());
+            setAttribute("Theta", ((Ellipse2D) region).getTheta());
+            setAttribute("Intensity", ((Ellipse2D) region).getIntensity());
         }
         if (region.getCenter()!=null) {
             Point c = region.getCenter();

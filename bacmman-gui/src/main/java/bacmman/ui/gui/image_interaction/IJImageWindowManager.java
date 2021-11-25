@@ -292,6 +292,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (s.is2D()) return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)<=s.getRadius()*s.getRadius();
                 else return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)+ Math.pow(z-s.getCenter().getDoublePosition(2), 2)<=s.getRadius()*s.getRadius();
             });
+        } else if (seg.getRegion() instanceof Ellipse2D) {
+            return IntStream.range(0, selection.npoints).anyMatch(i -> {
+                double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
+                double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
+                double z = sliceZ==-1 ? 0 : sliceZ - offset.zMin()+seg.getBounds().zMin();
+                Ellipse2D s = (Ellipse2D)seg.getRegion();
+                return s.contains(new Point(x, y, z));
+            });
         } else {
             ImageMask mask = seg.getMask();
             return IntStream.range(0, selection.npoints).anyMatch(i -> {
@@ -405,7 +413,21 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     r.put(zz, roi);
                 }
             }
-        } else {
+        } else if (object.key.getRegion() instanceof Ellipse2D) {
+            double dx = object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
+            double dy = object.value.yMin() - object.key.getBounds().yMin();
+            double z = object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin();
+            int sliceZ = (int)(Math.ceil(z));
+            Ellipse2D o = (Ellipse2D)object.key.getRegion();
+            List<Point> foci = o.getFoci();
+            foci.stream().forEach(p -> p.translate(new Vector((float)dx, (float)dy)));
+            Roi roi = new EllipseRoi(foci.get(0).get(0)+ 0.5, foci.get(0).get(1)+ 0.5, foci.get(1).get(0)+ 0.5, foci.get(1).get(1)+ 0.5, o.getAspectRatio());
+            roi.enableSubPixelResolution();
+            roi.setPosition(sliceZ + 1);
+            r = new Roi3D(1);
+            r.put(sliceZ, roi);
+
+        }else {
             r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
         }
 

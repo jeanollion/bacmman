@@ -8,24 +8,27 @@ import net.imglib2.algorithm.localization.StartPointEstimator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 public class MultipleIdenticalEstimator implements StartPointEstimator {
     public static final Logger logger = LoggerFactory.getLogger(MultipleIdenticalEstimator.class);
     final protected List<? extends Localizable> peaks;
     final protected StartPointEstimator pointEstimator;
+    final protected StartPointEstimator backgroundEstimator;
     final protected Localizable center;
     final long[] span;
-    final boolean addConstant;
-    public MultipleIdenticalEstimator(List<? extends Localizable> peaks, StartPointEstimator pointEstimator, boolean addConstant) {
-        this.peaks = peaks;
+
+    public MultipleIdenticalEstimator(Collection<? extends Localizable> peaks, StartPointEstimator pointEstimator, StartPointEstimator backgroundEstimator) {
+        this.peaks = peaks instanceof List ? (List)peaks : new ArrayList<>(peaks);
         this.pointEstimator = pointEstimator;
-        this.addConstant=addConstant;
+        this.backgroundEstimator=backgroundEstimator;
         if (peaks.isEmpty()) throw new IllegalArgumentException("Needs at least one peak");
         if (peaks.size() == 1) {
             span = pointEstimator.getDomainSpan();
-            center = peaks.get(0);
+            center = peaks.iterator().next();
         } else {
             MutableBoundingBox domainSpan = new MutableBoundingBox();
             for (Localizable l : peaks) {
@@ -49,19 +52,22 @@ public class MultipleIdenticalEstimator implements StartPointEstimator {
 
     @Override
     public double[] initializeFit(Localizable localizable, Observation observation) {
-        double[][] params = new double[peaks.size()][];
-        int NParam=addConstant ? 1:0;
+        double[][] params = new double[peaks.size() + (backgroundEstimator==null? 0 : 1)][];
+        int NParam = 0;
         for (int i = 0; i<peaks.size(); ++i) {
             params[i] = pointEstimator.initializeFit(peaks.get(i), observation);
             NParam += params[i].length;
         }
+        if (backgroundEstimator!=null) {
+            params[params.length-1] = backgroundEstimator.initializeFit(localizable, observation);
+            NParam += params[params.length-1].length;
+        }
         double[] allParams = new double[NParam];
         int curIdx = 0;
-        for (int i = 0; i<peaks.size(); ++i)  {
+        for (int i = 0; i<params.length; ++i)  {
             System.arraycopy(params[i], 0, allParams, curIdx, params[i].length);
             curIdx+=params[i].length;
         }
-        if (addConstant) allParams[NParam-1] = Arrays.stream(observation.I).min().getAsDouble();
         return allParams;
     }
 }

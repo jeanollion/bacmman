@@ -13,9 +13,10 @@ import bacmman.processing.gaussian_fit.GaussianFit;
 import java.util.Map;
 
 public class GaussianFitAmplitude extends IntensityMeasurement {
-    BooleanParameter fitConstant = new BooleanParameter("Fit Constant", true).setHint("If true a gaussian with an additive constant will be fit, as well as the constant. If false, the constant will not be fit and set to the minimal value in the surroundings of the object");
+    BooleanParameter fitBackground = new BooleanParameter("Fit Background", true).setHint("If true a gaussian with an additive constant will be fit, as well as the constant. If false, the constant will not be fit and set to the minimal value in the surroundings of the object");
     BooleanParameter fitCenter = new BooleanParameter("Fit Center", false).setHint("If false, a gaussian centered at the center of the object will be fit. If true the center of the gaussian will be fit");
-    BoundedNumberParameter sigma = new BoundedNumberParameter("Typical sigma", 2, 3, 1, null).setHint("Starting point for sigma parameter of the gaussian. The fit will be performed on a local image of span 2 x sigma + 1. Only used if fit center");
+    BoundedNumberParameter radius = new BoundedNumberParameter("Typical Radius", 2, 3, 1, null).setHint("Starting point for sigma parameter of the gaussian. The fit will be performed on a local image of span 2 x sigma + 1. Only used if fit center");
+    BooleanParameter fitEllipse = new BooleanParameter("Fit Ellipse", true).setHint("If true, an elliptic gaussian gaussian will be fit. Only available for 2D images.");
 
     RegionPopulation pop;
     @Override public IntensityMeasurement setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
@@ -28,9 +29,8 @@ public class GaussianFitAmplitude extends IntensityMeasurement {
         if (fit==null) {
             Image image = core.getIntensityMap(true);
             boolean fitCenter = this.fitCenter.getSelected();
-            boolean fitConstant = this.fitConstant.getSelected();
-            double sigma = this.sigma.getValue().doubleValue();
-            fit = GaussianFit.runOnRegions(image, pop.getRegions(), sigma, sigma * 4 + 1, fitCenter, fitConstant, 300, 0.001, 0.01);
+            double sigma = this.radius.getValue().doubleValue();
+            fit = GaussianFit.runOnRegions(image, pop.getRegions(), sigma, sigma * 4 + 1, fitEllipse.getSelected(), false, fitBackground.getSelected(), fitCenter, true, true, 300, 0.001, 0.01);
         }
         return fit;
     }
@@ -48,6 +48,6 @@ public class GaussianFitAmplitude extends IntensityMeasurement {
     }
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{intensity, fitConstant, fitCenter};
+        return new Parameter[]{intensity, fitEllipse, fitBackground, fitCenter, radius};
     }
 }

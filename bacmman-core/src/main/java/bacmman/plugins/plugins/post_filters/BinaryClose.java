@@ -20,10 +20,7 @@ package bacmman.plugins.plugins.post_filters;
 
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
-import bacmman.data_structure.Region;
-import bacmman.data_structure.RegionPopulation;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Spot;
+import bacmman.data_structure.*;
 import bacmman.image.ImageInteger;
 import bacmman.plugins.Hint;
 import bacmman.processing.BinaryMorphoEDT;
@@ -50,7 +47,7 @@ public class BinaryClose implements PostFilter, MultiThreaded, Hint {
     }
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Spot)) { // do nothing
+        if (childPopulation.getRegions().stream().allMatch(r->r instanceof Analytical)) { // do nothing
             return childPopulation;
         }
         boolean edt = scale.getScaleXY()>=8;

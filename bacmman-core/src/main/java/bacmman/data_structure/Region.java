@@ -226,6 +226,10 @@ public class Region {
         getVoxels();
         if (voxels!=null) {
             synchronized(voxels) {
+                if (voxels.size()==1) {
+                    Voxel v = voxels.iterator().next();
+                    return new Point(v.x, v.y, v.z);
+                }
                 float[] center = new float[3];
                 double count = 0;
                 if (absoluteLandmark) {
@@ -241,7 +245,7 @@ public class Region {
                         } else v.value = Float.NaN;
                     } 
                 }
-                Voxel minValue = Collections.min(voxels, (v1, v2) -> Double.compare(v1.value, v2.value));
+                Voxel minValue = Collections.min(voxels, Comparator.comparingDouble(v -> v.value));
                 for (Voxel v : getVoxels()) {
                     if (!Float.isNaN(v.value)) {
                         v.value-=minValue.value;
@@ -722,7 +726,7 @@ public class Region {
     }
     
     public Set<Voxel> getIntersection(Region other) {
-        if (other instanceof Spot) return other.getIntersection(this); // spot version is more efficient
+        if (other instanceof Analytical) return other.getIntersection(this); // spot version is more efficient
         if (!intersect(other)) return Collections.emptySet();
         if (other.is2D()!=is2D()) { // should not take into acount z for intersection -> cast to voxel2D (even for the 2D object to enshure voxel2D), and return voxels from the 3D objects
             Set s1 = Sets.newHashSet(Utils.transform(getVoxels(), v->v.toVoxel2D()));
@@ -753,7 +757,7 @@ public class Region {
      * @return overlap (in voxels) between this region and {@param other}
      */
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        if (other instanceof Spot) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
+        if (other instanceof Analytical) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
         BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
         BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);
         final boolean inter2D = is2D() || other.is2D();

@@ -19,12 +19,13 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
 
     protected ObjectClassParameter structure = new ObjectClassParameter("Objects", -1, false, false);
     protected BooleanParameter forceCompute = new BooleanParameter("Force computation", false).setHint("If set to false and selected segmented objects are already gaussian-fitted spots, instead of performing a gaussian fit on centers, the radius and intensity of spots will be extracted");
-    protected BooleanParameter fitConstant = new BooleanParameter("Fit Constant", false).setHint("If true a gaussian with an additive constant will be fit, as well as the constant. If false, the constant will not be fit and set to the minimal value in the surroundings of the object");
+    protected BooleanParameter fitBackground = new BooleanParameter("Fit Background", false).setHint("If true a gaussian with an additive constant will be fit, as well as the constant. If false, the constant will not be fit and set to the minimal value in the surroundings of the object");
     protected BooleanParameter fitCenter = new BooleanParameter("Fit Center", false).setHint("If false, a gaussian centered at the center of the object will be fit. If true the center of the gaussian will be fit");
+    protected BooleanParameter fitEllipse = new BooleanParameter("Fit Ellipse", false).setHint("If true, an elliptic gaussian gaussian will be fit. Only available for 2D images.");
 
     NumberParameter typicalSigma = new BoundedNumberParameter("Typical sigma", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
 
-    protected Parameter[] parameters = new Parameter[]{structure, forceCompute, typicalSigma, fitCenter, fitConstant};
+    protected Parameter[] parameters = new Parameter[]{structure, forceCompute, fitEllipse, typicalSigma, fitCenter, fitBackground};
 
     @Override
     public int getCallObjectClassIdx() {
@@ -40,7 +41,11 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
     public List<MeasurementKey> getMeasurementKeys() {
         int oIdx = structure.getSelectedClassIdx();
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        res.add(new MeasurementKeyObject("GF_Sigma", oIdx));
+        if (!fitEllipse.getSelected()) res.add(new MeasurementKeyObject("GF_Radius", oIdx));
+        else {
+            res.add(new MeasurementKeyObject("GF_Major", oIdx));
+            res.add(new MeasurementKeyObject("GF_Minor", oIdx));
+        }
         res.add(new MeasurementKeyObject("GF_N", oIdx));
         return res;
     }
@@ -48,18 +53,22 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
     @Override
     public void performMeasurement(SegmentedObject parent) {
         int oIdx = structure.getSelectedClassIdx();
-        if (!forceCompute.getSelected() && parent.getChildRegionPopulation(oIdx).getRegions().stream().allMatch(r->r instanceof Spot)) { // simply use spot parameters
+        if (!forceCompute.getSelected() && !fitEllipse.getSelected() && parent.getChildRegionPopulation(oIdx).getRegions().stream().allMatch(r->r instanceof Spot)) { // simply use spot parameters
             parent.getChildren(oIdx).forEach(so -> {
-                so.setAttribute("GF_Sigma", ((Spot)so.getRegion()).getRadius());
+                so.setAttribute("GF_Radius", ((Spot)so.getRegion()).getRadius());
                 so.setAttribute("GF_N", ((Spot)so.getRegion()).getIntensity());
             });
         } else {
-            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, fitCenter.getSelected(), fitConstant.getSelected(), 300, 0.001, 0.01);
+            Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(oIdx), parent.getChildRegionPopulation(oIdx).getRegions(), typicalSigma.getValue().doubleValue(), 4*typicalSigma.getValue().doubleValue()+1, fitEllipse.getSelected(), false, fitBackground.getSelected(), fitCenter.getSelected(), true, true , 300, 0.001, 0.01);
             Map<Region, SegmentedObject> rSMap = parent.getChildren(oIdx).collect(Collectors.toMap(SegmentedObject::getRegion, o -> o));
             parameters.forEach((r, p) -> {
                 SegmentedObject so = rSMap.get(r);
-                so.setAttribute("GF_Sigma", p[p.length - 2]);
-                so.setAttribute("GF_N", p[p.length - 3]);
+                GaussianFit.FitParameter fp = new GaussianFit.FitParameter(p, parent.getRawImage(oIdx).sizeZ()>1 ? 3:2, fitEllipse.getSelected(), false);
+                if (fitEllipse.getSelected()) {
+                    so.setAttribute("GF_Major", fp.getAxis(true));
+                    so.setAttribute("GF_Minor", fp.getAxis(false));
+                } else so.setAttribute("GF_Radius", fp.getRadius());
+                so.setAttribute("GF_N", fp.getIntensity());
             });
         }
     }

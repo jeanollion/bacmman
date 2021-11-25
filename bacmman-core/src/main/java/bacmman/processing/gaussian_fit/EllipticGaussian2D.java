@@ -1,0 +1,153 @@
+/* 
+ * Copyright (C) 2018 Jean Ollion
+ *
+ * This File is part of BACMMAN
+ *
+ * BACMMAN is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * BACMMAN is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package bacmman.processing.gaussian_fit;
+
+import net.imglib2.algorithm.localization.FitFunction;
+
+/**
+ * A 2-dimensional, Ellipse Gaussian peak function.
+ * <p>
+ * This fitting target function is defined over dimension <code>2</code>, by the
+ * following <code>6</code> parameters:
+ * 
+ * <pre>
+ * k = 0..1    - x₀ᵢ (with i = k)
+ * k = 2       - a
+ * k = 3 	   - b
+ * k = 4	   - c
+ * k = 5       - A
+ * </pre>
+ * 
+ * with
+ * 
+ * <pre>
+ * f(x) = A × exp( S )
+ * </pre>
+ * 
+ * and
+ * 
+ * <pre>
+ * S = - [ a × (xᵢ - x₀ᵢ)² + b × (yᵢ - y₀ᵢ)² + 2c × (xᵢ - x₀ᵢ) * (yᵢ - y₀ᵢ) ]
+ * </pre>
+ * 
+ * @author Jean Ollion
+ */
+public class EllipticGaussian2D implements FitFunction {
+	boolean trainableCoords=true, trainableAxis=true;
+	public EllipticGaussian2D() {
+	}
+	public EllipticGaussian2D setTrainable(boolean coordinates, boolean axis) {
+		trainableCoords = coordinates;
+		trainableAxis = axis;
+		return this;
+	}
+
+	/*
+	 * METHODS
+	 */
+
+	@Override
+	public String toString() {
+		return "Ellipse Gaussian function A × exp( - a × (xᵢ - x₀)² - b × (yᵢ - y₀)² - 2c × (x - x₀)(y - y₀) )";
+	}
+
+	@Override
+	public final double val(final double[] x, final double[] a) {
+		return a[5] * E(x, a);
+	}
+
+	/**
+	 * Partial derivatives indices are ordered as follows:
+	 * <pre>
+	 * k = 0..1    - x₀ᵢ (with i = k)
+	 * k = 2       - a
+	 * k = 3 	   - b
+	 * k = 4	   - c
+	 * k = 5       - A
+	 *k = n+1     - b</pre> 
+	 */
+	@Override
+	public final double grad(final double[] x, final double[] a, final int k) {
+		if (!trainableCoords && k<2) return 0;
+		if (!trainableAxis && k<4 && k>=2) return 0;
+		if (k < 5) return dS(x, a, k) * val(x, a);
+		else if (k == 5) return E(x, a); // With respect to A
+		return 0;
+		//throw new RuntimeException("k must be inferior or equal to 5");
+	}
+
+	@Override
+	public final double hessian(final double[] x, final double[] a, int rIn, int cIn) {
+		int r = rIn;
+		int c = cIn;
+		if (c < r) {
+			int tmp = c;
+			c = r;
+			r = tmp;
+		} // Ensure c >= r, top right half the matrix
+		if (!trainableCoords && (c<2 || r<2) ) return 0;
+		if (!trainableAxis && ((c<4 && c>=2) || (r<4 && r>=2) ) ) return 0;
+		if (c<=4) {
+			// d²G/dCdR = G * ( d²S / dCdR + dS/dC * dS/dR)
+			double d = dS(x, a, c) * dS(x, a, r);
+			if (c<2) {
+				if (r==c) d+=-2*a[c+2]; //dx2 or dy2
+				else d+=-2*a[4]; // dxdy
+			} else if (c<4 && r<2) { //dab * dxy
+				if (r+2==c) d+=2 * (x[r] - a[r]);
+			} else if (c==4 && r<2) { // dc * dxy
+				int other = r==0 ? 1 : 0;
+				d+=2 * (x[other] - a[other]);
+			}
+			// dS/dadb, dS/dadc .. = 0
+			return d * val(x, a);
+		} else if (c == 5) {
+			if (r==c) return 0;
+			return dS(x, a, r) * E(x, a); // ==grad/A
+		}
+		return 0;
+		//throw new RuntimeException("c and r must be inferior or equal to 5");
+	}
+
+	/*
+	 * PRIVATE METHODS
+	 */
+
+	private static final double S(final double[] x, final double[] a) {
+		double dx = x[0] - a[0], dy = x[1] - a[1];
+		return - (a[2] * dx * dx + a[3] * dy * dy + a[4] * dx * dy);
+	}
+
+	private static final double E(final double[] x, final double[] a) {
+		return Math.exp(S(x,a));
+	}
+
+	private static final double dS(final double[] x, final double[] a, final int k) {
+		if (k<2) { // With respect to center x₀
+			int other = k == 0 ? 1 : 0;
+			return 2 * (a[k + 2] * (x[k] - a[k]) + a[4] * (x[other] - a[other]));
+		} else if (k<4) { // With respect to a or b
+			return - Math.pow(x[k-2] - a[k-2], 2);
+		} else if (k==4) { // With respect to c
+			return - 2 * (x[0] - a[0]) * (x[1] - a[1]);
+		}
+		return 0;
+		//throw new IllegalArgumentException("K must be <5");
+	}
+}

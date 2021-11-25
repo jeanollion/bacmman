@@ -20,6 +20,7 @@ package bacmman.plugins.plugins.post_filters;
 
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
+import bacmman.data_structure.Ellipse2D;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Spot;
@@ -49,6 +50,12 @@ public class BinaryMax implements PostFilter, MultiThreaded, Hint {
         if (childPopulation.getRegions().stream().allMatch(r->r instanceof Spot)) {
             double add = scale.getScaleXY();
             childPopulation.getRegions().stream().map(r->(Spot)r).forEach(s->s.setRadius(s.getRadius()+add));
+            childPopulation.clearLabelMap();
+            return childPopulation;
+        } else if (childPopulation.getRegions().stream().allMatch(r->r instanceof Ellipse2D)) {
+            double add = scale.getScaleXY();
+            childPopulation.getRegions().stream().map(r->(Ellipse2D)r).forEach(s->s.setAxis(s.getMajor()+add, true));
+            childPopulation.getRegions().stream().map(r->(Ellipse2D)r).forEach(s->s.setAxis(s.getMinor()+add, false));
             childPopulation.clearLabelMap();
             return childPopulation;
         }

@@ -28,22 +28,21 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class MLGaussianSimpleEstimator extends MLGaussianEstimator {
-    final protected double sigma;
-    final protected int nDims;
-    public MLGaussianSimpleEstimator(double typicalSigma, int nDims) {
-        super(typicalSigma, nDims);
-        this.sigma= typicalSigma;
-        this.nDims=nDims;
+public class EllipticGaussian2DSimpleEstimator extends MLGaussianEstimator {
+    final protected double radius;
+    public EllipticGaussian2DSimpleEstimator(double typicalRadius) {
+        super(typicalRadius, 2);
+        this.radius = typicalRadius;
     }
 
     @Override
     public double[] initializeFit(Localizable point, Observation data) {
-        final double[] start_param = new double[nDims+2];
-        for (int j = 0; j < nDims; j++) start_param[j] = point.getDoublePosition(j);
-        start_param[nDims + 1] = 1/(2 * sigma * sigma);
+        final double[] start_param = new double[6];
+        for (int j = 0; j < 2; j++) start_param[j] = point.getDoublePosition(j);
+        start_param[2] = 1/(radius * radius); // a
+        start_param[3] = 1/(radius * radius); // b
         double min = Arrays.stream(data.I).min().getAsDouble();
-        start_param[nDims] = getValue(point, data) - min; //A
+        start_param[5] = getValue(point, data) - min; //A
         return start_param;
     }
     

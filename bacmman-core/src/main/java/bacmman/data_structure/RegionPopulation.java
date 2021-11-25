@@ -143,8 +143,8 @@ public class RegionPopulation {
     public RegionPopulation ensureEditableRegions() {
         if (objects==null) return this;
         for (int i = 0; i<objects.size(); ++i) {
-            if (objects.get(i) instanceof Spot) {
-                Spot s = (Spot)objects.get(i);
+            if (objects.get(i) instanceof Analytical) {
+                Region s = objects.get(i);
                 if (s.voxelsCreated()) objects.set(i, new Region(s.getVoxels(), s.label, s.is2D, s.scaleXY, s.scaleZ));
                 else objects.set(i, new Region(s.getMask(), s.label, s.is2D));
             }
