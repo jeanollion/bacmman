@@ -97,7 +97,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
     }
 
     private static RegionPopulation fitRegionOnProbaMap(RegionPopulation population, Image proba, double typicalSigma) {
-        Map<Region, double[]> fit =GaussianFit.runOnRegions(proba, population.getRegions(), typicalSigma, 4*typicalSigma+1, false, false, false, true, true, true, 300, 0.001, 0.01);
+        Map<Region, double[]> fit =GaussianFit.runOnRegions(proba, population.getRegions(), typicalSigma, 0,  4*typicalSigma+1, false, false, false, true, true, true, 300, 0.001, 0.01);
         List<Spot> spots = fit.values().stream().map(doubles -> GaussianFit.spotMapper.apply(doubles, false, proba)).collect(Collectors.toList());
         return new RegionPopulation(spots, population.getImageProperties());
     }
@@ -123,8 +123,8 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         Image smoothed = ImageFeatures.gaussianSmooth(raw, 2, false);
         if (regions.isEmpty()) return;
         List<Point> seeds = regions.stream().map(r->r.getMassCenter(prediction, false)).collect(Collectors.toList());
-        Map<Point, double[]> fit = GaussianFit.run(prediction, seeds, typicalSigma, 4*typicalSigma+1, false, false, false, null, true, true, 300, 0.001, 0.01);
-        fit = GaussianFit.run(smoothed, seeds, typicalSigma, 4*typicalSigma+1, false, false, true, fit, false, false, 300, 0.001, 0.01);
+        Map<Point, double[]> fit = GaussianFit.run(prediction, seeds, typicalSigma, 0, 4*typicalSigma+1, false, false, false, null, true, true, 300, 0.001, 0.01);
+        fit = GaussianFit.run(smoothed, seeds, typicalSigma, 0, 4*typicalSigma+1, false, false, true, fit, false, false, 300, 0.001, 0.01);
 
         for (int i = 0; i<regions.size(); ++i) {
             Spot s = GaussianFit.spotMapper.apply(fit.get(seeds.get(i)), false, raw);
