@@ -36,9 +36,9 @@ public class CylindricalNeighborhood extends DisplacementNeighborhood {
     /**
      * 3D Cylindrical Neighbourhood around a voxel, with Z-axis as height
      * @param radiusXY in pixel in the XY-axis
-     * @param heightZ height of the cilinder in pixel in the Z-axis
-     * @param excludeCenter if true, central point can excluded
-     * return an array of diplacement from the center
+     * @param heightZ height of the cylinder in pixel in the Z-axis
+     * @param excludeCenter if true, central point is excluded
+     * return an array of displacement from the center
      */
     public CylindricalNeighborhood(double radiusXY, double heightZ, boolean excludeCenter) {
         this(radiusXY, heightZ, heightZ, excludeCenter);
@@ -79,7 +79,7 @@ public class CylindricalNeighborhood extends DisplacementNeighborhood {
         dx= new int[coordsXYZD.size()];
         dy= new int[coordsXYZD.size()];
         dz= new int[coordsXYZD.size()];
-        values=new float[coordsXYZD.size()];
+        values=new double[coordsXYZD.size()];
         for (int i = 0; i<coordsXYZD.size(); ++i) {
             double[] c = coordsXYZD.get(i);
             dx[i] = (int)c[0];

@@ -522,7 +522,7 @@ public class RegionPopulation {
         bck.getVoxels();
         getRegions().add(bck);
         this.redrawLabelMap(true);
-        Map<Integer, Region> regionByLabel = getRegions().stream().collect(Collectors.toMap(r->r.getLabel(), r->r));
+        Map<Integer, Region> regionByLabel = getRegions().stream().collect(Collectors.toMap(Region::getLabel, r->r));
         Iterator<Region> rIt = getRegions().iterator();
         Set<Region> modified = new HashSet<>();
         while(rIt.hasNext()) {

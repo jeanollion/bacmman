@@ -75,7 +75,7 @@ public class ConditionalNeighborhoodZ implements Neighborhood {
         return currentNeighborhood.getSize();
     }
 
-    @Override public float[] getPixelValues() {
+    @Override public double[] getPixelValues() {
         return currentNeighborhood.getPixelValues();
     }
 
@@ -91,11 +91,11 @@ public class ConditionalNeighborhoodZ implements Neighborhood {
         return currentNeighborhood.is3D();
     }
 
-    @Override public float getMin(int x, int y, int z, Image image, float... outOfBoundValue) {
+    @Override public double getMin(int x, int y, int z, Image image, double... outOfBoundValue) {
         return currentNeighborhood.getMin(x, y, z, image, outOfBoundValue);
     }
 
-    @Override public float getMax(int x, int y, int z, Image image) {
+    @Override public double getMax(int x, int y, int z, Image image) {
         return currentNeighborhood.getMax(x, y, z, image);
     }
 

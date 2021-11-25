@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 public abstract class DisplacementNeighborhood implements Neighborhood {
     public int[] dx, dy, dz;
     boolean is3D;        
-    float[] values;
+    double[] values;
     float[] distances;
     int valueCount=0;
     
@@ -96,7 +96,7 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
     
     @Override public int getSize() {return dx.length;}
 
-    @Override public float[] getPixelValues() {
+    @Override public double[] getPixelValues() {
         return values;
     }
     @Override public int getValueCount() {
@@ -106,12 +106,12 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
         return distances;
     }
     
-    @Override public float getMin(int x, int y, int z, Image image, float... outOfBoundValue) {
+    @Override public double getMin(int x, int y, int z, Image image, double... outOfBoundValue) {
         int xx, yy;
-        float min = Float.MAX_VALUE;
+        double min = Double.MAX_VALUE;
         boolean returnOutOfBoundValue = outOfBoundValue.length>=1;
-        float ofbv = returnOutOfBoundValue? outOfBoundValue[0] : 0;
-        float temp;
+        double ofbv = returnOutOfBoundValue? outOfBoundValue[0] : 0;
+        double temp;
         if (is3D) { 
             int zz;
             for (int i = 0; i<dx.length; ++i) {
@@ -133,14 +133,14 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
                 } else if (returnOutOfBoundValue) return ofbv;
             }
         }
-        if (min==Float.MAX_VALUE) min = Float.NaN;
+        if (min==Double.MAX_VALUE) min = Double.NaN;
         return min;
     }
 
-    @Override public float getMax(int x, int y, int z, Image image) {
+    @Override public double getMax(int x, int y, int z, Image image) {
         int xx, yy;
-        float max = -Float.MAX_VALUE;
-        float temp;
+        double max = -Double.MAX_VALUE;
+        double temp;
         if (is3D) { 
             int zz;
             for (int i = 0; i<dx.length; ++i) {
@@ -162,7 +162,7 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
                 }
             }
         }
-        if (max==Float.MIN_VALUE) max = Float.NaN;
+        if (max==Double.MIN_VALUE) max = Double.NaN;
         return max;
     }
     @Override public boolean hasNonNullValue(int x, int y, int z, ImageMask image, boolean outOfBoundIsNonNull) {

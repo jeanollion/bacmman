@@ -108,13 +108,13 @@ public class EllipsoidalNeighborhoodCompartment extends EllipsoidalNeighborhood 
             }
         }
     }
-    @Override public float getMin(int x, int y, int z, Image image, float... outOfBoundValue) {
+    @Override public double getMin(int x, int y, int z, Image image, double... outOfBoundValue) {
         int xx, yy;
         int label = compartimentMap.getPixelInt(x, y, z);
-        float min = Float.MAX_VALUE;
+        double min = Double.MAX_VALUE;
         boolean returnOutOfBoundValue = outOfBoundValue.length>=1;
-        float ofbv = returnOutOfBoundValue? outOfBoundValue[0] : 0;
-        float temp;
+        double ofbv = returnOutOfBoundValue? outOfBoundValue[0] : 0;
+        double temp;
         if (is3D) { 
             int zz;
             for (int i = 0; i<dx.length; ++i) {
@@ -136,15 +136,15 @@ public class EllipsoidalNeighborhoodCompartment extends EllipsoidalNeighborhood 
                 } else if (returnOutOfBoundValue) return ofbv;
             }
         }
-        if (min==Float.MAX_VALUE) min = Float.NaN;
+        if (min==Double.MAX_VALUE) min = Double.NaN;
         return min;
     }
 
-    @Override public float getMax(int x, int y, int z, Image image) {
+    @Override public double getMax(int x, int y, int z, Image image) {
         int xx, yy;
         int label = compartimentMap.getPixelInt(x, y, z);
-        float max = -Float.MAX_VALUE;
-        float temp;
+        double max = -Double.MAX_VALUE;
+        double temp;
         if (is3D) { 
             int zz;
             for (int i = 0; i<dx.length; ++i) {
@@ -166,7 +166,7 @@ public class EllipsoidalNeighborhoodCompartment extends EllipsoidalNeighborhood 
                 }
             }
         }
-        if (max==Float.MIN_VALUE) max = Float.NaN;
+        if (max==Double.MIN_VALUE) max = Double.NaN;
         return max;
     }
     @Override public boolean hasNonNullValue(int x, int y, int z, ImageMask image, boolean outOfBoundIsNonNull) {

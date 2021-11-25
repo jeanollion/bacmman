@@ -73,7 +73,7 @@ public class ConicalNeighborhood extends DisplacementNeighborhood {
         dx= new int[coordsXYZD.size()];
         dy= new int[coordsXYZD.size()];
         dz= new int[coordsXYZD.size()];
-        values=new float[coordsXYZD.size()];
+        values=new double[coordsXYZD.size()];
         for (int i = 0; i<coordsXYZD.size(); ++i) {
             double[] c = coordsXYZD.get(i);
             dx[i] = (int)c[0];

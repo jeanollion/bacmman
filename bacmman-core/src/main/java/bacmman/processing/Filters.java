@@ -300,8 +300,8 @@ public class Filters {
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
             Arrays.sort(neighborhood.getPixelValues(), 0, neighborhood.getValueCount());
-            if (neighborhood.getValueCount()%2==0) return (neighborhood.getPixelValues()[neighborhood.getValueCount()/2-1]+neighborhood.getPixelValues()[neighborhood.getValueCount()/2])/2f;
-            else return neighborhood.getPixelValues()[neighborhood.getValueCount()/2];
+            if (neighborhood.getValueCount()%2==0) return (float) (neighborhood.getPixelValues()[neighborhood.getValueCount()/2-1]+neighborhood.getPixelValues()[neighborhood.getValueCount()/2])/2f;
+            else return (float)neighborhood.getPixelValues()[neighborhood.getValueCount()/2];
         }
     }
 
@@ -350,7 +350,7 @@ public class Filters {
             return new Max();
         }
         @Override public float applyFilter(int x, int y, int z) {
-            return neighborhood.getMax(x, y, z, image);
+            return (float)neighborhood.getMax(x, y, z, image);
         }
     }
     public static class LocalMax extends Filter {
@@ -366,7 +366,7 @@ public class Filters {
             if (mask!=null && !mask.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
-            float max = neighborhood.getPixelValues()[0]; // coords are sorted by distance, first is center
+            double max = neighborhood.getPixelValues()[0]; // coords are sorted by distance, first is center
             for (int i = 1; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]>max) return 0;
             return 1;
         }
@@ -391,7 +391,7 @@ public class Filters {
             if (image.getPixel(x, y, z)<threshold) return 0;
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
-            float max = neighborhood.getPixelValues()[0];
+            double max = neighborhood.getPixelValues()[0];
             for (int i = 1; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]>max) return 0;
             return 1;
         }
@@ -408,7 +408,7 @@ public class Filters {
             if (mask!=null && !mask.insideMask(x, y, z)) return 0;
             neighborhood.setPixels(x, y, z, image, mask);
             if (neighborhood.getValueCount()==0) return 0;
-            float min = neighborhood.getPixelValues()[0];
+            double min = neighborhood.getPixelValues()[0];
             for (int i = 1; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]<min) return 0;
             return 1;
         }
@@ -428,14 +428,14 @@ public class Filters {
             if (image.getPixel(x, y, z)>threshold) return 0;
             neighborhood.setPixels(x, y, z, image, null);
             if (neighborhood.getValueCount()==0) return 0;
-            float min = neighborhood.getPixelValues()[0];
+            double min = neighborhood.getPixelValues()[0];
             for (int i = 1; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]<min) return 0;
             return 1;
         }
     }
     private static class Min extends Filter {
         @Override public float applyFilter(int x, int y, int z) {
-            return neighborhood.getMin(x, y, z, image);
+            return (float)neighborhood.getMin(x, y, z, image);
         }
         @Override public Min duplicate() {
             return new Min();
@@ -490,14 +490,14 @@ public class Filters {
             neighborhood.setPixels(x, y, z, image, null);
             int idx = 0; // central value == 0, pixels are sorted acording to distance to center -> first non null label = closest
             int count = neighborhood.getValueCount();
-            float[] values = neighborhood.getPixelValues();
+            double[] values = neighborhood.getPixelValues();
             while (++idx<count && values[idx]==0) {}
             if (idx==count) return 0;
-            if (idx+1==count) return neighborhood.getPixelValues()[idx];
+            if (idx+1==count) return (float)neighborhood.getPixelValues()[idx];
             int idx2=idx;
             while (++idx2<count && (values[idx2]==0 || values[idx2]==values[idx])) {}
-            if (idx2==count) return neighborhood.getPixelValues()[idx];
-            if (neighborhood.getDistancesToCenter()[idx]<neighborhood.getDistancesToCenter()[idx2]) return values[idx];
+            if (idx2==count) return (float)neighborhood.getPixelValues()[idx];
+            if (neighborhood.getDistancesToCenter()[idx]<neighborhood.getDistancesToCenter()[idx2]) return (float)values[idx];
             return 0;
         }
     }

@@ -72,7 +72,7 @@ public class EllipsoidalNeighborhood extends DisplacementNeighborhood {
             dx= new int[coordsXYZD.size()];
             dy= new int[coordsXYZD.size()];
             dz= new int[coordsXYZD.size()];
-            values=new float[coordsXYZD.size()];
+            values=new double[coordsXYZD.size()];
             for (int i = 0; i<coordsXYZD.size(); ++i) {
                 double[] c = coordsXYZD.get(i);
                 dx[i] = (int)c[0];
@@ -115,7 +115,7 @@ public class EllipsoidalNeighborhood extends DisplacementNeighborhood {
         dx= new int[coordsXYD.size()];
         dy= new int[coordsXYD.size()];
         dz= new int[coordsXYD.size()];
-        values=new float[coordsXYD.size()];
+        values=new double[coordsXYD.size()];
         for (int i = 0; i<coordsXYD.size(); ++i) {
             double[] c = coordsXYD.get(i);
             dx[i] = (int)c[0];

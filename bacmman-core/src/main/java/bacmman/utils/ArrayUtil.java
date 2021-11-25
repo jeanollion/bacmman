@@ -39,6 +39,9 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class ArrayUtil {
+    public static DoubleStream stream(double[] array) {
+        return Arrays.stream(array);
+    }
     public static DoubleStream stream(float[] array) {
         return IntStream.range(0, array.length).mapToDouble(i->array[i]);
     }

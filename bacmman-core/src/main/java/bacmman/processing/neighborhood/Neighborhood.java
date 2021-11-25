@@ -43,9 +43,9 @@ public interface Neighborhood {
      * @return bb centered @ 0 ie xMin, yMin, zMin <0
      */
     public MutableBoundingBox getBoundingBox();
-    public float[] getPixelValues();
-    public float getMin(int x, int y, int z, Image image, float... outOfBoundValue);
-    public float getMax(int x, int y, int z, Image image);
+    public double[] getPixelValues();
+    public double getMin(int x, int y, int z, Image image, double... outOfBoundValue);
+    public double getMax(int x, int y, int z, Image image);
     public boolean hasNonNullValue(int x, int y, int z, ImageMask mask, boolean outOfBoundIsNonNull);
     public boolean hasNullValue(int x, int y, int z, ImageMask mask, boolean outOfBoundIsNull);
     public float[] getDistancesToCenter();
