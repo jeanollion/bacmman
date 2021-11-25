@@ -265,7 +265,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         Offset off = !fitImage.sameDimensions(radSym) ? new SimpleOffset(radSym).translate(fitImage.getBoundingBox().reverseOffset()) : null;
         if (off!=null) allSeeds.forEach(p->p.translate(off)); // translate point to fitImages bounds
         long t0 = System.currentTimeMillis();
-        Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma, 4*typicalSigma+1, false, false, true, null, true, true, 300, 0.001, 0.01);
+        Map<Point, double[]> fit = GaussianFit.run(fitImage, allSeeds, typicalSigma,(int)Math.ceil(4*typicalSigma+1), 4*typicalSigma+1, false, false, true, null, true, true, 300, 0.001, 0.01);
         long t1 = System.currentTimeMillis();
         //logger.debug("spot fitting: {}ms / spot", ((double)(t1-t0))/allSeeds.size());
         List<Spot> res = seedsToSpots.stream().map(fit::get).filter(Objects::nonNull).map(d -> GaussianFit.spotMapper.apply(d, false, fitImage))
