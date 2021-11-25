@@ -28,6 +28,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 
+import bacmman.processing.neighborhood.CylindricalNeighborhood;
+import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.processing.watershed.WatershedTransform.WatershedConfiguration;
 import java.util.Set;
@@ -37,10 +39,11 @@ import java.util.Set;
  * @author Jean Ollion
  */
 public class ImageLabeller {
-    int[][] labels;
-    int sizeX;
-    HashMap<Integer, Spot> spots;
-    ImageMask mask;
+    public final ImageInt imLabels;
+    public final int[][] labels;
+    public final int sizeX;
+    public final HashMap<Integer, Spot> spots;
+    public final ImageMask mask;
     public static final int[][] neigh3DHalf = new int[][]{
             {1, 1, -1}, {0, 1, -1}, {-1, 1, -1}, {1, 0, -1}, {0, 0, -1}, {-1, 0, -1}, {1, -1, -1}, {0, 1, -1}, {-1, -1, -1},
             {1, -1, 0}, {0, -1, 0}, {-1, -1, 0}, {-1, 0, 0}
@@ -50,14 +53,22 @@ public class ImageLabeller {
     public static final int[][] neigh2D4Half = new int[][]{ {0, -1, 0}, {-1, 0, 0} };
     int[][] neigh;
     
-    protected ImageLabeller(ImageMask mask) {
+    public ImageLabeller(ImageMask mask) {
         this.mask=mask;
-        ImageInt imLabels = new ImageInt("labels", mask);
+        imLabels = new ImageInt("labels", mask);
         labels = imLabels.getPixelArray();
         sizeX = mask.sizeX();
         spots = new HashMap<Integer, Spot>();
     }
-    
+    public static Region[] labelImage(ImageMask mask, Neighborhood n) {
+        if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
+        else {
+            ImageLabeller il = new ImageLabeller(mask);
+            il.labelSpots(n);
+            return il.getObjects();
+        }
+    }
+
     public static Region[] labelImage(ImageMask mask) {
         if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
         else {
@@ -161,11 +172,43 @@ public class ImageLabeller {
             }
         }
     }
+
+    public void labelSpots(Neighborhood n) {
+        int currentLabel = 1;
+        Spot currentSpot;
+        for (int z = 0; z<=mask.sizeZ(); ++z) {
+            for (int y = 0; y<=mask.sizeY(); ++y) {
+                for (int x=0; x<=sizeX; ++x) {
+                    if (mask.insideMask(x, y, z)) {
+                        currentSpot = null;
+                        Voxel v = new Voxel(x, y, z);
+                        n.setPixels(x, y, z, imLabels, mask);
+                        for (int i = 0; i<n.getValueCount(); ++i) {
+                            int nextLabel = (int)n.getPixelValues()[i]; // double values might not be enough...
+                            if (nextLabel != 0) {
+                                if (currentSpot== null) {
+                                    currentSpot= spots.get(nextLabel);
+                                    currentSpot.addVox(v);
+                                } else if (nextLabel != currentSpot.label) {
+                                    currentSpot = currentSpot.fusion(spots.get(nextLabel));
+                                    currentSpot.addVox(v);
+                                }
+                            }
+
+                        }
+                        if (currentSpot == null) {
+                            spots.put(currentLabel, new Spot(currentLabel++, v));
+                        }
+                    }
+                }
+            }
+        }
+    }
     
-    private class Spot {
+    public class Spot {
 
         Set<Voxel> voxels;
-        int label;
+        public int label;
 
         public Spot(int label, Voxel v) {
             this.label = label;
