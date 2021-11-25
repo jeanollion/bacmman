@@ -65,7 +65,7 @@ public class GaussianFit {
      * @param termEpsilon see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
      * @return for each peak, array of fitted parameters: if ellipse: x₀, y₀, a, b, c, A  if gaussian: coordinates, A, σ, C. if fitted coordinates are outside the image, point is removed
      */
-    public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalRadius, double minDistance, boolean fitEllipse, boolean backgroundPlane, boolean fitBackground, Map<Point, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon ) {
+    public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalRadius, int fittingBoxRadius, double minDistance, boolean fitEllipse, boolean backgroundPlane, boolean fitBackground, Map<Point, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
         if (fitEllipse) assert !is3D : "Fit Ellipse is only available on 2D images";
         Img img = ImgLib2ImageWrapper.getImage(image);
@@ -76,8 +76,8 @@ public class GaussianFit {
         List<Point> fitIndependently = clusters.isEmpty() ? peaks : new ArrayList<>(peaks);
         clusters.forEach(fitIndependently::removeAll);
 
-        Map<Point, double[]> results = runPeaks(img, fitIndependently, fitEllipse, typicalRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
-        clusters.forEach(c->results.putAll(runPeakCluster(img, c, fitEllipse, typicalRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon)));
+        Map<Point, double[]> results = runPeaks(img, fitIndependently, fitEllipse, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
+        clusters.forEach(c->results.putAll(runPeakCluster(img, c, fitEllipse, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon)));
 
         BoundingBox bounds = new SimpleBoundingBox(image).resetOffset();
         results.entrySet().removeIf(e -> !bounds.contains(e.getKey()));
@@ -85,17 +85,17 @@ public class GaussianFit {
     }
 
     /**
-     * Calls {@link #run(Image, List, double, double, boolean, boolean, boolean, Map, boolean, boolean, int, double, double)}, on the centers of {@param peaks}
+     * Calls {@link #run(Image, List, double, int, double, boolean, boolean, boolean, Map, boolean, boolean, int, double, double)}, on the centers of {@param peaks}
      * @param image
      * @param peaks
-     * @param typicalSigma
+     * @param typicalRadius
      * @param minDistance
      * @param maxIter
      * @param lambda
      * @param termEpsilon
      * @return
      */
-    public static Map<Region, double[]> runOnRegions(Image image, List<Region> peaks, double typicalSigma, double minDistance, boolean fitEllipse, boolean backgroundPlane, boolean fitBackground, boolean fitCenter, boolean fitAxis, boolean estimateRadius, int maxIter, double lambda, double termEpsilon ) {
+    public static Map<Region, double[]> runOnRegions(Image image, List<Region> peaks, double typicalRadius, int fittingBoxRadius, double minDistance, boolean fitEllipse, boolean backgroundPlane, boolean fitBackground, boolean fitCenter, boolean fitAxis, boolean useRegionToEstimateRadius, int maxIter, double lambda, double termEpsilon ) {
         int nDims = image.sizeZ()>1 ? 3 : 2;
         Map<Point, Region> locObj = new HashMap<>(peaks.size());
         List<Point> peaksLoc = new ArrayList<>(peaks.size());
@@ -108,7 +108,7 @@ public class GaussianFit {
         }
 
         Map<Point, double[]> startParams = null;
-        if (estimateRadius) {
+        if (useRegionToEstimateRadius) {
             startParams = peaksLoc.stream().collect(Collectors.toMap(Function.identity(), p -> {
                 Region region = locObj.get(p);
                 double radius = nDims==2 ? Math.sqrt(region.size() / (Math.PI)) : Math.pow(3 * region.size() / (4 * Math.PI), 1/3d); // estimation of radius for circle / sphere
@@ -134,7 +134,7 @@ public class GaussianFit {
                 }
             }));
         }
-        Map<Point, double[]> results = run(image, peaksLoc, typicalSigma, minDistance, fitEllipse, backgroundPlane, fitBackground, startParams, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
+        Map<Point, double[]> results = run(image, peaksLoc, typicalRadius, fittingBoxRadius, minDistance, fitEllipse, backgroundPlane, fitBackground, startParams, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
         return results.entrySet().stream().peek(e-> {
             Region region = locObj.get(e.getKey());
             if (region.isAbsoluteLandMark()) { // translate coords
@@ -186,22 +186,22 @@ public class GaussianFit {
     }
 
     /**
-     * Fit several peaks at the same time. See {@link #run(Image, List, double, double, boolean, boolean, boolean, Map, boolean, boolean, int, double, double)}
+     * Fit several peaks at the same time. See {@link #run(Image, List, double, int, double, boolean, boolean, boolean, Map, boolean, boolean, int, double, double)}
      * @param img image on which peaks should be fitted
      * @param closePeaks peaks located close to each other
-     * @param typicalRadius see {@link #run(Image, List, double, double, boolean, boolean, boolean, Map, boolean, boolean, int, double, double)}
+     * @param typicalRadius see {@link #run(Image, List, double, int, double, boolean, boolean, boolean, Map, boolean, boolean, int, double, double)}
      * @param maxIter see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
      * @param lambda see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
      * @param termEpsilon see {@link LevenbergMarquardtSolver#LevenbergMarquardtSolver(int, double, double)}
      * @return
      */
-    private static <L extends Localizable> Map<L, double[]> runPeakCluster(Img img, Collection<L> closePeaks, boolean fitEllipse, double typicalRadius, boolean backgroundPlane, boolean fitBackground, Map<L, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon) {
+    private static <L extends Localizable> Map<L, double[]> runPeakCluster(Img img, Collection<L> closePeaks, boolean fitEllipse, double typicalRadius, int fittingBoxRadius, boolean backgroundPlane, boolean fitBackground, Map<L, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon) {
         List<L> peaks = new ArrayList<>(closePeaks);
         int nDims = img.numDimensions();
         logger.debug("run peak cluster: {}", peaks);
         if (fitEllipse) assert img.numDimensions()==2 : "fit ellipse is only supported in 2D";
-
-        StartPointEstimator peakEstimator = fitEllipse ? new EllipticGaussian2DSimpleEstimator(typicalRadius) : new GaussianSimpleEstimator(typicalRadius, nDims);
+        if (fittingBoxRadius<=typicalRadius) fittingBoxRadius = (int)Math.ceil(2 * typicalRadius) + 1;
+        StartPointEstimator peakEstimator = fitEllipse ? new EllipticGaussian2DSimpleEstimator(typicalRadius, fittingBoxRadius) : new GaussianSimpleEstimator(typicalRadius, nDims, fittingBoxRadius);
         if (preInitParameters!=null) {
             int[] paramIndices = fitEllipse ? new int[]{5} : new int[]{nDims}; // only intensity parameter is re-computed
             if (fitEllipse) preInitParameters = trimParameterArray(preInitParameters, 6);
@@ -224,7 +224,7 @@ public class GaussianFit {
         if (fitEllipse) {
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), backgroundPlane);
             if (!invalid.isEmpty()) { // TODO runPeakCluster with spots only @ invalid peaks...
-                Map<L, double[]> resultsSpots = runPeakCluster(img, closePeaks, false, typicalRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
+                Map<L, double[]> resultsSpots = runPeakCluster(img, closePeaks, false, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
                 // convert to ellipses parameter
                 return resultsSpots.entrySet().stream().collect(Collectors.toMap(Entry::getKey, e-> new FitParameter(e.getValue(), 2, false, backgroundPlane).getEllipseParameters()   ));
             }
@@ -232,10 +232,11 @@ public class GaussianFit {
         return results;
     }
 
-    private static <L extends Localizable> Map<L, double[]> runPeaks(Img img, Collection<L> peaks, boolean fitEllipse, double typicalRadius, boolean backgroundPlane, boolean fitBackground, Map<L, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon) {
+    private static <L extends Localizable> Map<L, double[]> runPeaks(Img img, Collection<L> peaks, boolean fitEllipse, double typicalRadius, int fittingBoxRadius, boolean backgroundPlane, boolean fitBackground, Map<L, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon) {
         if (fitEllipse) assert img.numDimensions()==2 : "fit ellipse is only supported in 2D";
+        if (fittingBoxRadius<=typicalRadius) fittingBoxRadius = (int)Math.ceil(2 * typicalRadius) + 1;
         int nDims = img.numDimensions();
-        StartPointEstimator peakEstimator = fitEllipse ? new EllipticGaussian2DSimpleEstimator(typicalRadius) : new GaussianSimpleEstimator(typicalRadius, nDims);
+        StartPointEstimator peakEstimator = fitEllipse ? new EllipticGaussian2DSimpleEstimator(typicalRadius, fittingBoxRadius) : new GaussianSimpleEstimator(typicalRadius, nDims, fittingBoxRadius);
         if (preInitParameters!=null) {
             int[] paramIndices = fitEllipse ? new int[]{5} : new int[]{nDims}; // only intensity parameter is re-computed
             if (fitEllipse) preInitParameters = trimParameterArray(preInitParameters, 6);
@@ -254,7 +255,7 @@ public class GaussianFit {
         if (fitEllipse) { // if invalid -> fit spots
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), backgroundPlane);
             if (!invalid.isEmpty()) {
-                Map<L, double[]> spots = runPeaks(img, invalid.keySet(), false, typicalRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
+                Map<L, double[]> spots = runPeaks(img, invalid.keySet(), false, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
                 logger.debug("invalid ellipses: {} replaced by {}", invalid, spots);
                 spots.forEach((c, p) -> results.put(c, new FitParameter(p, 2, false, backgroundPlane).getEllipseParameters())); // replace
             }

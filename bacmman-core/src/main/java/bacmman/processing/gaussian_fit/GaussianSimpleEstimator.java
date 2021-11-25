@@ -21,6 +21,7 @@ package bacmman.processing.gaussian_fit;
 import net.imglib2.Localizable;
 import net.imglib2.algorithm.localization.MLGaussianEstimator;
 import net.imglib2.algorithm.localization.Observation;
+import net.imglib2.algorithm.localization.StartPointEstimator;
 
 import java.util.Arrays;
 
@@ -28,13 +29,30 @@ import java.util.Arrays;
  *
  * @author Jean Ollion
  */
-public class GaussianSimpleEstimator extends MLGaussianEstimator {
+public class GaussianSimpleEstimator implements StartPointEstimator {
     final protected double radius;
     final protected int nDims;
+    final protected long[] span;
     public GaussianSimpleEstimator(double typicalRadius, int nDims) {
-        super(typicalRadius, nDims);
         this.radius= typicalRadius;
         this.nDims=nDims;
+        this.span = new long[nDims];
+        for (int i = 0; i < 2; i++) {
+            span[i] = (long) Math.ceil(2 * radius) + 1;
+        }
+    }
+    public GaussianSimpleEstimator(double typicalRadius, int nDims, int fittingBoxRadius) {
+        this.radius = typicalRadius;
+        this.nDims=nDims;
+        this.span = new long[nDims];
+        for (int i = 0; i < 2; i++) {
+            span[i] = fittingBoxRadius;
+        }
+    }
+
+    @Override
+    public long[] getDomainSpan() {
+        return span;
     }
 
     @Override
