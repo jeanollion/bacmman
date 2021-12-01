@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -68,7 +69,7 @@ public class IJVirtualStack extends VirtualStack {
         }
         if (fcz[2]>= imageCT[fcz[1]][fcz[0]].sizeZ()) {
             if (imageCT[fcz[1]][fcz[0]].sizeZ()==1) fcz[2]=0; // case of reference images 
-            else throw new IllegalArgumentException("Wrong Z size for channel: "+fcz[1]);
+            else throw new IllegalArgumentException("Wrong Z size for channel: "+fcz[1] + " :"+ fcz[2]+"/"+imageCT[fcz[1]][fcz[0]].sizeZ());
         }
         return IJImageWrapper.getImagePlus(imageCT[fcz[1]][fcz[0]].getZPlane(fcz[2])).getProcessor();
     }
@@ -83,6 +84,7 @@ public class IJVirtualStack extends VirtualStack {
             return;
         }
         logger.debug("scale: {}", bdsC[0].getScaleXY());
+        logger.debug("image bounds per channel: {}", Arrays.stream(bdsC).map(Image::getBoundingBox).collect(Collectors.toList()));
         // case of reference image with only one Z -> duplicate
         int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
         int[] fcz = new int[]{frames, channels, maxZ};

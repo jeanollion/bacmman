@@ -368,8 +368,8 @@ public class ArrayUtil {
             mean += data[i];
             values2 += data[i] * data[i]; 
         }
-        mean /= (double)data.length;
-        values2 /= (double)data.length;
+        mean /= data.length;
+        values2 /= data.length;
         return new double[]{mean, Math.sqrt(values2 - mean * mean)};
     }
     

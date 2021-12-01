@@ -34,7 +34,7 @@ import bacmman.plugins.ThresholderHisto;
  * @author Jean Ollion
  */
 public class ConstantValue implements SimpleThresholder, Thresholder, ThresholderHisto, HintSimple {
-    NumberParameter value = new NumberParameter<>("Value:", 8, 1).setEmphasized(true);
+    NumberParameter value = new NumberParameter<>("Value", 8, 1).setEmphasized(true);
     
     public ConstantValue() {}
     public ConstantValue(double value) {

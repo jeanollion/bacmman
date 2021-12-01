@@ -55,6 +55,7 @@ import ij.process.ImageProcessor;
 import java.awt.KeyboardFocusManager;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -171,11 +172,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         fromSelection=true;
                         Rectangle rect = removeAfterwards && r.getType()!=Roi.OVAL ? r.getPolygon().getBounds() : r.getBounds();
                         if (rect.height==0 || rect.width==0) removeAfterwards=false;
-                        MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice());
+                        MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice()-1);
                         //logger.debug("selection: {}", selection);
                         if (selection.sizeX()==0 && selection.sizeY()==0) selection=null;
                         i.addClickedObjects(selection, selectedObjects);
-                        //logger.debug("selection: {} #objects before remove afterwards, bounds: {}", selection, selectedObjects.size(), selectedObjects.stream().map(o->o.key.getBounds()).collect(Collectors.toList()));
+                        //logger.debug("selection: {} #objects before remove afterwards: {}, bounds: {}, offsets: {}", selection, selectedObjects.size(), selectedObjects.stream().map(o->o.key.getBounds()).collect(Collectors.toList()), selectedObjects.stream().map(o->o.value).collect(Collectors.toList()));
                         boolean is2D = i.is2D();
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
@@ -200,6 +201,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     }
                 }
                 if (!displayTrack && !strechObjects) {
+                    logger.debug("objects to display: {}", selectedObjects);
                     displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor, true, true);
                     if (listener!=null) {
                         //List<Pair<StructureObject, BoundingBox>> labiles = getSelectedLabileObjects(image);
@@ -282,29 +284,21 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         for (MouseListener m : mls) canvas.addMouseListener(m);
     }
     private static boolean intersect(SegmentedObject seg, Offset offset, FloatPolygon selection, int sliceZ) {
-
-        if (seg.getRegion() instanceof Spot) {
+        //logger.debug("intersect method: {}, bounds:{}, off: {}, sel length: {}, slice: {}", seg.getRegion().getClass(), seg.getBounds(), offset, selection.npoints, sliceZ);
+        if (seg.getRegion() instanceof Analytical) {
             return IntStream.range(0, selection.npoints).anyMatch(i -> {
-                double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
-                double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
+                double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin() - 0.5; // -0.5 center of pixel
+                double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin() - 0.5;
                 double z = sliceZ==-1 ? 0 : sliceZ - offset.zMin()+seg.getBounds().zMin();
-                Spot s = (Spot)seg.getRegion();
-                if (s.is2D()) return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)<=s.getRadius()*s.getRadius();
-                else return Math.pow(x-s.getCenter().getDoublePosition(0), 2) + Math.pow(y-s.getCenter().getDoublePosition(1), 2)+ Math.pow(z-s.getCenter().getDoublePosition(2), 2)<=s.getRadius()*s.getRadius();
-            });
-        } else if (seg.getRegion() instanceof Ellipse2D) {
-            return IntStream.range(0, selection.npoints).anyMatch(i -> {
-                double x= selection.xpoints[i] - offset.xMin()+seg.getBounds().xMin();
-                double y = selection.ypoints[i] - offset.yMin()+seg.getBounds().yMin();
-                double z = sliceZ==-1 ? 0 : sliceZ - offset.zMin()+seg.getBounds().zMin();
-                Ellipse2D s = (Ellipse2D)seg.getRegion();
+                Analytical s = (Analytical)seg.getRegion();
+                //logger.debug("test: x={} y={} z={}, equation: {}, contains: {}, bds: {}, center: {}", x, y, z,  s.equation(x, y, z), s.contains(new Point(x, y, z)), seg.getBounds(), s.getCenter());
                 return s.contains(new Point(x, y, z));
-            });
+        });
         } else {
             ImageMask mask = seg.getMask();
             return IntStream.range(0, selection.npoints).anyMatch(i -> {
-                int x= Math.round(selection.xpoints[i] - offset.xMin());
-                int y = Math.round(selection.ypoints[i] - offset.yMin());
+                int x= Math.round(selection.xpoints[i] - offset.xMin() - 0.5f );
+                int y = Math.round(selection.ypoints[i] - offset.yMin() - 0.5f );
                 int z = seg.is2D() ? mask.zMin() : (sliceZ==-1 ? mask.zMin() : sliceZ - offset.zMin());
                 return mask.contains(x, y, z) && mask.insideMask(x, y, z);
             });
@@ -395,23 +389,25 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             int sliceZ = (int)(Math.ceil(z));
             double rad = ((Spot)object.key.getRegion()).getRadius();
             if (object.key.is2D()) {
-                Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * rad / 2 + 0.5, x + 0.5, y + 2.3548 * rad / 2 + 0.5, 1);
+                Roi roi = new EllipseRoi(x + 0.5, y - 2 * rad / 2 + 0.5, x + 0.5, y + 2 * rad / 2 + 0.5, 1);
                 roi.enableSubPixelResolution();
-                roi.setPosition(sliceZ + 1);
-                r = new Roi3D(1);
-                r.put(sliceZ, roi);
+                roi.setPosition(1);
+                r = new Roi3D(1).setIs2D(true);
+                r.put(0, roi);
             } else {
                 //logger.debug("display 3D spot: center: [{};{};{}] slice Z: {} rad: {}", x, y, z, sliceZ, rad);
-                r = new Roi3D((int)Math.ceil(rad * 2)+1);
-                double scaleR = object.key.getScaleZ() / object.key.getScaleXY();
-                for (int zz = (int)Math.max(Math.ceil(z-rad), 0); zz<=(int)Math.ceil(z+rad); ++zz) {
-                    double radZ = Math.sqrt(rad*rad - Math.pow((z-zz), 2)); // *scaleR in order to take into anisotropy into account. but PSF spread in Z increase size in Z.
-                    if (radZ<0.01 * rad) continue;
-                    Roi roi = new EllipseRoi(x + 0.5, y - 2.3548 * radZ / 2 + 0.5, x + 0.5, y + 2.3548 * radZ / 2 + 0.5, 1);
+                r = new Roi3D((int)Math.ceil(rad * 2)+1).setIs2D(false);
+                double scaleR = ((Spot)object.key.getRegion()).getzAspectRatio();
+                double radZ = rad * scaleR;
+                for (int zz = (int)Math.max(Math.ceil(z-radZ), 0); zz<=(int)Math.ceil(z+radZ); ++zz) {
+                    double curRad = Math.sqrt(rad*rad - Math.pow((z-zz)/scaleR, 2)) ; // in order to take into anisotropy into account.
+                    if (curRad<0.01 * rad) continue;
+                    Roi roi = new EllipseRoi(x + 0.5, y - 2 * curRad / 2 + 0.5, x + 0.5, y + 2 * curRad / 2 + 0.5, 1);
                     roi.enableSubPixelResolution();
                     roi.setPosition(zz + 1);
                     r.put(zz, roi);
                 }
+
             }
         } else if (object.key.getRegion() instanceof Ellipse2D) {
             double dx = object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
@@ -419,14 +415,15 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             double z = object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin();
             int sliceZ = (int)(Math.ceil(z));
             Ellipse2D o = (Ellipse2D)object.key.getRegion();
-            List<Point> foci = o.getFoci();
+            List<Point> foci = o.getMajorAxisEnds();
             foci.stream().forEach(p -> p.translate(new Vector((float)dx, (float)dy)));
             Roi roi = new EllipseRoi(foci.get(0).get(0)+ 0.5, foci.get(0).get(1)+ 0.5, foci.get(1).get(0)+ 0.5, foci.get(1).get(1)+ 0.5, o.getAspectRatio());
             roi.enableSubPixelResolution();
+            if (o.is2D()) sliceZ=0; // necessary ?
             roi.setPosition(sliceZ + 1);
-            r = new Roi3D(1);
+            r = new Roi3D(1).setIs2D(o.is2D());
             r.put(sliceZ, roi);
-
+            logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.key, object.key.getRegion().getCenter(), foci, object.key.getBounds(), object.key.getRegion().is2D(), object.key.getParent().getBounds(), object.value);
         }else {
             r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
         }
