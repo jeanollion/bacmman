@@ -51,6 +51,6 @@ public abstract class ObjectClassParameterAbstract<T extends ObjectClassParamete
 
     @Override
     public String getNoSelectionString() {
-        return "Viewfield";
+        return "NO SELECTION";
     }
 }
