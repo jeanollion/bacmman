@@ -330,7 +330,7 @@ public class GaussianFit {
         }
         public double getRadius() {
             if (ellipse) {
-                return 0.5 * (getAxis(true) + getAxis(false));
+                return 0.25 * (getAxis(true) + getAxis(false));
             } else {
                 return 1 / Math.sqrt(parameters[nDims + 1]);
             }
