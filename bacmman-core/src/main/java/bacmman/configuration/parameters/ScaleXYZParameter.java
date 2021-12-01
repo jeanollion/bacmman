@@ -29,8 +29,8 @@ import org.json.simple.JSONObject;
 
 public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter> {
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("ScaleXY (pix)", 3, 1, 0, null).setEmphasized(true);
-    BoundedNumberParameter scaleZ = new BoundedNumberParameter("ScaleZ (pix)", 3, 1, 0, null);
-    BooleanParameter useImageCalibration = new BooleanParameter("Use image calibration for Z-scale", true);
+    BoundedNumberParameter scaleZ = new BoundedNumberParameter("ScaleZ (pix)", 3, 1, 0, null).setEmphasized(true);
+    BooleanParameter useImageCalibration = new BooleanParameter("Use image calibration for Z-scale", true).setEmphasized(true);
     ConditionalParameter<Boolean> cond = new ConditionalParameter<>(useImageCalibration).setActionParameters(false, scaleZ);
     
     @Override
