@@ -1,6 +1,7 @@
 package bacmman.data_structure;
 
 import bacmman.data_structure.region_container.RegionContainer;
+import bacmman.data_structure.region_container.RegionContainerEllipse2D;
 import bacmman.data_structure.region_container.RegionContainerSpot;
 import bacmman.image.*;
 import bacmman.processing.neighborhood.Neighborhood;
@@ -17,7 +18,6 @@ import java.util.stream.DoubleStream;
 import static bacmman.image.BoundingBox.intersect2D;
 
 public class Ellipse2D extends Region implements Analytical {
-    Point center;
     double major, minor, theta, intensity, cosTheta, sinTheta;
     public Ellipse2D(Point center, double major, double minor, double theta, double intensity, int label, boolean is2D, double scaleXY, double scaleZ) {
         super(null, label, getBounds(center, major, minor, theta), is2D, scaleXY, scaleZ);
@@ -76,6 +76,11 @@ public class Ellipse2D extends Region implements Analytical {
         Point f2 = getCenter().duplicate().translate(getMajorAxisDir().multiply(-c));
         return new ArrayList(){{add(f1);add(f2);}};
     }
+    public List<Point> getMajorAxisEnds() {
+        Point f1 = getCenter().duplicate().translate(getMajorAxisDir().multiply(getMajor()/2));
+        Point f2 = getCenter().duplicate().translate(getMajorAxisDir().multiply(-getMajor()/2));
+        return new ArrayList(){{add(f1);add(f2);}};
+    }
 
     public double getIntensity() {
         return intensity;
@@ -92,14 +97,14 @@ public class Ellipse2D extends Region implements Analytical {
         if (bounds.xMin()!=bounds.xMax() || bounds.yMin()!=bounds.yMax()) { // avoid degenerated spots
             BoundingBox.loop(bounds,
                     (x, y, z) -> voxels_.add(new Voxel(x, y, z)),
-                    (x, y, z) -> equation(x, y)<=1);
+                    (x, y, z) -> equation(x, y, z)<=1);
         } else {
             logger.error("DEGENERATED ELLIPSE: {}", this);
         }
         if (voxels_.isEmpty()) voxels_.add(center.asVoxel());
         voxels = voxels_;
     }
-    public double equation(double x, double y) {
+    public double equation(double x, double y, double z) {
         double dx = x - center.get(0);
         double dy = y - center.get(1);
         return Math.pow( (dx * cosTheta + dy * sinTheta) / (major/2), 2) + Math.pow( (dx * sinTheta - dy * cosTheta) / (minor/2), 2);
@@ -115,7 +120,7 @@ public class Ellipse2D extends Region implements Analytical {
     }
     @Override
     public RegionContainer createRegionContainer(SegmentedObject structureObject) {
-        return new RegionContainerSpot(structureObject);
+        return new RegionContainerEllipse2D(structureObject);
     }
     // TODO: display ROI, invalidate methods that modify mask or voxels, generate spots from post-filter / spot detector ?
 
@@ -128,12 +133,31 @@ public class Ellipse2D extends Region implements Analytical {
 
     @Override
     public boolean contains(Voxel v) {
-        if (!is2D() && !this.getBounds().contains(v.x, v.y, v.z)) return false; // if 2D Z do not count
-        return equation(v.x, v.y)<=1;
+        if (is2D()) {
+            if (!this.getBounds().containsWithOffset(v.x, v.y, this.getBounds().zMin())) return false;
+        } else {
+            if (!this.getBounds().containsWithOffset(v.x, v.y, v.z)) return false;
+        }
+        return equation(v.x, v.y, 0)<=1;
     }
     public boolean contains(Point p) {
-        if (!is2D() && !this.getBounds().contains(p)) return false;  // if 2D Z do not count
-        return equation(p.get(0), p.get(1))<=1;
+        if (absoluteLandmark) {
+            if (is2D()) {
+                if (!this.getBounds().containsWithOffset(p.getIntPosition(0), p.getIntPosition(1), this.getBounds().zMin()))
+                    return false;
+            } else {
+                if (!this.getBounds().containsWithOffset(p)) return false;
+            }
+            return equation(p.get(0), p.get(1), 0) <= 1;
+        } else {
+            if (is2D()) {
+                if (!this.getBounds().contains(p.getIntPosition(0), p.getIntPosition(1), this.getBounds().zMin()))
+                    return false;
+            } else {
+                if (!this.getBounds().contains(p)) return false;
+            }
+            return equation(p.get(0)-bounds.xMin(), p.get(1)-bounds.yMin(), 0) <= 1;
+        }
     }
 
     @Override
@@ -243,7 +267,9 @@ public class Ellipse2D extends Region implements Analytical {
         double tv = Math.atan(minor/major * 1 / Math.tan(theta)); // d/dy == 0
         double dx = Math.abs(major/2 * Math.cos(th) * Math.cos(theta) - minor/2 * Math.sin(th) * Math.sin(theta));
         double dy = Math.abs(major/2 * Math.cos(tv) * Math.sin(theta) + minor/2 * Math.sin(tv) * Math.cos(theta));
-        return new SimpleBoundingBox((int)Math.floor(center.get(0)-dx), (int)Math.ceil(center.get(0)+dx), (int)Math.floor(center.get(1)-dy), (int)Math.ceil(center.get(1)+dy), (int)Math.floor(center.get(2)), (int)Math.floor(center.get(2)));
+        BoundingBox bds = new SimpleBoundingBox((int)Math.floor(center.get(0)-dx), (int)Math.ceil(center.get(0)+dx), (int)Math.floor(center.get(1)-dy), (int)Math.ceil(center.get(1)+dy), (int)Math.floor(center.get(2)), (int)Math.ceil(center.get(2)));
+        logger.debug("getBounds: dx: {} dy: {}, center: {}, bounds: {}", dx, dy, center, bds);
+        return bds;
     }
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {
         if (bounds==null) {
@@ -260,44 +286,9 @@ public class Ellipse2D extends Region implements Analytical {
         throw new RuntimeException("Cannot perform operation on spot");
     }
 
+    @Override
     public Set<Voxel> getIntersection(Region other) {
-        if (voxelsCreated() && other.voxelsCreated()) return super.getIntersection(other);
-        if (!intersect(other)) return Collections.emptySet();
-        BoundingBox bounds = getBounds();
-        BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> equation(x,y) <= 1
-                : (x, y, z) -> z>=bounds.zMin() && z<=bounds.zMax() && equation(x,y) <= 1;
-        BoundingBox.LoopPredicate insideOther;
-        BoundingBox loopBds;
-        if (other.is2D()!=is2D()) { // should not take into account z for intersection
-            loopBds = !is2D() ? BoundingBox.getIntersection2D(bounds, other.getBounds()) : BoundingBox.getIntersection2D(other.getBounds(), bounds) ;
-            if (other instanceof Ellipse2D)  {
-                Ellipse2D otherE = (Ellipse2D)other;
-                BoundingBox otherBounds = other.getBounds();
-                if (other.is2D()) insideOther = (x, y, z) -> otherE.equation(x,y) <= 1;
-                else insideOther = (x, y, z) ->  z>=otherBounds.zMin() && z<=otherBounds.zMax() && otherE.equation(x,y) <= 1;
-            } else if (other.mask!=null) {
-                ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask(), other.getMask().zMin()) : other.getMask();
-                insideOther = (x, y, z) -> otherMask.insideMaskWithOffset(x, y, z);
-            } else {
-                Set s = Sets.newHashSet(Utils.transform(other.getVoxels(), Voxel::toVoxel2D));
-                insideOther = (x, y, z) -> s.contains(new Voxel2D(x, y));
-            }
-        } else {
-            loopBds = BoundingBox.getIntersection(other.getBounds(), bounds);
-            if (other instanceof Ellipse2D) {
-                Ellipse2D otherE = (Ellipse2D)other;
-                BoundingBox otherBounds = other.getBounds();
-                insideOther = (x, y, z) -> z>=otherBounds.zMin() && z<=otherBounds.zMax() && otherE.equation(x,y) <= 1;
-            }
-            else if (other.mask!=null) insideOther = (x, y, z) -> other.mask.insideMaskWithOffset(x, y, z);
-            else insideOther = (x, y, z) -> other.getVoxels().contains(new Voxel2D(x, y));
-        }
-
-        Set<Voxel> res = new HashSet<>();
-        BoundingBox.loop(loopBds,
-                (x, y, z)->res.add(new Voxel(x, y, z)),
-                (x, y, z)-> inside.test(x, y, z) && insideOther.test(x, y, z) );
-        return res;
+        return Analytical.getIntersection(this, other);
     }
 
     /**
@@ -309,53 +300,7 @@ public class Ellipse2D extends Region implements Analytical {
      */
     @Override
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        BoundingBox otherBounds = offsetOther==null? other.getBounds().duplicate() :  other.getBounds().duplicate().translate(offsetOther);
-        BoundingBox thisBounds = offset==null? getBounds().duplicate() : getBounds().duplicate().translate(offset);
-        final boolean inter2D = is2D() || other.is2D();
-        if (inter2D) {
-            if (!intersect2D(thisBounds, otherBounds)) return 0;
-        } else {
-            if (!BoundingBox.intersect(thisBounds, otherBounds)) return 0;
-        }
-        getBounds();
-        BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> equation(x,y) <= 1
-                : (x, y, z) -> z>=bounds.zMin() && z<=bounds.zMax() && equation(x,y) <= 1;
-        BoundingBox.LoopPredicate insideOther;
-        BoundingBox loopBds;
-        if (other.is2D()!=is2D()) { // considers that the 2D object as a cylinder that expands in the whole range of the 3D object
-            loopBds = !is2D() ? BoundingBox.getIntersection2D(thisBounds, otherBounds) : BoundingBox.getIntersection2D(otherBounds, thisBounds);
-            if (other instanceof Ellipse2D)  {
-                Ellipse2D otherE = (Ellipse2D)other;
-                if (other.is2D()) insideOther = (x, y, z) -> ((Ellipse2D) other).equation(x, y)<=1;
-                else insideOther = (x, y, z) -> z>=otherBounds.zMin() && z<=otherBounds.zMax() && otherE.equation(x,y) <= 1;
-            } else  {
-                ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
-                insideOther = otherMask::insideMask;
-            }
-        } else {
-            loopBds = BoundingBox.getIntersection(otherBounds, thisBounds);
-            if (other instanceof Ellipse2D)  {
-                Ellipse2D otherE = (Ellipse2D)other;
-                insideOther = (x, y, z) -> z>=otherBounds.zMin() && z<=otherBounds.zMax() && otherE.equation(x,y) <= 1;
-            }
-            else insideOther = (x, y, z) -> other.getMask().insideMask(x, y, z);
-        }
-        final int[] count = new int[1];
-        final int offX = offset==null ? 0 : offset.xMin(); // not thisBounds because of inside function
-        final int offY = offset==null ? 0 : offset.yMin();
-        final int offZ = offset==null ? 0 : offset.zMin();
-        final int otherOffX = otherBounds.xMin();
-        final int otherOffY = otherBounds.yMin();
-        final int otherOffZ = otherBounds.zMin();
-
-        BoundingBox.loop(loopBds,
-                (x, y, z) -> count[0]++,
-                (x, y, z) -> inside.test(x - offX, y - offY, z - offZ) && insideOther.test(x - otherOffX, y - otherOffY, z - otherOffZ));
-
-        return count[0];
-    }
-    private interface DoubleLoopPredicate {
-        boolean test(double x, double y, double z);
+        return Analytical.getOverlapArea(this, other, offset, offsetOther);
     }
     @Override
     public void merge(Region other) {

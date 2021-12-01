@@ -17,17 +17,18 @@ import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.DoubleStream;
 
-import static bacmman.image.BoundingBox.intersect2D;
-import static bacmman.image.BoundingBox.loop;
+import static bacmman.image.BoundingBox.*;
+import static bacmman.image.BoundingBox.getIntersection2D;
 
 public class Spot extends Region implements Analytical {
-    double radius, radiusSq, intensity;
-    public Spot(Point center, double radius, double intensity, int label, boolean is2D, double scaleXY, double scaleZ) {
-        super(null, label, getBounds(center, radius, is2D), is2D, scaleXY, scaleZ);
+    double radius, radiusSq, intensity, zAspectRatio;
+    public Spot(Point center, double radius, double zAspectRatio, double intensity, int label, boolean is2D, double scaleXY, double scaleZ) {
+        super(null, label, getBounds(center, radius, zAspectRatio, is2D), is2D, scaleXY, scaleZ);
         this.center = center;
         this.radius = radius;
         this.radiusSq = radius * radius;
         this.intensity = intensity;
+        this.zAspectRatio=zAspectRatio;
     }
 
     public void setIntensity(double intensity) {
@@ -37,7 +38,7 @@ public class Spot extends Region implements Analytical {
     @Override
     public Spot setIs2D(boolean is2D) {
         if (is2D!=this.is2D) {
-            bounds=getBounds(center, radius, is2D);
+            bounds=getBounds(center, radius, zAspectRatio, is2D);
             this.is2D = is2D;
             regionModified=true;
         }
@@ -57,7 +58,7 @@ public class Spot extends Region implements Analytical {
     public double getRadius() {
         return radius;
     }
-
+    public double getzAspectRatio() {return zAspectRatio;}
     public double getIntensity() {
         return intensity;
     }
@@ -95,24 +96,53 @@ public class Spot extends Region implements Analytical {
     }
     // TODO: display ROI, invalidate methods that modify mask or voxels, generate spots from post-filter / spot detector ?
 
-    public static Spot fromRegion(Region r, double radius, double intensity) {
-        Spot res =  new Spot(r.getCenter(), radius, intensity, r.getLabel(), r.is2D(), r.getScaleXY(), r.getScaleZ());
+    public static Spot fromRegion(Region r, double radius, double zAspectRatio, double intensity) {
+        Spot res =  new Spot(r.getCenter(), radius, zAspectRatio, intensity, r.getLabel(), r.is2D(), r.getScaleXY(), r.getScaleZ());
         res.setQuality(r.quality);
         res.setIsAbsoluteLandmark(r.absoluteLandmark);
         return res;
     }
+    public double equation(double x, double y, double z) {
+        double dx = x - center.get(0);
+        double dy = y - center.get(1);
+        if (is2D()) return (dx*dx + dy*dy)/radiusSq;
+        double dz = z - center.get(2);
+        return (dx*dx + dy*dy)/radiusSq + dz*dz/(zAspectRatio*zAspectRatio*radiusSq);
+    }
 
     @Override
     public boolean contains(Voxel v) {
-        return center.distSq((Offset)v)<=radius*radius;
+        if (absoluteLandmark) {
+            if (is2D()) {
+                if (!this.getBounds().containsWithOffset(v.x, v.y, this.getBounds().zMin())) return false;
+                return equation(v.x, v.y, center.get(2)) <= 1;
+            } else {
+                if (!this.getBounds().containsWithOffset(v.x, v.y, v.z)) return false;
+                return equation(v.x, v.y, v.z) <= 1;
+            }
+        } else {
+            if (is2D()) {
+                if (!this.getBounds().contains(v.x, v.y, this.getBounds().zMin())) return false;
+                return equation(v.x-bounds.xMin(), v.y-bounds.yMin(), center.get(2)-bounds.zMin()) <= 1;
+            } else {
+                if (!this.getBounds().contains(v.x, v.y, v.z)) return false;
+                return equation(v.x-bounds.xMin(), v.y-bounds.yMin(), v.z-bounds.zMin()) <= 1;
+            }
+        }
     }
     public boolean contains(Point p) {
-        return center.distSq(p)<=radius*radius;
+        if (is2D() || p.numDimensions()==2) {
+            if (!this.getBounds().containsWithOffset(p.getIntPosition(0), p.getIntPosition(1), this.getBounds().zMin())) return false;
+            return equation(p.get(0), p.get(1), center.get(2))<=1;
+        } else {
+            if (!this.getBounds().containsWithOffset(p)) return false;
+            return equation(p.get(0), p.get(1), p.get(2))<=1;
+        }
     }
 
     @Override
     public Spot duplicate(boolean duplicateVoxels) {
-        Spot res = new Spot(center.duplicate(), radius, intensity, label, is2D, scaleXY, scaleZ);
+        Spot res = new Spot(center.duplicate(), radius, zAspectRatio, intensity, label, is2D, scaleXY, scaleZ);
         res.setQuality(quality);
         res.setIsAbsoluteLandmark(absoluteLandmark);
         return res;
@@ -210,14 +240,14 @@ public class Spot extends Region implements Analytical {
     protected void createBoundsFromVoxels() {
 
     }
-    private static BoundingBox getBounds(Point center, double radius, boolean is2D) {
-        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius)), (int)Math.ceil(center.get(2)+(is2D?0:radius)));
+    private static BoundingBox getBounds(Point center, double radius, double zAspectRatio, boolean is2D) {
+        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius*zAspectRatio)), (int)Math.ceil(center.get(2)+(is2D?0:radius*zAspectRatio)));
     }
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {
         if (bounds==null) {
             synchronized(this) { // "Double-Checked Locking"
                 if (bounds==null) {
-                    bounds = getBounds(center, radius, is2D);
+                    bounds = getBounds(center, radius, zAspectRatio, is2D);
                 }
             }
         }
@@ -228,39 +258,32 @@ public class Spot extends Region implements Analytical {
         throw new RuntimeException("Cannot perform operation on spot");
     }
 
+    @Override
     public Set<Voxel> getIntersection(Region other) {
-        if (voxelsCreated() && other.voxelsCreated()) return super.getIntersection(other);
-        if (!intersect(other)) return Collections.emptySet();
-        BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
-                : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
-        BoundingBox.LoopPredicate insideOther;
-        BoundingBox loopBds;
-        if (other.is2D()!=is2D()) { // should not take into account z for intersection
-            loopBds = !is2D() ? BoundingBox.getIntersection2D(bounds, other.getBounds()) : BoundingBox.getIntersection2D(other.getBounds(), bounds) ;
-            if (other instanceof Spot)  {
-                if (other.is2D()) insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
-                else insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
-            } else if (other.mask!=null) {
-                ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask(), other.getMask().zMin()) : other.getMask();
-                insideOther = (x, y, z) -> otherMask.insideMaskWithOffset(x, y, z);
-            } else {
-                Set s = Sets.newHashSet(Utils.transform(other.getVoxels(), v->v.toVoxel2D()));
-                insideOther = (x, y, z) -> s.contains(new Voxel2D(x, y));
-            }
-        } else {
-            loopBds = BoundingBox.getIntersection(other.getBounds(), bounds);
-            if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
-            else if (other.mask!=null) insideOther = (x, y, z) -> other.mask.insideMaskWithOffset(x, y, z);
-            else insideOther = (x, y, z) -> other.getVoxels().contains(new Voxel2D(x, y));
-        }
-
-        Set<Voxel> res = new HashSet<>();
-        BoundingBox.loop(loopBds,
-                (x, y, z)->res.add(new Voxel(x, y, z)),
-                (x, y, z)-> inside.test(x, y, z) && insideOther.test(x, y, z) );
-        return res;
+        return Analytical.getIntersection(this, other);
     }
-
+    public double getOverlapArea2D(Spot other, Offset offset, Offset otherOffset) {
+        double r0 = this.radius;
+        double r1 = other.radius;
+        Point cent = offset==null ? center : center.duplicate().translate(offset);
+        Point otherCent = otherOffset==null ? other.center : other.center.duplicate().translate(otherOffset);
+        double d = cent.dist(otherCent);
+        double rr0 = r0 * r0;
+        double rr1 = r1 * r1;
+        if (d > r1 + r0) { // Circles do not overlap
+            return 0;
+        } else if (d <= Math.abs(r0 - r1) && r0 >= r1) { // Circle1 is completely inside circle0
+            return Math.PI * rr1; // Return area of circle1
+        } else if (d <= Math.abs(r0 - r1) && r0 < r1) { // Circle0 is completely inside circle1
+            return Math.PI * rr0; // Return area of circle0
+        } else { // Circles partially overlap
+            double phi = (Math.acos((rr0 + (d * d) - rr1) / (2 * r0 * d))) * 2;
+            double theta = (Math.acos((rr1 + (d * d) - rr0) / (2 * r1 * d))) * 2;
+            double area1 = 0.5 * theta * rr1 - 0.5 * rr1 * Math.sin(theta);
+            double area2 = 0.5 * phi * rr0 - 0.5 * rr0 * Math.sin(phi);
+            return area1 + area2; // Return area of intersection
+        }
+    }
     /**
      * Estimation of the overlap (in voxels number) between this region and {@param other} (no creation of voxels)
      * @param other other region
@@ -270,90 +293,9 @@ public class Spot extends Region implements Analytical {
      */
     @Override
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        BoundingBox otherBounds = offsetOther==null? other.getBounds().duplicate() :  other.getBounds().duplicate().translate(offsetOther);
-        BoundingBox thisBounds = offset==null? getBounds().duplicate() : getBounds().duplicate().translate(offset);
-        final boolean inter2D = is2D() || other.is2D();
-        if (inter2D) {
-            if (!intersect2D(thisBounds, otherBounds)) return 0;
-        } else {
-            if (!BoundingBox.intersect(thisBounds, otherBounds)) return 0;
-        }
-
-        BoundingBox.LoopPredicate inside = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
-                : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
-        BoundingBox.LoopPredicate insideOther;
-        BoundingBox loopBds;
-        if (other.is2D()!=is2D()) { // considers that the 2D object as a cylinder that expands in the whole range of the 3D object
-            loopBds = !is2D() ? BoundingBox.getIntersection2D(thisBounds, otherBounds) : BoundingBox.getIntersection2D(otherBounds, thisBounds);
-            if (other instanceof Spot)  {
-                if (other.is2D()) insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq;
-                else insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
-            } else  {
-                ImageMask otherMask = other.is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
-                insideOther = otherMask::insideMask;
-            }
-        } else {
-            loopBds = BoundingBox.getIntersection(otherBounds, thisBounds);
-            if (other instanceof Spot)  insideOther = (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
-            else insideOther = (x, y, z) -> other.getMask().insideMask(x, y, z);
-        }
-        final int[] count = new int[1];
-        if (other instanceof Spot) {
-            boolean triDim = !is2D() || !other.is2D();
-            if (!triDim) { // both are disks
-                double r0 = this.radius;
-                double r1 = ((Spot) other).radius;
-                double d = this.center.dist(other.center);
-                double rr0 = r0 * r0;
-                double rr1 = r1 * r1;
-                if (d > r1 + r0) { // Circles do not overlap
-                    return 0;
-                } else if (d <= Math.abs(r0 - r1) && r0 >= r1) { // Circle1 is completely inside circle0
-                    return Math.PI * rr1; // Return area of circle1
-                } else if (d <= Math.abs(r0 - r1) && r0 < r1) { // Circle0 is completely inside circle1
-                    return Math.PI * rr0; // Return area of circle0
-                } else { // Circles partially overlap
-                    double phi = (Math.acos((rr0 + (d * d) - rr1) / (2 * r0 * d))) * 2;
-                    double theta = (Math.acos((rr1 + (d * d) - rr0) / (2 * r1 * d))) * 2;
-                    double area1 = 0.5 * theta * rr1 - 0.5 * rr1 * Math.sin(theta);
-                    double area2 = 0.5 * phi * rr0 - 0.5 * rr0 * Math.sin(phi);
-                    return area1 + area2; // Return area of intersection
-                }
-            }
-            // TODO use ANALYTICAL formulas for 3D case!! cylinder/shpere or sphere/shpere
-            DoubleLoopPredicate insideD = is2D() ? (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) <= radiusSq
-                    : (x, y, z) -> Math.pow(center.get(0)-x, 2) + Math.pow(center.get(1)-y, 2) + Math.pow( (scaleZ/scaleXY) * (center.get(2)-z), 2) <= radiusSq;
-            DoubleLoopPredicate insideOtherD = other.is2D() ? (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) <= ((Spot) other).radiusSq
-                    : (x, y, z) -> Math.pow(other.center.get(0)-x, 2) + Math.pow(other.center.get(1)-y, 2) + Math.pow( (other.scaleZ/other.scaleXY) * (other.center.get(2)-z), 2) <= ((Spot) other).radiusSq;
-            SimpleBoundingBox loopsBds2 = new SimpleBoundingBox(0, loopBds.sizeX()*2, 0, loopBds.sizeY()*2, 0, loopBds.sizeZ()*2);
-            BoundingBox.loop(loopsBds2,
-                (x, y, z) -> {
-                    double xx = loopBds.xMin() + x/2.;
-                    double yy = loopBds.yMin() + y/2.;
-                    double zz = loopBds.zMin() + z/2.;
-                    if (insideD.test(xx, yy, zz) && insideOtherD.test(xx, yy, zz))
-                    count[0]++;
-                });
-            double voxFraction =  8;
-            return count[0] / voxFraction;
-        }
-
-        final int offX = offset==null ? 0 : offset.xMin(); // not thisBounds because of inside function
-        final int offY = offset==null ? 0 : offset.yMin();
-        final int offZ = offset==null ? 0 : offset.zMin();
-        final int otherOffX = otherBounds.xMin();
-        final int otherOffY = otherBounds.yMin();
-        final int otherOffZ = otherBounds.zMin();
-
-        BoundingBox.loop(loopBds,
-                (x, y, z) -> count[0]++,
-                (x, y, z) -> inside.test(x - offX, y - offY, z - offZ) && insideOther.test(x - otherOffX, y - otherOffY, z - otherOffZ));
-
-        return count[0];
+        return Analytical.getOverlapArea(this, other, offset, offsetOther);
     }
-    private interface DoubleLoopPredicate {
-        boolean test(double x, double y, double z);
-    }
+
     @Override
     public void merge(Region other) {
         throw new RuntimeException("Cannot perform operation on spot");

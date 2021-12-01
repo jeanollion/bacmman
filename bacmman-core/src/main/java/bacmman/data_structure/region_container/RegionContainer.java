@@ -82,7 +82,7 @@ public abstract class RegionContainer {
         res.initFromJSON(json);
         return res;
     }
-    public enum ANALYTICAL_TYPES {SPHERE(RegionContainerSpot::new), RECTANGLE((RegionContainerBlankMask::new));
+    public enum ANALYTICAL_TYPES {SPHERE(RegionContainerSpot::new), ELLIPSE2D(RegionContainerEllipse2D::new), RECTANGLE((RegionContainerBlankMask::new));
         private final Supplier<RegionContainer> containerCreator;
         ANALYTICAL_TYPES(Supplier<RegionContainer> containerCreator) {
             this.containerCreator=containerCreator;

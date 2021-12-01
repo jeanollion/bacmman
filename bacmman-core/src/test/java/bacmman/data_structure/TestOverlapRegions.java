@@ -13,8 +13,8 @@ public class TestOverlapRegions {
     public final static Logger logger = LoggerFactory.getLogger(TestOverlapRegions.class);
     @Test
     public void testOverlapSpotRegion() {
-        Spot s2D = new Spot(new Point(1, 2, 0), 2, 0, 0, true, 1, 1);
-        Spot s3D = new Spot(new Point(1, 2, 0), 2, 0, 0, false, 1, 1);
+        Spot s2D = new Spot(new Point(1, 2, 0), 2, 1, 0, 0, true, 1, 1);
+        Spot s3D = new Spot(new Point(1, 2, 0), 2, 1, 0, 0, false, 1, 1);
         logger.debug("bounds s2D: {}, s3D: {}", s2D.getBounds(), s3D.getBounds());
 
         List<Voxel> other2D = Arrays.asList(new Voxel(2, 2, 0), new Voxel(2, 3, 0), new Voxel(3, 2, 0), new Voxel(3, 3, 0));
@@ -28,7 +28,7 @@ public class TestOverlapRegions {
         // spot - mask
         assertEquals("overlap spot2D - o 2D", 3.0, s2D.getOverlapArea(o2D, null, null), 1e-3);
         assertEquals("overlap spot3D - o 2D", 7, o2D.getOverlapArea(s3D, null, null),1e-3);
-        assertEquals("overlap spot2D - o 2D(z1)", 0, o2D1.getOverlapArea(s2D, null, null),1e-3);
+        assertEquals("overlap spot2D - o 2D(z1)", 2, o2D1.getOverlapArea(s2D, null, null),1e-3);
         assertEquals("overlap spot3D - o 2D(z1)", 4, o2D1.getOverlapArea(s3D, null, null),1e-3);
         assertEquals("overlap spot2D - o 3D", 5, o3D.getOverlapArea(s2D, null, null),1e-3);
         assertEquals("overlap spot3D - o 3D", 4, o3D.getOverlapArea(s3D, null, null),1e-3);
@@ -39,7 +39,9 @@ public class TestOverlapRegions {
         assertEquals("intersect spot2D - o 2D", inter2D, s2D.getIntersection(o2D));
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 1), new Voxel(2, 3, 1), new Voxel(2, 2, -1), new Voxel(2, 3, -1)));
         assertEquals("intersect spot3D - o 2D", inter2D, o2D.getIntersection(s3D));
-        assertEquals("intersect spot2D - o 2D(z1)", Collections.emptySet(), o2D1.getIntersection(s2D));
+        inter2D = new HashSet<>();
+        inter2D.addAll(Arrays.asList(new Voxel(3, 2, 0), new Voxel(2, 2, 0)));
+        assertEquals("intersect spot2D - o 2D(z1)", inter2D, o2D1.getIntersection(s2D));
         inter2D = new HashSet<>();
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 0), new Voxel(3, 2, 0), new Voxel(2, 2, 1), new Voxel(2, 2, -1)));
         assertEquals("intersect spot3D - o 2D(z1)", inter2D, o2D1.getIntersection(s3D));
@@ -59,7 +61,7 @@ public class TestOverlapRegions {
         assertEquals("intersect spot2D - mask 2D", inter2D, s2D.getIntersection(o2D));
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 1), new Voxel(2, 3, 1), new Voxel(2, 2, -1), new Voxel(2, 3, -1)));
         assertEquals("intersect spot3D - mask 2D", inter2D, o2D.getIntersection(s3D));
-        assertEquals("intersect spot2D - mask 2D(z1)", Collections.emptySet(), o2D1.getIntersection(s2D));
+        //assertEquals("intersect spot2D - mask 2D(z1)", Collections.emptySet(), o2D1.getIntersection(s2D));
         inter2D = new HashSet<>();
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 0), new Voxel(3, 2, 0), new Voxel(2, 2, 1), new Voxel(2, 2, -1)));
         assertEquals("intersect spot3D - mask 2D(z1)", inter2D, o2D1.getIntersection(s3D));
