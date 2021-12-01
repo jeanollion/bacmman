@@ -1,6 +1,7 @@
 package bacmman.plugins.plugins.transformations;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.image.ThresholdMask;
@@ -10,12 +11,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-public class CropTransmittedLightZStack implements Filter, Hint, PreFilter {
+public class CropTransmittedLightZStack implements ConfigurableTransformation, MultichannelTransformation, Filter, Hint, PreFilter {
     public final static Logger logger = LoggerFactory.getLogger(CropTransmittedLightZStack.class);
     BoundedNumberParameter tileSize = new BoundedNumberParameter("Tile Size", 0, 30, 5, null);
     PluginParameter<SimpleThresholder> thresholder = new PluginParameter<>("Threshold", SimpleThresholder.class, new IJAutoThresholder(), false);
@@ -28,6 +30,26 @@ public class CropTransmittedLightZStack implements Filter, Hint, PreFilter {
                 "Focus can be set manually or computed automatically <br />";
     }
 
+    @Override
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+        frameIndices = new HashMap<>();
+        for (int f = 0; f<inputImages.getFrameNumber(); ++f) frameIndices.put(f, getFrames(inputImages.getImage(channelIdx, f)));
+    }
+
+    @Override
+    public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber) {
+        return frameIndices!=null && frameIndices.size()==totalTimePointNumber;
+    }
+
+    @Override
+    public boolean highMemory() {
+        return false;
+    }
+
+    @Override
+    public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
+        return OUTPUT_SELECTION_MODE.MULTIPLE;
+    }
 
     enum FOCUS_SELECTION {MANUAL, AUTOMATIC}
     EnumChoiceParameter<FOCUS_SELECTION> centerSel = new EnumChoiceParameter<>("Focus Selection", FOCUS_SELECTION.values(), FOCUS_SELECTION.AUTOMATIC);
@@ -49,8 +71,14 @@ public class CropTransmittedLightZStack implements Filter, Hint, PreFilter {
             .setActionParameters(SLICE_SELECTION.INTERVAL_BOTH_SIDES, range, step)
             .setActionParameters(SLICE_SELECTION.INDICES, indices).setEmphasized(true);
 
+    HashMap<Integer, int[]> frameIndices;
+
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
+        return selectPlanes(image, frameIndices.get(timePoint));
+    }
+
+    public int[] getFrames(Image image) {
         int zCenter;
         switch(centerSel.getSelectedEnum()) {
             case AUTOMATIC:
@@ -78,20 +106,21 @@ public class CropTransmittedLightZStack implements Filter, Hint, PreFilter {
                 if (includeOverFocus.getSelected()) {
                     int[] zMinMax2 = new int[]{zCenter + interval[0], zCenter + interval[1]};
                     fixInterval(zMinMax2, planes.size());
-                    return Image.mergeZPlanes((List) Stream.concat(selectInterval(planes, zMinMax[0], zMinMax[1], step), selectInterval(planes, zMinMax2[0], zMinMax2[1], step)).collect(Collectors.toList()));
-                } else return Image.mergeZPlanes((List)selectInterval(planes, zMinMax[0], zMinMax[1], step).collect(Collectors.toList()));
+                    return concat(getInterval(zMinMax[0], zMinMax[1], step), getInterval(zMinMax2[0], zMinMax2[1], step));
+                } else return getInterval(zMinMax[0], zMinMax[1], step);
             }
             case INTERVAL_BOTH_SIDES: {
                 int[] zMinMax = new int[]{zCenter - range.getValue().intValue(), zCenter + range.getValue().intValue()};
                 fixInterval(zMinMax, planes.size());
                 int step = this.step.getValue().intValue();
                 logger.debug("center frame: {}, interval: [{}; {}]", zCenter, zMinMax[0], zMinMax[1]);
-                return Image.mergeZPlanes((List)selectInterval(planes, zMinMax[0], zMinMax[1], step).collect(Collectors.toList()));
+                return getInterval(zMinMax[0], zMinMax[1], step);
             }
             case INDICES:
             default: {
                 int[] indices = this.indices.getArrayInt();
-                return Image.mergeZPlanes((List)Arrays.stream(indices).mapToObj(i -> planes.get(i+zCenter)).collect(Collectors.toList()));
+                for (int i = 0; i<indices.length; ++i) indices[i] += zCenter;
+                return indices;
             }
         }
 
@@ -112,8 +141,19 @@ public class CropTransmittedLightZStack implements Filter, Hint, PreFilter {
         }
     }
 
-    private static Stream<Image> selectInterval(List<Image> planes, int zMin, int zMax, int step) {
-        return IntStream.iterate(zMin, n->n+step).limit((zMax-zMin)/step+1).mapToObj(planes::get);
+    private static Image selectPlanes(Image source, int[] planeIndices) {
+        List<Image> planes = source.splitZPlanes();
+        planes = Arrays.stream(planeIndices).mapToObj(planes::get).collect(Collectors.toList());
+        return Image.mergeZPlanes(planes);
+    }
+    private static int[] getInterval(int zMin, int zMax, int step) {
+        return IntStream.iterate(zMin, n->n+step).limit((zMax-zMin)/step+1).toArray();
+    }
+
+    private static int[] concat(int[] i1, int[] i2) {
+        int[] res = Arrays.copyOf(i1, i1.length+i2.length);
+        System.arraycopy(i2, 0, res, i1.length, i2.length);
+        return res;
     }
 
     @Override
