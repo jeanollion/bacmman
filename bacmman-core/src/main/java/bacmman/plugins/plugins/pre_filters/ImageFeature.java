@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.pre_filters;
 
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.ConditionalParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.ScaleXYZParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
@@ -29,11 +26,13 @@ import bacmman.plugins.Filter;
 import bacmman.plugins.Hint;
 import bacmman.processing.ImageFeatures;
 import bacmman.plugins.PreFilter;
+import bacmman.processing.ImageOperations;
 import bacmman.utils.Utils;
 
 import static bacmman.plugins.plugins.pre_filters.ImageFeature.Feature.StructureMax;
 
 import java.util.Arrays;
+import java.util.function.Function;
 
 /**
  *
@@ -73,6 +72,7 @@ public class ImageFeature implements PreFilter, Filter, Hint {
     ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setEmphasized(true).setHint("Scale of the operation in pixels").setEmphasized(true);
     ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true).setEmphasized(true);
     ConditionalParameter<String> cond = new ConditionalParameter<>(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, new Parameter[]{scale, smoothScale});
+    BooleanParameter applySliceBySlice = new BooleanParameter("Apply Slice by Slice", false).setEmphasized(true).setHint("For 3D image, computes the feature slice by slice i.e. returns a stack of 2D features");
 
     public ImageFeature() {}
     public ImageFeature setFeature(Feature f) {
@@ -100,27 +100,35 @@ public class ImageFeature implements PreFilter, Filter, Hint {
     public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
         //logger.debug("ImageFeature: feature equasl: {}, scale equals: {}, normScale equals: {}", feature==cond.getActionableParameter(), scale == cond.getCurrentParameters().get(0), normScale == cond.getParameters("Normalized Hessian Max").get(1));
         //logger.debug("ImageFeauture: feature: {}, scale: {}, scaleZ: {} (from image: {}) normScale: {}", feature.getSelectedItem(), scale.getScaleXY(), scale.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), scale.getUseImageCalibration(), normScale.getValue());
-        Feature f = Feature.getFeature(feature.getSelectedItem());
         double scaleXY = scale.getScaleXY();
         double scaleZ = scale.getScaleZ(input.getScaleXY(), input.getScaleZ());
+        Function<Image, Image> fun = getFeatureFunction(scaleXY, scaleZ, canModifyImage);
+        if (applySliceBySlice.getSelected()) return ImageOperations.applyPlaneByPlane(input, fun);
+        else return fun.apply(input);
+    }
+
+    public Function<Image, Image> getFeatureFunction(double scaleXY, double scaleZ, boolean canModifyImage) {
+        Feature f = Feature.getFeature(feature.getSelectedItem());
         switch(f) {
             case GAUSS:
-                return ImageFeatures.gaussianSmooth(input, scaleXY, scaleZ, canModifyImage);
-            case GRAD: 
-                return ImageFeatures.getGradientMagnitude(input, scaleXY, canModifyImage);
+                return input -> ImageFeatures.gaussianSmooth(input, scaleXY, scaleZ, canModifyImage);
+            case GRAD:
+                return input -> ImageFeatures.getGradientMagnitude(input, scaleXY, canModifyImage);
             case LoG:
-                return ImageFeatures.getLaplacian(input, scaleXY, true, canModifyImage);
+                return input -> ImageFeatures.getLaplacian(input, scaleXY, true, canModifyImage);
             case HessianDet:
-                return ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, canModifyImage)[1];
+                return input -> ImageFeatures.getHessianMaxAndDeterminant(input, scaleXY, canModifyImage)[1];
             case HessianMax:
-                return ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage)[0];
+                return input -> ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage)[0];
             case HessianMin:
-                ImageFloat[] hess = ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage);
-                return hess[hess.length-1];
+                return input -> {
+                        ImageFloat[] hess = ImageFeatures.getHessian(input, scaleXY, scaleZ, canModifyImage);
+                        return hess[hess.length-1];
+                };
             case StructureMax:
-                return ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[0];
+                return input -> ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[0];
             case StructureDet:
-                return ImageFeatures.getStructureMaxAndDeterminant(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[1];
+                return input -> ImageFeatures.getStructureMaxAndDeterminant(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[1];
             default:
                 throw new IllegalArgumentException("Feature "+feature.getSelectedItem()+"not supported");
         }
@@ -133,7 +141,7 @@ public class ImageFeature implements PreFilter, Filter, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{cond};
+        return new Parameter[]{cond, applySliceBySlice};
     }
     
 }
