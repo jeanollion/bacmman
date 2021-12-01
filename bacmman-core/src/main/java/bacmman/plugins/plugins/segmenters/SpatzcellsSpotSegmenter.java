@@ -3,6 +3,7 @@ package bacmman.plugins.plugins.segmenters;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.image.*;
+import bacmman.plugins.Hint;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.Thresholder;
 import bacmman.plugins.plugins.thresholders.ConstantValue;
@@ -21,13 +22,25 @@ import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class SpatzcellsSpotSegmenter implements Segmenter {
+public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
     ObjectClassParameter rawOC = new ObjectClassParameter("Raw Object Class", -1, true, false).setAutoConfiguration(ObjectClassParameter.defaultAutoConfiguration()).setEmphasized(true).setHint("Select the object class associated to the raw image. In case no object class is selected the raw image of the current object class will be used for fitting. In all case, the pre-filtered image of the current object class is used for local-maxima detection only");
     PluginParameter<Thresholder> localMaximaThreshold = new PluginParameter<>("Threshold", Thresholder.class, new ConstantValue(), false).setHint("Threshold value over which local maxima are included in the fitting procedure").setEmphasized(true);
     BoundedNumberParameter localMaximaRadius = new BoundedNumberParameter("Local Maxima Radius", 3, 1.5, 1, null).setHint("Related to peak connectivity in the original algorithm. Number of neighboring pixels the maxima is relative to. <br />Set 1 for a 4-connectivity and 1.5 for a 8-connectivity. Set a higher value for larger spots").setEmphasized(true);
     BoundedNumberParameter maxSpotXYDistance = new BoundedNumberParameter("Maximum Spot x-y Distance", 1, 2, 0, null).setHint("Maximum xy distance (in pixels) within which spots can be matched, when matching spots across z-slices.");
     BoundedNumberParameter minZSliceNumber = new BoundedNumberParameter("Minimum Z-slice Number", 0, 2, 1, null).setEmphasized(true).setHint("Minimum number of z-slices which spots are required to appear consecutively.");
     BoundedNumberParameter fittingBox = new BoundedNumberParameter("Size of Fitting Box", 0, 5, 2, null).setEmphasized(true).setHint("Radius (in pixels) of square region in which to include data for fitting.");
+
+    @Override
+    public String getHintText() {
+        return "Implementation of Spatzcells Spot Detector. " +
+                "<br />Algorithm: <ul><li>It first identifies the local maxima above a user-defined threshold, in every z-slice in an image stack.</li>" +
+                "<li>It then connects the local maxima from different z slices that correspond to the same spot.</li>" +
+                "<li>For each spot, the in-focus plane is defined as the one where the spot has the highest intensity.</li>" +
+                "<li>In that plane, the fluorescence intensity profile within a small region around each spot is fitted to one or more two-dimensional elliptical Gaussians, with the number of Gaussians equal to the number of local maxima within the region.</li></ul>"+
+                "This implementation has modifications from the original method: " +
+                "<ul><li>The fit can be performed either on the denoised image or the raw signal. In all case the intensity (peak height) is fitted on the raw signal, and the denoised image is used to detect local maxima</li><li>Filters to erase segmented spots according to size and peak height can be set</li><li>Disks can be fitted instead of Ellipses</li></ul>"+
+                "<br />Please cite: Skinner, S. O., Sepulveda, L. A., Xu, H. & Golding, I. Measuring mRNA copy number in individual Escherichia coli cells using single-molecule fluorescent in situ hybridization. Nature protocols";
+    }
 
     enum SPOT_RADIUS_ESTIMATION {ACQUISITION_PARAMETERS, CONSTANT_VALUE}
     EnumChoiceParameter<SPOT_RADIUS_ESTIMATION> spotRadiusEstimation = new EnumChoiceParameter<>("Spot Initial Radius Estimation Method", SPOT_RADIUS_ESTIMATION.values(), SPOT_RADIUS_ESTIMATION.ACQUISITION_PARAMETERS).setEmphasized(true);
@@ -49,7 +62,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter {
 
     BoundedNumberParameter maxMajor = new BoundedNumberParameter("Maximum Major Axis", 3, 0, 0, null).setEmphasized(true).setHint("Spots with major axis greater than this value will be erased. If 0: not taken into account");
     BoundedNumberParameter minMinor = new BoundedNumberParameter("Minimum Minor Axis", 3, 0, 0, null).setEmphasized(true).setHint("Spots with minor axis lower than this value will be erased. If 0: not taken into account");
-    BoundedNumberParameter minIntensity = new BoundedNumberParameter("Minimum Intensity", 3, 0, 0, null).setEmphasized(true).setHint("Spots with Intensity lower than this value will be erased. If 0: not taken into account");
+    BoundedNumberParameter minIntensity = new BoundedNumberParameter("Minimum Peak Height", 3, 0, 0, null).setEmphasized(true).setHint("Spots with Intensity lower than this value will be erased. If 0: not taken into account");
     GroupParameter filters = new GroupParameter("Filters", maxMajor, minMinor, minIntensity).setEmphasized(true).setHint("Filters to erase outliers spots");
 
     @Override
@@ -77,11 +90,12 @@ public class SpatzcellsSpotSegmenter implements Segmenter {
         if (rawOC>=0) assert raw.sizeZ() == input.sizeZ() : "Slice number of raw object class do not match with current object class";
         Image fitImage = this.fitCenterAndAxesOnFilteredImage.getSelected() ? input : raw;
         // get 2D local maxima
-        Function<Image, Image> lmFun = im ->  Filters.localExtrema(im, null, true, parent.getMask(), Filters.getNeighborhood(1.5, 1, im));
+        Function<Image, Image> lmFun = im ->  Filters.localExtrema(im, null, true, null, Filters.getNeighborhood(1.5, 1, im)); // no mask is given here so that a given local maxima is not found in two neighboring cells
         Image localMaxima = ImageOperations.applyPlaneByPlane(input, lmFun);
-        // remove lm under threshold
+        // remove lm under threshold & outside mask
         double threshold = localMaximaThreshold.instantiatePlugin().runThresholder(input, parent);
-        BoundingBox.LoopPredicate lp = (x, y, z) -> input.getPixel(x, y, z)<threshold;
+        ImageMask parentMask = (parent.getBounds().sizeZ()==1 && input.sizeZ()>1) ? new ImageMask2D(parent.getMask()) : parent.getMask();
+        BoundingBox.LoopPredicate lp = (x, y, z) -> input.getPixel(x, y, z)<threshold || !parentMask.insideMask(x, y, z);
         ImageMask.loop(localMaxima, (x, y, z)->localMaxima.setPixel(x, y, z, 0), lp);
 
         // match 2D lm among slices
@@ -138,8 +152,8 @@ public class SpatzcellsSpotSegmenter implements Segmenter {
         double minIntensity = this.minIntensity.getValue().doubleValue();
         if (maxMajor>0 || minMinor>0 || minIntensity>0) {
             Stream<Region> stream = regions.stream();
-            if (maxMajor > 0) stream = stream.filter(r -> (r instanceof Ellipse2D) ? ((Ellipse2D) r).getMajor() < maxMajor : ((Spot) r).getRadius() < maxMajor);
-            if (minMinor > 0) stream = stream.filter(r -> (r instanceof Ellipse2D) ? ((Ellipse2D) r).getMinor() > minMinor : ((Spot) r).getRadius() > minMinor);
+            if (maxMajor > 0) stream = stream.filter(r -> (r instanceof Ellipse2D) ? ((Ellipse2D) r).getMajor() < maxMajor : ((Spot) r).getRadius()*2 < maxMajor);
+            if (minMinor > 0) stream = stream.filter(r -> (r instanceof Ellipse2D) ? ((Ellipse2D) r).getMinor() > minMinor : ((Spot) r).getRadius()*2 > minMinor);
             if (minIntensity > 0) stream = stream.filter(r -> (r instanceof Ellipse2D) ? ((Ellipse2D) r).getIntensity() > minIntensity : ((Spot) r).getIntensity() > minIntensity);
             regions = stream.collect(Collectors.toList());
         }
