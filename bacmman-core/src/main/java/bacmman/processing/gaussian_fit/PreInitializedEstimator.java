@@ -59,7 +59,7 @@ public class PreInitializedEstimator extends MLGaussianEstimator {
             double[] start_param = estimator.initializeFit(point, data);
             for (int i : parameterIndicesToReplace) init[i] = start_param[i];
         }
-        logger.debug("preinit params: @{} -> {}", point, init);
+        //logger.debug("preinit params: @{} -> {}", point, init);
         return init;
     }
 }

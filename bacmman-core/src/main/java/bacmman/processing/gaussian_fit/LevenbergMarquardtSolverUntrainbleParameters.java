@@ -122,7 +122,6 @@ public class LevenbergMarquardtSolverUntrainbleParameters implements FunctionFit
         // compute indices correspondance
         IntFunction<Boolean> isUntrainable = i -> Arrays.stream(untrainableIndices).anyMatch(u -> i==u);
         int[] fitToOriginal = IntStream.range(0, nparm).filter(i -> !isUntrainable.apply(i)).toArray();
-        logger.debug("nParams: {}, untrainable: {}, fitToOriginal: {}", nparm, untrainableIndices, fitToOriginal);
         Function<double[], double[]> toOriginal = fitArray -> {
             double[] res = new double[nparm];
             for (int i = 0; i < fitArray.length; ++i) res[fitToOriginal[i]] = fitArray[i];

@@ -63,7 +63,7 @@ public class EllipticGaussian2DSimpleEstimator implements StartPointEstimator {
         start_param[3] = 1/(radius * radius); // b
         double min = Arrays.stream(data.I).min().getAsDouble();
         start_param[5] = getValue(point, data) - min; //A
-        logger.debug("Start param @ {}: {}", point, start_param);
+        //logger.debug("Start param @ {}: {}", point, start_param);
         return start_param;
     }
     
