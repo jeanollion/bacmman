@@ -176,9 +176,9 @@ public class ImageLabeller {
     public void labelSpots(Neighborhood n) {
         int currentLabel = 1;
         Spot currentSpot;
-        for (int z = 0; z<=mask.sizeZ(); ++z) {
-            for (int y = 0; y<=mask.sizeY(); ++y) {
-                for (int x=0; x<=sizeX; ++x) {
+        for (int z = 0; z<mask.sizeZ(); ++z) {
+            for (int y = 0; y<mask.sizeY(); ++y) {
+                for (int x=0; x<sizeX; ++x) {
                     if (mask.insideMask(x, y, z)) {
                         currentSpot = null;
                         Voxel v = new Voxel(x, y, z);
