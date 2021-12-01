@@ -31,7 +31,7 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("ScaleXY (pix)", 3, 1, 0, null).setEmphasized(true);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("ScaleZ (pix)", 3, 1, 0, null);
     BooleanParameter useImageCalibration = new BooleanParameter("Use image calibration for Z-scale", true);
-    ConditionalParameter<Boolean> cond = new ConditionalParameter<>(useImageCalibration).setActionParameters(false, new Parameter[]{scaleZ}, false);
+    ConditionalParameter<Boolean> cond = new ConditionalParameter<>(useImageCalibration).setActionParameters(false, scaleZ);
     
     @Override
     public Object toJSONEntry() {
@@ -67,7 +67,6 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
     public ScaleXYZParameter(String name, double scaleXY) {
         super(name);
         this.scaleXY.setValue(scaleXY);
-        useImageCalibration.setSelected(true);
     }
     public ScaleXYZParameter(String name, double scaleXY, double scaleZ, boolean useCalibration) {
         super(name);
@@ -120,23 +119,6 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
     public boolean getUseImageCalibration() {
         return this.useImageCalibration.getSelected();
     }
-    @Override public boolean sameContent(Parameter other) {
-        if (other instanceof ScaleXYZParameter) {
-            ScaleXYZParameter otherP = (ScaleXYZParameter) other;
-            return ParameterUtils.sameContent(Arrays.asList(new Parameter[]{scaleXY, scaleZ, useImageCalibration}), Arrays.asList(new Parameter[]{otherP.scaleXY, otherP.scaleZ, otherP.useImageCalibration}), "ScaleXYZParameter: "+name+"!="+otherP.name);
-        } else return false;
-    }
-    @Override public void setContentFrom(Parameter other) { // need to override because the super class's method only set the content from children parameters (children parameter = transient conditional parameter)
-        if (other instanceof ScaleXYZParameter) {
-            ScaleXYZParameter otherP = (ScaleXYZParameter) other;
-            scaleXY.setContentFrom(otherP.scaleXY);
-            scaleZ.setContentFrom(otherP.scaleZ);
-            useImageCalibration.setContentFrom(useImageCalibration);
-        } else {
-            throw new IllegalArgumentException("wrong parameter type");
-        }
-    }
-    
 
     
 }
