@@ -45,7 +45,7 @@ import net.imglib2.algorithm.localization.FitFunction;
  * 
  * @author Jean Ollion
  */
-public class Plane implements FitFunction {
+public class Plane implements FitFunctionScalable {
 	public Plane() {
 	}
 
@@ -72,4 +72,14 @@ public class Plane implements FitFunction {
 		return 0;
 	}
 
+	@Override
+	public void scaleIntensity(double[] parameters, double center, double scale, boolean normalize) {
+		if (normalize) {
+			for (int dim = 0; dim<parameters.length-1; ++dim) parameters[dim] /= scale;
+			parameters[parameters.length-1] = (parameters[parameters.length-1] - center) / scale;
+		} else {
+			for (int dim = 0; dim<parameters.length-1; ++dim) parameters[dim] *= scale;
+			parameters[parameters.length-1] = parameters[parameters.length-1] * scale + center;
+		}
+	}
 }

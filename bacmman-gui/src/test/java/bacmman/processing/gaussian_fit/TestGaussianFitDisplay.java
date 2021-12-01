@@ -3,19 +3,19 @@ package bacmman.processing.gaussian_fit;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 import bacmman.core.Core;
-import bacmman.data_structure.MasterDAOFactory;
-import bacmman.data_structure.Region;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.data_structure.*;
 import bacmman.data_structure.dao.BasicMasterDAO;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
+import bacmman.image.ImageFloat;
 import bacmman.ui.gui.image_interaction.*;
+import bacmman.utils.geom.Point;
 import ij.ImageJ;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -31,12 +31,23 @@ public class TestGaussianFitDisplay {
         //Image labels = fitAndDrawLabels(im, 60, true, true);
         //disp.showImage(labels.setName("fit"));
 
-        List<Region> result = fit(im, 60, true, false);
+        List<Region> result = fit(im, 100000, true, true);
         displayObjects(im, result);
-
+        /*Image im = new ImageFloat("test display3D", 100, 100, 5);
+        Point center  = new Point(50, 40, 2);
+        im.setPixel(center.xMin(), center.yMin(), center.zMin(), 1);
+        Region e = new Ellipse2D(center, 10, 5, 0.5, 100, 1, false, 1, 1);
+        //Spot e = new Spot(center, 2, 2, 1, 1, false, 1, 1);
+        e.setIsAbsoluteLandmark(true);
+        e = new Region(e.getMaskAsImageInteger(), 1, false);
+        List<Region> regions=  new ArrayList<>();
+        regions.add(e);
+        RegionPopulation pop = new RegionPopulation(regions, im);
+        displayObjects(pop.getLabelMap(), regions);*/
     }
 
     private static void displayObjects(Image im, List<Region> result) {
+        result.forEach(r -> r.setIsAbsoluteLandmark(true));
         SegmentedObjectAccessor accessor = getAccessor();
         MasterDAO dao = new BasicMasterDAO(accessor);
         dao.setExperiment(new Experiment("xp", new Structure()));

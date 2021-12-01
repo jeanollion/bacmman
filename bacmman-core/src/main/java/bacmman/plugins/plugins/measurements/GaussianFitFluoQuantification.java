@@ -68,7 +68,7 @@ public class GaussianFitFluoQuantification implements Measurement, Hint {
                     so.setAttribute("GF_Major", fp.getAxis(true));
                     so.setAttribute("GF_Minor", fp.getAxis(false));
                 } else so.setAttribute("GF_Radius", fp.getRadius());
-                so.setAttribute("GF_N", fp.getIntensity());
+                so.setAttribute("GF_N", fp.getIntegratedIntensity());
             });
         }
     }

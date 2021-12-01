@@ -23,6 +23,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.Spot;
 import bacmman.image.*;
 import bacmman.utils.TriFunction;
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
 
@@ -68,6 +69,7 @@ public class GaussianFit {
     public static Map<Point, double[]> run(Image image, List<Point> peaks, double typicalRadius, int fittingBoxRadius, double minDistance, boolean fitEllipse, boolean backgroundPlane, boolean fitBackground, Map<Point, double[]> preInitParameters, boolean fitCenter, boolean fitAxis, int maxIter, double lambda, double termEpsilon ) {
         boolean is3D = image.sizeZ()>1;
         if (fitEllipse) assert !is3D : "Fit Ellipse is only available on 2D images";
+
         Img img = ImgLib2ImageWrapper.getImage(image);
         int nDims = img.numDimensions();
         // cluster are fit together
@@ -80,7 +82,8 @@ public class GaussianFit {
         clusters.forEach(c->results.putAll(runPeakCluster(img, c, fitEllipse, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon)));
 
         BoundingBox bounds = new SimpleBoundingBox(image).resetOffset();
-        results.entrySet().removeIf(e -> !bounds.contains(e.getKey()));
+        if (is3D) results.entrySet().removeIf(e -> !bounds.contains(e.getKey()));
+        else results.entrySet().removeIf(e -> !bounds.contains(e.getKey().getIntPosition(0), e.getKey().getIntPosition(1), 0));
         return results;
     }
 
@@ -208,11 +211,11 @@ public class GaussianFit {
             else preInitParameters = trimParameterArray(preInitParameters, nDims+2);
             peakEstimator = new PreInitializedEstimator(typicalRadius, nDims, preInitParameters, peakEstimator, paramIndices);
         }
-        FitFunction peakFunction = fitEllipse ? new EllipticGaussian2D().setTrainable(fitCenter, fitAxis) : (fitAxis && fitCenter ? new Gaussian() : new GaussianCustomTrain().setTrainable(fitCenter, fitAxis));
-        MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks, peakEstimator, backgroundPlane ? new PlaneEstimator((int)Math.ceil(2*typicalRadius+1), img.numDimensions()) : new ConstantEstimator((int)Math.ceil(2*typicalRadius+1), img.numDimensions()));
-        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(fitEllipse ? 6 : img.numDimensions()+2, closePeaks.size(), peakFunction, backgroundPlane ? 3 : 1, backgroundPlane ? new Plane() : new Constant(), fitBackground); // fit only one constant
-
-        LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter * closePeaks.size(), lambda, termEpsilon/closePeaks.size());
+        FitFunction peakFunction = fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
+        MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks, peakEstimator, backgroundPlane ? new PlaneEstimator(fittingBoxRadius, img.numDimensions()) : new ConstantEstimator(fittingBoxRadius, img.numDimensions()));
+        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(fitEllipse ? 6 : img.numDimensions()+2, closePeaks.size(), peakFunction, backgroundPlane ? 3 : 1, backgroundPlane ? new Plane() : new Constant(), fitBackground);
+        int[] untrainableIndices=fitFunction.getUntrainableIndices(nDims, fitCenter, fitAxis);
+        FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, maxIter * closePeaks.size(), lambda, termEpsilon/closePeaks.size());
         PeakFitter fitter = new PeakFitter(img, Arrays.asList(estimator.center), solver, fitFunction, estimator);
         fitter.setNumThreads(1);
         if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting gaussian: "+fitter.getErrorMessage());
@@ -223,7 +226,7 @@ public class GaussianFit {
         }));
         if (fitEllipse) {
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), backgroundPlane);
-            if (!invalid.isEmpty()) { // TODO runPeakCluster with spots only @ invalid peaks...
+            if (!invalid.isEmpty()) { 
                 Map<L, double[]> resultsSpots = runPeakCluster(img, closePeaks, false, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
                 // convert to ellipses parameter
                 return resultsSpots.entrySet().stream().collect(Collectors.toMap(Entry::getKey, e-> new FitParameter(e.getValue(), 2, false, backgroundPlane).getEllipseParameters()   ));
@@ -244,10 +247,10 @@ public class GaussianFit {
             peakEstimator = new PreInitializedEstimator(typicalRadius, nDims, preInitParameters, peakEstimator, paramIndices);
         }
         EstimatorPlusBackground estimator = new EstimatorPlusBackground(peakEstimator, backgroundPlane ? new PlaneEstimator((int)Math.ceil(2*typicalRadius+1), nDims) : new ConstantEstimator((int)Math.ceil(2*typicalRadius+1), nDims));
-        FitFunction peakFunction = fitEllipse ? new EllipticGaussian2D().setTrainable(fitCenter, fitAxis) : (fitAxis && fitCenter ? new Gaussian() : new GaussianCustomTrain().setTrainable(fitCenter, fitAxis));
+        FitFunction peakFunction = fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
         MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(fitEllipse ? 6 : nDims+2, 1, peakFunction, backgroundPlane ? 3 : 1, backgroundPlane ? new Plane() : new Constant(), fitBackground);
-
-        LevenbergMarquardtSolver solver = new LevenbergMarquardtSolver(maxIter, lambda, termEpsilon);
+        int[] untrainableIndices=fitFunction.getUntrainableIndices(nDims, fitCenter, fitAxis);
+        FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, maxIter, lambda, termEpsilon);
         PeakFitter fitter = new PeakFitter(img, peaks, solver, fitFunction, estimator);
         fitter.setNumThreads(1);
         if ( !fitter.checkInput() || !fitter.process()) throw new RuntimeException("Error while fitting: "+fitter.getErrorMessage());
@@ -256,7 +259,7 @@ public class GaussianFit {
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), backgroundPlane);
             if (!invalid.isEmpty()) {
                 Map<L, double[]> spots = runPeaks(img, invalid.keySet(), false, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
-                logger.debug("invalid ellipses: {} replaced by {}", invalid, spots);
+                logger.debug("invalid ellipses: {} replaced by spots: {}", Utils.toStringMap(invalid, Object::toString, p->new FitParameter(p, 2, true, backgroundPlane).toString()), Utils.toStringMap(spots, Object::toString, p->new FitParameter(p, 2, false, backgroundPlane).toString()));
                 spots.forEach((c, p) -> results.put(c, new FitParameter(p, 2, false, backgroundPlane).getEllipseParameters())); // replace
             }
         }
@@ -306,7 +309,7 @@ public class GaussianFit {
             Point center = getCenter(props.zMin(), props.zMax());
             if (!props.contains(center.xMin(), center.yMin(), center.zMin())) return false;
             if (ellipse) {
-                return !Double.isNaN(getTheta()) && Double.isFinite(getIntensity()) && !Double.isNaN(getIntensity());
+                return !Double.isNaN(getTheta()) && Double.isFinite(getIntegratedIntensity()) && !Double.isNaN(getIntegratedIntensity());
             } else {
                 return !Double.isNaN(getRadius());
             }
@@ -342,7 +345,11 @@ public class GaussianFit {
                 else return 2*Math.sqrt(2)/Math.sqrt(a+b+q);
             } else return getRadius();
         }
-        public double getIntensity() {
+        public double getPeakIntensity() {
+            if (ellipse) return parameters[5];
+            else return parameters[nDims];
+        }
+        public double getIntegratedIntensity() {
             if (ellipse) return parameters[5] * getIntegral();
             else return parameters[nDims] * getIntegral() ;
         }
@@ -372,10 +379,14 @@ public class GaussianFit {
             } else return 0;
         }
         public Spot getSpot(ImageProperties props) {
-            return new Spot(getCenter(props.zMin(), props.zMax()), getRadius(), getIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
+            return new Spot(getCenter(props.zMin(), props.zMax()), getRadius(), 1, getPeakIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
         }
         public Ellipse2D getEllipse2D(ImageProperties props) {
-            return new Ellipse2D(getCenter(props.zMin(), props.zMax()), getAxis(true), getAxis(false), getTheta(), getIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
+            return new Ellipse2D(getCenter(props.zMin(), props.zMax()), getAxis(true), getAxis(false), getTheta(), getPeakIntensity(), 1, props.sizeZ()==1, props.getScaleXY(), props.getScaleZ());
+        }
+        public String toString() {
+            if (ellipse) return "Ellipse: C="+getCenter(0, 0)+" M="+getAxis(true)+" m="+getAxis(false)+" Theta="+getTheta() + " I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
+            else return "Spot: C="+getCenter(0, 0) + " R="+getRadius()+" I="+getPeakIntensity()+ " Params="+Arrays.toString(parameters);
         }
     }
 }

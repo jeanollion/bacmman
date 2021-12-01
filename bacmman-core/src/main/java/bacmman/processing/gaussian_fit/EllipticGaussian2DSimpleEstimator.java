@@ -22,6 +22,8 @@ import net.imglib2.Localizable;
 import net.imglib2.algorithm.localization.MLGaussianEstimator;
 import net.imglib2.algorithm.localization.Observation;
 import net.imglib2.algorithm.localization.StartPointEstimator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 
@@ -32,6 +34,7 @@ import java.util.Arrays;
 public class EllipticGaussian2DSimpleEstimator implements StartPointEstimator {
     final protected double radius;
     final protected long[] span;
+    public static final Logger logger = LoggerFactory.getLogger(EllipticGaussian2DSimpleEstimator.class);
     public EllipticGaussian2DSimpleEstimator(double typicalRadius, int fittingBoxRadius) {
         this.radius = typicalRadius;
         this.span = new long[2];
@@ -60,6 +63,7 @@ public class EllipticGaussian2DSimpleEstimator implements StartPointEstimator {
         start_param[3] = 1/(radius * radius); // b
         double min = Arrays.stream(data.I).min().getAsDouble();
         start_param[5] = getValue(point, data) - min; //A
+        logger.debug("Start param @ {}: {}", point, start_param);
         return start_param;
     }
     

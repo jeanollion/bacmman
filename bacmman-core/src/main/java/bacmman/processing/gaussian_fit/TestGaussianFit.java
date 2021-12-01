@@ -22,10 +22,10 @@ import java.util.stream.Collectors;
 
 public class TestGaussianFit {
     public final static Logger logger = LoggerFactory.getLogger(TestGaussianFit.class);
-    private static double[] backgroundPlaneParameters = new double[] {0., -0., 10};
-    private static double[] ellipse1Parameters = new double[] {10, 10, 10, 5, 30 * Math.PI / 180, 150}; // cx, cy, M(a), m(b), Theta(c), A
-    private static double[] ellipse2Parameters = new double[] {15, 15, 8, 6, 120 * Math.PI / 180, 200};
-    private static double[] ellipse3Parameters = new double[] {50, 60.5, 11, 4, 180 * Math.PI / 180, 300};
+    private static double[] backgroundPlaneParameters = new double[] {0., -0., 50000};
+    private static double[] ellipse1Parameters = new double[] {10, 10, 10, 5, 30 * Math.PI / 180, 150000}; // cx, cy, M(a), m(b), Theta(c), A
+    private static double[] ellipse2Parameters = new double[] {15, 15, 8, 6, 120 * Math.PI / 180, 200000};
+    private static double[] ellipse3Parameters = new double[] {50, 60.5, 11, 4, 180 * Math.PI / 180, 300000};
     private static double[][] ellipseParameters = new double[][]{ellipse1Parameters, ellipse2Parameters, ellipse3Parameters};
     private static double[] spot2D1Parameters = new double[] {80, 10, 200, 5}; // cx, cy, A, radius(b)
     private static double[][] spot2DParameters = new double[][]{spot2D1Parameters};
@@ -53,17 +53,20 @@ public class TestGaussianFit {
     }
 
     public static List<Region> fit(Image image, double threshold, boolean ellipses, boolean plane) {
-        ImageByte localExtrema = Filters.localExtrema(image, null, true, null, Filters.getNeighborhood(1.5, 1.5, image));
-        BoundingBox.LoopPredicate lp = (x, y, z) -> image.getPixel(x, y, z)<threshold;
+        Image smoothed =  ImageFeatures.gaussianSmoothScaleIndep(image, 1, 1, false);
+        ImageByte localExtrema = Filters.localExtrema(smoothed, null, true, null, Filters.getNeighborhood(1.5, 1.5, image));
+        BoundingBox.LoopPredicate lp = (x, y, z) -> smoothed.getPixel(x, y, z)<threshold;
         ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), lp);
         List<Region> regions = Arrays.asList(ImageLabeller.labelImage(localExtrema));
         logger.debug("number of local extrema found: {}", regions.size());
         List<Point> peaks = regions.stream().map(o -> o.getMassCenter(image, false)).collect(Collectors.toList());
         //logger.debug("peaks found: {}", peaks);
         Map<Point, double[]> fit = GaussianFit.run(image, peaks, 5, 10, 10, ellipses, plane, true, null, true, true, 300, 0.001, 0.01);
-        //logger.debug("number of fitted objects: {}", fit.size());
-        //fit.forEach((c, p ) -> logger.debug("point: {}, parameters: {}", c, p));
-
+        logger.debug("number of fitted objects: {}", fit.size());
+        fit.forEach((c, p ) -> logger.debug("point: {}, parameters: {}", c, p));
+        //Image image2 = ImageOperations.affineOperation2(image, null, 2, 50);
+        //fit = GaussianFit.run(image, peaks, 5, 10, 10, ellipses, plane, true, fit, false, false, 300, 0.001, 0.01);
+        //fit.forEach((c, p ) -> logger.debug("after 2nd fit point: {}, parameters: {}", c, p));
         List<Region> result;
         if (ellipses) result = fit.values().stream().map(v -> GaussianFit.ellipse2DMapper.apply(v, false, image)).collect(Collectors.toList());
         else result = fit.values().stream().map(v -> GaussianFit.spotMapper.apply(v, false, image)).collect(Collectors.toList());
@@ -87,11 +90,11 @@ public class TestGaussianFit {
             Plane bp = new Plane();
             draw(bp, backgroundPlaneParameters, im);
         }
-        FitFunction peak = ellipses ? new EllipticGaussian2D() : new Gaussian();
+        FitFunction peak = ellipses ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
         if (ellipses) for (double[] p : ellipseParameters) draw(peak, convertEllipseParametersToFitParameters(p), im);
         else for (double[] p : spot2DParameters) draw(peak, convertSpotParametersToFitParameters(p), im);
-        im = addNoise(5, im);
-
+        //im =  ImageFeatures.gaussianSmoothScaleIndep(im, 1, 1, true);
+        im = addNoise(5*1000, im);
         return im;
     }
 
@@ -106,8 +109,6 @@ public class TestGaussianFit {
         BoundingBox.loop(image, (x, y, z) -> {
             image.addPixel(x, y, z, r.nextGaussian() * std);
         });
-        //return image;
-        return ImageFeatures.gaussianSmoothScaleIndep(image, 1, 1, true);
-        //return ImageFeatures.gaussianSmooth(image, 1.5, 1, true);
+        return image;
     }
 }

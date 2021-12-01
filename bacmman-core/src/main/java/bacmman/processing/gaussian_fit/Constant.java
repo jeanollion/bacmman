@@ -32,7 +32,7 @@ import net.imglib2.algorithm.localization.FitFunction;
  *
  * @author Jean Ollion
  */
-public class Constant implements FitFunction {
+public class Constant implements FitFunctionScalable {
 	public Constant() {
 	}
 
@@ -57,4 +57,9 @@ public class Constant implements FitFunction {
 		return 0;
 	}
 
+	@Override
+	public void scaleIntensity(double[] parameters, double center, double scale, boolean normalize) {
+		if (normalize) parameters[0] = (parameters[0] - center) / scale;
+		else parameters[0] = parameters[0] * scale + center;
+	}
 }

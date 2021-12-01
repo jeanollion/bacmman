@@ -1,46 +1,38 @@
 package bacmman.processing.gaussian_fit;
 
-import net.imglib2.algorithm.localization.FitFunction;
+import bacmman.utils.ArrayUtil;
 import net.imglib2.algorithm.localization.Gaussian;
 
-public class GaussianCustomTrain implements FitFunction {
-    boolean trainableCoords=true, trainableAxis=true;
-    FitFunction f;
-    public GaussianCustomTrain() {
-        f = new Gaussian();
+public class GaussianCustomTrain extends Gaussian implements FitFunctionUntrainableParameters, FitFunctionScalable {
+    final boolean backgroundIsFitApart;
+    public GaussianCustomTrain(boolean backgroundIsFitApart) {
+        this.backgroundIsFitApart=backgroundIsFitApart;
     }
-    public GaussianCustomTrain setTrainable(boolean coordinates, boolean axis) {
-        trainableCoords = coordinates;
-        trainableAxis = axis;
-        return this;
+    @Override
+    public int[] getUntrainableIndices(int nDims, boolean fitCenter, boolean fitAxis) {
+        if (fitCenter && fitAxis) return new int[0];
+        if (!fitCenter && fitAxis) return ArrayUtil.generateIntegerArray(nDims);
+        if (fitCenter) return new int[]{nDims+1};
+        int[] res = new int[nDims+1];
+        for (int i = 0;i<nDims;++i) res[i] = i;
+        res[nDims] = nDims+1;
+        return res;
     }
 
     @Override
-    public double val(double[] x, double[] a) {
-        return f.val(x, a);
+    public void scaleIntensity(double[] parameters, double center, double scale, boolean normalize) {
+        if (backgroundIsFitApart) {
+            if (normalize) {
+                parameters[parameters.length - 2] = (parameters[parameters.length - 2]) / scale;
+            } else {
+                parameters[parameters.length - 2] = parameters[parameters.length - 2] * scale;
+            }
+        } else {
+            if (normalize) {
+                parameters[parameters.length - 2] = (parameters[parameters.length - 2] - center) / scale;
+            } else {
+                parameters[parameters.length - 2] = parameters[parameters.length - 2] * scale + center;
+            }
+        }
     }
-
-    @Override
-    public double grad(final double[] x, final double[] a, final int k) {
-        final int ndims = x.length;
-        if (!trainableCoords && k < ndims) return 0;
-        if (!trainableAxis && k==ndims+1) return 0;
-        return f.grad(x, a, k);
-    }
-
-    @Override
-    public double hessian(double[] x, double[] a, int rIn, int cIn) {
-        final int ndims = x.length;
-        int r = rIn;
-        int c = cIn;
-        if (c < r) {
-            int tmp = c;
-            c = r;
-            r = tmp;
-        } // Ensure c >= r, top right half the matrix
-        if (!trainableCoords && (c<ndims || r<ndims) ) return 0;
-        if (!trainableAxis && (c==ndims+1 || r==ndims+1 ) ) return 0;
-        return f.hessian(x, a, r, c);
-    }
-
 }

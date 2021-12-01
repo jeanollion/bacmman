@@ -19,6 +19,8 @@
 package bacmman.processing.gaussian_fit;
 
 import net.imglib2.algorithm.localization.FitFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A 2-dimensional, Ellipse Gaussian peak function.
@@ -48,16 +50,21 @@ import net.imglib2.algorithm.localization.FitFunction;
  * 
  * @author Jean Ollion
  */
-public class EllipticGaussian2D implements FitFunction {
-	boolean trainableCoords=true, trainableAxis=true;
-	public EllipticGaussian2D() {
-	}
-	public EllipticGaussian2D setTrainable(boolean coordinates, boolean axis) {
-		trainableCoords = coordinates;
-		trainableAxis = axis;
-		return this;
+public class EllipticGaussian2D implements FitFunction, FitFunctionUntrainableParameters, FitFunctionScalable {
+	public static final Logger logger = LoggerFactory.getLogger(EllipticGaussian2D.class);
+	static double maxSemiMajorAxis = 10; // TODO as parameter
+	static double eps = 1/Math.pow(maxSemiMajorAxis, 2);
+	final boolean backgroundIsFitApart;
+	public EllipticGaussian2D(boolean backgroundIsFitApart) {
+		this.backgroundIsFitApart=backgroundIsFitApart;
 	}
 
+	public int[] getUntrainableIndices(int nDims, boolean fitCenter, boolean fitAxis) {
+		if (fitCenter && fitAxis) return new int[0];
+		if (!fitCenter && fitAxis) return new int[]{0, 1};
+		if (fitCenter) return new int[]{2, 3, 4};
+		return new int[]{0, 1, 2, 3, 4};
+	}
 	/*
 	 * METHODS
 	 */
@@ -82,12 +89,22 @@ public class EllipticGaussian2D implements FitFunction {
 	 * k = 5       - A
 	 *k = n+1     - b</pre> 
 	 */
+
+	private static boolean isValid(final double a[]) {
+		// AB>C*C so that Major axis is defined (A+B-Q^0.5 > 0) add eps
+		return a[2] * a[3] > a[4] * a[4] + (a[2] + a[3]) * eps;
+	}
+
 	@Override
 	public final double grad(final double[] x, final double[] a, final int k) {
-		if (!trainableCoords && k<2) return 0;
-		if (!trainableAxis && k<4 && k>=2) return 0;
-		if (k < 5) return dS(x, a, k) * val(x, a);
-		else if (k == 5) return E(x, a); // With respect to A
+		if (k < 5) {
+			double grad =  dS(x, a, k) * val(x, a);
+			//if (k==4 && !isValid(a)) return 0; //-grad? // TODO study this option to avoid invalid ellipses
+			return grad;
+		}
+		else if (k == 5) {
+			return E(x, a); // With respect to A
+		}
 		return 0;
 		//throw new RuntimeException("k must be inferior or equal to 5");
 	}
@@ -101,8 +118,6 @@ public class EllipticGaussian2D implements FitFunction {
 			c = r;
 			r = tmp;
 		} // Ensure c >= r, top right half the matrix
-		if (!trainableCoords && (c<2 || r<2) ) return 0;
-		if (!trainableAxis && ((c<4 && c>=2) || (r<4 && r>=2) ) ) return 0;
 		if (c<=4) {
 			// d²G/dCdR = G * ( d²S / dCdR + dS/dC * dS/dR)
 			double d = dS(x, a, c) * dS(x, a, r);
@@ -116,7 +131,9 @@ public class EllipticGaussian2D implements FitFunction {
 				d+=2 * (x[other] - a[other]);
 			}
 			// dS/dadb, dS/dadc .. = 0
-			return d * val(x, a);
+			double hess =  d * val(x, a);
+			//if (!isValid(a)) return 0; // TODO study this option to avoid invalid ellipses
+			return hess;
 		} else if (c == 5) {
 			if (r==c) return 0;
 			return dS(x, a, r) * E(x, a); // ==grad/A
@@ -149,5 +166,16 @@ public class EllipticGaussian2D implements FitFunction {
 		}
 		return 0;
 		//throw new IllegalArgumentException("K must be <5");
+	}
+
+	@Override
+	public void scaleIntensity(double[] parameters, double center, double scale, boolean normalize) {
+		if (backgroundIsFitApart) {
+			if (normalize) parameters[5] = parameters[5] / scale;
+			else parameters[5] = parameters[5] * scale;
+		} else {
+			if (normalize) parameters[5] = (parameters[5] - center) / scale;
+			else parameters[5] = parameters[5] * scale + center;
+		}
 	}
 }
