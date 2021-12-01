@@ -21,7 +21,7 @@ package bacmman.plugins.plugins.measurements;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
-import bacmman.plugins.DevPlugin;
+import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.Parameter;
@@ -36,19 +36,19 @@ import java.util.List;
  *
  * @author Jean Ollion
  */
-public class GetAttribute implements Measurement, DevPlugin {
-    ObjectClassParameter structure = new ObjectClassParameter("Structure", -1, false, false);
+public class ExtractAttributes implements Measurement, Hint {
+    ObjectClassParameter structure = new ObjectClassParameter("Object Class", -1, false, false);
     BooleanParameter parseArraysAsCoordinates = new BooleanParameter("Parse arrays as coordinates", true);
     SimpleListParameter<TextParameter> attributes = new SimpleListParameter("Attributes", new TextParameter("Attribute Key", "", false));
     Parameter[] parameters = new Parameter[]{structure, parseArraysAsCoordinates, attributes};
     
-    public GetAttribute() {}
+    public ExtractAttributes() {}
     
-    public GetAttribute(int structureIdx) {
+    public ExtractAttributes(int structureIdx) {
         structure.setSelectedClassIdx(structureIdx);
     }
     
-    public GetAttribute addAttributes(String... attributeNames) {
+    public ExtractAttributes addAttributes(String... attributeNames) {
         for (String s : attributeNames) {
             TextParameter tp = attributes.createChildInstance();
             tp.setValue(s);
@@ -93,9 +93,12 @@ public class GetAttribute implements Measurement, DevPlugin {
             }
             else if (value instanceof List) {
                 if (((List)value).isEmpty()) continue;
-                if (parseArraysAsCoordinates.getSelected() && ((List)value).size()<=3) {
-                    
-                } else object.getMeasurements().setListValue(key, (List)value);
+                List list = (List)value;
+                if (parseArraysAsCoordinates.getSelected() && list.size()<=3 && list.get(0) instanceof Number) {
+                    object.getMeasurements().setValue(key+"X", ((Number) list.get(0)));
+                    if (list.size()>1) object.getMeasurements().setValue(key+"Y", ((Number) list.get(1)));
+                    if (list.size()>2) object.getMeasurements().setValue(key+"Z", ((Number) list.get(2)));
+                } else object.getMeasurements().setListValue(key, list);
             }
             else if (value instanceof String) object.getMeasurements().setStringValue(key, (String)value);
             else if (value instanceof Boolean) object.getMeasurements().setValue(key, (Boolean)value);
@@ -106,5 +109,9 @@ public class GetAttribute implements Measurement, DevPlugin {
     public Parameter[] getParameters() {
         return parameters;
     }
-    
+
+    @Override
+    public String getHintText() {
+        return "This module converts object attributes to measurements";
+    }
 }
