@@ -28,14 +28,11 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Thresholder;
-import bacmman.plugins.plugins.pre_filters.ImageFeature;
-import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.plugins.plugins.thresholders.Percentile;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.watershed.WatershedTransform;
-import ij.process.AutoThresholder;
 
 import java.util.Map;
 import java.util.stream.Collectors;

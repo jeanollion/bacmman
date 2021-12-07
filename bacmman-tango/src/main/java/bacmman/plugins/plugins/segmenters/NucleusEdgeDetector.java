@@ -9,7 +9,6 @@ import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.processing.FillHoles2D;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.watershed.WatershedTransform;
