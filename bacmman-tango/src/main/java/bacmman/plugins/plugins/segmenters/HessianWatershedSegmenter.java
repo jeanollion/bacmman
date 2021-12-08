@@ -32,8 +32,11 @@ import bacmman.plugins.plugins.thresholders.Percentile;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.neighborhood.Neighborhood;
+import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.processing.watershed.WatershedTransform;
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -56,11 +59,15 @@ public class HessianWatershedSegmenter implements Segmenter, TestableProcessingP
     PluginParameter<Thresholder> seedThreshlod = new PluginParameter<>("Seed Threshold", Thresholder.class, new Percentile().setPercentile(0.75),false).setEmphasized(true).setHint("Threshold computed on the watershed map to select seeds");
     PluginParameter<Thresholder> propagationThreshlod = new PluginParameter<>("Propagation Threshold", bacmman.plugins.Thresholder.class, new Percentile().setPercentile(99),false).setEmphasized(true).setHint("Threshold computed on the input image / or on the watershed map (depending on the parameter <em>Propagation End Map</em>) to stop propagation");
     BooleanParameter propagationThresholdOnInputImage = new BooleanParameter("Propagation End Map", "Input Image", "Watershed Map", true).setEmphasized(true);
-    BooleanParameter monotonalPropagation = new BooleanParameter("Monotonal Propagation", true).setHint("If true, watershed propagation will be strictly increasing (on hessian values). This option can limit propagation, but is not suitable to objects where intensity do not decrease towards edges");
+    BooleanParameter monotonicPropagation = new BooleanParameter("Monotonic Propagation", false).setHint("If true, watershed propagation will be strictly increasing (on hessian values). This option can limit propagation, but is not suitable to objects where intensity do not decrease towards edges");
     ConditionalParameter<FOREGROUND_SELECTION_METHOD> foregroundSelMethodCond = new ConditionalParameter<>(foregroundSelMethod)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.GLOBAL, seedThreshlod)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.LOCAL, seedThreshlod)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.THRESHOLD, seedThreshlod, propagationThreshlod, propagationThresholdOnInputImage);
+    BooleanParameter mergeConnectedRegions = new BooleanParameter("Merge Neighboring Regions", false).setEmphasized(true).setHint("If true, regions in contact with each other will be merged depending on a criterion on the mean hessian value at the contact area between the two regions");
+    NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 5, -1, 0, null).setEmphasized(true).setHint("Lower this value to reduce merging. Set this value according to the test image called <em>edge values</em>");
+    BooleanParameter normalizeEdgeValues = new BooleanParameter("Normalize Edge Values", true).setEmphasized(true).setHint("If true, the mean hessian values is divided by the mean intensity value (influences the <em>Merge Threshold</em> parameter)");
+    ConditionalParameter<Boolean> mergeCond = new ConditionalParameter<>(mergeConnectedRegions).setActionParameters(true, mergeThreshold, normalizeEdgeValues);
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -78,10 +85,12 @@ public class HessianWatershedSegmenter implements Segmenter, TestableProcessingP
         if (stores!=null) Core.userLog("WatershedSegmenter: seed threshold: "+seedThld);
         WatershedTransform.PropagationCriterion monoCrit = new WatershedTransform.MonotonalPropagation();
         WatershedTransform.PropagationCriterion propagationStop = null;
+        List<Region> seeds = null;
         if (method.equals(FOREGROUND_SELECTION_METHOD.GLOBAL) || method.equals(FOREGROUND_SELECTION_METHOD.LOCAL)) {
             // first propagation with threshold on hessian map
             config.propagationCriterion(new WatershedTransform.ThresholdPropagation(watershedMap, 0, false));
             RegionPopulation popTemp = WatershedTransform.watershed(watershedMap, parent.getMask(), localExtrema, config);
+            seeds = popTemp.getRegions();
             if (!popTemp.getRegions().isEmpty()) {
                 Neighborhood n = Filters.getNeighborhood(1.5, 1, parent.getMask());
                 ImageInteger labelMap = (ImageInteger) Filters.applyFilter(popTemp.getLabelMap(), null, new Filters.BinaryMaxLabelWise(), n, false);
@@ -97,7 +106,7 @@ public class HessianWatershedSegmenter implements Segmenter, TestableProcessingP
                     propagationStop = new WatershedTransform.LocalThresholdPropagation(input, thresholdMap, true);
                     if (stores != null) Core.userLog("WatershedSegmenter: propagation Thld: " + thresholdMap);
                 }
-            }
+            } else return new RegionPopulation(null, parent.getMaskProperties());
         } else if (method.equals(FOREGROUND_SELECTION_METHOD.THRESHOLD)) {
             // set propagation criterion
             Image propEndMap = propagationThresholdOnInputImage.getSelected() ? input : watershedMap;
@@ -106,9 +115,16 @@ public class HessianWatershedSegmenter implements Segmenter, TestableProcessingP
             if (stores!=null) Core.userLog("WatershedSegmenter: propagation Thld: "+propThld);
         }
         assert propagationStop!=null : "propagation criterion is not defined";
-        if (monotonalPropagation.getSelected()) config.propagationCriterion(monoCrit, propagationStop);
+        if (monotonicPropagation.getSelected()) config.propagationCriterion(monoCrit, propagationStop);
         else config.propagationCriterion(propagationStop);
-        RegionPopulation pop = WatershedTransform.watershed(watershedMap, parent.getMask(), localExtrema, config);
+        RegionPopulation pop = seeds ==null ? WatershedTransform.watershed(watershedMap, parent.getMask(), localExtrema, config) : WatershedTransform.watershed(watershedMap, parent.getMask(), seeds, config);
+
+        if (mergeConnectedRegions.getSelected()) {
+            SplitAndMergeEdge sm = new SplitAndMergeEdge(watershedMap, input, mergeThreshold.getValue().doubleValue(), normalizeEdgeValues.getSelected());
+            if (stores!=null) stores.get(parent).addIntermediateImage("edge values", sm.drawInterfaceValues(pop));
+            pop = sm.merge(pop, null);
+        }
+
         if (stores!=null) {
             if (stores.get(parent).isExpertMode()) stores.get(parent).addIntermediateImage("local extrema", localExtrema);
             stores.get(parent).addIntermediateImage("watershed map", watershedMap);
@@ -118,7 +134,7 @@ public class HessianWatershedSegmenter implements Segmenter, TestableProcessingP
     
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{hessianScale, localExtremaRadius, foregroundSelMethodCond, monotonalPropagation};
+        return new Parameter[]{hessianScale, localExtremaRadius, foregroundSelMethodCond, monotonicPropagation, mergeCond};
     }
     Map<SegmentedObject, TestDataStore> stores;
     @Override
