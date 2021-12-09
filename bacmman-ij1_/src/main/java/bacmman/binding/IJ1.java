@@ -51,9 +51,9 @@ public class IJ1 implements PlugIn {
         IJImageWindowManager man = new IJImageWindowManager(null, disp);
         ImageWindowManagerFactory.setImageDisplayer(disp, man);
         Core.getCore();
-        Core.setFreeDisplayerMemory(()->man.flush());
-        Core.setImageDisplayer(i -> disp.showImage(i));
-        Core.setImage5dDisplayer((s, i) -> disp.showImage5D(s, i));
+        Core.setFreeDisplayerMemory(man::flush);
+        Core.setImageDisplayer(disp::showImage);
+        Core.setImage5dDisplayer(disp::showImage5D);
     }
 
     public static void main(String[] args) {
@@ -73,7 +73,7 @@ public class IJ1 implements PlugIn {
                     String lookAndFeel = null;
                     Map<String, LookAndFeelInfo> lafMap = Arrays.asList(UIManager.getInstalledLookAndFeels()).stream().collect(Collectors.toMap(LookAndFeelInfo::getName, Function.identity()));
                     logger.info("LookAndFeels {}", lafMap.keySet());
-                    if (lafMap.keySet().contains("Mac OS X")) lookAndFeel="Mac OS X";
+                    if (false && lafMap.keySet().contains("Mac OS X")) lookAndFeel="Mac OS X";
                     else if (lafMap.keySet().contains("Quaqua")) lookAndFeel="Quaqua";
                     else if (lafMap.keySet().contains("Seaglass")) lookAndFeel="Seaglass";
                     else if (lafMap.keySet().contains("Nimbus")) lookAndFeel="Nimbus";

@@ -46,6 +46,47 @@ public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implemen
         }
         is2D = false;
     }
+    public ThresholdMask(Image imageToThreshold, double thresholdLow, boolean thresholdLowStrict, double thresholdHigh, boolean thresholdHighStrict) {
+        super(imageToThreshold);
+        if (thresholdLowStrict && thresholdHighStrict) {
+            insideMask = (x, y, z) -> {
+                double v = imageToThreshold.getPixel(x, y, z);
+                return v > thresholdLow && v < thresholdHigh;
+            };
+            insideMaskXY = (xy, z) -> {
+                double v = imageToThreshold.getPixel(xy, z);
+                return v > thresholdLow && v < thresholdHigh;
+            };
+        } else if (thresholdLowStrict) {
+            insideMask = (x, y, z) -> {
+                double v = imageToThreshold.getPixel(x, y, z);
+                return v > thresholdLow && v <= thresholdHigh;
+            };
+            insideMaskXY = (xy, z) -> {
+                double v = imageToThreshold.getPixel(xy, z);
+                return v > thresholdLow && v <= thresholdHigh;
+            };
+        } else if (thresholdHighStrict) {
+            insideMask = (x, y, z) -> {
+                double v = imageToThreshold.getPixel(x, y, z);
+                return v >= thresholdLow && v < thresholdHigh;
+            };
+            insideMaskXY = (xy, z) -> {
+                double v = imageToThreshold.getPixel(xy, z);
+                return v >= thresholdLow && v < thresholdHigh;
+            };
+        } else {
+            insideMask = (x, y, z) -> {
+                double v = imageToThreshold.getPixel(x, y, z);
+                return v >= thresholdLow && v <= thresholdHigh;
+            };
+            insideMaskXY = (xy, z) -> {
+                double v = imageToThreshold.getPixel(xy, z);
+                return v >= thresholdLow && v <= thresholdHigh;
+            };
+        }
+        is2D = false;
+    }
     /**
      * Construct ThresholdMask2D
      * @param imageToThreshold
