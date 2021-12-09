@@ -250,16 +250,14 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     
     private static BoundingBox getNonNullBound(Image image, int yMin, int yMax) {
         int[] xMinMaxDown = getXMinAndMax(image, yMax);
+        if (yMin==0) {
+            int[] yMinMaxLeft = getYMinAndMax(image, xMinMaxDown[0]);
+            int[] yMinMaxRigth = getYMinAndMax(image, xMinMaxDown[1]);
+            yMin = Math.min(yMinMaxLeft[0], yMinMaxRigth[0]);
+        }
         int[] xMinMaxUp = getXMinAndMax(image, yMin);
         int xMin = Math.max(xMinMaxDown[0], xMinMaxUp[0]);
         int xMax = Math.min(xMinMaxDown[1], xMinMaxUp[1]);
-        if (yMin==0) {
-            int[] yMinMaxLeft = getYMinAndMax(image, xMin);
-            int[] yMinMaxRigth = getYMinAndMax(image, xMax);
-            yMin = Math.max(yMinMaxLeft[0], yMinMaxRigth[0]);
-        }
-
-
         return new SimpleBoundingBox(xMin, xMax, yMin, yMax, image.zMin(), image.zMax());
     }
     
