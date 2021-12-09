@@ -423,7 +423,7 @@ public class DBMapMasterDAO implements MasterDAO {
     @Override
     public void setExperiment(Experiment xp) {
         this.xp=xp;
-        this.xp.setPath(configDir);
+        if (xp.getPath()==null) this.xp.setPath(configDir);
         updateExperiment();
     }
     

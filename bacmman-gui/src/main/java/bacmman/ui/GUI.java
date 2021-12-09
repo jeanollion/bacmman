@@ -3989,11 +3989,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (xp==null) return;
         if (!newXPMenuItemActionPerformed(evt)) return;
 
-        String outputPath = db.getExperiment().getOutputDirectory();
-        String outputImagePath = db.getExperiment().getOutputImageDirectory();
         db.getExperiment().initFromJSONEntry(xp.toJSONEntry());
-        db.getExperiment().setOutputDirectory(outputPath);
-        db.getExperiment().setOutputImageDirectory(outputImagePath);
+        db.getExperiment().setPath(db.getDir());
+        db.getExperiment().setOutputDirectory("Output");
+        db.updateExperiment();
         this.updateConfigurationTabValidity();
     }//GEN-LAST:event_newXPFromTemplateMenuItemActionPerformed
 
