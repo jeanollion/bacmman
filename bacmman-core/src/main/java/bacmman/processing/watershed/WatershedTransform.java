@@ -18,10 +18,7 @@
  */
 package bacmman.processing.watershed;
 
-import bacmman.data_structure.Processor;
-import bacmman.data_structure.Region;
-import bacmman.data_structure.RegionPopulation;
-import bacmman.data_structure.Voxel;
+import bacmman.data_structure.*;
 import bacmman.processing.Filters;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
@@ -34,12 +31,15 @@ import java.util.*;
 
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.utils.HashMapGetCreate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class WatershedTransform {
+    public final static Logger logger = LoggerFactory.getLogger(WatershedTransform.class);
     public enum PropagationType {DIRECT, NORMAL};
     public static class WatershedConfiguration {
         boolean lowConnectivity;
@@ -139,7 +139,7 @@ public class WatershedTransform {
         spotNumber=regionalExtrema.size();
         segmentedMap = ImageInteger.createEmptyLabelImage("segmentationMap", spots.length, watershedMap);
         for (int i = 0; i<regionalExtrema.size(); ++i) spots[i+1] = new Spot(i+1, regionalExtrema.get(i).getVoxels()); // do modify seed objects
-        Processor.logger.trace("watershed transform: number of seeds: {} segmented map type: {}", regionalExtrema.size(), segmentedMap.getClass().getSimpleName());
+        logger.trace("watershed transform: number of seeds: {} segmented map type: {}", regionalExtrema.size(), segmentedMap.getClass().getSimpleName());
         is3D=watershedMap.sizeZ()>1;   
         if (config.propagationCriterion==null) setPropagationCriterion(new DefaultPropagationCriterion());
         else setPropagationCriterion(config.propagationCriterion);
