@@ -319,12 +319,12 @@ public class SegmentedObjectUtils {
 
     public static <T extends SegmentedObject> Map<T, List<T>> splitByParent(Collection<T> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> (T)o.getParent()));
+        return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(o -> (T)o.getParent()));
     }
     
     public static Map<SegmentedObject, List<SegmentedObject>> splitByParentTrackHead(Collection<SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
-        return list.stream().collect(Collectors.groupingBy(o -> o.getParent().getTrackHead()));
+        return list.stream().filter(o -> o.getParent()!=null).collect(Collectors.groupingBy(o -> o.getParent().getTrackHead()));
     }
     
     

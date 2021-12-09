@@ -2949,7 +2949,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private Pair<String, File> promptNewDatasetPath() {
         String defaultRelPath = "";
         String currentDataset = getSelectedExperiment();
-        if (currentDataset==null) {
+        if (currentDataset==null || dsTree.getFileForDataset(currentDataset)==null) {
             File folder = dsTree.getFirstSelectedFolder();
             if (folder!=null) {
                 Path root = Paths.get(dsTree.getRoot().getFile().getAbsolutePath());
@@ -3003,9 +3003,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 return false;
             }
             Experiment xp2 = new Experiment(relPath.key);
-            if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
+            xp2.setPath(db2.getDir());
+            xp2.setOutputDirectory("Output");
             db2.setExperiment(xp2);
-            db2.updateExperiment();
             db2.unlockConfiguration();
             db2.clearCache();
             populateDatasetTree();
@@ -4399,6 +4399,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         db.getExperiment().initFromJSONEntry(xp);
         db.getExperiment().setOutputDirectory(outputPath);
         db.getExperiment().setOutputImageDirectory(outputImagePath);
+        db.updateExperiment();
         this.updateConfigurationTabValidity();
     }//GEN-LAST:event_newDatasetFromGithubMenuItemActionPerformed
     public void updateSelectionListUI() {

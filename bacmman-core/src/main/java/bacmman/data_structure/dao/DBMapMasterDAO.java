@@ -241,7 +241,7 @@ public class DBMapMasterDAO implements MasterDAO {
                 xpFileLock.release();
                 xpFileLock = null;
             } catch (IOException ex) {
-                logger.debug("error realeasing dao lock", ex);
+                logger.debug("error releasing dao lock", ex);
             }
         }
         if (this.xpLockChannel!=null && xpLockChannel.isOpen()) {
@@ -249,7 +249,7 @@ public class DBMapMasterDAO implements MasterDAO {
                 xpLockChannel.close();
                 xpLockChannel = null;
             } catch (IOException ex) {
-                logger.debug("error realeasing dao lock channel", ex);
+                logger.debug("error releasing dao lock channel", ex);
             }
         }
         Path p = getLockedFilePath();
@@ -404,6 +404,8 @@ public class DBMapMasterDAO implements MasterDAO {
                 if (this.experimentChangedFromFile()) {
                     userLog("Could not save configuration");
                     logger.debug("update not done!");
+                    //logger.debug("on file: {}", getXPFromFile().toJSONEntry());
+                    //logger.debug("current: {}", xp.toJSONEntry());
                 }
                 else logger.debug("Update done!");
             } catch (IOException ex) {
@@ -412,7 +414,7 @@ public class DBMapMasterDAO implements MasterDAO {
             }
         } else {
             userLog("Could not update configuration -> configuration null ?" + (xp==null)+ " file read error "+(cfg==null));
-            logger.error("Could not update configuration");
+            logger.error("Could not update configuration -> configuration null ? {} file read error {}", xp==null, cfg==null);
         }
         
         //FileIO.writeToFile(getConfigFile(dbName, false), Arrays.asList(new Experiment[]{xp}), o->o.toJSONEntry().toJSONString());
@@ -421,6 +423,7 @@ public class DBMapMasterDAO implements MasterDAO {
     @Override
     public void setExperiment(Experiment xp) {
         this.xp=xp;
+        this.xp.setPath(configDir);
         updateExperiment();
     }
     
