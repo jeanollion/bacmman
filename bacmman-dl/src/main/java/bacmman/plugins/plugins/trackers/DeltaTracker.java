@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.trackers;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
@@ -31,7 +32,9 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
     private final static Logger logger = LoggerFactory.getLogger(DeltaTracker.class);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model that predict next cell, as in Delta <br />Input: 1) raw image at frame F with values in range [0, 1] 2) raw image at frame F+1 with values in range [0, 1] 3) binary mask of a cell at frame F 4) binary mask of all cells at frame F+1 (input can be either 1 input with the [1, 2, 3, 4]] images concatenated in the last axis or 2 inputs [1,2] and [3,4]. <br />Output: 3 channels, 2nd one contains the predicted 1rst daughter cell and 3rd one the other predicted daughter cell(s)");
     BoundedNumberParameter predictionThld = new BoundedNumberParameter("Probability Threshold", 3, 0.3, 0.001, 1 ).setHint("For each cell C at frame F, a probability map is predicted for all cells at F+1. A cell C' at frame F+1 is considered to be linked to C if the median predicted probability value within C' is greater than this threshold");
-    Parameter[] parameters = new Parameter[]{dlEngine, predictionThld};
+    BooleanParameter tracking2D = new BooleanParameter("2D Tracking", false);
+    BoundedNumberParameter maxStepSize = new BoundedNumberParameter("Maximum Step size", 0, 2048, 1, null);
+    Parameter[] parameters = new Parameter[]{dlEngine, predictionThld, tracking2D, maxStepSize};
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
@@ -45,12 +48,13 @@ public class DeltaTracker implements Tracker, TestableProcessingPlugin, Hint {
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         boolean separateInputChannels = engine.getNumInputArrays() == 2;
-        InputFormatter input = new InputFormatter(structureIdx, parentTrack, predictionThld.getValue().doubleValue(), new int[]{32, 256});
+        int dim = tracking2D.getSelected() ? 256 : 32;
+        InputFormatter input = new InputFormatter(structureIdx, parentTrack, predictionThld.getValue().doubleValue(), new int[]{dim, 256});
         SimpleTrackGraph<DefaultWeightedEdge> graph = SimpleTrackGraph.createWeightedGraph();
         parentTrack.stream().flatMap(p -> p.getChildren(structureIdx)).forEach(graph::addVertex); // populate graph vertex
         Map<Integer, List<SegmentedObject>> segObjects = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> parentTrack.get(i).getChildren(structureIdx).collect(Collectors.toList()));
         // make predictions
-        int stepSize = Math.min(2048, input.length()); // in case there are lots of objects, many images could be created -> process by chunks
+        int stepSize = Math.min(maxStepSize.getValue().intValue(), input.length()); // in case there are lots of objects, many images could be created -> process by chunks
         for (int idx = 0; idx < input.length(); idx += stepSize) {
             logger.debug("processing batch-group {} / {}", (int)Math.ceil(idx/(double)stepSize)+1, (int)Math.ceil((input.length()-2)/(double)stepSize));
             Image[][][] inputs = input.getInput(idx, idx + stepSize, separateInputChannels);
