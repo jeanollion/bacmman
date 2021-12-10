@@ -163,25 +163,26 @@ public class Resize {
                 return Views.interval( Views.extendMirrorSingle( input ), newInterval );
             case BORDER:
             default:
-                return Views.interval( Views.expandBorder( input ), newInterval );
+                return Views.interval( Views.extendBorder( input ), newInterval );
             case ZERO:
-                return Views.interval( Views.expandZero( input ), newInterval );
+                return Views.interval( Views.extendZero( input ), newInterval );
         }
     }
 
     public static Image[] crop(Image input, long[][] coords, long[][] sizes, EXPAND_MODE mode) {
         RandomAccessibleInterval<? extends RealType<?>> in = ImgLib2ImageWrapper.getImage(input);
         RandomAccessible<? extends RealType<?>> inView;
+        if (mode==null) mode = EXPAND_MODE.BORDER;
         switch (mode) {
             case MIRROR:
                 inView = Views.extendMirrorSingle(  in );
                 break;
             case BORDER:
             default:
-                inView = Views.expandBorder(  in );
+                inView = Views.extendBorder(  in );
                 break;
             case ZERO:
-                inView = Views.expandZero( (RandomAccessibleInterval<? extends NumericType>) in );
+                inView = Views.extendZero( (RandomAccessibleInterval<? extends NumericType>) in );
                 break;
         }
         Image[] res = IntStream.range(0, coords.length)

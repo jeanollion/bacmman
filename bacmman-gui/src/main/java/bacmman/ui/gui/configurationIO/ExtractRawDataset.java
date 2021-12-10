@@ -98,7 +98,7 @@ public class ExtractRawDataset extends JDialog {
     BoundedNumberParameter extractZPlaneIdx = new BoundedNumberParameter("Plane Index", 0, 0, 0, null);
     ConditionalParameter<Task.ExtractZAxis> extractZCond = new ConditionalParameter<>(extractZ)
             .setActionParameters(Task.ExtractZAxis.SINGLE_PLANE, extractZPlaneIdx)
-            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis.<em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
+            .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis.<em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");
     private final ConfigurationTreeGenerator outputConfigTree;
     private final MasterDAO mDAO;
     private final List<String> selectedPositions;
@@ -184,7 +184,7 @@ public class ExtractRawDataset extends JDialog {
             zMin.setValue(bounds.zMin());
             zSize.setValue(bounds.sizeZ());
         }
-        if (mode!=null) this.frameChoiceMode.setSelectedEnum(mode);
+        if (mode != null) this.frameChoiceMode.setSelectedEnum(mode);
         else this.frameChoiceMode.setSelectedEnum(null);
         this.nFrames.setValue(nFrames);
         this.extractZ.setSelectedEnum(zAXis);
