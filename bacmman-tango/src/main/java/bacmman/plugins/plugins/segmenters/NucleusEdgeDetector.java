@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import static bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter.splitInTwo;
 
 public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, TestableProcessingPlugin {
-    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 5).setHint("Scale for Gaussian Smooth applied before global scaling. Set 0 as Z-scale for 2D smoothing");
+    ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 5, 1, false).setHint("Scale for Gaussian Smooth applied before global scaling. Set 0 as Z-scale for 2D smoothing");
     PluginParameter<Thresholder> threshold_g = new PluginParameter<>("Global Threshold", Thresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Global threshold applied to the whole image to roughly detect nuclei");
     PluginParameter<Thresholder> threshold_l = new PluginParameter<>("Local Threshold", Thresholder.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold applied to regions detected after the local watershed procedure");
     PreFilterSequence watershedMapFilters = new PreFilterSequence("Watershed Map").add(new ImageFeature().setFeature(ImageFeature.Feature.GRAD).setScale(5)).setHint("Filter sequence to compute the map on which the watershed will be performed");
@@ -65,8 +65,8 @@ public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, Tes
     private Image getSmoothedImage(Image input) {
         if (smoothScale.getScaleXY()>0) {
             double scaleZ = smoothScale.getScaleZ(input.getScaleXY(), input.getScaleZ());
-            if (scaleZ>1) return ImageFeatures.gaussianSmooth(input, smoothScale.getScaleXY(), scaleZ, false);
-            else return ImageOperations.applyPlaneByPlane(input, i -> ImageFeatures.gaussianSmooth(input, smoothScale.getScaleXY(), 1, false), true);
+            if (scaleZ>=1) return ImageFeatures.gaussianSmooth(input, smoothScale.getScaleXY(), scaleZ, false);
+            else return ImageOperations.applyPlaneByPlane(input, i -> ImageFeatures.gaussianSmooth(i, smoothScale.getScaleXY(), 1, false), false);
         }
         return input;
     }
