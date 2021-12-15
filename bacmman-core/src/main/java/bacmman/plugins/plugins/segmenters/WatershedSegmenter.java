@@ -20,7 +20,6 @@ package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
-import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
@@ -28,7 +27,8 @@ import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Thresholder;
 import bacmman.plugins.plugins.thresholders.Percentile;
 import bacmman.processing.Filters;
-import bacmman.processing.neighborhood.Neighborhood;
+import bacmman.processing.ImageFeatures;
+import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
@@ -36,7 +36,6 @@ import ij.process.AutoThresholder;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
 
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  *
@@ -60,6 +59,16 @@ public class WatershedSegmenter implements Segmenter, TestableProcessingPlugin {
     ConditionalParameter<FOREGROUND_SELECTION_METHOD> foregroundSelMethodCond = new ConditionalParameter<>(foregroundSelMethod)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.REGION_INTENSITY, intensityFilter, threshlod, foregroundOverThreshold)
             .setActionParameters(FOREGROUND_SELECTION_METHOD.SEED_AND_PROPAGATION_THRESHOLDS, seedThreshlod, propagationThreshlod, propagationThresholdOnInputImage);
+
+    BooleanParameter mergeConnectedRegions = new BooleanParameter("Merge Neighboring Regions", false).setEmphasized(true).setHint("If true, regions in contact with each other will be merged depending on a criterion on the mean hessian value at the contact area between the two regions");
+    NumberParameter mergeThreshold = new BoundedNumberParameter("Merge Threshold", 5, -1, 0, null).setEmphasized(true).setHint("Lower this value to reduce merging. Set this value according to the test image called <em>edge values</em>");
+    BooleanParameter normalizeEdgeValues = new BooleanParameter("Normalize Edge Values", true).setEmphasized(true).setHint("If true, the mean hessian values is divided by the mean intensity value (influences the <em>Merge Threshold</em> parameter)");
+    BooleanParameter computeHessian = new BooleanParameter("Compute Hessian for Edges", false).setEmphasized(true).setHint("Choose this option if the watershed map does not detect edges. If true the Hessian Max will be computed and used for edges values");
+    ScaleXYZParameter hessianEdges = new ScaleXYZParameter("Hessian Scale", 2, 1, false).setEmphasized(true);
+    ConditionalParameter<Boolean> hessEdgesCond = new ConditionalParameter<>(computeHessian).setActionParameters(true, hessianEdges);
+    ConditionalParameter<Boolean> mergeCond = new ConditionalParameter<>(mergeConnectedRegions).setActionParameters(true, mergeThreshold, normalizeEdgeValues, hessEdgesCond);
+
+
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         // perform watershed on all local extrema
@@ -95,21 +104,28 @@ public class WatershedSegmenter implements Segmenter, TestableProcessingPlugin {
             Image intensityMap = intensityFilter.filter(input, parent.getMask());
             double thld = threshlod.instantiatePlugin().runThresholder(intensityMap, parent);
             int tot = pop.getRegions().size();
-            pop.filter(new RegionPopulation.MeanIntensity(thld, foregroundOverThreshold.getSelected(), intensityMap));
+            if (stores!=null) stores.get(parent).addIntermediateImage("intensity map before filtering", EdgeDetector.generateRegionValueMap(pop, input));
+            pop.filter(new RegionPopulation.QuantileIntensity(thld, foregroundOverThreshold.getSelected(), intensityMap));
+
             if (stores!=null) {
-                stores.get(parent).addIntermediateImage("intensity Map", intensityMap);
+                if (!intensityFilter.isEmpty()) stores.get(parent).addIntermediateImage("intensity Map", intensityMap);
                 logger.debug("WatershedSegmenter: threshold: {}, kept: {}/{}", thld, pop.getRegions().size(), tot);
                 Core.userLog("WatershedSegmenter: threshold: "+thld);
             }
         }
-
+        if (mergeConnectedRegions.getSelected()) {
+            Image smMap =  computeHessian.getSelected() ? ImageFeatures.getHessian(input, hessianEdges.getScaleXY(), hessianEdges.getScaleZ(input.getScaleXY(), input.getScaleZ()), false)[0] : watershedMap;
+            SplitAndMergeEdge sm = new SplitAndMergeEdge(smMap, input, mergeThreshold.getValue().doubleValue(), normalizeEdgeValues.getSelected());
+            if (stores!=null) stores.get(parent).addIntermediateImage("edge values", sm.drawInterfaceValues(pop));
+            pop = sm.merge(pop, null);
+        }
 
         return pop;
     }
     
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{watershedMapFilters, decreasePropagation, localExtremaRadius, foregroundSelMethodCond};
+        return new Parameter[]{watershedMapFilters, decreasePropagation, localExtremaRadius, foregroundSelMethodCond, mergeCond};
     }
     Map<SegmentedObject, TestDataStore> stores;
     @Override

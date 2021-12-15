@@ -150,14 +150,47 @@ public class Resize {
                 return Views.interval( Views.extendMirrorSingle( input ), newInterval );
             case BORDER:
             default:
-                return Views.interval( Views.expandBorder( input ), newInterval );
+                return Views.interval( Views.extendBorder( input ), newInterval );
             case ZERO:
-                return Views.interval( Views.expandZero( input ), newInterval );
+                return Views.interval( Views.extendZero( input ), newInterval );
         }
     }
 
     public static <T extends RealType<T>> RandomAccessibleInterval<T> crop(RandomAccessibleInterval<T> input, long[] coords, long[] sizes, EXPAND_MODE mode) {
         FinalInterval newInterval = FinalInterval.createMinSize(coords, sizes);
+        switch (mode) {
+            case MIRROR:
+                return Views.interval( Views.extendMirrorSingle( input ), newInterval );
+            case BORDER:
+            default:
+                return Views.interval( Views.extendBorder( input ), newInterval );
+            case ZERO:
+                return Views.interval( Views.extendZero( input ), newInterval );
+        }
+    }
+
+    public static <T extends Image<T>> T pad(T input, EXPAND_MODE mode, BoundingBox newBounds) {
+        Img in = ImgLib2ImageWrapper.getImage(input);
+        return (T)ImgLib2ImageWrapper.wrap(pad(in, mode, newBounds));
+    }
+
+    public static <T extends RealType<T>> RandomAccessibleInterval<T> pad(RandomAccessibleInterval<T> input, EXPAND_MODE mode, BoundingBox newBounds) {
+        long[] oldDims = Intervals.dimensionsAsLongArray(input);
+        assert oldDims.length<=3 : "only available for up to 3D images";
+        long[] mins = new long[oldDims.length];
+        long[] sizes = new long[oldDims.length];
+        mins[0] = -newBounds.xMin();
+        sizes[0] = newBounds.sizeX();
+        if (mins.length>1) {
+            mins[1] = -newBounds.yMin();
+            sizes[1] = newBounds.sizeY();
+            if (mins.length > 2) {
+                mins[2] = -newBounds.zMin();
+                sizes[2] = newBounds.sizeZ();
+            }
+        }
+
+        FinalInterval newInterval = FinalInterval.createMinSize(mins, sizes);
         switch (mode) {
             case MIRROR:
                 return Views.interval( Views.extendMirrorSingle( input ), newInterval );

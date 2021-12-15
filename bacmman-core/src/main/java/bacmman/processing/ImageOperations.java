@@ -25,6 +25,7 @@ import bacmman.image.wrappers.IJImageWrapper;
 
 import static bacmman.image.BoundingBox.loop;
 
+import bacmman.plugins.Plugin;
 import bacmman.utils.DoubleStatistics;
 import java.util.ArrayList;
 import java.util.List;
@@ -34,6 +35,9 @@ import bacmman.utils.Utils;
 import static bacmman.utils.Utils.parallele;
 import ij.ImagePlus;
 import ij.process.StackProcessor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Collection;
 import java.util.Map;
 import java.util.Random;
@@ -46,6 +50,7 @@ import java.util.stream.DoubleStream;
  * @author Jean Ollion
  */
 public class ImageOperations {
+    public final static Logger logger = LoggerFactory.getLogger(ImageOperations.class);
     /**
      * Adds a random value (norm in [0;1[, divided by 10^{@param decimal}) to each pixels of the image.
      * @param input 
