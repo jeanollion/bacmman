@@ -56,6 +56,7 @@ import javax.swing.JPopupMenu;
 import javax.swing.JSeparator;
 import javax.swing.SwingUtilities;
 
+import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -308,7 +309,7 @@ public class SelectionUtils {
         List<SegmentedObject> parentList = new ArrayList<>(parents);
         Collections.sort(parentList);
         
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx());
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), GUI.defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.FRAME_STACK);
         ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(displayStructureIdx, true), i, displayStructureIdx, true);
     }
         

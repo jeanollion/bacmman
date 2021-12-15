@@ -19,15 +19,18 @@
 package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.ui.GUI;
+import bacmman.ui.gui.image_interaction.IJVirtualStack;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.data_structure.Processor;
 import bacmman.core.Task;
+import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
@@ -40,7 +43,6 @@ import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import bacmman.utils.Pair;
 
-import java.util.function.IntFunction;
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -203,7 +205,8 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     class TrackNodeUI {
         TrackNode trackNode;
         JMenuItem[] actions;
-        JMenuItem[] openRaw;
+        JMenuItem[] openKymograph;
+        JMenuItem[] openFrames;
         JMenuItem[] runSegAndTracking;
         JMenuItem[] runTracking;
         JMenuItem[] createSelection;
@@ -223,21 +226,25 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             int[] currentAndChildOCIdx = IntStream.concat(IntStream.of(trackNode.trackHead.getStructureIdx()), IntStream.of(trackNode.trackHead.getExperimentStructure().getAllChildStructures(trackNode.trackHead.getStructureIdx()))).toArray();
             String[] currentAndChildOCNames = trackNode.trackHead.getExperimentStructure().getObjectClassesNames(currentAndChildOCIdx);
             noChildStructure = childStructureNames.length==0;
-            this.actions = new JMenuItem[7];
-            JMenu rawSubMenu = new JMenu("Open Kymograph");
-            actions[0] = rawSubMenu;
+            boolean frameStack = Core.enableFrameStackView;
+            this.actions = new JMenuItem[frameStack?8:7];
+            JMenu kymographSubMenu = new JMenu("Open Kymograph");
+            actions[0] = kymographSubMenu;
+            int idx = 1;
+            JMenu framesSubMenu = new JMenu("Open FrameStack");
+            if (frameStack) actions[idx++] = framesSubMenu;
             JMenu runSegAndTrackingSubMenu = new JMenu("Run segmentation and tracking");
-            actions[1] = runSegAndTrackingSubMenu;
+            actions[idx++] = runSegAndTrackingSubMenu;
             JMenu runTrackingSubMenu = new JMenu("Run tracking");
-            actions[2] = runTrackingSubMenu;
+            actions[idx++] = runTrackingSubMenu;
             JMenu createSelectionSubMenu = new JMenu("Create Selection");
-            actions[3] = createSelectionSubMenu;
+            actions[idx++] = createSelectionSubMenu;
             addToSelection = new JMenuItem("Add to Selected Selection(s)");
-            actions[4] = addToSelection;
+            actions[idx++] = addToSelection;
             removeFromSelection = new JMenuItem("Remove from Selected Selection(s)");
-            actions[5] = removeFromSelection;
+            actions[idx++] = removeFromSelection;
             delete = new JMenuItem("Delete");
-            actions[6] = delete;
+            actions[idx++] = delete;
             //delete.setEnabled(false);
             delete.setAction(new AbstractAction("Delete") {
                 @Override public void actionPerformed(ActionEvent e) {
@@ -247,24 +254,46 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 }
             });
             
-            openRaw=new JMenuItem[structureNames.length];
-            for (int i = 0; i < openRaw.length; i++) {
-                openRaw[i] = new JMenuItem(structureNames[i]);
-                openRaw[i].setAction(new AbstractAction(structureNames[i]) {
+            openKymograph =new JMenuItem[structureNames.length];
+            for (int i = 0; i < openKymograph.length; i++) {
+                openKymograph[i] = new JMenuItem(structureNames[i]);
+                openKymograph[i].setAction(new AbstractAction(structureNames[i]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
                             //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
                             //trackNode.loadAllTrackObjects(path);
                             int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx);
+                            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
                             if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
                             GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                             GUI.getInstance().setTrackStructureIdx(structureIdx);
                         }
                     }
                 );
-                rawSubMenu.add(openRaw[i]);
+                kymographSubMenu.add(openKymograph[i]);
+            }
+            if (frameStack) {
+                openFrames = new JMenuItem[structureNames.length];
+                for (int i = 0; i < openFrames.length; i++) {
+                    openFrames[i] = new JMenuItem(structureNames[i]);
+                    openFrames[i].setAction(new AbstractAction(structureNames[i]) {
+                                                @Override
+                                                public void actionPerformed(ActionEvent ae) {
+                                                    if (GUI.logger.isDebugEnabled())  GUI.logger.debug("opening frameStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
+                                                    //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
+                                                    //trackNode.loadAllTrackObjects(path);
+                                                    int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
+                                                    InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx, InteractiveImageKey.TYPE.FRAME_STACK);
+                                                    if (i != null)
+                                                        IJVirtualStack.openVirtual(getTrack(), structureIdx, structureIdx); // TODO made this method generic
+                                                    GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                                                    GUI.getInstance().setTrackStructureIdx(structureIdx);
+                                                }
+                                            }
+                    );
+                    framesSubMenu.add(openFrames[i]);
+                }
             }
             runSegAndTracking = new JMenuItem[childStructureNames.length];
             for (int i = 0; i < runSegAndTracking.length; i++) {

@@ -62,7 +62,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME);
+        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx);
     }
 
     public BoundingBox[] getOffsets() {

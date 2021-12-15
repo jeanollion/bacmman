@@ -50,6 +50,10 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
     static Logger logger = LoggerFactory.getLogger(IJImageDisplayer.class);
     protected HashMap<Image, ImagePlus> displayedImages=new HashMap<>();
     protected HashMap<ImagePlus, Image> displayedImagesInv=new HashMap<>();
+    public void putImage(Image image, ImagePlus displayedImage) {
+        displayedImages.put(image, displayedImage);
+        displayedImagesInv.put(displayedImage, image);
+    }
     @Override public ImagePlus showImage(Image image, double... displayRange) {
         /*if (IJ.getInstance()==null) {
             ij.ImageJ.main(new String[0]);

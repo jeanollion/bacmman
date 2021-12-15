@@ -22,13 +22,10 @@ import bacmman.data_structure.Measurements;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.image.*;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.ui.GUI;
 import bacmman.core.DefaultWorker;
-import bacmman.image.BoundingBox;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Image;
-import bacmman.image.SimpleBoundingBox;
 
 import java.awt.Color;
 import java.awt.Component;
@@ -41,7 +38,6 @@ import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.lang.reflect.Constructor;
-import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.Map.Entry;
@@ -61,7 +57,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.function.Predicate;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -98,12 +96,14 @@ public abstract class ImageWindowManager<I, U, V> {
     ZoomPane localZoom;
     // displayed objects 
     protected final Map<Pair<SegmentedObject, BoundingBox>, U> objectRoiMap = new HashMap<>();
+    protected final Map<Pair<SegmentedObject, SegmentedObject>, V> parentTrackHeadKymographTrackRoiMap=new HashMap<>();
     protected final Map<Pair<SegmentedObject, SegmentedObject>, V> parentTrackHeadTrackRoiMap=new HashMap<>();
     protected final Map<Pair<SegmentedObject, BoundingBox>, U> labileObjectRoiMap = new HashMap<>();
     protected final Map<Pair<SegmentedObject, SegmentedObject>, V> labileParentTrackHeadTrackRoiMap=new HashMap<>();
+    protected final Map<Pair<SegmentedObject, SegmentedObject>, V> labileParentTrackHeadKymographTrackRoiMap=new HashMap<>();
     protected final HashMapGetCreate<Image, Set<U>> displayedLabileObjectRois = new HashMapGetCreate<>(new SetFactory<>());
     protected final HashMapGetCreate<Image, Set<V>> displayedLabileTrackRois = new HashMapGetCreate<>(new SetFactory<>());
-    
+
     protected final Map<Image, DefaultWorker> runningWorkers = new HashMap<>();
     
     public ImageWindowManager(ImageObjectListener listener, ImageDisplayer<I> displayer) {
@@ -191,9 +191,11 @@ public abstract class ImageWindowManager<I, U, V> {
         if (!objectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", objectRoiMap.size());
         objectRoiMap.clear();
         parentTrackHeadTrackRoiMap.clear();
+        parentTrackHeadKymographTrackRoiMap.clear();
         if (!labileObjectRoiMap.isEmpty()) logger.debug("flush: will remove {} rois", labileObjectRoiMap.size());
         labileObjectRoiMap.clear();
         labileParentTrackHeadTrackRoiMap.clear();
+        labileParentTrackHeadKymographTrackRoiMap.clear();
         displayedLabileObjectRois.clear();
         displayedLabileTrackRois.clear();
         displayer.flush();
@@ -226,12 +228,12 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.error("cannot get image if IOI null");
             return null;
         }
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i.childStructureIdx, i instanceof Kymograph ? InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH : InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
+        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i instanceof Kymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.SINGLE_FRAME, i.childStructureIdx));
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
     public Image getImage(InteractiveImage i, int displayStructureIdx) {
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, displayStructureIdx, i instanceof Kymograph ? InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH : InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
+        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i instanceof Kymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.SINGLE_FRAME, displayStructureIdx));
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
@@ -250,14 +252,37 @@ public abstract class ImageWindowManager<I, U, V> {
             imageObjectInterfaces.put(i.getKey(), i);
         }
         //T dispImage = getImage(image);
-        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, displayedStructureIdx, i instanceof Kymograph ? InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH : InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
+        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, i instanceof Kymograph ? ( i instanceof KymographT ? InteractiveImageKey.TYPE.FRAME_STACK : InteractiveImageKey.TYPE.KYMOGRAPH) : InteractiveImageKey.TYPE.SINGLE_FRAME, displayedStructureIdx));
         if (displayImage) {
             displayImage(image, i);
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
         }
         
     }
-    
+    public void addFrameStack(Image image, I displayedImage, InteractiveImage i) {
+        logger.debug("adding frame stack: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
+        if (!imageObjectInterfaces.containsValue(i)) {
+            //throw new RuntimeException("image object interface should be created through the manager");
+            imageObjectInterfaces.put(i.getKey(), i);
+        }
+        //T dispImage = getImage(image);
+        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, InteractiveImageKey.TYPE.FRAME_STACK, i.childStructureIdx));
+        displayedInteractiveImages.add(image);
+        displayer.putImage(image, displayedImage);
+        addMouseListener(image);
+        addWindowClosedListener(image, e-> {
+            DefaultWorker w = runningWorkers.get(image);
+            if (w!=null) {
+                GUI.logger.debug("interrupting generation of closed image: {}", image.getName());
+                w.cancel(true);
+            }
+            displayedInteractiveImages.remove(image);
+            return null;
+        });
+        GUI.updateRoiDisplayForSelections(image, i);
+        closeLastActiveImages(displayedImageNumber);
+    }
+
     public void displayImage(Image image, InteractiveImage i) {
         long t0 = System.currentTimeMillis();
         displayer.showImage(image);
@@ -332,28 +357,28 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     
     public void resetImageObjectInterface(SegmentedObject parent, int childStructureIdx) {
-        for (InteractiveImageKey.IMAGE_TYPE it : InteractiveImageKey.IMAGE_TYPE.values()) imageObjectInterfaces.remove(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx, it));
+        for (InteractiveImageKey.TYPE it : InteractiveImageKey.TYPE.values()) imageObjectInterfaces.remove(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, it, childStructureIdx));
     }
     
     public InteractiveImage getImageObjectInterface(SegmentedObject parent, int childStructureIdx, boolean createIfNotExisting) {
-        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
+        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(parent);}}, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx));
         if (i==null && createIfNotExisting) {
             i= new SimpleInteractiveImage(parent, childStructureIdx);
             imageObjectInterfaces.put(i.getKey(), i);
         } 
         return i;
     }
-    public InteractiveImage getImageTrackObjectInterface(List<SegmentedObject> parentTrack, int childStructureIdx) {
+    public InteractiveImage getImageTrackObjectInterface(List<SegmentedObject> parentTrack, int childStructureIdx, InteractiveImageKey.TYPE type) {
         
         if (parentTrack.isEmpty()) {
             GUI.logger.warn("cannot create kymograph with parent track of length == 0" );
             return null;
         }
-        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(parentTrack, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH));
-        GUI.logger.debug("getIOI: hash: {} ({}), exists: {}, trackHeadTrackMap: {}", parentTrack.hashCode(), new InteractiveImageKey(parentTrack, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
+        InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(parentTrack, type, childStructureIdx));
+        GUI.logger.debug("getIOI: hash: {} ({}), exists: {}, trackHeadTrackMap: {}", parentTrack.hashCode(), new InteractiveImageKey(parentTrack, type, childStructureIdx).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
         if (i==null) {
             long t0 = System.currentTimeMillis();
-            i = Kymograph.generateKymograph(parentTrack, childStructureIdx);
+            i = Kymograph.generateKymograph(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.FRAME_STACK));
             long t1 = System.currentTimeMillis();
             imageObjectInterfaces.put(i.getKey(), i);
             trackHeadTrackMap.getAndCreateIfNecessary(parentTrack.get(0)).add(parentTrack);
@@ -367,7 +392,7 @@ public abstract class ImageWindowManager<I, U, V> {
     protected void reloadObjects__(InteractiveImageKey key) {
         InteractiveImage i = imageObjectInterfaces.get(key);
         if (i!=null) {
-            GUI.logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.displayedStructureIdx);
+            GUI.logger.debug("reloading object for parentTrackHead: {} structure: {}", key.parent.get(0), key.interactiveObjectClass);
             i.reloadObjects();
         }
     }
@@ -375,10 +400,10 @@ public abstract class ImageWindowManager<I, U, V> {
         if (track) parent=parent.getTrackHead();
         if (!trackHeadTrackMap.containsKey(parent)) {
             final SegmentedObject p = parent;
-            reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.SINGLE_FRAME));
+            reloadObjects__(new InteractiveImageKey(new ArrayList<SegmentedObject>(1){{add(p);}}, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx));
         } else {
             for (List<SegmentedObject> l : trackHeadTrackMap.get(parent)) {
-                for (InteractiveImageKey.IMAGE_TYPE it : InteractiveImageKey.IMAGE_TYPE.values()) reloadObjects__(new InteractiveImageKey(l, childStructureIdx, it));
+                for (InteractiveImageKey.TYPE it : InteractiveImageKey.TYPE.values()) reloadObjects__(new InteractiveImageKey(l, it, childStructureIdx));
             }
         }
     }
@@ -402,7 +427,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public InteractiveImage getCurrentImageObjectInterface() {
         I current = getDisplayer().getCurrentImage();
         if (current!=null) {
-            RegisteredImageType type = this.getRegisterType(current);
+            //RegisteredImageType type = this.getRegisterType(current);
             Image im = getDisplayer().getImage(current);
             if (im!=null) {
                 return getImageObjectInterface(im);
@@ -414,15 +439,33 @@ public abstract class ImageWindowManager<I, U, V> {
         return imageObjectInterfaceMap.get(image);
     }
     public InteractiveImage getImageObjectInterface(Image image) {
+        InteractiveImage i = getImageObjectInterface(image, InteractiveImageKey.TYPE.KYMOGRAPH);
+        if (i!=null) return i;
+        return getImageObjectInterface(image, InteractiveImageKey.TYPE.FRAME_STACK);
+    }
+    public InteractiveImage getImageObjectInterface(Image image, InteractiveImageKey.TYPE type) {
         if (image==null) {
             image = getDisplayer().getCurrentImage2();
             if (image==null) return null;
         }
         InteractiveImageKey key = imageObjectInterfaceMap.get(image);
         if (key==null) return null;
-        return getImageObjectInterface(image, interactiveStructureIdx); // use the interactive structure. Creates the ImageObjectInterface if necessary 
+        return getImageObjectInterface(image, interactiveStructureIdx, type); // use the interactive structure. Creates the ImageObjectInterface if necessary
     }
+
     public InteractiveImage getImageObjectInterface(Image image, int structureIdx) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage2();
+            if (image==null) {
+                return null;
+            }
+        }
+        InteractiveImageKey key = imageObjectInterfaceMap.get(image);
+        if (key==null) return null;
+        return  this.imageObjectInterfaces.get(key.getKey(structureIdx));
+    }
+
+    public InteractiveImage getImageObjectInterface(Image image, int structureIdx, InteractiveImageKey.TYPE type) {
         if (image==null) {
             image = getDisplayer().getCurrentImage2();
             if (image==null) {
@@ -439,7 +482,7 @@ public abstract class ImageWindowManager<I, U, V> {
             if (ref==null) GUI.logger.error("IOI not found: ref: {} ({}), all IOI: {}", key, key.getKey(-1), imageObjectInterfaces.keySet());
             else GUI.logger.debug("creating IOI: ref: {}", ref);
             // create imageObjectInterface
-            if (ref instanceof Kymograph) i = this.getImageTrackObjectInterface(((Kymograph)ref).parents, structureIdx);
+            if (ref instanceof Kymograph) i = this.getImageTrackObjectInterface((ref).parents, structureIdx, type);
             else i = this.getImageObjectInterface(ref.parents.get(0), structureIdx, true);
             this.imageObjectInterfaces.put(i.getKey(), i);
         } 
@@ -554,7 +597,7 @@ public abstract class ImageWindowManager<I, U, V> {
             return;
         }
         Collection<SegmentedObject> objects = Pair.unpairKeys(i.getObjects());
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects, true);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects, !(i instanceof KymographT));
         //for (Entry<StructureObject, List<StructureObject>> e : allTracks.entrySet()) logger.debug("th:{}->{}", e.getKey(), e.getValue());
         displayTracks(image, i, allTracks.values(), true);
         //if (listener!=null) 
@@ -563,9 +606,8 @@ public abstract class ImageWindowManager<I, U, V> {
     
     public abstract void displayObject(I image, U roi);
     public abstract void hideObject(I image, U roi);
-    protected abstract U generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color);
-    protected abstract void setObjectColor(U roi, Color color);
-    
+    protected abstract U generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color, int frameIdx);
+    protected abstract void setRoiAttributes(U roi, Color color, int frameIdx, Offset location);
     public void setRoiModifier(RoiModifier<U> modifier) {this.roiModifier=modifier;}
     RoiModifier<U> roiModifier;
     public static interface RoiModifier<U> {
@@ -585,16 +627,28 @@ public abstract class ImageWindowManager<I, U, V> {
         Set<U> labiles = labileObjects ? this.displayedLabileObjectRois.getAndCreateIfNecessary(image) : null;
         Map<Pair<SegmentedObject, BoundingBox>, U> map = labileObjects ? this.labileObjectRoiMap : objectRoiMap;
         long t0 = System.currentTimeMillis();
+        ToIntFunction<SegmentedObject> getFrame = o -> 1;
+        InteractiveImage i =  getImageObjectInterface(image, objectsToDisplay.iterator().next().key.getStructureIdx());
+        if (i!=null) {
+            if (i instanceof KymographT) {
+                Map<Integer, Integer> frameMapIdx = IntStream.range(0, i.getParents().size()).boxed().collect(Collectors.toMap(idx->i.getParents().get(idx).getFrame(), idx->idx));
+                getFrame = o -> {
+                    Integer frameIdx = frameMapIdx.get(o.getFrame());
+                    if (frameIdx!=null) return frameIdx;
+                    return -1;
+                };
+            }
+        }
         for (Pair<SegmentedObject, BoundingBox> p : objectsToDisplay) {
             if (p==null || p.key==null) continue;
+            int frame = getFrame.applyAsInt(p.key);
+            if (frame<0) continue;
             //logger.debug("getting mask of object: {}", o);
             U roi=map.get(p);
             if (roi==null) {
-                roi = generateObjectRoi(p, color);
+                roi = generateObjectRoi(p, color, frame);
                 map.put(p, roi);
                 //if (!labileObjects) logger.debug("add non labile object: {}, found by keyonly? {}", p.key, map.containsKey(new Pair(p.key, null)));
-            } else {
-                setObjectColor(roi, color);
             }
             if (roiModifier!=null) roiModifier.modifyRoi(p, roi, objectsToDisplay);
             if (labileObjects) {
@@ -602,19 +656,25 @@ public abstract class ImageWindowManager<I, U, V> {
                     if (hideIfAlreadyDisplayed) {
                         hideObject(dispImage, roi);
                         labiles.remove(roi);
-                        GUI.logger.debug("display -> inverse state: hide: {}", p.key);
-                        Object attr = new HashMap<String, Object>(0);
+                        //logger.debug("display -> inverse state: hide: {}", p.key);
+                        /*Object attr = new HashMap<String, Object>(0);
                         try {
-                            Field attributes = SegmentedObject.class.getDeclaredField("attributes"); attributes.setAccessible(true);
+                            Field attributes = SegmentedObject.class.getDeclaredField("attributes");
+                            attributes.setAccessible(true);
                             attr = attributes.get(p.key);
                         } catch (Exception e) {}
-                        GUI.logger.debug("isTH: {}, values: {}, attributes: {}", p.key.isTrackHead(), p.key.getMeasurements().getKeys(), attr);
+                        logger.debug("isTH: {}, values: {}, attributes: {}", p.key.isTrackHead(), p.key.getMeasurements().getKeys(), attr);
+                        */
                     }
                 } else {
+                    setRoiAttributes(roi, color, frame, p.value);
                     displayObject(dispImage, roi);
                     labiles.add(roi);
                 }
-            } else displayObject(dispImage, roi);
+            } else {
+                setRoiAttributes(roi, color, frame, p.value);
+                displayObject(dispImage, roi);
+            }
         }
         long t1 = System.currentTimeMillis();
         displayer.updateImageRoiDisplay(image);
@@ -691,9 +751,9 @@ public abstract class ImageWindowManager<I, U, V> {
     
     /// track-related methods
     
-    protected abstract void displayTrack(I image, V roi);
-    protected abstract void hideTrack(I image, V roi);
-    protected abstract V generateTrackRoi(List<Pair<SegmentedObject, BoundingBox>> track, Color color);
+    protected abstract void displayTrack(I image, V roi, InteractiveImage i);
+    protected abstract void hideTrack(I image, V roi, InteractiveImage i);
+    protected abstract V generateTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i);
     protected abstract void setTrackColor(V roi, Color color);
     public void displayTracks(Image image, InteractiveImage i, Collection<List<SegmentedObject>> tracks, boolean labile) {
         if (image==null) {
@@ -725,6 +785,7 @@ public abstract class ImageWindowManager<I, U, V> {
             //logger.debug("image: {}, OI: {}", image.getName(), i.getClass().getSimpleName());
             if (i==null) return;
         }
+        InteractiveImageKey.TYPE type = i.getKey().imageType;
         SegmentedObject trackHead = track.get(track.size()>1 ? 1 : 0).key.getTrackHead(); // idx = 1 because track might begin with previous object
         boolean canDisplayTrack = i instanceof Kymograph;
         //canDisplayTrack = canDisplayTrack && ((TrackMask)i).parent.getTrackHead().equals(trackHead.getParent().getTrackHead()); // same track head
@@ -734,10 +795,10 @@ public abstract class ImageWindowManager<I, U, V> {
             tm.trimTrack(track);
             canDisplayTrack = !track.isEmpty();
         }
-        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? labileParentTrackHeadTrackRoiMap : parentTrackHeadTrackRoiMap;
+        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? ((i instanceof KymographT) ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap ) : ((i instanceof KymographT) ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
         if (canDisplayTrack) { 
-            if (i.getKey().displayedStructureIdx!=trackHead.getStructureIdx()) {
-                i = getImageTrackObjectInterface(((Kymograph)i).parents, trackHead.getStructureIdx());
+            if (i.getKey().interactiveObjectClass != trackHead.getStructureIdx()) {
+                i = getImageTrackObjectInterface(((Kymograph)i).parents, trackHead.getStructureIdx(), type);
             }
             if (((Kymograph)i).getParent()==null) GUI.logger.error("Track mask parent null!!!");
             else if (((Kymograph)i).getParent().getTrackHead()==null) GUI.logger.error("Track mask parent trackHead null!!!");
@@ -746,10 +807,10 @@ public abstract class ImageWindowManager<I, U, V> {
             if (labile) disp = displayedLabileTrackRois.getAndCreateIfNecessary(image);
             V roi = map.get(key);
             if (roi==null) {
-                roi = generateTrackRoi(track, color);
+                roi = generateTrackRoi(i.parents,track, color, i);
                 map.put(key, roi);
             } else setTrackColor(roi, color);
-            if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi);
+            if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi ,i);
             if (disp!=null) disp.add(roi);
             displayer.updateImageRoiDisplay(image);
         } else GUI.logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof Kymograph);
@@ -769,11 +830,11 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         Set<V> disp = this.displayedLabileTrackRois.get(image);
         SegmentedObject parentTrackHead = i.getParent().getTrackHead();
-        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? labileParentTrackHeadTrackRoiMap : parentTrackHeadTrackRoiMap;
+        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? ((i instanceof KymographT) ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap ) : ((i instanceof KymographT) ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
         for (SegmentedObject th : trackHeads) {
             V roi=map.get(new Pair(parentTrackHead, th));
             if (roi!=null) {
-                hideTrack(dispImage, roi);
+                hideTrack(dispImage, roi ,i);
                 if (disp!=null) disp.remove(roi);
             }
         }
@@ -805,9 +866,10 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         Set<V> tracks = this.displayedLabileTrackRois.get(image);
         if (tracks!=null) {
+            InteractiveImage i=this.getImageObjectInterface(image);
             I dispImage = displayer.getImage(image);
             if (dispImage==null) return;
-            for (V roi: tracks) displayTrack(dispImage, roi);
+            for (V roi: tracks) displayTrack(dispImage, roi, i);
             displayer.updateImageRoiDisplay(image);
         }
     }
@@ -820,7 +882,8 @@ public abstract class ImageWindowManager<I, U, V> {
         if (tracks!=null) {
             I dispImage = displayer.getImage(image);
             if (dispImage==null) return;
-            for (V roi: tracks) hideTrack(dispImage, roi);
+            InteractiveImage i=this.getImageObjectInterface(image);
+            for (V roi: tracks) hideTrack(dispImage, roi, i);
             displayer.updateImageRoiDisplay(image);
             //if (listener!=null) listener.fireTracksDeselected(getLabileTrackHeads(image));
         }
@@ -844,7 +907,8 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         Set<V> rois = this.displayedLabileTrackRois.get(image);
         if (rois!=null) {
-            List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(labileParentTrackHeadTrackRoiMap, rois);
+            InteractiveImage i = getImageObjectInterface(image);
+            List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof KymographT ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
             List<SegmentedObject> res = unpairValues(pairs);
             Utils.removeDuplicates(res, false);
             return res;
@@ -869,7 +933,9 @@ public abstract class ImageWindowManager<I, U, V> {
         for (SegmentedObject trackHead : trackHeads) {
             Pair k = new Pair(null, trackHead);
             Utils.removeFromMap(labileParentTrackHeadTrackRoiMap, k);
+            Utils.removeFromMap(labileParentTrackHeadKymographTrackRoiMap, k);
             Utils.removeFromMap(parentTrackHeadTrackRoiMap, k);
+            Utils.removeFromMap(parentTrackHeadKymographTrackRoiMap, k);
         }
     }
     
@@ -878,7 +944,9 @@ public abstract class ImageWindowManager<I, U, V> {
         objectRoiMap.clear();
         labileObjectRoiMap.clear();
         labileParentTrackHeadTrackRoiMap.clear();
+        labileParentTrackHeadKymographTrackRoiMap.clear();
         parentTrackHeadTrackRoiMap.clear();
+        parentTrackHeadKymographTrackRoiMap.clear();
     }
     
     public void goToNextTrackError(Image trackImage, List<SegmentedObject> trackHeads, boolean next) {
@@ -914,28 +982,35 @@ public abstract class ImageWindowManager<I, U, V> {
             else minTimePoint++;
         }
         //logger.debug("Current Display range: {}, maxTimePoint: {}, number of selected rois: {}", currentDisplayRange, maxTimePoint, rois.size());
+
         SegmentedObject nextError = next ? getNextError(maxTimePoint, trackHeads) : getPreviousError(minTimePoint, trackHeads);
         if (nextError==null) GUI.logger.info("No errors detected {} timepoint: {}", next? "after": "before", maxTimePoint);
         else {
-            BoundingBox off = tm.getObjectOffset(nextError);
-            if (off==null) trackHeads = new ArrayList<> (trackHeads);
-            while(off==null) {
-                trackHeads.remove(nextError);
-                nextError = getNextObject(nextError.getFrame(), trackHeads, next);
-                if (nextError==null) return;
-                off = tm.getObjectOffset(nextError);
+            if (i instanceof KymographT) {
+                ((KymographT)i).setFrame(nextError.getFrame());
+            } else {
+                BoundingBox off = tm.getObjectOffset(nextError);
+                if (off == null) trackHeads = new ArrayList<>(trackHeads);
+                while (off == null) {
+                    trackHeads.remove(nextError);
+                    nextError = getNextObject(nextError.getFrame(), trackHeads, next);
+                    if (nextError == null) return;
+                    off = tm.getObjectOffset(nextError);
+                }
+                int midX = (off.xMin() + off.xMax()) / 2;
+                if (midX + currentDisplayRange.sizeX() / 2 >= trackImage.sizeX())
+                    midX = trackImage.sizeX() - currentDisplayRange.sizeX() / 2;
+                if (midX - currentDisplayRange.sizeX() / 2 < 0) midX = currentDisplayRange.sizeX() / 2;
+
+                int midY = (off.yMin() + off.yMax()) / 2;
+                if (midY + currentDisplayRange.sizeY() / 2 >= trackImage.sizeY())
+                    midY = trackImage.sizeY() - currentDisplayRange.sizeY() / 2;
+                if (midY - currentDisplayRange.sizeY() / 2 < 0) midY = currentDisplayRange.sizeY() / 2;
+
+                SimpleBoundingBox nextDisplayRange = new SimpleBoundingBox(midX - currentDisplayRange.sizeX() / 2, midX + currentDisplayRange.sizeX() / 2, midY - currentDisplayRange.sizeY() / 2, midY + currentDisplayRange.sizeY() / 2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
+                GUI.logger.info("Error detected @ timepoint: {}, xMid: {}, update display range: {}", nextError.getFrame(), midX, nextDisplayRange);
+                displayer.setDisplayRange(nextDisplayRange, trackImage);
             }
-            int midX = (off.xMin()+off.xMax())/2;
-            if (midX+currentDisplayRange.sizeX()/2>=trackImage.sizeX()) midX = trackImage.sizeX()-currentDisplayRange.sizeX()/2;
-            if (midX-currentDisplayRange.sizeX()/2<0) midX = currentDisplayRange.sizeX()/2;
-            
-            int midY = (off.yMin()+off.yMax())/2;
-            if (midY+currentDisplayRange.sizeY()/2>=trackImage.sizeY()) midY = trackImage.sizeY()-currentDisplayRange.sizeY()/2;
-            if (midY-currentDisplayRange.sizeY()/2<0) midY = currentDisplayRange.sizeY()/2;
-            
-            SimpleBoundingBox nextDisplayRange = new SimpleBoundingBox(midX-currentDisplayRange.sizeX()/2, midX+currentDisplayRange.sizeX()/2, midY-currentDisplayRange.sizeY()/2, midY+currentDisplayRange.sizeY()/2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
-            GUI.logger.info("Error detected @ timepoint: {}, xMid: {}, update display range: {}", nextError.getFrame(), midX,  nextDisplayRange);
-            displayer.setDisplayRange(nextDisplayRange, trackImage);
         }
     }
     /**
@@ -980,32 +1055,39 @@ public abstract class ImageWindowManager<I, U, V> {
             return false;
         }
         else {
-            BoundingBox off = tm.getObjectOffset(nextObject);
-            if (off==null) objects = new ArrayList<>(objects);
-            while(off==null) {
-                objects = new ArrayList<>(objects);
-                objects.remove(nextObject);
-                nextObject = getNextObject(nextObject.getFrame(), objects, next);
-                if (nextObject==null) {
-                    GUI.logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
-                    return false;
+            if (i instanceof KymographT) {
+                return ((KymographT)i).setFrame(nextObject.getFrame());
+            } else {
+                BoundingBox off = tm.getObjectOffset(nextObject);
+                if (off == null) objects = new ArrayList<>(objects);
+                while (off == null) {
+                    objects = new ArrayList<>(objects);
+                    objects.remove(nextObject);
+                    nextObject = getNextObject(nextObject.getFrame(), objects, next);
+                    if (nextObject == null) {
+                        GUI.logger.info("No object detected {} timepoint: {}", next ? "after" : "before", maxTimePoint);
+                        return false;
+                    }
+                    off = tm.getObjectOffset(nextObject);
                 }
-                off = tm.getObjectOffset(nextObject);
+                int midX = (off.xMin() + off.xMax()) / 2;
+                if (midX + currentDisplayRange.sizeX() / 2 >= trackImage.sizeX())
+                    midX = trackImage.sizeX() - currentDisplayRange.sizeX() / 2 - 1;
+                if (midX - currentDisplayRange.sizeX() / 2 < 0) midX = currentDisplayRange.sizeX() / 2;
+
+                int midY = (off.yMin() + off.yMax()) / 2;
+                if (midY + currentDisplayRange.sizeY() / 2 >= trackImage.sizeY())
+                    midY = trackImage.sizeY() - currentDisplayRange.sizeY() / 2 - 1;
+                if (midY - currentDisplayRange.sizeY() / 2 < 0) midY = currentDisplayRange.sizeY() / 2;
+
+                MutableBoundingBox nextDisplayRange = new MutableBoundingBox(midX - currentDisplayRange.sizeX() / 2, midX + currentDisplayRange.sizeX() / 2, midY - currentDisplayRange.sizeY() / 2, midY + currentDisplayRange.sizeY() / 2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
+                if (!nextDisplayRange.equals(currentDisplayRange)) {
+                    GUI.logger.info("Object detected @ timepoint: {}, xMid: {}, update display range: {} (current was: {}", nextObject.getFrame(), midX, nextDisplayRange, currentDisplayRange);
+                    displayer.setDisplayRange(nextDisplayRange, trackImage);
+                    return true;
+                }
+                return false;
             }
-            int midX = (off.xMin()+off.xMax())/2;
-            if (midX+currentDisplayRange.sizeX()/2>=trackImage.sizeX()) midX = trackImage.sizeX()-currentDisplayRange.sizeX()/2-1;
-            if (midX-currentDisplayRange.sizeX()/2<0) midX = currentDisplayRange.sizeX()/2;
-            
-            int midY = (off.yMin()+off.yMax())/2;
-            if (midY+currentDisplayRange.sizeY()/2>=trackImage.sizeY()) midY = trackImage.sizeY()-currentDisplayRange.sizeY()/2-1;
-            if (midY-currentDisplayRange.sizeY()/2<0) midY = currentDisplayRange.sizeY()/2;
-            
-            MutableBoundingBox nextDisplayRange = new MutableBoundingBox(midX-currentDisplayRange.sizeX()/2, midX+currentDisplayRange.sizeX()/2, midY-currentDisplayRange.sizeY()/2, midY+currentDisplayRange.sizeY()/2, currentDisplayRange.zMin(), currentDisplayRange.zMax());
-            if (!nextDisplayRange.equals(currentDisplayRange)) {
-                GUI.logger.info("Object detected @ timepoint: {}, xMid: {}, update display range: {} (current was: {}", nextObject.getFrame(), midX,  nextDisplayRange, currentDisplayRange);
-                displayer.setDisplayRange(nextDisplayRange, trackImage);
-                return true;
-            } return false;
         }
     }
     

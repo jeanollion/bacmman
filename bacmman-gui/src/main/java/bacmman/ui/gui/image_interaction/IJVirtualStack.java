@@ -20,7 +20,10 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.data_structure.SegmentedObject;
 import bacmman.image.SimpleBoundingBox;
+import bacmman.image.io.KymographFactory;
+import bacmman.processing.Resize;
 import bacmman.ui.GUI;
 import ij.ImagePlus;
 import ij.VirtualStack;
@@ -33,6 +36,7 @@ import static bacmman.image.Image.logger;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.List;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -77,7 +81,7 @@ public class IJVirtualStack extends VirtualStack {
         Position f = xp.getPosition(position);
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
-        Image[] bdsC = new Image[xp.getChannelImageCount(preProcessed)];
+        Image[] bdsC = new Image[channels];
         for (int c = 0; c<bdsC.length; ++c) bdsC[c]= preProcessed ? f.getImageDAO().openPreProcessedImage(c, 0) : f.getInputImages().getImage(c, 0);
         if (bdsC[0]==null) {
             GUI.log("No "+(preProcessed ? "preprocessed " : "input")+" images found for position: "+position);
@@ -102,5 +106,41 @@ public class IJVirtualStack extends VirtualStack {
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
+    }
+    public static void openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, int... objectClassIdx) {
+        KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
+        KymographT interactiveImage = new KymographT(data, interactiveOC);
+        openVirtual(parentTrack, interactiveImage, objectClassIdx);
+    }
+    public static void openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, int... objectClassIdx) {
+        if (parentTrack.isEmpty()) return;
+        int[] channelArray = objectClassIdx.length==0 ? new int[]{parentTrack.get(0).getStructureIdx()} : objectClassIdx;
+        int channels = channelArray.length;
+        int frames = parentTrack.size();
+        Image[] bdsC = new Image[channels];
+        for (int c = 0; c<bdsC.length; ++c) bdsC[c]= parentTrack.get(0).getRawImage(channelArray[c]);
+        if (bdsC[0]==null) {
+            GUI.log("Could not open raw images");
+            return;
+        }
+        logger.debug("scale: {}", bdsC[0].getScaleXY());
+        logger.debug("image bounds per channel: {}", Arrays.stream(bdsC).map(Image::getBoundingBox).collect(Collectors.toList()));
+        // case of reference image with only one Z -> duplicate
+        int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
+        int[] fcz = new int[]{frames, channels, maxZ};
+        BiFunction<Integer, Integer, Image> imageOpenerCT  = (c, t) -> interactiveImage.setIdx(t).getImage(channelArray[c], true, Resize.EXPAND_MODE.BORDER);
+        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
+        ImagePlus ip = new ImagePlus();
+        ip.setTitle(("FrameStack of Track: "+parentTrack.get(0).toStringShort()));
+        ip.setStack(s, channels,maxZ, frames);
+        ip.setOpenAsHyperStack(true);
+        Calibration cal = new Calibration();
+        cal.pixelWidth=bdsC[0].getScaleXY();
+        cal.pixelHeight=bdsC[0].getScaleXY();
+        cal.pixelDepth=bdsC[0].getScaleZ();
+        ip.setCalibration(cal);
+        ip.show();
+        ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
+        ImageWindowManagerFactory.getImageManager().addFrameStack(imageOpenerCT.apply(0, 0), ip, interactiveImage);
     }
 }

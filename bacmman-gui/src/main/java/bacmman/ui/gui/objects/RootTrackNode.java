@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.objects;
 
+import bacmman.core.Core;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
@@ -27,6 +28,7 @@ import bacmman.ui.gui.image_interaction.IJVirtualStack;
 import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.core.DefaultWorker;
+import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -210,11 +212,12 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     
     class RootTrackNodeUI {
         JMenuItem openRawAllFrames, openPreprocessedAllFrames;
-        JMenu rawSubMenu, createSelectionSubMenu;
+        JMenu kymographSubMenu, frameStackSubMenu, createSelectionSubMenu;
         Object[] actions;
-        JMenuItem[] openRaw, createSelection;
+        JMenuItem[] openKymograph, openFrameStack, createSelection;
+        boolean frameStack = Core.enableFrameStackView;
         public RootTrackNodeUI() {
-            this.actions = new JMenuItem[4];
+            this.actions = new JMenuItem[frameStack?5:4];
             
             openRawAllFrames = new JMenuItem("Open Input Images");
             actions[0] = openRawAllFrames;
@@ -247,8 +250,8 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 }
             );
             openPreprocessedAllFrames.setEnabled(generator.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
-            rawSubMenu = new JMenu("Open Kymograph");
-            actions[2] = rawSubMenu;
+            kymographSubMenu = new JMenu("Open Kymograph");
+            actions[2] = kymographSubMenu;
             List<String> allObjectClasses = new ArrayList<>();
             for (int sIdx = 0; sIdx<generator.db.getExperiment().getStructureCount(); ++sIdx) {
                 allObjectClasses.add(generator.db.getExperiment().getStructure(sIdx).getName());
@@ -257,10 +260,10 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
             rootAndChildren.add("Viewfield");
             rootAndChildren.addAll(allObjectClasses);
 
-            openRaw=new JMenuItem[allObjectClasses.size()];
-            for (int i = 0; i < openRaw.length; i++) {
-                openRaw[i] = new JMenuItem(allObjectClasses.get(i));
-                openRaw[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
+            openKymograph =new JMenuItem[allObjectClasses.size()];
+            for (int i = 0; i < openKymograph.length; i++) {
+                openKymograph[i] = new JMenuItem(allObjectClasses.get(i));
+                openKymograph[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
@@ -270,19 +273,50 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                 rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
                             } catch (Exception e) { }
                             if (rootTrack!=null) {
-                                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx);
-                                if (i != null)
-                                    ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
+                                InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
+                                if (i != null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
                                 GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                                 GUI.getInstance().setTrackStructureIdx(structureIdx);
                             }
                         }
                     }
                 );
-                rawSubMenu.add(openRaw[i]);
+                kymographSubMenu.add(openKymograph[i]);
+            }
+            int idx = 3;
+            if (frameStack) {
+                frameStackSubMenu = new JMenu("Open FrameStack");
+                actions[idx++] = frameStackSubMenu;
+                openFrameStack = new JMenuItem[allObjectClasses.size()];
+                for (int i = 0; i < openFrameStack.length; i++) {
+                    openFrameStack[i] = new JMenuItem(allObjectClasses.get(i));
+                    openFrameStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
+                                                    @Override
+                                                    public void actionPerformed(ActionEvent ae) {
+                                                        int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
+                                                        if (GUI.logger.isDebugEnabled())
+                                                            GUI.logger.debug("opening frame stack raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
+                                                        List<SegmentedObject> rootTrack = null;
+                                                        try {
+                                                            rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+                                                        } catch (Exception e) {
+                                                        }
+                                                        if (rootTrack != null) {
+                                                            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.FRAME_STACK);
+                                                            // TODO make this method generic for other display modes than IJ
+                                                            IJVirtualStack.openVirtual(rootTrack, structureIdx, structureIdx); // TODO interface for multichannel display
+
+                                                            GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                                                            GUI.getInstance().setTrackStructureIdx(structureIdx);
+                                                        }
+                                                    }
+                                                }
+                    );
+                    frameStackSubMenu.add(openFrameStack[i]);
+                }
             }
             createSelectionSubMenu = new JMenu("Create Selection");
-            actions[3] = createSelectionSubMenu;
+            actions[idx] = createSelectionSubMenu;
             createSelection = new JMenuItem[rootAndChildren.size()];
             for (int i = 0; i < createSelection.length; i++) {
                 createSelection[i] = new JMenuItem(rootAndChildren.get(i));

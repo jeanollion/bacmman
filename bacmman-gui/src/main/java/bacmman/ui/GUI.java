@@ -35,6 +35,7 @@ import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.configurationIO.*;
+import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
@@ -43,12 +44,6 @@ import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.measurement.SelectionExtractor;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.gui.image_interaction.IJVirtualStack;
-import bacmman.ui.gui.image_interaction.InteractiveImage;
-import bacmman.ui.gui.image_interaction.InteractiveImageKey;
-import bacmman.ui.gui.image_interaction.ImageObjectListener;
-import bacmman.ui.gui.image_interaction.ImageWindowManager;
-import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 
 import static bacmman.data_structure.SegmentedObjectUtils.*;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
@@ -62,7 +57,6 @@ import bacmman.core.Task;
 import bacmman.data_structure.Processor.MEASUREMENT_MODE;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.ui.gui.configuration.TransparentListCellRenderer;
-import bacmman.ui.gui.image_interaction.Kymograph;
 import bacmman.image.Image;
 
 import java.awt.*;
@@ -126,7 +120,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public static final String DBprefix = "boa_";
     public String currentDBPrefix = "";
     private static GUI INSTANCE;
-    
+    public final static boolean defaultDisplayKymograph = false;
     // db-related attributes
     private MasterDAO db;
     
@@ -2759,7 +2753,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             int idx = siblings.indexOf(i.getParent());
             // current image structure: 
             InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2());
-            int currentImageStructure = key ==null ? i.getChildStructureIdx() : key.displayedStructureIdx;
+            int currentImageStructure = key ==null ? i.getChildStructureIdx() : key.interactiveObjectClass;
             idx += (next ? 1 : -1) ;
             logger.debug("current inter object class: {}, current image child: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure);
             if (siblings.size()==idx || idx<0) { // next position
@@ -2782,9 +2776,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             logger.debug("open next Image : next parent: {}", nextParent);
             if (nextParent==null) return;
             List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent, false);
-            InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx());
+            InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
-            if (im==null) ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
+            if (im==null) {
+                if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(parentTrack, (KymographT)ii, currentImageStructure);
+                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
+            }
             else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
@@ -2805,7 +2802,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (im != null) {
                     InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(im);
                     if (key != null) {
-                        structureDisplay = key.displayedStructureIdx;
+                        structureDisplay = key.interactiveObjectClass;
                         logger.debug("current disp object class: {}", structureDisplay);
                     }
                 }
@@ -2879,11 +2876,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 logger.debug("next parent: {} among: {}", nextParent, parents);
                 List track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-                InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx());
+                InteractiveImageKey.TYPE type = i!=null ? i.getKey().imageType : defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.FRAME_STACK; // TODO set an option to open as kymographs / frame stack
+                InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx(), type);
                 Image im = iwm.getImage(nextI);
                 if (im==null) {
-                    im = nextI.generateImage(structureDisplay, true);
-                    iwm.addImage(im, nextI, structureDisplay, true);
+                    if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(track, (KymographT)nextI, sel.getStructureIdx());
+                    else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(nextI.getObjects(), sel.getElementStrings(position)));

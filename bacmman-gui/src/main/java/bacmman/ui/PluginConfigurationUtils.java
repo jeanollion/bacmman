@@ -566,7 +566,7 @@ public class PluginConfigurationUtils {
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s->(SegmentedObject)(s.parent).getParent(parentStructureIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.enshureContinuousTrack(parents);
-        Kymograph ioi = Kymograph.generateKymograph(parents, childStructure);
+        Kymograph ioi = Kymograph.generateKymograph(parents, childStructure, !GUI.defaultDisplayKymograph);
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();

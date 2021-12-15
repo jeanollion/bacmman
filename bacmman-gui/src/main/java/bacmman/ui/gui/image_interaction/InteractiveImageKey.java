@@ -29,19 +29,19 @@ import java.util.Objects;
  * @author Jean Ollion
  */
 public class InteractiveImageKey {
-    public enum IMAGE_TYPE {SINGLE_FRAME, KYMOGRAPH, FRAME_STACK}
-    public final IMAGE_TYPE imageType;
+    public enum TYPE {SINGLE_FRAME, KYMOGRAPH, FRAME_STACK}
+    public final TYPE imageType;
     public final List<SegmentedObject> parent;
-    public final int displayedStructureIdx;
+    public final int interactiveObjectClass;
 
-    public InteractiveImageKey(List<SegmentedObject> parent, int displayedStructureIdx, IMAGE_TYPE imageType) {
+    public InteractiveImageKey(List<SegmentedObject> parent, TYPE imageType, int interactiveObjectClass) {
         this.imageType = imageType;
         this.parent = parent;
-        this.displayedStructureIdx = displayedStructureIdx;
+        this.interactiveObjectClass = interactiveObjectClass;
     }
     
     public InteractiveImageKey getKey(int childStructureIdx) {
-        return new InteractiveImageKey(parent, childStructureIdx, imageType);
+        return new InteractiveImageKey(parent, imageType, childStructureIdx);
     }
 
     @Override
@@ -49,19 +49,19 @@ public class InteractiveImageKey {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InteractiveImageKey that = (InteractiveImageKey) o;
-        return displayedStructureIdx == that.displayedStructureIdx &&
+        return interactiveObjectClass == that.interactiveObjectClass &&
                 imageType == that.imageType &&
                 Objects.equals(parent, that.parent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(imageType, parent, displayedStructureIdx);
+        return Objects.hash(imageType, parent, interactiveObjectClass);
     }
     
     @Override
     public String toString() {
-        return parent.toString()+"/S="+displayedStructureIdx+"/Type="+imageType;
+        return parent.toString()+"/S="+interactiveObjectClass+"/Type="+imageType;
     }
     
     public boolean equalsIgnoreStructure(Object obj) {
@@ -75,7 +75,7 @@ public class InteractiveImageKey {
         if (this.imageType != other.imageType) {
             return false;
         }
-        if (this.parent != other.parent && (this.parent == null || !this.parent.equals(other.parent))) {
+        if (!Objects.equals(this.parent, other.parent)) {
             return false;
         }
         return true;

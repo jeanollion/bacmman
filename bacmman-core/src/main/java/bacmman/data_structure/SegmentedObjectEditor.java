@@ -16,12 +16,12 @@ public class SegmentedObjectEditor {
     public static final BiPredicate<SegmentedObject, SegmentedObject> ALWAYS_MERGE = (s1, s2)->true;
     public static final BiPredicate<SegmentedObject, SegmentedObject> MERGE_TRACKS_BACT_SIZE_COND = (prev, next)-> next.getRegion().size()>prev.getRegion().size()  * 0.8;
 
-    public static  List<SegmentedObject> getNext(SegmentedObject o) {
+    public static  List<SegmentedObject> getNext(SegmentedObject o) { // TODO FLOW : if track accepts gaps next can be later.. look also in next parents ?
         SegmentedObject nextParent = o.getNext()==null ? o.getParent().getNext() : o.getNext().getParent();
         if (nextParent==null) return Collections.EMPTY_LIST;
         return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getPrevious()) || e.equals(o.getNext())).collect(Collectors.toList());
     }
-    public static List<SegmentedObject> getPrevious(SegmentedObject o) {
+    public static List<SegmentedObject> getPrevious(SegmentedObject o) { // TODO FLOW : if track accepts gaps previous can be before.. look also in previous parents ?
         SegmentedObject nextParent = o.getPrevious()==null ? o.getParent().getPrevious() : o.getPrevious().getParent();
         if (nextParent==null) return Collections.EMPTY_LIST;
         return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getNext()) || e.equals(o.getPrevious())).collect(Collectors.toList());

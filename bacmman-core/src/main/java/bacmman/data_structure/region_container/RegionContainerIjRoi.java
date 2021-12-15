@@ -82,8 +82,11 @@ public class RegionContainerIjRoi extends RegionContainer {
         }
     }
     private synchronized ImageByte getMask() {
-        ImageStack stack = new ImageStack(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
         if (roi==null) decodeRoi();
+        return roiToMask(roi, bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
+    }
+    public static ImageByte roiToMask(Roi3D roi, BoundingBox bounds, double scaleXY, double scaleZ) {
+        ImageStack stack = new ImageStack(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
         MutableBoundingBox bounds2D= new MutableBoundingBox(bounds).setzMin(0).setzMax(0);
         IntStream.rangeClosed(bounds.zMin(), bounds.zMax()).forEachOrdered(z -> {
             Roi r = roi.get(z);
@@ -98,7 +101,7 @@ public class RegionContainerIjRoi extends RegionContainer {
             stack.setProcessor(mask, z-bounds.zMin()+1);
         });
         ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
-        res.setCalibration(new SimpleImageProperties(bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ())).translate(bounds);
+        res.setCalibration(new SimpleImageProperties(bounds, scaleXY, scaleZ)).translate(bounds);
         return res;
     }
     @Override

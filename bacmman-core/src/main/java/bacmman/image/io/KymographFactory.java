@@ -2,6 +2,8 @@ package bacmman.image.io;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
+import bacmman.processing.Resize;
+import bacmman.processing.ResizeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,32 +21,46 @@ public class KymographFactory {
         if (!parentTrack.get(0).isRoot() && bb.sizeY() >= bb.sizeX()) { // X direction. Root parent is always in Y direction
             int maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
             for (int i = 0; i<parentTrack.size(); ++i) {
-                if (middle) trackOffset[i].translate(new SimpleOffset(currentOffset, (int)((maxParentSizeY-1)/2.0-(trackOffset[i].sizeY()-1)/2.0), (int)((maxParentSizeZ-1)/2.0-(trackOffset[i].sizeZ()-1)/2.0))); // Y & Z middle of parent track
+                if (middle) trackOffset[i].translate(new SimpleOffset(currentOffset, (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), (int)((maxParentSizeZ)/2.0-(trackOffset[i].sizeZ())/2.0))); // Y & Z middle of parent track
                 else trackOffset[i].translate(new SimpleOffset(currentOffset, 0, 0)); // Y & Z up of parent track
                 currentOffset+=interval+trackOffset[i].sizeX();
             }
-            return new KymographData(DIRECTION.X, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
+            return new KymographData(DIRECTION.X, -1, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
         } else { // Y direction
             int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
             for (int i = 0; i<parentTrack.size(); ++i) {
-                if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX-1)/2.0-(trackOffset[i].sizeX()-1)/2.0), currentOffset , (int)((maxParentSizeZ-1)/2.0-(trackOffset[i].sizeZ()-1)/2.0))); // Y & Z middle of parent track
+                if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), currentOffset , (int)((maxParentSizeZ)/2.0-(trackOffset[i].sizeZ())/2.0))); // Y & Z middle of parent track
                 else trackOffset[i].translate(new SimpleOffset(0, currentOffset, 0)); // X & Z up of parent track
                 currentOffset+=interval+trackOffset[i].sizeY();
             }
-            return new KymographData(DIRECTION.Y, maxParentSizeX, maxParentSizeZ, trackOffset, parentTrack);
+            return new KymographData(DIRECTION.Y, maxParentSizeX, -1, maxParentSizeZ, trackOffset, parentTrack);
         }
 
     }
 
-    public enum DIRECTION {X, Y}
+    public static KymographData generateKymographDataTime(List<SegmentedObject> parentTrack, boolean middle) {
+        int maxParentSizeZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
+        BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
+        int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();
+        int maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
+        for (int i = 0; i<parentTrack.size(); ++i) {
+            if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), (int)((maxParentSizeZ)/2.0-(trackOffset[i].sizeZ())/2.0))); // Y & Z middle of parent track
+            else trackOffset[i].translate(new SimpleOffset(0, 0, 0)); // Y & Z up of parent track
+        }
+        return new KymographData(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
+
+    }
+
+    public enum DIRECTION {X, Y, T}
     public static class KymographData {
         public final DIRECTION direction;
-        public final int maxParentSize, maxParentSizeZ;
+        public final int maxParentSizeX, maxParentSizeY, maxParentSizeZ;
         public final BoundingBox[] trackOffset;
         public final List<SegmentedObject> parentTrack;
-        public KymographData(DIRECTION direction, int maxParentSize, int maxParentSizeZ, BoundingBox[] trackOffset, List<SegmentedObject> parentTrack) {
+        public KymographData(DIRECTION direction, int maxParentSizeX, int maxParentSizeY, int maxParentSizeZ, BoundingBox[] trackOffset, List<SegmentedObject> parentTrack) {
             this.direction = direction;
-            this.maxParentSize = maxParentSize;
+            this.maxParentSizeX = maxParentSizeX;
+            this.maxParentSizeY = maxParentSizeY;
             this.maxParentSizeZ = maxParentSizeZ;
             this.trackOffset = trackOffset;
             this.parentTrack=parentTrack;
@@ -54,9 +70,11 @@ public class KymographFactory {
             switch (direction) {
                 case X:
                 default:
-                    return  Image.createEmptyImage(name, type, new SimpleImageProperties(trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSize, Math.max(type.sizeZ(), this.maxParentSizeZ),type.getScaleXY(), type.getScaleZ()));
+                    return  Image.createEmptyImage(name, type, new SimpleImageProperties(trackOffset[trackOffset.length-1].xMax()+1, this.maxParentSizeY, Math.max(type.sizeZ(), this.maxParentSizeZ),type.getScaleXY(), type.getScaleZ()));
                 case Y:
-                    return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSize, trackOffset[trackOffset.length-1].yMax()+1, Math.max(type.sizeZ(), this.maxParentSizeZ), type.getScaleXY(), type.getScaleZ()));
+                    return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSizeX, trackOffset[trackOffset.length-1].yMax()+1, Math.max(type.sizeZ(), this.maxParentSizeZ), type.getScaleXY(), type.getScaleZ()));
+                case T:
+                    return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSizeX, maxParentSizeY, Math.max(type.sizeZ(), this.maxParentSizeZ), type.getScaleXY(), type.getScaleZ()));
             }
         }
         public Image generateImage(String name, int objectClassIdx, boolean raw) {
@@ -68,5 +86,6 @@ public class KymographFactory {
             });
             return res;
         }
+
     }
 }

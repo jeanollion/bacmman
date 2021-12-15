@@ -41,7 +41,8 @@ import java.util.stream.IntStream;
  */
 public abstract class Kymograph extends InteractiveImage {
 
-    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx) {
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean frameStack) {
+        if (frameStack) return new KymographT(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx);
         KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
         switch (data.direction) {
             case X:
@@ -55,14 +56,10 @@ public abstract class Kymograph extends InteractiveImage {
     SimpleInteractiveImage[] trackObjects;
     private static final int updateImageFrequency=50;
     public static int INTERVAL_PIX=0;
-    final int maxParentSize, maxParentSizeZ;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
 
     public Kymograph(KymographFactory.KymographData data, int childStructureIdx) {
         super(data.parentTrack, childStructureIdx);
-        maxParentSize = data.maxParentSize;
-        maxParentSizeZ = data.maxParentSizeZ;
-        GUI.logger.trace("track mask image object: max parent Y-size: {} z-size: {}", maxParentSize, maxParentSizeZ);
         trackOffset = data.trackOffset;
         SegmentedObjectUtils.setAllChildren(data.parentTrack, childStructureIdx);
         trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(SimpleInteractiveImage::getObjects).toArray(SimpleInteractiveImage[]::new);
@@ -73,7 +70,7 @@ public abstract class Kymograph extends InteractiveImage {
     }
     
     @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, childStructureIdx, InteractiveImageKey.IMAGE_TYPE.KYMOGRAPH);
+        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.KYMOGRAPH, childStructureIdx);
     }
     
     @Override
