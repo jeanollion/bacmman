@@ -392,11 +392,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
             double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();
             double z = object.key.getRegion().getCenter().getWithDimCheck(2) + object.value.zMin() - object.key.getBounds().zMin();
-            int sliceZ = (int)(Math.ceil(z));
             double rad = ((Spot)object.key.getRegion()).getRadius();
             if (object.key.is2D()) {
-                Roi roi = new EllipseRoi(x + 0.5, y - 2 * rad / 2 + 0.5, x + 0.5, y + 2 * rad / 2 + 0.5, 1);
-                roi.enableSubPixelResolution();
+                Roi roi = new EllipseRoi(x + 0.5, y - rad + 0.5, x + 0.5, y + rad + 0.5, 1);
                 roi.setPosition(0, 1, frameIdx+1);
                 r = new Roi3D(1).setIs2D(true);
                 r.put(0, roi);
@@ -408,13 +406,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 for (int zz = (int)Math.max(Math.ceil(z-radZ), 0); zz<=(int)Math.ceil(z+radZ); ++zz) {
                     double curRad = Math.sqrt(rad*rad - Math.pow((z-zz)/scaleR, 2)) ; // in order to take into anisotropy into account.
                     if (curRad<0.01 * rad) continue;
-                    Roi roi = new EllipseRoi(x + 0.5, y - 2 * curRad / 2 + 0.5, x + 0.5, y + 2 * curRad / 2 + 0.5, 1);
-                    roi.enableSubPixelResolution();
+                    Roi roi = new EllipseRoi(x + 0.5, y - curRad + 0.5, x + 0.5, y + curRad + 0.5, 1);
                     roi.setPosition(0, zz + 1, frameIdx+1);
                     r.put(zz, roi);
                 }
-
             }
+            BoundingBox bds = r.getBounds();
+            r.setLocDelta(bds.xMin() - object.value.xMin(), bds.yMin() - object.value.yMin());
         } else if (object.key.getRegion() instanceof Ellipse2D) {
             double dx = object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
             double dy = object.value.yMin() - object.key.getBounds().yMin();
@@ -424,12 +422,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             List<Point> foci = o.getMajorAxisEnds();
             foci.stream().forEach(p -> p.translate(new Vector((float)dx, (float)dy)));
             Roi roi = new EllipseRoi(foci.get(0).get(0)+ 0.5, foci.get(0).get(1)+ 0.5, foci.get(1).get(0)+ 0.5, foci.get(1).get(1)+ 0.5, o.getAspectRatio());
-            roi.enableSubPixelResolution();
             if (o.is2D()) sliceZ=0; // necessary ?
             roi.setPosition(0, sliceZ + 1, frameIdx+1);
             r = new Roi3D(1).setIs2D(o.is2D());
             r.put(sliceZ, roi);
-            logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.key, object.key.getRegion().getCenter(), foci, object.key.getBounds(), object.key.getRegion().is2D(), object.key.getParent().getBounds(), object.value);
+            BoundingBox bds = r.getBounds();
+            r.setLocDelta(bds.xMin() - object.value.xMin(), bds.yMin() - object.value.yMin());
+            //logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.key, object.key.getRegion().getCenter(), foci, object.key.getBounds(), object.key.getRegion().is2D(), object.key.getParent().getBounds(), object.value);
         }else {
             r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
         }
@@ -440,6 +439,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
             p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
             Arrow arrow = new Arrow(p.get(0)+size, p.get(1)+size, p.get(0), p.get(1));
+            arrow.enableSubPixelResolution();
             arrow.setStrokeColor(trackCorrectionColor);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(size);
@@ -455,7 +455,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     
     @Override
     protected void setRoiAttributes(Roi3D roi, Color color, int frameIdx, Offset location) {
-        roi.entrySet().stream().filter(e->e.getKey()>=0).forEach(e -> e.getValue().setStrokeColor(color));
+        roi.entrySet().stream().filter(e->e.getKey()>=0).forEach(e -> {
+            e.getValue().setStrokeColor(color);
+            e.getValue().setStrokeWidth(ROI_STROKE_WIDTH);
+        });
         if (frameIdx>=0) roi.setFrame(frameIdx);
         if (location!=null) roi.setLocation(location);
     }
@@ -542,6 +545,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
                 p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
                 Arrow arrow = new Arrow(p.get(0)+size, p.get(1)+size, p.get(0), p.get(1));
+                arrow.enableSubPixelResolution();
                 arrow.setStrokeColor(trackCorrectionColor);
                 arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
                 arrow.setHeadSize(size);
@@ -569,6 +573,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to kymograph offset
             p2.translate(o2.value).translateRev(o2.key.getBounds());
             Arrow arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
+            arrow.enableSubPixelResolution();
             arrow.setDoubleHeaded(true);
             arrow.setStrokeColor(color);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
@@ -593,7 +598,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         }
         List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key);
         if (prev.size()>1) { // show merging by displaying arrows between objects
-            List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(next);
+            List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
             for (int idx = 0; idx<prev.size()-1; ++idx) addSplitMergeArrow.accept(prevP.get(idx), prevP.get(idx+1));
         }
         return trackRoi;
@@ -616,6 +621,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 o1.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(-1, -1));
                 p.translate(o1.value).translateRev(o1.key.getBounds()); // go to kymograph offset
                 arrow = new Arrow(p.get(0)-size, p.get(1)-size, p.get(0), p.get(1));
+                arrow.enableSubPixelResolution();
             } else {
                 Point p1 = new Point((float)o1.value.xMean(), (float)o1.value.yMean());
                 Point p2 = new Point((float)o2.value.xMean(), (float)o2.value.yMean());
@@ -639,6 +645,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     }
                 }
                 arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
+                arrow.enableSubPixelResolution();
                 arrow.setDoubleHeaded(true);
             }
             
@@ -694,6 +701,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         double[] start = startLength>0 ? new double[]{x1+vNorm[0]*startLength, y1+vNorm[1]*startLength} : new double[]{x1, y1};
         double[] end = startLength>0 ? new double[]{x1+vNorm[0]*endLength, y1+vNorm[1]*endLength} : new double[]{x2, y2};
         Arrow res =  new Arrow(start[0], start[1], end[0], end[1]);
+        res.enableSubPixelResolution();
         res.setStrokeColor(c);
         res.setFillColor(fillColor);
         res.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);

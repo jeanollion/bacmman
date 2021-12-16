@@ -57,7 +57,6 @@ public class KymographT extends Kymograph {
         return true;
     }
     public KymographT setIdx(int idx) {
-        logger.debug("Setting Idx: {} to kymo: {}", idx, this);
         assert idx<trackObjects.length && idx>=0 : "invalid idx";
         this.idx=idx;
         return this;
@@ -76,7 +75,7 @@ public class KymographT extends Kymograph {
     @Override
     public void addClickedObjects(BoundingBox selection, List<Pair<SegmentedObject, BoundingBox>> list) {
         if (is2D() && selection.sizeZ()>0) selection=new SimpleBoundingBox(selection.xMin(), selection.xMax(), selection.yMin(), selection.yMax(), 0, 0);
-        logger.debug("kymo: {}, idx: {}, all objects: {}", this, idx, trackObjects[idx].objects);
+        //logger.debug("kymo: {}, idx: {}, all objects: {}", this, idx, trackObjects[idx].objects);
         trackObjects[idx].addClickedObjects(selection, list);
     }
     
@@ -113,7 +112,7 @@ public class KymographT extends Kymograph {
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else {
             Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, maxParentSizeZ).translate(trackOffset[idx]));
-            logger.debug("kymo: {} -> resized {}, idx: {}, offset: {}", bounds, resized.getBoundingBox(), idx, new SimpleOffset(trackOffset[idx]));
+            //logger.debug("kymo: {} -> resized {}, idx: {}, offset: {}", bounds, resized.getBoundingBox(), idx, new SimpleOffset(trackOffset[idx]));
             return resized;
         }
     }
