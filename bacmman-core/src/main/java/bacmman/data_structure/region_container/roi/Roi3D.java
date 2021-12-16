@@ -6,14 +6,23 @@ import bacmman.image.Offset;
 import bacmman.image.SimpleBoundingBox;
 import ij.gui.Overlay;
 import ij.gui.Roi;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.HashMap;
 
 public class Roi3D extends HashMap<Integer, Roi> {
+    public static final Logger logger = LoggerFactory.getLogger(Roi3D.class);
     boolean is2D;
+    int locdx, locdy; // in case of EllipseRoi -> 0.5 is added to coordinate, this can create inconsistencies in localization as IJ.ROIs use a integer reference. this is a fix when calling set location
     public Roi3D(int bucketSize) {
         super(bucketSize);
+    }
+    public Roi3D setLocDelta(int locdx, int locdy) {
+        this.locdx = locdx;
+        this.locdy = locdy;
+        return this;
     }
     public Roi3D setIs2D(boolean is2D) {this.is2D=is2D; return this;}
     public boolean contained(Overlay o) {
@@ -49,6 +58,7 @@ public class Roi3D extends HashMap<Integer, Roi> {
     public Roi3D setLocation(Offset off) {
         return translate(getBounds().reverseOffset().translate(off).setzMin(0));
     }
+
     public Roi3D translate(Offset off) {
         if (off.zMin()!=0) { // need to clear map to update z-mapping
             synchronized(this) {
@@ -58,14 +68,13 @@ public class Roi3D extends HashMap<Integer, Roi> {
             }
         }
         forEach((z, r)-> {
-            Rectangle bds = r.getBounds();
-            r.setLocation(bds.x+off.xMin(), bds.y+off.yMin());
+            r.setLocation((int)r.getXBase()+off.xMin()+locdx, (int)r.getYBase()+off.yMin()+locdy);
             r.setPosition(r.getCPosition(), r.getZPosition()+off.zMin(), r.getTPosition());
         });
         return this;
     }
     public Roi3D duplicate() {
-        Roi3D res = new Roi3D(this.size()).setIs2D(is2D);
+        Roi3D res = new Roi3D(this.size()).setIs2D(is2D).setLocDelta(locdx, locdy);
         super.forEach((z, r)->res.put(z, (Roi)r.clone()));
         return res;
     }
