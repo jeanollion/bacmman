@@ -259,7 +259,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         
     }
-    public void addFrameStack(Image image, I displayedImage, InteractiveImage i) {
+    public void addHyperStack(Image image, I displayedImage, InteractiveImage i) {
         logger.debug("adding frame stack: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
         if (!imageObjectInterfaces.containsValue(i)) {
             //throw new RuntimeException("image object interface should be created through the manager");

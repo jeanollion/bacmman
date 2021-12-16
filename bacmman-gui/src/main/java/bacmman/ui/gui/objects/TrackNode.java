@@ -226,13 +226,13 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             int[] currentAndChildOCIdx = IntStream.concat(IntStream.of(trackNode.trackHead.getStructureIdx()), IntStream.of(trackNode.trackHead.getExperimentStructure().getAllChildStructures(trackNode.trackHead.getStructureIdx()))).toArray();
             String[] currentAndChildOCNames = trackNode.trackHead.getExperimentStructure().getObjectClassesNames(currentAndChildOCIdx);
             noChildStructure = childStructureNames.length==0;
-            boolean frameStack = Core.enableFrameStackView;
-            this.actions = new JMenuItem[frameStack?8:7];
+            boolean hyperStack = Core.enableHyperStackView;
+            this.actions = new JMenuItem[hyperStack?8:7];
             JMenu kymographSubMenu = new JMenu("Open Kymograph");
             actions[0] = kymographSubMenu;
             int idx = 1;
-            JMenu framesSubMenu = new JMenu("Open FrameStack");
-            if (frameStack) actions[idx++] = framesSubMenu;
+            JMenu framesSubMenu = new JMenu("Open HyperStack");
+            if (hyperStack) actions[idx++] = framesSubMenu;
             JMenu runSegAndTrackingSubMenu = new JMenu("Run segmentation and tracking");
             actions[idx++] = runSegAndTrackingSubMenu;
             JMenu runTrackingSubMenu = new JMenu("Run tracking");
@@ -273,14 +273,14 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 );
                 kymographSubMenu.add(openKymograph[i]);
             }
-            if (frameStack) {
+            if (hyperStack) {
                 openFrames = new JMenuItem[structureNames.length];
                 for (int i = 0; i < openFrames.length; i++) {
                     openFrames[i] = new JMenuItem(structureNames[i]);
                     openFrames[i].setAction(new AbstractAction(structureNames[i]) {
                                                 @Override
                                                 public void actionPerformed(ActionEvent ae) {
-                                                    if (GUI.logger.isDebugEnabled())  GUI.logger.debug("opening frameStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
+                                                    if (GUI.logger.isDebugEnabled())  GUI.logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
                                                     //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
                                                     //trackNode.loadAllTrackObjects(path);
                                                     int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());

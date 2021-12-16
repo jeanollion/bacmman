@@ -45,7 +45,6 @@ public class KymographFactory {
         int maxParentSizeY = parentTrack.stream().mapToInt(p->p.getBounds().sizeY()).max().getAsInt();
         for (int i = 0; i<parentTrack.size(); ++i) {
             if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), (int)((maxParentSizeZ)/2.0-(trackOffset[i].sizeZ())/2.0))); // Y & Z middle of parent track
-            else trackOffset[i].translate(new SimpleOffset(0, 0, 0)); // Y & Z up of parent track
         }
         return new KymographData(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
 
@@ -78,6 +77,7 @@ public class KymographFactory {
             }
         }
         public Image generateImage(String name, int objectClassIdx, boolean raw) {
+            if (direction.equals(DIRECTION.T)) throw new UnsupportedOperationException("Do not generate frame stacks this way");
             Image type = raw ? parentTrack.get(0).getRawImage(objectClassIdx):parentTrack.get(0).getPreFilteredImage(objectClassIdx);
             Image res =  generateEmptyImage(name, type);
             IntStream.range(0, trackOffset.length).parallel().forEach(i->{

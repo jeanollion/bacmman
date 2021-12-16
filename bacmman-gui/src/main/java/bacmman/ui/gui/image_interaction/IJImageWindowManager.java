@@ -507,14 +507,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     @Override
     public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
         if (!(i instanceof KymographT)) return createKymographTrackRoi(track, color);
-        else return createFrameStackTrackRoi(parents, track, color, i);
+        else return createHyperStackTrackRoi(parents, track, color, i);
     }
     
     @Override
     protected void setTrackColor(TrackRoi roi, Color color) {
         for (Roi r : roi) if (r.getStrokeColor()!=ImageWindowManager.trackCorrectionColor && r.getStrokeColor()!=ImageWindowManager.trackErrorColor) r.setStrokeColor(color);
     }
-    protected TrackRoi createFrameStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
+    protected TrackRoi createHyperStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
         Map<Integer, Integer> frameMapIdx = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(idx->parentTrack.get(idx).getFrame(), idx->idx));
         TrackRoi trackRoi= new TrackRoi();
         trackRoi.setIs2D(track.get(0).key.is2D());

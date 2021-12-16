@@ -34,7 +34,7 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class Core {
-    public static boolean enableFrameStackView = false;
+    public static boolean enableHyperStackView = true;
     private static ImageJ ij;
     private static OpService opService;
     private static Core core;

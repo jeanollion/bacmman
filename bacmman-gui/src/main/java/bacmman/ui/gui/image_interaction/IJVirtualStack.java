@@ -25,6 +25,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.image.io.KymographFactory;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
+import ij.IJ;
 import ij.ImagePlus;
 import ij.VirtualStack;
 import ij.measure.Calibration;
@@ -98,6 +99,7 @@ public class IJVirtualStack extends VirtualStack {
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
         ip.setStack(s, channels,maxZ, frames);
         ip.setOpenAsHyperStack(true);
+        ip.setDisplayMode( IJ.COMPOSITE );
         Calibration cal = new Calibration();
         cal.pixelWidth=bdsC[0].getScaleXY();
         cal.pixelHeight=bdsC[0].getScaleXY();
@@ -131,9 +133,10 @@ public class IJVirtualStack extends VirtualStack {
         BiFunction<Integer, Integer, Image> imageOpenerCT  = (c, t) -> interactiveImage.setIdx(t).getImage(channelArray[c], true, Resize.EXPAND_MODE.BORDER);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
-        ip.setTitle(("FrameStack of Track: "+parentTrack.get(0).toStringShort()));
+        ip.setTitle(("HyperStack of Track: "+parentTrack.get(0).toStringShort()));
         ip.setStack(s, channels,maxZ, frames);
         ip.setOpenAsHyperStack(true);
+        ip.setDisplayMode( IJ.COMPOSITE );
         Calibration cal = new Calibration();
         cal.pixelWidth=bdsC[0].getScaleXY();
         cal.pixelHeight=bdsC[0].getScaleXY();
@@ -141,6 +144,6 @@ public class IJVirtualStack extends VirtualStack {
         ip.setCalibration(cal);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
-        ImageWindowManagerFactory.getImageManager().addFrameStack(imageOpenerCT.apply(0, 0), ip, interactiveImage);
+        ImageWindowManagerFactory.getImageManager().addHyperStack(imageOpenerCT.apply(0, 0), ip, interactiveImage);
     }
 }

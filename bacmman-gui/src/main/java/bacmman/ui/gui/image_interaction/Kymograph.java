@@ -41,8 +41,8 @@ import java.util.stream.IntStream;
  */
 public abstract class Kymograph extends InteractiveImage {
 
-    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean frameStack) {
-        if (frameStack) return new KymographT(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx);
+    public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
+        if (hyperStack) return new KymographT(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx);
         KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
         switch (data.direction) {
             case X:

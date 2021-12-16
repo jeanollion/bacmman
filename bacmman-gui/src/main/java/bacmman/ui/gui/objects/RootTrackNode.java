@@ -212,12 +212,12 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     
     class RootTrackNodeUI {
         JMenuItem openRawAllFrames, openPreprocessedAllFrames;
-        JMenu kymographSubMenu, frameStackSubMenu, createSelectionSubMenu;
+        JMenu kymographSubMenu, hyperStackSubMenu, createSelectionSubMenu;
         Object[] actions;
-        JMenuItem[] openKymograph, openFrameStack, createSelection;
-        boolean frameStack = Core.enableFrameStackView;
+        JMenuItem[] openKymograph, openHyperStack, createSelection;
+        boolean hyperStack = Core.enableHyperStackView;
         public RootTrackNodeUI() {
-            this.actions = new JMenuItem[frameStack?5:4];
+            this.actions = new JMenuItem[hyperStack ?5:4];
             
             openRawAllFrames = new JMenuItem("Open Input Images");
             actions[0] = openRawAllFrames;
@@ -284,13 +284,13 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 kymographSubMenu.add(openKymograph[i]);
             }
             int idx = 3;
-            if (frameStack) {
-                frameStackSubMenu = new JMenu("Open FrameStack");
-                actions[idx++] = frameStackSubMenu;
-                openFrameStack = new JMenuItem[allObjectClasses.size()];
-                for (int i = 0; i < openFrameStack.length; i++) {
-                    openFrameStack[i] = new JMenuItem(allObjectClasses.get(i));
-                    openFrameStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
+            if (hyperStack) {
+                hyperStackSubMenu = new JMenu("Open HyperStack");
+                actions[idx++] = hyperStackSubMenu;
+                openHyperStack = new JMenuItem[allObjectClasses.size()];
+                for (int i = 0; i < openHyperStack.length; i++) {
+                    openHyperStack[i] = new JMenuItem(allObjectClasses.get(i));
+                    openHyperStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
                                                     @Override
                                                     public void actionPerformed(ActionEvent ae) {
                                                         int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
@@ -312,7 +312,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                                     }
                                                 }
                     );
-                    frameStackSubMenu.add(openFrameStack[i]);
+                    hyperStackSubMenu.add(openHyperStack[i]);
                 }
             }
             createSelectionSubMenu = new JMenu("Create Selection");
