@@ -12,6 +12,7 @@ import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
 
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
@@ -66,7 +67,7 @@ public class ExtractRawDataset extends JDialog {
         final JScrollPane scrollPane1 = new JScrollPane();
         scrollPane1.setToolTipText("select channel images that will be extracted");
         panel3.add(scrollPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
-        scrollPane1.setBorder(BorderFactory.createTitledBorder("Channel Images"));
+        scrollPane1.setBorder(BorderFactory.createTitledBorder(null, "Channel Images", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         channelSelector = new JList();
         final DefaultListModel defaultListModel1 = new DefaultListModel();
         channelSelector.setModel(defaultListModel1);
@@ -76,7 +77,7 @@ public class ExtractRawDataset extends JDialog {
         panel3.add(panel4, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         parameterJSP = new JScrollPane();
         panel4.add(parameterJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
-        parameterJSP.setBorder(BorderFactory.createTitledBorder("Extraction Parameters"));
+        parameterJSP.setBorder(BorderFactory.createTitledBorder(null, "Extraction Parameters", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
     }
 
     /**

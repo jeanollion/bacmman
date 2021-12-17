@@ -109,13 +109,13 @@ public class IJVirtualStack extends VirtualStack {
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
     }
-    public static void openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, int... objectClassIdx) {
+    public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int... objectClassIdx) {
         KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
         KymographT interactiveImage = new KymographT(data, interactiveOC);
-        openVirtual(parentTrack, interactiveImage, objectClassIdx);
+        return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx);
     }
-    public static void openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, int... objectClassIdx) {
-        if (parentTrack.isEmpty()) return;
+    public static Image openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, boolean interactive, int... objectClassIdx) {
+        if (parentTrack.isEmpty()) return null;
         int[] channelArray = objectClassIdx.length==0 ? new int[]{parentTrack.get(0).getStructureIdx()} : objectClassIdx;
         int channels = channelArray.length;
         int frames = parentTrack.size();
@@ -123,7 +123,7 @@ public class IJVirtualStack extends VirtualStack {
         for (int c = 0; c<bdsC.length; ++c) bdsC[c]= parentTrack.get(0).getRawImage(channelArray[c]);
         if (bdsC[0]==null) {
             GUI.log("Could not open raw images");
-            return;
+            return null;
         }
         logger.debug("scale: {}", bdsC[0].getScaleXY());
         logger.debug("image bounds per channel: {}", Arrays.stream(bdsC).map(Image::getBoundingBox).collect(Collectors.toList()));
@@ -144,6 +144,9 @@ public class IJVirtualStack extends VirtualStack {
         ip.setCalibration(cal);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
-        ImageWindowManagerFactory.getImageManager().addHyperStack(imageOpenerCT.apply(0, 0), ip, interactiveImage);
+        Image hook = imageOpenerCT.apply(0, 0);
+        if (interactive) ImageWindowManagerFactory.getImageManager().addHyperStack(hook, ip, interactiveImage);
+        else ImageWindowManagerFactory.getImageManager().getDisplayer().putImage(hook, ip);
+        return hook;
     }
 }

@@ -25,6 +25,7 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
+import bacmman.core.*;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.data_structure.dao.*;
@@ -34,6 +35,7 @@ import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
+import bacmman.ui.gui.TrackMatePanel;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
@@ -49,11 +51,7 @@ import static bacmman.data_structure.SegmentedObjectUtils.*;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 
 import bacmman.ui.gui.selection.SelectionRenderer;
-import bacmman.core.DefaultWorker;
 import bacmman.data_structure.Processor;
-import bacmman.core.ProgressCallback;
-import bacmman.core.PythonGateway;
-import bacmman.core.Task;
 import bacmman.data_structure.Processor.MEASUREMENT_MODE;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.ui.gui.configuration.TransparentListCellRenderer;
@@ -168,12 +166,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     final private Map<String, char[]> githubPasswords = new HashMap<>();
 
+    // trackMate interface
+    private TrackMatePanel trackMatePanel;
     /**
      * Creates new form GUI
      */
     public GUI() {
         logger.info("Creating GUI instance...");
         this.INSTANCE=this;
+        // trackMate interface
+        if (Core.enableTrackMate) trackMatePanel = new TrackMatePanel();
         initComponents();
         dsTree = new DatasetTree(datasetTree);
 
@@ -194,6 +196,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             tabs.getTabComponentAt(1).repaint();
         };
         tabs.addChangeListener(e -> setSelectedTab(tabs.getSelectedIndex()));
+
+
+
         // selections
         selectionModel = new DefaultListModel<>();
         this.selectionList.setModel(selectionModel);
@@ -774,6 +779,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);
         tabs.setEnabledAt(3, !running);
+        if (Core.enableTrackMate) this.tabs.setEnabledAt(4, !running); // trackMate
         if (!running) updateDisplayRelatedToXPSet();
     }
     // gui interface method
@@ -1043,6 +1049,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.tabs.getComponentAt(1).setForeground(enable ? Color.black : Color.gray);
         this.tabs.setEnabledAt(2, enable); // test
         this.tabs.setEnabledAt(3, enable); // data browsing
+        if (Core.enableTrackMate) this.tabs.setEnabledAt(4, enable); // trackMate
         // readOnly
         if (enable) {
             boolean rw = !db.isConfigurationReadOnly();
@@ -1180,7 +1187,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             populateTestPositionJCB();
             populateTestParentTrackHead();
             updateTestConfigurationTree();
-        }  
+        }
+        if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db);
     }
     
     public static GUI getInstance() {
@@ -2183,6 +2191,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         tabs.addTab("Data Browsing", dataPanel);
 
+        // trackmate
+        if (Core.enableTrackMate) {
+            tabs.addTab("TrackMate", trackMatePanel.getPanel());
+        }
+
         homeSplitPane.setLeftComponent(tabs);
 
         consoleJSP.setBackground(new Color(getBackground().getRGB()));
@@ -2779,7 +2792,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {
-                if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(parentTrack, (KymographT)ii, currentImageStructure);
+                if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(parentTrack, (KymographT)ii, true, currentImageStructure);
                 else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
             }
             else ImageWindowManagerFactory.getImageManager().setActive(im);
@@ -2880,7 +2893,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx(), type);
                 Image im = iwm.getImage(nextI);
                 if (im==null) {
-                    if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(track, (KymographT)nextI, sel.getStructureIdx());
+                    if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(track, (KymographT)nextI, true, sel.getStructureIdx());
                     else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
@@ -3402,6 +3415,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }, 1).setEndOfWork( ()->{
                 populateActionPositionList();
                 populateTestPositionJCB();
+                if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
                 updateConfigurationTree();
             } );
 
@@ -4061,6 +4075,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     db.updateExperiment();
                     populateActionPositionList();
                     populateTestPositionJCB();
+                    if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
                     updateConfigurationTree();
                 }
             };

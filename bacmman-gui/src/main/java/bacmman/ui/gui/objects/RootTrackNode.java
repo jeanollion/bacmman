@@ -304,7 +304,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                                         if (rootTrack != null) {
                                                             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.FRAME_STACK);
                                                             // TODO make this method generic for other display modes than IJ
-                                                            IJVirtualStack.openVirtual(rootTrack, structureIdx, structureIdx); // TODO interface for multichannel display
+                                                            IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx); // TODO interface for multichannel display
 
                                                             GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                                                             GUI.getInstance().setTrackStructureIdx(structureIdx);

@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.util.Collections;
@@ -235,10 +236,10 @@ public class ExtractDataset extends JDialog {
         featureListJSP = new JScrollPane();
         featureListJSP.setToolTipText("set here output file and features to be extracted");
         splitPanel.setRightComponent(featureListJSP);
-        featureListJSP.setBorder(BorderFactory.createTitledBorder("Extracted Features"));
+        featureListJSP.setBorder(BorderFactory.createTitledBorder(null, "Extracted Features", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         selectionListJSP = new JScrollPane();
         splitPanel.setLeftComponent(selectionListJSP);
-        selectionListJSP.setBorder(BorderFactory.createTitledBorder("Selections"));
+        selectionListJSP.setBorder(BorderFactory.createTitledBorder(null, "Selections", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         selectionList = new JList();
         selectionList.setToolTipText("choose here selections to be extracted.");
         selectionListJSP.setViewportView(selectionList);
