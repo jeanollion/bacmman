@@ -1,16 +1,18 @@
 package bacmman.data_structure.region_container.roi;
 
-import bacmman.image.BoundingBox;
-import bacmman.image.MutableBoundingBox;
-import bacmman.image.Offset;
-import bacmman.image.SimpleBoundingBox;
+import bacmman.image.*;
+import bacmman.image.wrappers.IJImageWrapper;
+import ij.ImagePlus;
+import ij.ImageStack;
 import ij.gui.Overlay;
 import ij.gui.Roi;
+import ij.process.ImageProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.HashMap;
+import java.util.stream.IntStream;
 
 public class Roi3D extends HashMap<Integer, Roi> {
     public static final Logger logger = LoggerFactory.getLogger(Roi3D.class);
@@ -19,6 +21,27 @@ public class Roi3D extends HashMap<Integer, Roi> {
     public Roi3D(int bucketSize) {
         super(bucketSize);
     }
+
+    public ImageByte toMask(BoundingBox bounds, double scaleXY, double scaleZ) {
+        ImageStack stack = new ImageStack(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
+        MutableBoundingBox bounds2D= new MutableBoundingBox(bounds).setzMin(0).setzMax(0);
+        IntStream.rangeClosed(bounds.zMin(), bounds.zMax()).forEachOrdered(z -> {
+            Roi r = get(z);
+            Rectangle bds = r.getBounds();
+            ImageProcessor mask = r.getMask();
+            if (mask==null) { // mask is rectangle
+                mask = IJImageWrapper.getImagePlus(TypeConverter.toImageInteger(new BlankMask(bounds.sizeX(), bounds.sizeY(), 1, bounds.xMin(), bounds.yMin(), 0, 1, 1), null)).getProcessor();
+            } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
+                ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
+                mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
+            }
+            stack.setProcessor(mask, z-bounds.zMin()+1);
+        });
+        ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
+        res.setCalibration(new SimpleImageProperties(bounds, scaleXY, scaleZ)).translate(bounds);
+        return res;
+    }
+
     public Roi3D setLocDelta(int locdx, int locdy) {
         this.locdx = locdx;
         this.locdy = locdy;

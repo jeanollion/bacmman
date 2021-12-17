@@ -44,6 +44,11 @@ public abstract class RegionContainer {
         this.segmentedObject = segmentedObject;
         this.bounds=new SimpleBoundingBox(segmentedObject.getBounds());
     }
+    protected RegionContainer() {}
+    protected RegionContainer(SimpleBoundingBox bounds, boolean is2D) {
+        this.bounds=bounds;
+        this.is2D=is2D;
+    }
     public SimpleBoundingBox getBounds() {
         return bounds;
     }
@@ -71,7 +76,7 @@ public abstract class RegionContainer {
         res.put("is2D", is2D);
         return res;
     }
-    protected RegionContainer() {}
+
     public static RegionContainer createFromJSON(SegmentedObject o, Map json) {
         RegionContainer res;
         if (json.containsKey("x")) res = new RegionContainerVoxels(); // coord list

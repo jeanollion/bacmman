@@ -149,9 +149,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     }
     
     public static MutableBoundingBox getMergedBoundingBox(Stream<BoundingBox> bounds) {
-        MutableBoundingBox res = new MutableBoundingBox();
-        bounds.forEach(res::union);
-        return res;
+        return bounds.reduce(new MutableBoundingBox(), MutableBoundingBox::union, MutableBoundingBox::union);
     }
 
     public static boolean[] getTouchingBorders(BoundingBox container, BoundingBox other) {

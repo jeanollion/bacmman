@@ -23,7 +23,6 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.image.*;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.gui.Roi;
 import ij.io.RoiDecoder;
 import ij.io.RoiEncoder;
@@ -35,7 +34,7 @@ import static bacmman.image.Image.logger;
 import ij.plugin.filter.ThresholdToSelection;
 import java.awt.Rectangle;
 import java.util.*;
-import java.util.stream.IntStream;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
@@ -54,8 +53,10 @@ public class RegionContainerIjRoi extends RegionContainer {
 
 
     private void createRoi(Region object) {
-        roi = createRoi(object.getMask(), object.getBounds(), !object.is2D());
+        if (object.getRoi()!=null) roi = object.getRoi();
+        else roi = createRoi(object.getMask(), object.getBounds(), !object.is2D());
     }
+
     private void encodeRoi() {
         if (roi==null) createRoi(segmentedObject.getRegion());
         roiZ = new ArrayList<>(roi.size());
@@ -83,27 +84,9 @@ public class RegionContainerIjRoi extends RegionContainer {
     }
     private synchronized ImageByte getMask() {
         if (roi==null) decodeRoi();
-        return roiToMask(roi, bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
+        return roi.toMask(bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
     }
-    public static ImageByte roiToMask(Roi3D roi, BoundingBox bounds, double scaleXY, double scaleZ) {
-        ImageStack stack = new ImageStack(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
-        MutableBoundingBox bounds2D= new MutableBoundingBox(bounds).setzMin(0).setzMax(0);
-        IntStream.rangeClosed(bounds.zMin(), bounds.zMax()).forEachOrdered(z -> {
-            Roi r = roi.get(z);
-            Rectangle bds = r.getBounds();
-            ImageProcessor mask = r.getMask();
-            if (mask==null) { // mask is rectangle
-                mask = IJImageWrapper.getImagePlus(TypeConverter.toImageInteger(new BlankMask(bounds.sizeX(), bounds.sizeY(), 1, bounds.xMin(), bounds.yMin(), 0, 1, 1), null)).getProcessor();
-            } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
-                ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
-                mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
-            }
-            stack.setProcessor(mask, z-bounds.zMin()+1);
-        });
-        ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
-        res.setCalibration(new SimpleImageProperties(bounds, scaleXY, scaleZ)).translate(bounds);
-        return res;
-    }
+
     @Override
     public void update() {
         super.update();
@@ -113,7 +96,8 @@ public class RegionContainerIjRoi extends RegionContainer {
 
     @Override
     public Region getRegion() {
-        return new Region(getMask(), segmentedObject.getIdx() + 1, is2D);
+        if (roi==null) decodeRoi();
+        return new Region(this.roi, segmentedObject.getIdx() + 1, bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
     }
 
     @Override
@@ -144,6 +128,10 @@ public class RegionContainerIjRoi extends RegionContainer {
         return res;
     }
     protected RegionContainerIjRoi() {}
+    public RegionContainerIjRoi(SimpleBoundingBox bounds, Roi3D roi) {
+        super(bounds, roi.is2D());
+        this.roi = roi;
+    }
     
     /**
      *

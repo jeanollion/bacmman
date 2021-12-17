@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure;
 
+import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.processing.EDT;
 import com.google.common.collect.Sets;
 import bacmman.data_structure.region_container.RegionContainer;
@@ -62,7 +63,6 @@ import bacmman.utils.geom.Vector;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
-import java.util.stream.Stream;
 
 /**
  * 
@@ -81,6 +81,7 @@ public class Region {
     protected Point center;
     protected boolean is2D;
     boolean regionModified;
+    Roi3D roi; // TODO make an interface to allow other types of ROIs
     /**
      * @param mask : image containing only the object, and whose bounding box is the same as the one of the object
      * @param label
@@ -110,10 +111,21 @@ public class Region {
         this(voxels, label, is2D, scaleXY, scaleZ);
         this.bounds=bounds;
     }
+    public Region(Roi3D roi, int label, BoundingBox bounds, double scaleXY, double scaleZ) {
+        this.scaleXY=scaleXY;
+        this.scaleZ=scaleZ;
+        this.label = label;
+        this.is2D=roi.is2D();
+        this.roi = roi;
+        this.bounds = bounds;
+    }
     
     public Region setIsAbsoluteLandmark(boolean absoluteLandmark) {
         this.absoluteLandmark = absoluteLandmark;
         return this;
+    }
+    public Roi3D getRoi() {
+        return roi;
     }
     public boolean hasModifications() {
         return regionModified;
@@ -204,6 +216,7 @@ public class Region {
             center[1]/=count;
             center[2]/=count;
         } else {
+            getMask();
             int[] count = new int[1];
             ImageMask.loopWithOffset(mask, (x, y, z)->{
                 center[0] += x;
@@ -283,6 +296,7 @@ public class Region {
                 for (Voxel v : voxelsToAdd) mask.setPixelWithOffset(v.x, v.y, v.z, 1);
             }
         }
+        this.roi = null;
         this.bounds=null;
         regionModified=true;
     }
@@ -309,6 +323,7 @@ public class Region {
             ImageInteger mask = getMaskAsImageInteger();
             for (Voxel v : voxelsToRemove) mask.setPixelWithOffset(v.x, v.y, v.z, 0);
         }
+        this.roi=null;
         this.bounds=null;
         regionModified=true;
     }
@@ -321,6 +336,7 @@ public class Region {
             }
             this.voxels = newVoxels;
         }
+        this.roi=null;
         mask = null;
         this.bounds=null;
         regionModified=true;
@@ -336,6 +352,7 @@ public class Region {
             }
         };
         BoundingBox.loop(BoundingBox.getIntersection(otherMask, getBounds()), function);
+        this.roi=null;
         regionModified=true;
     }
     public synchronized void and(ImageMask otherMask) {
@@ -349,6 +366,7 @@ public class Region {
             }
         };
         ImageMask.loopWithOffset(mask, function);
+        this.roi=null;
         resetMask();
         regionModified=true;
     }
@@ -368,6 +386,7 @@ public class Region {
         BoundingBox.loop(newBounds, function);
         this.mask = newMask;
         this.bounds=newBounds;
+        roi = null;
         regionModified=true;
     }
     public boolean contains(Voxel v) {
@@ -375,13 +394,13 @@ public class Region {
         else return mask.containsWithOffset(v.x, v.y, v.z) && mask.insideMaskWithOffset(v.x, v.y, v.z);
     }
     public synchronized void clearVoxels() {
-        if (mask==null) getMask();
+        if (roi == null && mask==null) getMask();
         voxels = null;
     }
     public synchronized void clearMask() {
-        if (voxels==null) getVoxels();
+        if (voxels==null && roi == null) getVoxels();
         mask = null;
-        this.bounds=null;
+        if (roi==null) this.bounds=null;
     }
     public synchronized void resetMask() {
         if (mask!=null) { // do it from mask
@@ -389,27 +408,34 @@ public class Region {
             Region other = RegionFactory.getObjectImage(mask); // landmark = mask
             this.mask=other.mask;
             this.bounds=  other.getBounds();
-        } else { // mask will be created from voxels
+        } else if (voxels!=null) { // mask will be created from voxels
             mask = null;
             bounds = null;
+        } else if (roi!=null) {
+            roi.toMask(bounds, scaleXY, scaleZ);
         }
     }
     protected void createMask() {
         if (!this.getBounds().isValid()) throw new RuntimeException("Invalid bounds: cannot create mask");
-        ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
-        for (Voxel v : getVoxels()) {
-            if (!mask_.containsWithOffset(v.x, v.y, v.z)) {
-                logger.error("voxel out of bounds: {}, bounds: {}, vox{}", v, mask_.getBoundingBox(), voxels); // can happen if bounds were not updated before the object was saved
-                this.createBoundsFromVoxels();
-                logger.error("bounds after re-create: {}", getBounds());
+        if (voxels!=null) {
+            ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
+            for (Voxel v : getVoxels()) {
+                if (!mask_.containsWithOffset(v.x, v.y, v.z)) {
+                    logger.error("voxel out of bounds: {}, bounds: {}, vox{}", v, mask_.getBoundingBox(), voxels); // can happen if bounds were not updated before the object was saved
+                    this.createBoundsFromVoxels();
+                    logger.error("bounds after re-create: {}", getBounds());
+                }
+                mask_.setPixelWithOffset(v.x, v.y, v.z, 1);
             }
-            mask_.setPixelWithOffset(v.x, v.y, v.z, 1);
-        }
-        //if (currentOffset!=null) mask_.translate(currentOffset);
-        this.mask=mask_;
+            this.mask=mask_;
+        } else if (roi!=null) {
+            this.mask = roi.toMask(getBounds(), scaleXY, scaleZ);
+        } else throw new RuntimeException("Cannot create mask: no voxels and no ROI");
+
     }
 
     protected void createVoxels() {
+        if (mask==null) getMask(); // in case roi is not null
         //logger.debug("create voxels: mask offset: {}", mask.getBoundingBox());
         HashSet<Voxel> voxels_=new HashSet<>();
         ImageMask.loopWithOffset(mask, (x, y, z)->voxels_.add(new Voxel(x, y, z)));
@@ -425,7 +451,7 @@ public class Region {
      * @return an image containing only the object: its bounds are the one of the object and pixel values >0 where the objects has a voxel. The offset of the image is this offset of the object.
      */
     public ImageMask<? extends ImageMask> getMask() {
-        if (mask==null && voxels!=null) {
+        if (mask==null && (voxels!=null || roi!=null) ) {
             synchronized(this) {
                 if (mask==null) {
                     createMask();
@@ -599,6 +625,7 @@ public class Region {
                 for (Region toErase : objects) toErase.draw(mask, 0);
             }
             voxels = null; // reset voxels
+            this.roi=null;
             regionModified=true;
         }
         return changes;
@@ -642,6 +669,7 @@ public class Region {
                 for (Region toErase : objects) toErase.draw(mask, 0);
             }
             voxels = null; // reset voxels
+            this.roi=null;
             regionModified=true;
         }
         return changes;
@@ -695,6 +723,7 @@ public class Region {
         }
         bounds = null; // reset boudns
         this.mask=null; // reset voxels
+        this.roi=null;
         regionModified=true;
     }
     
@@ -721,6 +750,7 @@ public class Region {
             this.mask= mask;
             this.bounds=null;
             this.voxels=null;
+            this.roi=null;
             regionModified=true;
         }
     }
@@ -824,6 +854,7 @@ public class Region {
         //logger.debug("merge:  {} + {}, nb voxel avant: {}, nb voxels après: {}", this.getLabel(), other.getLabel(), nb,getVoxels().size() );
         this.mask=null; // reset mask
         this.bounds=null; // reset bounds
+        this.roi = null;
         regionModified=true;
     }
     public static Region merge(Region... regions) {
@@ -845,7 +876,8 @@ public class Region {
     }
     
     public RegionContainer createRegionContainer(SegmentedObject structureObject) {
-        if (mask instanceof BlankMask) return new RegionContainerBlankMask(structureObject);
+        if (roi!=null) return new RegionContainerIjRoi(structureObject);
+        else if (mask instanceof BlankMask) return new RegionContainerBlankMask(structureObject);
         else if (!overVoxelSizeLimit()) return new RegionContainerVoxels(structureObject);
         else return new RegionContainerIjRoi(structureObject);
     }
@@ -938,6 +970,7 @@ public class Region {
             for (Voxel v : getVoxels()) image.setPixel(v.x+offX, v.y+offY, v.z+offZ, value);
         }
         else {
+            getMask();
             int offX = offset.xMin();
             int offY = offset.yMin();
             int offZ = offset.zMin();
@@ -956,8 +989,9 @@ public class Region {
     
     private boolean overVoxelSizeLimit() {
         int limit =  (!is2D() ? MAX_VOX_3D :MAX_VOX_2D);
-        if (mask==null) return voxels.size()>limit;
+        if (voxels!=null) return voxels.size()>limit;
         if (mask instanceof BlankMask) return true;
+        if (mask==null) getMask();
         int count =0;
         for (int z = 0; z < mask.sizeZ(); ++z) {
             for (int xy = 0; xy < mask.sizeXY(); ++xy) {

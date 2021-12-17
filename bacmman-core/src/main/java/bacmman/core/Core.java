@@ -34,7 +34,8 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class Core {
-    public static boolean enableHyperStackView = true;
+    public static boolean enableHyperStackView = false;
+    public static boolean enableTrackMate = false;
     private static ImageJ ij;
     private static OpService opService;
     private static Core core;

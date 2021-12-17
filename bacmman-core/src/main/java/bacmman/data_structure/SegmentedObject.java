@@ -407,23 +407,52 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         else {
             if (next.getFrame()<=this.getFrame()) throw new RuntimeException("setLink previous after next!");
             if (setPrev && setNext) { // double link: set trackHead
-                setNext(next);
-                next.setPrevious(this);
-                next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
-                if (modifiedObjects!=null) {
-                    modifiedObjects.add(this);
-                    modifiedObjects.add(next);
+                if (!next.equals(this.next)) {
+                    setNext(next);
+                    if (modifiedObjects!=null) modifiedObjects.add(this);
+                }
+                if (!this.equals(next.getPrevious()) || !getTrackHead().equals(next.getTrackHead())) {
+                    next.setPrevious(this);
+                    next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
+                    if (modifiedObjects!=null) modifiedObjects.add(next);
                 }
             } else if (setPrev) {
-                next.setPrevious(this);
-                if (!next.equals(this.getNext())) next.setTrackHead(next, false, propagate, modifiedObjects);
-                else if (next.getTrackHead()!=getTrackHead()) next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
-                if (modifiedObjects!=null) modifiedObjects.add(next);
+                boolean nextModified = false;
+                if (!this.equals(next.getPrevious())) {
+                    next.setPrevious(this);
+                    nextModified=true;
+                }
+                if (!next.equals(this.getNext())) {
+                    if (!next.equals(next.getTrackHead())) {
+                        next.setTrackHead(next, false, propagate, modifiedObjects);
+                        nextModified = true;
+                    }
+                } else if (next.getTrackHead()!=getTrackHead()) {
+                    next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
+                    nextModified=true;
+                }
+                if (modifiedObjects!=null && nextModified) {
+
+                    modifiedObjects.add(next);
+                }
             } else if (setNext) {
-                setNext(next);
-                if (!this.equals(next.getPrevious())) next.setTrackHead(next, false, propagate, modifiedObjects);
-                else next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
-                if (modifiedObjects!=null) modifiedObjects.add(this);
+                boolean modified = false;
+                if (!next.equals(this.next)) {
+                    setNext(next);
+                    modified = true;
+                }
+                if (!this.equals(next.getPrevious())) {
+                    if (!next.equals(next.getTrackHead())) {
+                        next.setTrackHead(next, false, propagate, modifiedObjects);
+                        modified = true;
+                    }
+                } else if (next.getTrackHead()!=getTrackHead()) {
+                    next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
+                    modified = true;
+                }
+                if (modified && modifiedObjects!=null) {
+                    modifiedObjects.add(this);
+                }
             }
         }
         if (next!=null && setPrev) next.setAttribute(TRACK_ERROR_PREV, null);
