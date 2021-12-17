@@ -351,11 +351,16 @@ public class TrackMateInterface<S extends Spot> {
             logger.error("Graph not initialized!");
             return;
         }
-
+        // set links
         TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(Comparator.comparingDouble(arg0 -> graph.getEdgeWeight(arg0)));
-
         setEdges(objects, objectsF, false, edgeBucket, editor);
         setEdges(objects, objectsF, true, edgeBucket, editor);
+        // set trackhead
+        Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
+        for (SegmentedObject so : objects) {
+            if (so.getPrevious()!=null && so.equals(so.getPrevious().getNext())) editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, false);
+            else editor.setTrackHead(so, so, false, false);
+        }
     }
     private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor) {
         for (SegmentedObject child : objects) {
@@ -372,18 +377,17 @@ public class TrackMateInterface<S extends Spot> {
                     if (prev) {
                         if (child.getPrevious()!=null && !child.getPrevious().equals(other)) {
                             logger.warn("warning: {} has already a previous assigned: {}, cannot assign: {}", child, child.getPrevious(), other);
-                        } else editor.setTrackLinks(other, child, true, false, true);
+                        } else editor.setTrackLinks(other, child, true, false, false);
                     } else {
                         if (child.getNext()!=null && !child.getNext().equals(other)) {
                             logger.warn("warning: {} has already a next assigned: {}, cannot assign: {}", child, child.getNext(), other);
-                        } else editor.setTrackLinks(child, other, false, true, true);
+                        } else editor.setTrackLinks(child, other, false, true, false);
                     }
                 }
                 //else logger.warn("SpotWrapper: next: {}, next of {}, has already a previous assigned: {}", nextSo, child, nextSo.getPrevious());
             }
         }
     }
-    // TODO not propagate trackHead and fix afterwards
     private void getSortedEdgesOf(S spot, boolean backward, TreeSet<DefaultWeightedEdge> res) {
         if (!graph.containsVertex(spot)) return;
         Set<DefaultWeightedEdge> set = graph.edgesOf(spot);
