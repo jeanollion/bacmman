@@ -387,7 +387,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI
             r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
                     .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
-
         } else if (object.key.getRegion() instanceof Spot) {
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
             double y = object.key.getRegion().getCenter().getDoublePosition(1) + object.value.yMin() - object.key.getBounds().yMin();

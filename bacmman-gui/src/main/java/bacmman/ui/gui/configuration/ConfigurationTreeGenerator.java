@@ -41,6 +41,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
@@ -56,10 +57,7 @@ import javax.swing.JSeparator;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.ToolTipManager;
-import javax.swing.tree.DefaultTreeCellRenderer;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
-import javax.swing.tree.TreeSelectionModel;
+import javax.swing.tree.*;
 
 /**
  *
@@ -120,6 +118,22 @@ public class ConfigurationTreeGenerator {
             setHint.accept(getHint(pp, false, expertMode, getObjectClassIdxNameF()));
         };
     }
+    public void expandAll() {
+        if (treeModel==null || tree==null) return;
+        setNodeExpandedState(rootParameter, true);
+        tree.updateUI();
+    }
+    public void setNodeExpandedState(Parameter node, boolean expanded) {
+        logger.debug("expand: {}", node);
+        List list = Collections.list(node.children());
+        for (Object c : list) setNodeExpandedState((Parameter)c, expanded);
+        if (!expanded && node==rootParameter) return;
+        TreePath path = new TreePath(node.getParameterPath().toArray());
+        if (expanded) tree.expandPath(path);
+        else tree.collapsePath(path);
+    }
+
+
     public JTree getTree() {
         if (tree==null) generateTree();
         return tree;

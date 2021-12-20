@@ -1035,6 +1035,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         reloadObjectTrees=true;
         populateModuleList(moduleModel, moduleList, null, Collections.emptyList());
         hintTextPane.setText("");
+        if (trackMatePanel!=null) trackMatePanel.close();
     }
     
     private void updateDisplayRelatedToXPSet() {
@@ -1188,7 +1189,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             populateTestParentTrackHead();
             updateTestConfigurationTree();
         }
-        if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db);
+        if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
     }
     
     public static GUI getInstance() {

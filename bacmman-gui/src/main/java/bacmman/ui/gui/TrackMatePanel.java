@@ -1,17 +1,18 @@
 package bacmman.ui.gui;
 
-import bacmman.configuration.parameters.IntervalParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
-import bacmman.core.Task;
+import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.image.Image;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.utils.Pair;
+import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -31,7 +32,7 @@ import java.util.List;
 public class TrackMatePanel {
     public static final Logger logger = LoggerFactory.getLogger(TrackMatePanel.class);
     private JPanel trackMatePanel;
-    private JPanel trackMateGUIPanel;
+    private JPanel trackMateGUIPanelContainer;
     private JPanel trackMateControlPanel;
     private JPanel positionPanel;
     private JPanel frameRangePanel;
@@ -44,9 +45,31 @@ public class TrackMatePanel {
     private JComboBox objectClassJCB;
     private JComboBox parentTrackJCB;
     private JLabel frameRangeLabel;
+    private JButton closeTrackMate;
+    private JScrollPane importTMOptionsJSP;
+    private JPanel trackMateGUIPanel;
     private IntervalParameter frameRange = new IntervalParameter("", 0, 0, null, 0, 0);
+
+    enum MATCH_MODE {CENTER, OVERLAP}
+
+    ;
+    EnumChoiceParameter<MATCH_MODE> objectMatchMode = new EnumChoiceParameter<>("SegmentedObject match mode", MATCH_MODE.values(), MATCH_MODE.OVERLAP);
+    BoundedNumberParameter centerDistance = new BoundedNumberParameter("Max. distance", 3, 1, 0, null).setHint("Trackmate objects are matched with bacmman objects by minimizing center-center distance. When the minimal distance is under this threshold a trackmate object is consider to match with a bacmman object");
+    BoundedNumberParameter overlap = new BoundedNumberParameter("Min. overlap", 0, 95, 1, 100).setHint("Trackmate objects are matched with bacmman objects by maximizing overlap. When the maximal overlap is over this threshold a trackmate object is consider to match with a bacmman object");
+    ConditionalParameter<MATCH_MODE> matchCond = new ConditionalParameter<>(objectMatchMode).setActionParameters(MATCH_MODE.CENTER, centerDistance).setActionParameters(MATCH_MODE.OVERLAP, overlap);
+
+    enum IMPORT_MODE {OVERWRITE, TRACKS_ONLY, OBJECTS_AND_TRACKS}
+
+    EnumChoiceParameter<IMPORT_MODE> importMode = new EnumChoiceParameter<>("Import mode", IMPORT_MODE.values(), IMPORT_MODE.OBJECTS_AND_TRACKS);
+    ConditionalParameter<IMPORT_MODE> importCond = new ConditionalParameter<>(importMode).setActionParameters(IMPORT_MODE.TRACKS_ONLY, matchCond).setActionParameters(IMPORT_MODE.OBJECTS_AND_TRACKS, matchCond);
+
+    GroupParameter importParams = new GroupParameter("", importCond);
+    ConfigurationTreeGenerator importConfigTree;
     MasterDAO db;
+    ProgressLogger progress;
     Object currentModel;
+    Image currentImage;
+    Runnable closeCurrentTrackMate;
 
     public TrackMatePanel() {
         frameRangePanel.addMouseListener(new MouseAdapter() {
@@ -65,28 +88,65 @@ public class TrackMatePanel {
             frameRangeLabel.setText(frameRange.toString());
             frameRangeLabel.setForeground(frameRange.isValid() ? Color.BLACK : Color.red);
         });
+
+        importConfigTree = new ConfigurationTreeGenerator(null, importParams, b -> {
+        }, (a, b) -> {
+        }, h -> {
+        }, null, null).showRootHandle(false);
+        importConfigTree.setExpertMode(true);
+        importTMOptionsJSP.setViewportView(importConfigTree.getTree());
+        importConfigTree.expandAll();
         positionJCB.addItemListener(itemEvent -> {
             populateParentTrackHead();
 
         });
         objectClassJCB.addItemListener(itemEvent -> populateParentTrackHead());
-        parentTrackJCB.addItemListener(itemEvent -> setTestFrameRange());
+        parentTrackJCB.addItemListener(itemEvent -> setFrameRange());
         openInTrackMate.addActionListener(actionEvent -> openInTrackMate());
+        importFromTrackMate.addActionListener(actionEvent -> importFromTrackMate());
+        closeTrackMate.addActionListener(actionEvent -> closeTrackMate(true));
     }
 
     public JPanel getPanel() {
         return trackMatePanel;
     }
 
+    public void importFromTrackMate() {
+        if (db != null && currentModel != null) { // use reflection to avoid dependency to trackmate-module
+            if (progress != null) progress.setRunning(true);
+            List<SegmentedObject> parentTrack = getParentTrack(true);
+            int objectClassIdx = objectClassJCB.getSelectedIndex();
+            try {
+                // TODO add progress bar here
+                Class clazz = Class.forName("bacmman.ui.gui.TrackMateRunner");
+                Method method = clazz.getMethod("importToBacmman", Object.class, List.class, int.class, boolean.class, boolean.class, boolean.class, double.class, ProgressCallback.class);
+                method.invoke(null, currentModel, parentTrack, objectClassIdx, importMode.getSelectedEnum() == IMPORT_MODE.OVERWRITE, importMode.getSelectedEnum() == IMPORT_MODE.TRACKS_ONLY, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP ? overlap.getValue().doubleValue() : centerDistance.getValue().doubleValue(), ProgressCallback.get(progress));
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+                GUI.log("Could not import from trackmate:" + e.getMessage());
+                logger.debug("Could not import from trackmate:", e);
+            } catch (Throwable e) {
+                GUI.log("Could not import from trackmate (other error):" + e.getMessage());
+                logger.debug("Could not import from trackmate: (other error)", e);
+            } finally {
+                if (progress != null) progress.setRunning(false);
+            }
+        }
+    }
+
     public void openInTrackMate() {
-        if (db == null || getTrackHead() == null) trackMatePanel.removeAll();
-        else { // use reflection to avoid dependency to trackmate-module
-            List<SegmentedObject> parentTrack = getParentTrack();
+        closeTrackMate(false);
+        if (db != null && getTrackHead() != null) { // use reflection to avoid dependency to trackmate-module
+            List<SegmentedObject> parentTrack = getParentTrack(true);
             int objectClassIdx = objectClassJCB.getSelectedIndex();
             try {
                 Class clazz = Class.forName("bacmman.ui.gui.TrackMateRunner");
-                Method method = clazz.getMethod("runTM", List.class, int.class, JPanel.class);
-                currentModel = method.invoke(null, parentTrack, objectClassIdx, trackMateGUIPanel);
+                Method method = clazz.getMethod("runTM", List.class, int.class, JComponent.class);
+                //trackMateGUIPanel.setAlignmentX(0);
+                //trackMateGUIPanel.setAlignmentY(0);
+                Object list = method.invoke(null, parentTrack, objectClassIdx, trackMateGUIPanel);
+                currentModel = ((List) list).get(0);
+                currentImage = (Image) ((List) list).get(1);
+                closeCurrentTrackMate = (Runnable) ((List) list).get(2);
                 logger.debug("current model: {}", currentModel.getClass());
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
                 GUI.log("Could not start trackmate:" + e.getMessage());
@@ -99,12 +159,28 @@ public class TrackMatePanel {
         trackMatePanel.updateUI();
     }
 
-    public void updateComponents(MasterDAO db) {
+    public void close() {
+        this.db = null;
+        updateComponents(null, null);
+        closeTrackMate(true);
+    }
+
+    public void closeTrackMate(boolean updateUI) {
+        if (closeCurrentTrackMate != null) closeCurrentTrackMate.run();
+        currentModel = null;
+        currentImage = null;
+        closeCurrentTrackMate = null;
+        trackMateGUIPanel.removeAll();
+        if (updateUI) trackMatePanel.updateUI();
+    }
+
+    public void updateComponents(MasterDAO db, ProgressLogger progress) {
         this.db = db;
+        this.progress = progress;
         populatePositionJCB();
         populateObjectClassJCB();
         populateParentTrackHead();
-        setTestFrameRange();
+        setFrameRange();
     }
 
     public void populatePositionJCB() {
@@ -122,15 +198,17 @@ public class TrackMatePanel {
     }
 
     public void populateObjectClassJCB() {
-        boolean noSel = objectClassJCB.getSelectedIndex() < 0;
+        //boolean noSel = objectClassJCB.getSelectedIndex() < 0;
         //freezeTestObjectClassListener = true;
-        List<String> structureNames = Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
         Object selectedO = objectClassJCB.getSelectedItem();
         objectClassJCB.removeAllItems();
-        for (String s : structureNames) objectClassJCB.addItem(s);
-        if (structureNames.size() > 0) {
-            if (selectedO != null && structureNames.contains(selectedO)) objectClassJCB.setSelectedItem(selectedO);
-            else objectClassJCB.setSelectedIndex(0);
+        if (db != null) {
+            List<String> structureNames = Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
+            for (String s : structureNames) objectClassJCB.addItem(s);
+            if (structureNames.size() > 0) {
+                if (selectedO != null && structureNames.contains(selectedO)) objectClassJCB.setSelectedItem(selectedO);
+                else objectClassJCB.setSelectedIndex(0);
+            }
         }
         //freezeTestObjectClassListener = false;
         //if (noSel != testObjectClassJCB.getSelectedIndex()<0) this.testObjectClassJCBItemStateChanged(null);
@@ -163,14 +241,18 @@ public class TrackMatePanel {
         parentTrack.updateUI();
     }
 
-    private void setTestFrameRange() {
+    private void setFrameRange() {
         int positionIdx = positionJCB.getSelectedIndex();
         if (positionIdx < 0) frameRange.setUpperBound(null);
         if (this.parentTrackJCB.getSelectedIndex() >= 0) {
             // set trim frame lower and upper bounds
-            List<SegmentedObject> parentTrack = getParentTrack();
-            this.frameRange.setLowerBound(parentTrack.get(0).getFrame());
-            this.frameRange.setUpperBound(parentTrack.get(parentTrack.size() - 1).getFrame());
+            List<SegmentedObject> parentTrack = getParentTrack(false);
+            int lower = parentTrack.get(0).getFrame();
+            this.frameRange.setLowerBound(lower);
+            this.frameRange.setValue(lower, 0);
+            int upper = parentTrack.get(parentTrack.size() - 1).getFrame();
+            this.frameRange.setUpperBound(upper);
+            this.frameRange.setValue(upper, 1);
         } else {
             this.frameRange.setLowerBound(0);
             this.frameRange.setUpperBound(null);
@@ -190,9 +272,15 @@ public class TrackMatePanel {
         return Selection.getObject(Selection.parseIndices(sel), path, db.getDao(position).getRoots());
     }
 
-    private List<SegmentedObject> getParentTrack() {
+    private List<SegmentedObject> getParentTrack(boolean setFrameRange) {
         SegmentedObject trackHead = getTrackHead();
-        return MasterDAO.getDao(db, positionJCB.getSelectedIndex()).getTrack(trackHead);
+        List<SegmentedObject> track = MasterDAO.getDao(db, positionJCB.getSelectedIndex()).getTrack(trackHead);
+        if (!setFrameRange) return track;
+        int[] fr = frameRange.getValuesAsInt();
+        if (fr[0] == 0 && fr[1] == 0) return track;
+        SegmentedObject first = track.stream().filter(o -> o.getFrame() == fr[0]).findFirst().orElse(track.get(0));
+        SegmentedObject last = track.stream().filter(o -> o.getFrame() == fr[1]).findFirst().orElse(track.get(track.size() - 1));
+        return track.subList(track.indexOf(first), track.indexOf(last) + 1);
     }
 
     {
@@ -213,11 +301,12 @@ public class TrackMatePanel {
         trackMatePanel = new JPanel();
         trackMatePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         final JSplitPane splitPane1 = new JSplitPane();
+        splitPane1.setDividerLocation(350);
         trackMatePanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(200, 200), null, 0, false));
         trackMateControlPanel = new JPanel();
-        trackMateControlPanel.setLayout(new GridLayoutManager(7, 1, new Insets(0, 0, 0, 0), -1, -1));
+        trackMateControlPanel.setLayout(new GridLayoutManager(8, 1, new Insets(0, 0, 0, 0), -1, -1));
         splitPane1.setLeftComponent(trackMateControlPanel);
-        trackMateControlPanel.setBorder(BorderFactory.createTitledBorder(BorderFactory.createLoweredBevelBorder(), "Contols", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        trackMateControlPanel.setBorder(BorderFactory.createTitledBorder(null, "Contols", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         positionPanel = new JPanel();
         positionPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         trackMateControlPanel.add(positionPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -242,8 +331,10 @@ public class TrackMatePanel {
         importTMOptions = new JPanel();
         importTMOptions.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         importTMOptions.setToolTipText("Options for importing Objects/Tracks edited in TrackMate");
-        trackMateControlPanel.add(importTMOptions, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        trackMateControlPanel.add(importTMOptions, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(-1, 120), new Dimension(-1, 120), null, 0, false));
         importTMOptions.setBorder(BorderFactory.createTitledBorder(null, "Import Options", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        importTMOptionsJSP = new JScrollPane();
+        importTMOptions.add(importTMOptionsJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         importFromTrackMate = new JButton();
         importFromTrackMate.setText("Import From TrackMate");
         trackMateControlPanel.add(importFromTrackMate, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -254,9 +345,20 @@ public class TrackMatePanel {
         frameRangeLabel = new JLabel();
         frameRangeLabel.setText("[0; 0]");
         frameRangePanel.add(frameRangeLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        closeTrackMate = new JButton();
+        closeTrackMate.setText("Close TrackMate");
+        trackMateControlPanel.add(closeTrackMate, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        trackMateGUIPanelContainer = new JPanel();
+        trackMateGUIPanelContainer.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
+        splitPane1.setRightComponent(trackMateGUIPanelContainer);
         trackMateGUIPanel = new JPanel();
         trackMateGUIPanel.setLayout(new GridBagLayout());
-        splitPane1.setRightComponent(trackMateGUIPanel);
+        trackMateGUIPanelContainer.add(trackMateGUIPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(350, 560), null, null, 0, false));
+        trackMateGUIPanel.setBorder(BorderFactory.createTitledBorder(null, "TrackMate GUI", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        final Spacer spacer1 = new Spacer();
+        trackMateGUIPanelContainer.add(spacer1, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
+        final Spacer spacer2 = new Spacer();
+        trackMateGUIPanelContainer.add(spacer2, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
     }
 
     /**
