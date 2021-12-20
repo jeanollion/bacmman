@@ -51,7 +51,7 @@ public class TrackMateIO {
         logger.debug("n frames : {}",  microchannels.size() );
         logger.debug("before import n bacts: {}, n tracks: {}", SegmentedObjectUtils.getAllChildrenAsStream(microchannels.stream(), 1).count(), SegmentedObjectUtils.getAllTracks(microchannels, 1).size());
 
-        TrackMateToBacmman.storeTrackMateObjects(allSpots, tracks, microchannels, 1, false, true);
+        TrackMateToBacmman.storeTrackMateObjects(allSpots, tracks, microchannels, 1, false, false, true, 90, null);
     }
 
     private static void tmFakeTracksToBacmman() {
@@ -70,7 +70,7 @@ public class TrackMateIO {
         logger.debug("n frames : {}",  mDAO.getDao("FakeTracks").getRoots().size() );
         List<SegmentedObject> roots = mDAO.getDao("FakeTracks").getRoots();
 
-        TrackMateToBacmman.storeTrackMateObjects(allSpots, tracks, roots, 0, true, true);
+        TrackMateToBacmman.storeTrackMateObjects(allSpots, tracks, roots, 0, true, false, true, 95, null);
     }
 
     private static void bactToTM() {

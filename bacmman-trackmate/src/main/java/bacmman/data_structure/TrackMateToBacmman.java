@@ -1,12 +1,14 @@
 package bacmman.data_structure;
 
 import bacmman.core.Core;
+import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.image.*;
 import bacmman.image.io.KymographFactory;
 import bacmman.image.wrappers.ImgLib2ImageWrapper;
+import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
@@ -31,6 +33,9 @@ import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.function.BiFunction;
+import java.util.function.BiPredicate;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -43,53 +48,64 @@ public class TrackMateToBacmman {
         KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
         return Arrays.asList(data.trackOffset);
     }
-    public static void storeTrackMateObjects(SpotCollection tmSpots, TrackModel tracks, List<SegmentedObject> parentTrack, int objectClassIdx, boolean append, boolean matchExistingObjects) {
-        storeTrackMateObjects(tmSpots, tracks, parentTrack, getDefaultOffset(parentTrack), objectClassIdx, append, matchExistingObjects);
+    public static void storeTrackMateObjects(SpotCollection tmSpots, TrackModel tracks, List<SegmentedObject> parentTrack, int objectClassIdx, boolean overwrite, boolean trackOnly, boolean matchWithOverlap, double matchThreshold, ProgressCallback progress) {
+        storeTrackMateObjects(tmSpots, tracks, parentTrack, getDefaultOffset(parentTrack), objectClassIdx, overwrite, trackOnly, matchWithOverlap,matchThreshold, progress);
     }
 
-    public static void storeTrackMateObjects(SpotCollection tmSpots, TrackModel tracks, List<SegmentedObject> parentTrack, List<BoundingBox> parentTrackOffset, int objectClassIdx, boolean append, boolean matchExistingObjects) {
+    public static void storeTrackMateObjects(SpotCollection tmSpots, TrackModel tracks, List<SegmentedObject> parentTrack, List<BoundingBox> parentTrackOffset, int objectClassIdx, boolean overwrite, boolean trackOnly, boolean matchWithOverlap, double matchThreshold, ProgressCallback progress) {
+
         assert !parentTrack.isEmpty() : "no parent provided";
-        if (matchExistingObjects) assert append : "cannot match existing objets if append is false";
         assert parentTrack.size()==parentTrackOffset.size() : "parent track  & offset lists should match" ;
         SegmentedObject parent = parentTrack.iterator().next();
         ObjectDAO dao = parent.getDAO();
-        if (!append) dao.deleteObjectsByStructureIdx(objectClassIdx); // TODO delete only from parents ?
-        if (tmSpots.getNSpots(true)==0) return;
+        //if (tmSpots.getNSpots(true)==0) return;
         IntFunction<Offset> getOffset = i -> parentTrack.get(i).getBounds().duplicate().translate(parentTrackOffset.get(i).duplicate().reverseOffset());
-        Map<Region, Spot> regionSpotMap = stream(tmSpots).collect(Collectors.toMap(s->tmSpotToRegion(s, parent.getScaleXY(), parent.getScaleZ(),getOffset.apply(s.getFeature("FRAME").intValue())), s->s));
+        Map<Region, Spot> tmRegionSpotMap = stream(tmSpots).collect(Collectors.toMap(s->tmSpotToRegion(s, parent.getScaleXY(), parent.getScaleZ(),getOffset.apply(s.getFeature("FRAME").intValue())), s->s));
         //Map<SegmentedObject, List<Region>> regionByParent = regionSpotMap.keySet().stream().collect(Collectors.groupingBy(r -> SegmentedObjectUtils.getContainer(r, parentsByFrame.get(regionSpotMap.get(r).getFeature("FRAME").intValue()).stream(), null)));
-        Map<SegmentedObject, List<Region>> regionByParent = regionSpotMap.keySet().stream().collect(Collectors.groupingBy(r->parentTrack.get(regionSpotMap.get(r).getFeature("FRAME").intValue())));
+        Map<SegmentedObject, List<Region>> tmRegionByParent = tmRegionSpotMap.keySet().stream().collect(Collectors.groupingBy(r->parentTrack.get(tmRegionSpotMap.get(r).getFeature("FRAME").intValue())));
         Set<SegmentedObject> modifiedObjects = new HashSet<>(); // to be saved
         Set<SegmentedObject> matchedObjects = new HashSet<>(); // maybe not to  be saved
         Set<SegmentedObject> toRemove = new HashSet<>();
-        regionByParent.forEach( (p, c) -> {
+        BiFunction<Region, List<SegmentedObject>, SegmentedObject> getClosestObject = matchWithOverlap ? (r, existingObjects) -> existingObjects.stream().max(Comparator.comparingDouble(s -> r.getOverlapArea(s.getRegion()))).orElseGet(null) : (r, existingObjects) -> existingObjects.stream().min(Comparator.comparingDouble(s -> s.getRegion().getCenter().distSq(r.getCenter()))).orElseGet(null);
+        BiPredicate<Region, SegmentedObject> match = matchWithOverlap ? (r, s) -> r.getOverlapArea(s.getRegion())/r.size() > matchThreshold/100d : (r, s) -> s.getRegion().getCenter().distSq(r.getCenter()) < matchThreshold ;
+        tmRegionByParent.forEach( (p, c) -> {
             List<SegmentedObject> existingObjects = p.getDirectChildren(objectClassIdx);
-            if (!matchExistingObjects || existingObjects.isEmpty()) {
-                if (!matchExistingObjects) toRemove.addAll(existingObjects);
+            if (overwrite || existingObjects.isEmpty()) {
+                if (overwrite) toRemove.addAll(existingObjects);
                 p.setChildrenObjects(new RegionPopulation(c, p.getMaskProperties()), objectClassIdx);
                 modifiedObjects.addAll(p.getDirectChildren(objectClassIdx));
             } else {
-                existingObjects.stream().filter(s -> s.getRegion().getCenter() == null).forEach(s -> s.getRegion().setCenter(s.getRegion().getGeomCenter(false)));
+                if (!matchWithOverlap) existingObjects.stream().filter(s -> s.getRegion().getCenter() == null).forEach(s -> s.getRegion().setCenter(s.getRegion().getGeomCenter(false)));
                 List<SegmentedObject> SO = c.stream().map(r -> {
                     //TODO overlap for normal & distance for analytical ? only overlap ?
-                    SegmentedObject closest = existingObjects.stream().min(Comparator.comparingDouble(s -> s.getRegion().getCenter().distSq(r.getCenter()))).orElseGet(null);
-                    if (closest!=null && closest.getRegion().getCenter().distSq(r.getCenter())<1) {
+                    SegmentedObject closest = getClosestObject.apply(r, existingObjects);
+                    if (matchWithOverlap && closest!=null) logger.debug("max overlap: {}, r size: {}, closest size: {}", r.getOverlapArea(closest.getRegion()), r.size(), closest.getRegion().size());
+                    if (closest!=null && match.test(r, closest)) {
                         matchedObjects.add(closest);
-                        regionSpotMap.put(closest.getRegion(), regionSpotMap.get(r)); // replace region with actual region // TODO do not create all regions from spot in matching mode!
+                        if (trackOnly) tmRegionSpotMap.put(closest.getRegion(), tmRegionSpotMap.get(r));  // replace trackmate region with existing bacmman region
+                        else closest.setRegion(r); // replace existing bacmman region with trackmate region
                         return closest;
-                    } else {
+                    } else { // no match -> new object
                         SegmentedObject res = new SegmentedObject(p.getFrame(), objectClassIdx, existingObjects.size(), r, p);
                         modifiedObjects.add(res);
                         return res;
                     }
                 }).collect(Collectors.toList());
                 existingObjects.removeAll(SO);
-                toRemove.addAll(existingObjects);
+                //toRemove.addAll(existingObjects);
                 Collections.sort(SO, Comparator.comparingInt(SegmentedObject::getIdx));
                 p.setChildren(SO, objectClassIdx);
-                p.relabelChildren(objectClassIdx, modifiedObjects); // if we want consistency between trackmate ID and IDX -> change this
+                p.relabelChildren(objectClassIdx, modifiedObjects); // TODO if we want consistency between trackmate ID and IDX -> change this
             }
         });
+        if (overwrite || !trackOnly ) { // also remove objects in parents where no tm objects are present
+            List<SegmentedObject> remainingParents = new ArrayList<>(parentTrack);
+            remainingParents.removeAll(tmRegionByParent.keySet());
+            remainingParents.forEach( p -> {
+                toRemove.addAll(p.getDirectChildren(objectClassIdx));
+                p.setChildren(null, objectClassIdx);
+            });
+        }
         logger.debug("after region match: modified objects {}", modifiedObjects.size());
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
         for (SegmentedObject o : toRemove) editor.resetTrackLinks(o, true, true, true);
@@ -97,9 +113,11 @@ public class TrackMateToBacmman {
         modifiedObjects.removeAll(toRemove);
         logger.debug("after delete: modified objects {}", modifiedObjects.size());
         Stream<SegmentedObject> allSO = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), objectClassIdx);
-        new TrackCollectionWrapper(tracks, regionSpotMap, allSO).setTrackLinks(editor);
+        new TrackCollectionWrapper(tracks, tmRegionSpotMap, allSO).setTrackLinks(editor);
         dao.store(modifiedObjects);
+        if (progress!=null) progress.log("after import from TrackMate: removed objects: "+toRemove.size() + "modified objects: "+modifiedObjects.size()+" matched objects: "+matchedObjects.size());
         logger.debug("removed: {}, matched: {}, modified: {}", toRemove.size(), matchedObjects.size(), modifiedObjects.size());
+
     }
 
     private static Stream<Spot> stream(SpotCollection spots) {
@@ -124,7 +142,6 @@ public class TrackMateToBacmman {
         } else {
             BoundingBox bounds = getBounds(roi, center, scaleXY);
             Roi3D roi3D = convert(roi, spot.getDoublePosition(0), spot.getDoublePosition(1), scaleXY, bounds);
-            //IterableInterval<BoolType> it = roi.sample(spot.getDoublePosition(0), spot.getDoublePosition(1), (RandomAccessibleInterval<BoolType>)ImgLib2ImageWrapper.getImage(mask), scaleXY, scaleXY);
             res = new Region(roi3D, label, bounds, scaleXY, scaleZ);
             res.setCenter(center);
         }
@@ -134,12 +151,12 @@ public class TrackMateToBacmman {
         return res;
     }
 
-    public static Roi3D convert(SpotRoi roi, double cx, double cy, double scaleXY, Offset offset) {
+    public static Roi3D convert(SpotRoi roi, double scaledCx, double scaledCy, double scaleXY, Offset offset) {
         float[] x = new float[roi.x.length];
         float[] y = new float[roi.x.length];
         for (int i = 0; i<x.length; ++i) {
-            x[i] = round(( cx + roi.x[ i ] ) / scaleXY - offset.xMin(), 2);
-            y[i] = round(( cy + roi.y[ i ] ) / scaleXY - offset.yMin(), 2);
+            x[i] = round(( scaledCx + roi.x[ i ] ) / scaleXY - offset.xMin(), 2);
+            y[i] = round(( scaledCy + roi.y[ i ] ) / scaleXY - offset.yMin(), 2);
             if (x[i]<0) x[i] = 0;
             if (y[i]<0) y[i] = 0;
         }

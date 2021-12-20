@@ -30,22 +30,25 @@ public class BacmmanToTrackMate {
     }
     public static Model getSpotsAndTracks(List<SegmentedObject> parentTrack, List<BoundingBox> parentTrackOffset, int objectClassIdx) {
         assert parentTrack.size()==parentTrackOffset.size() : "parent track  & offset lists should match" ;
+        double timeScale = parentTrack.get(0).getExperiment()==null? 1d: parentTrack.get(0).getExperiment().getPosition(parentTrack.get(0).getPositionName()).getFrameDuration();
         IntFunction<Offset> getOffset = i -> parentTrackOffset.get(i).duplicate().translate(parentTrack.get(i).getBounds().duplicate().reverseOffset());
         SpotCollection spots = new SpotCollection();
         SimpleWeightedGraph<fiji.plugin.trackmate.Spot, DefaultWeightedEdge> graph = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
         Map<SegmentedObject, fiji.plugin.trackmate.Spot> map = new HashMap<>();
         IntStream.range(0, parentTrack.size()).forEach(i -> parentTrack.get(i).getDirectChildren(objectClassIdx).stream().forEach(c -> {
-            fiji.plugin.trackmate.Spot spot = regionToSpot(c.getRegion(), getOffset.apply(i));
+            fiji.plugin.trackmate.Spot spot = regionToSpot(c.getRegion(), getOffset.apply(i), c.getFrame(), timeScale);
             map.put(c, spot);
             spots.add(spot, c.getFrame());
             graph.addVertex(spot);
         }));
+        int minFrame = parentTrack.get(0).getFrame();
+        int maxFrame = parentTrack.get(parentTrack.size()-1).getFrame();
         SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), objectClassIdx).forEach( c -> {
             fiji.plugin.trackmate.Spot s=map.get(c);
             SegmentedObject prev = c.getPrevious();
-            if (prev!=null) graph.addEdge(map.get(prev), s);
+            if (prev!=null && prev.getFrame()>=minFrame) graph.addEdge(map.get(prev), s);
             SegmentedObject next = c.getNext();
-            if (next!=null) graph.addEdge(s, map.get(next));
+            if (next!=null && next.getFrame()<=maxFrame) graph.addEdge(s, map.get(next));
         } );
         Model model = new Model();
         model.setSpots(spots, false);
@@ -69,9 +72,10 @@ public class BacmmanToTrackMate {
         } );
         return graph;
     }
-    public static fiji.plugin.trackmate.Spot regionToSpot(Region region, Offset offset) {
+    public static fiji.plugin.trackmate.Spot regionToSpot(Region region, Offset offset, int frame, double timescale) {
         double scale = region.getScaleXY();
-        Point center = region.getCenter()==null ? region.getGeomCenter(false) : region.getCenter();
+        Point centerTemp = region.getCenter()==null ? region.getGeomCenter(false) : region.getCenter();
+        Point center = centerTemp.numDimensions()==2 ? new Point(centerTemp.get(0), centerTemp.get(1), offset.zMin()) : centerTemp;
         double radius;
         SpotRoi roi = null;
         if (region instanceof Spot) radius = ((Spot)region).getRadius() * region.getScaleXY();
@@ -105,6 +109,8 @@ public class BacmmanToTrackMate {
             res.getFeatures().put("ELLIPSE_THETA", e.getTheta());
             // TODO other ellipse feature need to be set ?
         }
+        res.getFeatures().put(fiji.plugin.trackmate.Spot.POSITION_T, frame * timescale);
+        res.getFeatures().put(fiji.plugin.trackmate.Spot.FRAME, (double)frame);
         return res;
     }
 }
