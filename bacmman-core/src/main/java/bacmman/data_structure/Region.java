@@ -186,7 +186,7 @@ public class Region {
     
     public double size() {
         if (this.voxelsCreated()) return voxels.size();
-        else return mask.count();
+        else return getMask().count();
     }
 
     public Region setCenter(Point center) {
@@ -391,7 +391,7 @@ public class Region {
     }
     public boolean contains(Voxel v) {
         if (voxels!=null) return voxels.contains(v);
-        else return mask.containsWithOffset(v.x, v.y, v.z) && mask.insideMaskWithOffset(v.x, v.y, v.z);
+        else return getMask().containsWithOffset(v.x, v.y, v.z) && mask.insideMaskWithOffset(v.x, v.y, v.z);
     }
     public synchronized void clearVoxels() {
         if (roi == null && mask==null) getMask();
@@ -524,6 +524,8 @@ public class Region {
             for (Voxel v: getVoxels()) if (touchBorder(v.x, v.y, v.z, neigh, mask)) res.add(v);
             */
             for (Voxel v: getVoxels()) if (touchBorderVox(v, neigh)) res.add(v);
+        } else if (roi!=null) {
+            return roi.getContour(getBounds());
         } else ImageMask.loop(mask, (x, y, z)->{ if (touchBorder(x, y, z, neigh, mask)) res.add(new Voxel(x+mask.xMin(), y+mask.yMin(), z+mask.zMin()));});
         return res;
     }
@@ -908,6 +910,7 @@ public class Region {
             }
         }
         else {
+            getMask();
             if (mask == null) throw new RuntimeException("Both voxels and mask are null: cannot draw region of class: "+getClass());
             //logger.debug("drawing from IMAGE of object: {} with label: {} on image: {} mask: {}, absolute landmark: {}", this, label, image, mask, isAbsoluteLandMark());
             if (isAbsoluteLandMark()) {
@@ -936,6 +939,7 @@ public class Region {
             for (Voxel v : getVoxels()) if (image.contains(v.x+offX, v.y+offY, v.z+offZ)) image.setPixel(v.x+offX, v.y+offY, v.z+offZ, value);
         }
         else {
+            getMask();
             int offX = offset.xMin()+mask.xMin()-image.xMin();
             int offY = offset.yMin()+mask.yMin()-image.yMin();
             int offZ = offset.zMin()+mask.zMin()-image.zMin();
@@ -1013,6 +1017,7 @@ public class Region {
                 this.voxels = new HashSet<>(voxels); // hash of voxel changed
             }
             if (center!=null) center.translate(offset);
+            if (roi!=null) roi.translate(offset);
             regionModified=true;
         }
         return this;

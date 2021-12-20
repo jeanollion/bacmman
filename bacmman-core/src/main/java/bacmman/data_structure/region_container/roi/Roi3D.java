@@ -1,18 +1,25 @@
 package bacmman.data_structure.region_container.roi;
 
+import bacmman.data_structure.Voxel;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.Overlay;
 import ij.gui.Roi;
+import ij.process.FloatPolygon;
 import ij.process.ImageProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.*;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class Roi3D extends HashMap<Integer, Roi> {
     public static final Logger logger = LoggerFactory.getLogger(Roi3D.class);
@@ -70,13 +77,21 @@ public class Roi3D extends HashMap<Integer, Roi> {
     }
 
     public MutableBoundingBox getBounds() {
-        int xMin = this.entrySet().stream().filter(e -> e.getKey()>=0).mapToInt(e -> e.getValue().getBounds().x).min().getAsInt();
-        int xMax = this.entrySet().stream().filter(e -> e.getKey()>=0).mapToInt(e -> e.getValue().getBounds().x + e.getValue().getBounds().width).max().getAsInt();
-        int yMin = this.entrySet().stream().filter(e -> e.getKey()>=0).mapToInt(e -> e.getValue().getBounds().y).min().getAsInt();
-        int yMax = this.entrySet().stream().filter(e -> e.getKey()>=0).mapToInt(e -> e.getValue().getBounds().y + e.getValue().getBounds().height).max().getAsInt();
-        int zMin = this.entrySet().stream().filter(e -> e.getKey()>=0).mapToInt(e->e.getKey()).min().getAsInt();
-        int zMax = this.entrySet().stream().filter(e -> e.getKey()>=0).mapToInt(e->e.getKey()).max().getAsInt();
-        return new MutableBoundingBox(xMin, xMax, yMin, yMax, zMin, zMax);
+        try {
+            int xMin = stream().mapToInt(e -> e.getBounds().x).min().getAsInt();
+            int xMax = stream().mapToInt(e -> e.getBounds().x + e.getBounds().width).max().getAsInt();
+            int yMin = stream().mapToInt(e -> e.getBounds().y).min().getAsInt();
+            int yMax = stream().mapToInt(e -> e.getBounds().y + e.getBounds().height).max().getAsInt();
+            int zMin = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).min().getAsInt();
+            int zMax = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).max().getAsInt();
+            return new MutableBoundingBox(xMin, xMax, yMin, yMax, zMin, zMax);
+        } catch (NoSuchElementException e) {
+            logger.debug("void roi : {}", keySet());
+            throw e;
+        }
+    }
+    public Stream<Roi> stream() {
+        return entrySet().stream().filter(e -> e.getKey()>=0).map(Entry::getValue);
     }
     public Roi3D setLocation(Offset off) {
         return translate(getBounds().reverseOffset().translate(off).setzMin(0));
@@ -120,5 +135,12 @@ public class Roi3D extends HashMap<Integer, Roi> {
                 this.put(-z-1, dup);
             }
         }
+    }
+    public Set<Voxel> getContour(Offset offset) {
+        return entrySet().stream().flatMap( e -> roiToVoxels(e.getValue(), e.getKey())).peek(v -> v.translate(offset)).collect(Collectors.toSet());
+    }
+    public static Stream<Voxel> roiToVoxels(Roi roi, int z) {
+        FloatPolygon p = roi.getInterpolatedPolygon();
+        return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel(Math.round(p.xpoints[i]), Math.round(p.xpoints[i]), z));
     }
 }

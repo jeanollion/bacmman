@@ -45,7 +45,7 @@ import org.json.simple.JSONObject;
 
 public class RegionContainerIjRoi extends RegionContainer {
     List<byte[]> roiZ; // persists
-    Roi3D roi; // convention: location of ROI = location of object & position starts from 1 // not persistant
+    Roi3D roi; // not persistant
     public RegionContainerIjRoi(SegmentedObject structureObject) {
         super(structureObject);
         createRoi(structureObject.getRegion());
@@ -77,10 +77,10 @@ public class RegionContainerIjRoi extends RegionContainer {
         for (byte[] b : roiZ) {
             Roi r = RoiDecoder.openFromByteArray(b);
             r.setPosition(z+1+bounds.zMin());
-            //r.setLocation(bounds.xMin(), bounds.yMin()); // encoded in ROI ?
             roi.put(z+bounds.zMin(), r);
             ++z;
         }
+        //if (roi.isEmpty()) logger.debug("empty roi for: {}", segmentedObject);
     }
     private synchronized ImageByte getMask() {
         if (roi==null) decodeRoi();
@@ -98,6 +98,7 @@ public class RegionContainerIjRoi extends RegionContainer {
     public Region getRegion() {
         if (roi==null) decodeRoi();
         return new Region(this.roi, segmentedObject.getIdx() + 1, bounds, segmentedObject.getScaleXY(), segmentedObject.getScaleZ());
+        //return new Region(this.getMask(), segmentedObject.getIdx() + 1, is2D);
     }
 
     @Override
