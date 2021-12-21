@@ -77,6 +77,7 @@ import javax.swing.ListModel;
 
 import static javax.swing.UIManager.setLookAndFeel;
 
+import javax.swing.filechooser.FileFilter;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.FileDialog;
@@ -780,7 +781,7 @@ public class Utils {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }
     public static boolean isUnix() {return !isWindows();}
-    public static File[] chooseFiles(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent) {
+    public static File[] chooseFiles(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent, String... fileExtension) {
         if (false && isMacOSX()) {
             // FileDialog does not allow to select directories...
             //System.setProperty("apple.awt.fileDialogForDirectories", "false");
@@ -795,6 +796,22 @@ public class Utils {
             final JFileChooser fc = new JFileChooser();
             fc.setFileSelectionMode(option.getOption());
             //fc.setFileHidingEnabled(false);
+            if (fileExtension.length>0) {
+                fc.setFileFilter(new FileFilter() {
+                    public String getDescription() {
+                        return Arrays.toString(fileExtension);
+                    }
+                    public boolean accept(File f) {
+                        if (f.isDirectory()) {
+                            return true;
+                        } else {
+                            String filename = f.getName().toLowerCase();
+                            return Arrays.stream(fileExtension).anyMatch(filename::endsWith);
+                        }
+                    }
+                });
+
+            }
             fc.setMultiSelectionEnabled(option.getMultipleSelectionEnabled());
             if (directory != null) fc.setCurrentDirectory(new File(directory));
             if (dialogTitle!=null) fc.setDialogTitle(dialogTitle);
@@ -809,8 +826,8 @@ public class Utils {
         }
     }
     
-    public static File chooseFile(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent) {
-        File[] res = chooseFiles(dialogTitle,directory, option,  parent);
+    public static File chooseFile(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent, String... fileExtension) {
+        File[] res = chooseFiles(dialogTitle,directory, option,  parent, fileExtension);
         if (res!=null && res.length>0) return res[0];
         else return null;
     }

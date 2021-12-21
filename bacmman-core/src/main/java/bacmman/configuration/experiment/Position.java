@@ -133,7 +133,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             }
         }
         if (allowByPass && this.getPreProcessingChain().isEmpty() && imageDAO.getPreProcessedImageProperties(0)==null)  {
-            logger.debug("will return bypass dao");
+            //logger.debug("will return bypass dao");
             return new BypassImageDAO(this);
         }
         return imageDAO;

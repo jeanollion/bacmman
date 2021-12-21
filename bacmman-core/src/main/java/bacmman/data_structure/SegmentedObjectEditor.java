@@ -61,7 +61,7 @@ public class SegmentedObjectEditor {
                 if (editor.manualEditing()) next.setAttribute(SegmentedObject.EDITED_LINK_PREV, true);
             }
             // fix remaining links
-            logger.debug("unlinking: {} from {} ...", prev, next);
+            //logger.debug("unlinking: {} from {} ...", prev, next);
             List<SegmentedObject> allNext = getNext(prev);
             if (allNext.size()==1 && mergeTracks.test(prev, allNext.get(0))) { // set trackHead
                 unlinkObjects(prev, allNext.get(0), NERVE_MERGE, editor);
