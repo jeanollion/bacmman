@@ -23,6 +23,8 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.GUI;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.util.*;
@@ -32,6 +34,7 @@ import java.util.*;
  * @author Jean Ollion
  */
 public class TrackTreeController {
+    public static final Logger logger = LoggerFactory.getLogger(TrackTreeController.class);
     MasterDAO db;
     TreeMap<Integer, TrackTreeGenerator> displayedGeneratorS;
     HashMap<Integer, TrackTreeGenerator> allGeneratorS;
@@ -85,7 +88,7 @@ public class TrackTreeController {
         for (int s: structurePathToRoot) {
             displayedGeneratorS.put(s, allGeneratorS.get(s));
         }
-        updateParentTracks();
+        updateLastParentTracksWithSelection();
         if (GUI.logger.isTraceEnabled()) GUI.logger.trace("track tree controller set structure: number of generators: {}", displayedGeneratorS.size());
     }
     
@@ -95,22 +98,25 @@ public class TrackTreeController {
         }
         return -1;
     }
-    
-    public void updateParentTracks() {
+    public void updateTrackTree() {
+        for (TrackTreeGenerator t : allGeneratorS.values()) t.updateTree();
+        updateLastParentTracksWithSelection();
+    }
+    public void updateLastParentTracksWithSelection() {
         int lastTreeIdx = getLastTreeIdxWithSelection();
         if (lastTreeIdx+1<structurePathToRoot.length && !displayedGeneratorS.get(structurePathToRoot[lastTreeIdx+1]).hasSelection()) {
-            updateParentTracks(lastTreeIdx);
+            updateLastParentTracksWithSelection(lastTreeIdx);
         }
     }
     /**
      * Updates the parent track for the tree after {@param lastSelectedTreeIdx} and clear the following trees.
      * @param lastSelectedTreeIdx 
      */
-    public void updateParentTracks(int lastSelectedTreeIdx) {
-        //logger.debug("update parent track lastSelectedIdx: {} number of structures: {}", lastSelectedTreeIdx, structurePathToRoot.length);
+    public void updateLastParentTracksWithSelection(int lastSelectedTreeIdx) {
+        logger.debug("update parent track lastSelectedIdx: {} number of structures: {}", lastSelectedTreeIdx, structurePathToRoot.length);
         if (lastSelectedTreeIdx==-1) setParentTrackOnRootTree();
         else if (lastSelectedTreeIdx+1<structurePathToRoot.length) {
-            //logger.debug("setting parent track on tree for structure: {}", structurePathToRoot[lastSelectedTreeIdx+1]);
+            logger.debug("setting parent track on tree for structure: {}", structurePathToRoot[lastSelectedTreeIdx+1]);
             allGeneratorS.get(structurePathToRoot[lastSelectedTreeIdx+1]).setParentTrack(allGeneratorS.get(structurePathToRoot[lastSelectedTreeIdx]).getSelectedTrack(), structurePathToRoot[lastSelectedTreeIdx+1]);
             clearTreesFromIdx(lastSelectedTreeIdx+2);
         }

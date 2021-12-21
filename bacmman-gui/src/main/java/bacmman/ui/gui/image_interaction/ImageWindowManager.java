@@ -766,11 +766,23 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         GUI.logger.debug("image: {}, OI: {}", image.getName(), i.getClass().getSimpleName());
         for (List<SegmentedObject> track : tracks) {
-            displayTrack(image, i, i.pairWithOffset(track), getColor() , labile);
+            displayTrack(image, i, i.pairWithOffset(track), getColor() , labile, false);
         }
+        if (i instanceof KymographT) {
+            int minFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.stream().filter(SegmentedObject::isTrackHead).findFirst().get().getFrame()).min().orElse(-1);
+            int maxFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.get(track.size() - 1).getFrame()).max().orElse(-1);
+            if (minFrame > -1) {
+                int curFrame = displayer.getFrame(image);
+                if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
+            }
+        }
+        displayer.updateImageRoiDisplay(image);
         //GUI.updateRoiDisplayForSelections(image, i);
     }
     public void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile) {
+        displayTrack(image, i, track, color, labile, true);
+    }
+    protected void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile, boolean updateDisplay) {
         //logger.debug("display selected track: image: {}, track length: {} color: {}", image, track==null?"null":track.size(), color);
         if (track==null || track.isEmpty()) return;
         I dispImage;
@@ -812,7 +824,16 @@ public abstract class ImageWindowManager<I, U, V> {
             } else setTrackColor(roi, color);
             if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi ,i);
             if (disp!=null) disp.add(roi);
-            displayer.updateImageRoiDisplay(image);
+            if (updateDisplay) {
+                displayer.updateImageRoiDisplay(image);
+                if (i instanceof KymographT) {
+                    int minFrame = track.stream().filter(o -> o.key.isTrackHead()).findFirst().get().key.getFrame();
+                    int maxFrame = track.get(track.size() - 1).key.getFrame();
+                    int curFrame = displayer.getFrame(image);
+                    if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
+                }
+            }
+
         } else GUI.logger.warn("image cannot display selected track: ImageObjectInterface null? {}, is Track? {}", i==null, i instanceof Kymograph);
     }
     

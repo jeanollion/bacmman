@@ -115,7 +115,7 @@ public class TrackMateToBacmman {
         Stream<SegmentedObject> allSO = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), objectClassIdx);
         new TrackCollectionWrapper(tracks, tmRegionSpotMap, allSO).setTrackLinks(editor);
         dao.store(modifiedObjects);
-        if (progress!=null) progress.log("after import from TrackMate: removed objects: "+toRemove.size() + "modified objects: "+modifiedObjects.size()+" matched objects: "+matchedObjects.size());
+        if (progress!=null) progress.log("after import from TrackMate: removed objects: "+toRemove.size() + " modified objects: "+modifiedObjects.size()+" matched objects: "+matchedObjects.size());
         logger.debug("removed: {}, matched: {}, modified: {}", toRemove.size(), matchedObjects.size(), modifiedObjects.size());
 
     }

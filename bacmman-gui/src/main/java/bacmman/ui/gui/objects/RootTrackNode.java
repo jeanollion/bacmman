@@ -79,13 +79,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     public String getFieldName() {
         return position;
     }
-    
-    public void refresh() {
-        children = null;
-        remainingTrackHeads=null;
-    }
-    
-    
+
     public boolean containsError() {
         if (containsErrors==null) {
             if (children==null) return false; // lazy-loading
@@ -118,26 +112,41 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     }
     
     public List<SegmentedObject> getRemainingTracksPerFrame() {
-        if (remainingTrackHeads==null) {
-            if (getParentTrackHead()==null) return Collections.EMPTY_LIST;
-            long t0 = System.currentTimeMillis();
-            remainingTrackHeads = generator.getObjectDAO(position).getTrackHeads(getParentTrackHead(), structureIdx);
-            long t1 = System.currentTimeMillis();
-        }
+        if (remainingTrackHeads==null) remainingTrackHeads = createRemainingTracksPerFrame();
         return remainingTrackHeads;
+    }
+    private List<SegmentedObject> createRemainingTracksPerFrame() {
+        if (getParentTrackHead()==null) return Collections.EMPTY_LIST;
+        return generator.getObjectDAO(position).getTrackHeads(getParentTrackHead(), structureIdx);
     }
     @Override
     public List<TrackNode> getChildren() {
-        if (children==null) {
-            children = getRemainingTracksPerFrame().stream()
+        if (children==null) children = createChildren(getRemainingTracksPerFrame());
+        return children;
+    }
+    private List<TrackNode> createChildren(List<SegmentedObject> remainingTracks) {
+        List<TrackNode> res = remainingTracks.stream()
                 .filter(th->th.getPrevious()==null)
                 .map(th-> new TrackNode(this, this, th))
                 .collect(Collectors.toList());
-            getRemainingTracksPerFrame().removeAll(children.stream().map(tn ->tn.trackHead).collect(Collectors.toSet()));
-        }
-        return children;
+        remainingTracks.removeAll(res.stream().map(tn ->tn.trackHead).collect(Collectors.toSet()));
+        return res;
     }
-    
+
+    public void update() {
+        if (children==null) return;
+        List<SegmentedObject> remainingTrackHeadsTemp=createRemainingTracksPerFrame();
+        List<TrackNode> newChildren = createChildren(remainingTrackHeadsTemp);
+        for (int i = 0; i<newChildren.size(); ++i) { // replace by existing to keep same instances
+            int ii = i;
+            TrackNode t = children.stream().filter(c -> c.trackHead.equals(newChildren.get(ii).trackHead)).findAny().orElse(null);
+            if (t!=null) newChildren.set(i, t);
+        }
+        children = newChildren;
+        remainingTrackHeads = remainingTrackHeadsTemp;
+        for (TrackNode t : children) t.update();
+    }
+
     public TrackNode getChild(SegmentedObject trackHead) {
         return getChildren().stream().filter(t->t.trackHead==trackHead).findFirst().orElse(null);
     }

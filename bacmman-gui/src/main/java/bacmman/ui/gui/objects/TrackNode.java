@@ -99,19 +99,35 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     @Override public List<TrackNode> getChildren() {
         if (children==null) {
             if (getTrack()==null || getTrack().size()<=1) children=new ArrayList<>(0);
-            else {
-                children = root.getRemainingTracksPerFrame().stream()
-                    .filter(th->th.getFrame()>trackHead.getFrame()) 
-                    .filter(th->getTrack().stream().anyMatch(s->s.getId().equals(th.getPreviousId())))
-                    .map(th-> new TrackNode(this, root, th))
-                    .collect(Collectors.toList());
-                root.getRemainingTracksPerFrame().removeAll(children.stream().map(tn ->tn.trackHead).collect(Collectors.toSet()));
-            }
+            else children = createChildren();
             //logger.trace("get children: {} number of children: {} remaining distinct timePoint in root: {}", toString(),  children.size(), root.getRemainingTracksPerFrame().size());
         } 
         return children;
     }
-    
+
+    public List<TrackNode> createChildren() {
+        List<TrackNode> res = root.getRemainingTracksPerFrame().stream()
+                .filter(th->th.getFrame()>trackHead.getFrame())
+                .filter(th->getTrack().stream().anyMatch(s->s.getId().equals(th.getPreviousId())))
+                .map(th-> new TrackNode(this, root, th))
+                .collect(Collectors.toList());
+        root.getRemainingTracksPerFrame().removeAll(res.stream().map(tn ->tn.trackHead).collect(Collectors.toSet()));
+        return res;
+    }
+
+    public void update() {
+        track=null;
+        if (children == null) return;
+        List<TrackNode> newChildren = createChildren();
+        for (int i = 0; i<newChildren.size(); ++i) { // replace by existing to keep same instances
+            int ii = i;
+            TrackNode t = children.stream().filter(c -> c.trackHead.equals(newChildren.get(ii).trackHead)).findAny().orElse(null);
+            if (t!=null) newChildren.set(i, t);
+        }
+        children = newChildren;
+        for (TrackNode t : children) t.update();
+    }
+
     public TrackNode getChild(SegmentedObject trackHead) {
         return getChildren().stream().filter(t->t.trackHead==trackHead).findFirst().orElse(null);
     }
@@ -125,7 +141,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     @Override public String toString() {
         if (trackHead==null) return "tracking should be re-run";
         getTrack();
-        int tl = track!=null ? track.get(track.size()-1).getFrame()-track.get(0).getFrame()+1:-1;
+        int tl = track!=null || track.isEmpty() ? track.get(track.size()-1).getFrame()-track.get(0).getFrame()+1:-1;
         return getStructureName()+": #"+trackHead.getIdx()+ " Frames: ["+trackHead.getFrame()+";"+(track!=null?track.get(track.size()-1).getFrame():"???")+"] (N="+(track!=null?track.size():".........")+")"+(track!=null && tl!=track.size() ? " (Gaps="+(tl-track.size())+")" : ""); 
     }
     private String getStructureName() {
@@ -325,7 +341,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             DefaultWorker worker = new DefaultWorker(wt, positions.size(), ui);
                             worker.appendEndOfWork(() -> {
                                 // reload tree
-                                root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
+                                root.generator.controller.updateLastParentTracksWithSelection(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
                                 // reload objects
                                 ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
                                 // reload selection
@@ -368,7 +384,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             DefaultWorker worker = new DefaultWorker(wt, positions.size(), ui);
                             worker.appendEndOfWork(() -> {
                                 // reload tree
-                                root.generator.controller.updateParentTracks(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
+                                root.generator.controller.updateLastParentTracksWithSelection(root.generator.controller.getTreeIdx(trackHead.getStructureIdx()));
                                 // reload objects
                                 ImageWindowManagerFactory.getImageManager().reloadObjects(trackHead, structureIdx, true);
                                 // reload selection

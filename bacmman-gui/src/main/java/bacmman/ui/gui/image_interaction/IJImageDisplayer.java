@@ -215,7 +215,22 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
         for (MouseWheelListener mwl2: iw.getMouseWheelListeners()) iw.removeMouseWheelListener(mwl2);
         iw.addMouseWheelListener(mwl);
     }
-    
+
+    @Override
+    public int getFrame(Image im) {
+        ImagePlus image = getImage(im);
+        if (image==null) return -1;
+        if (image.isDisplayedHyperStack()) return image.getFrame()-1;
+        else if (image.getNFrames() == image.getStackSize()) return image.getCurrentSlice()-1;
+        return 0;
+    }
+
+    @Override
+    public void setFrame(int frame, Image im) {
+        ImagePlus image = getImage(im);
+        if (image!=null) image.setT(frame+1);
+    }
+
     @Override public ImagePlus getImage(Image image) {
         if (image==null) return null;
         ImagePlus ip = displayedImages.get(image);

@@ -55,6 +55,8 @@ public interface ImageDisplayer<T> {
     public Image[][] getCurrentImageCT();
     public void flush();
     public void addMouseWheelListener(Image image, Predicate<BoundingBox> movementCallBack);
+    int getFrame(Image image);
+    void setFrame(int frame, Image image);
     //public int[] getFCZCount(T image);
     //public boolean isVisible(Image image);
     //public Image[][] reslice(Image image, int[] FCZCount);

@@ -14,6 +14,7 @@ import fiji.plugin.trackmate.gui.wizard.TrackMateWizardSequence;
 import fiji.plugin.trackmate.gui.wizard.WizardController;
 import fiji.plugin.trackmate.gui.wizard.WizardSequence;
 import fiji.plugin.trackmate.gui.wizard.descriptors.GrapherDescriptor;
+import fiji.plugin.trackmate.io.TmXmlReader;
 import fiji.plugin.trackmate.visualization.TrackMateModelView;
 import fiji.plugin.trackmate.visualization.hyperstack.HyperStackDisplayer;
 import ij.IJ;
@@ -25,6 +26,7 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,7 +51,39 @@ public class TrackMateRunner extends TrackMatePlugIn {
             ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);
             tmr.close();
         };
-        return new ArrayList(){{add(model); add(hook); add(close);}}; // TODO: also return a close method ?
+        return new ArrayList(){{add(model); add(hook); add(close);}};
+    }
+    public static List runTM(File tmFile, List<SegmentedObject> parentTrack, int objectClassIdx, JComponent container) {
+        TmXmlReader reader = new TmXmlReader(tmFile);
+        logger.debug("reader init {}", reader.isReadingOk());
+        if (!reader.isReadingOk()) throw new RuntimeException("Could not read file "+ reader.getErrorMessage());
+        Model model = reader.getModel();
+        logger.debug("imported from file: {}: spots: {},  tracks: {}", tmFile, model.getSpots().getNSpots(false), model.getTrackModel().nTracks(false));
+        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx);
+        ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
+
+        TrackMateRunner tmr = runTM(model, container, imp);
+        Runnable close = () -> {
+            ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);
+            tmr.close();
+        };
+        return new ArrayList(){{add(model); add(hook); add(close);}};
+    }
+
+    public static List runTM(File tmFile, JComponent container) {
+        TmXmlReader reader = new TmXmlReader(tmFile);
+        logger.debug("reader init {}", reader.isReadingOk());
+        if (!reader.isReadingOk()) throw new RuntimeException("Could not read file "+ reader.getErrorMessage());
+        Model model = reader.getModel();
+
+        ImagePlus imp = reader.readImage();
+
+        TrackMateRunner tmr = runTM(model, container, imp);
+        Runnable close = () -> {
+            imp.close();
+            tmr.close();
+        };
+        return new ArrayList(){{add(model); add(close);}};
     }
 
     public static TrackMateRunner runTM(Model model, JComponent container, ImagePlus imp) {

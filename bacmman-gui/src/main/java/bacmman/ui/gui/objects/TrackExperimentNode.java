@@ -20,10 +20,8 @@ package bacmman.ui.gui.objects;
 
 import bacmman.data_structure.SegmentedObject;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
+import java.util.stream.Collectors;
 import javax.swing.tree.TreeNode;
 
 /**
@@ -32,7 +30,7 @@ import javax.swing.tree.TreeNode;
  */
 public class TrackExperimentNode implements TreeNode, UIContainer {
     protected final TrackTreeGenerator generator;
-    ArrayList<RootTrackNode> children;
+    List<RootTrackNode> children;
     int structureIdx; 
     public TrackExperimentNode(TrackTreeGenerator generator, int structureIdx) {
         this.generator=generator;
@@ -43,16 +41,24 @@ public class TrackExperimentNode implements TreeNode, UIContainer {
     public TrackTreeGenerator getGenerator() {
         return generator;
     }
-    
-    public List<RootTrackNode> getChildren() {
-        if (children==null) {
-            String[] fieldNames = generator.getExperiment().getPositionsAsString();
-            children= new ArrayList<>(fieldNames.length);
-            for (String fieldName : fieldNames) children.add(new RootTrackNode(this, fieldName, structureIdx));
+    public void update() {
+        if (children==null) return;
+        List<RootTrackNode> newChildren = createChildren();
+        for (int i = 0; i<newChildren.size(); ++i) { // replace by existing to keep same instances
+            int ii = i;
+            RootTrackNode t = children.stream().filter(c -> c.position.equals(newChildren.get(ii).position)).findAny().orElse(null);
+            if (t!=null) newChildren.set(i, t);
         }
+        children = newChildren;
+        for (RootTrackNode n : children) n.update();
+    }
+    public List<RootTrackNode> getChildren() {
+        if (children==null) children = createChildren();
         return children;
     }
-    
+    private List<RootTrackNode> createChildren() {
+        return Arrays.stream(generator.getExperiment().getPositionsAsString()).map(pos -> new RootTrackNode(this, pos, structureIdx)).collect(Collectors.toList());
+    }
     public RootTrackNode getRootNodeOf(SegmentedObject s) {
         for (RootTrackNode r : getChildren()) {
             if (r!=null && r.position.equals(s.getPositionName())) return r;

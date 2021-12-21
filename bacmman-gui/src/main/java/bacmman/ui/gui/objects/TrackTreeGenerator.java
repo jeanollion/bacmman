@@ -23,6 +23,7 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.ui.ManualEdition;
+import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -31,6 +32,7 @@ import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.ui.GUI;
 
 import static bacmman.ui.gui.configuration.ConfigurationTreeGenerator.addToMenu;
+import static bacmman.ui.gui.configuration.ConfigurationTreeGenerator.logger;
 
 import java.awt.Rectangle;
 import java.awt.event.MouseAdapter;
@@ -65,7 +67,6 @@ public class TrackTreeGenerator {
     final protected HashMapGetCreate<String, Set<SegmentedObject>> highlightedObjects = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
     final protected Set<String> highlightedPositions = new HashSet<>();
     ProgressCallback pcb;
-
     public TrackTreeGenerator(MasterDAO db, TrackTreeController controller) {
         this.db = db;
         this.controller=controller;
@@ -77,6 +78,19 @@ public class TrackTreeGenerator {
         highlightedObjects.clear();
         highlightedPositions.clear();
         controller=null;
+    }
+    public void updateTree() {
+        if (tree==null) return;
+        Object root = treeModel.getRoot();
+        logger.debug("updating tree: for oc:{}, parentTH: {}, root is xp: {}", getStructureIdx(), getParentTrackHead(), root instanceof TrackExperimentNode);
+        ConfigurationTreeModel.SaveExpandState expandState = new ConfigurationTreeModel.SaveExpandState(tree);
+        TreePath[] sel = tree.getSelectionPaths();
+        if (root instanceof TrackExperimentNode) ((TrackExperimentNode)root).update();
+        else if (root instanceof RootTrackNode) ((RootTrackNode)root).update();
+        expandState.setTree(tree).restoreExpandedPaths();
+        tree.setSelectionPaths(sel);
+        resetHighlightedObjects();
+        tree.updateUI();
     }
     public void setEnabled(boolean enabled) {
         if (tree!=null) tree.setEnabled(enabled);

@@ -20,7 +20,6 @@ package bacmman.ui;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
-import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
@@ -35,7 +34,6 @@ import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
-import bacmman.ui.gui.TrackMatePanel;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
@@ -93,17 +91,14 @@ import bacmman.ui.logger.MultiProgressLogger;
 import static bacmman.plugins.Hint.formatHint;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.FileIO;
-import bacmman.utils.FileIO.ZipWriter;
 import bacmman.utils.ImportExportJSON;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.ListTransferHandler;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
-import ij.IJ;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
-import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
 
@@ -1290,7 +1285,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                                 return;
                             }
                             if (tree.getSelectionCount() == 1 && tree.getSelectionPath().getLastPathComponent() instanceof TrackNode) {
-                                trackTreeController.updateParentTracks(trackTreeController.getTreeIdx(entry.getKey()));
+                                trackTreeController.updateLastParentTracksWithSelection(trackTreeController.getTreeIdx(entry.getKey()));
                             } else {
                                 trackTreeController.clearTreesFromIdx(trackTreeController.getTreeIdx(entry.getKey()) + 1);
                             }

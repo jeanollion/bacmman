@@ -1,4 +1,4 @@
-package bacmman.ui.gui;
+package bacmman.ui;
 
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
@@ -10,7 +10,6 @@ import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.Image;
-import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Utils;
@@ -24,6 +23,7 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
@@ -48,6 +48,7 @@ public class TrackMatePanel {
     private JButton closeTrackMate;
     private JScrollPane importTMOptionsJSP;
     private JPanel trackMateGUIPanel;
+    private JButton openTrackMateFile;
     private IntervalParameter frameRange = new IntervalParameter("", 0, 0, null, 0, 0);
 
     enum MATCH_MODE {CENTER, OVERLAP}
@@ -102,8 +103,9 @@ public class TrackMatePanel {
         });
         objectClassJCB.addItemListener(itemEvent -> populateParentTrackHead());
         parentTrackJCB.addItemListener(itemEvent -> setFrameRange());
-        openInTrackMate.addActionListener(actionEvent -> openInTrackMate());
-        importFromTrackMate.addActionListener(actionEvent -> importFromTrackMate());
+        openInTrackMate.addActionListener(actionEvent -> runLater(this::openInTrackMate));
+        openTrackMateFile.addActionListener(actionEvent -> runLater(this::openTrackMateFile));
+        importFromTrackMate.addActionListener(actionEvent -> runLater(this::importFromTrackMate));
         closeTrackMate.addActionListener(actionEvent -> closeTrackMate(true));
     }
 
@@ -113,7 +115,6 @@ public class TrackMatePanel {
 
     public void importFromTrackMate() {
         if (db != null && currentModel != null) { // use reflection to avoid dependency to trackmate-module
-            if (progress != null) progress.setRunning(true);
             List<SegmentedObject> parentTrack = getParentTrack(true);
             int objectClassIdx = objectClassJCB.getSelectedIndex();
             try {
@@ -121,16 +122,23 @@ public class TrackMatePanel {
                 Class clazz = Class.forName("bacmman.ui.gui.TrackMateRunner");
                 Method method = clazz.getMethod("importToBacmman", Object.class, List.class, int.class, boolean.class, boolean.class, boolean.class, double.class, ProgressCallback.class);
                 method.invoke(null, currentModel, parentTrack, objectClassIdx, importMode.getSelectedEnum() == IMPORT_MODE.OVERWRITE, importMode.getSelectedEnum() == IMPORT_MODE.TRACKS_ONLY, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP ? overlap.getValue().doubleValue() : centerDistance.getValue().doubleValue(), ProgressCallback.get(progress));
+                if (GUI.getInstance().trackTreeController != null) GUI.getInstance().trackTreeController.updateTrackTree();
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
                 GUI.log("Could not import from trackmate:" + e.getMessage());
                 logger.debug("Could not import from trackmate:", e);
             } catch (Throwable e) {
                 GUI.log("Could not import from trackmate (other error):" + e.getMessage());
                 logger.debug("Could not import from trackmate: (other error)", e);
-            } finally {
-                if (progress != null) progress.setRunning(false);
             }
         }
+    }
+
+    private void runLater(Runnable action) {
+        if (progress != null) progress.setRunning(true);
+        SwingUtilities.invokeLater(() -> {
+            action.run();
+            if (progress != null) progress.setRunning(false);
+        });
     }
 
     public void openInTrackMate() {
@@ -159,11 +167,41 @@ public class TrackMatePanel {
         trackMatePanel.updateUI();
     }
 
+    public void openTrackMateFile() {
+        File file = Utils.chooseFile("Choose TrackMate XML file", db.getDir().toFile().toString(), FileChooser.FileChooserOption.FILE_ONLY, GUI.getInstance(), ".xml");
+        if (file != null) {
+            closeTrackMate(false);
+            if (db != null && getTrackHead() != null) { // use reflection to avoid dependency to trackmate-module
+                List<SegmentedObject> parentTrack = getParentTrack(true);
+                int objectClassIdx = objectClassJCB.getSelectedIndex();
+                try {
+                    Class clazz = Class.forName("bacmman.ui.gui.TrackMateRunner");
+                    Method method = clazz.getMethod("runTM", File.class, List.class, int.class, JComponent.class);
+                    //trackMateGUIPanel.setAlignmentX(0);
+                    //trackMateGUIPanel.setAlignmentY(0);
+                    Object list = method.invoke(null, file, parentTrack, objectClassIdx, trackMateGUIPanel);
+                    currentModel = ((List) list).get(0);
+                    currentImage = (Image) ((List) list).get(1);
+                    closeCurrentTrackMate = (Runnable) ((List) list).get(2);
+                    logger.debug("current model: {}", currentModel.getClass());
+                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+                    GUI.log("Could not start trackmate from file:" + e.getMessage());
+                    logger.debug("Could not start trackmate from file:", e);
+                } catch (Throwable e) {
+                    GUI.log("Could not start trackmate from file (other error):" + e.getMessage());
+                    logger.debug("Could not start trackmate from file: (other error)", e);
+                }
+            }
+            trackMatePanel.updateUI();
+        }
+    }
+
     public void close() {
         this.db = null;
         updateComponents(null, null);
         closeTrackMate(true);
     }
+
 
     public void closeTrackMate(boolean updateUI) {
         if (closeCurrentTrackMate != null) closeCurrentTrackMate.run();
@@ -301,10 +339,10 @@ public class TrackMatePanel {
         trackMatePanel = new JPanel();
         trackMatePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         final JSplitPane splitPane1 = new JSplitPane();
-        splitPane1.setDividerLocation(350);
+        splitPane1.setDividerLocation(360);
         trackMatePanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(200, 200), null, 0, false));
         trackMateControlPanel = new JPanel();
-        trackMateControlPanel.setLayout(new GridLayoutManager(8, 1, new Insets(0, 0, 0, 0), -1, -1));
+        trackMateControlPanel.setLayout(new GridLayoutManager(9, 1, new Insets(0, 0, 0, 0), -1, -1));
         splitPane1.setLeftComponent(trackMateControlPanel);
         trackMateControlPanel.setBorder(BorderFactory.createTitledBorder(null, "Contols", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         positionPanel = new JPanel();
@@ -331,13 +369,13 @@ public class TrackMatePanel {
         importTMOptions = new JPanel();
         importTMOptions.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         importTMOptions.setToolTipText("Options for importing Objects/Tracks edited in TrackMate");
-        trackMateControlPanel.add(importTMOptions, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(-1, 120), new Dimension(-1, 120), null, 0, false));
+        trackMateControlPanel.add(importTMOptions, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(-1, 100), null, null, 0, false));
         importTMOptions.setBorder(BorderFactory.createTitledBorder(null, "Import Options", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         importTMOptionsJSP = new JScrollPane();
         importTMOptions.add(importTMOptionsJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         importFromTrackMate = new JButton();
         importFromTrackMate.setText("Import From TrackMate");
-        trackMateControlPanel.add(importFromTrackMate, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        trackMateControlPanel.add(importFromTrackMate, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         frameRangePanel = new JPanel();
         frameRangePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         trackMateControlPanel.add(frameRangePanel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -347,7 +385,10 @@ public class TrackMatePanel {
         frameRangePanel.add(frameRangeLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         closeTrackMate = new JButton();
         closeTrackMate.setText("Close TrackMate");
-        trackMateControlPanel.add(closeTrackMate, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        trackMateControlPanel.add(closeTrackMate, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        openTrackMateFile = new JButton();
+        openTrackMateFile.setText("Open TrackMate File");
+        trackMateControlPanel.add(openTrackMateFile, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trackMateGUIPanelContainer = new JPanel();
         trackMateGUIPanelContainer.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         splitPane1.setRightComponent(trackMateGUIPanelContainer);

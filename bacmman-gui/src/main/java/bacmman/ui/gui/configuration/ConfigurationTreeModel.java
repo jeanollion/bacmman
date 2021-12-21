@@ -57,14 +57,25 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         if (path==null) return;
         tree.expandPath(new TreePath(path));
     }
-    private class SaveExpandState {
+    public static class SaveExpandState {
         private List<TreePath> expanded = new ArrayList<>();
-        public SaveExpandState(TreeNode node) {
-            TreeNode[] path = getPathToRoot(node);
+        private JTree tree;
+        public SaveExpandState setTree(JTree tree) {
+            this.tree=tree;
+            return this;
+        }
+        public SaveExpandState(JTree tree) {
+            this(tree, (TreeNode)tree.getModel().getRoot());
+            logger.debug("expanded paths: {}", expanded);
+        }
+        public SaveExpandState(JTree tree, TreeNode node) {
+            this.tree=tree;
+            TreeNode[] path = ((DefaultTreeModel)tree.getModel()).getPathToRoot(node);
             if (path!=null) addPath(new TreePath(path));
         }
-        public SaveExpandState(TreePath path) {
-            addPath(path);
+        public SaveExpandState(JTree tree, TreePath path) {
+            this.tree=tree;
+            if (path!=null) addPath(path);
         }
         public void restoreExpandedPaths() {
             for (TreePath p : expanded) tree.expandPath(p);
@@ -235,7 +246,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
 
     @Override
     public void nodeStructureChanged(TreeNode node) {
-        SaveExpandState exp = new SaveExpandState(node);
+        SaveExpandState exp = new SaveExpandState(tree, node);
         super.nodeStructureChanged(node);
         if (setHint!=null && (node instanceof PluginParameter)) {
             // if selected, also update hint

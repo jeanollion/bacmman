@@ -79,7 +79,7 @@ public class ManualEdition {
         GUI.updateRoiDisplayForSelections(null, null);
 
         // update trackTree
-        if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks();
+        if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
     }
     private static boolean canEdit(Stream<SegmentedObject> objects, MasterDAO db) {
         if (db==null) return true;
@@ -111,7 +111,7 @@ public class ManualEdition {
         if (updateDisplay) {
             // reload track-tree and update selection toDelete
             int parentStructureIdx = objects.get(0).getParent().getStructureIdx();
-            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
+            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateLastParentTracksWithSelection(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
             //List<List<StructureObject>> tracks = this.trackTreeController.getGeneratorS().get(structureIdx).getSelectedTracks(true);
             // get unique tracks to display
             Set<SegmentedObject> uniqueTh = new HashSet<>();
@@ -253,7 +253,7 @@ public class ManualEdition {
             db.getDao(e.getKey()).store(modifiedObjects);
             if (updateDisplay) {
                 int parentStructureIdx = futureTrackHeads.iterator().next().getParent().getStructureIdx();
-                if (bacmman.ui.GUI.getInstance().trackTreeController!=null) bacmman.ui.GUI.getInstance().trackTreeController.updateParentTracks(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
+                if (bacmman.ui.GUI.getInstance().trackTreeController!=null) bacmman.ui.GUI.getInstance().trackTreeController.updateLastParentTracksWithSelection(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
                 //List<List<StructureObject>> tracks = this.trackTreeController.getGeneratorS().get(structureIdx).getSelectedTracks(true);
                 // get unique tracks to display
                 Set<SegmentedObject> uniqueTh = new HashSet<>();
@@ -320,7 +320,7 @@ public class ManualEdition {
         if (updateDisplay) {
             // reload track-tree and update selection toDelete
             int parentStructureIdx = objects.get(0).getParent().getStructureIdx();
-            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
+            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateLastParentTracksWithSelection(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
             Set<SegmentedObject> uniqueTh = new HashSet<SegmentedObject>();
             for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
             List<List<SegmentedObject>> trackToDisp = new ArrayList<List<SegmentedObject>>();
@@ -588,7 +588,7 @@ public class ManualEdition {
                     GUI.updateRoiDisplayForSelections(null, null);
                 }
                 // update trackTree
-                if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks();
+                if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
             }
         }
     }
@@ -646,7 +646,7 @@ public class ManualEdition {
             }
         }
         // update trackTree
-        if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateParentTracks();
+        if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
     }
     public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean updateDisplay) {
         if (!canEdit(objects.stream(), db)) return;
@@ -666,12 +666,10 @@ public class ManualEdition {
                 ImageWindowManagerFactory.getImageManager().resetObjects(null, structureIdx);
                 ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh, true), true);
                 GUI.updateRoiDisplayForSelections(null, null);
-
-                // update trackTree
-                if (GUI.getInstance().trackTreeController != null)
-                    GUI.getInstance().trackTreeController.updateParentTracks();
             }
         }
+        // update trackTree
+        if (GUI.getInstance().trackTreeController != null) GUI.getInstance().trackTreeController.updateTrackTree();
     }
     
     public static void repairLinksForXP(MasterDAO db, int structureIdx) {
