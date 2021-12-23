@@ -47,7 +47,8 @@ public class ImageFeature implements PreFilter, Filter, Hint {
                 "<li><em>Gradient Magnitude</em>: detects the amplitude edges, where the pixel grey levels change abruptly</li>" +
                 "<li><em>Laplacian</em>: The Laplacian is an isotropic measure of the 2nd spatial derivative of an image. It highlights the regions of rapid intensity change and is therefore often used for edge detection or spot-like structure detection</li>" +
                 "<li><em>Hessian</em>: Hessian matrix or Hessian is a square matrix of second-order partial derivatives of the image intensity. It describes its local curvature. <em>Hessian Max</em> is the maximum eigenvalue, <em>Hessian Min</em> is the minimum eigenvalue and <em>Hessian Det</em> is the determinant</li>" +
-                "<li><em>Structure</em>: The structure tensor, also referred to as the second-moment matrix, is a matrix derived from the gradient of the image. <em>Structure Max</em> is the maximum eigenvalue of the structure matrix. <em>Structure Det</em> is the determinant of the structure matrix.</li></ul>" +
+                "<li><em>Structure</em>: The structure tensor, also referred to as the second-moment matrix, is a matrix derived from the gradient of the image. <em>Structure Max</em> is the maximum eigenvalue of the structure matrix. <em>Structure Det</em> is the determinant of the structure matrix.</li>" +
+                "<li><em>Shape Index</em>: Shape index 2/PI * atan( (k2+K2)/(k2-k1) ) where k1 & k2 are eignevalues of the Hessian. See Koenderink JJ van Doorn AJ (1992) Surface shape and curvature scales Image and Vision Computing 10:557–564. https://doi.org/10.1016/0262-8856(92)90076-F </li</ul>>" +
                 "Using <em>ImageScience</em> library: <a href='https://imagescience.org/meijering/software/featurej/'>https://imagescience.org/meijering/software/featurej/</a>";
     }
 
@@ -59,7 +60,8 @@ public class ImageFeature implements PreFilter, Filter, Hint {
         HessianMax("Hessian Max"),
         HessianMin("Hessian Min"),
         StructureMax("Structure Max"),
-        StructureDet("Structure Det");
+        StructureDet("Structure Det"),
+        ShapeIndex("Shape Index");
         final String name;
         Feature(String name) {
             this.name=name;
@@ -71,7 +73,7 @@ public class ImageFeature implements PreFilter, Filter, Hint {
     ChoiceParameter feature = new ChoiceParameter("Feature", Utils.transform(Feature.values(), new String[Feature.values().length], f->f.name), Feature.GAUSS.name, false).setEmphasized(true);
     ScaleXYZParameter scale = new ScaleXYZParameter("Scale", 2, 1, true).setEmphasized(true).setHint("Scale of the operation in pixels").setEmphasized(true);
     ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 2, 1, true).setEmphasized(true);
-    ConditionalParameter<String> cond = new ConditionalParameter<>(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, new Parameter[]{scale, smoothScale});
+    ConditionalParameter<String> cond = new ConditionalParameter<>(feature).setDefaultParameters(new Parameter[]{scale}).setActionParameters(StructureMax.name, scale, smoothScale);
     BooleanParameter applySliceBySlice = new BooleanParameter("Apply Slice by Slice", false).setEmphasized(true).setHint("For 3D image, computes the feature slice by slice i.e. returns a stack of 2D features");
 
     public ImageFeature() {}
@@ -129,6 +131,8 @@ public class ImageFeature implements PreFilter, Filter, Hint {
                 return input -> ImageFeatures.getStructure(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[0];
             case StructureDet:
                 return input -> ImageFeatures.getStructureMaxAndDeterminant(input, smoothScale.getScaleXY(), scale.getScaleXY(), canModifyImage)[1];
+            case ShapeIndex:
+                return input -> ImageFeatures.getShapeIndex(input, smoothScale.getScaleXY(), canModifyImage);
             default:
                 throw new IllegalArgumentException("Feature "+feature.getSelectedItem()+"not supported");
         }

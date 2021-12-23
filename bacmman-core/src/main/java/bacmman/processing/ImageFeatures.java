@@ -19,6 +19,7 @@
 package bacmman.processing;
 
 import bacmman.data_structure.Processor;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.wrappers.ImagescienceWrapper;
@@ -220,6 +221,20 @@ public class ImageFeatures {
     }
     public static ImageFloat[] getHessian(Image image, double scale, boolean overrideIfFloat) {
         return getHessian(image, scale, scale * image.getScaleXY()/image.getScaleZ(), overrideIfFloat);
+    }
+    public static Image getShapeIndex(Image image, double scaleXY, boolean overrideIfFloat) {
+        return ImageOperations.applyPlaneByPlane(image, im -> {
+            ImageFloat[] hess = getHessian(image, scaleXY, overrideIfFloat);
+            Image k1 = hess[1];
+            Image k2 = hess[0];
+            double f = 2d/Math.PI;
+            for (int xy = 0; xy<k1.sizeXY(); ++xy) {
+                double k1v = k1.getPixel(xy, 0);
+                double k2v = k2.getPixel(xy, 0);
+                k1.setPixel(xy, 0, f * Math.atan( (k2v + k1v) / (k2v - k1v)));
+            }
+            return k1;
+        });
     }
     public static ImageFloat[] getHessian(Image image, double scaleXY, double scaleZ, boolean overrideIfFloat) {
         ImageFloat[] res = new ImageFloat[image.sizeZ()==1?2:3];
