@@ -43,7 +43,7 @@ import java.util.stream.IntStream;
 public class KymographY extends Kymograph {
     protected final int maxParentSize, maxParentSizeZ;
     public KymographY(KymographFactory.KymographData data, int childStructureIdx) {
-        super(data, childStructureIdx);
+        super(data, childStructureIdx, true);
         maxParentSize = data.maxParentSizeX;
         maxParentSizeZ = data.maxParentSizeZ;
         if (!KymographFactory.DIRECTION.Y.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");

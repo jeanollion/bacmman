@@ -52,10 +52,7 @@ import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 
 import java.awt.KeyboardFocusManager;
-import java.util.function.BiConsumer;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -103,18 +100,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     public void addMouseListener(final Image image) {
         final ImagePlus ip = displayer.getImage(image);
         final ImageCanvas canvas = ip.getCanvas();
-        
         if (canvas==null) {
             GUI.logger.warn("image: {} could not be set interactive", image.getName());
             return;
         }
         MouseListener ml =  new MouseListener() {
-
             public void mouseClicked(MouseEvent e) {
                 //logger.trace("mouseclicked");
-                
             }
-
             public void mousePressed(MouseEvent e) {
                 //logger.debug("mousepressed");
                 if (SwingUtilities.isRightMouseButton(e)) {
@@ -141,7 +134,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 boolean displayTrack = displayTrackMode;
                 //logger.debug("button ctrl: {}, shift: {}, alt: {}, meta: {}, altGraph: {}, alt: {}", e.isControlDown(), e.isShiftDown(), e.isAltDown(), e.isMetaDown(), e.isAltGraphDown(), displayTrackMode);
                 InteractiveImage i = getImageObjectInterface(image);
-                if (i instanceof KymographT) ((KymographT)i).setIdx(ip.getFrame()-1); // TODO this should not be necessary...
+                boolean hyperstack = i instanceof KymographT;
+
                 int completionStructureIdx=-1;
                 if (strechObjects) { // select parents
                     completionStructureIdx = i.getChildStructureIdx();
@@ -203,25 +197,41 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     }
                 }
                 if (!displayTrack && !strechObjects) {
-                    logger.debug("objects to display: {}", selectedObjects);
+                    //logger.debug("objects to display: {}", selectedObjects);
                     displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor, true, true);
                     if (listener!=null) {
                         //List<Pair<StructureObject, BoundingBox>> labiles = getSelectedLabileObjects(image);
                         //fire deselected objects
                         listener.fireObjectSelected(Pair.unpairKeys(selectedObjects), true);
                     }
+                    if (hyperstack) ((KymographT)i).setChangeIdxCallback(null);
                 } else if (!strechObjects) {
-                    List<SegmentedObject> trackHeads = new ArrayList<>();
-                    for (Pair<SegmentedObject, BoundingBox> p : selectedObjects) trackHeads.add(p.key.getTrackHead());
-                    Utils.removeDuplicates(trackHeads, false);
-                    for (SegmentedObject th : trackHeads) {
-                        List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th, true);
-                        List<Pair<SegmentedObject, BoundingBox>> disp = i.pairWithOffset(track);
-                        Color c = ImageWindowManager.getColor();
-                        displayTrack(image, i, disp, c, true);
-                        displayObjects(image, disp, c, true, false);
+                    if (!hyperstack) {
+                        List<SegmentedObject> trackHeads = new ArrayList<>();
+                        for (Pair<SegmentedObject, BoundingBox> p : selectedObjects)
+                            trackHeads.add(p.key.getTrackHead());
+                        Utils.removeDuplicates(trackHeads, false);
+                        for (SegmentedObject th : trackHeads) {
+                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th, !hyperstack);
+                            List<Pair<SegmentedObject, BoundingBox>> disp = i.pairWithOffset(track);
+                            Color c = hyperstack ? getColor(track.get(0)) : ImageWindowManager.getColor();
+                            displayTrack(image, i, disp, c, true);
+                            displayObjects(image, disp, c, true, false);
+                        }
+                        if (listener != null) listener.fireTracksSelected(trackHeads, true);
+                    } else {
+                        // for hyper stack: create callback that displays only tracks at current frame
+                        KymographT k = ((KymographT)i);
+                        Set<SegmentedObject> trackHeads = selectedObjects.stream().map(p -> p.key.getTrackHead()).collect(Collectors.toSet());
+                        IntConsumer callback = idx -> {
+                            List<List<SegmentedObject>> selTracks = k.getObjects().stream().filter(p -> trackHeads.contains(p.key.getTrackHead()))
+                                    .map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
+                            hideAllRois(image, true, false);
+                            if (!selTracks.isEmpty()) displayTracks(image, k, selTracks, true);
+                        };
+                        k.setChangeIdxCallback(callback);
+                        callback.accept(k.getIdx());
                     }
-                    if (listener!=null) listener.fireTracksSelected(trackHeads, true);
                 }
                 if (freeHandSplit && r!=null && !selectedObjects.isEmpty()) {
                     // if there are several objects per parent keep only to
@@ -384,8 +394,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (object.key.getBounds().sizeZ()<=0 || object.key.getBounds().sizeX()<=0 || object.key.getBounds().sizeY()<=0) GUI.logger.error("wrong object dim: o:{} {}", object.key, object.key.getBounds());
         Roi3D r;
         SegmentedObjectAccessor accessor = getAccessor();
-        if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI
-            r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
+        // TODO why following condition is false when multiple selection ?
+        //if (accessor.hasRegionContainer(object.key) && accessor.getRegionContainer(object.key) instanceof RegionContainerIjRoi && ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null) { // look for existing ROI
+        if (object.key.getRegion().getRoi()!=null) {
+            //logger.debug("object: {} has IJROICONTAINER", object.key);
+            r = object.key.getRegion().getRoi().duplicate()
+            //r = ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi().duplicate()
                     .translate(new SimpleOffset(object.value).translate(new SimpleOffset(object.key.getBounds()).reverseOffset()));
         } else if (object.key.getRegion() instanceof Spot) {
             double x = object.key.getRegion().getCenter().getDoublePosition(0) + object.value.xMin() - object.key.getBounds().xMin(); // cannot call setLocation with offset -> would remove advantage of subpixel resolution
@@ -428,7 +442,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             BoundingBox bds = r.getBounds();
             r.setLocDelta(bds.xMin() - object.value.xMin(), bds.yMin() - object.value.yMin());
             //logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.key, object.key.getRegion().getCenter(), foci, object.key.getBounds(), object.key.getRegion().is2D(), object.key.getParent().getBounds(), object.value);
-        }else {
+        } else {
+            logger.debug("object: {} has container: {}, container type: {}, container ROI not null ? {}, has ROI: {}", object.key, accessor.hasRegionContainer(object.key), accessor.hasRegionContainer(object.key)? accessor.getRegionContainer(object.key).getClass() : "null", ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null, object.key.getRegion().getRoi()!=null);
             r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
         }
 
@@ -506,39 +521,36 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     @Override
     public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
         if (!(i instanceof KymographT)) return createKymographTrackRoi(track, color);
-        else return createHyperStackTrackRoi(parents, track, color, i);
+        else return createHyperStackTrackRoi(parents, track, color, (KymographT)i);
     }
     
     @Override
     protected void setTrackColor(TrackRoi roi, Color color) {
         for (Roi r : roi) if (r.getStrokeColor()!=ImageWindowManager.trackCorrectionColor && r.getStrokeColor()!=ImageWindowManager.trackErrorColor) r.setStrokeColor(color);
     }
-    protected TrackRoi createHyperStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
-        Map<Integer, Integer> frameMapIdx = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(idx->parentTrack.get(idx).getFrame(), idx->idx));
+    protected TrackRoi createHyperStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, KymographT i) {
         TrackRoi trackRoi= new TrackRoi();
         trackRoi.setIs2D(track.get(0).key.is2D());
         Function<Pair<SegmentedObject, BoundingBox>, Roi3D> getRoi = p -> {
-            Integer frame = frameMapIdx.get(p.key.getFrame());
+            Integer frame = i.frameMapIdx.get(p.key.getFrame());
             if (frame==null) return null;
             Roi3D r = labileObjectRoiMap.get(p);
             if (r==null) r = objectRoiMap.get(p);
             if (r == null) {
                 r = generateObjectRoi(p, color, frame);
                 objectRoiMap.put(p, r);
-                r = r.duplicate();
-            }
-            else {
-                r = r.duplicate();
+            } else {
                 setRoiAttributes(r, color, frame, p.value);
             }
             return r;
         };
+
         track.stream().map(getRoi::apply).filter(r -> r!=null).flatMap(r -> r.values().stream()).forEach(trackRoi::add);
         // add flag when track links have been edited
         Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
         Consumer<Pair<SegmentedObject, BoundingBox>> addEditedArrow = object -> {
             if (edited.test(object.key)) { // also display when segmentation is edited
-                Integer frame = frameMapIdx.get(object.key.getFrame());
+                Integer frameIdx = i.frameMapIdx.get(object.key.getFrame());
                 double size = TRACK_ARROW_STROKE_WIDTH*1.5;
                 Point p = new Point((float)object.key.getBounds().xMean(), (float)object.key.getBounds().yMean());
                 object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
@@ -551,12 +563,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 int zMin = object.value.zMin();
                 int zMax = object.value.zMax();
                 if (zMin==zMax) {
-                    arrow.setPosition(0, zMin+1, frame+1);
+                    arrow.setPosition(0, zMin+1, frameIdx+1);
                     trackRoi.add(arrow);
                 } else {
                     for (int z = zMin; z <= zMax; ++z) {
                         Arrow a = (Arrow) arrow.clone();
-                        a.setPosition(0, z+1, frame+1);
+                        a.setPosition(0, z+1, frameIdx+1);
                         trackRoi.add(a);
                     }
                 }
@@ -566,7 +578,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         // add arrow to indicate splitting
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
         BiConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>> addSplitMergeArrow = (o1, o2) -> {
-            Integer frame = frameMapIdx.get(o1.key.getFrame());
+            Integer frame = i.frameMapIdx.get(o1.key.getFrame());
             Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
             Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter();
             p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to kymograph offset
@@ -590,15 +602,21 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 }
             }
         };
-        List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size()-1).key);
-        if (next.size()>1) { // show division by displaying arrows between objects
-            List<Pair<SegmentedObject, BoundingBox>> nextP = i.pairWithOffset(next);
-            for (int idx = 0; idx<next.size()-1; ++idx) addSplitMergeArrow.accept(nextP.get(idx), nextP.get(idx+1));
+        if (track.get(track.size()-1).key.getNextId()==null) {
+            List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).key);
+            if (next.size() > 1) { // show division by displaying arrows between objects
+                List<Pair<SegmentedObject, BoundingBox>> nextP = i.pairWithOffset(next);
+                for (int idx = 0; idx < next.size() - 1; ++idx)
+                    addSplitMergeArrow.accept(nextP.get(idx), nextP.get(idx + 1));
+            }
         }
-        List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key);
-        if (prev.size()>1) { // show merging by displaying arrows between objects
-            List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
-            for (int idx = 0; idx<prev.size()-1; ++idx) addSplitMergeArrow.accept(prevP.get(idx), prevP.get(idx+1));
+        if (track.get(0).key.getPreviousId()==null) {
+            List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key);
+            if (prev.size() > 1) { // show merging by displaying arrows between objects
+                List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
+                for (int idx = 0; idx < prev.size() - 1; ++idx)
+                    addSplitMergeArrow.accept(prevP.get(idx), prevP.get(idx + 1));
+            }
         }
         return trackRoi;
     }

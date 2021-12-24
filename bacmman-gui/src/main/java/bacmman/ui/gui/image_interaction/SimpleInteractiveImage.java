@@ -47,7 +47,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
     List<SegmentedObject> objects;
     final SegmentedObject parent;
     BoundingBox additionalOffset;
-    
+    Object lock = new Object();
     public SimpleInteractiveImage(SegmentedObject parent, int childStructureIdx) {
         super(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx);
         this.parent= parent;
@@ -66,7 +66,11 @@ public class SimpleInteractiveImage extends InteractiveImage {
     }
 
     public BoundingBox[] getOffsets() {
-        if (offsets==null || objects==null || offsets.length!=objects.size()) reloadObjects();
+        if (offsets==null || objects==null || offsets.length!=objects.size()) {
+            synchronized (lock) {
+                if (offsets==null || objects==null || offsets.length!=objects.size()) reloadObjects();
+            }
+        }
         return offsets;
     }
 
@@ -95,7 +99,11 @@ public class SimpleInteractiveImage extends InteractiveImage {
     }
 
     @Override public List<Pair<SegmentedObject, BoundingBox>> getObjects() {
-        if (objects == null) reloadObjects();
+        if (objects == null) {
+            synchronized (lock) {
+                if (objects ==null) reloadObjects();
+            }
+        }
         if (objects==null) return Collections.EMPTY_LIST;
         getOffsets();
         return IntStream.range(0, offsets.length).mapToObj(i->new Pair<>(objects.get(i), offsets[i])).collect(Collectors.toList());

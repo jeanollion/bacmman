@@ -303,15 +303,13 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                                     @Override
                                                     public void actionPerformed(ActionEvent ae) {
                                                         int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
-                                                        if (GUI.logger.isDebugEnabled())
-                                                            GUI.logger.debug("opening frame stack raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
+                                                        logger.debug("opening frame stack raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
                                                         List<SegmentedObject> rootTrack = null;
                                                         try {
                                                             rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
                                                         } catch (Exception e) {
                                                         }
                                                         if (rootTrack != null) {
-                                                            InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(rootTrack, structureIdx, InteractiveImageKey.TYPE.FRAME_STACK);
                                                             // TODO make this method generic for other display modes than IJ
                                                             IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx); // TODO interface for multichannel display
 

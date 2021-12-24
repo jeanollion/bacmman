@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.image.io.KymographFactory;
@@ -27,9 +28,12 @@ import bacmman.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -40,15 +44,25 @@ public class KymographT extends Kymograph {
     protected int idx;
     protected final int maxParentSizeX, maxParentSizeY, maxParentSizeZ;
     protected final BoundingBox bounds;
-    protected final Map<Integer, Integer> frameMapIdx;
+    public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
+    protected IntConsumer changeIdxCallback;
+    DefaultWorker loadObjectsWorker;
     public KymographT(KymographFactory.KymographData data, int childStructureIdx) {
-        super(data, childStructureIdx);
+        super(data, childStructureIdx, false);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
         this.bounds = new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, maxParentSizeZ);
         frameMapIdx = parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, parents::indexOf));
+        idxMapFrame = parents.stream().collect(Collectors.toMap(parents::indexOf, SegmentedObject::getFrame));
         if (!KymographFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
+        trackObjects[0].reloadObjects();
+        loadObjectsWorker = new DefaultWorker(i-> {
+            trackObjects[i+1].getObjects();
+            return "";
+        }, super.getParents().size()-1, null);
+        loadObjectsWorker.execute();
+
     }
     public boolean setFrame(int frame) {
         Integer idx = frameMapIdx.get(frame);
@@ -56,10 +70,26 @@ public class KymographT extends Kymograph {
         setIdx(idx);
         return true;
     }
+    public int getIdx() {return idx;}
+    public int getFrame()  {return idxMapFrame.get(idx);}
     public KymographT setIdx(int idx) {
         assert idx<trackObjects.length && idx>=0 : "invalid idx";
-        this.idx=idx;
+        if (idx!=this.idx) {
+            this.idx=idx;
+            if (changeIdxCallback!=null) changeIdxCallback.accept(idx);
+        }
+
         return this;
+    }
+
+    @Override
+    public void reloadObjects() {
+        for (SimpleInteractiveImage m : trackObjects) m.resetObjects();
+    }
+
+    @Override
+    public List<Pair<SegmentedObject, BoundingBox>> getObjects() {
+        return trackObjects[idx].getObjects();
     }
 
     @Override public InteractiveImageKey getKey() {
@@ -78,7 +108,13 @@ public class KymographT extends Kymograph {
         //logger.debug("kymo: {}, idx: {}, all objects: {}", this, idx, trackObjects[idx].objects);
         trackObjects[idx].addClickedObjects(selection, list);
     }
-    
+
+    public KymographT setChangeIdxCallback(IntConsumer callback) {
+        this.changeIdxCallback = callback;
+        return this;
+    }
+
+
     @Override
     public int getClosestFrame(int x, int y) {
         return parents.get(idx).getFrame();

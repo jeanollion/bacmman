@@ -30,7 +30,10 @@ import bacmman.image.ImageInteger;
 import java.util.*;
 
 import bacmman.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
@@ -40,7 +43,7 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public abstract class Kymograph extends InteractiveImage {
-
+    public static final Logger logger = LoggerFactory.getLogger(Kymograph.class);
     public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
         if (hyperStack) return new KymographT(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx);
         KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
@@ -58,11 +61,12 @@ public abstract class Kymograph extends InteractiveImage {
     public static int INTERVAL_PIX=0;
     Map<Image, Predicate<BoundingBox>> imageCallback = new HashMap<>();
 
-    public Kymograph(KymographFactory.KymographData data, int childStructureIdx) {
+    public Kymograph(KymographFactory.KymographData data, int childStructureIdx, boolean setAllChildren) {
         super(data.parentTrack, childStructureIdx);
         trackOffset = data.trackOffset;
-        SegmentedObjectUtils.setAllChildren(data.parentTrack, childStructureIdx);
-        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(SimpleInteractiveImage::getObjects).toArray(SimpleInteractiveImage[]::new);
+        if (setAllChildren) SegmentedObjectUtils.setAllChildren(data.parentTrack, childStructureIdx);
+        Consumer<SimpleInteractiveImage> peekFun = setAllChildren ? SimpleInteractiveImage::getObjects : (si)->{};
+        trackObjects = IntStream.range(0, trackOffset.length).mapToObj(i-> new SimpleInteractiveImage(data.parentTrack.get(i), childStructureIdx, trackOffset[i])).peek(peekFun).toArray(SimpleInteractiveImage[]::new);
     }
     
     @Override public List<SegmentedObject> getParents() {
@@ -231,7 +235,7 @@ public abstract class Kymograph extends InteractiveImage {
     }
 
     @Override
-    public ArrayList<Pair<SegmentedObject, BoundingBox>> getObjects() {
+    public List<Pair<SegmentedObject, BoundingBox>> getObjects() {
         ArrayList<Pair<SegmentedObject, BoundingBox>> res = new ArrayList<>();
         for (SimpleInteractiveImage m : trackObjects) res.addAll(m.getObjects());
         return res;

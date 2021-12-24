@@ -42,6 +42,8 @@ import javax.swing.JMenuItem;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import bacmman.utils.Pair;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
@@ -52,6 +54,7 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public class TrackNode implements TrackNodeInterface, UIContainer {
+    public static final Logger logger = LoggerFactory.getLogger(TrackNode.class);
     SegmentedObject trackHead;
     List<SegmentedObject> track;
     TrackNodeInterface parent;
@@ -296,13 +299,11 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                     openFrames[i].setAction(new AbstractAction(structureNames[i]) {
                                                 @Override
                                                 public void actionPerformed(ActionEvent ae) {
-                                                    if (GUI.logger.isDebugEnabled())  GUI.logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
+                                                    logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
                                                     //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
                                                     //trackNode.loadAllTrackObjects(path);
                                                     int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                                                    InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx, InteractiveImageKey.TYPE.FRAME_STACK);
-                                                    if (i != null)
-                                                        IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx); // TODO made this method generic
+                                                    IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx); // TODO made this method generic
                                                     GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                                                     GUI.getInstance().setTrackStructureIdx(structureIdx);
                                                 }

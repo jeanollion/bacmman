@@ -45,7 +45,7 @@ public class KymographX extends Kymograph {
     public static final Logger logger = LoggerFactory.getLogger(KymographX.class);
     protected final int maxParentSize, maxParentSizeZ;
     public KymographX(KymographFactory.KymographData data, int childStructureIdx) {
-        super(data, childStructureIdx);
+        super(data, childStructureIdx, true);
         maxParentSize = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
         if (!KymographFactory.DIRECTION.X.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
