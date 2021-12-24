@@ -3,6 +3,7 @@ package bacmman.ui;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
+import bacmman.core.DefaultWorker;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
@@ -122,7 +123,8 @@ public class TrackMatePanel {
                 Class clazz = Class.forName("bacmman.ui.gui.TrackMateRunner");
                 Method method = clazz.getMethod("importToBacmman", Object.class, List.class, int.class, boolean.class, boolean.class, boolean.class, double.class, ProgressCallback.class);
                 method.invoke(null, currentModel, parentTrack, objectClassIdx, importMode.getSelectedEnum() == IMPORT_MODE.OVERWRITE, importMode.getSelectedEnum() == IMPORT_MODE.TRACKS_ONLY, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP ? overlap.getValue().doubleValue() : centerDistance.getValue().doubleValue(), ProgressCallback.get(progress));
-                if (GUI.getInstance().trackTreeController != null) GUI.getInstance().trackTreeController.updateTrackTree();
+                if (GUI.getInstance().trackTreeController != null)
+                    GUI.getInstance().trackTreeController.updateTrackTree();
             } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
                 GUI.log("Could not import from trackmate:" + e.getMessage());
                 logger.debug("Could not import from trackmate:", e);
@@ -134,11 +136,11 @@ public class TrackMatePanel {
     }
 
     private void runLater(Runnable action) {
-        if (progress != null) progress.setRunning(true);
-        SwingUtilities.invokeLater(() -> {
+        DefaultWorker loadObjects = new DefaultWorker(i -> {
             action.run();
-            if (progress != null) progress.setRunning(false);
-        });
+            return "";
+        }, 1, progress);
+        loadObjects.execute();
     }
 
     public void openInTrackMate() {
