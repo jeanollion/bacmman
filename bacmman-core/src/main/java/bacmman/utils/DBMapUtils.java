@@ -46,6 +46,13 @@ public class DBMapUtils {
             return null;
         }
     }
+    public static HTreeMap<Integer, Object> createFrameIndexHTreeMap(DB db, String key) {
+        try {
+            return db.hashMap(key, Serializer.INTEGER, db.getDefaultSerializer()).createOrOpen();
+        } catch (UnsupportedOperationException e) { // read-only case
+            return null;
+        }
+    }
     public static <K, V> Set<Entry<K, V>> getEntrySet(HTreeMap<K, V> map) {
         if (map==null) return Collections.EMPTY_SET; // read-only case
         return map.getEntries(); 
@@ -56,6 +63,11 @@ public class DBMapUtils {
     }
     public static Iterable<String> getNames(DB db) {
         return db.getAllNames(); 
+    }
+    public static boolean contains(DB db, String key) {
+        if (db==null) return false;
+        for (String s : db.getAllNames()) if (s.equals(key)) return true;
+        return false;
     }
     public static void deleteDBFile(String path) {
         new File(path).delete();

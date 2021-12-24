@@ -44,7 +44,7 @@ public interface ObjectDAO {
     public void clearCache();
     public boolean isReadOnly();
     SegmentedObject getById(String parentTrackHeadId, int structureIdx, int frame, String id);
-    public List<SegmentedObject> getChildren(SegmentedObject parent, int structureIdx); // needs indicies: structureIdx & parent
+    public List<SegmentedObject> getChildren(SegmentedObject parent, int structureIdx); // needs indices: structureIdx & parent
     /**
      * Sets children for each parent in parent Track
      * @param parentTrack object with same trackHead id

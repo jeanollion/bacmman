@@ -28,7 +28,6 @@ import java.io.File;
 import java.io.IOError;
 import java.nio.file.*;
 import java.util.*;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.mapdb.DB;
@@ -49,6 +48,7 @@ import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  *
@@ -56,11 +56,15 @@ import java.util.function.Consumer;
  */
 public class DBMapObjectDAO implements ObjectDAO {
     public static final Logger logger = LoggerFactory.getLogger(DBMapObjectDAO.class);
+    public static char jsonSeparator = ',';
+    public static int frameIndexLimit = 10000; // a frame index is created when more objects than this value are present
     final DBMapMasterDAO mDAO;
     final String positionName;
     final HashMapGetCreate<Pair<String, Integer>, Map<String, SegmentedObject>> cache = new HashMapGetCreate<>(new HashMapGetCreate.MapFactory()); // parent trackHead id -> id cache
     final HashMapGetCreate<Pair<String, Integer>, Boolean> allObjectsRetrievedInCache = new HashMapGetCreate<>(p -> false);
     final Map<Pair<String, Integer>, HTreeMap<String, String>> dbMaps = new HashMap<>();
+    final Map<Pair<String, Integer>, HTreeMap<Integer, Object>> dbMapsFrameIndex = new HashMap<>();
+    final Map<Pair<String, Integer>, Map<Integer, Set<String>>> frameIndex = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getFrameIndex);
     final Path dir;
     final Map<Integer, DB> dbS = new HashMap<>();
     final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMap<>();
@@ -192,7 +196,9 @@ public class DBMapObjectDAO implements ObjectDAO {
         }
         return res;
     }
-    protected Map<String, SegmentedObject> getChildren(Pair<String, Integer> key) {
+
+
+    protected Map<String, SegmentedObject> getAllChildren(Pair<String, Integer> key) {
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
         if (cache.containsKey(key) && allObjectsRetrievedInCache.getOrDefault(key, false)) return cache.get(key);
         else {
@@ -205,10 +211,9 @@ public class DBMapObjectDAO implements ObjectDAO {
                     Map<String, SegmentedObject> objectMapToAdd = getEntrySet(dbm).parallelStream()
                             .filter((e) -> (!objectMap.containsKey(e.getKey())))
                             .map((e) -> accessor.createFromJSON(e.getValue()))
-                            .filter(o->o!=null).map((o) -> {
-                                accessor.setDAO(o,this);
-                                return o;
-                            }).collect(Collectors.toMap(o->o.getId(), o->o));
+                            .filter(Objects::nonNull)
+                            .peek((o) -> accessor.setDAO(o,this))
+                            .collect(Collectors.toMap(SegmentedObject::getId, o->o));
                     objectMap.putAll(objectMapToAdd);
                     long t1 = System.currentTimeMillis();
                     logger.debug("#{} (already: {}) objects from structure: {}, time {}", objectMap.size(), objectMap.size()-objectMapToAdd.size(), key.value, t1-t0);
@@ -220,13 +225,11 @@ public class DBMapObjectDAO implements ObjectDAO {
                         long t1 = System.currentTimeMillis();
                         Map<String, SegmentedObject> objectMap = allStrings.parallelStream()
                                 .map(accessor::createFromJSON)
-                                .map((o) -> {
-                                    accessor.setDAO(o,this);
-                                    return o;
-                                }).collect(Collectors.toMap(o->o.getId(), o->o));
+                                .peek((o) -> accessor.setDAO(o,this))
+                                .collect(Collectors.toMap(SegmentedObject::getId, o->o));
                         cache.put(key, objectMap);
                         long t2 = System.currentTimeMillis();
-                        //logger.debug("#{} objects from structure: {}, time to retrieve: {}, time to parse: {}", allStrings.size(), key.value, t1-t0, t2-t1);
+                        logger.debug("#{} objects from structure: {}, time to retrieve: {}, time to parse: {}", allStrings.size(), key.value, t1-t0, t2-t1);
                     } catch(IOError|AssertionError|Exception e) {
                         logger.error("Corrupted DATA for structure: "+key.value+" parent: "+key, e);
                         allObjectsRetrievedInCache.put(key, true);
@@ -282,7 +285,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         }
     }
     private void setParents(Collection<SegmentedObject> objects, Pair<String, Integer> parentKey) {
-        Map<String, SegmentedObject> allParents = getChildren(parentKey);
+        Map<String, SegmentedObject> allParents = getAllChildren(parentKey);
         for (SegmentedObject o : objects) if (!o.hasParent()) o.setParent(allParents.get(o.getParentId()));
     }
     @Override
@@ -290,8 +293,21 @@ public class DBMapObjectDAO implements ObjectDAO {
         // parentTrackHeadId can be null in case of parent call -> frame not null
         // frame can be < 
         if (parentTrackHeadId!=null || structureIdx==-1) {
-            logger.debug("getById: sIdx={} f={}, allChilldren: {}", structureIdx, frame, getChildren(new Pair(parentTrackHeadId, structureIdx)).size());
-            return ((Map<String, SegmentedObject>)getChildren(new Pair(parentTrackHeadId, structureIdx))).get(id);
+            //logger.debug("getById: sIdx={} f={}, allChilldren: {}", structureIdx, frame, getAllChildren(new Pair(parentTrackHeadId, structureIdx)).size());
+            //return ((Map<String, SegmentedObject>) getAllChildren(new Pair(parentTrackHeadId, structureIdx))).get(id);
+            Pair<String, Integer> key = new Pair<>(parentTrackHeadId, structureIdx);
+            Map<String, SegmentedObject> cache = this.cache.getAndCreateIfNecessary(key);
+            if (cache.containsKey(id)) return cache.get(id);
+            else {
+                SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
+                String json = getDBMap(key).get(id);
+                if (json==null) return null;
+                SegmentedObject o = accessor.createFromJSON(json);
+                if (o==null) return null;
+                accessor.setDAO(o, this);
+                cache.put(id, o);
+                return o;
+            }
         }
         else { // search in all parentTrackHeadId
             Map<String, SegmentedObject> cacheMap = getCacheContaining(id, structureIdx);
@@ -302,11 +318,11 @@ public class DBMapObjectDAO implements ObjectDAO {
     
     private Map<String, SegmentedObject> getCacheContaining(String id, int structureIdx) {
         if (structureIdx==-1) { //getExperiment().getStructure(structureIdx).getParentStructure()==-1
-            Map<String, SegmentedObject> map = getChildren(new Pair(null, structureIdx));
+            Map<String, SegmentedObject> map = getAllChildren(new Pair(null, structureIdx));
             if (map.containsKey(id)) return map;
         } else {
             for (String parentTHId : DBMapUtils.getNames(getDB(structureIdx))) {
-                Map<String, SegmentedObject> map = getChildren(new Pair(parentTHId, structureIdx)); //"root".equals(parentTHId) ?  null :
+                Map<String, SegmentedObject> map = getAllChildren(new Pair(parentTHId, structureIdx)); //"root".equals(parentTHId) ?  null :
                 if (map.containsKey(id)) return map;
             }
         }
@@ -316,7 +332,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     public void setAllChildren(Collection<SegmentedObject> parentTrack, int childStructureIdx) {
         if (parentTrack.isEmpty()) return;
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
-        Map<String, SegmentedObject> children = getChildren(new Pair(parentTrack.iterator().next().getTrackHeadId(), childStructureIdx));
+        Map<String, SegmentedObject> children = getAllChildren(new Pair(parentTrack.iterator().next().getTrackHeadId(), childStructureIdx));
         logger.debug("setting: {} children to {} parents", children.size(), parentTrack.size());
         SegmentedObjectUtils.splitByParent(children.values()).forEach((parent, c) -> {
             if (c==null) return;
@@ -324,23 +340,40 @@ public class DBMapObjectDAO implements ObjectDAO {
             accessor.setChildren(parent, c, childStructureIdx);
         });
     }
-    
+
+
     @Override
     public List<SegmentedObject> getChildren(SegmentedObject parent, int structureIdx) {
-        List<SegmentedObject> res = new ArrayList<>();
-        Map<String, SegmentedObject> children = getChildren(new Pair(parent.getTrackHeadId(), structureIdx));
-        if (children==null) {
-            logger.error("null children for: {} @ structure: {}", parent, structureIdx);
-            return new ArrayList<>();
-        }
-        for (SegmentedObject o : children.values()) {
-            if (parent.getId().equals(o.getParentId())) {
-                //o.parent=parent;
-                res.add(o);
+        Pair<String, Integer> key = new Pair(parent.getTrackHeadId(), structureIdx);
+        if (cache.containsKey(key) && allObjectsRetrievedInCache.getOrDefault(key, false)) { // objects are already retrieved
+            List<SegmentedObject> res = new ArrayList<>();
+            for (SegmentedObject o : cache.get(key).values()) {
+                if (parent.getId().equals(o.getParentId())) {
+                    //o.parent=parent;
+                    res.add(o);
+                }
             }
+            Collections.sort(res);
+            return res;
+        } else { // retrieve only children
+            Set<String> idxs = frameIndex.get(key).get(parent.getFrame());
+            long t0 = System.currentTimeMillis();
+            HTreeMap<String, String> dbm = getDBMap(key);
+            Map<String, SegmentedObject> objectMap = cache.getAndCreateIfNecessary(key);
+            SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
+            Map<String, SegmentedObject> children = idxs.parallelStream()
+                    .map(k -> objectMap.containsKey(k) ? objectMap.get(k) : accessor.createFromJSON(dbm.get(k)))
+                    //.filter(Objects::nonNull)
+                    .peek(o -> accessor.setDAO(o,this))
+                    .peek(o -> o.setParent(parent))
+                    .collect(Collectors.toMap(SegmentedObject::getId, o->o));
+            objectMap.putAll(children);
+            List<SegmentedObject> res = new ArrayList<>(children.values());
+            Collections.sort(res);
+            long t1 = System.currentTimeMillis();
+            //logger.debug("getChildren: collected: {} object in {}ms", res.size(), t1-t0);
+            return res;
         }
-        Collections.sort(res);
-        return res;
     }
     
     /*public List<StructureObject> getChildren(Collection<StructureObject> parents, int structureIdx) {
@@ -391,7 +424,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     private Set<Integer> deleteChildren(Collection<SegmentedObject> parents, int structureIdx, String parentThreackHeadId, boolean commit) {
         if (readOnly) return Collections.emptySet();
         Pair<String, Integer> key = new Pair(parentThreackHeadId, structureIdx);
-        Map<String, SegmentedObject> cacheMap = getChildren(key);
+        Map<String, SegmentedObject> cacheMap = getAllChildren(key);
         Set<String> parentIds = toIds(parents);
         Set<SegmentedObject> toDelete = cacheMap.values().stream().filter(o->parentIds.contains(o.getParentId())).collect(Collectors.toSet());
         //logger.debug("delete {}/{} children of structure {} from track: {}(length:{}) ", toDelete.size(), cacheMap.size(), structureIdx, parents.stream().min(SegmentedObject::compareTo), parents.size());
@@ -529,7 +562,13 @@ public class DBMapObjectDAO implements ObjectDAO {
                 Map<String, SegmentedObject> cacheMap = cache.get(key);
                 for (SegmentedObject o : toRemove) cacheMap.remove(o.getId());
             }
-            
+            // also remove from frame index
+            if (hasFrameIndex(key)) {
+                Map<Integer, Set<String>> fi = frameIndex.get(key);
+                toRemove.forEach(o -> fi.get(o.getFrame()).remove(o.getId()));
+                int[] idxs= toRemove.stream().mapToInt(SegmentedObject::getFrame).distinct().toArray();
+                storeFrameIndex(key, fi, false, idxs);
+            }
             //TODO if track head is removed and has children -> inconsistency -> check at each eraseAll, if eraseAll children -> eraseAll whole collection if trackHead, if not dont do anything
             if (deleteFromParent && relabelSiblings) {
                 if (key.value==-1) continue; // no parents
@@ -564,6 +603,10 @@ public class DBMapObjectDAO implements ObjectDAO {
         // get parent/pTh/next/prev ids ? 
         cache.getAndCreateIfNecessary(key).put(object.getId(), object);
         getDBMap(key).put(object.getId(), JSONUtils.serialize(object));
+        if (hasFrameIndex(key)) {
+            frameIndex.get(key).get(object.getFrame()).add(object.getId());
+            storeFrameIndex(key, frameIndex.get(key), false, object.getFrame());
+        }
         getDB(object.getStructureIdx()).commit();
     }
     protected void store(Collection<SegmentedObject> objects, boolean commit) {
@@ -592,9 +635,15 @@ public class DBMapObjectDAO implements ObjectDAO {
             }).forEachOrdered((object) -> {
                 cacheMap.put(object.getId(), object);
             });
-            if (commit) {
-                this.getDB(key.value).commit();
+            if (hasFrameIndex(key)) {
+                Map<Integer, Set<String>> fi = frameIndex.get(key);
+                toStore.forEach(o -> fi.get(o.getFrame()).add(o.getId()));
+                int[] idxs= toStore.stream().mapToInt(SegmentedObject::getFrame).distinct().toArray();
+                storeFrameIndex(key, fi, false, idxs);
             }
+        }
+        if (commit) {
+            splitByPTH.keySet().stream().mapToInt(p -> p.value).distinct().forEach(ocIdx -> getDB(ocIdx).commit());
         }
         upsertMeasurements(upserMeas);
     }
@@ -606,7 +655,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     @Override
     public List<SegmentedObject> getRoots() {
         // todo: root cache list to avoid sorting each time getRoot is called?
-        List<SegmentedObject> res =  new ArrayList<>(getChildren(new Pair(null, -1)).values());
+        List<SegmentedObject> res =  new ArrayList<>(getAllChildren(new Pair(null, -1)).values());
         Collections.sort(res, Comparator.comparingInt(SegmentedObject::getFrame));
         return res;
     }
@@ -625,7 +674,7 @@ public class DBMapObjectDAO implements ObjectDAO {
 
     @Override
     public List<SegmentedObject> getTrack(SegmentedObject trackHead) {
-        Map<String, SegmentedObject> allObjects = getChildren(new Pair(trackHead.getParentTrackHeadId(), trackHead.getStructureIdx()));
+        Map<String, SegmentedObject> allObjects = getAllChildren(new Pair(trackHead.getParentTrackHeadId(), trackHead.getStructureIdx()));
         return allObjects.values().stream()
                 .filter(o->o.getTrackHeadId().equals(trackHead.getId()))
                 .sorted((o1, o2)-> Integer.compare(o1.getFrame(), o2.getFrame()))
@@ -636,7 +685,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     @Override
     public List<SegmentedObject> getTrackHeads(SegmentedObject parentTrack, int structureIdx) {
         long t0 = System.currentTimeMillis();
-        Map<String, SegmentedObject> allObjects = getChildren(new Pair(parentTrack.getId(), structureIdx));
+        Map<String, SegmentedObject> allObjects = getAllChildren(new Pair(parentTrack.getId(), structureIdx));
         long t1 = System.currentTimeMillis();
         logger.debug("parent: {}, structure: {}, #{} objects retrieved in {}ms", parentTrack, structureIdx, allObjects.size(), t1-t0);
         List<SegmentedObject> list = allObjects.values().stream().filter(o->o.isTrackHead()).sorted().collect(Collectors.toList());
@@ -766,6 +815,70 @@ public class DBMapObjectDAO implements ObjectDAO {
     public static Map<Pair<String, Integer>, List<SegmentedObject>> splitByParentTrackHeadIdAndStructureIdx(Collection<SegmentedObject> list) {
         if (list.isEmpty()) return Collections.EMPTY_MAP;
         return list.stream().collect(Collectors.groupingBy(o -> new Pair(o.isRoot()? null : o.getParentTrackHeadId(), o.getStructureIdx())));
+    }
+
+
+    //// frame index
+    protected Map<Integer, Set<String>> createFrameIndex(Pair<String, Integer> key) {
+        long t0 = System.currentTimeMillis();
+        Map<Integer, Set<String>> res = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.SetFactory());
+        HTreeMap<String, String> dbm = getDBMap(key);
+        dbm.forEach( (k, v) -> {
+            int idx = v.indexOf("frame")+7;
+            int frame = Integer.parseInt(v.substring(idx,  v.indexOf(jsonSeparator, idx)));
+            res.get(frame).add(k);
+        });
+        long t1 = System.currentTimeMillis();
+        logger.debug("creating frame index for: {} in {}ms", key, t1-t0);
+        return res;
+    }
+    protected Map<Integer, Set<String>> getFrameIndex(Pair<String, Integer> key) {
+        if (hasFrameIndex(key)) {
+            HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
+            Map<Integer, Set<String>> res = new HashMap<>();
+            dbmap.forEach( (f, o) -> res.put(f, new HashSet(Arrays.asList((Object[])o))));
+            int size = res.values().stream().mapToInt(Set::size).sum();
+            logger.debug("retrieved frame index for {} objects over {} frames", size, res.size());
+            return res;
+        } else {
+            Map<Integer, Set<String>> res = createFrameIndex(key);
+            int size = res.values().stream().mapToInt(Set::size).sum();
+            if (size > frameIndexLimit) { // store
+                logger.debug("storing: frame index for {} objects", size);
+                storeFrameIndex(key, res, true);
+            }
+            return res;
+        }
+    }
+    protected void storeFrameIndex(Pair<String, Integer> key, Map<Integer, Set<String>> indices, boolean commit, int... frames) {
+        logger.debug("storing frame index for {} frames", frames==null || frames.length==0 ? indices.size() : frames.length);
+        HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
+        Map<Integer, Object> toStore;
+        if (frames!=null && frames.length>0) toStore = Arrays.stream(frames).boxed().collect(Collectors.toMap(i -> i, i -> indices.get(i).toArray()));
+        else toStore= indices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().toArray()));
+        dbmap.putAll(toStore);
+        if (commit) getDB(key.value).commit();
+    }
+    protected boolean hasFrameIndex(Pair<String, Integer> key) {
+        if (dbMapsFrameIndex.containsKey(key) && dbMapsFrameIndex.get(key)!=null) return true;
+        return DBMapUtils.contains(getDB(key.value), "frameIndex_"+key.key);
+    }
+
+    protected HTreeMap<Integer, Object> getFrameIndexDBMap(Pair<String, Integer> key) {
+        HTreeMap<Integer, Object> res = this.dbMapsFrameIndex.get(key);
+        if (res==null) {
+            synchronized(dbMapsFrameIndex) {
+                if (dbMapsFrameIndex.containsKey(key)) return dbMapsFrameIndex.get(key);
+                else {
+                    DB db = getDB(key.value);
+                    if (db!=null) {
+                        res = DBMapUtils.createFrameIndexHTreeMap(db, key.key!=null? "frameIndex_"+key.key : "frameIndex_root");
+                        if (res!=null || readOnly) dbMapsFrameIndex.put(key, res); // readonly case && not already created -> null
+                    }
+                }
+            }
+        }
+        return res;
     }
 
 }
