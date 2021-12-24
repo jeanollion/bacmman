@@ -55,7 +55,6 @@ public class EVF implements Measurement, Hint {
         int[] refClasses = objectClassRef.getSelectedItems();
         if (refClasses.length==0) refClasses = new int[]{container.getStructureIdx()};
         Image EVF = bacmman.processing.EVF.getEVFMap(container, refClasses, negativeInside.getSelected(), erode.getValue().doubleValue());
-        Core.showImage(EVF);
         for (SegmentedObject c : children) {
             Point center = c.getRegion().getCenter();
             if (center==null) center = c.getRegion().getGeomCenter(false);
