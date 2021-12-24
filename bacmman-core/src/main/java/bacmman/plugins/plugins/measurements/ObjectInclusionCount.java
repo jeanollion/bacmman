@@ -94,10 +94,9 @@ public class ObjectInclusionCount implements Measurement, Hint {
         Region containerObject = container.getRegion();
         return (int)toCount.filter(o->!onlyTrackHeads || o.isTrackHead())
                 .filter( o-> o.getRegion().intersect(containerObject)).filter(o-> {
-            if (proportionInclusion==0) return true;
+            if (proportionInclusion<=0) return true; // only bounding box overlap (faster)
             else {
-                if (o.getRegion().getVoxels().isEmpty()) return false;
-                double incl = (double)o.getRegion().getOverlapArea(containerObject, null, null) / (double)o.getRegion().getVoxels().size();
+                double incl = o.getRegion().getOverlapArea(containerObject, null, null) / o.getRegion().size();
                 //logger.debug("inclusion: {}, threshold: {}, container: {}, parent:{}", incl, percentageInclusion, container, o.getParent());
                 return (incl>=proportionInclusion);
             }

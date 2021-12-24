@@ -38,7 +38,7 @@ public class Roi3D extends HashMap<Integer, Roi> {
             ImageProcessor mask = r.getMask();
             if (mask==null) { // mask is rectangle
                 mask = IJImageWrapper.getImagePlus(TypeConverter.toImageInteger(new BlankMask(bounds.sizeX(), bounds.sizeY(), 1, bounds.xMin(), bounds.yMin(), 0, 1, 1), null)).getProcessor();
-            } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image
+            } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image // TODO simply change ROI with before calling getMask
                 ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
                 mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
             }

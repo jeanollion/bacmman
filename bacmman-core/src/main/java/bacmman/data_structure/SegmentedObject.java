@@ -749,21 +749,23 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             attributes.remove("Theta");
             attributes.remove("AspectRatio");
         }
-        if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());
-        if (region instanceof Spot) {
-            setAttribute("Radius", ((Spot) region).getRadius());
-            setAttribute("Intensity", ((Spot) region).getIntensity());
-            setAttribute("AspectRatio", ((Spot) region).getzAspectRatio());
-        } else if (region instanceof Ellipse2D) {
-            setAttribute("MajorAxis", ((Ellipse2D) region).getMajor());
-            setAttribute("MinorAxis", ((Ellipse2D) region).getMinor());
-            setAttribute("AspectRatio", ((Ellipse2D) region).getAspectRatio());
-            setAttribute("Theta", ((Ellipse2D) region).getTheta());
-            setAttribute("Intensity", ((Ellipse2D) region).getIntensity());
-        }
-        if (region.getCenter()!=null) {
-            Point c = region.getCenter();
-            setAttributeList("Center", IntStream.range(0, c.numDimensions()).mapToObj(i->(double)c.get(i)).collect(Collectors.toList()));
+        if (region!= null) {
+            if (!Double.isNaN(region.getQuality())) setAttribute("Quality", region.getQuality());
+            if (region instanceof Spot) {
+                setAttribute("Radius", ((Spot) region).getRadius());
+                setAttribute("Intensity", ((Spot) region).getIntensity());
+                setAttribute("AspectRatio", ((Spot) region).getzAspectRatio());
+            } else if (region instanceof Ellipse2D) {
+                setAttribute("MajorAxis", ((Ellipse2D) region).getMajor());
+                setAttribute("MinorAxis", ((Ellipse2D) region).getMinor());
+                setAttribute("AspectRatio", ((Ellipse2D) region).getAspectRatio());
+                setAttribute("Theta", ((Ellipse2D) region).getTheta());
+                setAttribute("Intensity", ((Ellipse2D) region).getIntensity());
+            }
+            if (region.getCenter() != null) {
+                Point c = region.getCenter();
+                setAttributeList("Center", IntStream.range(0, c.numDimensions()).mapToObj(i -> (double) c.get(i)).collect(Collectors.toList()));
+            }
         }
     }
     

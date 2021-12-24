@@ -20,6 +20,7 @@ package bacmman.utils;
 
 import java.awt.Color;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
@@ -40,6 +41,9 @@ public class Palette implements Cloneable {
         //private final static Random r = new Random();
         public static double increment = 1d/25.5d;
         public static double currentColorIdx = 0;
+		public static Color getColorFromDouble(double position) {
+			return palette.getColor(position);
+		}
         public static synchronized Color getColor(int transparency, Color... avoidColors) {
             Color c = getCol();
             if (avoidColors.length>0) {
@@ -48,6 +52,15 @@ public class Palette implements Cloneable {
             if (transparency<255 && transparency>0) c = setTransparency(c, transparency);
             return c;
         }
+		public static Color getColor(int transparency, int[] indices) {
+			double idx = 0;
+			for (int i : indices) idx = 31 * idx + i;
+			idx /= Math.pow(31*10, indices.length-1);
+			idx = idx%1;
+			Color c = palette.getColor(idx);
+			if (transparency<255 && transparency>0) c = setTransparency(c, transparency);
+			return c;
+		}
         public static Color setTransparency(Color c, int transparency) {
             return new Color(c.getRed(), c.getGreen(), c.getBlue(), transparency);
         }

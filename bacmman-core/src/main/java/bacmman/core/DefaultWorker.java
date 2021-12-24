@@ -20,9 +20,8 @@ package bacmman.core;
 
 import bacmman.ui.logger.ProgressLogger;
 
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import javax.swing.SwingWorker;
 import bacmman.utils.ArrayUtil;
 import org.slf4j.Logger;
@@ -37,7 +36,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected final WorkerTask task;
     protected Runnable endOfWork;
     protected int[] taskIdx;
-    protected ProgressLogger gui;
+    protected ProgressLogger progressor;
     public static DefaultWorker execute(WorkerTask t, int maxTaskIdx) {
         return execute(t, maxTaskIdx, Core.getProgressLogger());
     }
@@ -49,15 +48,15 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     public static void executeInForeground(WorkerTask t, int maxTaskIdx) {
         for (int i =0; i<maxTaskIdx; ++i) t.run(i);
     }
-    public DefaultWorker(WorkerTask task, int maxTaskIdx, ProgressLogger gui) {
+    public DefaultWorker(WorkerTask task, int maxTaskIdx, ProgressLogger progressor) {
         this.task=task;
-        this.gui=gui;
+        this.progressor = progressor;
         taskIdx = ArrayUtil.generateIntegerArray(0, maxTaskIdx);
-        if (gui!=null) {
+        if (progressor !=null) {
             addPropertyChangeListener(evt -> {
                 if ("progress".equals(evt.getPropertyName())) {
                     int progress = (Integer) evt.getNewValue();
-                    gui.setProgress(progress);
+                    progressor.setProgress(progress);
                 }
             });
         }
@@ -66,26 +65,26 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected Integer doInBackground() throws Exception {
 
         int count = 0;
-        if (gui!=null) {
+        if (progressor !=null) {
             logger.debug("Set running true");
-            gui.setRunning(true);
+            progressor.setRunning(true);
         }
         for (int i : taskIdx) {
             String message = task.run(i);
             if (message!=null&&!"".equals(message)) publish(message);
             setProgress(100 * (++count) / taskIdx.length);
         }
-        if (gui!=null) {
+        if (progressor !=null) {
             logger.debug("Set running false");
-            gui.setRunning(false);
+            progressor.setRunning(false);
         }
         return count;
     }
     
     @Override
     protected void process(List<String> strings) {
-        if (gui!=null) {
-            for (String s : strings) gui.setMessage(s);
+        if (progressor !=null) {
+            for (String s : strings) progressor.setMessage(s);
         } 
     }
 
@@ -93,16 +92,19 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     public void done() {
         try {
             int count = get();
-            logger.debug("worker task executed: {}/{}", count,  taskIdx.length);
+            logger.debug("worker task executed: {}/{}", count, taskIdx.length);
+        } catch (CancellationException e) {
+            logger.debug("Cancelled task", e);
         } catch (Exception e) {
-            gui.setMessage("Error while executing task:" + e.toString());
+            if (progressor !=null) progressor.setMessage("Error while executing task:" + e.toString());
+            logger.debug("Error while executing task", e);
             throw new RuntimeException(e);
         } finally {
             if (this.endOfWork!=null) endOfWork.run();
             setProgress(0);
-            if (gui!=null) {
-                gui.setMessage("End of Jobs");
-                gui.setRunning(false);
+            if (progressor !=null) {
+                progressor.setMessage("End of Jobs");
+                progressor.setRunning(false);
             } //else System.out.println("No GUI. End of JOBS");
         }
     }
