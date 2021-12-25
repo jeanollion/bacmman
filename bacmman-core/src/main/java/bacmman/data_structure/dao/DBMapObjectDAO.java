@@ -28,6 +28,8 @@ import java.io.File;
 import java.io.IOError;
 import java.nio.file.*;
 import java.util.*;
+import java.util.function.*;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.mapdb.DB;
@@ -47,7 +49,6 @@ import bacmman.utils.Utils;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
-import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 /**
@@ -65,6 +66,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     final Map<Pair<String, Integer>, HTreeMap<String, String>> dbMaps = new HashMap<>();
     final Map<Pair<String, Integer>, HTreeMap<Integer, Object>> dbMapsFrameIndex = new HashMap<>();
     final Map<Pair<String, Integer>, Map<Integer, Set<String>>> frameIndex = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getFrameIndex);
+    final Map<Pair<String, Integer>, List<SegmentedObject>> trackHeads = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getTrackHeads);
     final Path dir;
     final Map<Integer, DB> dbS = new HashMap<>();
     final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMap<>();
@@ -461,9 +463,10 @@ public class DBMapObjectDAO implements ObjectDAO {
         applyOnAllOpenedObjects(o->{
             getMasterDAO().getAccess().flushImages(o);
             if (o.hasRegion()) o.getRegion().clearVoxels();
-        }); // free memory in case objects are stored elsewhere (eg selection, tack mask...)
+        }); // free memory in case objects are stored elsewhere (eg selection, track mask...)
         cache.clear();
         allObjectsRetrievedInCache.clear();
+        trackHeads.clear();
         closeAllFiles(true);
     }
     
@@ -640,6 +643,10 @@ public class DBMapObjectDAO implements ObjectDAO {
                 toStore.forEach(o -> fi.get(o.getFrame()).add(o.getId()));
                 int[] idxs= toStore.stream().mapToInt(SegmentedObject::getFrame).distinct().toArray();
                 storeFrameIndex(key, fi, false, idxs);
+            } else if (toStore.size()>frameIndexLimit) {
+                Collector<SegmentedObject, Set<String>, Set<String>> downstream = Collector.of(HashSet::new, (s, o) -> s.add(o.getId()), (s1, s2) -> { s1.addAll(s2); return s1; });
+                Map<Integer, Set<String>> fi = toStore.stream().collect(Collectors.groupingBy(SegmentedObject::getFrame, downstream));
+                storeFrameIndex(key, fi, false);
             }
         }
         if (commit) {
@@ -674,23 +681,61 @@ public class DBMapObjectDAO implements ObjectDAO {
 
     @Override
     public List<SegmentedObject> getTrack(SegmentedObject trackHead) {
-        Map<String, SegmentedObject> allObjects = getAllChildren(new Pair(trackHead.getParentTrackHeadId(), trackHead.getStructureIdx()));
-        return allObjects.values().stream()
-                .filter(o->o.getTrackHeadId().equals(trackHead.getId()))
-                .sorted((o1, o2)-> Integer.compare(o1.getFrame(), o2.getFrame()))
-                .collect(Collectors.toList());
-        // TODO: parents may no be set !
+        Pair<String, Integer> key = new Pair<>(trackHead.getParentTrackHeadId(), trackHead.getStructureIdx());
+        if (cache.containsKey(key) && allObjectsRetrievedInCache.getOrDefault(key, false)) {
+            Map<String, SegmentedObject> allObjects = getAllChildren(key);
+            return allObjects.values().stream()
+                    .filter(o -> o.getTrackHeadId().equals(trackHead.getId()))
+                    .sorted(Comparator.comparingInt(SegmentedObject::getFrame))
+                    .collect(Collectors.toList());
+            // TODO: parents may no be set !
+        } else {
+            return SegmentedObjectUtils.getTrack(trackHead); // only retreive track objects
+        }
     }
 
     @Override
     public List<SegmentedObject> getTrackHeads(SegmentedObject parentTrack, int structureIdx) {
+        return trackHeads.get(new Pair<>(parentTrack.getId(), structureIdx));
+        //setParents(list, new Pair<>(parentTrack.getParentTrackHeadId(), parentTrack.getStructureIdx()));
+    }
+    public List<SegmentedObject> getTrackHeads(Pair<String, Integer> key) {
         long t0 = System.currentTimeMillis();
-        Map<String, SegmentedObject> allObjects = getAllChildren(new Pair(parentTrack.getId(), structureIdx));
+        if (cache.containsKey(key) && allObjectsRetrievedInCache.getOrDefault(key, false)) {
+            Map<String, SegmentedObject> allObjects = getAllChildren(key);
+            List<SegmentedObject> list = allObjects.values().stream().filter(SegmentedObject::isTrackHead).sorted().collect(Collectors.toList());
+            long t1 = System.currentTimeMillis();
+            logger.debug("getTrackHead -> parent: {}, oc: {}, #{} objects #{} trackheads retrieved in {}ms", key.key, key.value, allObjects.size(), list.size(), t1-t0);
+            return list;
+        } else {
+            SegmentedObjectAccessor accessor = mDAO.getAccess();
+            Set<Pair<String, Integer>> thIds = getTrackHeadIds(key);
+            List<SegmentedObject> list = thIds.stream()
+                    .map(p->getById(key.key, key.value, p.value, p.key))
+                    .peek(o -> accessor.setDAO(o,this))
+                    .collect(Collectors.toList());
+            long t1 = System.currentTimeMillis();
+            logger.debug("getTrackHead -> parent: {}, oc: {},  #{} trackheads retrieved in {}ms", key.key, key.value, list.size(), t1-t0);
+            return list;
+        }
+    }
+
+    public Set<Pair<String, Integer>> getTrackHeadIds(Pair<String, Integer> key) {
+        long t0 = System.currentTimeMillis();
+        Set<Pair<String, Integer>> res = new HashSet<>();
+        HTreeMap<String, String> dbm = getDBMap(key);
+        dbm.forEach( (k, v) -> {
+            int idx = v.indexOf("isTh")+6;
+            boolean isTh = Boolean.parseBoolean(v.substring(idx,  v.indexOf(jsonSeparator, idx)));
+            if (isTh) {
+                int fidx = v.indexOf("frame")+7;
+                int frame = Integer.parseInt(v.substring(fidx,  v.indexOf(jsonSeparator, fidx)));
+                res.add(new Pair<>(k, frame));
+            }
+        });
         long t1 = System.currentTimeMillis();
-        logger.debug("parent: {}, structure: {}, #{} objects retrieved in {}ms", parentTrack, structureIdx, allObjects.size(), t1-t0);
-        List<SegmentedObject> list = allObjects.values().stream().filter(o->o.isTrackHead()).sorted().collect(Collectors.toList());
-        setParents(list, new Pair(parentTrack.getParentTrackHeadId(), parentTrack.getStructureIdx()));
-        return list;
+        logger.debug("getting trackheads: {} in {}ms", key, t1-t0);
+        return res;
     }
 
     // measurements

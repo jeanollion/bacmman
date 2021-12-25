@@ -21,6 +21,7 @@ package bacmman.ui.gui.objects;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
+import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.SelectionDAO;
@@ -73,7 +74,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     
     public List<SegmentedObject> getTrack() {
         if (track==null) track=root.generator.getObjectDAO(this.trackHead.getPositionName()).getTrack(trackHead);
-        if (track==null) GUI.logger.error("Could not retrieve track from trackHead: {}", trackHead);
+        if (track==null) logger.error("Could not retrieve track from trackHead: {}", trackHead);
         return track;
     }
     
@@ -143,9 +144,9 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     // TreeNode implementation
     @Override public String toString() {
         if (trackHead==null) return "tracking should be re-run";
-        getTrack();
-        int tl = track!=null || track.isEmpty() ? track.get(track.size()-1).getFrame()-track.get(0).getFrame()+1:-1;
-        return getStructureName()+": #"+trackHead.getIdx()+ " Frames: ["+trackHead.getFrame()+";"+(track!=null?track.get(track.size()-1).getFrame():"???")+"] (N="+(track!=null?track.size():".........")+")"+(track!=null && tl!=track.size() ? " (Gaps="+(tl-track.size())+")" : ""); 
+        //getTrack();
+        int tl = track==null || track.isEmpty() ? -1 : track.get(track.size()-1).getFrame()-track.get(0).getFrame()+1;
+        return getStructureName()+" Track: "+ Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + " Frames: ["+trackHead.getFrame()+";"+(track!=null?track.get(track.size()-1).getFrame():"???")+"] (N="+(track!=null?track.size():".........")+")"+(track!=null && tl!=track.size() ? " (Gaps="+(tl-track.size())+")" : "");
     }
     private String getStructureName() {
         if (root==null || root.generator==null || root.generator.getExperiment()==null) return "Unknown Object Class";
@@ -225,7 +226,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         TrackNode trackNode;
         JMenuItem[] actions;
         JMenuItem[] openKymograph;
-        JMenuItem[] openFrames;
+        JMenuItem[] openHyperStack;
         JMenuItem[] runSegAndTracking;
         JMenuItem[] runTracking;
         JMenuItem[] createSelection;
@@ -250,8 +251,8 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             JMenu kymographSubMenu = new JMenu("Open Kymograph");
             actions[0] = kymographSubMenu;
             int idx = 1;
-            JMenu framesSubMenu = new JMenu("Open HyperStack");
-            if (hyperStack) actions[idx++] = framesSubMenu;
+            JMenu hyperStackSubMenu = new JMenu("Open HyperStack");
+            if (hyperStack) actions[idx++] = hyperStackSubMenu;
             JMenu runSegAndTrackingSubMenu = new JMenu("Run segmentation and tracking");
             actions[idx++] = runSegAndTrackingSubMenu;
             JMenu runTrackingSubMenu = new JMenu("Run tracking");
@@ -293,10 +294,10 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 kymographSubMenu.add(openKymograph[i]);
             }
             if (hyperStack) {
-                openFrames = new JMenuItem[structureNames.length];
-                for (int i = 0; i < openFrames.length; i++) {
-                    openFrames[i] = new JMenuItem(structureNames[i]);
-                    openFrames[i].setAction(new AbstractAction(structureNames[i]) {
+                openHyperStack = new JMenuItem[structureNames.length];
+                for (int i = 0; i < openHyperStack.length; i++) {
+                    openHyperStack[i] = new JMenuItem(structureNames[i]);
+                    openHyperStack[i].setAction(new AbstractAction(structureNames[i]) {
                                                 @Override
                                                 public void actionPerformed(ActionEvent ae) {
                                                     logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
@@ -309,7 +310,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                                 }
                                             }
                     );
-                    framesSubMenu.add(openFrames[i]);
+                    hyperStackSubMenu.add(openHyperStack[i]);
                 }
             }
             runSegAndTracking = new JMenuItem[childStructureNames.length];
@@ -453,13 +454,18 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             });
         }
         public Object[] getDisplayComponent(boolean multipleSelection) {
+            boolean hyperstack = Core.enableHyperStackView;
+            int inc = hyperstack?1:0;
             if (noChildStructure) {
                 if (multipleSelection) {
-                    return new JMenuItem[]{actions[4], actions[5], actions[6]};
-                } else return new JMenuItem[]{actions[0], actions[4], actions[5], actions[6]};
+                    return new JMenuItem[]{actions[4+inc], actions[5+inc], actions[6+inc]};
+                } else {
+                    if (hyperstack) return new JMenuItem[]{actions[0], actions[1], actions[4+inc], actions[5+inc], actions[6+inc]};
+                    else return new JMenuItem[]{actions[0], actions[4+inc], actions[5+inc], actions[6+inc]};
+                }
             } else {
                 if (multipleSelection) {
-                    return new JMenuItem[]{actions[1], actions[2], actions[3], actions[4], actions[5], actions[6]};
+                    return new JMenuItem[]{actions[1+inc], actions[2+inc], actions[3+inc], actions[4+inc], actions[5+inc], actions[6+inc]};
                 } else return actions;
             }
         }
