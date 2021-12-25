@@ -316,7 +316,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             });
         }
     }
-    
+    @Override protected void registerInteractiveHyperStackFrameCallback(Image image, KymographT k) {
+        ImagePlus ip = displayer.getImage(image);
+        if (ip!=null && ip.getImageStack() instanceof IJVirtualStack) {
+            logger.debug("registering frame callback on image: {} for kymograph : {}", image.getName(), k.getKey());
+            ((IJVirtualStack)ip.getImageStack()).appendSetFrameCallback(k::setIdx);
+        }
+    }
     @Override public void closeNonInteractiveWindows() {
         super.closeNonInteractiveWindows();
         String[] names = WindowManager.getImageTitles();
@@ -443,7 +449,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             r.setLocDelta(bds.xMin() - object.value.xMin(), bds.yMin() - object.value.yMin());
             //logger.debug("creating Ellipse2D for {} @ {}, foci: {}, bds: {}, is2D: {}, parent bds: {}, loc bds: {}", object.key, object.key.getRegion().getCenter(), foci, object.key.getBounds(), object.key.getRegion().is2D(), object.key.getParent().getBounds(), object.value);
         } else {
-            logger.debug("object: {} has container: {}, container type: {}, container ROI not null ? {}, has ROI: {}", object.key, accessor.hasRegionContainer(object.key), accessor.hasRegionContainer(object.key)? accessor.getRegionContainer(object.key).getClass() : "null", ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null, object.key.getRegion().getRoi()!=null);
+            //logger.debug("object: {} has container: {}, container type: {}, container ROI not null ? {}, has ROI: {}", object.key, accessor.hasRegionContainer(object.key), accessor.hasRegionContainer(object.key)? accessor.getRegionContainer(object.key).getClass() : "null", ((RegionContainerIjRoi)accessor.getRegionContainer(object.key)).getRoi()!=null, object.key.getRegion().getRoi()!=null);
             r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
         }
 

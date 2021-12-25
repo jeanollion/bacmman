@@ -55,20 +55,22 @@ public class IJVirtualStack extends VirtualStack {
     Image[][] imageCT;
     private final Object lock = new Object();
     IntConsumer setFrameCallback;
-    public IJVirtualStack(int sizeX, int sizeY, int[] FCZCount, Function<Integer, int[]> getFCZ, BiFunction<Integer, Integer, Image> imageOpenerCT, IntConsumer setFrameCallback) {
+    public IJVirtualStack(int sizeX, int sizeY, int[] FCZCount, Function<Integer, int[]> getFCZ, BiFunction<Integer, Integer, Image> imageOpenerCT) {
         super(sizeX, sizeY, null, "");
         this.imageOpenerCT=imageOpenerCT;
         this.getFCZ=getFCZ;
         this.FCZCount=FCZCount;
         this.imageCT=new Image[FCZCount[1]][FCZCount[0]];
-        this.setFrameCallback=setFrameCallback ==null ? i -> {} : setFrameCallback;
         for (int n = 0; n<FCZCount[0]*FCZCount[1]*FCZCount[2]; ++n) super.addSlice("");
     }
-    
+    public void appendSetFrameCallback(IntConsumer otherSetFrameCallback) {
+        if (this.setFrameCallback==null) this.setFrameCallback=otherSetFrameCallback;
+        else this.setFrameCallback = setFrameCallback.andThen(otherSetFrameCallback);
+    }
     @Override
     public ImageProcessor getProcessor(int n) {
         int[] fcz = getFCZ.apply(n);
-        setFrameCallback.accept(fcz[0]);
+        if (setFrameCallback!=null) setFrameCallback.accept(fcz[0]);
         if (imageCT[fcz[1]][fcz[0]]==null) {
             synchronized(lock) {
                 if (imageCT[fcz[1]][fcz[0]]==null) {
@@ -99,7 +101,7 @@ public class IJVirtualStack extends VirtualStack {
         int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
         int[] fcz = new int[]{frames, channels, maxZ};
         BiFunction<Integer, Integer, Image> imageOpenerCT  = preProcessed ? (c, t) -> f.getImageDAO().openPreProcessedImage(c, t) : (c, t) -> f.getInputImages().getImage(c, t);
-        IJVirtualStack s = new IJVirtualStack(bdsC[0].sizeX(), bdsC[0].sizeY(), fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT, null);
+        IJVirtualStack s = new IJVirtualStack(bdsC[0].sizeX(), bdsC[0].sizeY(), fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
         ip.setStack(s, channels,maxZ, frames);
@@ -140,7 +142,7 @@ public class IJVirtualStack extends VirtualStack {
         int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
         int[] fcz = new int[]{frames, channels, maxZ};
         BiFunction<Integer, Integer, Image> imageOpenerCT  = (c, t) -> interactiveImage.getImage(channelArray[c], true, Resize.EXPAND_MODE.BORDER);
-        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT, interactiveImage::setIdx);
+        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
         ip.setTitle(("HyperStack of Track: "+parentTrack.get(0).toStringShort()));
         ip.setStack(s, channels,maxZ, frames);

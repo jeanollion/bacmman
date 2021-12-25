@@ -76,7 +76,7 @@ public class KymographT extends Kymograph {
         assert idx<trackObjects.length && idx>=0 : "invalid idx";
         if (idx!=this.idx) {
             this.idx=idx;
-            if (changeIdxCallback!=null) changeIdxCallback.accept(idx);
+            if (changeIdxCallback!=null && ImageWindowManagerFactory.getImageManager().interactiveStructureIdx==this.childStructureIdx) changeIdxCallback.accept(idx);
         }
 
         return this;

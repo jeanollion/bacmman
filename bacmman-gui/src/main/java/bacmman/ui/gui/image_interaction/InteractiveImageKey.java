@@ -33,7 +33,7 @@ public class InteractiveImageKey {
     public final TYPE imageType;
     public final List<SegmentedObject> parent;
     public final int interactiveObjectClass;
-
+    public final static TYPE defaultType = TYPE.FRAME_STACK;
     public InteractiveImageKey(List<SegmentedObject> parent, TYPE imageType, int interactiveObjectClass) {
         this.imageType = imageType;
         this.parent = parent;
