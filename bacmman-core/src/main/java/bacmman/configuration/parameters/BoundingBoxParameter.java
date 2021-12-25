@@ -1,0 +1,72 @@
+package bacmman.configuration.parameters;
+
+import bacmman.image.BoundingBox;
+import bacmman.image.SimpleBoundingBox;
+import bacmman.utils.JSONUtils;
+import org.json.simple.JSONArray;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+
+public class BoundingBoxParameter extends ContainerParameterImpl<BoundingBoxParameter> {
+    BoundedNumberParameter xMin = new BoundedNumberParameter("X Min", 0, 0, 0, null).setEmphasized(true);
+    BoundedNumberParameter yMin = new BoundedNumberParameter("Y Min", 0, 0, 0, null).setEmphasized(true);
+    BoundedNumberParameter zMin = new BoundedNumberParameter("Z Min", 0, 0, 0, null).setEmphasized(true);
+    BoundedNumberParameter xLength = new BoundedNumberParameter("X Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along X axis. 0 means maximal possible length");
+    BoundedNumberParameter yLength = new BoundedNumberParameter("Y Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along Y axis. 0 means maximal possible length");;
+    BoundedNumberParameter zLength = new BoundedNumberParameter("Z Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along Z axis. 0 means maximal possible length");;
+    protected List<Parameter> parameters;
+
+    public BoundingBoxParameter(String name) {
+        super(name);
+        setParameters(xMin, xLength, yMin, yLength, zMin, zLength);
+    }
+    public SimpleBoundingBox getBoundingBox(BoundingBox parentBounds) {
+        int xMin = this.xMin.getIntValue();
+        int yMin = this.yMin.getIntValue();
+        int zMin = this.zMin.getIntValue();
+        int xLength = this.xLength.getIntValue();
+        int yLength = this.yLength.getIntValue();
+        int zLength = this.zLength.getIntValue();
+        if (xLength==0) xLength = parentBounds.sizeX() - xMin;
+        if (yLength==0) yLength = parentBounds.sizeY() - yMin;
+        if (zLength==0) zLength = parentBounds.sizeZ() - zMin;
+        return new SimpleBoundingBox(xMin, xMin+xLength-1, yMin, yMin+yLength-1, zMin, zMin+zLength-1);
+    }
+
+    private void setParameters(Parameter... parameters) {
+        this.parameters = Arrays.asList(parameters);
+        initChildList();
+    }
+
+    @Override
+    protected void initChildList() {
+        super.initChildren(parameters);
+    }
+
+    @Override
+    public BoundingBoxParameter duplicate() {
+        BoundingBoxParameter res =  new BoundingBoxParameter(name);
+        res.setContentFrom(this);
+        transferStateArguments(this, res);
+        return res;
+    }
+    @Override
+    public String toString() {
+        return name + ": " + "x=["+xMin.getIntValue()+"; "+ (xLength.getIntValue()==0 ? "?": xMin.getIntValue()+xLength.getIntValue()-1)+"]" + " y=["+yMin.getIntValue()+"; "+ (yLength.getIntValue()==0 ? "?": yMin.getIntValue()+yLength.getIntValue()-1)+"]" + ( (zMin.getIntValue()==0 && zLength.getIntValue()==0)?"": " z=["+zMin.getIntValue()+"; "+ (zLength.getIntValue()==0 ? "?": zMin.getIntValue()+zLength.getIntValue()-1)+"]" );
+    }
+
+    @Override
+    public JSONArray toJSONEntry() {
+        return JSONUtils.toJSONArrayMap(parameters);
+    }
+
+    @Override
+    public void initFromJSONEntry(Object jsonEntry) {
+        if (jsonEntry==null) return;
+        if (JSONUtils.isJSONArrayMap(jsonEntry)) JSONUtils.fromJSONArrayMap(parameters, (JSONArray)jsonEntry);
+        else JSONUtils.fromJSON(parameters, (JSONArray)jsonEntry);
+    }
+}
