@@ -446,6 +446,8 @@ public class DBMapObjectDAO implements ObjectDAO {
             if (this.dbS.containsKey(structureIdx)) {
                 dbS.remove(structureIdx).close();
                 dbMaps.entrySet().removeIf(k -> k.getKey().value==structureIdx);
+                trackHeads.entrySet().removeIf(k -> k.getKey().value == structureIdx);
+                frameIndex.entrySet().removeIf(e -> e.getKey().value==structureIdx);
             }
             DBMapUtils.deleteDBFile(getDBFile(structureIdx));
             DBMapUtils.deleteDBFile(getMeasurementDBFile(structureIdx));
@@ -467,6 +469,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         cache.clear();
         allObjectsRetrievedInCache.clear();
         trackHeads.clear();
+        frameIndex.clear();
         closeAllFiles(true);
     }
     
@@ -479,6 +482,8 @@ public class DBMapObjectDAO implements ObjectDAO {
         if (readOnly) return;
         File f = dir.toFile();
         if (f.exists() && f.isDirectory()) for (File subF : f.listFiles())  subF.delete();
+        trackHeads.clear();
+        frameIndex.clear();
     }
     private synchronized void closeAllObjectFiles(boolean commit) {
         for (DB db : dbS.values()) {
@@ -572,6 +577,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                 int[] idxs= toRemove.stream().mapToInt(SegmentedObject::getFrame).distinct().toArray();
                 storeFrameIndex(key, fi, false, idxs);
             }
+            if (trackHeads.containsKey(key)) trackHeads.get(key).removeAll(toRemove.stream().filter(SegmentedObject::isTrackHead).collect(Collectors.toSet()));
             //TODO if track head is removed and has children -> inconsistency -> check at each eraseAll, if eraseAll children -> eraseAll whole collection if trackHead, if not dont do anything
             if (deleteFromParent && relabelSiblings) {
                 if (key.value==-1) continue; // no parents
@@ -610,6 +616,10 @@ public class DBMapObjectDAO implements ObjectDAO {
             frameIndex.get(key).get(object.getFrame()).add(object.getId());
             storeFrameIndex(key, frameIndex.get(key), false, object.getFrame());
         }
+        if (object.isTrackHead() && trackHeads.containsKey(key)) {
+            trackHeads.get(key).add(object);
+            Collections.sort(trackHeads.get(key));
+        }
         getDB(object.getStructureIdx()).commit();
     }
     protected void store(Collection<SegmentedObject> objects, boolean commit) {
@@ -647,6 +657,11 @@ public class DBMapObjectDAO implements ObjectDAO {
                 Collector<SegmentedObject, Set<String>, Set<String>> downstream = Collector.of(HashSet::new, (s, o) -> s.add(o.getId()), (s1, s2) -> { s1.addAll(s2); return s1; });
                 Map<Integer, Set<String>> fi = toStore.stream().collect(Collectors.groupingBy(SegmentedObject::getFrame, downstream));
                 storeFrameIndex(key, fi, false);
+            }
+            if (trackHeads.containsKey(key)) {
+                trackHeads.get(key).removeIf(o -> !o.isTrackHead());
+                trackHeads.get(key).addAll(toStore.stream().filter(SegmentedObject::isTrackHead).collect(Collectors.toSet()));
+                Collections.sort(trackHeads.get(key));
             }
         }
         if (commit) {
@@ -711,9 +726,8 @@ public class DBMapObjectDAO implements ObjectDAO {
             SegmentedObjectAccessor accessor = mDAO.getAccess();
             Set<Pair<String, Integer>> thIds = getTrackHeadIds(key);
             List<SegmentedObject> list = thIds.stream()
-                    .map(p->getById(key.key, key.value, p.value, p.key))
-                    .peek(o -> accessor.setDAO(o,this))
-                    .collect(Collectors.toList());
+                    .map(p -> getById(key.key, key.value, p.value, p.key))
+                    .peek(o -> accessor.setDAO(o, this)).sorted().collect(Collectors.toList());
             long t1 = System.currentTimeMillis();
             logger.debug("getTrackHead -> parent: {}, oc: {},  #{} trackheads retrieved in {}ms", key.key, key.value, list.size(), t1-t0);
             return list;
