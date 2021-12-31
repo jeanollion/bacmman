@@ -212,6 +212,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (pyGtw!=null) pyGtw.stopGateway();
                 githubPasswords.clear();
                 INSTANCE = null;
+                if (Core.getCore().getOmeroGateway()!=null) Core.getCore().getOmeroGateway().close();
                 logger.debug("Closed successfully");
             }
         });
@@ -268,9 +269,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);}};
-        relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
-        
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);}};
+        relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
         ButtonGroup dbGroup = new ButtonGroup();
@@ -1425,6 +1425,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         saveConfigMenuItem = new javax.swing.JMenuItem();
         runMenu = new javax.swing.JMenu();
         importImagesMenuItem = new javax.swing.JMenuItem();
+        importImagesFromOmeroMenuItem = new javax.swing.JMenuItem();
         runSelectedActionsMenuItem = new javax.swing.JMenuItem();
         runActionAllXPMenuItem = new javax.swing.JMenuItem();
         extractMeasurementMenuItem = new javax.swing.JMenuItem();
@@ -2328,6 +2329,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         runMenu.add(importImagesMenuItem);
+
+        if (Core.getCore().getOmeroGateway()!=null) {
+            importImagesFromOmeroMenuItem.setText("Import/re-link Images from Omero Server ");
+            importImagesFromOmeroMenuItem.addActionListener(new java.awt.event.ActionListener() {
+                public void actionPerformed(java.awt.event.ActionEvent evt) {
+                    importImagesFromOmeroMenuItemActionPerformed(evt);
+                }
+            });
+            runMenu.add(importImagesFromOmeroMenuItem);
+        }
 
         runSelectedActionsMenuItem.setText("Run Selected Tasks");
         runSelectedActionsMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -3385,6 +3396,24 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         Task.executeTask(t, getUserInterface(), getPreProcessingMemoryThreshold(), this::updateConfigurationTree); // update config because cache will be cleared
     }//GEN-LAST:event_runSelectedActionsMenuItemActionPerformed
 
+    private void importImagesFromOmeroMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importImagesFromOmeroMenuItemActionPerformed
+        if (!checkConnection()) return;
+        OmeroGateway omeroGateway = Core.getCore().getOmeroGateway();
+        if (omeroGateway == null) {
+            log("Omero Gateway not found. Is Omero module installed ?");
+            return;
+        }
+        Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), omeroGateway, () -> {
+            populateActionPositionList();
+            populateTestPositionJCB();
+            if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
+            updateConfigurationTree();
+            db.updateExperiment();
+            // also lock all new positions
+            db.lockPositions();
+        });
+    }//GEN-LAST:event_importImagesFromOmeroMenuItemActionPerformed
+
     private void importImagesMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importImagesMenuItemActionPerformed
         if (!checkConnection()) return;
         String defDir = db.getDir().toFile().getAbsolutePath();
@@ -4037,7 +4066,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     try {
                         IJVirtualStack.openVirtual(db.getExperiment(), position, false);
                     } catch(Throwable t) {
-                        setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command");
+
+                        setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command. If image are on Omero server: connect to server");
                         logger.debug("Error while opening file position", t);
                     }
                 }
@@ -4084,6 +4114,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             menu.add(importRelink);
+            if (Core.getCore().getOmeroGateway()!=null) {
+                Action importRelinkFromOmero = new AbstractAction("Import/re-link images form Omero server") {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        importImagesFromOmeroMenuItemActionPerformed(e);
+                    }
+                };
+                menu.add(importRelinkFromOmero);
+            }
             menu.show(this.microscopyFieldList, evt.getX(), evt.getY());
         }
     }//GEN-LAST:event_microscopyFieldListMousePressed
@@ -4727,6 +4766,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem importConfigurationMenuItem;
     private javax.swing.JMenuItem importDataMenuItem;
     private javax.swing.JMenuItem importImagesMenuItem;
+    private javax.swing.JMenuItem importImagesFromOmeroMenuItem;
     private javax.swing.JMenu importMenu;
     private javax.swing.JMenuItem importNewExperimentMenuItem;
     private javax.swing.JCheckBoxMenuItem importObjectsMenuItem;
