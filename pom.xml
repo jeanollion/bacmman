@@ -34,6 +34,8 @@
         <module>bacmman-dl</module>
         <module>bacmman-tf${tensorflow.version}</module>
         <module>bacmman-tango</module>
+        <module>bacmman-trackmate</module>
+        <module>bacmman-omero</module>
     </modules>
 
     <name>BACMMAN</name>

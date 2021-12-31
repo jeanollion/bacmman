@@ -52,6 +52,16 @@
         </dependency>
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-trackmate</artifactId>
+            <version>3.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-omero</artifactId>
+            <version>3.2.1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-tf${tensorflow.version}</artifactId>
             <version>3.2.1</version>
         </dependency>
