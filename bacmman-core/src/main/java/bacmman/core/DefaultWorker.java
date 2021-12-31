@@ -103,7 +103,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             if (this.endOfWork!=null) endOfWork.run();
             setProgress(0);
             if (progressor !=null) {
-                progressor.setMessage("End of Jobs");
+                //progressor.setMessage("End of Jobs");
                 progressor.setRunning(false);
             } //else System.out.println("No GUI. End of JOBS");
         }

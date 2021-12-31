@@ -9,23 +9,17 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.image.TypeConverter;
-import bacmman.image.io.ImageReader;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.ThreadRunner;
-import bacmman.utils.Utils;
-import ij.ImageJ;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
-import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 public class SubtractGaussSignalExclusion implements ConfigurableTransformation, MultichannelTransformation, TestableOperation, Hint {
     public final static Logger logger = LoggerFactory.getLogger(SubtractGaussSignalExclusion.class);

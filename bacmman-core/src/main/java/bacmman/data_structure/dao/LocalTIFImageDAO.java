@@ -25,15 +25,11 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageIOCoordinates;
-import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.nio.file.Paths;
 
-import bacmman.utils.FileIO;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
@@ -68,7 +64,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         File f = new File(path);
         if (f.exists()) {
             //long t0 = System.currentTimeMillis();
-            Image im = ImageReader.openImage(path);
+            Image im = ImageReaderFile.openImage(path);
             //long t1 = System.currentTimeMillis();
             //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {}, in {}ms", channelImageIdx, timePoint, microscopyFieldName, t1-t0);
             return im;
@@ -83,7 +79,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         File f = new File(path);
         if (f.exists()) {
             logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, microscopyFieldName, bounds);
-            return ImageReader.openImage(path, new ImageIOCoordinates(bounds));
+            return ImageReaderFile.openImage(path, new ImageIOCoordinates(bounds));
         } else {
             logger.error("pre-processed image: {} not found", path);
             return null;
@@ -101,7 +97,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         String path = getPreProcessedImagePath(channelIdx, 0);
         File f = new File(path);
         if (f.exists()) {
-            Pair<int[][], double[]> info = ImageReader.getImageInfo(path);
+            Pair<int[][], double[]> info = ImageReaderFile.getImageInfo(path);
             int[][] STCXYZ = info.key;
             double[] scale = new double[]{info.value[0], info.value[2]};
             //logger.debug("image info for: {}, sX={}, sY={}, sZ={}, T={} C={}", microscopyFieldName, STCXYZ[0][2], STCXYZ[0][3], STCXYZ[0][4], STCXYZ[0][0], STCXYZ[0][1]);
@@ -149,7 +145,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         //logger.debug("opening track image: from {} c={}, path: {}, exists? {}", trackHead, channelImageIdx, path, f.exists());
         if (f.exists()) {
             //logger.trace("Opening track image:  trackHead: {}", trackHead);
-            return ImageReader.openImage(path);
+            return ImageReaderFile.openImage(path);
         } else {
             return null;
         }

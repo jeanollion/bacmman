@@ -22,7 +22,9 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.TransformationPluginParameter;
+import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
+import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ImageDAO;
 import bacmman.data_structure.dao.ImageDAOTrack;
@@ -52,6 +54,7 @@ import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -70,30 +73,45 @@ public class Processor {
         
     }*/
     public static void importFiles(Experiment xp, boolean relink, ProgressCallback pcb, String... selectedFiles) {
-        List<MultipleImageContainer> images = ImageFieldFactory.importImages(selectedFiles, xp, pcb);
-        int count=0, relinkCount=0;
-        for (MultipleImageContainer c : images) {
-            Position position = xp.createPosition(c.getName());
-            if (c.getScaleXY()==1 || c.getScaleXY()==0) {
-                if (pcb!=null) {
-                    pcb.log("Warning: no scale set for position: "+c.getName());
-                    pcb.log("Scale can be set in configuration tab, \"Pre-processing pipeline template\">\"Voxel Calibration\" and overwritten on all existing positions");
+        importFiles(xp, null, relink, pcb, null, selectedFiles);
+    }
+    public static void importFiles(Experiment xp, boolean relink, ProgressCallback pcb, OmeroGateway omeroGateway, Runnable endOfWorkCallback) {
+        importFiles(xp, omeroGateway, relink, pcb, endOfWorkCallback);
+    }
+    private static void importFiles(Experiment xp, OmeroGateway omeroGateway, boolean relink, ProgressCallback pcb, Runnable endOfWorkCallback, String... selectedFiles) {
+        Consumer<List<MultipleImageContainer>> importFun = images -> {
+            int count = 0, relinkCount = 0;
+            for (MultipleImageContainer c : images) {
+                Position position = xp.createPosition(c.getName());
+                if (c.getScaleXY() == 1 || c.getScaleXY() == 0) {
+                    if (pcb != null) {
+                        pcb.log("Warning: no scale set for position: " + c.getName());
+                        pcb.log("Scale can be set in configuration tab, \"Pre-processing pipeline template\">\"Voxel Calibration\" and overwritten on all existing positions");
+                    }
+                    logger.info("no scale set for position: " + c.getName());
                 }
-                logger.info("no scale set for position: "+c.getName());
+                logger.debug("image: {} scale: {}, scaleZ: {} frame: {}", c.getName(), c.getScaleXY(), c.getScaleZ(), c.getCalibratedTimePoint(1, 0, 0));
+                if (position != null) {
+                    position.setImages(c);
+                    count++;
+                } else if (relink) {
+                    xp.getPosition(c.getName()).setImages(c);
+                    ++relinkCount;
+                } else {
+                    logger.warn("Image: {} already present in positions was no added", c.getName());
+                }
             }
-            logger.debug("image: {} scale: {}, scaleZ: {} frame: {}", c.getName(), c.getScaleXY(), c.getScaleZ(), c.getCalibratedTimePoint(1, 0, 0));
-            if (position!=null) {
-                position.setImages(c);
-                count++;
-            } else if (relink) {
-                xp.getPosition(c.getName()).setImages(c);
-                ++relinkCount;
-            } else {
-                logger.warn("Image: {} already present in positions was no added", c.getName());
-            }
+            logger.info("#{} fields found, #{} created, #{} relinked. From files: {}", images.size(), count, relinkCount, selectedFiles);
+            if (pcb != null)
+                pcb.log("#" + images.size() + " fields found, #" + count + " created, #" + relinkCount + " relinked. From files: " + Utils.toStringArray(selectedFiles));
+            if (endOfWorkCallback!=null) endOfWorkCallback.run();
+        };
+        if (omeroGateway!=null) {
+            omeroGateway.importFiles(xp, importFun, pcb);
+        } else {
+            List<MultipleImageContainer> images = ImageFieldFactory.importImages(selectedFiles, xp, pcb);
+            importFun.accept(images);
         }
-        logger.info("#{} fields found, #{} created, #{} relinked. From files: {}", images.size(), count, relinkCount, selectedFiles);
-        if (pcb!=null) pcb.log("#"+images.size()+" fields found, #"+count+" created, #"+relinkCount+" relinked. From files: "+Utils.toStringArray(selectedFiles));
     }
     
     // preProcessing-related methods

@@ -18,15 +18,19 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.core.OmeroGateway;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
-import static bacmman.image.Image.logger;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Function;
 
+import bacmman.image.io.OmeroImageMetadata;
+import bacmman.utils.Utils;
 import org.json.simple.JSONObject;
 import bacmman.utils.JSONUtils;
 
@@ -49,6 +53,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     public boolean sameContent(MultipleImageContainer other) {
         if (other instanceof MultipleImageContainerSingleFile) {
             MultipleImageContainerSingleFile otherM = (MultipleImageContainerSingleFile)other;
+            if (fromOmero()!=otherM.fromOmero()) return false;
             if (scaleXY!=otherM.scaleXY) return false;
             if (scaleZ!=otherM.scaleZ) return false;
             if (!name.equals(otherM.name)) return false;
@@ -69,7 +74,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         JSONObject res = new JSONObject();
         res.put("scaleXY", scaleXY);
         res.put("scaleZ", scaleZ);
-        res.put("filePath", relativePath(filePath));
+        res.put("filePath", fromOmero() ? filePath : relativePath(filePath));
         res.put("name", name);
         res.put("framePointNumber", timePointNumber);
         res.put("channelNumber", channelNumber);
@@ -86,7 +91,8 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         JSONObject jsonO = (JSONObject)jsonEntry;
         scaleXY = ((Number)jsonO.get("scaleXY")).doubleValue();
         scaleZ = ((Number)jsonO.get("scaleZ")).doubleValue();
-        filePath = absolutePath((String)jsonO.get("filePath"));
+        filePath = (String)jsonO.get("filePath");
+        if (!fromOmero()) filePath  = absolutePath(filePath);
         name = (String)jsonO.get("name");
         timePointNumber = ((Number)jsonO.get("framePointNumber")).intValue();
         channelNumber = ((Number)jsonO.get("channelNumber")).intValue();
@@ -102,6 +108,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
             logger.debug("load tpMap: {}", timePointCZT);
         }
     }
+
     protected MultipleImageContainerSingleFile() {super(1, 1);}
     public MultipleImageContainerSingleFile(String name, String imagePath, int series, int timePointNumber, int channelNumber, int sizeZ, double scaleXY, double scaleZ, boolean invertTZ) {
         super(scaleXY, scaleZ);
@@ -113,10 +120,29 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         this.sizeZ=sizeZ;
         this.invertTZ=invertTZ;
     }
+    public boolean fromOmero() {
+        return filePath.startsWith("omeroID_");
+    }
+    protected long getOmeroID() {
+        return Long.parseLong(filePath.substring(8));
+    }
+    public MultipleImageContainerSingleFile(String name, long fileId, int timePointNumber, int channelNumber, int sizeZ, double scaleXY, double scaleZ, boolean invertTZ) {
+        super(scaleXY, scaleZ);
+        this.name = name;
+        this.seriesIdx=-1;
+        filePath = "omeroID_"+fileId;
+        this.timePointNumber = timePointNumber;
+        this.channelNumber=channelNumber;
+        this.sizeZ=sizeZ;
+        this.invertTZ=invertTZ;
+    }
 
     @Override public MultipleImageContainerSingleFile duplicate() {
-        MultipleImageContainerSingleFile res = new MultipleImageContainerSingleFile(name, filePath, seriesIdx, timePointNumber, channelNumber, sizeZ, scaleXY, scaleZ, invertTZ);
-        return res;
+        if (fromOmero()) {
+            MultipleImageContainerSingleFile res = new MultipleImageContainerSingleFile(name, getOmeroID(), timePointNumber, channelNumber, sizeZ, scaleXY, scaleZ, invertTZ);
+            res.setOmeroGateway(omeroGateway);
+            return res;
+        } else return new MultipleImageContainerSingleFile(name, filePath, seriesIdx, timePointNumber, channelNumber, sizeZ, scaleXY, scaleZ, invertTZ);
     }
     
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
@@ -183,8 +209,15 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     }
     
     protected ImageReader getReader() {
-        if (reader==null) reader = new ImageReader(filePath);
-        if (invertTZ) reader.setInvertTZ(true);
+        if (reader==null) {
+            synchronized (this) {
+                if (reader==null) {
+                    if (fromOmero()) reader = omeroGateway==null ? null : omeroGateway.createReader(getOmeroID());
+                    else reader = new ImageReaderFile(filePath);
+                    if (invertTZ && reader!=null) reader.setInvertTZ(true);
+                }
+            }
+        }
         return reader;
     }
     

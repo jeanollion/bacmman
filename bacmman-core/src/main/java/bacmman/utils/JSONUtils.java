@@ -180,6 +180,11 @@ public class JSONUtils {
         for (String d : array) res.add(d);
         return res;
     }
+    public static JSONArray toJSONArrayString(Collection<String> collection) {
+        JSONArray res = new JSONArray();
+        for (String d : collection) res.add(d);
+        return res;
+    }
     public static JSONArray toJSONArray(Collection<? extends Number> collection) {
         JSONArray res = new JSONArray();
         res.addAll(collection);

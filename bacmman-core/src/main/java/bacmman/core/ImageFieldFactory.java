@@ -20,13 +20,12 @@ package bacmman.core;
 
 import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
-import bacmman.data_structure.Processor;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.image_container.MultipleImageContainerChannelSerie;
 import bacmman.data_structure.image_container.MultipleImageContainerPositionChannelFrame;
 import bacmman.data_structure.image_container.MultipleImageContainerSingleFile;
 import bacmman.image.io.ImageIOCoordinates;
-import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 import java.io.File;
 import java.io.FileFilter;
 import java.nio.file.Paths;
@@ -39,7 +38,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import bacmman.utils.Utils;
-import org.eclipse.collections.api.block.function.primitive.IntToIntFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -97,10 +95,10 @@ public class ImageFieldFactory {
     
     protected static void addContainerSingleFile(File image, Experiment xp, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
         String sep = xp.getImportImagePositionSeparator();
-        ImageReader reader=null;
+        ImageReaderFile reader=null;
         long t0 = System.currentTimeMillis();
         try {
-            reader = new ImageReader(image.getAbsolutePath());
+            reader = new ImageReaderFile(image.getAbsolutePath());
             if (xp.isImportImageInvertTZ()) reader.setInvertTZ(true);
         } catch(Exception e) {
             if (pcb!=null) pcb.log("WARNING: Image: "+image.getAbsolutePath()+" could not be read");
@@ -303,15 +301,18 @@ public class ImageFieldFactory {
         int[] channelIdx = IntStream.range(0, imageC.length).boxed().mapToInt(getChannelIdx).toArray();
         int[] channelModulo = new int[channelIdx.length];
         Arrays.fill(channelModulo, 1);
-        Map<String, Integer> channelNumber = Arrays.stream(imageC).collect(Collectors.groupingBy(c->c)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
-        logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelNumber);
+        Map<String, Integer> channelCount = Arrays.stream(imageC).collect(Collectors.groupingBy(c->c)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
+        logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelCount);
         Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
         boolean[] invertZTbyC = new boolean[imageC.length];
         for (int c = 0; c< imageC.length; ++c) {
-            ImageReader reader = null;
+            ImageReaderFile reader = null;
             try {
-                reader = new ImageReader(imageC[c]);
-                if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) reader.setInvertTZ(true);
+                reader = new ImageReaderFile(imageC[c]);
+                if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) {
+                    invertZTbyC[c] = true;
+                    reader.setInvertTZ(true);
+                }
             } catch (Exception e) {
                 logger.warn("Image {} could not be read: ", imageC[c], e);
             }
@@ -330,8 +331,8 @@ public class ImageFieldFactory {
                     stc = reader.getSTCXYZNumbers();
                 }
                 logger.debug("channel : {} stc: {}, invert: {}", c, stc[0], invertZTbyC[c]);
-                if (channelNumber.get(imageC[c])>1 && stc[0][1]==1) {
-                    channelModulo[c] = channelNumber.get(imageC[c]);
+                if (channelCount.get(imageC[c])>1 && stc[0][1]==1) {
+                    channelModulo[c] = channelCount.get(imageC[c]);
                     if (stc[0][0]%channelModulo[c]!=0) {
                         logger.warn("File: {} contains {} frames and one channel but is expected to contain {} channels: number of frames should be a multiple of number of expected channels", imageC[c], stc[0][0], channelModulo[c]);
                         if (pcb!=null) pcb.log("File: "+imageC[c]+" contains "+stc[0][0]+" frames and one channel but is expected to contain "+channelModulo[c]+" channels: number of frames should be a multiple of number of expected channels");
@@ -368,7 +369,7 @@ public class ImageFieldFactory {
         }
         if (timePointNumber>0) {
             List<ImageIOCoordinates.RGB> rgbC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList());
-            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ(), invertZTbyC, rgbC);
+            MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, imageC, channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[2], axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ(), invertZTbyC, rgbC);
             containersTC.add(c);
         }
     }

@@ -23,9 +23,20 @@ import bacmman.plugins.PluginFactory;
 import bacmman.ui.logger.ProgressLogger;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+
+import static bacmman.plugins.PluginFactory.getClasses;
 
 //import bacmman.plugins.plugins.measurements.*;
 //import bacmman.plugins.plugins.measurements.*;
@@ -34,16 +45,18 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public class Core {
-    public static boolean enableHyperStackView = false;
-    public static boolean enableTrackMate = false;
+    public static final Logger logger = LoggerFactory.getLogger(Core.class);
+    public static boolean enableHyperStackView = true;
+    public static boolean enableTrackMate = true;
     private static ImageJ ij;
     private static OpService opService;
     private static Core core;
     private static Object lock = new Object();
-    private static ProgressLogger logger;
+    private static ProgressLogger progressLogger;
     private static Consumer<Image> imageDisplayer;
     private static BiConsumer<String, Image[][]> image5D_Displayer;
     private static Runnable freeDisplayerMemory;
+    private static OmeroGateway omeroGateway;
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {
@@ -58,6 +71,7 @@ public class Core {
         initIJ2();
         PluginFactory.findPlugins("bacmman.plugins.plugins", false);
         PluginFactory.importIJ1Plugins();
+        createOmeroGateway();
     }
     
     private static void initIJ2() {
@@ -72,11 +86,11 @@ public class Core {
     }
 
     public static void setUserLogger(ProgressLogger plogger) {
-        logger =plogger;
+        progressLogger =plogger;
     }
-    public static ProgressLogger getProgressLogger() {return logger;};
+    public static ProgressLogger getProgressLogger() {return progressLogger;};
     public static void userLog(String message) {
-        if (logger !=null) logger.setMessage(message);
+        if (progressLogger !=null) progressLogger.setMessage(message);
     }
     public static void setImageDisplayer(Consumer<Image> imageDisp) {
         imageDisplayer=imageDisp;
@@ -96,4 +110,30 @@ public class Core {
     public static void freeDisplayMemory() {
         if (freeDisplayerMemory!=null) freeDisplayerMemory.run();
     }
+    public OmeroGateway getOmeroGateway() {
+        return omeroGateway;
+    }
+    private static void createOmeroGateway() {
+        List<Class<OmeroGateway>> impl = findImplementation("bacmman.core", OmeroGateway.class);
+        if (impl.isEmpty()) return;
+        try {
+            omeroGateway = impl.get(0).getDeclaredConstructor(ProgressLogger.class).newInstance(progressLogger);
+            logger.debug("omero gateway created with class: {}", impl.get(0));
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+            logger.debug("error while instantiating omero gateway", e);
+        }
+    }
+
+    public static <T> List<Class<T>> findImplementation(String packageName, Class<T> interfaceClass) {
+        List<Class<T>> result = new ArrayList<>();
+        try {
+            for (Class c : getClasses(packageName)) {
+                if (interfaceClass.isAssignableFrom(c) && !Modifier.isAbstract( c.getModifiers()) ) result.add(c);
+            }
+        } catch (ClassNotFoundException | IOException ex) {
+            logger.warn("find plugins", ex);
+        }
+        return result;
+    }
+
 }

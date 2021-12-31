@@ -19,6 +19,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
@@ -75,6 +76,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         defaultTimePoint.initFromJSONEntry(jsonO.get("defaultFrame"));
         if (jsonO.containsKey("images")) {
             sourceImages = MultipleImageContainer.createImageContainerFromJSON(getExperiment().getPath(), (JSONObject)jsonO.get("images"));
+            if (sourceImages.fromOmero()) sourceImages.setOmeroGateway(getExperiment().getOmeroGateway());
             initFrameParameters();
         }
 
@@ -83,6 +85,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public Position(String name) {
         super(name);
         initChildList();
+        if (sourceImages!=null && sourceImages.fromOmero()) sourceImages.setOmeroGateway(getExperiment().getOmeroGateway());
     }
     @Override 
     public boolean isEmphasized() {
@@ -279,6 +282,8 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     
     public void setImages(MultipleImageContainer images) {
         this.sourceImages=images;
+        if (images.fromOmero()) images.setOmeroGateway(getExperiment().getOmeroGateway());
+        logger.debug("setting images: from omero: {}, gateway null ? {}", images.fromOmero(), getExperiment().getOmeroGateway()==null);
         this.inputImages =null;
         initFrameParameters();
     }

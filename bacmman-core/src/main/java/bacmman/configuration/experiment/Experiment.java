@@ -19,6 +19,8 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
+import bacmman.core.OmeroGateway;
 import bacmman.data_structure.DLengineProvider;
 import bacmman.data_structure.ExperimentStructure;
 import bacmman.image.io.ImageIOCoordinates;
@@ -107,7 +109,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     NoteParameter note = new NoteParameter("Note");
 
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
-    
+    protected OmeroGateway omeroGateway;
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -192,7 +194,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         this.note.setValue(note);
         return this;
     }
-
+    public Experiment setOmeroGateway(OmeroGateway omeroGateway) {
+        this.omeroGateway = omeroGateway;
+        return this;
+    }
+    public OmeroGateway getOmeroGateway() {
+        if (omeroGateway == null) omeroGateway = Core.getCore().getOmeroGateway();
+        return omeroGateway;
+    }
     public String getNote() {
         return note.getValue();
     }

@@ -18,15 +18,19 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.core.OmeroGateway;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
+import bacmman.image.io.OmeroImageMetadata;
 import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -82,7 +86,8 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         JSONObject res = new JSONObject();
         res.put("scaleXY", scaleXY);
         res.put("scaleZ", scaleZ);
-        res.put("filePathC", JSONUtils.toJSONArray(Arrays.stream(filePathC).map(s->relativePath(s)).toArray(String[]::new)));
+        Function<String, String> relPath = fromOmero()?s->s : this::relativePath;
+        res.put("filePathC", JSONUtils.toJSONArray(Arrays.stream(filePathC).map(relPath).toArray(String[]::new)));
         res.put("name", name);
         res.put("frameNumber", timePointNumber);
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
@@ -103,7 +108,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         scaleXY = ((Number)jsonO.get("scaleXY")).doubleValue();
         scaleZ = ((Number)jsonO.get("scaleZ")).doubleValue();
         filePathC = JSONUtils.fromStringArray((JSONArray)jsonO.get("filePathC"));
-        ArrayUtil.apply(filePathC, s->absolutePath(s));
+        if (!fromOmero())  ArrayUtil.apply(filePathC, this::absolutePath);
         name = (String)jsonO.get("name");
         timePointNumber = ((Number)jsonO.get("frameNumber")).intValue();
         sizeZC = JSONUtils.fromIntArray((JSONArray)jsonO.get("sizeZC"));
@@ -149,6 +154,13 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         this.rgbC = rgbC;
     }
 
+    public boolean fromOmero() {
+        return filePathC[0].startsWith("omeroID_");
+    }
+    protected long getOmeroID(int channelIdx) {
+        return Long.parseLong(filePathC[channelIdx].substring(8));
+    }
+
     private void initTimePointMap() {
         timePointCZT = new HashMap<>();
         for (int c = 0; c<filePathC.length; ++c) {
@@ -166,7 +178,9 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     
     
     @Override public MultipleImageContainerChannelSerie duplicate() {
-        return new MultipleImageContainerChannelSerie(name, filePathC, channelIndices, channelModulo, timePointNumber, singleFrameC, sizeZC, scaleXY, scaleZ, invertTZ, invertTZbyC, rgbC, timePointCZT);
+        MultipleImageContainerChannelSerie res = new MultipleImageContainerChannelSerie(name, filePathC, channelIndices, channelModulo, timePointNumber, singleFrameC, sizeZC, scaleXY, scaleZ, invertTZ, invertTZbyC, rgbC, timePointCZT);
+        res.setOmeroGateway(omeroGateway);
+        return res;
     }
     
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
@@ -222,9 +236,11 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         if (getImageReaders()[channelIdx]==null) {
             synchronized(this) {
                 if (getImageReaders()[channelIdx]==null) {
-                    reader[channelIdx] = new ImageReader(filePathC[channelIdx]);
-                    if (invertTZ || invertTZbyC[channelIdx]) reader[channelIdx].setInvertTZ(true);
-                    logger.debug("invert TZ: {}", invertTZ);
+                    if (fromOmero()) {
+                        reader[channelIdx] = omeroGateway==null ? null : omeroGateway.createReader(getOmeroID(channelIdx));
+                    }
+                    else reader[channelIdx] = new ImageReaderFile(filePathC[channelIdx]);
+                    if ((invertTZ || invertTZbyC[channelIdx]) && reader[channelIdx]!=null) reader[channelIdx].setInvertTZ(true);
                 }
             }
         }
@@ -245,7 +261,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         if (singleFrame(channel)) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);
         if (bounds!=null) ioCoordinates.setBounds(bounds);
-        if (singleFrame(channel)) {
+        if (singleFrame(channel)) { // store image
             if (singleFrameImages==null) {
                 synchronized(this) {
                     if (singleFrameImages==null) singleFrameImages = new Image[filePathC.length];

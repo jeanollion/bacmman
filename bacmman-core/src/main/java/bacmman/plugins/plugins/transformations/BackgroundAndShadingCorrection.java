@@ -11,7 +11,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.TypeConverter;
 import bacmman.image.io.ImageIOCoordinates;
-import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
 import bacmman.plugins.TestableOperation;
@@ -52,7 +52,7 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
         String path = flatField.getFirstSelectedFilePath();
         Image refImage = inputImages.getImage(channelIdx, 0);
         if (path==null || !new File(path).isFile()) throw new IllegalArgumentException("No flat-field image found");
-        flatFieldImage = ImageReader.openImage(path, new ImageIOCoordinates());
+        flatFieldImage = ImageReaderFile.openImage(path, new ImageIOCoordinates());
         if (!flatFieldImage.sameDimensions(refImage)) {
             flatFieldImage=null;
             throw new IllegalArgumentException("Flat-field image's dimensions ("+flatFieldImage.getBoundingBox()+") differ from input image's dimensions: "+refImage.getBoundingBox());
@@ -60,7 +60,7 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
         if (correctDarkField.getSelected()) {
             path = darkField.getFirstSelectedFilePath();
             if (path==null || !new File(path).isFile()) throw new IllegalArgumentException("No dark-field image found");
-            darkFieldImage = ImageReader.openImage(path, new ImageIOCoordinates());
+            darkFieldImage = ImageReaderFile.openImage(path, new ImageIOCoordinates());
             if (!darkFieldImage.sameDimensions(refImage)) {
                 darkFieldImage = null;
                 throw new IllegalArgumentException("Dark-field image's dimensions ("+darkFieldImage.getBoundingBox()+") differ from input image's dimensions:"+refImage.getBoundingBox());

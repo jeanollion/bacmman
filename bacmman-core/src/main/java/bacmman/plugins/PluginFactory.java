@@ -139,14 +139,14 @@ public class PluginFactory {
     }
 
     // from : http://www.dzone.com/snippets/get-all-classes-within-package
-    private static List<Class> getClasses(String packageName) throws ClassNotFoundException, IOException {
+    public static List<Class> getClasses(String packageName) throws ClassNotFoundException, IOException {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
         assert classLoader != null;
         
         if (packageName==null) { //look in classes that are already loaded
             List<Class> classes = new ArrayList<>();
             while (classLoader != null) {
-                System.out.println("ClassLoader: " + classLoader);
+                logger.debug("ClassLoader: " + classLoader);
                 try {
                     for (Iterator iter = list(classLoader); iter.hasNext();) {
                         classes.add((Class)iter.next());
@@ -279,16 +279,14 @@ public class PluginFactory {
         try {
             Object res = null;
             if (PLUGIN_NAMES_MAP_CLASS.containsKey(s)) {
-                res = PLUGIN_NAMES_MAP_CLASS.get(s).newInstance();
+                res = PLUGIN_NAMES_MAP_CLASS.get(s).getDeclaredConstructor().newInstance();
             } else if (OLD_NAMES_MAP_NEW.containsKey(s)) return getPlugin(OLD_NAMES_MAP_NEW.get(s));
             
             if (res != null && res instanceof Plugin) {
                 return ((Plugin) res);
             }
-        } catch (InstantiationException ex) {
-            logger.warn("getPlugin", ex);
-        } catch (IllegalAccessException ex) {
-            logger.warn("test class IJ", ex);
+        } catch (InstantiationException | NoSuchMethodException | IllegalAccessException | InvocationTargetException ex) {
+            logger.debug("getPlugin: "+s, ex);
         }
         return null;
     }

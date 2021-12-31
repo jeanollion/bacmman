@@ -42,12 +42,15 @@ import org.junit.rules.TemporaryFolder;
 import bacmman.plugins.PluginFactory;
 import bacmman.plugins.plugins.transformations.SimpleTranslation;
 import bacmman.processing.ImageTransformation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class ProcessingTest {
+    public static final Logger logger = LoggerFactory.getLogger(ProcessingTest.class);
     @Rule
     public TemporaryFolder testFolder = new TemporaryFolder();
     
@@ -169,6 +172,7 @@ public class ProcessingTest {
         try {
             Processor.preProcessImages(masterDAO, 0.5);
         } catch (Exception ex) {
+            logger.error("ailed to preprocess images", ex);
             assertTrue("Failed to preprocess images", false);
         }
        

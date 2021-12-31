@@ -28,7 +28,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageFloat;
 import bacmman.image.io.ImageIOCoordinates;
-import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 import bacmman.image.ImageShort;
 import org.junit.Test;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
@@ -46,7 +46,7 @@ public class TestFilters {
     
     public void testScale() {
         String path = "/home/jollion/Documents/LJP/DataLJP/testsub60/imagesTest.ome.tiff";
-        Image source = ImageReader.openImage(path, new ImageIOCoordinates(0, 0, 0, new MutableBoundingBox(17, 78, 242, 613, 0, 0)));
+        Image source = ImageReaderFile.openImage(path, new ImageIOCoordinates(0, 0, 0, new MutableBoundingBox(17, 78, 242, 613, 0, 0)));
         double[] ms = ImageOperations.getMeanAndSigma(source, null, null);
         double scale = 2.5;
         //Image smoothThenScale = ImageFeatures.gaussianSmooth(source, scale, scale, false).setName("gaussian then scale");

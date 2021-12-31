@@ -38,6 +38,12 @@ public class MemoryImageContainer extends MultipleImageContainer {
     public boolean sameContent(MultipleImageContainer other) {
         return true;
     }
+
+    @Override
+    public boolean fromOmero() {
+        return false;
+    }
+
     @Override
     public Object toJSONEntry() {
         JSONObject res = new JSONObject();

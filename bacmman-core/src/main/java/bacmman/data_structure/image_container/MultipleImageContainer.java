@@ -18,6 +18,7 @@
  */
 package bacmman.data_structure.image_container;
 
+import bacmman.core.OmeroGateway;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import org.json.simple.JSONObject;
@@ -36,6 +37,7 @@ import java.nio.file.Paths;
 public abstract class MultipleImageContainer implements JSONSerializable {
     public static final Logger logger = LoggerFactory.getLogger(MultipleImageContainer.class);
     double scaleXY, scaleZ;
+    protected OmeroGateway omeroGateway;
     public abstract int getFrameNumber();
     public abstract int getChannelNumber();
     public abstract int getSizeZ(int channel);
@@ -59,6 +61,11 @@ public abstract class MultipleImageContainer implements JSONSerializable {
         this.scaleZ = scaleZ;
     }
     public abstract boolean sameContent(MultipleImageContainer other);
+    public abstract boolean fromOmero();
+    public MultipleImageContainer setOmeroGateway(OmeroGateway omeroGateway) {
+        this.omeroGateway=omeroGateway;
+        return this;
+    }
     public static MultipleImageContainer createImageContainerFromJSON(Path path, JSONObject jsonEntry) {
         MultipleImageContainer res=null;
         if (jsonEntry.containsKey("filePathC")) {

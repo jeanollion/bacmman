@@ -18,12 +18,12 @@
  */
 package bacmman.data_structure.image_container;
 
-import static bacmman.core.ImageFieldFactory.isIgnoredFile;
-import static bacmman.data_structure.Processor.logger;
+import bacmman.core.OmeroGateway;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
+import bacmman.image.io.ImageReaderFile;
 import java.io.File;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -43,23 +43,31 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     byte[][] bufferStore = new byte[1][];
     String inputDir, extension, positionKey, positionName, timeKeyword;
     int frameNumber;
+    int nChannels;
     String[] channelKeywords;
     int[] sizeZC;
     List<List<String>> fileCT;
     Map<String, Double> timePointCZT;
+    boolean fromOmero;
     @Override
     public boolean sameContent(MultipleImageContainer other) {
         if (other instanceof MultipleImageContainerPositionChannelFrame) {
             MultipleImageContainerPositionChannelFrame otherM = (MultipleImageContainerPositionChannelFrame)other;
+            if (otherM.fromOmero()!=fromOmero()) return false;
+            if (fromOmero()) {
+                if (nChannels!=otherM.nChannels) return false;
+                if (!fileCT.equals(otherM.fileCT)) return false;
+            } else {
+                if (!inputDir.equals(otherM.inputDir)) return false;
+                if (!extension.equals(otherM.extension)) return false;
+                if (!positionKey.equals(otherM.positionKey)) return false;
+                if (!timeKeyword.equals(otherM.timeKeyword)) return false;
+                if (!Arrays.deepEquals(channelKeywords, otherM.channelKeywords)) return false;
+            }
             if (scaleXY!=otherM.scaleXY) return false;
             if (scaleZ!=otherM.scaleZ) return false;
-            if (!inputDir.equals(otherM.inputDir)) return false;
-            if (!extension.equals(otherM.extension)) return false;
-            if (!positionKey.equals(otherM.positionKey)) return false;
             if (!positionName.equals(otherM.positionName)) return false;
-            if (!timeKeyword.equals(otherM.timeKeyword)) return false;
             if (frameNumber!=otherM.frameNumber) return false;
-            if (!Arrays.deepEquals(channelKeywords, otherM.channelKeywords)) return false;
             if (!Arrays.equals(sizeZC, otherM.sizeZC)) return false;
             if (timePointCZT!=null || otherM.timePointCZT!=null) {
                 if (timePointCZT==null && otherM.timePointCZT!=null) return false;
@@ -75,13 +83,20 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         JSONObject res = new JSONObject();
         res.put("scaleXY", scaleXY);
         res.put("scaleZ", scaleZ);
-        res.put("inputDir", relativePath(inputDir));
-        res.put("extension", extension);
-        res.put("positionKey", positionKey);
+        if (fromOmero()) {
+            res.put("fromOmero", true);
+            res.put("channelNumber", fileCT.size());
+            for (int c = 0; c<fileCT.size(); ++c) res.put("omeroID_c"+c, JSONUtils.toJSONArrayString(fileCT.get(c)));
+        } else {
+            res.put("inputDir", relativePath(inputDir));
+            res.put("extension", extension);
+            res.put("positionKey", positionKey);
+            res.put("timeKeyword", timeKeyword);
+            res.put("channelKeywords", JSONUtils.toJSONArray(channelKeywords));
+        }
+
         res.put("positionName", positionName);
-        res.put("timeKeyword", timeKeyword);
         res.put("frameNumber", frameNumber);
-        res.put("channelKeywords", JSONUtils.toJSONArray(channelKeywords));
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
         if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
         return res;
@@ -92,12 +107,20 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         JSONObject jsonO = (JSONObject)jsonEntry;
         scaleXY = ((Number)jsonO.get("scaleXY")).doubleValue();
         scaleZ = ((Number)jsonO.get("scaleZ")).doubleValue();
-        inputDir = absolutePath((String)jsonO.get("inputDir"));
-        extension = (String)jsonO.get("extension");
-        positionKey = (String)jsonO.get("positionKey");
-        timeKeyword = (String)jsonO.get("timeKeyword");
+        fromOmero = jsonO.containsKey("fromOmero") ? (Boolean)jsonO.get("fromOmero") : false;
+        if (fromOmero) {
+            nChannels = ((Number)jsonO.get("channelNumber")).intValue();
+            fileCT = new ArrayList<>(nChannels);
+            for (int c = 0; c < nChannels; ++c) fileCT.add(Arrays.asList(JSONUtils.fromStringArray((List) jsonO.get("omeroID_c" + c))));
+        } else {
+            inputDir = absolutePath((String)jsonO.get("inputDir"));
+            extension = (String)jsonO.get("extension");
+            positionKey = (String)jsonO.get("positionKey");
+            timeKeyword = (String)jsonO.get("timeKeyword");
+            channelKeywords = JSONUtils.fromStringArray((JSONArray)jsonO.get("channelKeywords"));
+            nChannels = channelKeywords.length;
+        }
         frameNumber = ((Number)jsonO.get("frameNumber")).intValue();
-        channelKeywords = JSONUtils.fromStringArray((JSONArray)jsonO.get("channelKeywords"));
         sizeZC = JSONUtils.fromIntArray((JSONArray)jsonO.get("sizeZC"));
         if (jsonO.containsKey("timePointCZT")) timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
         positionName =  jsonO.containsKey("positionName") ?  (String)jsonO.get("positionName") : positionKey;
@@ -111,14 +134,15 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         this.positionKey = positionKey;
         this.positionName = positionName == null ? positionKey : positionName;
         this.channelKeywords = channelKeywords;
+        this.nChannels = channelKeywords.length;
         this.timeKeyword = timeKeyword;
         this.frameNumber = frameNumber;
         createFileMap();
         if (sizeZC==null) {
             int maxZ = -1;
-            this.sizeZC = new int[channelKeywords.length]; 
+            this.sizeZC = new int[nChannels];
             for (int channelNumber=0; channelNumber<this.sizeZC.length; ++channelNumber) {
-                Pair<int[][], double[]> info = ImageReader.getImageInfo(fileCT.get(channelNumber).get(0));
+                Pair<int[][], double[]> info = ImageReaderFile.getImageInfo(fileCT.get(channelNumber).get(0));
                 this.sizeZC[channelNumber] = info.key[0][4];
                 if (scaleXY<=0 && this.sizeZC[channelNumber]>maxZ) {
                     maxZ =  this.sizeZC[channelNumber];
@@ -131,12 +155,12 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         logger.debug("sizeZC: {}", this.sizeZC);
         if (this.scaleXY<=0) {
             logger.debug("fetching scale...");
-            ImageReader reader = new ImageReader(fileCT.get( ArrayUtil.max(this.sizeZC)).get(0));
+            ImageReaderFile reader = new ImageReaderFile(fileCT.get( ArrayUtil.max(this.sizeZC)).get(0));
             double[] sXYZ = reader.getScaleXYZ(1);
             this.scaleXY = sXYZ[0];
             this.scaleZ = sXYZ[2];
             reader.closeReader();
-            Pair<int[][], double[]> info = ImageReader.getImageInfo(fileCT.get(ArrayUtil.max(this.sizeZC)).get(0));
+            Pair<int[][], double[]> info = ImageReaderFile.getImageInfo(fileCT.get(ArrayUtil.max(this.sizeZC)).get(0));
             this.scaleXY = info.value[0];
             this.scaleZ = info.value[2];
             logger.debug("scale: xy={} z={}", this.scaleXY, this.scaleZ);
@@ -147,7 +171,18 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, int frameNumber, String positionName) {
         this(inputDir, extension, positionKey, timeKeyword, channelKeywords, null, frameNumber, -1, -1, positionName);
     }
-    
+    public MultipleImageContainerPositionChannelFrame(List<List<String>> fileIDsCT, int frameNumber, double scaleXY, double scaleZ, String positionName) {
+        super(scaleXY, scaleZ);
+        this.fileCT = fileIDsCT;
+        this.nChannels = fileCT.size();
+        this.positionName = positionName;
+        this.frameNumber = frameNumber;
+        this.scaleXY = scaleXY;
+        this.scaleZ=scaleZ;
+    }
+    public boolean fromOmero() {
+        return fromOmero;
+    }
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
         if (timePointCZT==null) {
             synchronized(this) {
@@ -170,14 +205,14 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         }
         timePointCZT = new HashMap<>();
         synchronized(this) {
-            for (int c = 0; c<this.channelKeywords.length; ++c) {
+            for (int c = 0; c<this.nChannels; ++c) {
                 logger.debug("init timepoint map for channel: {}", c);
                 for (int f = 0; f<fileCT.get(c).size(); ++f) {
                     try {
-                        ImageReader r = new ImageReader(fileCT.get(c).get(f));
-                        if (r==null) return;
-                        for (int z = 0; z<sizeZC[c]; ++z) {
-                            double res= r.getTimePoint(0, 0, z);
+                        ImageReader r = getReader(c, f);
+                        if (r == null) return;
+                        for (int z = 0; z < sizeZC[c]; ++z) {
+                            double res = r.getTimePoint(0, 0, z);
                             if (!Double.isNaN(res)) timePointCZT.put(getKey(c, z, f), res);
                             else {
                                 timePointCZT.clear();
@@ -188,26 +223,20 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                         }
                         r.closeReader();
                     } catch(Exception|Error e) {
-                        /*if (fileCT.get(c).get(f).endsWith(".tif")) { // use frame interval
-                            timePointCZT.clear();
-                            double frameInterval = ImageReader.getTIFTimeFrameInterval(fileCT.get(0).get(0));
-                            if (!Double.isNaN(frameInterval)) {
-                                for (int cc = 0; cc<this.channelKeywords.length; ++cc) {
-                                    double time=0;
-                                    for (int ff = 0; ff<fileCT.get(cc).size(); ++ff) {
-                                        for (int z = 0; z<sizeZC[c]; ++z) timePointCZT.put(getKey(c, z, f), time);
-                                        time+=frameInterval;
-                                    }
-                                }
-                            }
-                        }*/
                         return;
                     }
                 }
             }
         }
     }
-    
+    protected long getImageID(int c, int f) {
+        return Long.parseLong(fileCT.get(c).get(f));
+    }
+    protected ImageReader getReader(int c, int f) {
+        if (fromOmero()) return omeroGateway==null ? null : omeroGateway.createReader(getImageID(c, f));
+        else return new ImageReaderFile(fileCT.get(c).get(f));
+    }
+
     @Override
     public int getFrameNumber() {
         return frameNumber;
@@ -215,7 +244,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     @Override
     public int getChannelNumber() {
-        return channelKeywords.length;
+        return nChannels;
     }
 
     @Override
@@ -225,24 +254,38 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     @Override
     public synchronized Image getImage(int frame, int channel) { // synchronized if use of buffer
-        if (fileCT==null) {
-            //synchronized(this) {
-                if (fileCT==null) createFileMap();
-            //}
+        if (fromOmero()) {
+            ImageReader r = getReader(channel, frame);
+            Image i = r.openImage(new ImageIOCoordinates());
+            r.closeReader();
+            return i;
+        } else {
+            if (fileCT == null) {
+                //synchronized(this) {
+                if (fileCT == null) createFileMap();
+                //}
+            }
+            return ImageReaderFile.openImage(fileCT.get(channel).get(frame), new ImageIOCoordinates(), bufferStore);
         }
-        return ImageReader.openImage(fileCT.get(channel).get(frame), new ImageIOCoordinates(), bufferStore);
     }
     
     
     
     @Override
     public Image getImage(int frame, int channel, MutableBoundingBox bounds) {
+        ImageIOCoordinates coords = new ImageIOCoordinates(0, 0, 0, bounds);
+        if (fromOmero()) {
+            ImageReader r = getReader(channel, frame);
+            Image i = r.openImage(coords);
+            r.closeReader();
+            return i;
+        }
         if (fileCT==null) {
             synchronized(this) {
                 if (fileCT==null) createFileMap();
             }
         }
-        return ImageReader.openImage(fileCT.get(channel).get(frame), new ImageIOCoordinates(0, 0, 0, bounds), bufferStore);
+        return ImageReaderFile.openImage(fileCT.get(channel).get(frame), coords, bufferStore);
     }
 
     @Override
@@ -258,7 +301,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     @Override
     public MultipleImageContainer duplicate() {
-        return new MultipleImageContainerPositionChannelFrame(inputDir, extension, positionKey, timeKeyword, ArrayUtil.duplicate(channelKeywords), ArrayUtil.duplicate(sizeZC), frameNumber, scaleXY, scaleZ, positionName);
+        if (fromOmero()) {
+            MultipleImageContainer res = new MultipleImageContainerPositionChannelFrame(fileCT, frameNumber, scaleXY, scaleZ, positionName);
+            res.setOmeroGateway(omeroGateway);
+            return res;
+        } else return new MultipleImageContainerPositionChannelFrame(inputDir, extension, positionKey, timeKeyword, ArrayUtil.duplicate(channelKeywords), ArrayUtil.duplicate(sizeZC), frameNumber, scaleXY, scaleZ, positionName);
     }
     
     private void createFileMap() {
