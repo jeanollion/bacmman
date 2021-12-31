@@ -64,11 +64,11 @@ public class OmeroTree {
     List<OmeroIJVirtualStack> openStacks = new ArrayList<>();
     public OmeroTree(OmeroGatewayI gateway, boolean displayCurrentUserOnly, Runnable selectionCallback) {
         try {
-            projectIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("icons/nuvola_folder_blue_open48.png")));
-            datasetIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("icons/nuvola_folder_image48.png")));
-            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("icons/picture48.png")));
-            groupIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("icons/nuvola_kdmconfig48.png")));
-            experimenterIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("icons/nuvola_kdmconfig_modified48.png")));
+            projectIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/project16.png")));
+            datasetIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/dataset16.png")));
+            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/picture16.png")));
+            groupIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/group16.png")));
+            experimenterIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/user16.png")));
         } catch (NullPointerException e) {
             logger.debug("icons not found");
         }
@@ -85,7 +85,7 @@ public class OmeroTree {
                 else return super.createToolTip();
             }
         };
-        tree.setRootVisible(true);
+        tree.setRootVisible(false);
         tree.setShowsRootHandles(true);
         tree.expandPath(getRootPath());
         tree.getSelectionModel().setSelectionMode(DISCONTIGUOUS_TREE_SELECTION);
