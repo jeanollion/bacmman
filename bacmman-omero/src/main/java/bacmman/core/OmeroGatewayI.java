@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static bacmman.image.io.OmeroUtils.convertPlane;
+import static bacmman.ui.gui.PromptOmeroConnectionInformation.promptCredentials;
 
 public class OmeroGatewayI implements OmeroGateway {
     public static final Logger logger = LoggerFactory.getLogger(OmeroGatewayI.class);
@@ -42,8 +43,9 @@ public class OmeroGatewayI implements OmeroGateway {
     String hostname, username, password;
     final private Map<String, char[]> serverPasswords = new HashMap<>();
     ImportFromOmero importInstance;
-    public OmeroGatewayI(ProgressLogger bacmmanLogger) {
-        gateway = new Gateway(new BACMMANLogger(logger, bacmmanLogger));
+    ProgressLogger bacmmanLogger;
+    public OmeroGatewayI() {
+        gateway = new Gateway(new BACMMANLogger(logger));
     }
     public Gateway gateway() {
         connectIfNecessary();
@@ -54,9 +56,16 @@ public class OmeroGatewayI implements OmeroGateway {
         return gateway.isConnected();
     }
     public boolean connectIfNecessary() {
-        if (!gateway.isConnected() && validCredentials()) {
+        if (!gateway.isConnected()) {
             synchronized (gateway) {
                 if (!gateway.isConnected() && validCredentials()) connect();
+                logger.debug("current connection information: {}, {}, pwd:{}, connected ? {}, is GUI: {}", hostname, username, password==null? "null" : password.length(), bacmmanLogger.isGUI());
+                if (!gateway.isConnected() && bacmmanLogger!=null && bacmmanLogger.isGUI()) promptCredentials(serverPasswords, (s, u, p)-> {
+                    setCredentials(s, u, p);
+                    connect();
+                    if (!isConnected()) bacmmanLogger.setMessage("Could not connect to Omero Server");
+                });
+                // TODO also prompt from Terminal
             }
         }
         return gateway.isConnected();
@@ -76,6 +85,14 @@ public class OmeroGatewayI implements OmeroGateway {
         connectIfNecessary();
         return browse;
     }
+
+    @Override
+    public void setLogger(ProgressLogger logger) {
+        this.bacmmanLogger = logger;
+        ((BACMMANLogger)gateway.getLogger()).setBacmmanLogger(logger);
+        this.logger.debug("setting bacmman logger: GUI ? {}", logger==null ? "null": logger.isGUI());
+    }
+
     @Override
     public OmeroGateway setCredentials(String hostname, String username, String password) {
         this.username=username;

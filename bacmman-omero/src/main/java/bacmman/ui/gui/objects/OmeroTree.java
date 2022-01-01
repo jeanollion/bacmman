@@ -36,6 +36,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeExpansionListener;
+import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -44,6 +47,8 @@ import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -150,6 +155,19 @@ public class OmeroTree {
                 }
             }
         });
+        tree.addTreeExpansionListener(new TreeExpansionListener() {
+            @Override
+            public void treeExpanded(TreeExpansionEvent treeExpansionEvent) {
+                Object node = treeExpansionEvent.getPath().getLastPathComponent();
+                logger.debug("expanded: {}, dataset node? {}", node, node instanceof DatasetNode);
+                if (node instanceof DatasetNode) ((DatasetNode)node).loadIconsInBackground();
+            }
+
+            @Override
+            public void treeCollapsed(TreeExpansionEvent treeExpansionEvent) {
+
+            }
+        });
         tree.addTreeSelectionListener(treeSelectionEvent -> selectionCallback.run());
     }
     public boolean hasSelectedImages() {
@@ -172,14 +190,13 @@ public class OmeroTree {
     }
     public static class ToolTipImage extends JToolTip {
         private final Image image;
-        JTextArea text;
+        JLabel text;
         public ToolTipImage(Image image) {
             this.image = image;
             setLayout( new BorderLayout() );
-            text = new JTextArea();
-            text.setLineWrap(true); // TODO JLabel + wrap if necessay before bit depth
+            text = new JLabel("Metadata");
             text.setBackground(null);
-            JPanel ttPanel = new JPanel(new FlowLayout(1, 0, 2));
+            JPanel ttPanel = new JPanel(new FlowLayout(3, 0, 2));
             ttPanel.add(text);
             ttPanel.add( new JLabel( new ImageIcon( image) ) );
             add( ttPanel );
@@ -188,7 +205,7 @@ public class OmeroTree {
         @Override
         public Dimension getPreferredSize() {
             if (image==null) return new Dimension(text.getWidth(), text.getHeight());
-            return new Dimension(image.getWidth(this), text.getHeight()+2+image.getHeight(this));
+            return new Dimension(Math.max(image.getWidth(this), text.getWidth()), text.getHeight()+2+image.getHeight(this));
         }
         @Override
         public void setTipText(String tipText) {
@@ -378,10 +395,14 @@ public class OmeroTree {
             children = new Vector<>();
             lazyLoader = DefaultWorker.execute(i -> {
                 ExperimenterNode c = new ExperimenterNode(users.get(i));
-                add(c);
-                c.children();
-                if (c.getId() == gateway.securityContext().getExperimenter()) tree.expandPath(new TreePath(c.getPath()));
-                else if (i%5==0) tree.updateUI();
+                if (c.getChildCount()>0) {
+                    add(c);
+                    try {
+                        if (c.getId() == gateway.securityContext().getExperimenter())
+                            tree.expandPath(new TreePath(c.getPath()));
+                        else if (i % 5 == 0) tree.updateUI();
+                    } catch (Throwable t) {}
+                }
                 return null;
             }, users.size()).appendEndOfWork(() -> lazyLoader=null);
         }
@@ -412,7 +433,10 @@ public class OmeroTree {
         public void createChildren() {
             Collection<ProjectData> projects = getProjects();
             children = new Vector<>();
-            projects.forEach(p -> add(new ProjectNode(p)));
+            projects.forEach(p -> {
+                ProjectNode c = new ProjectNode(p);
+                if (c.getChildCount()>0) add(c);
+            });
         }
 
         @Override
@@ -474,13 +498,17 @@ public class OmeroTree {
             logger.debug("{} images found for dataset : {} ({})", images.size(), getName(), getId());
             children = new Vector<>();
             images.forEach(d -> add(new ImageNode(d)));
-            lazyIconLoader = DefaultWorker.execute(i -> {
-                ((ImageNode)children.get(i)).getIcon();
-                return null;
-            }, images.size());
         }
 
+        public void loadIconsInBackground() {
+            if (children==null) createChildren();
+            lazyIconLoader = DefaultWorker.execute(i -> { // TODO  only load when unfold dataset folder ?
+                ((ImageNode)children.get(i)).getIcon();
+                return null;
+            }, children.size());
+        }
     }
+
     public class ImageNode extends LazyLoadingMutableTreeNode<ImageData> {
         BufferedImage icon;
         ImageNode(ImageData data) {
@@ -509,7 +537,17 @@ public class OmeroTree {
         public String getImageSpecsAsString() {
             OmeroImageMetadata meta = getMetadata();
             if (meta==null) return " ";
-            return +meta.getSizeX()+ "x"+meta.getSizeY()+ (meta.getSizeZ()>1 ? "x"+meta.getSizeZ() : "") +( meta.getSizeT()>1? "; t:"+meta.getSizeT() : "" )+( meta.getSizeC()>1? "; c:"+meta.getSizeC() : "" ) + "; "+meta.getBitDepth()+"-bit";
+            String res = "<html>"+meta.getSizeX()+ "x"+meta.getSizeY()+ (meta.getSizeZ()>1 ? "x"+meta.getSizeZ() : "") +( meta.getSizeT()>1? "; t:"+meta.getSizeT() : "" )+( meta.getSizeC()>1? "; c:"+meta.getSizeC() : "" ) + "; "+meta.getBitDepth()+"-bit<html>";
+            Function<Integer, String> appendSkipLine = (i) -> res.substring(0, i) + "<br/>"+res.substring(i);
+            Function<String, Integer> getIndexEnd = s -> {
+                int i = res.indexOf(s);
+                if (i>0) return res.indexOf(';', i);
+                else return -1;
+            };
+            if (getIndexEnd.apply("t:")>17+6) return appendSkipLine.apply(res.indexOf("t:"));
+            else if (getIndexEnd.apply("c:")>17+6) return appendSkipLine.apply(res.indexOf("c:"));
+            else if (res.indexOf("-bit")>13+6) return appendSkipLine.apply(res.indexOf("-bit") - (meta.getBitDepth()==8?1:2));
+            else return res;
         }
         public void showImage() {
             ParametersI params = new ParametersI();
@@ -526,17 +564,23 @@ public class OmeroTree {
         public void createChildren() {}
 
         public BufferedImage getIcon() {
-            if (icon!=null) return icon;
-            ParametersI params = new ParametersI();
-            params.acquisitionData();
-            try {
-                PixelsData pixels = data.getDefaultPixels();
-                ThumbnailStorePrx store = gateway.gateway().getThumbnailService(gateway.securityContext());
-                store.setPixelsId(pixels.getId());
-                byte[] thumdata = store.getThumbnail(omero.rtypes.rint(128), omero.rtypes.rint(128)); // TODO parameter for icon size
-                if (thumdata!=null) icon = OmeroUtils.bytesToImage(thumdata);
-                else return null;
-            } catch(NoSuchElementException | ServerError | DSOutOfServiceException e) { }
+            if (icon==null) {
+                synchronized (this) {
+                    if (icon == null) {
+                        ParametersI params = new ParametersI();
+                        params.acquisitionData();
+                        try {
+                            PixelsData pixels = data.getDefaultPixels();
+                            ThumbnailStorePrx store = gateway.gateway().getThumbnailService(gateway.securityContext());
+                            store.setPixelsId(pixels.getId());
+                            byte[] thumdata = store.getThumbnail(omero.rtypes.rint(128), omero.rtypes.rint(128)); // TODO parameter for icon size
+                            if (thumdata != null) icon = OmeroUtils.bytesToImage(thumdata);
+                            else return null;
+                        } catch (NoSuchElementException | ServerError | DSOutOfServiceException e) {
+                        }
+                    }
+                }
+            }
             return icon;
         }
     }

@@ -172,7 +172,7 @@ public class ImportFromOmero extends JFrame {
 
     public static void main(String[] args) {
         new ImageJ();
-        OmeroGatewayI gateway = new OmeroGatewayI(null);
+        OmeroGatewayI gateway = new OmeroGatewayI();
         ImportFromOmero dialog = new ImportFromOmero(gateway, new HashMap<>(), (sel) -> {
         }, null);
         dialog.pack();

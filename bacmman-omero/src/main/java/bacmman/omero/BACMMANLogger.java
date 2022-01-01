@@ -6,7 +6,7 @@ import omero.log.Logger;
 
 public class BACMMANLogger implements Logger {
     private final org.slf4j.Logger logger;
-    private final ProgressLogger bacmmanLogger;
+    private ProgressLogger bacmmanLogger;
 
     public BACMMANLogger(org.slf4j.Logger logger) {
         this(logger, null);
@@ -14,6 +14,10 @@ public class BACMMANLogger implements Logger {
     public BACMMANLogger(org.slf4j.Logger logger, ProgressLogger bacmmanLogger) {
         this.logger=logger;
         this.bacmmanLogger=bacmmanLogger;
+    }
+    public BACMMANLogger setBacmmanLogger(ProgressLogger logger) {
+        this.bacmmanLogger = logger;
+        return this;
     }
     @Override
     public void debug(Object originator, String logMsg) {
