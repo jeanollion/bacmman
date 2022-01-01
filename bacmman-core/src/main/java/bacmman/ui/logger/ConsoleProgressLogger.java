@@ -38,5 +38,10 @@ public class ConsoleProgressLogger implements ProgressLogger {
     public void setRunning(boolean running) {
         
     }
-    
+
+    @Override
+    public boolean isGUI() {
+        return false;
+    }
+
 }

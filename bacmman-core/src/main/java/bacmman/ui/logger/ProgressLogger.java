@@ -23,7 +23,8 @@ package bacmman.ui.logger;
  * @author Jean Ollion
  */
 public interface ProgressLogger {
-    public void setProgress(int i);
-    public void setMessage(String message);
-    public void setRunning(boolean running);
+    void setProgress(int i);
+    void setMessage(String message);
+    void setRunning(boolean running);
+    boolean isGUI();
 }

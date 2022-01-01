@@ -116,12 +116,13 @@ public class IJ1 implements PlugIn {
                     // TODO find other IJ1&2 plugins & ops...
                     initCore();
                     GUI gui = new GUI();
+                    Core.setUserLogger(gui);
                     gui.setVisible(true);
                     gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
                     IJ.setTool("freeline");
                     IJ.setTool("ellipse");
                     IJ.setTool("rect");
-                    Core.setUserLogger(gui);
+
 
                 } else {
                     IJ.log("Another instance of BACMMAN is already running");

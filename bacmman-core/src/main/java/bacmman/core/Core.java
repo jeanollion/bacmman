@@ -51,7 +51,7 @@ public class Core {
     private static ImageJ ij;
     private static OpService opService;
     private static Core core;
-    private static Object lock = new Object();
+    private static final Object lock = new Object();
     private static ProgressLogger progressLogger;
     private static Consumer<Image> imageDisplayer;
     private static BiConsumer<String, Image[][]> image5D_Displayer;
@@ -87,6 +87,7 @@ public class Core {
 
     public static void setUserLogger(ProgressLogger plogger) {
         progressLogger =plogger;
+        if (omeroGateway!=null) omeroGateway.setLogger(plogger);
     }
     public static ProgressLogger getProgressLogger() {return progressLogger;};
     public static void userLog(String message) {
@@ -117,7 +118,7 @@ public class Core {
         List<Class<OmeroGateway>> impl = findImplementation("bacmman.core", OmeroGateway.class);
         if (impl.isEmpty()) return;
         try {
-            omeroGateway = impl.get(0).getDeclaredConstructor(ProgressLogger.class).newInstance(progressLogger);
+            omeroGateway = impl.get(0).getDeclaredConstructor().newInstance();
             logger.debug("omero gateway created with class: {}", impl.get(0));
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
             logger.debug("error while instantiating omero gateway", e);
@@ -135,5 +136,4 @@ public class Core {
         }
         return result;
     }
-
 }

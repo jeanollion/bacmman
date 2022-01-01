@@ -66,7 +66,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             //long t0 = System.currentTimeMillis();
             Image im = ImageReaderFile.openImage(path);
             //long t1 = System.currentTimeMillis();
-            //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {}, in {}ms", channelImageIdx, timePoint, microscopyFieldName, t1-t0);
+            //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {}, in {}ms path : {}", channelImageIdx, timePoint, microscopyFieldName, t1-t0, path);
             return im;
         } else {
             logger.trace("pre-processed image: {} not found", path);

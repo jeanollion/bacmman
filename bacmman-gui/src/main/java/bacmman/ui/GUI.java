@@ -777,6 +777,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (Core.enableTrackMate) this.tabs.setEnabledAt(4, !running); // trackMate
         if (!running) updateDisplayRelatedToXPSet();
     }
+
+    @Override
+    public boolean isGUI() {
+        return true;
+    }
+
     // gui interface method
     @Override
     public void setProgress(int i) {
@@ -786,9 +792,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     @Override
     public void setMessage(String message) {
+        if (message==null) return;
         try {
             //logger.info(message);
             this.console.getStyledDocument().insertString(console.getStyledDocument().getLength(), Utils.getFormattedTime()+": "+message+"\n", null);
+            JScrollBar vertical = consoleJSP.getVerticalScrollBar(); // scroll down
+            if (vertical!=null) vertical.setValue( vertical.getMaximum() );
         } catch (BadLocationException ex) {            
         }
     }

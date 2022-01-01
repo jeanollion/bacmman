@@ -50,6 +50,12 @@ public class MultiProgressLogger  implements ProgressLogger {
     public void setRunning(boolean running) {
         uis.stream().forEach((ui) -> ui.setRunning(running));
     }
+
+    @Override
+    public boolean isGUI() {
+        return uis.stream().anyMatch(ProgressLogger::isGUI);
+    }
+
     public void applyToLogUserInterfaces(Consumer<FileProgressLogger> function) {
         uis.stream().filter((ui) -> (ui instanceof FileProgressLogger)).forEach((ui) -> function.accept((FileProgressLogger)ui));
     }

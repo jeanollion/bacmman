@@ -63,6 +63,20 @@ public class TypeConverter {
         else return (ImageFloat)image;
     }
 
+    public static Image convert(Image image, int targetBitdepth) {
+        return convert(image, targetBitdepth, null, false);
+    }
+
+    public static Image convert(Image image, int targetBitdepth, Image output, boolean forceCopy) {
+        assert output==null || output.getBitDepth()==targetBitdepth;
+        switch (targetBitdepth) {
+            case 8: return toByte(image, (ImageByte)output, forceCopy);
+            case 16: return toShort(image, (ImageShort)output, forceCopy);
+            case 32: return toFloat(image, (ImageFloat)output, forceCopy);
+            default: throw new IllegalArgumentException("invalid bitdepth");
+        }
+    }
+
     /**
      * 
      * @param image input image to be converted

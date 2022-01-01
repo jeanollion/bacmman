@@ -130,5 +130,10 @@ public class FileProgressLogger implements ProgressLogger {
         if (running) this.lockLogFile();
         else this.unlockLogFile();
     }
-    
+
+    @Override
+    public boolean isGUI() {
+        return false;
+    }
+
 }
