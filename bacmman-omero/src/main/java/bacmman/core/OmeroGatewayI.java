@@ -173,12 +173,15 @@ public class OmeroGatewayI implements OmeroGateway {
 
     @Override
     public boolean close() {
-        ctx = null;
-        browse = null;
         if (importInstance!=null) {
             importInstance.close();
             importInstance = null;
         }
+        return  disconnect();
+    }
+    public boolean disconnect() {
+        ctx = null;
+        browse = null;
         try {
             gateway.close();
         } catch (Exception e) {

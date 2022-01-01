@@ -38,7 +38,6 @@ import org.slf4j.LoggerFactory;
 import javax.swing.*;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
-import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
@@ -47,7 +46,6 @@ import java.awt.event.MouseMotionListener;
 import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -71,7 +69,7 @@ public class OmeroTree {
         try {
             projectIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/project16.png")));
             datasetIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/dataset16.png")));
-            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/picture16.png")));
+            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/image16.png")));
             groupIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/group16.png")));
             experimenterIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/user16.png")));
         } catch (NullPointerException e) {
@@ -170,6 +168,12 @@ public class OmeroTree {
         });
         tree.addTreeSelectionListener(treeSelectionEvent -> selectionCallback.run());
     }
+    public void setDisplayCurrentUserOnly(boolean displayCurrentUserOnly) {
+        if (this.displayCurrentUserOnly!=displayCurrentUserOnly) {
+            this.displayCurrentUserOnly = displayCurrentUserOnly;
+            updateTree();
+        }
+    }
     public boolean hasSelectedImages() {
         TreePath[] paths=  tree.getSelectionPaths();
         if (paths ==null) return false;
@@ -214,7 +218,7 @@ public class OmeroTree {
             super.setTipText(tipText);
         }
     }
-    public void populateDatsets() {
+    public void populateTree() {
         if (getRoot().getChildCount()>0) {
             getRoot().removeAllChildren();
         }
@@ -238,8 +242,8 @@ public class OmeroTree {
                 logger.debug("error while loading groups", e);
             }
         }
-
     }
+
     public boolean expandCurrentUser() {
         long currentId = gateway.securityContext().getExperimenter();
         Enumeration<TreeNode> groups = getRoot().children();
@@ -262,14 +266,14 @@ public class OmeroTree {
         return false;
     }
 
-    public void updateDatasets() {
+    public void updateTree() {
         if (getRoot()==null) return;
         Enumeration<TreePath> exp = tree.getExpandedDescendants(getRootPath());
         List<TreePath> expandedState = exp==null? new ArrayList<>() : Collections.list(exp);
         TreePath[] sel = tree.getSelectionPaths();
-        populateDatsets();
-        bacmman.utils.Utils.expandAll(tree, getRootPath(), expandedState);
-        tree.expandPath(getRootPath());
+        populateTree();
+        if (expandedState.isEmpty()) tree.expandPath(getRootPath());
+        else expandedState.forEach(tree::expandPath);
         bacmman.utils.Utils.addToSelectionPaths(tree, sel);
         tree.updateUI();
     }
@@ -400,11 +404,11 @@ public class OmeroTree {
                     try {
                         if (c.getId() == gateway.securityContext().getExperimenter())
                             tree.expandPath(new TreePath(c.getPath()));
-                        else if (i % 5 == 0) tree.updateUI();
+                        else if (i % 5 == 0 || i==users.size()-1) tree.updateUI();
                     } catch (Throwable t) {}
                 }
                 return null;
-            }, users.size()).appendEndOfWork(() -> lazyLoader=null);
+            }, users.size());
         }
 
         @Override
@@ -435,7 +439,8 @@ public class OmeroTree {
             children = new Vector<>();
             projects.forEach(p -> {
                 ProjectNode c = new ProjectNode(p);
-                if (c.getChildCount()>0) add(c);
+                add(c);
+                //if (c.getChildCount()>0) add(c);
             });
         }
 

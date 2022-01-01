@@ -37,6 +37,8 @@ public class ImportFromOmero extends JFrame {
     private JTextField hostname;
     private JTextField username;
     private JPasswordField password;
+    private JButton disconnectButton;
+    private JCheckBox displayAllUsersCheckBox;
     Map<String, char[]> savedPassword;
     OmeroTree tree;
     ProgressCallback bacmmanLogger;
@@ -80,6 +82,11 @@ public class ImportFromOmero extends JFrame {
         username.getDocument().addDocumentListener(dl);
         password.getDocument().addDocumentListener(dl);
         hostname.getDocument().addDocumentListener(dl);
+        if (gateway.isConnected()) {
+            tree = new OmeroTree(gateway, !displayAllUsersCheckBox.isSelected(), this::updateImportButton);
+            tree.populateTree();
+            browsingJSP.setViewportView(tree.getTree());
+        }
         connect.addActionListener(e -> {
             String username = this.username.getText();
             char[] pass = password.getPassword();
@@ -87,8 +94,8 @@ public class ImportFromOmero extends JFrame {
             if (username.length() > 0 && pass.length > 0 && hostname.length() > 0) {
                 gateway.setCredentials(hostname, username, String.copyValueOf(pass));
                 if (gateway.connect()) {
-                    tree = new OmeroTree(gateway, false, this::updateImportButton); // TODO option to display only current user
-                    tree.populateDatsets();
+                    tree = new OmeroTree(gateway, !displayAllUsersCheckBox.isSelected(), this::updateImportButton);
+                    tree.populateTree();
                     browsingJSP.setViewportView(tree.getTree());
                     logger.debug("connected!");
                     saveCurrentConnectionParameters();
@@ -99,7 +106,12 @@ public class ImportFromOmero extends JFrame {
                 }
             }
         });
-
+        disconnectButton.addActionListener(e -> {
+            gateway.close();
+            browsingJSP.setViewportView(null);
+            tree = null;
+            updateImportButton();
+        });
 
         buttonOK.addActionListener(new ActionListener() {
             public void actionPerformed(ActionEvent e) {
@@ -127,6 +139,8 @@ public class ImportFromOmero extends JFrame {
                 onCancel();
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
+
+        displayAllUsersCheckBox.addActionListener(actionEvent -> tree.setDisplayCurrentUserOnly(!displayAllUsersCheckBox.isSelected()));
     }
 
     private void saveCurrentConnectionParameters() {
@@ -139,11 +153,6 @@ public class ImportFromOmero extends JFrame {
 
     public void close() {
         if (tree != null) tree.close();
-        try {
-            gateway.close();
-        } catch (Exception e) {
-            logger.debug("error closing", e);
-        }
     }
 
 
@@ -216,7 +225,7 @@ public class ImportFromOmero extends JFrame {
         browsingJSP = new JScrollPane();
         browsingPanel.add(browsingJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         connectionPanel = new JPanel();
-        connectionPanel.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
+        connectionPanel.setLayout(new GridLayoutManager(3, 2, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(connectionPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         serverPanel = new JPanel();
         serverPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
@@ -238,9 +247,15 @@ public class ImportFromOmero extends JFrame {
         panel4.setBorder(BorderFactory.createTitledBorder(null, "Password", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         password = new JPasswordField();
         panel4.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        disconnectButton = new JButton();
+        disconnectButton.setText("Disconnect");
+        connectionPanel.add(disconnectButton, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         connect = new JButton();
         connect.setText("Connect");
-        connectionPanel.add(connect, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        connectionPanel.add(connect, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        displayAllUsersCheckBox = new JCheckBox();
+        displayAllUsersCheckBox.setText("Display all users");
+        connectionPanel.add(displayAllUsersCheckBox, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
