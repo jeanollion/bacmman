@@ -24,6 +24,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.image.io.KymographFactory;
+import bacmman.processing.ImageOperations;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
 import ij.IJ;
@@ -35,10 +36,7 @@ import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.Image;
 import static bacmman.image.Image.logger;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
 
@@ -54,6 +52,10 @@ public class IJVirtualStack extends VirtualStack {
     private final Object lock = new Object();
     IntConsumer setFrameCallback;
     final int bitdepth;
+    Map<Integer, double[]> displayRange= new HashMap<>();
+    boolean channelWiseDisplayRange = true;
+    ImagePlus ip;
+    int lastChannel=-1;
     public IJVirtualStack(int sizeX, int sizeY, int bitdepth, int[] FCZCount, Function<Integer, int[]> getFCZ, BiFunction<Integer, Integer, Image> imageOpenerCT) {
         super(sizeX, sizeY, null, "");
         this.imageOpenerCT=imageOpenerCT;
@@ -84,7 +86,28 @@ public class IJVirtualStack extends VirtualStack {
             if (imageCT[fcz[1]][fcz[0]].sizeZ()==1) fcz[2]=0; // case of reference images -> only one Z -> open first Z
             else throw new IllegalArgumentException("Wrong Z size for channel: "+fcz[1] + " :"+ fcz[2]+"/"+imageCT[fcz[1]][fcz[0]].sizeZ());
         }
-        return IJImageWrapper.getImagePlus(imageCT[fcz[1]][fcz[0]].getZPlane(fcz[2])).getProcessor();
+        ImageProcessor ip = IJImageWrapper.getImagePlus(imageCT[fcz[1]][fcz[0]].getZPlane(fcz[2])).getProcessor();
+        setDisplayRange(fcz[1], imageCT[fcz[1]][fcz[0]].getZPlane(fcz[2]), ip);
+        return ip;
+    }
+
+    protected void setDisplayRange(int nextChannel, Image nextImage, ImageProcessor nextIP) {
+        if (ip==null || !channelWiseDisplayRange) return;
+        if (nextChannel!=lastChannel) {
+            if (lastChannel>=0) displayRange.put(lastChannel, new double[]{ip.getDisplayRangeMin(), ip.getDisplayRangeMax()}); // record display for last channel
+            if (!displayRange.containsKey(nextChannel)) { // initialize with actual range // TODO initialize with more elaborated algorithm ?
+                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.01, 99.9);
+                displayRange.put(nextChannel, minAndMax);
+            }
+            double[] curDisp = displayRange.get(nextChannel);
+            if (ip.getProcessor()!=null) ip.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
+            else nextIP.setMinAndMax(curDisp[0], curDisp[1]);
+            logger.debug("disp range for channel {} = [{}; {}]", nextChannel, curDisp[0], curDisp[1]);
+            lastChannel = nextChannel;
+        }
+    }
+    public void setImagePlus(ImagePlus ip) {
+        this.ip = ip;
     }
     public static void openVirtual(Experiment xp, String position, boolean preProcessed) {
         Position f = xp.getPosition(position);
@@ -106,6 +129,7 @@ public class IJVirtualStack extends VirtualStack {
         BiFunction<Integer, Integer, Image> imageOpenerCT  = preProcessed ? (c, t) -> c==0&&t==0? bds : f.getImageDAO().openPreProcessedImage(c, t) : (c, t) -> f.getInputImages().getImage(c, t);
         IJVirtualStack s = new IJVirtualStack(bds.sizeX(), bds.sizeY(), bds.getBitDepth(), fcz, IJImageWrapper.getStackIndexFunctionRev(fcz), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
+        s.setImagePlus(ip);
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
         ip.setStack(s, channels,maxZ, frames);
         ip.setOpenAsHyperStack(true);
