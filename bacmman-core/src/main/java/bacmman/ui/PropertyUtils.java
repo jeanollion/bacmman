@@ -185,6 +185,10 @@ public class PropertyUtils {
         item.setSelected(PropertyUtils.get(key, defaultValue));
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
     }
+    public static void setPersistant(JCheckBox item, String key, boolean defaultValue) {
+        item.setSelected(PropertyUtils.get(key, defaultValue));
+        item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
+    }
     public static void setPersistant(JTextField item, String key, String defaultValue, boolean multiple) {
         item.setText(PropertyUtils.get(key, defaultValue));
         for (ActionListener al : item.getActionListeners()) al.actionPerformed(null); // perform action after having set default value
