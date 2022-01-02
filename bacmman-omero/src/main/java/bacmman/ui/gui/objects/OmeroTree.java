@@ -549,8 +549,8 @@ public class OmeroTree {
                 if (i>0) return res.indexOf(';', i);
                 else return -1;
             };
-            if (getIndexEnd.apply("t:")>17+6) return appendSkipLine.apply(res.indexOf("t:"));
-            else if (getIndexEnd.apply("c:")>17+6) return appendSkipLine.apply(res.indexOf("c:"));
+            if (getIndexEnd.apply("t:")>16+6) return appendSkipLine.apply(res.indexOf("t:"));
+            else if (getIndexEnd.apply("c:")>16+6) return appendSkipLine.apply(res.indexOf("c:"));
             else if (res.indexOf("-bit")>13+6) return appendSkipLine.apply(res.indexOf("-bit") - (meta.getBitDepth()==8?1:2));
             else return res;
         }

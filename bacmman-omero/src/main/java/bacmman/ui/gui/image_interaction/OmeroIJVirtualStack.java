@@ -4,6 +4,7 @@ import bacmman.core.DefaultWorker;
 import bacmman.core.OmeroGatewayI;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
+import bacmman.processing.ImageOperations;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import ij.ImagePlus;
@@ -22,8 +23,10 @@ import org.slf4j.LoggerFactory;
 
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
+import java.util.HashMap;
 import java.util.Map;
 
+import static bacmman.image.Image.logger;
 import static bacmman.image.io.OmeroUtils.convertPlane;
 
 
@@ -34,6 +37,10 @@ public class OmeroIJVirtualStack extends VirtualStack {
     final String type;
     Map<Integer, Image> images = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::openPlane);
     DefaultWorker lazyOpener;
+    Map<Integer, double[]> displayRange= new HashMap<>();
+    boolean channelWiseDisplayRange = true;
+    ImagePlus ip;
+    int lastChannel=-1;
     public OmeroIJVirtualStack(PixelsData pixels, OmeroGatewayI gateway) throws DSOutOfServiceException, ServerError {
         super(pixels.getSizeX(), pixels.getSizeY(), null, "");
         this.rawData = gateway.gateway().createPixelsStore(gateway.securityContext());
@@ -50,7 +57,11 @@ public class OmeroIJVirtualStack extends VirtualStack {
 
     @Override
     public ImageProcessor getProcessor(int n) {
-        return IJImageWrapper.getImagePlus(images.get(n)).getProcessor();
+        Image nextImage = images.get(n);
+        ImageProcessor nextIP = IJImageWrapper.getImagePlus(nextImage).getProcessor();
+        int nextChannel = ((n-1)%sizeC);
+        setDisplayRange(nextChannel, nextImage, nextIP);
+        return nextIP;
     }
 
     private Image openPlane(int n) {
@@ -84,12 +95,31 @@ public class OmeroIJVirtualStack extends VirtualStack {
         lazyOpener.cancel(true);
         rawData = null;
     }
+    protected void setDisplayRange(int nextChannel, Image nextImage, ImageProcessor nextIP) {
+        if (ip==null || !channelWiseDisplayRange) return;
+        if (nextChannel!=lastChannel) {
+            if (lastChannel>=0) displayRange.put(lastChannel, new double[]{ip.getDisplayRangeMin(), ip.getDisplayRangeMax()}); // record display for last channel
+            if (!displayRange.containsKey(nextChannel)) { // initialize with actual range // TODO initialize with more elaborated algorithm ?
+                double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.01, 99.9);
+                displayRange.put(nextChannel, minAndMax);
+            }
+            double[] curDisp = displayRange.get(nextChannel);
+            if (ip.getProcessor()!=null) ip.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
+            else nextIP.setMinAndMax(curDisp[0], curDisp[1]);
+            logger.debug("disp range for channel {} = [{}; {}]", nextChannel, curDisp[0], curDisp[1]);
+            lastChannel = nextChannel;
+        }
+    }
+    public void setImagePlus(ImagePlus ip) {
+        this.ip = ip;
+    }
     public static Pair<OmeroIJVirtualStack, ImagePlus> openVirtual(String name, PixelsData pixels, OmeroGatewayI gateway, boolean show) {
         try {
             OmeroIJVirtualStack stack = new OmeroIJVirtualStack(pixels, gateway);
             ImagePlus ip = new ImagePlus();
+            stack.setImagePlus(ip);
             stack.lazyOpener = DefaultWorker.execute(i -> {
-                stack.getProcessor(i+1);
+                stack.images.get(i+1);
                 return null;
             }, stack.getSize()).appendEndOfWork(() -> ip.setTitle(name));
 
