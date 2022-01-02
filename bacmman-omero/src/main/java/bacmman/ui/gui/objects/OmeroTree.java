@@ -23,6 +23,7 @@ import bacmman.core.OmeroGatewayI;
 import bacmman.ui.gui.image_interaction.OmeroIJVirtualStack;
 import bacmman.image.io.OmeroImageMetadata;
 import bacmman.image.io.OmeroUtils;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import ome.model.units.BigResult;
 import omero.ServerError;
@@ -36,6 +37,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
+import javax.swing.border.BevelBorder;
 import javax.swing.event.TreeExpansionEvent;
 import javax.swing.event.TreeExpansionListener;
 import javax.swing.tree.*;
@@ -43,6 +45,8 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseMotionListener;
+import java.awt.geom.AffineTransform;
+import java.awt.image.AffineTransformOp;
 import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
@@ -50,6 +54,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static bacmman.utils.EnumerationUtils.toStream;
 import static javax.swing.tree.TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION;
 
 /**
@@ -69,7 +74,7 @@ public class OmeroTree {
         try {
             projectIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/project16.png")));
             datasetIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/dataset16.png")));
-            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/image16.png")));
+            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/picture16.png")));
             groupIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/group16.png")));
             experimenterIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/user16.png")));
         } catch (NullPointerException e) {
@@ -157,7 +162,6 @@ public class OmeroTree {
             @Override
             public void treeExpanded(TreeExpansionEvent treeExpansionEvent) {
                 Object node = treeExpansionEvent.getPath().getLastPathComponent();
-                logger.debug("expanded: {}, dataset node? {}", node, node instanceof DatasetNode);
                 if (node instanceof DatasetNode) ((DatasetNode)node).loadIconsInBackground();
             }
 
@@ -198,6 +202,7 @@ public class OmeroTree {
         public ToolTipImage(Image image) {
             this.image = image;
             setLayout( new BorderLayout() );
+            this.setBorder(new BevelBorder(0));
             text = new JLabel("Metadata");
             text.setBackground(null);
             JPanel ttPanel = new JPanel(new FlowLayout(3, 0, 2));
@@ -397,6 +402,7 @@ public class OmeroTree {
         public void createChildren() {
             List<ExperimenterData> users = getUsers();
             children = new Vector<>();
+            TreePath thisPath = new TreePath(getPath());
             lazyLoader = DefaultWorker.execute(i -> {
                 ExperimenterNode c = new ExperimenterNode(users.get(i));
                 if (c.getChildCount()>0) {
@@ -404,7 +410,11 @@ public class OmeroTree {
                     try {
                         if (c.getId() == gateway.securityContext().getExperimenter())
                             tree.expandPath(new TreePath(c.getPath()));
-                        else if (i % 5 == 0 || i==users.size()-1) tree.updateUI();
+                        else {
+                            Enumeration<TreePath> expanded = tree.getExpandedDescendants(thisPath);
+                            treeModel.nodeStructureChanged(this);
+                            toStream(expanded).forEach(tree::expandPath);
+                        }
                     } catch (Throwable t) {}
                 }
                 return null;
@@ -453,8 +463,15 @@ public class OmeroTree {
         ProjectNode(ProjectData data) {
             super(data);
         }
-        public Set<DatasetData> getDatasets() {
-            return data.getDatasets();
+        public List<DatasetData> getDatasets() {
+
+            Set<DatasetData> set =data.getDatasets();
+            if (set==null) return Collections.EMPTY_LIST;
+            else {
+                List<DatasetData> list = new ArrayList<>(set);
+                Collections.sort(list, Comparator.comparing(DatasetData::getName, String::compareTo));
+                return list;
+            }
         }
         @Override
         public String getName() {
@@ -462,7 +479,7 @@ public class OmeroTree {
         }
         @Override
         public void createChildren() {
-            Set<DatasetData> datasets = getDatasets();
+            List<DatasetData> datasets = getDatasets();
             children = new Vector<>();
             datasets.forEach(d -> add(new DatasetNode(d)));
         }
@@ -549,9 +566,9 @@ public class OmeroTree {
                 if (i>0) return res.indexOf(';', i);
                 else return -1;
             };
-            if (getIndexEnd.apply("t:")>16+6) return appendSkipLine.apply(res.indexOf("t:"));
-            else if (getIndexEnd.apply("c:")>16+6) return appendSkipLine.apply(res.indexOf("c:"));
-            else if (res.indexOf("-bit")>13+6) return appendSkipLine.apply(res.indexOf("-bit") - (meta.getBitDepth()==8?1:2));
+            if (getIndexEnd.apply("T:")>17*2+6) return appendSkipLine.apply(res.indexOf("T:"));
+            else if (getIndexEnd.apply("C:")>17*2+6) return appendSkipLine.apply(res.indexOf("C:"));
+            else if (res.indexOf("-bit")>13*2+6) return appendSkipLine.apply(res.indexOf("-bit") - (meta.getBitDepth()==8?1:2));
             else return res;
         }
         public void showImage() {
@@ -579,7 +596,7 @@ public class OmeroTree {
                             ThumbnailStorePrx store = gateway.gateway().getThumbnailService(gateway.securityContext());
                             store.setPixelsId(pixels.getId());
                             byte[] thumdata = store.getThumbnail(omero.rtypes.rint(128), omero.rtypes.rint(128)); // TODO parameter for icon size
-                            if (thumdata != null) icon = OmeroUtils.bytesToImage(thumdata);
+                            if (thumdata != null) icon = zoom(OmeroUtils.bytesToImage(thumdata), 3);
                             else return null;
                         } catch (NoSuchElementException | ServerError | DSOutOfServiceException e) {
                         }
@@ -588,6 +605,14 @@ public class OmeroTree {
             }
             return icon;
         }
+    }
+    public static BufferedImage zoom(BufferedImage image, int factor) {
+        if (image==null) return null;
+        BufferedImage after = new BufferedImage(image.getWidth() * factor, image.getHeight() * factor, BufferedImage.TYPE_INT_ARGB);
+        AffineTransform at = new AffineTransform();
+        at.scale(factor, factor);
+        AffineTransformOp scaleOp =  new AffineTransformOp(at, AffineTransformOp.TYPE_BILINEAR);
+        return scaleOp.filter(image, after);
     }
 
     public class OmeroTreeCellRenderer extends DefaultTreeCellRenderer {

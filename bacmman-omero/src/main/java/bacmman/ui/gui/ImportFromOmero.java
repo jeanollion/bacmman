@@ -60,6 +60,7 @@ public class ImportFromOmero extends JFrame {
         });
         PropertyUtils.setPersistant(username, "OMERO_USERNAME", "", true);
         PropertyUtils.setPersistant(hostname, "OMERO_HOSTNAME", "localhost", true);
+        PropertyUtils.setPersistant(displayAllUsersCheckBox, "OMERO_SHOW_ALL_USERS", false);
         updateConnectButton();
         updateImportButton();
         DocumentListener dl = new DocumentListener() {
@@ -140,7 +141,9 @@ public class ImportFromOmero extends JFrame {
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
 
-        displayAllUsersCheckBox.addActionListener(actionEvent -> tree.setDisplayCurrentUserOnly(!displayAllUsersCheckBox.isSelected()));
+        displayAllUsersCheckBox.addActionListener(actionEvent -> {
+            if (tree != null) tree.setDisplayCurrentUserOnly(!displayAllUsersCheckBox.isSelected());
+        });
     }
 
     private void saveCurrentConnectionParameters() {
