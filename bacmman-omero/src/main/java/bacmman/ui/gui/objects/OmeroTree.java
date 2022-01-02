@@ -542,7 +542,7 @@ public class OmeroTree {
         public String getImageSpecsAsString() {
             OmeroImageMetadata meta = getMetadata();
             if (meta==null) return " ";
-            String res = "<html>"+meta.getSizeX()+ "x"+meta.getSizeY()+ (meta.getSizeZ()>1 ? "x"+meta.getSizeZ() : "") +( meta.getSizeT()>1? "; t:"+meta.getSizeT() : "" )+( meta.getSizeC()>1? "; c:"+meta.getSizeC() : "" ) + "; "+meta.getBitDepth()+"-bit<html>";
+            String res = "<html>"+meta.getSizeX()+ "x"+meta.getSizeY()+ (meta.getSizeZ()>1 ? "x"+meta.getSizeZ() : "") +( meta.getSizeT()>1? "; T:"+meta.getSizeT() : "" )+( meta.getSizeC()>1? "; C:"+meta.getSizeC() : "" ) + "; "+meta.getBitDepth()+"-bit<html>";
             Function<Integer, String> appendSkipLine = (i) -> res.substring(0, i) + "<br/>"+res.substring(i);
             Function<String, Integer> getIndexEnd = s -> {
                 int i = res.indexOf(s);
