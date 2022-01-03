@@ -30,7 +30,6 @@ import java.util.Iterator;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Transformation;
 import bacmman.plugins.TransformationNoInput;
-import bacmman.plugins.plugins.transformations.CopyTo;
 
 /**
  *
@@ -44,7 +43,7 @@ public class InputImage {
     String microscopyFieldName;
     Image originalImageType;
     Image image;
-    boolean intermediateImageSavedToDAO=false, modified=false;
+    boolean intermediateImageSavedToDAO=false, modified=false, transformationHaveBeenApplied=false;
     ArrayList<Transformation> transformationsToApply;
     double scaleXY=Double.NaN, scaleZ= Double.NaN;
     public InputImage(int inputChannelIdx, int channelIdx, int inputFrame, int frame, String microscopyFieldName, MultipleImageContainer imageSources, ImageDAO dao) {
@@ -108,7 +107,13 @@ public class InputImage {
         applyTransformations();
         return image;
     }
-    
+    public Image getRawPlane(int z) {
+        if (image!=null && !transformationHaveBeenApplied) return image.getZPlane(z);
+        Image plane = imageSources.getPlane(z, inputFrame, inputChannelIdx);
+        if (!Double.isNaN(scaleXY)) plane.setCalibration(scaleXY, scaleZ);
+        return plane;
+    }
+
     void deleteFromDAO() {dao.deletePreProcessedImage(channelIdx, frame);}
     
     public void flush() {
@@ -124,6 +129,7 @@ public class InputImage {
             synchronized(transformationsToApply) {
                 if (transformationsToApply.isEmpty()) return;
                 modified=true;
+                transformationHaveBeenApplied=true;
                 Iterator<Transformation> it = transformationsToApply.iterator();
                 while(it.hasNext()) {
                     Transformation t = it.next();

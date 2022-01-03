@@ -3,6 +3,7 @@ package bacmman.image.io;
 import bacmman.core.OmeroGatewayI;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import bacmman.image.MutableBoundingBox;
 import bacmman.image.SimpleBoundingBox;
 import ome.model.units.BigResult;
 import omero.ServerError;
@@ -75,10 +76,12 @@ public class ImageReaderOmero implements ImageReader {
     public Image openImage(ImageIOCoordinates coords) {
         initIfNecessary();
         // TODO add possibility to open only tile from server
-        BoundingBox bounds = coords.getBounds() == null ? new SimpleBoundingBox(0, pixels.getSizeX() - 1, 0, pixels.getSizeY() - 1, 0, invertTZ ? pixels.getSizeT() -1 : pixels.getSizeZ() - 1) : coords.getBounds();
-        List<Image> images = IntStream.range(0, bounds.sizeZ()).mapToObj(z -> gateway.getPlane(pixels, rawData, invertTZ ? coords.getTimePoint() : z, coords.getChannel(), !invertTZ ? coords.getTimePoint() : z)).collect(Collectors.toList());
+        MutableBoundingBox bounds = coords.getBounds() == null ? new MutableBoundingBox(0, pixels.getSizeX() - 1, 0, pixels.getSizeY() - 1, 0, invertTZ ? pixels.getSizeT() -1 : pixels.getSizeZ() - 1) : new MutableBoundingBox(coords.getBounds());
+        if (bounds.sizeX()<=0) bounds.setxMin(0).setxMax(pixels.getSizeX()-1);
+        if (bounds.sizeY()<=0) bounds.setyMin(0).setyMax(pixels.getSizeY()-1);
+        List<Image> images = IntStream.rangeClosed(bounds.zMin(), bounds.zMax()).mapToObj(z -> gateway.getPlane(pixels, rawData, invertTZ ? coords.getTimePoint() : z, coords.getChannel(), !invertTZ ? coords.getTimePoint() : z)).collect(Collectors.toList());
         Image image = Image.mergeZPlanes(images);
-        if (coords.getBounds() != null) image = image.crop(bounds);
+        if (coords.getBounds() != null) image = image.crop(bounds.setzMin(0).setzMax(image.sizeZ()-1));
         return image;
     }
 

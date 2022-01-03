@@ -18,9 +18,9 @@
  */
 package bacmman.data_structure.image_container;
 
-import bacmman.core.OmeroGateway;
-import bacmman.image.MutableBoundingBox;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
@@ -272,7 +272,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     
     
     @Override
-    public Image getImage(int frame, int channel, MutableBoundingBox bounds) {
+    public Image getImage(int frame, int channel, BoundingBox bounds) {
         ImageIOCoordinates coords = new ImageIOCoordinates(0, 0, 0, bounds);
         if (fromOmero()) {
             ImageReader r = getReader(channel, frame);
@@ -286,6 +286,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             }
         }
         return ImageReaderFile.openImage(fileCT.get(channel).get(frame), coords, bufferStore);
+    }
+
+    @Override
+    public Image getPlane(int z, int timePoint, int channel) {
+        return getImage(timePoint, channel, new SimpleBoundingBox(0, -1, 0, -1, z, z));
     }
 
     @Override

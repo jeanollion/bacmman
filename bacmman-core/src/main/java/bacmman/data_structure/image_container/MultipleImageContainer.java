@@ -19,7 +19,7 @@
 package bacmman.data_structure.image_container;
 
 import bacmman.core.OmeroGateway;
-import bacmman.image.MutableBoundingBox;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import org.json.simple.JSONObject;
 import bacmman.utils.JSONSerializable;
@@ -42,7 +42,8 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public abstract int getChannelNumber();
     public abstract int getSizeZ(int channel);
     public abstract Image getImage(int timePoint, int channel);
-    public abstract Image getImage(int timePoint, int channel, MutableBoundingBox bounds);
+    public abstract Image getPlane(int z, int timePoint, int channel);
+    public abstract Image getImage(int timePoint, int channel, BoundingBox bounds);
     public abstract void flush();
     public abstract String getName();
     public float getScaleXY() {return (float)scaleXY;}

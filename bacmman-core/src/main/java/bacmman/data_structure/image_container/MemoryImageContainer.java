@@ -20,7 +20,7 @@ package bacmman.data_structure.image_container;
 
 import bacmman.data_structure.input_image.InputImage;
 import bacmman.data_structure.input_image.InputImagesImpl;
-import bacmman.image.MutableBoundingBox;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import org.json.simple.JSONObject;
 
@@ -75,7 +75,12 @@ public class MemoryImageContainer extends MultipleImageContainer {
     }
 
     @Override
-    public Image getImage(int timePoint, int channel, MutableBoundingBox bounds) {
+    public Image getPlane(int z, int timePoint, int channel) {
+        return imageCT[channel][timePoint].getZPlane(z);
+    }
+
+    @Override
+    public Image getImage(int timePoint, int channel, BoundingBox bounds) {
         return getImage(timePoint, channel).crop(bounds);
     }
 

@@ -1,17 +1,10 @@
 package bacmman.data_structure.dao;
 
-import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.input_image.InputImage;
-import bacmman.data_structure.input_image.InputImages;
 import bacmman.data_structure.input_image.InputImagesImpl;
 import bacmman.image.BlankMask;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
-import bacmman.image.MutableBoundingBox;
-import bacmman.utils.HashMapGetCreate;
-
-import java.io.InputStream;
 
 public class BypassImageDAO implements ImageDAO {
     InputImagesImpl inputImages;
@@ -47,9 +40,15 @@ public class BypassImageDAO implements ImageDAO {
     }
 
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, MutableBoundingBox bounds) {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) {
         Image im = openPreProcessedImage(channelImageIdx, timePoint);
         return im.crop(bounds);
+    }
+
+    @Override
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) {
+        InputImagesImpl ii = getInputImages();
+        return ii.getRawPlane(z, channelImageIdx, timePoint);
     }
 
     @Override

@@ -55,6 +55,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static bacmman.utils.EnumerationUtils.toStream;
+import static bacmman.utils.IconUtils.bytesToImage;
+import static bacmman.utils.IconUtils.zoom;
 import static javax.swing.tree.TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION;
 
 /**
@@ -196,33 +198,7 @@ public class OmeroTree {
     public JTree getTree() {
         return tree;
     }
-    public static class ToolTipImage extends JToolTip {
-        private final Image image;
-        JLabel text;
-        public ToolTipImage(Image image) {
-            this.image = image;
-            setLayout( new BorderLayout() );
-            this.setBorder(new BevelBorder(0));
-            text = new JLabel("Metadata");
-            text.setBackground(null);
-            JPanel ttPanel = new JPanel(new FlowLayout(3, 0, 2));
-            ttPanel.add(text);
-            ttPanel.add( new JLabel( new ImageIcon( image) ) );
-            add( ttPanel );
-        }
 
-        @Override
-        public Dimension getPreferredSize() {
-            if (image==null) return new Dimension(text.getWidth(), text.getHeight());
-            return new Dimension(Math.max(image.getWidth(this), text.getWidth()), text.getHeight()+2+image.getHeight(this));
-        }
-        @Override
-        public void setTipText(String tipText) {
-            if (tipText.startsWith("omeroID")) tipText = tipText.substring(tipText.indexOf("ID_")+3);
-            text.setText(tipText);
-            super.setTipText(tipText);
-        }
-    }
     public void populateTree() {
         if (getRoot().getChildCount()>0) {
             getRoot().removeAllChildren();
@@ -596,7 +572,7 @@ public class OmeroTree {
                             ThumbnailStorePrx store = gateway.gateway().getThumbnailService(gateway.securityContext());
                             store.setPixelsId(pixels.getId());
                             byte[] thumdata = store.getThumbnail(omero.rtypes.rint(128), omero.rtypes.rint(128)); // TODO parameter for icon size
-                            if (thumdata != null) icon = zoom(OmeroUtils.bytesToImage(thumdata), 3);
+                            if (thumdata != null) icon = zoom(bytesToImage(thumdata), 3);
                             else return null;
                         } catch (NoSuchElementException | ServerError | DSOutOfServiceException e) {
                         }
@@ -606,27 +582,40 @@ public class OmeroTree {
             return icon;
         }
     }
-    public static BufferedImage zoom(BufferedImage image, int factor) {
-        if (image==null) return null;
-        BufferedImage after = new BufferedImage(image.getWidth() * factor, image.getHeight() * factor, BufferedImage.TYPE_INT_ARGB);
-        AffineTransform at = new AffineTransform();
-        at.scale(factor, factor);
-        AffineTransformOp scaleOp =  new AffineTransformOp(at, AffineTransformOp.TYPE_BILINEAR);
-        return scaleOp.filter(image, after);
+    public static class ToolTipImage extends JToolTip {
+        private final Image image;
+        JLabel text;
+        public ToolTipImage(Image image) {
+            this.image = image;
+            setLayout( new BorderLayout() );
+            this.setBorder(new BevelBorder(0));
+            text = new JLabel("Metadata");
+            text.setBackground(null);
+            JPanel ttPanel = new JPanel(new FlowLayout(3, 0, 2));
+            ttPanel.add(text);
+            ttPanel.add( new JLabel( new ImageIcon( image) ) );
+            add( ttPanel );
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            if (image==null) return new Dimension(text.getWidth(), text.getHeight());
+            return new Dimension(Math.max(image.getWidth(this), text.getWidth()), text.getHeight()+2+image.getHeight(this));
+        }
+        @Override
+        public void setTipText(String tipText) {
+            if (tipText.startsWith("omeroID")) tipText = tipText.substring(tipText.indexOf("ID_")+3);
+            text.setText(tipText);
+            super.setTipText(tipText);
+        }
     }
 
     public class OmeroTreeCellRenderer extends DefaultTreeCellRenderer {
-        public OmeroTreeCellRenderer() {
-        }
+        public OmeroTreeCellRenderer() { }
         @Override
         public Color getBackgroundNonSelectionColor() {
             return (null);
         }
-
-    /*@Override
-    public Color getBackgroundSelectionColor() {
-        return Color.GREEN;
-    }*/
 
         @Override
         public Color getBackground() {

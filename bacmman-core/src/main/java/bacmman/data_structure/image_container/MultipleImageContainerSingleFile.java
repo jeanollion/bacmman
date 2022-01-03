@@ -18,7 +18,7 @@
  */
 package bacmman.data_structure.image_container;
 
-import bacmman.core.OmeroGateway;
+import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.io.ImageIOCoordinates;
@@ -27,10 +27,7 @@ import bacmman.image.io.ImageReaderFile;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 
-import bacmman.image.io.OmeroImageMetadata;
-import bacmman.utils.Utils;
 import org.json.simple.JSONObject;
 import bacmman.utils.JSONUtils;
 
@@ -234,9 +231,9 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         }*/
         return image;
     }
-    
+
     @Override
-    public synchronized Image getImage(int timePoint, int channel, MutableBoundingBox bounds) {
+    public synchronized Image getImage(int timePoint, int channel, BoundingBox bounds) {
         if (this.timePointNumber==1) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);
         ImageIOCoordinates ioCoords = ioCoordinates.duplicate();
@@ -249,6 +246,12 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
         }*/
         return image;
     }
+
+    @Override
+    public Image getPlane(int z, int timePoint, int channel) {
+        return getImage(timePoint, channel, new MutableBoundingBox(0, -1, 0, -1, z, z));
+    }
+
     @Override 
     public void flush() {
         if (reader!=null) reader.closeReader();

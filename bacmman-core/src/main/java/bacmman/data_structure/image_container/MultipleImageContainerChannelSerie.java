@@ -18,9 +18,10 @@
  */
 package bacmman.data_structure.image_container;
 
-import bacmman.core.OmeroGateway;
+import bacmman.image.BoundingBox;
 import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
@@ -30,7 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import bacmman.image.io.OmeroImageMetadata;
 import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -281,9 +281,25 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
             }
         }
     }
+    @Override
+    public Image getPlane(int z, int timePoint, int channel) {
+        if (singleFrame(channel)) timePoint=0;
+        ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);
+        if (bounds!=null) ioCoordinates.setBounds(bounds.duplicate().setzMin(z).setzMax(z));
+        else ioCoordinates.setBounds(new SimpleBoundingBox(0, -1 ,0, -1, z, z));
+        if (singleFrame(channel) && singleFrameImages!=null && singleFrameImages[channel]!=null) {
+            return singleFrameImages[channel].getZPlane(z);
+        } else {
+            ImageReader r= getReader(channel);
+            synchronized(r) {
+                Image image = getReader(channel).openImage(ioCoordinates);
+                return image;
+            }
+        }
+    }
     
     @Override
-    public synchronized Image getImage(int timePoint, int channel, MutableBoundingBox bounds) {
+    public synchronized Image getImage(int timePoint, int channel, BoundingBox bounds) {
         
         if (this.timePointNumber==1) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);

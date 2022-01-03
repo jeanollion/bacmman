@@ -13,6 +13,11 @@ public class SimpleInputImages implements InputImages {
     }
 
     @Override
+    public Image getRawPlane(int z, int channelIdx, int timePoint) {
+        return imagesCT[channelIdx][timePoint].getZPlane(z);
+    }
+
+    @Override
     public int getFrameNumber() {
         return imagesCT[0].length;
     }

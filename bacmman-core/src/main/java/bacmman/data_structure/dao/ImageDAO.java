@@ -18,12 +18,9 @@
  */
 package bacmman.data_structure.dao;
 
-import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BlankMask;
-import bacmman.image.MutableBoundingBox;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
-
-import java.io.InputStream;
 
 /**
  *
@@ -33,7 +30,8 @@ public interface ImageDAO {
     public void flush();
     public String getImageExtension();
     public Image openPreProcessedImage(int channelImageIdx, int timePoint);
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, MutableBoundingBox bounds);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds);
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint);
     public BlankMask getPreProcessedImageProperties(int channelImageIdx);
     public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint);
     public void deletePreProcessedImage(int channelImageIdx, int timePoint);

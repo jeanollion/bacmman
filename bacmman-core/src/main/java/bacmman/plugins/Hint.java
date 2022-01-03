@@ -31,9 +31,12 @@ public interface Hint {
     int TOOL_TIP_BOX_WIDTH = 500;
     static String formatHint(String hint) {return formatHint(hint, true);}
     static String formatHint(String hint, boolean limitWidth) {
+        return formatHint(hint, limitWidth?TOOL_TIP_BOX_WIDTH:0);
+    }
+    static String formatHint(String hint, int withLimit) {
         if (hint==null) return null;
         hint = hint.replace("<html>", "").replace("</html>", "");
-        if (limitWidth)  return "<html><div style=\"width:"+TOOL_TIP_BOX_WIDTH+"px\">" + hint + "</div></html>";
+        if (withLimit>0)  return "<html><div style=\"width:"+withLimit+"px\">" + hint + "</div></html>";
         else return "<html>"+hint+"</html>";
     }
 }

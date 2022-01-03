@@ -21,8 +21,9 @@ package bacmman.data_structure.dao;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BlankMask;
-import bacmman.image.MutableBoundingBox;
+import bacmman.image.BoundingBox;
 import bacmman.image.Image;
+import bacmman.image.SimpleBoundingBox;
 import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReaderFile;
@@ -74,12 +75,24 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
         }
     }
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, MutableBoundingBox bounds) {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) {
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
             logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, microscopyFieldName, bounds);
             return ImageReaderFile.openImage(path, new ImageIOCoordinates(bounds));
+        } else {
+            logger.error("pre-processed image: {} not found", path);
+            return null;
+        }
+    }
+    @Override
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) {
+        String path = getPreProcessedImagePath(channelImageIdx, timePoint);
+        File f = new File(path);
+        if (f.exists()) {
+            //logger.debug("Opening pre-processed plane:  channel: {} timePoint: {} fieldName: {} z: {}", channelImageIdx, timePoint, microscopyFieldName, z);
+            return ImageReaderFile.openImage(path, new ImageIOCoordinates(new SimpleBoundingBox(0, -1, 0, -1, z, z)));
         } else {
             logger.error("pre-processed image: {} not found", path);
             return null;

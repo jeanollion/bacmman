@@ -22,6 +22,8 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.Image;
 import static bacmman.image.io.ImportImageUtils.paseDVLogFile;
+
+import bacmman.utils.ArrayUtil;
 import ij.ImagePlus;
 import ij.io.FileInfo;
 import ij.io.Opener;
@@ -45,6 +47,8 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import loci.common.DataTools;
 import loci.formats.FormatTools;
@@ -146,8 +150,10 @@ public class ImageReaderFile implements ImageReader {
     }
     private void setId() {
         try {
+            //long t0 = System.currentTimeMillis();
             reader.setId(getImagePath());
-            //logger.debug("reader: {}", ifr.getReader().getClass());
+            //long t1 = System.currentTimeMillis();
+            //logger.debug("set id in  {}ms", t1-t0);
         } catch (FormatException | IOException ex) {
             Image.logger.error("An error occurred while setting image id: {}, message: {}", getImagePath(),  ex.getMessage());
             reader=null;
@@ -184,37 +190,38 @@ public class ImageReaderFile implements ImageReader {
         int sizeY = reader.getSizeY();
         int sizeZ = invertTZ?reader.getSizeT():reader.getSizeZ();
         //if (coords.getBounds()!=null) coords.getBounds().trimToImage(new BlankMask( sizeX, sizeY, sizeZ));
-        
+
         int zMin, zMax;
-        if (coords.getBounds()!=null) {
-            zMin=Math.max(coords.getBounds().zMin(), 0);
-            zMax=Math.min(coords.getBounds().zMax(), sizeZ-1);
+        MutableBoundingBox bounds =coords.getBounds()==null? null: new MutableBoundingBox(coords.getBounds());
+        if (bounds!=null) {
+            if (bounds.sizeX()<=0) bounds.setxMin(0).setxMax(sizeX-1);
+            if (bounds.sizeY()<=0) bounds.setyMin(0).setyMax(sizeY-1);
+            zMin=Math.max(bounds.zMin(), 0);
+            zMax=Math.min(bounds.zMax(), sizeZ-1);
             if (zMin>zMax) {zMin=0; zMax=sizeZ-1;}
             if (this.supportView) {
-                sizeX = coords.getBounds().sizeX();
-                sizeY = coords.getBounds().sizeY();
+                sizeX = bounds.sizeX();
+                sizeY = bounds.sizeY();
             }
         } else {
             zMin=0; zMax=sizeZ-1;
         }
-        //logger.debug("open image: {}, sizeX: {}, sizeY: {}, sizeZ: {}, zMin: {}, zMax: {}", this.getImagePath(), sizeX, sizeY, sizeZ, zMin, zMax);
+        logger.debug("open image: {}, sizeX: {}, sizeY: {}, sizeZ: {}, zMin: {}, zMax: {}", this.getImagePath(), sizeX, sizeY, sizeZ, zMin, zMax);
         List<Image> planes = new ArrayList<>(zMax - zMin+1);
         for (int z = zMin; z <= zMax; z++) {
             int idx = getIndex(coords.getChannel(), coords.getTimePoint(), z);
             try {
-                if (coords.getBounds()==null || !supportView) {
+                if (bounds==null || !supportView) {
                     planes.add(openImage(idx, 0, 0, sizeX, sizeY, coords.getRGB()));
                 } else {
-                    planes.add(openImage(idx, coords.getBounds().xMin(), coords.getBounds().yMin(), coords.getBounds().sizeX(), coords.getBounds().sizeY(), coords.getRGB()));
+                    planes.add(openImage(idx, bounds.xMin(), bounds.yMin(), bounds.sizeX(), bounds.sizeY(), coords.getRGB()));
                 }
                 res = Image.mergeZPlanes(planes);
-                if (!supportView && coords.getBounds()!=null) { // crop
-                    MutableBoundingBox bounds = new MutableBoundingBox(coords.getBounds());
-                    bounds.setzMin(0);
-                    bounds.setzMax(res.sizeZ()-1);
+                if (!supportView && bounds!=null) { // crop
+                    bounds.setzMin(0).setzMax(res.sizeZ()-1);
                     res=res.crop(bounds);
                 }
-                if (coords.getBounds()!=null) res.resetOffset().translate(coords.getBounds());
+                if (bounds!=null) res.resetOffset().translate(bounds);
                 double[] scaleXYZ = getScaleXYZ(1);
                 if (scaleXYZ[0]!=1) res.setCalibration((float)scaleXYZ[0], (float)scaleXYZ[2]);
             } catch (FormatException | IOException ex) {
@@ -450,20 +457,31 @@ public class ImageReaderFile implements ImageReader {
         return openImage(filePath, ioCoords, null);
     }
     public static Image openImage(String filePath, ImageIOCoordinates ioCoords, byte[][] buffer) {
-        if (filePath.endsWith(".tif")) { // try with faster IJ's method
-            if (ioCoords.getSerie()==0 && ioCoords.getChannel()==0 && ioCoords.getTimePoint()==0) {
-                Image res= openIJTif(filePath);
+        if (filePath.toLowerCase().endsWith(".tif")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
+            if (ioCoords.getSerie()==0 && ioCoords.getChannel()==0 && ioCoords.getTimePoint()==0) { // this only works when
+                int[] slices = ioCoords.getBounds()==null ? null : ArrayUtil.generateIntegerArray(ioCoords.getBounds().zMin(), ioCoords.getBounds().zMax()+1);
+                //long t0 = System.currentTimeMillis();
+                //logger.debug("opening IJ TIF: slices {}", slices);
+                Image res = openIJTif(filePath, slices);
+                //long t1 = System.currentTimeMillis();
+                //logger.debug("opening IJ TIF: slices {} in {}ms", slices, t1-t0);
                 if (res!=null) {
-                    if (ioCoords.getBounds()!=null) return res.crop(ioCoords.getBounds());
-                    else return res;
+                    if (ioCoords.getBounds()!=null && ioCoords.getBounds().sizeX()>0 && ioCoords.getBounds().sizeY()>0) {
+                        return res.crop(new MutableBoundingBox(ioCoords.getBounds()).setzMin(0).setzMax(res.sizeZ()-1));
+                    } else return res;
                 }
             }
         }
+        long t0 = System.currentTimeMillis();
         ImageReaderFile reader = new ImageReaderFile(filePath);
+        long t1 = System.currentTimeMillis();
         if (buffer!=null) reader.buffer = buffer[0];
         Image im = reader.openImage(ioCoords);
         if (buffer!=null) buffer[0] = reader.buffer;
+        long t2 = System.currentTimeMillis();
         reader.closeReader();
+        long t3 = System.currentTimeMillis();
+        logger.debug("opening with image reader : init {}ms, open: {}ms, close: {}ms", t1-t0, t2-t1, t3-t2);
         return im;
     }
     public static Pair<int[][], double[]> getImageInfo(String filePath) {
@@ -494,8 +512,8 @@ public class ImageReaderFile implements ImageReader {
         try {
             FileInfo[] info = td.getTiffInfo();
             int[][] stcxyz = new int[1][5];
-            stcxyz[0][0] = 1;
-            stcxyz[0][1] = 1; // currently no multichannel / multiframe supported...
+            stcxyz[0][0] = 1; // currently no multiframe supported...
+            stcxyz[0][1] = 1; // currently no multichannel ....
             stcxyz[0][2] = info[0].width;
             stcxyz[0][3] = info[0].height;
             stcxyz[0][4] = Arrays.stream(info).mapToInt(i->i.nImages).sum();
@@ -508,36 +526,29 @@ public class ImageReaderFile implements ImageReader {
             return null;
         }
     }
-    public static Image openIJTif(String filePath) { // TODO : open only some planes for 3D files
+    public static Image openIJTif(String filePath, int... slices) {
         File file = new File(filePath);
-        TiffDecoder td = new TiffDecoder(file.getParent(), file.getName());
-        FileInfo[] info = null;
-        try {
-            info = td.getTiffInfo();
-            ImagePlus imp = null;
-            if (info==null) throw new RuntimeException("could not open tif image: "+ filePath+" corrupted file ? ");
-            if (info!=null && info.length > 1) { // try to open as stack
-                logger.debug("open as tiff stack: file info length {}", info.length);
-                Opener o = new Opener();
-                o.setSilentMode(true);
-                imp = o.openTiffStack(info);
-
-            } else {
-                Opener o = new Opener();
-                imp = o.openTiff(file.getParent(), file.getName());
-            }
-            imp.setTitle(file.getName());
+        ImagePlus imp;
+        Opener o = new Opener();
+        o.setSilentMode(true);
+        if (slices==null || slices.length==0) {
+            imp = o.openTiff(file.getParent(), file.getName());
             if (imp != null) {
+                imp.setTitle(file.getName());
                 Image im = IJImageWrapper.wrap(imp);
-                if (info[0].pixelWidth>0.0) {
-                    im.setCalibration((float)info[0].pixelWidth, info[0].pixelDepth>0.0?(float)info[0].pixelDepth:(float)info[0].pixelWidth);
-                }
                 return im;
-            }
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
+            } else return null;
+        } else {
+            List<Image> planes = Arrays.stream(slices)
+                    .mapToObj(s -> o.openTiff(file.toString(), s+1))
+                    .filter(Objects::nonNull)
+                    .map(IJImageWrapper::wrap)
+                    .collect(Collectors.toList());
+            if (planes.isEmpty()) return null;
+            Image res = Image.mergeZPlanes(planes);
+            res.setName(file.getName());
+            return res;
+            //logger.debug("opening with opener: slice: {} cal: {}", slice, imp.getCalibration());
         }
-
-        return null;
     }
 }

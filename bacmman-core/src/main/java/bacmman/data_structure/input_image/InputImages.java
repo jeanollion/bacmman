@@ -45,6 +45,7 @@ import java.util.stream.IntStream;
  */
 public interface InputImages {
     public Image getImage(int channelIdx, int timePoint);
+    public Image getRawPlane(int z, int channelIdx, int timePoint);
     public int getFrameNumber();
     public int getChannelNumber();
     public int getDefaultTimePoint();

@@ -11,33 +11,7 @@ import java.io.ByteArrayInputStream;
 
 public class OmeroUtils {
     public static final Logger logger = LoggerFactory.getLogger(OmeroUtils.class);
-    /**
-     * Converts the passed byte array to a buffered image.
-     *
-     * @param values The values to convert.
-     * @return See above.
-     * encoding process.
-     */
-    public static BufferedImage bytesToImage(byte[] values) {
-        if (values == null)
-            throw new IllegalArgumentException("No array specified.");
-        ByteArrayInputStream stream = null;
-        try {
-            stream = new ByteArrayInputStream(values);
-            BufferedImage image = ImageIO.read(stream);
-            if (image != null) image.setAccelerationPriority(1f);
-            return image;
-        } catch (Exception e) {
-            logger.error("error creating thmubnail", e);
-        } finally {
-            if (stream != null) {
-                try {
-                    stream.close();
-                } catch (Exception ex) {}
-            }
-        }
-        return null;
-    }
+
     public static Image convertPlane(byte[] source, Image buffer, int sizeX, int sizeY, String pixelsType) {
         if (DataSink.UINT_8.equals(pixelsType)) {
             return new ImageByte("", sizeX, new byte[][]{source});

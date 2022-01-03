@@ -28,10 +28,8 @@ import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 /**
@@ -147,6 +145,10 @@ public class InputImagesImpl implements InputImages {
         if (imageCT[channelIdx].length==1) timePoint = 0;
         if (freeMemoryFrameWindow>0 && timePoint > freeMemoryFrameWindow) freeMemory(timePoint - freeMemoryFrameWindow);
         return imageCT[channelIdx][timePoint].getImage();
+    }
+    @Override public Image getRawPlane(int z, int channelIdx, int timePoint) {
+        if (imageCT[channelIdx].length==1) timePoint = 0;
+        return imageCT[channelIdx][timePoint].getRawPlane(z);
     }
     public boolean imageOpened(int channelIdx, int timePoint) {
         if (imageCT[channelIdx].length==1) timePoint = 0;
