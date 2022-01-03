@@ -1,6 +1,7 @@
 package bacmman.github.gist;
 
 import bacmman.plugins.Hint;
+import bacmman.utils.IconUtils;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -9,7 +10,10 @@ import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -23,9 +27,12 @@ public class GistDLModel implements Hint {
     private String fileURL;
     private JSONObject jsonContent;
     private Supplier<String> contentRetriever;
+    private Runnable thumbnailRetriever;
     public String getHintText() {return description;}
     String id;
     public static String BASE_URL = "https://api.github.com";
+    BufferedImage thumbnail;
+    boolean thumbnailModified, contentModified;
     public GistDLModel(JSONObject gist) {
         description = (String)gist.get("description");
         id = (String)gist.get("id");
@@ -44,6 +51,22 @@ public class GistDLModel implements Hint {
                 folder = fileName.substring(folderIdx + 1, configNameIdx);
                 name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
                 account = (String) ((JSONObject) gist.get("owner")).get("login");
+                // look for thumbnail file
+                if (((JSONObject) files).containsKey("thumbnail")) {
+                    JSONObject thumbnailFile = (JSONObject)((JSONObject) files).get("thumbnail");
+                    String thumbFileURL = (String) thumbnailFile.get("raw_url");
+                    thumbnailRetriever = () -> {
+                        String thumbdataB64 = new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetch();
+                        logger.debug("retrieved thmubnail: length = {}", thumbdataB64==null ? 0 : thumbdataB64.length());
+                        if (thumbdataB64 !=null ) {
+                            byte[] thumbdata = Base64.getDecoder().decode(thumbdataB64);
+                            if (thumbdata!=null) {
+                                logger.debug("thumbnail length: {}", thumbdata.length);
+                                thumbnail = IconUtils.bytesToImage(thumbdata);
+                            }
+                        }
+                    };
+                }
             } else { // not a configuration file
                 folder = null;
                 name = null;
@@ -79,8 +102,26 @@ public class GistDLModel implements Hint {
     }
 
     public GistDLModel setDescription(String description) {
-        this.description = description;
+        if (this.description==null || !this.description.equals(description)) {
+            this.description = description;
+            contentModified = true;
+        }
         return this;
+    }
+    public GistDLModel setThumbnail(BufferedImage thumbnail) {
+        if (thumbnail==null) {
+            if (this.thumbnail!=null) thumbnailModified = true;
+            this.thumbnail = null;
+        } else if (this.thumbnail==null || !Arrays.equals(IconUtils.toByteArray(this.thumbnail), IconUtils.toByteArray(thumbnail))) {
+            this.thumbnail = thumbnail;
+            thumbnailModified = true;
+        }
+        return this;
+    }
+
+    public BufferedImage getThumbnail() {
+        if (thumbnail==null && thumbnailRetriever!=null) thumbnailRetriever.run();
+        return thumbnail;
     }
 
     public void createNewGist(UserAuth auth) {
@@ -96,6 +137,7 @@ public class GistDLModel implements Hint {
         JSONObject json = JSONUtils.parse(res);
         if (json!=null) id = (String)json.get("id");
         else logger.error("Could not create configuration file");
+        if (thumbnailModified) updateThumbnail(auth);
     }
     public void delete(UserAuth auth) {
         new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetch();
@@ -105,33 +147,56 @@ public class GistDLModel implements Hint {
     }
 
     public GistDLModel setContent(String url, DLModelMetadata metadata) {
-        this.jsonContent = new JSONObject();
-        jsonContent.put("url", url);
-        jsonContent.put("metadata", metadata.toJSONEntry());
+        JSONObject newContent = new JSONObject();
+        newContent.put("url", url);
+        newContent.put("metadata", metadata.toJSONEntry());
+        if (jsonContent==null || !jsonContent.equals(newContent)) {
+            contentModified = true;
+            jsonContent = newContent;
+            logger.debug("content modified!");
+        } else {
+            logger.debug("new content is equal: {}", newContent);
+        }
         return this;
     }
-
+    public void updateIfNecessary(UserAuth auth) {
+        if (contentModified) updateContent(auth);
+        if (thumbnailModified) updateThumbnail(auth);
+    }
     public void updateContent(UserAuth auth) {
         JSONObject files = new JSONObject();
-        JSONObject file = new JSONObject();
-        files.put(getFileName(), file);
-        file.put("content", jsonContent.toJSONString());
+        JSONObject contentFile = new JSONObject();
+        files.put(getFileName(), contentFile);
+        contentFile.put("content", jsonContent.toJSONString());
         JSONObject gist = new JSONObject();
         gist.put("files", files);
         gist.put("description", description);
-        new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetch();
+        new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetch();
+        contentModified = false;
+    }
+
+    public void updateThumbnail(UserAuth auth) {
+        byte[] bytes = thumbnail==null ? null : IconUtils.toByteArray(thumbnail);
+        String content = JSONQuery.encodeJSONBase64("thumbnail", bytes); // null will set empty content -> remove the file
+        logger.debug("content: {}", content);
+        JSONQuery q = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
+        String answer = q.fetch();
+        logger.debug("update thumbnail answer: {}", answer);
+        thumbnailModified = false;
     }
 
     public JSONObject getContent() {
         if (jsonContent==null) {
             if (contentRetriever == null) throw new RuntimeException("No query");
             String content = contentRetriever.get();
+            logger.debug("retrieved content: {}", content);
             jsonContent = JSONUtils.parse(content);
         }
         return jsonContent;
     }
     public String getModelURL() {
         getContent();
+        if (jsonContent.get("url")==null) return null;
         String url = (String)jsonContent.get("url");
         return transformGDriveURL(url);
     }
@@ -172,6 +237,7 @@ public class GistDLModel implements Hint {
     static String GDRIVE_PREFIX = "https://drive.google.com/file/d/";
     static String GIVE_SUFFIX = "/view?usp=sharing";
     private static String transformGDriveURL(String url) {
+        if (url==null) return null;
         if (url.startsWith(GDRIVE_PREFIX) && url.endsWith(GIVE_SUFFIX)) {
             String id = url.substring(GDRIVE_PREFIX.length(), url.indexOf(GIVE_SUFFIX));
             return "https://drive.google.com/uc?export=download&id=" + id;

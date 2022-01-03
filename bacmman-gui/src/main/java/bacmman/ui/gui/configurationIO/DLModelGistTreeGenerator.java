@@ -19,37 +19,32 @@
 package bacmman.ui.gui.configurationIO;
 
 import bacmman.configuration.parameters.Parameter;
-import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistDLModel;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.gui.configuration.TransparentTreeCellRenderer;
+import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.IconUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
-import javax.swing.text.AttributeSet;
-import javax.swing.text.Element;
-import javax.swing.text.html.HTML;
+import javax.swing.border.BevelBorder;
 import javax.swing.tree.*;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Comparator;
-import java.util.Enumeration;
+import java.util.*;
 import java.util.List;
-import java.util.Vector;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static bacmman.plugins.Hint.formatHint;
+import static bacmman.utils.IconUtils.zoom;
 
 /**
  *
@@ -61,9 +56,13 @@ public class DLModelGistTreeGenerator {
     protected DefaultTreeModel treeModel;
     List<GistDLModel> gists;
     final Runnable selectionChanged;
+    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistDLModel, BufferedImage> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistDLModel::getThumbnail);
+    BufferedImage currentThumbnail;
+    Icon dlModelDefaultIcon;
     public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged) {
         this.gists=gists;
         this.selectionChanged=selectionChanged;
+        try {dlModelDefaultIcon = new ImageIcon(Objects.requireNonNull(DLModelGistTreeGenerator.class.getResource("../../../../neural_network64.png")));} catch (Exception e) {}
     }
 
     public JTree getTree() {
@@ -115,19 +114,33 @@ public class DLModelGistTreeGenerator {
         treeModel = new DefaultTreeModel(root);
         tree = new JTree(treeModel) {
             @Override
+            public JToolTip createToolTip() {
+                JToolTip tip = new ToolTipImage( currentThumbnail );
+                tip.setComponent(tree);
+                return tip;
+            }
+            @Override
             public String getToolTipText(MouseEvent evt) {
                 if (getRowForLocation(evt.getX(), evt.getY()) == -1) return null;
                 TreePath curPath = getPathForLocation(evt.getX(), evt.getY());
-
-                if (curPath==null) return null;
-                if (curPath.getLastPathComponent() instanceof GistTreeNode) {
-                    return formatHint(((GistTreeNode)curPath.getLastPathComponent()).gist.getHintText());
+                if (curPath==null) {
+                    currentThumbnail = null;
+                    return null;
+                } else if (curPath.getLastPathComponent() instanceof GistTreeNode) {
+                    GistTreeNode g = (GistTreeNode)curPath.getLastPathComponent();
+                    currentThumbnail = zoom(icons.get(g.gist), 3);
+                    if (currentThumbnail == null && g.gist.getHintText().length()==0) return null;
+                    return formatHint(((GistTreeNode)curPath.getLastPathComponent()).gist.getHintText(), currentThumbnail!=null ? (int)(currentThumbnail.getWidth() * 0.7): 300); // emprical factor to convert html px to screen dimension. //TOOD use fontMetrics...
                 } else if (curPath.getLastPathComponent() instanceof DefaultMutableTreeNode && (((String)((DefaultMutableTreeNode)curPath.getLastPathComponent()).getUserObject()).startsWith("<html>URL"))) {
+                    currentThumbnail = null;
                     return "Double click to download file";
                 } else if (curPath.getLastPathComponent() instanceof Parameter) {
+                    currentThumbnail = null;
                     return ConfigurationTreeGenerator.getHint(curPath.getLastPathComponent(), true, true, i->((Integer)i).toString());
-
-                } else return "Folder containing model files";
+                } else {
+                    currentThumbnail = null;
+                    return "Folder containing model files";
+                }
             }
             @Override
             public Point getToolTipLocation(MouseEvent evt) {
@@ -169,14 +182,22 @@ public class DLModelGistTreeGenerator {
         tree.setShowsRootHandles(true);
         tree.setRootVisible(false);
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
-        DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->false, p->false);
-        Icon icon = null;
+        DefaultTreeCellRenderer renderer = new ModelLibraryTreeCellRenderer();
+        /*Icon icon = null;
         renderer.setLeafIcon(icon);
         renderer.setClosedIcon(icon);
-        renderer.setOpenIcon(icon);
+        renderer.setOpenIcon(icon);*/
         tree.setCellRenderer(renderer);
         tree.setOpaque(false);
 
+    }
+    public void setIconToCurrentlySelectedGist(BufferedImage icon) {
+        if (tree.getSelectionPath()!=null && tree.getSelectionPath().getLastPathComponent() instanceof GistTreeNode) {
+            GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
+            node.gist.setThumbnail(icon);
+            icons.put(node.gist, icon);
+            treeModel.nodeChanged(node);
+        }
     }
     private String mapURL(String url) {
         if (url.startsWith("https://drive.google.com/file/d/")) {
@@ -198,9 +219,11 @@ public class DLModelGistTreeGenerator {
             if (children==null) {
                 children= new Vector<>();
                 String url = gist.getModelURL();
-                MutableTreeNode urltn = new DefaultMutableTreeNode("<html>URL: <a href=\""+url+"\">"+url+"</a></html>", false);
-                insert(urltn, 0);
-                insert(gist.getMetadata(), 1);
+                if (url!=null) {
+                    MutableTreeNode urltn = new DefaultMutableTreeNode("<html>URL: <a href=\"" + url + "\">" + url + "</a></html>", false);
+                    add(urltn);
+                }
+                add(gist.getMetadata());
             }
         }
         @Override
@@ -230,6 +253,66 @@ public class DLModelGistTreeGenerator {
     }
     public void flush() {
         if (tree!=null) ToolTipManager.sharedInstance().unregisterComponent(tree);
+        icons.clear();
     }
 
+    public static class ToolTipImage extends JToolTip {
+        private Image image;
+        JLabel text;
+        JPanel ttPanel;
+        public ToolTipImage(Image image) {
+            super();
+            this.image = image;
+            setLayout(new BorderLayout());
+            setBorder(new BevelBorder(0));
+            text = new JLabel("");
+            text.setBackground(null);
+            if (image!=null) {
+                ttPanel = new JPanel(new FlowLayout(1, 0, 5));
+                ttPanel.add(text);
+                ttPanel.add(new JLabel(new ImageIcon(image)));
+                add(ttPanel);
+            } else {
+                ttPanel = new JPanel();
+                ttPanel.add(text);
+                add(ttPanel);
+            }
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            if (image==null) return new Dimension(text.getWidth()+10, text.getHeight()+15);
+            return new Dimension(image.getWidth(this), text.getHeight()+5+image.getHeight(this));
+        }
+        @Override
+        public void setTipText(String tipText) {
+            if (text!=null) text.setText(tipText);
+            super.setTipText(tipText);
+        }
+    }
+
+    public class ModelLibraryTreeCellRenderer extends DefaultTreeCellRenderer {
+        public ModelLibraryTreeCellRenderer() { }
+        @Override
+        public Color getBackgroundNonSelectionColor() {
+            return (null);
+        }
+
+        @Override
+        public Color getBackground() {
+            return (null);
+        }
+
+        @Override
+        public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean sel, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
+            final Component ret = super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+            if (value instanceof GistTreeNode) {
+                BufferedImage icon = icons.get(((GistTreeNode)value).gist);
+                if (icon!=null) setIcon(new ImageIcon(IconUtils.zoomToSize(icon, 64)));
+                else if (dlModelDefaultIcon!=null) setIcon(dlModelDefaultIcon);
+            }
+            return ret;
+        }
+
+    }
 }
