@@ -27,6 +27,7 @@ import bacmman.image.io.KymographFactory;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
+import bacmman.utils.ArrayUtil;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.VirtualStack;
@@ -159,18 +160,19 @@ public class IJVirtualStack extends VirtualStack {
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
     }
-    public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int... objectClassIdx) {
+    public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx) {
         KymographT interactiveImage = null;
         if (interactive) interactiveImage = (KymographT)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.FRAME_STACK);
         if (interactiveImage==null) {
             KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
-            interactiveImage = new KymographT(data, interactiveOC);
+            interactiveImage = new KymographT(data, interactiveOC, false);
         }
         return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx);
     }
-    public static Image openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, boolean interactive, int... objectClassIdx) {
+    public static Image openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, boolean interactive, int objectClassIdx) {
         if (parentTrack.isEmpty()) return null;
-        int[] channelArray = objectClassIdx.length==0 ? new int[]{parentTrack.get(0).getStructureIdx()} : objectClassIdx;
+        int[] channelArray = ArrayUtil.generateIntegerArray(parentTrack.get(0).getExperimentStructure().getObjectClassesAsString().length);
+        //int[] channelArray = objectClassIdx.length==0 ? new int[]{parentTrack.get(0).getStructureIdx()} : objectClassIdx;
         int channels = channelArray.length;
         int frames = parentTrack.size();
         Image[] bdsC = new Image[channels];
@@ -185,7 +187,7 @@ public class IJVirtualStack extends VirtualStack {
         int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
         int[] sizeZC = IntStream.range(0, channels).map(i -> bdsC[i].sizeZ()).toArray();
         int[] fczSize = new int[]{frames, channels, maxZ};
-        Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getImage(channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER).getZPlane(fcz[2]);
+        Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, bdsC[0].getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
         ip.setTitle(("HyperStack of Track: "+parentTrack.get(0).toStringShort()));
@@ -197,11 +199,16 @@ public class IJVirtualStack extends VirtualStack {
         cal.pixelHeight=bdsC[0].getScaleXY();
         cal.pixelDepth=bdsC[0].getScaleZ();
         ip.setCalibration(cal);
+        ip.setC(objectClassIdx+1);
+        if (maxZ>1) ip.setZ(maxZ/2+1);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         Image hook = imageOpenerCT.apply(new int[]{0, 0, 0});
         if (interactive) ImageWindowManagerFactory.getImageManager().addHyperStack(hook, ip, interactiveImage);
-        else ImageWindowManagerFactory.getImageManager().getDisplayer().putImage(hook, ip);
+        else {
+            ImageWindowManagerFactory.getImageManager().getDisplayer().putImage(hook, ip);
+            ImageWindowManagerFactory.getImageManager().registerInteractiveHyperStackFrameCallback(hook, interactiveImage);
+        }
         return hook;
     }
 }

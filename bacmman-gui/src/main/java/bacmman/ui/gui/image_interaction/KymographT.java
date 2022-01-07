@@ -43,16 +43,17 @@ public class KymographT extends Kymograph {
     public static final Logger logger = LoggerFactory.getLogger(KymographT.class);
     protected int idx;
     protected final int maxParentSizeX, maxParentSizeY, maxParentSizeZ;
-    protected final BoundingBox bounds;
+    protected final BoundingBox bounds, bounds2D;
     public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
     protected IntConsumer changeIdxCallback;
     DefaultWorker loadObjectsWorker;
-    public KymographT(KymographFactory.KymographData data, int childStructureIdx) {
+    public KymographT(KymographFactory.KymographData data, int childStructureIdx, boolean loadObjects) {
         super(data, childStructureIdx, false);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
         maxParentSizeZ = data.maxParentSizeZ;
-        this.bounds = new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, maxParentSizeZ);
+        this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
+        this.bounds2D = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0 ,0);
         frameMapIdx = parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, parents::indexOf));
         idxMapFrame = parents.stream().collect(Collectors.toMap(parents::indexOf, SegmentedObject::getFrame));
         if (!KymographFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
@@ -61,7 +62,7 @@ public class KymographT extends Kymograph {
             trackObjects[i+1].getObjects();
             return "";
         }, super.getParents().size()-1, null);
-        loadObjectsWorker.execute();
+        if (loadObjects) loadObjectsWorker.execute();
 
     }
     public boolean setFrame(int frame) {
@@ -148,7 +149,15 @@ public class KymographT extends Kymograph {
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else {
             Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, maxParentSizeZ).translate(trackOffset[idx]));
-            //logger.debug("kymo: {} -> resized {}, idx: {}, offset: {}", bounds, resized.getBoundingBox(), idx, new SimpleOffset(trackOffset[idx]));
+            return resized;
+        }
+    }
+    public Image getPlane(int z, int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
+        Image image = raw ? parents.get(idx).getRawImage(objectClassIdx):parents.get(idx).getPreFilteredImage(objectClassIdx);
+        image = image.getZPlane(z);
+        if (bounds2D.sameDimensions(image)) return image; // no need for padding
+        else {
+            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, 0).translate(trackOffset[idx]).translate(new SimpleOffset(0, 0, z)));
             return resized;
         }
     }

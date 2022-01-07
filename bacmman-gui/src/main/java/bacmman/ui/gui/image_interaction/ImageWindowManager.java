@@ -266,7 +266,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         
     }
-    protected abstract void registerInteractiveHyperStackFrameCallback(Image image, KymographT k);
+    public abstract void registerInteractiveHyperStackFrameCallback(Image image, KymographT k);
     public void registerHyperStack(Image image, KymographT i) {
         imageObjectInterfaces.put(i.getKey(), i);
         imageObjectInterfaceMap.put(image, i.getKey());

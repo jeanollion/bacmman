@@ -316,7 +316,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             });
         }
     }
-    @Override protected void registerInteractiveHyperStackFrameCallback(Image image, KymographT k) {
+    @Override public void registerInteractiveHyperStackFrameCallback(Image image, KymographT k) {
         ImagePlus ip = displayer.getImage(image);
         if (ip!=null && ip.getImageStack() instanceof IJVirtualStack) {
             logger.debug("registering frame callback on image: {} for kymograph : {}", image.getName(), k.getKey());

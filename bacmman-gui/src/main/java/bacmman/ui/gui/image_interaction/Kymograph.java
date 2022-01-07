@@ -45,7 +45,7 @@ import java.util.stream.IntStream;
 public abstract class Kymograph extends InteractiveImage {
     public static final Logger logger = LoggerFactory.getLogger(Kymograph.class);
     public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
-        if (hyperStack) return new KymographT(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx);
+        if (hyperStack) return new KymographT(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx, true);
         KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
         switch (data.direction) {
             case X:
@@ -215,7 +215,7 @@ public abstract class Kymograph extends InteractiveImage {
                 //if (mm[1]<mm2[1]) mm[1] = mm2[1];
                 if (count>=updateImageFrequency) {
 
-                    ImageWindowManagerFactory.getImageManager().getDisplayer().updateImageDisplay(image, mm[0], mm[1]); // do not cmopute min and max. Keep track of min and max?
+                    ImageWindowManagerFactory.getImageManager().getDisplayer().updateImageDisplay(image, mm[0], mm[1]); // do not compute min and max. Keep track of min and max?
                     count=0;
                 } else count++;
             }
