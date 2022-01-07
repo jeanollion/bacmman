@@ -259,7 +259,7 @@ public abstract class ImageWindowManager<I, U, V> {
             imageObjectInterfaces.put(i.getKey(), i);
         }
         //T dispImage = getImage(image);
-        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, i instanceof Kymograph ? ( i instanceof KymographT ? InteractiveImageKey.TYPE.FRAME_STACK : InteractiveImageKey.TYPE.KYMOGRAPH) : InteractiveImageKey.TYPE.SINGLE_FRAME, displayedStructureIdx));
+        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, i instanceof Kymograph ? ( i instanceof KymographT ? InteractiveImageKey.TYPE.HYPERSTACK : InteractiveImageKey.TYPE.KYMOGRAPH) : InteractiveImageKey.TYPE.SINGLE_FRAME, displayedStructureIdx));
         if (displayImage) {
             displayImage(image, i);
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
@@ -395,7 +395,7 @@ public abstract class ImageWindowManager<I, U, V> {
         logger.debug("getIOI: type: {}, hash: {} ({}), exists: {}, trackHeadTrackMap: {}", type, parentTrack.hashCode(), new InteractiveImageKey(parentTrack, type, childStructureIdx).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
         if (i==null) {
             long t0 = System.currentTimeMillis();
-            i = Kymograph.generateKymograph(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.FRAME_STACK));
+            i = Kymograph.generateKymograph(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.HYPERSTACK));
             long t1 = System.currentTimeMillis();
             imageObjectInterfaces.put(i.getKey(), i);
             trackHeadTrackMap.getAndCreateIfNecessary(parentTrack.get(0)).add(parentTrack);

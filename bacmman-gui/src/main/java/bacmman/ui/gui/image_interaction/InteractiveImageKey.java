@@ -29,11 +29,11 @@ import java.util.Objects;
  * @author Jean Ollion
  */
 public class InteractiveImageKey {
-    public enum TYPE {SINGLE_FRAME, KYMOGRAPH, FRAME_STACK}
+    public enum TYPE {SINGLE_FRAME, KYMOGRAPH, HYPERSTACK}
     public final TYPE imageType;
     public final List<SegmentedObject> parent;
     public final int interactiveObjectClass;
-    public final static TYPE defaultType = TYPE.FRAME_STACK;
+    public final static TYPE defaultType = TYPE.HYPERSTACK;
     public InteractiveImageKey(List<SegmentedObject> parent, TYPE imageType, int interactiveObjectClass) {
         this.imageType = imageType;
         this.parent = parent;

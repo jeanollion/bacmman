@@ -28,12 +28,10 @@ import bacmman.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 /**
  *
@@ -94,7 +92,7 @@ public class KymographT extends Kymograph {
     }
 
     @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.FRAME_STACK, childStructureIdx);
+        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.HYPERSTACK, childStructureIdx);
     }
 
     @Override

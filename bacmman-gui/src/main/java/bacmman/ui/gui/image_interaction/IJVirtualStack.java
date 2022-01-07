@@ -38,8 +38,6 @@ import bacmman.image.Image;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import static bacmman.image.Image.logger;
-
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
@@ -108,13 +106,14 @@ public class IJVirtualStack extends VirtualStack {
         if (ip==null || !channelWiseDisplayRange) return;
         if (nextChannel!=lastChannel) {
             if (lastChannel>=0) displayRange.put(lastChannel, new double[]{ip.getDisplayRangeMin(), ip.getDisplayRangeMax()}); // record display for last channel
-            if (!displayRange.containsKey(nextChannel)) { // initialize with actual range // TODO initialize with more elaborated algorithm ?
+            if (!displayRange.containsKey(nextChannel)) { // TODO initialize with more elaborated algorithm ?
                 double[] minAndMax = ImageOperations.getQuantiles(nextImage, null, null, 0.01, 99.9);
+                //logger.debug("getting display range for channel {} -> {}", nextChannel, minAndMax);
                 displayRange.put(nextChannel, minAndMax);
             }
             double[] curDisp = displayRange.get(nextChannel);
             if (ip.getProcessor()!=null) ip.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
-            else nextIP.setMinAndMax(curDisp[0], curDisp[1]);
+            else nextIP.setMinAndMax(curDisp[0], curDisp[1]); // this is the first image processor that will be set to the ip
             //logger.debug("disp range for channel {} = [{}; {}]", nextChannel, curDisp[0], curDisp[1]);
             lastChannel = nextChannel;
         }
@@ -162,7 +161,7 @@ public class IJVirtualStack extends VirtualStack {
     }
     public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx) {
         KymographT interactiveImage = null;
-        if (interactive) interactiveImage = (KymographT)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.FRAME_STACK);
+        if (interactive) interactiveImage = (KymographT)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
         if (interactiveImage==null) {
             KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
             interactiveImage = new KymographT(data, interactiveOC, false);
@@ -190,6 +189,7 @@ public class IJVirtualStack extends VirtualStack {
         Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, bdsC[0].getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
+        s.setImagePlus(ip);
         ip.setTitle(("HyperStack of Track: "+parentTrack.get(0).toStringShort()));
         ip.setStack(s, channels,maxZ, frames);
         ip.setOpenAsHyperStack(true);
