@@ -236,8 +236,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     public synchronized Image getImage(int timePoint, int channel, BoundingBox bounds) {
         if (this.timePointNumber==1) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);
-        ImageIOCoordinates ioCoords = ioCoordinates.duplicate();
-        ioCoords.setBounds(bounds);
+        ioCoordinates.setBounds(bounds);
         Image image = getReader().openImage(ioCoordinates);
         /*if (scaleXY!=0 && scaleZ!=0) image.setCalibration((float)scaleXY, (float)scaleZ);
         else {

@@ -190,7 +190,6 @@ public class ImageReaderFile implements ImageReader {
         int sizeY = reader.getSizeY();
         int sizeZ = invertTZ?reader.getSizeT():reader.getSizeZ();
         //if (coords.getBounds()!=null) coords.getBounds().trimToImage(new BlankMask( sizeX, sizeY, sizeZ));
-
         int zMin, zMax;
         MutableBoundingBox bounds =coords.getBounds()==null? null: new MutableBoundingBox(coords.getBounds());
         if (bounds!=null) {
@@ -206,7 +205,7 @@ public class ImageReaderFile implements ImageReader {
         } else {
             zMin=0; zMax=sizeZ-1;
         }
-        logger.debug("open image: {}, sizeX: {}, sizeY: {}, sizeZ: {}, zMin: {}, zMax: {}", this.getImagePath(), sizeX, sizeY, sizeZ, zMin, zMax);
+        //logger.debug("open image: {}, sizeX: {}, sizeY: {}, sizeZ: {}, zMin: {}, zMax: {}", this.getImagePath(), sizeX, sizeY, sizeZ, zMin, zMax);
         List<Image> planes = new ArrayList<>(zMax - zMin+1);
         for (int z = zMin; z <= zMax; z++) {
             int idx = getIndex(coords.getChannel(), coords.getTimePoint(), z);
