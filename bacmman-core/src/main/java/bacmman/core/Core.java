@@ -49,7 +49,6 @@ import static bacmman.plugins.PluginFactory.getClasses;
  */
 public class Core {
     public static final Logger logger = LoggerFactory.getLogger(Core.class);
-    public static boolean enableHyperStackView = true;
     public static boolean enableTrackMate = true;
     private static ImageJ ij;
     private static OpService opService;

@@ -224,9 +224,8 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         JMenu kymographSubMenu, hyperStackSubMenu, createSelectionSubMenu;
         Object[] actions;
         JMenuItem[] openKymograph, openHyperStack, createSelection;
-        boolean hyperStack = Core.enableHyperStackView;
         public RootTrackNodeUI() {
-            this.actions = new JMenuItem[hyperStack ?5:4];
+            this.actions = new JMenuItem[5];
             
             openRawAllFrames = new JMenuItem("Open Input Images");
             actions[0] = openRawAllFrames;
@@ -292,38 +291,35 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 );
                 kymographSubMenu.add(openKymograph[i]);
             }
-            int idx = 3;
-            if (hyperStack) {
-                hyperStackSubMenu = new JMenu("Open HyperStack");
-                actions[idx++] = hyperStackSubMenu;
-                openHyperStack = new JMenuItem[allObjectClasses.size()];
-                for (int i = 0; i < openHyperStack.length; i++) {
-                    openHyperStack[i] = new JMenuItem(allObjectClasses.get(i));
-                    openHyperStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
-                                                    @Override
-                                                    public void actionPerformed(ActionEvent ae) {
-                                                        int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
-                                                        logger.debug("opening frame stack raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
-                                                        List<SegmentedObject> rootTrack = null;
-                                                        try {
-                                                            rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
-                                                        } catch (Exception e) {
-                                                        }
-                                                        if (rootTrack != null) {
-                                                            // TODO make this method generic for other display modes than IJ
-                                                            IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx); // TODO interface for multichannel display
+            hyperStackSubMenu = new JMenu("Open HyperStack");
+            actions[3] = hyperStackSubMenu;
+            openHyperStack = new JMenuItem[allObjectClasses.size()];
+            for (int i = 0; i < openHyperStack.length; i++) {
+                openHyperStack[i] = new JMenuItem(allObjectClasses.get(i));
+                openHyperStack[i].setAction(new AbstractAction(allObjectClasses.get(i)) {
+                                                @Override
+                                                public void actionPerformed(ActionEvent ae) {
+                                                    int structureIdx = generator.getExperiment().getStructureIdx(ae.getActionCommand());
+                                                    logger.debug("opening frame stack raw image for structure: {} of idx: {}", ae.getActionCommand(), structureIdx);
+                                                    List<SegmentedObject> rootTrack = null;
+                                                    try {
+                                                        rootTrack = Processor.getOrCreateRootTrack(generator.db.getDao(position));
+                                                    } catch (Exception e) {
+                                                    }
+                                                    if (rootTrack != null) {
+                                                        // TODO make this method generic for other display modes than IJ
+                                                        IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx); // TODO interface for multichannel display
 
-                                                            GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                                                            GUI.getInstance().setTrackStructureIdx(structureIdx);
-                                                        }
+                                                        GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                                                        GUI.getInstance().setTrackStructureIdx(structureIdx);
                                                     }
                                                 }
-                    );
-                    hyperStackSubMenu.add(openHyperStack[i]);
-                }
+                                            }
+                );
+                hyperStackSubMenu.add(openHyperStack[i]);
             }
             createSelectionSubMenu = new JMenu("Create Selection");
-            actions[idx] = createSelectionSubMenu;
+            actions[4] = createSelectionSubMenu;
             createSelection = new JMenuItem[rootAndChildren.size()];
             for (int i = 0; i < createSelection.length; i++) {
                 createSelection[i] = new JMenuItem(rootAndChildren.get(i));

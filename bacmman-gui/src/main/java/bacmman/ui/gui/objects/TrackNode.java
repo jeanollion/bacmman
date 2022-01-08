@@ -246,13 +246,12 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             int[] currentAndChildOCIdx = IntStream.concat(IntStream.of(trackNode.trackHead.getStructureIdx()), IntStream.of(trackNode.trackHead.getExperimentStructure().getAllChildStructures(trackNode.trackHead.getStructureIdx()))).toArray();
             String[] currentAndChildOCNames = trackNode.trackHead.getExperimentStructure().getObjectClassesNames(currentAndChildOCIdx);
             noChildStructure = childStructureNames.length==0;
-            boolean hyperStack = Core.enableHyperStackView;
-            this.actions = new JMenuItem[hyperStack?8:7];
+            this.actions = new JMenuItem[8];
             JMenu kymographSubMenu = new JMenu("Open Kymograph");
             actions[0] = kymographSubMenu;
             int idx = 1;
             JMenu hyperStackSubMenu = new JMenu("Open HyperStack");
-            if (hyperStack) actions[idx++] = hyperStackSubMenu;
+            actions[idx++] = hyperStackSubMenu;
             JMenu runSegAndTrackingSubMenu = new JMenu("Run segmentation and tracking");
             actions[idx++] = runSegAndTrackingSubMenu;
             JMenu runTrackingSubMenu = new JMenu("Run tracking");
@@ -293,25 +292,23 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 );
                 kymographSubMenu.add(openKymograph[i]);
             }
-            if (hyperStack) {
-                openHyperStack = new JMenuItem[structureNames.length];
-                for (int i = 0; i < openHyperStack.length; i++) {
-                    openHyperStack[i] = new JMenuItem(structureNames[i]);
-                    openHyperStack[i].setAction(new AbstractAction(structureNames[i]) {
-                                                @Override
-                                                public void actionPerformed(ActionEvent ae) {
-                                                    logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
-                                                    //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
-                                                    //trackNode.loadAllTrackObjects(path);
-                                                    int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                                                    IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx); // TODO made this method generic
-                                                    GUI.getInstance().setInteractiveStructureIdx(structureIdx);
-                                                    GUI.getInstance().setTrackStructureIdx(structureIdx);
-                                                }
+            openHyperStack = new JMenuItem[structureNames.length];
+            for (int i = 0; i < openHyperStack.length; i++) {
+                openHyperStack[i] = new JMenuItem(structureNames[i]);
+                openHyperStack[i].setAction(new AbstractAction(structureNames[i]) {
+                                            @Override
+                                            public void actionPerformed(ActionEvent ae) {
+                                                logger.debug("opening hyperStack raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
+                                                //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
+                                                //trackNode.loadAllTrackObjects(path);
+                                                int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
+                                                IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx); // TODO made this method generic
+                                                GUI.getInstance().setInteractiveStructureIdx(structureIdx);
+                                                GUI.getInstance().setTrackStructureIdx(structureIdx);
                                             }
-                    );
-                    hyperStackSubMenu.add(openHyperStack[i]);
-                }
+                                        }
+                );
+                hyperStackSubMenu.add(openHyperStack[i]);
             }
             runSegAndTracking = new JMenuItem[childStructureNames.length];
             for (int i = 0; i < runSegAndTracking.length; i++) {
@@ -454,18 +451,15 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
             });
         }
         public Object[] getDisplayComponent(boolean multipleSelection) {
-            boolean hyperstack = Core.enableHyperStackView;
-            int inc = hyperstack?1:0;
             if (noChildStructure) {
                 if (multipleSelection) {
-                    return new JMenuItem[]{actions[4+inc], actions[5+inc], actions[6+inc]};
+                    return new JMenuItem[]{actions[5], actions[6], actions[7]};
                 } else {
-                    if (hyperstack) return new JMenuItem[]{actions[0], actions[1], actions[4+inc], actions[5+inc], actions[6+inc]};
-                    else return new JMenuItem[]{actions[0], actions[4+inc], actions[5+inc], actions[6+inc]};
+                    return new JMenuItem[]{actions[0], actions[1], actions[5], actions[6], actions[7]};
                 }
             } else {
                 if (multipleSelection) {
-                    return new JMenuItem[]{actions[1+inc], actions[2+inc], actions[3+inc], actions[4+inc], actions[5+inc], actions[6+inc]};
+                    return new JMenuItem[]{actions[2], actions[3], actions[4], actions[5], actions[6], actions[7]};
                 } else return actions;
             }
         }
