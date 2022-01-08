@@ -19,6 +19,7 @@
 package bacmman.binding;
 
 import bacmman.core.Core;
+import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.gui.image_interaction.IJImageDisplayer;
 import bacmman.ui.gui.image_interaction.IJImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
@@ -54,6 +55,7 @@ public class IJ1 implements PlugIn {
         Core.setFreeDisplayerMemory(man::flush);
         Core.setImageDisplayer(disp::showImage);
         Core.setImage5dDisplayer(disp::showImage5D);
+        Core.getCore().getGithubGateway().setPromptGithubCredientials(PromptGithubCredentials::promptCredentials);
     }
 
     public static void main(String[] args) {
@@ -117,6 +119,7 @@ public class IJ1 implements PlugIn {
                     initCore();
                     GUI gui = new GUI();
                     Core.setUserLogger(gui);
+                    Core.getCore().getGithubGateway().setLogger(gui);
                     gui.setVisible(true);
                     gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
                     IJ.setTool("freeline");
