@@ -158,19 +158,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
-
-    final private Map<String, char[]> githubPasswords = new HashMap<>();
-
-    // trackMate interface
-    private TrackMatePanel trackMatePanel;
+    TrackMatePanel trackMatePanel;
     /**
      * Creates new form GUI
      */
     public GUI() {
         logger.info("Creating GUI instance...");
         this.INSTANCE=this;
-        // trackMate interface
-        if (Core.enableTrackMate) trackMatePanel = new TrackMatePanel();
         initComponents();
         dsTree = new DatasetTree(datasetTree);
 
@@ -210,7 +204,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     db.clearCache();
                 }
                 if (pyGtw!=null) pyGtw.stopGateway();
-                githubPasswords.clear();
+                Core.getCore().getGithubGateway().clear();
                 INSTANCE = null;
                 if (Core.getCore().getOmeroGateway()!=null) Core.getCore().getOmeroGateway().close();
                 logger.debug("Closed successfully");
@@ -235,9 +229,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 + "<li><b>"+runActionList.getModel().getElementAt(0)+"</b>: Performs pre-processing pipeline on selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(1)+"</b>: Performs segmentation and tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected)</li>"
                 + "<li><b>"+runActionList.getModel().getElementAt(2)+"</b>: Performs Tracking on selected object classes (all if none is selected) and selected positions (or all if none is selected). Ignored if "+runActionList.getModel().getElementAt(1)+" is selected.</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Pre-computes kymographs and saves them in the dataset folder in order to have a faster display of kymograph, and to eventually allow erasing pre-processed images to save disk-space</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
-                + "<li><b>"+runActionList.getModel().getElementAt(5)+"</b>: Extract measurements of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
+                //+ "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Pre-computes kymographs and saves them in the dataset folder in order to have a faster display of kymograph, and to eventually allow erasing pre-processed images to save disk-space</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(3)+"</b>: Computes measurements on selected positions (or all if none is selected)</li>"
+                + "<li><b>"+runActionList.getModel().getElementAt(4)+"</b>: Extract measurements of selected object classes (or all is none is selected) on selected positions (or all if none is selected), and saves them in one single .csv <em>;</em>-separated file per object class in the dataset folder</li>"
                 //+ "<li><b>"+runActionList.getModel().getElementAt(6)+"</b>: Export data from this dataset (segmentation and tracking results, configuration...) of all selected positions (or all if none is selected) in a single zip archive that can be imported. Exported data can be configured in the menu <em>Import/Export / Export Options</em></li></ol>"
         ));
         this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
@@ -269,7 +263,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
@@ -701,28 +695,42 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
                 updateConfigurationTabValidity();
             };
-            JMenuItem remoteIO = new JMenuItem("Import/Export configuration from Github server");
+            JMenuItem remoteIO = new JMenuItem("Online Configuration Library");
             this.importMenu.add(remoteIO);
             remoteIO.addActionListener(e -> {
                 if (!checkConnection()) return;
-                new ConfigurationIO(db, githubPasswords, onClose).display(this);
+                new ConfigurationIO(db, Core.getCore().getGithubGateway(), onClose, this).display(this);
             });
-            JMenuItem remoteIO2 = new JMenuItem("Import/Export configuration from Github server");
+            JMenuItem remoteIO2 = new JMenuItem("Online Configuration Library");
             this.exportMenu.add(remoteIO2);
             remoteIO2.addActionListener(e -> {
                 if (!checkConnection()) return;
-                new ConfigurationIO(db, githubPasswords, onClose).display(this);
+                new ConfigurationIO(db, Core.getCore().getGithubGateway(), onClose, this).display(this);
             });
-            JMenuItem dlModelLib = new JMenuItem("DL Model library");
+            JMenuItem dlModelLib = new JMenuItem("Online DL Model library");
             this.exportMenu.add(dlModelLib);
             dlModelLib.addActionListener(e -> {
-                new DLModelsLibrary(githubPasswords).display(this);
+                new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(),  this).display(this);
             });
-            JMenuItem dlModelLib2 = new JMenuItem("DL Model library");
+            JMenuItem dlModelLib2 = new JMenuItem("Online DL Model library");
             this.importMenu.add(dlModelLib);
             dlModelLib2.addActionListener(e -> {
-                new DLModelsLibrary(githubPasswords).display(this);
+                new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), this).display(this);
             });
+        }
+        if (Core.enableTrackMate) {
+            openTrackMateMenuItem.setText("Open TrackMate");
+            openTrackMateMenuItem.addActionListener(new java.awt.event.ActionListener() {
+                public void actionPerformed(java.awt.event.ActionEvent evt) {
+                    boolean wasOpen = trackMatePanel!=null;
+                    if (!wasOpen) trackMatePanel = new TrackMatePanel(() -> {
+                        INSTANCE.trackMatePanel = null;
+                    });
+                    trackMatePanel.updateComponents(db, INSTANCE);
+                    if (!wasOpen) trackMatePanel.display(INSTANCE);
+                }
+            });
+            importMenu.add(openTrackMateMenuItem);
         }
     }
     private void setDataBrowsingButtonsTitles() {
@@ -774,7 +782,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);
         tabs.setEnabledAt(3, !running);
-        if (Core.enableTrackMate) this.tabs.setEnabledAt(4, !running); // trackMate
         if (!running) updateDisplayRelatedToXPSet();
     }
 
@@ -1039,7 +1046,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         reloadObjectTrees=true;
         populateModuleList(moduleModel, moduleList, null, Collections.emptyList());
         hintTextPane.setText("");
-        if (trackMatePanel!=null) trackMatePanel.close();
+        if (trackMatePanel!=null) trackMatePanel.dispose();
     }
     
     private void updateDisplayRelatedToXPSet() {
@@ -1054,7 +1061,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.tabs.getComponentAt(1).setForeground(enable ? Color.black : Color.gray);
         this.tabs.setEnabledAt(2, enable); // test
         this.tabs.setEnabledAt(3, enable); // data browsing
-        if (Core.enableTrackMate) this.tabs.setEnabledAt(4, enable); // trackMate
         // readOnly
         if (enable) {
             boolean rw = !db.isConfigurationReadOnly();
@@ -1193,7 +1199,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             populateTestParentTrackHead();
             updateTestConfigurationTree();
         }
-        if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
+        //if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
     }
     
     public static GUI getInstance() {
@@ -1429,6 +1435,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         newXPMenuItem = new javax.swing.JMenuItem();
         newXPFromTemplateMenuItem = new javax.swing.JMenuItem();
         newDatasetFromGithubMenuItem = new javax.swing.JMenuItem();
+        openTrackMateMenuItem = new javax.swing.JMenuItem();
         deleteXPMenuItem = new javax.swing.JMenuItem();
         duplicateXPMenuItem = new javax.swing.JMenuItem();
         saveConfigMenuItem = new javax.swing.JMenuItem();
@@ -1537,7 +1544,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         runActionList.setBackground(new java.awt.Color(247, 246, 246));
         runActionList.setModel(new javax.swing.AbstractListModel() {
-            String[] strings = { "Pre-Processing", "Segment and Track", "Track only", "Generate Kymographs", "Measurements", "Extract Measurements" }; //"Export Data"
+            String[] strings = { "Pre-Processing", "Segment and Track", "Track only", "Measurements", "Extract Measurements" }; //"Export Data"
             public int getSize() { return strings.length; }
             public Object getElementAt(int i) { return strings[i]; }
         });
@@ -2197,11 +2204,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         tabs.addTab("Data Browsing", dataPanel);
 
-        // trackmate
-        if (Core.enableTrackMate) {
-            tabs.addTab("TrackMate", trackMatePanel.getPanel());
-        }
-
         homeSplitPane.setLeftComponent(tabs);
 
         consoleJSP.setBackground(new Color(getBackground().getRGB()));
@@ -2295,7 +2297,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         experimentMenu.add(newXPFromTemplateMenuItem);
 
-        newDatasetFromGithubMenuItem.setText("New dataset from Github");
+        newDatasetFromGithubMenuItem.setText("New dataset from Online Library");
         newDatasetFromGithubMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 newDatasetFromGithubMenuItemActionPerformed(evt);
@@ -2365,7 +2367,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         runMenu.add(runActionAllXPMenuItem);
 
-        extractMeasurementMenuItem.setText("Extract Measurements");
+        extractMeasurementMenuItem.setText("Extract Measurements to...");
         extractMeasurementMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 extractMeasurementMenuItemActionPerformed(evt);
@@ -2808,7 +2810,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {
-                if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(parentTrack, (KymographT)ii, true, currentImageStructure);
+                if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(parentTrack, (KymographT)ii, true, currentImageStructure);
                 else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
             }
             else ImageWindowManagerFactory.getImageManager().setActive(im);
@@ -2905,11 +2907,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 logger.debug("next parent: {} among: {}", nextParent, parents);
                 List track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-                InteractiveImageKey.TYPE type = i!=null ? i.getKey().imageType : defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.FRAME_STACK; // TODO set an option to open as kymographs / frame stack
+                InteractiveImageKey.TYPE type = i!=null ? i.getKey().imageType : defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.HYPERSTACK; // TODO set an option to open as kymographs / frame stack
                 InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx(), type);
                 Image im = iwm.getImage(nextI);
                 if (im==null) {
-                    if (i.getKey().imageType== InteractiveImageKey.TYPE.FRAME_STACK) IJVirtualStack.openVirtual(track, (KymographT)nextI, true, sel.getStructureIdx());
+                    if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(track, (KymographT)nextI, true, sel.getStructureIdx());
                     else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
@@ -3358,9 +3360,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (i==0) preProcess=true;
             if (i==1) segmentAndTrack=true;
             if (i==2) trackOnly = !segmentAndTrack;
-            if (i==3) generateTrackImages=true;
-            if (i==4) runMeasurements=true;
-            if (i==5) extract=true;
+            //if (i==3) generateTrackImages=true;
+            if (i==3) runMeasurements=true;
+            if (i==4) extract=true;
             //if (i==6) export=true;
         }
         Task t;
@@ -3765,8 +3767,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 Set<Integer> allowedActionsRunWithSel = new HashSet<Integer>() {{
                     add(1);
                     add(2);
+                    add(3);
                     add(4);
-                    add(5);
                 }};
                 int[] selActions = runActionList.getSelectedIndices();
                 boolean segTrack = IntStream.of(selActions).anyMatch(i->i==1 || i==2);
@@ -4446,7 +4448,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_testModeJCBItemStateChanged
 
     private void newDatasetFromGithubMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newDatasetFromGithubMenuItemActionPerformed
-        JSONObject xp = NewDatasetFromGithub.promptExperiment(githubPasswords);
+        JSONObject xp = NewDatasetFromGithub.promptExperiment(Core.getCore().getGithubGateway(), this);
         if (xp==null) return;
         if (!newXPMenuItemActionPerformed(evt)) return;
 
@@ -4809,6 +4811,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JList<String> moduleList;
     private javax.swing.JScrollPane moduleListJSP;
     private javax.swing.JMenuItem newDatasetFromGithubMenuItem;
+    private javax.swing.JMenuItem openTrackMateMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;

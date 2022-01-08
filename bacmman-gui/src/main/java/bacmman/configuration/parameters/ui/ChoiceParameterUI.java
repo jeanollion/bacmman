@@ -22,6 +22,7 @@ import static bacmman.ui.GUI.logger;
 
 import bacmman.configuration.parameters.*;
 import bacmman.plugins.HintSimple;
+import bacmman.ui.gui.MenuScroller;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
@@ -42,6 +43,7 @@ import javax.swing.JSeparator;
  * @author Jean Ollion
  */
 public class ChoiceParameterUI implements ArmableUI {
+    public static int MAX_MENU_ITEMS = 30;
     ChoosableParameter choice;
     ConditionalParameterAbstract cond;
     ConfigurationTreeModel model;
@@ -106,6 +108,9 @@ public class ChoiceParameterUI implements ArmableUI {
         if (subMenuTitle!=null) {
             JMenu subMenu = new JMenu(subMenuTitle);
             for (JMenuItem a : actionChoice) subMenu.add(a);
+            if (actionChoice.length>MAX_MENU_ITEMS) {
+                MenuScroller.setScrollerFor(subMenu, MAX_MENU_ITEMS, 125, 0, 0);
+            }
             allActions = new ArrayList(){{add(subMenu);}};
         } else allActions = new ArrayList(Arrays.asList(actionChoice));
         refreshArming();

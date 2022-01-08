@@ -1,10 +1,14 @@
 package bacmman.ui.gui.configurationIO;
 
+import bacmman.core.DefaultWorker;
+import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -17,19 +21,20 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeCellRenderer;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static bacmman.ui.gui.Utils.getDisplayedImage;
 
 public class DLModelsLibrary {
     private JTextField username;
-    private JTextField token;
     private JPasswordField password;
-    private JButton storeToken;
+    private JButton generateToken;
     private JButton loadToken;
     private JPanel dlModelsPanel;
     private JButton storeButton;
@@ -41,18 +46,32 @@ public class DLModelsLibrary {
     private JPanel actionPanel;
     private JButton duplicateButton;
     private JButton setThumbnailButton;
+    private JButton configureParameterButton;
     JFrame displayingFrame;
-    Map<String, char[]> savedPassword;
+    GithubGateway gateway;
     List<GistDLModel> gists;
     boolean loggedIn = false;
     DLModelGistTreeGenerator tree;
     private static final Logger logger = LoggerFactory.getLogger(DLModelsLibrary.class);
+    String currentDirectory;
+    ProgressLogger pcb;
+    BiConsumer<String, DLModelMetadata> configureParameterCallback;
+    JDialog dia;
 
-    public DLModelsLibrary(Map<String, char[]> savedPassword) {
-        this.savedPassword = savedPassword;
+    public DLModelsLibrary(GithubGateway gateway, String currentDirectory, ProgressLogger pcb) {
+        this.gateway = gateway;
+        this.currentDirectory = currentDirectory;
+        this.pcb = pcb;
+        if (pcb instanceof JFrame) displayingFrame = (JFrame) pcb;
+        // persistence of username account:
+        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true); // TODO sabilab instead ?
+        if (gateway.getUsername() != null && gateway.getUsername().length() > 0)
+            username.setText(gateway.getUsername());
+        if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
+            password.setText(String.valueOf(gateway.getPassword(username.getText())));
         username.addActionListener(e -> {
-            if (password.getPassword().length == 0 && savedPassword.containsKey(username.getText()))
-                password.setText(String.valueOf(savedPassword.get(username.getText())));
+            if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
+                password.setText(String.valueOf(gateway.getPassword(username.getText())));
             fetchGists();
             updateGistDisplay();
             updateEnableButtons();
@@ -73,31 +92,10 @@ public class DLModelsLibrary {
             public void changedUpdate(DocumentEvent documentEvent) {
                 enableTokenButtons();
             }
-
         };
         username.getDocument().addDocumentListener(dl);
         password.getDocument().addDocumentListener(dl);
-        token.getDocument().addDocumentListener(dl);
-        storeToken.addActionListener(e -> {
-            String username = this.username.getText();
-            char[] pass = password.getPassword();
-            String token = this.token.getText();
-            if (username.length() > 0 && pass.length > 0 && token.length() > 0) {
-                try {
-                    TokenAuth.encryptAndStore(username, pass, token);
-                    GUI.log("Token stored successfully");
-                    enableTokenButtons();
-                    fetchGists();
-                    updateGistDisplay();
-                    this.token.setText("");
-                } catch (Throwable t) {
-                    GUI.log("Could not store token");
-                    logger.error("could not store token", t);
-                }
-            }
-        });
         loadToken.addActionListener(e -> {
-            savedPassword.put(username.getText(), password.getPassword());
             fetchGists();
             updateGistDisplay();
             updateEnableButtons();
@@ -108,6 +106,7 @@ public class DLModelsLibrary {
             String currentFolder = tree.getSelectedFolder();
             SaveDLModelGist form = new SaveDLModelGist();
             if (currentFolder != null) form.setFolder(currentFolder);
+            form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
             form.display(displayingFrame, "Store dl model");
             if (form.canceled) return;
             // check that name does not already exists
@@ -141,11 +140,12 @@ public class DLModelsLibrary {
                     gists.remove(g);
                     g.delete(getAuth());
                 });
+                tree.removeFolder(folder);
             } else {
                 gist.delete(getAuth());
                 gists.remove(gist);
+                tree.removeGist(gist);
             }
-            updateGistDisplay();
         });
         updateButton.addActionListener(e -> {
             if (tree == null || !loggedIn) return;
@@ -158,12 +158,14 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible()).disableVisibleField();
+            form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
             form.display(displayingFrame, "Update model...");
             if (form.canceled) return;
             gist.setDescription(form.description());
             gist.setContent(form.url(), form.metadata());
-            gist.updateIfNecessary(getAuth());
-            updateGistDisplay();
+            gist.uploadIfNecessary(getAuth());
+            tree.updateSelectedGistDisplay();
+            //updateGistDisplay();
         });
         duplicateButton.addActionListener(e -> {
             if (tree == null || !loggedIn) return;
@@ -176,6 +178,7 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible());
+            form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
             form.display(displayingFrame, "Duplicate model...");
             if (form.canceled) return;
             // check that name does not already exists
@@ -204,30 +207,47 @@ public class DLModelsLibrary {
             if (image != null) { // if null -> remove thumbnail ?
                 if (image instanceof ImagePlus) {
                     ImagePlus ip = (ImagePlus) image;
-                    BufferedImage bimage = ip.getBufferedImage();
+                    BufferedImage bimage = getDisplayedImage(ip);
                     bimage = IconUtils.zoomToSize(bimage, 128);
                     tree.setIconToCurrentlySelectedGist(bimage);
+                    tree.getSelectedGistNode().gist.uploadThumbnail(getAuth());
                 }
             }
         });
-        // persistence of username account:
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true); // TODO sabilab instead
+        configureParameterButton.addActionListener(e -> {
+            if (configureParameterCallback != null) {
+                GistDLModel gist = tree.getSelectedGist();
+                if (gist != null) configureParameterCallback.accept(gist.getModelID(), gist.getMetadata());
+            }
+        });
+
         if (username.getText().length() > 0) {
             fetchGists();
             updateGistDisplay();
         }
+        generateToken.addActionListener(e -> {
+            Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(username.getText(), password.getPassword(), pcb);
+            if (usernameAndPassword != null) {
+                gateway.setCredentials(usernameAndPassword.key, usernameAndPassword.value);
+                this.username.setText(usernameAndPassword.key);
+                this.password.setText(String.valueOf(usernameAndPassword.value));
+            }
+        });
     }
 
+    public void setConfigureParameterCallback(BiConsumer<String, DLModelMetadata> callback) {
+        this.configureParameterCallback = callback;
+    }
 
     private void updateGistDisplay() {
         if (gists == null) fetchGists();
         GistDLModel lastSel = tree == null ? null : tree.getSelectedGist();
+        Stream expState = tree == null ? null : tree.getExpandedState();
         if (tree != null) tree.flush();
-        tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons);
+        tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons, currentDirectory, pcb);
         DLModelsJSP.setViewportView(tree.getTree());
-        if (lastSel != null) {
-            tree.setSelectedGist(lastSel);
-        }
+        if (lastSel != null) tree.setSelectedGist(lastSel);
+        if (expState != null) tree.setExpandedState(expState);
     }
 
     private void updateEnableButtons() {
@@ -237,17 +257,15 @@ public class DLModelsLibrary {
         duplicateButton.setEnabled(loggedIn && gistSel);
         removeButton.setEnabled(loggedIn && (gistSel || folderSel));
         updateButton.setEnabled(loggedIn && gistSel);
-        setThumbnailButton.setEnabled(gistSel);
+        setThumbnailButton.setEnabled(loggedIn && gistSel);
+        configureParameterButton.setEnabled(gistSel && configureParameterCallback != null);
     }
 
     private void enableTokenButtons() {
         String u = username.getText();
         char[] p = password.getPassword();
-        String t = token.getText();
-        boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
-        boolean enableLoad = u.length() != 0; // && p.length != 0;
+        boolean enableLoad = u.length() != 0 && p.length != 0;
         loadToken.setEnabled(enableLoad);
-        storeToken.setEnabled(enableSave);
     }
 
     private void fetchGists() {
@@ -258,12 +276,12 @@ public class DLModelsLibrary {
         } else {
             UserAuth auth = getAuth();
             if (auth instanceof NoAuth) {
-                gists = GistDLModel.getPublic(account);
+                gists = GistDLModel.getPublic(account, pcb);
                 loggedIn = false;
             } else {
-                gists = GistDLModel.get(auth);
+                gists = GistDLModel.get(auth, pcb);
                 if (gists == null) {
-                    gists = GistDLModel.getPublic(account);
+                    gists = GistDLModel.getPublic(account, pcb);
                     loggedIn = false;
                     GUI.log("Could authenticate. Wrong username / password / token ?");
                 } else loggedIn = true;
@@ -275,25 +293,18 @@ public class DLModelsLibrary {
     }
 
     private UserAuth getAuth() {
-        if (password.getPassword().length == 0) return new NoAuth();
-        else {
-            try {
-                UserAuth auth = new TokenAuth(username.getText(), password.getPassword());
-                GUI.log("Token loaded successfully!");
-                return auth;
-            } catch (IllegalArgumentException e) {
-                GUI.log("No token associated with this username found");
-                return new NoAuth();
-            } catch (Throwable t) {
-                GUI.log("Token could not be retrieved. Wrong password ?");
-                return new NoAuth();
-            }
-        }
+        gateway.setCredentials(username.getText(), password.getPassword());
+        return gateway.getAuthentication(false);
     }
 
     public void display(JFrame parent) {
-        JDialog dia = new Dial(parent, "Import/Export DL Model weights from Github");
+        dia = new Dial(parent, "Import/Export DL Model weights from Github");
         dia.setVisible(true);
+    }
+
+    public void close() {
+        if (dia != null) dia.dispose();
+        if (tree != null) tree.flush();
     }
 
     {
@@ -331,33 +342,23 @@ public class DLModelsLibrary {
         password = new JPasswordField();
         password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
         panel2.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        final JPanel panel3 = new JPanel();
-        panel3.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        credentialPane.add(panel3, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        panel3.setBorder(BorderFactory.createTitledBorder(null, "Gist Token", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        token = new JTextField();
-        token.setToolTipText("paste here a personal access token with gist permission generated at: https://github.com/settings/tokens ");
-        panel3.add(token, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        final JPanel panel4 = new JPanel();
-        panel4.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
-        credentialPane.add(panel4, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        storeToken = new JButton();
-        storeToken.setText("Store Token");
-        panel4.add(storeToken, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         loadToken = new JButton();
         loadToken.setText("Connect");
-        panel4.add(loadToken, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        credentialPane.add(loadToken, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        generateToken = new JButton();
+        generateToken.setText("Generate Token");
+        credentialPane.add(generateToken, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         dlModelsPanel = new JPanel();
         dlModelsPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(dlModelsPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         dlModelsPanel.setBorder(BorderFactory.createTitledBorder(null, "DL Models", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         DLModelsJSP = new JScrollPane();
-        dlModelsPanel.add(DLModelsJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(200, 200), null, null, 0, false));
+        dlModelsPanel.add(DLModelsJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(600, 200), null, null, 0, false));
         actionPanel = new JPanel();
         actionPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(actionPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         storeButton = new JButton();
-        storeButton.setText("Store");
+        storeButton.setText("New");
         storeButton.setToolTipText("Store a new model");
         actionPanel.add(storeButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         removeButton = new JButton();
@@ -376,6 +377,11 @@ public class DLModelsLibrary {
         updateButton.setText("Update");
         updateButton.setToolTipText("Modify and update selected model");
         actionPanel.add(updateButton, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        configureParameterButton = new JButton();
+        configureParameterButton.setEnabled(false);
+        configureParameterButton.setText("Configure Parameter");
+        configureParameterButton.setToolTipText("Configure the current parameter using the metadata of the selected model. ");
+        actionPanel.add(configureParameterButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
@@ -387,7 +393,7 @@ public class DLModelsLibrary {
 
     private class Dial extends JDialog {
         Dial(JFrame parent, String title) {
-            super(parent, title, true);
+            super(parent, title, false);
             getContentPane().add(contentPane);
             getContentPane().setFocusTraversalPolicy(new LayoutFocusTraversalPolicy());
             setDefaultCloseOperation(DISPOSE_ON_CLOSE);

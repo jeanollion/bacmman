@@ -309,7 +309,7 @@ public class SelectionUtils {
         List<SegmentedObject> parentList = new ArrayList<>(parents);
         Collections.sort(parentList);
         
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), GUI.defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.FRAME_STACK);
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), GUI.defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.HYPERSTACK);
         ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(displayStructureIdx, true), i, displayStructureIdx, true);
     }
         

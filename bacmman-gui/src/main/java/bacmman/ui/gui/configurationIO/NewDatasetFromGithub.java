@@ -1,11 +1,11 @@
 package bacmman.ui.gui.configurationIO;
 
-import bacmman.configuration.experiment.Experiment;
-import bacmman.configuration.parameters.ContainerParameter;
+import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
-import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
+import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -21,7 +21,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 public class NewDatasetFromGithub extends JDialog {
     private JPanel contentPane;
@@ -34,17 +33,18 @@ public class NewDatasetFromGithub extends JDialog {
     private JPanel configPanel;
     private JPanel selectorPanel;
     private JTextField token;
-    private JButton storeTokenButton;
+    private JButton generateToken;
     private JButton loadTokenButton;
-    Map<String, char[]> savedPassword;
+    GithubGateway gateway;
     JSONObject selectedXP;
     List<GistConfiguration> gists;
     boolean loggedIn;
     ConfigurationGistTreeGenerator remoteSelector;
     private static final Logger logger = LoggerFactory.getLogger(NewDatasetFromGithub.class);
+    ProgressLogger bacmmanLogger;
 
-    public NewDatasetFromGithub(Map<String, char[]> savedPassword) {
-
+    public NewDatasetFromGithub(GithubGateway gateway, ProgressLogger bacmmanLogger) {
+        this.bacmmanLogger = bacmmanLogger;
         setContentPane(contentPane);
         setModal(true);
         getRootPane().setDefaultButton(buttonOK);
@@ -61,7 +61,7 @@ public class NewDatasetFromGithub extends JDialog {
             }
         });
 
-        this.savedPassword = savedPassword;
+        this.gateway = gateway;
 
         // call onCancel() when cross is clicked
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -96,39 +96,25 @@ public class NewDatasetFromGithub extends JDialog {
         };
         username.getDocument().addDocumentListener(dl);
         password.getDocument().addDocumentListener(dl);
-        token.getDocument()
-                .addDocumentListener(dl);
         username.addActionListener(e -> {
-            if (password.getPassword().length == 0 && savedPassword.containsKey(username.getText()))
-                password.setText(String.valueOf(savedPassword.get(username.getText())));
+            if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
+                password.setText(String.valueOf(gateway.getPassword(username.getText())));
             fetchGists();
             updateRemoteSelector();
         });
         password.addActionListener(e -> {
-            savedPassword.put(username.getText(), password.getPassword());
             fetchGists();
             updateRemoteSelector();
         });
-        storeTokenButton.addActionListener(e -> {
-            String username = this.username.getText();
-            char[] pass = password.getPassword();
-            String token = this.token.getText();
-            if (username.length() > 0 && pass.length > 0 && token.length() > 0) {
-                try {
-                    TokenAuth.encryptAndStore(username, pass, token);
-                    GUI.log("Token stored successfully");
-                    enableTokenButtons();
-                    fetchGists();
-                    updateRemoteSelector();
-                    this.token.setText("");
-                } catch (Throwable t) {
-                    GUI.log("Could not store token");
-                    logger.error("could not store token", t);
-                }
+        generateToken.addActionListener(e -> {
+            Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(username.getText(), password.getPassword(), bacmmanLogger);
+            if (usernameAndPassword != null) {
+                gateway.setCredentials(usernameAndPassword.key, usernameAndPassword.value);
+                this.username.setText(usernameAndPassword.key);
+                this.password.setText(String.valueOf(usernameAndPassword.value));
             }
         });
         loadTokenButton.addActionListener(e -> {
-            savedPassword.put(username.getText(), password.getPassword());
             fetchGists();
             updateRemoteSelector();
         });
@@ -140,15 +126,11 @@ public class NewDatasetFromGithub extends JDialog {
     private void enableTokenButtons() {
         String u = username.getText();
         char[] p = password.getPassword();
-        String t = token.getText();
-        boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
         boolean enableLoad = u.length() != 0 && p.length != 0;
         loadTokenButton.setEnabled(enableLoad);
-        storeTokenButton.setEnabled(enableSave);
     }
 
     private void onOK() {
-        // add your code here
         dispose();
     }
 
@@ -157,12 +139,11 @@ public class NewDatasetFromGithub extends JDialog {
         dispose();
     }
 
-    public static JSONObject promptExperiment(Map<String, char[]> savedPassword) {
-        NewDatasetFromGithub dialog = new NewDatasetFromGithub(savedPassword);
+    public static JSONObject promptExperiment(GithubGateway gateway, ProgressLogger logger) {
+        NewDatasetFromGithub dialog = new NewDatasetFromGithub(gateway, logger);
         dialog.setTitle("Select a configuration file");
         dialog.pack();
         dialog.setVisible(true);
-        //System.exit(0);
         return dialog.selectedXP;
     }
 
@@ -192,12 +173,12 @@ public class NewDatasetFromGithub extends JDialog {
         } else {
             UserAuth auth = getAuth();
             if (auth instanceof NoAuth) {
-                gists = GistConfiguration.getPublicConfigurations(account);
+                gists = GistConfiguration.getPublicConfigurations(account, bacmmanLogger);
                 loggedIn = false;
             } else {
-                gists = GistConfiguration.getConfigurations(auth);
+                gists = GistConfiguration.getConfigurations(auth, bacmmanLogger);
                 if (gists == null) {
-                    gists = GistConfiguration.getPublicConfigurations(account);
+                    gists = GistConfiguration.getPublicConfigurations(account, bacmmanLogger);
                     loggedIn = false;
                     GUI.log("Could authenticate. Wrong username / token ?");
                 } else loggedIn = true;
@@ -209,20 +190,8 @@ public class NewDatasetFromGithub extends JDialog {
     }
 
     private UserAuth getAuth() {
-        if (password.getPassword().length == 0) return new NoAuth();
-        else {
-            try {
-                UserAuth auth = new TokenAuth(username.getText(), password.getPassword());
-                GUI.log("Token loaded successfully!");
-                return auth;
-            } catch (IllegalArgumentException e) {
-                GUI.log("No token associated with this username found");
-                return new NoAuth();
-            } catch (Throwable t) {
-                GUI.log("Token could not be retrieved. Wrong password ?");
-                return new NoAuth();
-            }
-        }
+        gateway.setCredentials(username.getText(), password.getPassword());
+        return gateway.getAuthentication(false);
     }
 
     {
@@ -260,7 +229,7 @@ public class NewDatasetFromGithub extends JDialog {
         selectorPanel.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(selectorPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         final JPanel panel2 = new JPanel();
-        panel2.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
+        panel2.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         selectorPanel.add(panel2, new GridConstraints(0, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         panel2.setBorder(BorderFactory.createTitledBorder(null, "Github credentials", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         final JPanel panel3 = new JPanel();
@@ -278,21 +247,14 @@ public class NewDatasetFromGithub extends JDialog {
         password = new JPasswordField();
         password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
         panel4.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        final JPanel panel5 = new JPanel();
-        panel5.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panel2.add(panel5, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        panel5.setBorder(BorderFactory.createTitledBorder(null, "Gist Token", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        token = new JTextField();
-        token.setToolTipText("paste here a personal access token with gist permission generated at: https://github.com/settings/tokens ");
-        panel5.add(token, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        storeTokenButton = new JButton();
-        storeTokenButton.setText("Store Token");
-        storeTokenButton.setToolTipText("token will be stored encrypted using the password");
-        panel2.add(storeTokenButton, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        generateToken = new JButton();
+        generateToken.setText("Generate Token");
+        generateToken.setToolTipText("token will be stored encrypted using the password");
+        panel2.add(generateToken, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         loadTokenButton = new JButton();
         loadTokenButton.setText("Connect");
         loadTokenButton.setToolTipText("load a previously stored token and connect to github account");
-        panel2.add(loadTokenButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel2.add(loadTokenButton, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final Spacer spacer2 = new Spacer();
         selectorPanel.add(spacer2, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_VERTICAL, 1, GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         configPanel = new JPanel();

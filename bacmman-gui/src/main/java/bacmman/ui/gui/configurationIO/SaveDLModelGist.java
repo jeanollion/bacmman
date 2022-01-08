@@ -1,20 +1,34 @@
 package bacmman.ui.gui.configurationIO;
 
-import bacmman.github.gist.DLModelMetadata;
+import bacmman.configuration.parameters.FileChooser;
+import bacmman.core.DefaultWorker;
+import bacmman.core.ProgressCallback;
+import bacmman.github.gist.*;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
+import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.Pair;
+import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
+import java.io.File;
+import java.io.IOException;
 
-import static bacmman.plugins.Hint.formatHint;
+import static bacmman.github.gist.GistDLModel.BASE_URL;
+import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 import static bacmman.utils.Utils.SPECIAL_CHAR;
 
 public class SaveDLModelGist {
+    public static final Logger logger = LoggerFactory.getLogger(SaveDLModelGist.class);
     private JPanel namePanel;
     private JTextField name;
     private JPanel folderPanel;
@@ -29,9 +43,15 @@ public class SaveDLModelGist {
     private JPanel panelMain;
     private JPanel metadataPanel;
     private JScrollPane metadataScrollPane;
+    private JPanel modelPanel;
+    private JButton uploadButton;
     boolean canceled = false;
     private DLModelMetadata metadata = new DLModelMetadata();
     private ConfigurationTreeGenerator metadataTG;
+    private UserAuth auth;
+    private String defaultDirectory;
+    private ProgressLogger pcb;
+    Pair<String, DefaultWorker> uploader;
 
     public SaveDLModelGist() {
         KeyAdapter ke = new KeyAdapter() {
@@ -81,12 +101,6 @@ public class SaveDLModelGist {
         folderPanel.setBorder(BorderFactory.createTitledBorder(null, "Folder", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         folder = new JTextField();
         folderPanel.add(folder, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        urlPanel = new JPanel();
-        urlPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panelMain.add(urlPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        urlPanel.setBorder(BorderFactory.createTitledBorder(null, "URL", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        url = new JTextField();
-        urlPanel.add(url, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         descPanel = new JPanel();
         descPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         panelMain.add(descPanel, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -106,10 +120,25 @@ public class SaveDLModelGist {
         scrollPane1.setViewportView(description);
         metadataPanel = new JPanel();
         metadataPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        panelMain.add(metadataPanel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panelMain.add(metadataPanel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(400, -1), null, null, 0, false));
         metadataPanel.setBorder(BorderFactory.createTitledBorder(null, "Metadata", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         metadataScrollPane = new JScrollPane();
-        metadataPanel.add(metadataScrollPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
+        metadataPanel.add(metadataScrollPane, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(600, 200), null, null, 0, false));
+        modelPanel = new JPanel();
+        modelPanel.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        panelMain.add(modelPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        modelPanel.setBorder(BorderFactory.createTitledBorder(null, "Model File", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        urlPanel = new JPanel();
+        urlPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        modelPanel.add(urlPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        urlPanel.setBorder(BorderFactory.createTitledBorder(null, "URL", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        url = new JTextField();
+        urlPanel.add(url, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        uploadButton = new JButton();
+        uploadButton.setEnabled(false);
+        uploadButton.setText("Upload From Disk");
+        uploadButton.setToolTipText("Upload the selected file as a github gist, on the connected github account.  If the selected file is a directory it will be zipped first.");
+        modelPanel.add(uploadButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, 1, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
@@ -130,21 +159,92 @@ public class SaveDLModelGist {
             metadataTG.getTree().setRootVisible(false);
             metadataScrollPane.setViewportView(metadataTG.getTree());
             getContentPane().add(panelMain);
-            setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+            setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
             pack();
             cancel.addActionListener(e -> {
-                canceled = true;
-                setVisible(false);
-                ToolTipManager.sharedInstance().unregisterComponent(metadataTG.getTree());
-                dispose();
+                if (allowCloseCheckUploading()) {
+                    canceled = true;
+                    setVisible(false);
+                    ToolTipManager.sharedInstance().unregisterComponent(metadataTG.getTree());
+                    dispose();
+                }
             });
             OK.addActionListener(e -> {
-                canceled = false;
-                setVisible(false);
-                ToolTipManager.sharedInstance().unregisterComponent(metadataTG.getTree());
-                dispose();
+                if (allowCloseCheckUploading()) {
+                    canceled = false;
+                    setVisible(false);
+                    ToolTipManager.sharedInstance().unregisterComponent(metadataTG.getTree());
+                    dispose();
+                }
             });
+            uploadButton.addActionListener(e -> {
+                File file = Utils.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
+                if (file != null) {
+                    try {
+                        uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", auth, true, id -> {
+                            setURL(GIST_BASE_URL + id);
+                            uploader = null;
+                        }, pcb);
+                    } catch (IOException ex) {
+                        if (pcb != null) pcb.setMessage("Could not store file:" + ex.getMessage());
+                        logger.error("Error storing model file", ex);
+                    }
+                }
+            });
+            DocumentListener dl = new DocumentListener() {
+                @Override
+                public void insertUpdate(DocumentEvent documentEvent) {
+                    setEnableButton();
+                }
+
+                @Override
+                public void removeUpdate(DocumentEvent documentEvent) {
+                    setEnableButton();
+                }
+
+                @Override
+                public void changedUpdate(DocumentEvent documentEvent) {
+                    setEnableButton();
+                }
+            };
+            name.getDocument().addDocumentListener(dl);
+            folder.getDocument().addDocumentListener(dl);
+            url.getDocument().addDocumentListener(dl);
+            setEnableButton();
         }
+
+        private boolean allowCloseCheckUploading() {
+            if (uploader != null && uploader.value != null) {
+                String currentURL = url.getText();
+                boolean cancel = Utils.promptBoolean("Uploading in process... Click Yes to cancel it", this);
+                if (cancel) {
+                    if (uploader != null) { // if process finishes before answer -> uploader is set to null
+                        String id = uploader.key;
+                        uploader.value.cancel(true);
+                        url.setText(currentURL); // callback may have modified url
+                        if (id != null) {
+                            boolean deleted = JSONQuery.delete(BASE_URL + "/gists/" + id, auth);
+                            logger.debug("aborted gist id: {} deleted ? {}", id, deleted);
+                        }
+                        uploader = null;
+                    }
+                    return true;
+                } else return false;
+            } else return true;
+        }
+    }
+
+    public void setEnableButton() {
+        boolean enabled = name.getText().length() > 0 && folder.getText().length() > 0 && url.getText().length() > 0;
+        OK.setEnabled(enabled);
+    }
+
+    public SaveDLModelGist setAuthAndDefaultDirectory(UserAuth auth, String defaultDir, ProgressLogger pcb) {
+        this.auth = auth;
+        this.defaultDirectory = defaultDir;
+        this.pcb = pcb;
+        if (auth != null && !(auth instanceof NoAuth)) uploadButton.setEnabled(true);
+        return this;
     }
 
     public SaveDLModelGist setFolder(String folderName) {

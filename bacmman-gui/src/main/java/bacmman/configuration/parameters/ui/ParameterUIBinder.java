@@ -67,6 +67,11 @@ public class ParameterUIBinder {
             }
             return ui;
         }
+        if (p instanceof CustomParameter) {
+            CustomParameter u = (CustomParameter)p;
+            ChoiceParameterUI ui =  new ChoiceParameterUI(u, "Parameters", model);
+            return ui;
+        }
         if (p instanceof AbstractChoiceParameter) return new ChoiceParameterUI((AbstractChoiceParameter)p, model);
         if (p instanceof ListParameter) return new SimpleListParameterUI((ListParameter)p, model);
         if (p instanceof NoteParameter) return new NoteEditorUI((NoteParameter)p, model);
@@ -79,6 +84,9 @@ public class ParameterUIBinder {
         if (p instanceof Position) return new PositionUI((Position)p, pcb);
         if (p instanceof PreProcessingChain) return new PreProcessingChainUI((PreProcessingChain)p, model);
         if (p instanceof IntervalParameter) return new IntervalParameterUI((IntervalParameter)p, model);
+
+        // other parameters
+        if (p instanceof DLModelFileParameter) return new DLModelFileParameterUI((DLModelFileParameter)p, model);
         return null;
     }
 }

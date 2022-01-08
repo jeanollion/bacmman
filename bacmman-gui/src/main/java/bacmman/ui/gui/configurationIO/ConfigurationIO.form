@@ -3,7 +3,7 @@
   <grid id="27dc6" binding="mainPanel" layout-manager="GridLayoutManager" row-count="4" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
     <margin top="0" left="0" bottom="0" right="0"/>
     <constraints>
-      <xy x="20" y="20" width="1383" height="484"/>
+      <xy x="20" y="20" width="1383" height="609"/>
     </constraints>
     <properties/>
     <border type="none"/>
@@ -11,9 +11,7 @@
       <grid id="9b1d0" binding="nodePanel" layout-manager="GridLayoutManager" row-count="1" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
         <margin top="0" left="0" bottom="0" right="0"/>
         <constraints>
-          <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false">
-            <preferred-size width="600" height="40"/>
-          </grid>
+          <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
         </constraints>
         <properties/>
         <border type="none" title="Step"/>
@@ -35,11 +33,12 @@
       <splitpane id="d402d" binding="mainSP">
         <constraints>
           <grid row="3" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false">
-            <preferred-size width="600" height="600"/>
+            <minimum-size width="300" height="300"/>
+            <preferred-size width="800" height="800"/>
           </grid>
         </constraints>
         <properties>
-          <dividerLocation value="94"/>
+          <dividerLocation value="255"/>
           <orientation value="0"/>
         </properties>
         <border type="none"/>
@@ -49,7 +48,7 @@
               <splitpane position="right"/>
             </constraints>
             <properties>
-              <dividerLocation value="242"/>
+              <dividerLocation value="400"/>
             </properties>
             <border type="none"/>
             <children>
@@ -108,7 +107,76 @@
           </splitpane>
         </children>
       </splitpane>
-      <grid id="54903" binding="actionPanel" layout-manager="GridLayoutManager" row-count="1" column-count="5" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+      <grid id="2f467" binding="credentialPanel" layout-manager="GridLayoutManager" row-count="2" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+        <margin top="0" left="0" bottom="0" right="0"/>
+        <constraints>
+          <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+        </constraints>
+        <properties/>
+        <border type="none" title="Github credentials"/>
+        <children>
+          <grid id="ed5a2" layout-manager="GridLayoutManager" row-count="1" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+            <margin top="0" left="0" bottom="0" right="0"/>
+            <constraints>
+              <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties/>
+            <border type="none" title="Username"/>
+            <children>
+              <component id="93c29" class="javax.swing.JTextField" binding="username">
+                <constraints>
+                  <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
+                    <preferred-size width="150" height="-1"/>
+                  </grid>
+                </constraints>
+                <properties>
+                  <text value="bacmman"/>
+                  <toolTipText value="Enter the username of a github account containing configuration files"/>
+                </properties>
+              </component>
+            </children>
+          </grid>
+          <grid id="f5403" layout-manager="GridLayoutManager" row-count="1" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+            <margin top="0" left="0" bottom="0" right="0"/>
+            <constraints>
+              <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties/>
+            <border type="none" title="Password"/>
+            <children>
+              <component id="a9ef9" class="javax.swing.JPasswordField" binding="password">
+                <constraints>
+                  <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
+                    <preferred-size width="150" height="-1"/>
+                  </grid>
+                </constraints>
+                <properties>
+                  <toolTipText value="&lt;html&gt;Enter a password in order to store a github token or to load a previously stored token. &lt;br /&gt;If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. &lt;br /&gt;This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.&lt;/html&gt;"/>
+                </properties>
+              </component>
+            </children>
+          </grid>
+          <component id="8ec22" class="javax.swing.JButton" binding="generateToken">
+            <constraints>
+              <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Generate Token"/>
+              <toolTipText value="token will be stored encrypted using the password"/>
+            </properties>
+          </component>
+          <component id="a54ce" class="javax.swing.JButton" binding="loadToken">
+            <constraints>
+              <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Connect"/>
+              <toolTipText value="load a previously stored token and connect to github account"/>
+            </properties>
+          </component>
+        </children>
+      </grid>
+      <grid id="70efd" binding="actionPanel" layout-manager="GridLayoutManager" row-count="2" column-count="3" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
         <margin top="0" left="0" bottom="0" right="0"/>
         <constraints>
           <grid row="2" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
@@ -124,14 +192,6 @@
               <text value="Copy to local"/>
             </properties>
           </component>
-          <component id="baf45" class="javax.swing.JButton" binding="updateRemote">
-            <constraints>
-              <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
-            </constraints>
-            <properties>
-              <text value="Update remote"/>
-            </properties>
-          </component>
           <component id="eee45" class="javax.swing.JButton" binding="saveToRemote">
             <constraints>
               <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
@@ -140,79 +200,37 @@
               <text value="Save to remote"/>
             </properties>
           </component>
-          <component id="d024c" class="javax.swing.JButton" binding="deleteRemote">
+          <component id="1326c" class="javax.swing.JButton" binding="setThumbnailButton" default-binding="true">
             <constraints>
-              <grid row="0" column="4" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+              <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
             </constraints>
             <properties>
-              <text value="Delete remote"/>
+              <text value="Set Thumbnail"/>
+              <toolTipText value="Set the active image as thumbnail for the selected model.  Click update to upload the thumbnail."/>
+            </properties>
+          </component>
+          <component id="baf45" class="javax.swing.JButton" binding="updateRemote">
+            <constraints>
+              <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+            </constraints>
+            <properties>
+              <text value="Update remote"/>
             </properties>
           </component>
           <component id="3b488" class="javax.swing.JButton" binding="duplicateRemote">
             <constraints>
-              <grid row="0" column="3" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
+              <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
             </constraints>
             <properties>
               <text value="Duplicate remote"/>
             </properties>
           </component>
-        </children>
-      </grid>
-      <grid id="2f467" binding="credentialPanel" layout-manager="GridLayoutManager" row-count="2" column-count="3" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
-        <margin top="0" left="0" bottom="0" right="0"/>
-        <constraints>
-          <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
-        </constraints>
-        <properties/>
-        <border type="none" title="Github credentials"/>
-        <children>
-          <component id="a9ef9" class="javax.swing.JPasswordField" binding="password">
+          <component id="d024c" class="javax.swing.JButton" binding="deleteRemote">
             <constraints>
-              <grid row="0" column="1" row-span="1" col-span="2" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
-                <preferred-size width="150" height="-1"/>
-              </grid>
+              <grid row="1" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
             </constraints>
             <properties>
-              <toolTipText value="&lt;html&gt;Enter a password in order to store a github token or to load a previously stored token. &lt;br /&gt;If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. &lt;br /&gt;This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.&lt;/html&gt;"/>
-            </properties>
-          </component>
-          <component id="93c29" class="javax.swing.JTextField" binding="username">
-            <constraints>
-              <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
-                <preferred-size width="150" height="-1"/>
-              </grid>
-            </constraints>
-            <properties>
-              <text value="bacmman"/>
-              <toolTipText value="Enter the username of a github account containing configuration files"/>
-            </properties>
-          </component>
-          <component id="ad53b" class="javax.swing.JTextField" binding="token">
-            <constraints>
-              <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
-                <preferred-size width="150" height="-1"/>
-              </grid>
-            </constraints>
-            <properties>
-              <toolTipText value="paste here a personal access token with gist permission generated at: https://github.com/settings/tokens "/>
-            </properties>
-          </component>
-          <component id="8ec22" class="javax.swing.JButton" binding="storeToken">
-            <constraints>
-              <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
-            </constraints>
-            <properties>
-              <text value="Store Token"/>
-              <toolTipText value="token will be stored encrypted using the password"/>
-            </properties>
-          </component>
-          <component id="a54ce" class="javax.swing.JButton" binding="loadToken">
-            <constraints>
-              <grid row="1" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
-            </constraints>
-            <properties>
-              <text value="Connect"/>
-              <toolTipText value="load a previously stored token and connect to github account"/>
+              <text value="Delete remote"/>
             </properties>
           </component>
         </children>

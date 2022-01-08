@@ -4,14 +4,20 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.ContainerParameter;
+import bacmman.core.GithubGateway;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
+import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.IconUtils;
+import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import ij.ImagePlus;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,13 +29,14 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.awt.image.BufferedImage;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static bacmman.plugins.Hint.formatHint;
+import static bacmman.ui.gui.Utils.getDisplayedImage;
 
 public class ConfigurationIO {
     private JComboBox nodeJCB;
@@ -45,7 +52,6 @@ public class ConfigurationIO {
     private JButton copyToLocal;
     private JButton updateRemote;
     private JButton saveToRemote;
-    private JPanel actionPanel;
     private JPasswordField password;
     private JTextField username;
     private JPanel mainPanel;
@@ -53,8 +59,10 @@ public class ConfigurationIO {
     private JButton duplicateRemote;
     private JPanel credentialPanel;
     private JTextField token;
-    private JButton storeToken;
+    private JButton generateToken;
     private JButton loadToken;
+    private JButton setThumbnailButton;
+    private JPanel actionPanel;
 
     private static final Logger logger = LoggerFactory.getLogger(ConfigurationIO.class);
     Experiment xp;
@@ -65,13 +73,15 @@ public class ConfigurationIO {
     List<GistConfiguration> gists;
     JFrame displayingFrame;
     boolean loggedIn = false;
-    Map<String, char[]> savedPassword;
+    GithubGateway gateway;
     Runnable onClose;
+    ProgressLogger bacmmanLogger;
 
-    public ConfigurationIO(MasterDAO db, Map<String, char[]> savedPassword, Runnable onClose) {
+    public ConfigurationIO(MasterDAO db, GithubGateway gateway, Runnable onClose, ProgressLogger bacmmanLogger) {
         this.db = db;
+        this.bacmmanLogger = bacmmanLogger;
         this.xp = db.getExperiment();
-        this.savedPassword = savedPassword;
+        this.gateway = gateway;
         this.onClose = onClose;
         nodeJCB.addItemListener(e -> {
             switch (nodeJCB.getSelectedIndex()) {
@@ -118,8 +128,10 @@ public class ConfigurationIO {
             logger.debug("set local tree: {}", currentMode);
         });
         username.addActionListener(e -> {
-            if (password.getPassword().length == 0 && savedPassword.containsKey(username.getText()))
-                password.setText(String.valueOf(savedPassword.get(username.getText())));
+            if (username.getText().length() > 0) {
+                if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
+                    password.setText(String.valueOf(gateway.getPassword(username.getText())));
+            }
             fetchGists();
             updateRemoteSelector();
         });
@@ -142,27 +154,15 @@ public class ConfigurationIO {
         };
         username.getDocument().addDocumentListener(dl);
         password.getDocument().addDocumentListener(dl);
-        token.getDocument().addDocumentListener(dl);
-        storeToken.addActionListener(e -> {
-            String username = this.username.getText();
-            char[] pass = password.getPassword();
-            String token = this.token.getText();
-            if (username.length() > 0 && pass.length > 0 && token.length() > 0) {
-                try {
-                    TokenAuth.encryptAndStore(username, pass, token);
-                    GUI.log("Token stored successfully");
-                    enableTokenButtons();
-                    fetchGists();
-                    updateRemoteSelector();
-                    this.token.setText("");
-                } catch (Throwable t) {
-                    GUI.log("Could not store token");
-                    logger.error("could not store token", t);
-                }
+        generateToken.addActionListener(e -> {
+            Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(username.getText(), password.getPassword(), bacmmanLogger);
+            if (usernameAndPassword != null) {
+                gateway.setCredentials(usernameAndPassword.key, usernameAndPassword.value);
+                this.username.setText(usernameAndPassword.key);
+                this.password.setText(String.valueOf(usernameAndPassword.value));
             }
         });
         loadToken.addActionListener(e -> {
-            savedPassword.put(username.getText(), password.getPassword());
             fetchGists();
             updateRemoteSelector();
         });
@@ -201,12 +201,13 @@ public class ConfigurationIO {
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
-            updateRemoteSelector();
+            remoteSelector.addGist(toSave);
             remoteSelector.setSelectedGist(toSave, -1);
         });
         deleteRemote.addActionListener(e -> {
             if (remoteSelector == null || !loggedIn) return;
             GistConfiguration gist = remoteSelector.getSelectedGist();
+            List<GistConfiguration> toRemove = new ArrayList<>();
             if (gist == null) {
                 String folder = remoteSelector.getSelectedFolder();
                 if (folder == null) return;
@@ -214,12 +215,14 @@ public class ConfigurationIO {
                 gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {
                     gists.remove(g);
                     g.delete(getAuth());
+                    toRemove.add(g);
                 });
             } else {
                 gist.delete(getAuth());
                 gists.remove(gist);
+                toRemove.add(gist);
             }
-            updateRemoteSelector();
+            remoteSelector.removeGist(toRemove.toArray(new GistConfiguration[0]));
         });
         updateRemote.addActionListener(e -> {
             if (remoteSelector == null || !loggedIn) return;
@@ -260,8 +263,8 @@ public class ConfigurationIO {
                     content = xp.toJSONEntry();
                 } else content = (JSONObject) localConfig.getRoot().toJSONEntry();
             }
-            gist.setJsonContent(content).updateContent(getAuth());
-            updateRemoteSelector();
+            gist.setJsonContent(content).uploadIfNecessary(getAuth());
+            remoteSelector.updateGist(gist);
         });
         copyToLocal.addActionListener(e -> {
             if (remoteConfig == null) return;
@@ -332,10 +335,22 @@ public class ConfigurationIO {
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
-            updateRemoteSelector();
+            remoteSelector.addGist(toSave);
             remoteSelector.setSelectedGist(toSave, -1);
         });
-
+        setThumbnailButton.addActionListener(e -> {
+            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+            if (image != null) { // if null -> remove thumbnail ?
+                if (image instanceof ImagePlus) {
+                    ImagePlus ip = (ImagePlus) image;
+                    BufferedImage bimage = getDisplayedImage(ip);
+                    ip.getWindow();
+                    bimage = IconUtils.zoomToSize(bimage, 128);
+                    remoteSelector.setIconToCurrentlySelectedGist(bimage);
+                    remoteSelector.getSelectedGist().uploadThumbnail(getAuth());
+                }
+            }
+        });
         // persistence of username account:
         PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true);
 
@@ -362,11 +377,8 @@ public class ConfigurationIO {
     private void enableTokenButtons() {
         String u = username.getText();
         char[] p = password.getPassword();
-        String t = token.getText();
-        boolean enableSave = u.length() != 0 && p.length != 0 && t.length() != 0;
         boolean enableLoad = u.length() != 0 && p.length != 0;
         loadToken.setEnabled(enableLoad);
-        storeToken.setEnabled(enableSave);
     }
 
     {
@@ -388,7 +400,7 @@ public class ConfigurationIO {
         mainPanel.setLayout(new GridLayoutManager(4, 1, new Insets(0, 0, 0, 0), -1, -1));
         nodePanel = new JPanel();
         nodePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        mainPanel.add(nodePanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(600, 40), null, 0, false));
+        mainPanel.add(nodePanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         nodePanel.setBorder(BorderFactory.createTitledBorder(null, "Step", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         nodeJCB = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
@@ -398,11 +410,11 @@ public class ConfigurationIO {
         nodeJCB.setModel(defaultComboBoxModel1);
         nodePanel.add(nodeJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         mainSP = new JSplitPane();
-        mainSP.setDividerLocation(94);
+        mainSP.setDividerLocation(255);
         mainSP.setOrientation(0);
-        mainPanel.add(mainSP, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(600, 600), null, 0, false));
+        mainPanel.add(mainSP, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(300, 300), new Dimension(800, 800), null, 0, false));
         configSP = new JSplitPane();
-        configSP.setDividerLocation(242);
+        configSP.setDividerLocation(400);
         mainSP.setRightComponent(configSP);
         localConfigJSP = new JScrollPane();
         configSP.setLeftComponent(localConfigJSP);
@@ -422,46 +434,55 @@ public class ConfigurationIO {
         localSelectorPanel.setBorder(BorderFactory.createTitledBorder(null, "Local Item", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         localSelectorJCB = new JComboBox();
         localSelectorPanel.add(localSelectorJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        credentialPanel = new JPanel();
+        credentialPanel.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
+        mainPanel.add(credentialPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        credentialPanel.setBorder(BorderFactory.createTitledBorder(null, "Github credentials", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        final JPanel panel1 = new JPanel();
+        panel1.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        credentialPanel.add(panel1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panel1.setBorder(BorderFactory.createTitledBorder(null, "Username", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        username = new JTextField();
+        username.setText("bacmman");
+        username.setToolTipText("Enter the username of a github account containing configuration files");
+        panel1.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        final JPanel panel2 = new JPanel();
+        panel2.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        credentialPanel.add(panel2, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        panel2.setBorder(BorderFactory.createTitledBorder(null, "Password", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        password = new JPasswordField();
+        password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
+        panel2.add(password, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        generateToken = new JButton();
+        generateToken.setText("Generate Token");
+        generateToken.setToolTipText("token will be stored encrypted using the password");
+        credentialPanel.add(generateToken, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        loadToken = new JButton();
+        loadToken.setText("Connect");
+        loadToken.setToolTipText("load a previously stored token and connect to github account");
+        credentialPanel.add(loadToken, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         actionPanel = new JPanel();
-        actionPanel.setLayout(new GridLayoutManager(1, 5, new Insets(0, 0, 0, 0), -1, -1));
+        actionPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         mainPanel.add(actionPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         copyToLocal = new JButton();
         copyToLocal.setText("Copy to local");
         actionPanel.add(copyToLocal, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        updateRemote = new JButton();
-        updateRemote.setText("Update remote");
-        actionPanel.add(updateRemote, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         saveToRemote = new JButton();
         saveToRemote.setText("Save to remote");
         actionPanel.add(saveToRemote, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        deleteRemote = new JButton();
-        deleteRemote.setText("Delete remote");
-        actionPanel.add(deleteRemote, new GridConstraints(0, 4, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        setThumbnailButton = new JButton();
+        setThumbnailButton.setText("Set Thumbnail");
+        setThumbnailButton.setToolTipText("Set the active image as thumbnail for the selected model.  Click update to upload the thumbnail.");
+        actionPanel.add(setThumbnailButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        updateRemote = new JButton();
+        updateRemote.setText("Update remote");
+        actionPanel.add(updateRemote, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         duplicateRemote = new JButton();
         duplicateRemote.setText("Duplicate remote");
-        actionPanel.add(duplicateRemote, new GridConstraints(0, 3, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        credentialPanel = new JPanel();
-        credentialPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
-        mainPanel.add(credentialPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        credentialPanel.setBorder(BorderFactory.createTitledBorder(null, "Github credentials", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        password = new JPasswordField();
-        password.setToolTipText("<html>Enter a password in order to store a github token or to load a previously stored token. <br />If no password is set, only publicly available gists will be shown and saving or updating local configuration to the remote server won't be possible. <br />This password will be recorded in memory untill bacmann is closed, and will not be saved on the disk.</html>");
-        credentialPanel.add(password, new GridConstraints(0, 1, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        username = new JTextField();
-        username.setText("bacmman");
-        username.setToolTipText("Enter the username of a github account containing configuration files");
-        credentialPanel.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        token = new JTextField();
-        token.setToolTipText("paste here a personal access token with gist permission generated at: https://github.com/settings/tokens ");
-        credentialPanel.add(token, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
-        storeToken = new JButton();
-        storeToken.setText("Store Token");
-        storeToken.setToolTipText("token will be stored encrypted using the password");
-        credentialPanel.add(storeToken, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        loadToken = new JButton();
-        loadToken.setText("Connect");
-        loadToken.setToolTipText("load a previously stored token and connect to github account");
-        credentialPanel.add(loadToken, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        actionPanel.add(duplicateRemote, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        deleteRemote = new JButton();
+        deleteRemote.setText("Delete remote");
+        actionPanel.add(deleteRemote, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
@@ -473,7 +494,7 @@ public class ConfigurationIO {
 
     private class Dial extends JDialog {
         Dial(JFrame parent, String title) {
-            super(parent, title, true);
+            super(parent, title, false);
             getContentPane().add(mainPanel);
             getContentPane().setFocusTraversalPolicy(new LayoutFocusTraversalPolicy());
             setDefaultCloseOperation(DISPOSE_ON_CLOSE);
@@ -597,12 +618,12 @@ public class ConfigurationIO {
         } else {
             UserAuth auth = getAuth();
             if (auth instanceof NoAuth) {
-                gists = GistConfiguration.getPublicConfigurations(account);
+                gists = GistConfiguration.getPublicConfigurations(account, bacmmanLogger);
                 loggedIn = false;
             } else {
-                gists = GistConfiguration.getConfigurations(auth);
+                gists = GistConfiguration.getConfigurations(auth, bacmmanLogger);
                 if (gists == null) {
-                    gists = GistConfiguration.getPublicConfigurations(account);
+                    gists = GistConfiguration.getPublicConfigurations(account, bacmmanLogger);
                     loggedIn = false;
                     GUI.log("Could authenticate. Wrong username / password / token ?");
                 } else loggedIn = true;
@@ -610,18 +631,20 @@ public class ConfigurationIO {
             PropertyUtils.set("GITHUB_USERNAME", username.getText());
             PropertyUtils.addFirstStringToList("GITHUB_USERNAME", username.getText());
         }
-        logger.debug("fetched gists: {}", gists.size());
+        logger.debug("fetched gists: {} -> {}", gists.size(), Utils.toStringList(gists, g -> g.folder + "/" + g.name + " [" + g.type + "]"));
         updateEnableButtons();
     }
 
     private void updateEnableButtons() {
         boolean local = currentMode != null && localConfig != null;
         boolean remote = remoteConfig != null;
+        boolean oneSelected = remoteSelector != null && remoteSelector.getTree().getSelectionCount() == 1;
         copyToLocal.setEnabled(local && remote);
         updateRemote.setEnabled(remote && loggedIn);
         duplicateRemote.setEnabled(remote && loggedIn);
         saveToRemote.setEnabled(local && loggedIn);
-        deleteRemote.setEnabled(remoteSelector != null && remoteSelector.getTree().getSelectionCount() >= 0 && loggedIn);
+        deleteRemote.setEnabled(oneSelected && loggedIn);
+        setThumbnailButton.setEnabled(loggedIn && oneSelected);
     }
 
     private void updateCompareParameters() {
@@ -635,19 +658,7 @@ public class ConfigurationIO {
     }
 
     private UserAuth getAuth() {
-        if (password.getPassword().length == 0) return new NoAuth();
-        else {
-            try {
-                UserAuth auth = new TokenAuth(username.getText(), password.getPassword());
-                GUI.log("Token loaded successfully!");
-                return auth;
-            } catch (IllegalArgumentException e) {
-                GUI.log("No token associated with this username found");
-                return new NoAuth();
-            } catch (Throwable t) {
-                GUI.log("Token could not be retrieved. Wrong password ?");
-                return new NoAuth();
-            }
-        }
+        gateway.setCredentials(username.getText(), password.getPassword());
+        return gateway.getAuthentication(false);
     }
 }
