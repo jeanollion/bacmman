@@ -18,6 +18,8 @@
  */
 package bacmman.core;
 
+import bacmman.github.gist.NoAuth;
+import bacmman.github.gist.UserAuth;
 import bacmman.image.Image;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.logger.ProgressLogger;
@@ -35,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 import static bacmman.plugins.PluginFactory.getClasses;
 
@@ -57,6 +60,7 @@ public class Core {
     private static BiConsumer<String, Image[][]> image5D_Displayer;
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
+    private static GithubGateway githubGateway;
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {
@@ -72,6 +76,7 @@ public class Core {
         PluginFactory.findPlugins("bacmman.plugins.plugins", false);
         PluginFactory.importIJ1Plugins();
         createOmeroGateway();
+        githubGateway = new GithubGateway();
     }
     
     private static void initIJ2() {
@@ -113,6 +118,9 @@ public class Core {
     }
     public OmeroGateway getOmeroGateway() {
         return omeroGateway;
+    }
+    public GithubGateway getGithubGateway() {
+        return githubGateway;
     }
     private static void createOmeroGateway() {
         List<Class<OmeroGateway>> impl = findImplementation("bacmman.core", OmeroGateway.class);

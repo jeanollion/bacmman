@@ -84,7 +84,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             if (!paramSet) logger.warn("Could not initialize plugin-parameter: {} plugin: {} type: {}, #parameters: {}, JSON parameters: {}", name, this.pluginName, this.pluginType, pluginParameters, jsonO.get("params") );
         }
     }
-    
+    public PluginParameter(String name) {this(name, (Class<T>)Plugin.class, false);}
     public PluginParameter(String name, Class<T> pluginType, boolean allowNoSelection) {
         super(name);
         this.pluginType=pluginType;

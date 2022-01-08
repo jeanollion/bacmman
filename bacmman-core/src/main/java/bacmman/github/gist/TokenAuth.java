@@ -16,6 +16,10 @@ public class TokenAuth implements UserAuth {
         if (salt==null || encryptedToken==null) throw new IllegalArgumentException("No token stored");
         this.token = PasswordUtils.decryptFromPassphrase(passphrase, encryptedToken, salt);
     }
+
+    public TokenAuth(String token) {
+        this.token=token;
+    }
     public static void encryptAndStore(String username, char[] passphrase, String token) {
         String[] encryptedTokenAndSalt = PasswordUtils.encryptFromPassphrase(token, passphrase);
         PropertyUtils.set(username+"_g_t_e", encryptedTokenAndSalt[0]);

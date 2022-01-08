@@ -9,6 +9,7 @@ import java.util.stream.StreamSupport;
 
 public class EnumerationUtils {
     public static <T> Stream<T> toStream(Enumeration<T> enumeration) {
+        if (enumeration==null) return null;
         EnumerationSpliterator<T> spliterator = new EnumerationSpliterator<T>(Long.MAX_VALUE, Spliterator.ORDERED, enumeration);
         return StreamSupport.stream(spliterator, false);
     }

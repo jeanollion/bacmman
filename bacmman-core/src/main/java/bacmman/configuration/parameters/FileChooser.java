@@ -43,6 +43,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     boolean allowNoSelection = true;
     protected FileChooserOption option = FileChooserOption.DIRECTORIES_ONLY;
     boolean relativePath = true, mustExist=true;
+    public FileChooser(String name) {this(name, FileChooserOption.FILE_OR_DIRECTORY, true);}
     public FileChooser(String name, FileChooserOption option) {
         this(name, option, true);
     }

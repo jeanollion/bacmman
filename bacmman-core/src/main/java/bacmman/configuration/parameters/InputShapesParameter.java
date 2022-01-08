@@ -4,6 +4,9 @@ import java.util.Arrays;
 import java.util.function.Predicate;
 
 public class InputShapesParameter extends SimpleListParameter<ArrayNumberParameter> {
+    public InputShapesParameter(String name) {
+        this(name, 1, false);
+    }
     public InputShapesParameter(String name, int unMutableIndex, boolean includeChannel) {
         this(name, unMutableIndex, includeChannel, false, includeChannel ? new int[]{2, 256, 32} : new int[]{256, 32}, null);
     }

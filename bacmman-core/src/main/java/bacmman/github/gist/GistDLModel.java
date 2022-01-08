@@ -1,6 +1,8 @@
 package bacmman.github.gist;
 
+import bacmman.core.ProgressCallback;
 import bacmman.plugins.Hint;
+import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONArray;
@@ -11,17 +13,20 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.image.BufferedImage;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Base64;
-import java.util.List;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
+
 public class GistDLModel implements Hint {
+
     public static final Logger logger = LoggerFactory.getLogger(GistDLModel.class);
-    public final String name, account, folder;
+    public String name, account, folder;
     String description;
     boolean visible=true;
     private String fileURL;
@@ -33,13 +38,21 @@ public class GistDLModel implements Hint {
     public static String BASE_URL = "https://api.github.com";
     BufferedImage thumbnail;
     boolean thumbnailModified, contentModified;
+    public GistDLModel(String id) throws IOException {
+        this.id = id;
+        updateFromServer();
+    }
     public GistDLModel(JSONObject gist) {
+        setGistData(gist);
+    };
+    protected void setGistData(JSONObject gist) {
         description = (String)gist.get("description");
         id = (String)gist.get("id");
         visible = (Boolean)gist.get("public");
         Object files = gist.get("files");
         if (files!=null) {
-            JSONObject file = ((JSONObject) ((JSONObject) files).values().stream().filter(f-> ((String)((JSONObject)f).get("filename")).endsWith(".json") && ((String)((JSONObject)f).get("filename")).startsWith("dlmodel")).findFirst().orElse(null));
+            JSONObject allFiles = (JSONObject) files;
+            JSONObject file = ((JSONObject) allFiles.values().stream().filter(f-> ((String)((JSONObject)f).get("filename")).endsWith(".json") && ((String)((JSONObject)f).get("filename")).startsWith("dlmodel")).findFirst().orElse(null));
             if (file!=null) {
                 fileURL = (String) file.get("raw_url");
                 String fileName = (String) file.get("filename");
@@ -48,15 +61,22 @@ public class GistDLModel implements Hint {
                 if (folderIdx < 0) throw new IllegalArgumentException("Invalid DL Model file name");
                 int configNameIdx = fileName.indexOf("_", folderIdx + 1);
                 if (configNameIdx < 0) throw new IllegalArgumentException("Invalid config file name");
-                folder = fileName.substring(folderIdx + 1, configNameIdx);
-                name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
-                account = (String) ((JSONObject) gist.get("owner")).get("login");
+                String newFolder = fileName.substring(folderIdx + 1, configNameIdx);
+                if (this.folder!=null) assert this.folder.equals(newFolder);
+                else this.folder = newFolder;
+                String newName = fileName.substring(configNameIdx + 1, fileName.length() - 5);
+                if (this.name!=null) assert this.name.equals(newName);
+                else this.name = newName;
+                String newAccount = (String) ((JSONObject) gist.get("owner")).get("login");
+                if (this.account!=null) assert this.account.equals(newAccount);
+                else this.account = newAccount;
+                if (file.containsKey("content")) contentRetriever = () -> (String)file.get("content");
                 // look for thumbnail file
                 if (((JSONObject) files).containsKey("thumbnail")) {
                     JSONObject thumbnailFile = (JSONObject)((JSONObject) files).get("thumbnail");
                     String thumbFileURL = (String) thumbnailFile.get("raw_url");
                     thumbnailRetriever = () -> {
-                        String thumbdataB64 = new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetch();
+                        String thumbdataB64= thumbnailFile.containsKey("content") ? (String)thumbnailFile.get("content") : new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
                         logger.debug("retrieved thmubnail: length = {}", thumbdataB64==null ? 0 : thumbdataB64.length());
                         if (thumbdataB64 !=null ) {
                             byte[] thumbdata = Base64.getDecoder().decode(thumbdataB64);
@@ -68,16 +88,25 @@ public class GistDLModel implements Hint {
                     };
                 }
             } else { // not a configuration file
-                folder = null;
-                name = null;
-                account = null;
+                assert this.folder==null;
+                assert this.name==null;
+                assert this.account==null;
             }
         } else {
-            folder = null;
-            name = null;
-            account = null;
+            assert this.folder==null;
+            assert this.name==null;
+            assert this.account==null;
         }
-        contentRetriever = () -> new JSONQuery(fileURL).fetch();
+        if (contentRetriever==null) contentRetriever = () -> new JSONQuery(fileURL).fetchSilently();
+    }
+
+    public LargeFileGist getLargeFileGist() throws IOException {
+        String url = getModelURL();
+        if (url!=null && url.startsWith(GIST_BASE_URL)) {
+            return new LargeFileGist(url.replace(GIST_BASE_URL, ""));
+        } else {
+            throw new IOException("Cannot create large file: url do not correspond to a file stored in gist. URL=" + url);
+        }
     }
     public GistDLModel(String account, String folder, String name, String description, String url, DLModelMetadata metadata) {
         this.account=account;
@@ -87,7 +116,9 @@ public class GistDLModel implements Hint {
         this.description=description;
         this.setContent(url, metadata);
     }
-
+    public String getID() {
+        return id;
+    }
     public boolean isVisible() {
         return visible;
     }
@@ -133,37 +164,36 @@ public class GistDLModel implements Hint {
         gist.put("files", files);
         gist.put("description", description);
         gist.put("public", visible);
-        String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetch();
+        String res = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.POST).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
         JSONObject json = JSONUtils.parse(res);
         if (json!=null) id = (String)json.get("id");
         else logger.error("Could not create configuration file");
-        if (thumbnailModified) updateThumbnail(auth);
+        if (thumbnailModified) uploadThumbnail(auth);
     }
-    public void delete(UserAuth auth) {
-        new JSONQuery(BASE_URL+"/gists/"+id).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetch();
+    public boolean delete(UserAuth auth) {
+        return JSONQuery.delete(BASE_URL+"/gists/"+id, auth);
     }
     private String getFileName() {
         return "dlmodel_"+folder+"_"+name+".json";
     }
 
     public GistDLModel setContent(String url, DLModelMetadata metadata) {
+        if (url==null && jsonContent!=null) url = getModelURL();
+        if (metadata==null && jsonContent!=null) metadata = getMetadata();
         JSONObject newContent = new JSONObject();
-        newContent.put("url", url);
-        newContent.put("metadata", metadata.toJSONEntry());
+        if (url!=null) newContent.put("url", url);
+        if (metadata!=null) newContent.put("metadata", metadata.toJSONEntry());
         if (jsonContent==null || !jsonContent.equals(newContent)) {
             contentModified = true;
             jsonContent = newContent;
-            logger.debug("content modified!");
-        } else {
-            logger.debug("new content is equal: {}", newContent);
         }
         return this;
     }
-    public void updateIfNecessary(UserAuth auth) {
-        if (contentModified) updateContent(auth);
-        if (thumbnailModified) updateThumbnail(auth);
+    public void uploadIfNecessary(UserAuth auth) {
+        if (contentModified) uploadContent(auth);
+        if (thumbnailModified) uploadThumbnail(auth);
     }
-    public void updateContent(UserAuth auth) {
+    public void uploadContent(UserAuth auth) {
         JSONObject files = new JSONObject();
         JSONObject contentFile = new JSONObject();
         files.put(getFileName(), contentFile);
@@ -171,18 +201,13 @@ public class GistDLModel implements Hint {
         JSONObject gist = new JSONObject();
         gist.put("files", files);
         gist.put("description", description);
-        new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetch();
+        new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_JSON).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString()).fetchSilently();
         contentModified = false;
     }
 
-    public void updateThumbnail(UserAuth auth) {
+    public void uploadThumbnail(UserAuth auth) {
         byte[] bytes = thumbnail==null ? null : IconUtils.toByteArray(thumbnail);
-        String content = JSONQuery.encodeJSONBase64("thumbnail", bytes); // null will set empty content -> remove the file
-        logger.debug("content: {}", content);
-        JSONQuery q = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
-        String answer = q.fetch();
-        logger.debug("update thumbnail answer: {}", answer);
-        thumbnailModified = false;
+        if (storeBytes("thumbnail", bytes, auth)) thumbnailModified = false;
     }
 
     public JSONObject getContent() {
@@ -194,11 +219,20 @@ public class GistDLModel implements Hint {
         }
         return jsonContent;
     }
+    public String getModelID() {
+        String url = getModelURL();
+        if (url.startsWith(GIST_BASE_URL)) {
+            url.replace(GIST_BASE_URL, "");
+            return url;
+        }
+        return "";
+    }
     public String getModelURL() {
         getContent();
         if (jsonContent.get("url")==null) return null;
         String url = (String)jsonContent.get("url");
-        return transformGDriveURL(url);
+        url = transformGDriveURL(url);
+        return url;
     }
 
     public DLModelMetadata getMetadata() {
@@ -208,32 +242,61 @@ public class GistDLModel implements Hint {
         return metadata;
     }
 
-    public static List<GistDLModel> getPublic(String account) {
-        logger.debug("get public gists from account: {}", account);
-        return parseJSON(new JSONQuery(BASE_URL+"/users/"+account+"/gists").method(JSONQuery.METHOD.GET).fetch());
+    protected boolean storeBytes(String name, byte[] bytes, UserAuth auth) {
+        String content = JSONQuery.encodeJSONBase64(name, bytes); // null will set empty content -> remove the file
+        JSONQuery q = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
+        String answer = q.fetchSilently();
+        return answer!=null;
     }
 
-    public static List<GistDLModel> get(UserAuth auth) {
-        String configs = new JSONQuery(BASE_URL+"/gists").method(JSONQuery.METHOD.GET).authenticate(auth).fetch();
-        if (configs==null) return null;
-        return parseJSON(configs);
+    public void storeFile(File file, String fileType, UserAuth auth, boolean background, ProgressLogger pcb) throws IOException {
+        LargeFileGist.storeFile(file, isVisible(), getDescription(), fileType, auth, background, id -> {
+            setContent(GIST_BASE_URL+id, null);
+            logger.debug("sucessfully added file : {}", GIST_BASE_URL+id);
+        }, pcb);
     }
-    private static List<GistDLModel> parseJSON(String response) {
-        List<GistDLModel> res = new ArrayList<>();
+
+    public boolean updateFromServer() throws IOException {
+        String response;
+        try {
+            response = new JSONQuery(BASE_URL + "/gists/" + id).method(JSONQuery.METHOD.GET).fetch();
+        } catch (FileNotFoundException e) {
+            logger.debug("Gist do not exists: {}", id);
+            throw e;
+        }
+        logger.debug("updated content after upload file: {}", response);
         try {
             Object json = new JSONParser().parse(response);
-            if (json instanceof JSONArray) {
-                JSONArray gistsRequest = (JSONArray)json;
-                res.addAll(((Stream<JSONObject>) gistsRequest.stream()).map(body -> new GistDLModel(body)).filter(gc -> gc.folder != null).collect(Collectors.toList()));
-            } else {
-                GistDLModel gc = new GistDLModel((JSONObject)json);
-                if (gc.folder!=null) res.add(gc);
-            }
+            setGistData((JSONObject) json);
+            return true;
         } catch (ParseException e) {
-
+            logger.debug("error while updating content after upload", e);
+            return false;
         }
-        return res;
     }
+
+    public static List<GistDLModel> getPublic(String account, ProgressLogger pcb) {
+        try {
+            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL + "/users/" + account + "/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET));
+            return gists.stream().map(GistDLModel::new).filter(gc -> gc.folder != null).collect(Collectors.toList());
+        } catch (IOException | ParseException e) {
+            logger.error("Error getting public configurations", e);
+            if (pcb!=null) pcb.setMessage("Could not get public configurations: "+e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    public static List<GistDLModel> get(UserAuth auth, ProgressLogger pcb) {
+        try {
+            List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
+            return gists.stream().map(GistDLModel::new).filter(gc -> gc.folder != null).collect(Collectors.toList());
+        } catch (IOException | ParseException e) {
+            logger.error("Error getting public configurations", e);
+            if (pcb!=null) pcb.setMessage("Could not get public configurations: "+e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
     static String GDRIVE_PREFIX = "https://drive.google.com/file/d/";
     static String GIVE_SUFFIX = "/view?usp=sharing";
     private static String transformGDriveURL(String url) {
@@ -243,5 +306,18 @@ public class GistDLModel implements Hint {
             return "https://drive.google.com/uc?export=download&id=" + id;
         } else return url;
 
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        GistDLModel that = (GistDLModel) o;
+        return Objects.equals(id, that.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

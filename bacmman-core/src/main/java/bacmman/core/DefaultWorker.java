@@ -46,7 +46,14 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         return res;
     }
     public static void executeInForeground(WorkerTask t, int maxTaskIdx) {
-        for (int i =0; i<maxTaskIdx; ++i) t.run(i);
+        for (int i =0; i<maxTaskIdx; ++i) {
+            try {
+                t.run(i);
+            } catch (Exception e) {
+                logger.debug("Error @ task:"+i, e);
+                return;
+            }
+        }
     }
     public DefaultWorker(WorkerTask task, int maxTaskIdx, ProgressLogger progressor) {
         this.task=task;
@@ -113,6 +120,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         return this;
     }
     public DefaultWorker appendEndOfWork(Runnable end) {
+        if (end==null) return this;
         Runnable oldEnd = this.endOfWork;
         this.endOfWork = () -> {
             if (oldEnd!=null) oldEnd.run();
@@ -120,7 +128,9 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         };
         return this;
     }
-    public static interface WorkerTask {
-        public String run(int i);
+
+    public interface WorkerTask {
+        String run(int i) throws Exception;
     }
+
 }

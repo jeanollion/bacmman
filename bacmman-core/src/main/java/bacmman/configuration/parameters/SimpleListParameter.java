@@ -29,7 +29,7 @@ import java.util.function.Consumer;
  */
 
 public class SimpleListParameter<T extends Parameter> extends ListParameterImpl<T, SimpleListParameter<T>> {
-
+    public SimpleListParameter(String name) {this(name, (Class<T>)Parameter.class);}
     /**
      * 
      * @param name : name of the parameter

@@ -19,6 +19,8 @@
 package bacmman.core;
 
 import bacmman.configuration.experiment.PreProcessingChain;
+import bacmman.configuration.parameters.DLModelFileParameter;
+import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.SegmentedObject;
@@ -41,6 +43,7 @@ import static bacmman.data_structure.Processor.executeProcessingScheme;
 import static bacmman.data_structure.Processor.getOrCreateRootTrack;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
 import java.util.*;
@@ -515,8 +518,9 @@ public class Task implements ProgressCallback{
     }
 
     public boolean isValid() {
-        initDB(); // read only be default
-
+        initDB(); // read only by default
+        Map<String, DLModelFileParameter> dlModelToDownload= new HashMap<>();
+        Consumer<List<DLModelFileParameter>> analyzeDLModelFP = l -> l.stream().filter(DLModelFileParameter::needsToDownloadModel).forEach(m -> dlModelToDownload.put(m.getModelFilePath(), m));
         if (db.getExperiment()==null) {
             errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
             printErrors();
@@ -563,11 +567,20 @@ public class Task implements ProgressCallback{
         // check parametrization
         if (preProcess) {
             ensurePositionAndStructures(true, false);
-            for (int p : positions) if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
+            for (int p : positions) {
+                if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
+                // check dl model is on disk
+                List<DLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getPosition(p), DLModelFileParameter.class);
+                analyzeDLModelFP.accept(dlModelFP);
+            }
         }
         if (segmentAndTrack || trackOnly) {
             ensurePositionAndStructures(false, true);
-            for (int s : structures) if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Object Class: "+ db.getExperiment().getStructure(s).getName())));
+            for (int s : structures) {
+                if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Object Class: "+ db.getExperiment().getStructure(s).getName())));
+                List<DLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getStructure(s), DLModelFileParameter.class);
+                analyzeDLModelFP.accept(dlModelFP);
+            }
         }
         if (measurements) {
             if (!db.getExperiment().getMeasurements().isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Measurements: ")));
@@ -597,7 +610,31 @@ public class Task implements ProgressCallback{
             }
             if (extractDSRawBounds!=null && (extractDSRawBounds.xMin()<0 || extractDSRawBounds.yMin()<0 || extractDSRawBounds.zMin()<0) ) errors.addExceptions(new Pair(dbName, "Invalid bounds for raw dataset extraction"));
         }
+        if (!dlModelToDownload.isEmpty()) {
+            StringBuilder question = new StringBuilder();
+            if (ui.isGUI()) {
+                question.append("DL Model need to be downloaded:");
+                dlModelToDownload.forEach((path, dlModelFP) -> {
+                    try {
+                        dlModelFP.getLargeFileGist();
+                        question.append('\n').append(path).append(" (").append(String.format("%.2f", dlModelFP.getLargeFileGist().getSizeMb())).append("Mb)");
+                    } catch (Exception e) {
+                        errors.addExceptions(new Pair<>("ModelFile:"+path, e));
+                    }
+                });
+                question.append('\n').append("Proceed ? ");
+            }
+            boolean download = !ui.isGUI() || Utils.promptBoolean(question.toString(), null);
+            if (download) {
+                dlModelToDownload.forEach( (path, dlModelFP) -> {
+                    try{if (ui!=null) ui.setMessage("Downloading: "+path + " ("+ String.format("%.2f", dlModelFP.getLargeFileGist().getSizeMb()) + ')' );}catch(IOException e){}
+                    dlModelFP.getModelFile();
 
+                } );
+            } else {
+                errors.addExceptions(new Pair<>("Task validity check", new IOException("Missing dl model files")));
+            }
+        }
         logger.info("task : {}, isValid: {}, config read only {}", dbName, errors.isEmpty(), db.isConfigurationReadOnly());
         if (!keepDB) {
             db.unlockConfiguration();

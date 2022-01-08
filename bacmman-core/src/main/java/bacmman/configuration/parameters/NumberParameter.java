@@ -69,7 +69,7 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     }
     @Override
     public String toString() {
-        return name+": "+ trimDecimalPlaces(value, decimalPlaces);
+        return name+": "+ (value==null? "":trimDecimalPlaces(value, decimalPlaces));
     }
     
     public boolean hasIntegerValue() {return (getValue().doubleValue()-getValue().intValue())!=0;}

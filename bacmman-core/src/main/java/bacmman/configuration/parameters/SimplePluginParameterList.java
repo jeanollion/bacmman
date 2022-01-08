@@ -4,6 +4,7 @@ import bacmman.plugins.Plugin;
 
 public class SimplePluginParameterList<T extends Plugin> extends PluginParameterList<T, SimplePluginParameterList<T>> {
     boolean allowNoSelection;
+    public SimplePluginParameterList(String name) {this(name, "plugin", (Class<T>)Plugin.class, false);}
     public SimplePluginParameterList(String name, String childLabel, Class<T> childClass, boolean allowNoSelection) {
         super(name, childLabel, childClass, allowNoSelection);
         this.allowNoSelection=allowNoSelection;

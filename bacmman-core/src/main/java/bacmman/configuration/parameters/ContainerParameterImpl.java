@@ -255,9 +255,10 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     // listenable
     protected List<Consumer<P>> listeners;
     boolean bypassListeners;
-    public void addListener(Consumer<P> listener) {
+    public P addListener(Consumer<P> listener) {
         if (listeners == null) listeners = new ArrayList<>();
         listeners.add(listener);
+        return (P)this;
     }
     public void removeListener(Consumer<P> listener) {
         if (listeners != null) listeners.remove(listener);

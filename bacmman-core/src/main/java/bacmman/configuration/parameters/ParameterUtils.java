@@ -334,4 +334,15 @@ public class ParameterUtils {
         }
         return source;
     }
+    public static <T> List<T> getParameterByClass(Parameter parent, Class<T> clazz) {
+        List<T> res = new ArrayList<>();
+        if (clazz.isAssignableFrom(parent.getClass())) res.add((T)parent);
+        if (parent instanceof ContainerParameter) addParameterByClass((ContainerParameter)parent, clazz, res);
+        return res;
+    }
+    private static <T> void addParameterByClass(ContainerParameter parent, Class<T> clazz, List<T> list) {
+        parent.getChildren().stream().filter(c -> clazz.isAssignableFrom(c.getClass())).forEach(c -> list.add((T)c));
+        parent.getChildren().stream().filter(c -> c instanceof ContainerParameter).forEach(c -> addParameterByClass((ContainerParameter)c, clazz, list));
+    }
+
 }

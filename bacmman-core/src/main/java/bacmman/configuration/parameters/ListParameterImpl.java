@@ -532,9 +532,10 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     List<Consumer<L>> listeners;
     boolean bypassListeners;
     @Override
-    public void addListener(Consumer<L> listener) {
+    public L addListener(Consumer<L> listener) {
         if (listeners==null) listeners = new ArrayList<>();
         listeners.add(listener);
+        return (L)this;
     }
 
     @Override

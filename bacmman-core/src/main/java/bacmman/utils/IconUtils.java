@@ -21,7 +21,7 @@ public class IconUtils {
         BufferedImage after = new BufferedImage(image.getWidth() * factor, image.getHeight() * factor, BufferedImage.TYPE_INT_ARGB);
         AffineTransform at = new AffineTransform();
         at.scale(factor, factor);
-        AffineTransformOp scaleOp =  new AffineTransformOp(at, AffineTransformOp.TYPE_BICUBIC);
+        AffineTransformOp scaleOp =  new AffineTransformOp(at, AffineTransformOp.TYPE_BILINEAR);
         return scaleOp.filter(image, after);
     }
 

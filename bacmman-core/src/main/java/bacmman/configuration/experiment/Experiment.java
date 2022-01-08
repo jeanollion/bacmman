@@ -20,6 +20,7 @@ package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
+import bacmman.core.GithubGateway;
 import bacmman.core.OmeroGateway;
 import bacmman.data_structure.DLengineProvider;
 import bacmman.data_structure.ExperimentStructure;
@@ -110,6 +111,8 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
 
     public final ExperimentStructure experimentStructure = new ExperimentStructure(this);
     protected OmeroGateway omeroGateway;
+    protected GithubGateway githubGateway;
+
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -201,6 +204,14 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public OmeroGateway getOmeroGateway() {
         if (omeroGateway == null) omeroGateway = Core.getCore().getOmeroGateway();
         return omeroGateway;
+    }
+    public Experiment setGithubGateway(GithubGateway githubGateway) {
+        this.githubGateway = githubGateway;
+        return this;
+    }
+    public GithubGateway getGithubGateway() {
+        if (githubGateway == null) githubGateway = Core.getCore().getGithubGateway();
+        return githubGateway;
     }
     public String getNote() {
         return note.getValue();

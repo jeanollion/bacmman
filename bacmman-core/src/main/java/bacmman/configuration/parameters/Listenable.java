@@ -26,7 +26,7 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 public interface Listenable<P extends Parameter> {
-    public void addListener(Consumer<P> listener);
+    public P addListener(Consumer<P> listener);
     public void removeListener(Consumer<P> listener);
     public void fireListeners();
 }

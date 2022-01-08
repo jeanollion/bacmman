@@ -210,9 +210,10 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     // listenable
     ArrayList<Consumer<P>> listeners;
     protected boolean bypassListeners;
-    public void addListener(Consumer<P> listener) {
+    public P addListener(Consumer<P> listener) {
         if (listeners == null) listeners = new ArrayList<>();
         listeners.add(listener);
+        return (P) this;
     }
     public void removeListener(Consumer<P> listener) {
         if (listeners != null) listeners.remove(listener);
