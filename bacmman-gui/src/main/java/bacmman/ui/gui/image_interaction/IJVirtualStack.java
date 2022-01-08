@@ -140,26 +140,25 @@ public class IJVirtualStack extends VirtualStack {
             sizeZC[c] = getSizeZC.applyAsInt(c);
             maxZ = Math.max(maxZ, sizeZC[c]);
         }
-
         int[] fczSize = new int[]{frames, channels, maxZ};
         Function<int[], Image> imageOpenerCT  = preProcessed ? (fcz) -> fcz[0]==0&&fcz[1]==0&&fcz[2]==0? bds : f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]) : (fcz) -> f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
         IJVirtualStack s = new IJVirtualStack(bds.sizeX(), bds.sizeY(), bds.getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
-        s.setImagePlus(ip);
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
         ip.setStack(s, channels,maxZ, frames);
+        if (maxZ>1) ip.setZ(maxZ/2+1);
+        s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
-        ip.setDisplayMode( IJ.COMPOSITE );
         Calibration cal = new Calibration();
         cal.pixelWidth=bds.getScaleXY();
         cal.pixelHeight=bds.getScaleXY();
         cal.pixelDepth=bds.getScaleZ();
         ip.setCalibration(cal);
-        if (maxZ>1) ip.setZ(maxZ/2+1);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
     }
+
     public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx) {
         KymographT interactiveImage = null;
         if (interactive) interactiveImage = (KymographT)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
@@ -190,18 +189,17 @@ public class IJVirtualStack extends VirtualStack {
         Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, bdsC[0].getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
-        s.setImagePlus(ip);
         ip.setTitle(("HyperStack of Track: "+parentTrack.get(0).toStringShort()));
         ip.setStack(s, channels,maxZ, frames);
+        if (maxZ>1) ip.setZ(maxZ/2+1);
+        s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
-        ip.setDisplayMode( IJ.COMPOSITE );
         Calibration cal = new Calibration();
         cal.pixelWidth=bdsC[0].getScaleXY();
         cal.pixelHeight=bdsC[0].getScaleXY();
         cal.pixelDepth=bdsC[0].getScaleZ();
         ip.setCalibration(cal);
         ip.setC(objectClassIdx+1);
-        if (maxZ>1) ip.setZ(maxZ/2+1);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         Image hook = imageOpenerCT.apply(new int[]{0, 0, 0});
