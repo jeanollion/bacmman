@@ -2,21 +2,16 @@ package bacmman.plugins.plugins.track_pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
-import bacmman.image.ImageInteger;
-import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.processing.ResizeUtils;
 
 import java.util.Map;
 import java.util.TreeMap;
-import java.util.function.Function;
-import java.util.stream.IntStream;
 
 public class DLFilterSimple implements TrackPreFilter, Filter, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1].<br /Output: pre-filtered image>");
-    DLResizeAndScaleParameter dlResample = new DLResizeAndScaleParameter("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
+    DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {

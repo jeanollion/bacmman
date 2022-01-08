@@ -2,6 +2,7 @@ package bacmman.plugins.plugins.trackers;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
@@ -19,7 +20,7 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint {
+public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, new MinMaxScaler(), true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction. For phase contrast images, default is MinMaxScaler. For fluorescence images use either a constant scaler or ModePercentileScaler or IQRScaler");
@@ -185,6 +186,26 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             factory.setChildObjects(p, pop);
         });
     }
+
+    @Override
+    public void configureFromMetadata(DLModelMetadata metadata) {
+        if (!metadata.getInputs().isEmpty()) {
+            DLModelMetadata.DLModelInputParameter input = metadata.getInputs().get(0);
+            this.next.setSelected(input.getChannelNumber() == 3);
+            this.inputShape.setValue(input.getShape());
+            this.scaler.setContentFrom(input.getScaling());
+            BooleanParameter is2D = metadata.getOtherParameter("is2D", BooleanParameter.class);
+            if (is2D!=null) {
+                logger.debug("metadata: is2D: {}", is2D.getSelected());
+            }
+            BooleanParameter openChannelsM = metadata.getOtherParameter("Open Microchannels", BooleanParameter.class);
+            if (openChannelsM!=null) {
+                logger.debug("open channel metadata: {}", openChannelsM.getSelected());
+                this.openChannels.setSelected(openChannelsM.getSelected());
+            }
+        }
+    }
+
     @FunctionalInterface
     interface TriConsumer<A, B, C> {
         void consume(A a, B b, C c);

@@ -19,7 +19,7 @@ public class DLFilter implements TrackPreFilter, Hint {
     ObjectClassParameter oc = new ObjectClassParameter("Object class");
     GroupParameter grp = new GroupParameter("Input", oc, type);
     SimpleListParameter<GroupParameter> inputs = new SimpleListParameter<>("Additional Inputs", grp).setHint("Total input number must correspond to model inputs");//.addValidationFunction(list -> list.getChildCount()+1 == engineNumIn());
-    DLResizeAndScaleParameter dlResample = new DLResizeAndScaleParameter("ResizeAndScale").setMaxOutputNumber(1).addInputNumberValidation(()->1+inputs.getChildCount()).setEmphasized(true);
+    DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).addInputNumberValidation(()->1+inputs.getChildCount()).setEmphasized(true);
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {

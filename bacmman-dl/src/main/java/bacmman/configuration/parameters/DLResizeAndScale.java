@@ -1,6 +1,7 @@
 package bacmman.configuration.parameters;
 
 import bacmman.dl.TileUtils;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
 import bacmman.plugins.DLengine;
 import bacmman.plugins.HistogramScaler;
@@ -22,14 +23,15 @@ import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLResizeAndScaleParameter.MODE, DLResizeAndScaleParameter> {
-    static Logger logger = LoggerFactory.getLogger(DLResizeAndScaleParameter.class);
+public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndScale.MODE, DLResizeAndScale> implements DLMetadataConfigurable {
+    static Logger logger = LoggerFactory.getLogger(DLResizeAndScale.class);
+
     enum MODE {SCALE_ONLY, RESAMPLE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
-    ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Total Shape Contraction").setHint("Total Contraction/Upsampling of the network for each axis. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by the contraction. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis</sup>");
+    ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Total Shape Contraction").setHint("Size ratio between the smallest tensor in the network and the input tensor. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by the contraction. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis");
 
-    ArrayNumberParameter tileShape = InputShapesParameter.getInputShapeParameter(false, false,  new int[]{64, 64}, null).setEmphasized(true).setName("Tile Shape");
-    ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
+    ArrayNumberParameter tileShape = InputShapesParameter.getInputShapeParameter(false, false,  new int[]{128, 128}, null).setEmphasized(true).setName("Tile Shape");
+    ArrayNumberParameter minOverlap = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{16, 16}, null).setEmphasized(true).setName("Min Overlap").setHint("Minimum tile overlap");
     EnumChoiceParameter<Resize.EXPAND_MODE> paddingMode = new EnumChoiceParameter<>("Padding Mode", Resize.EXPAND_MODE.values(), Resize.EXPAND_MODE.MIRROR);
     ArrayNumberParameter minPad = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Minimum Padding").setHint("Minimum Padding added on each side of the image");
     BooleanParameter padTiles = new BooleanParameter("Pad border tiles", false).setHint("If true, border tiles will be padded by minimum overlap");
@@ -43,7 +45,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
     BooleanParameter scaleFrameByFrame = new BooleanParameter("Scale Frame by Frame", false).setHint("If true, scaling factors are computed on the histogram of the whole track, if false scale is computed frame by frame");
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. -1 no reverse scaling");
-    BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true).setEmphasized(true);
+    BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true).setEmphasized(true).setHint("Whether scale the output using the scaling parameters of the corresponding input");
     GroupParameter outputGrp;
     SimpleListParameter<GroupParameter> outputInterpAndScaling;
     SimpleListParameter<? extends Parameter> outputScaling;
@@ -65,7 +67,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         setMinOutputNumber(1);
     }
 
-    public DLResizeAndScaleParameter(String name) {
+    public DLResizeAndScale(String name) {
         super(new EnumChoiceParameter<>(name, MODE.values(), MODE.PAD));
         targetShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         contraction.addValidationFunction(InputShapesParameter.sameRankValidation());
@@ -77,17 +79,17 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         setConditionalParameter();
         setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>PAD: expand image to a fixed shape</li><li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
     }
-    public DLResizeAndScaleParameter addInputNumberValidation(IntSupplier inputNumber) {
+    public DLResizeAndScale addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         inputScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         return this;
     }
-    public DLResizeAndScaleParameter addOutputNumberValidation(IntSupplier outputNumber) {
+    public DLResizeAndScale addOutputNumberValidation(IntSupplier outputNumber) {
         outputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==outputNumber.getAsInt());
         outputScaling.addValidationFunction(list -> list.getChildCount()==outputNumber.getAsInt());
         return this;
     }
-    public DLResizeAndScaleParameter setMinInputNumber(int min) {
+    public DLResizeAndScale setMinInputNumber(int min) {
         inputInterpAndScaling.setUnmutableIndex(min-1);
         if (inputInterpAndScaling.getChildCount()<min) inputInterpAndScaling.setChildrenNumber(min);
         inputScaling.setUnmutableIndex(min-1);
@@ -95,7 +97,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         return this;
     }
 
-    public DLResizeAndScaleParameter setMaxInputNumber(int max) {
+    public DLResizeAndScale setMaxInputNumber(int max) {
         inputInterpAndScaling.setMaxChildCount(max);
         if (max==1) {
             inputInterpAndScaling.setNewInstanceNameFunction((s, i)->"Input");
@@ -118,7 +120,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         }
         return this;
     }
-    public DLResizeAndScaleParameter setMinOutputNumber(int min) {
+    public DLResizeAndScale setMinOutputNumber(int min) {
         outputInterpAndScaling.setUnmutableIndex(min-1);
         if (outputInterpAndScaling.getChildCount()<min) outputInterpAndScaling.setChildrenNumber(min);
         outputScaling.setUnmutableIndex(min-1);
@@ -126,7 +128,7 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         return this;
     }
 
-    public DLResizeAndScaleParameter setMaxOutputNumber(int max) {
+    public DLResizeAndScale setMaxOutputNumber(int max) {
         initOutput(max==1);
         outputInterpAndScaling.setMaxChildCount(max);
         if (outputInterpAndScaling.getChildCount()>max) outputInterpAndScaling.setChildrenNumber(max);
@@ -151,10 +153,49 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
         initChildList();
     }
-    public DLResizeAndScaleParameter setEmphasized(boolean emp) {
+    public DLResizeAndScale setEmphasized(boolean emp) {
         super.setEmphasized(emp);
         return this;
     }
+
+    @Override
+    public void configureFromMetadata(DLModelMetadata metadata) {
+        logger.debug("configuring DLResizeAndScaleParameter from metadata");
+        List<DLModelMetadata.DLModelInputParameter> inputs = metadata.getInputs();
+        List<DLModelMetadata.DLModelOutputParameter> outputs = metadata.getOutputs();
+        contraction.setValue(metadata.getContraction());
+        if (inputs.get(0).fixedSize()) {
+            getActionableParameter().setValue(MODE.RESAMPLE);
+            targetShape.setValue(inputs.get(0).getShape());
+        } else {
+            targetShape.setValue(inputs.get(0).is3D() ? new int[]{0,0,0}: new int[]{0,0});
+        }
+        inputInterpAndScaling.setChildrenNumber(inputs.size());
+        inputScaling.setChildrenNumber(inputs.size());
+        outputInterpAndScaling.setChildrenNumber(outputs.size());
+        outputScaling.setChildrenNumber(outputs.size());
+        for (int i = 0; i<inputs.size(); ++i) {
+            PluginParameter<HistogramScaler> scaler = inputs.get(i).getScaling();
+            inputInterpAndScaling.getChildAt(i).getChildAt(1).setContentFrom(scaler);
+            inputScaling.getChildAt(i).setContentFrom(scaler);
+            if (i==0) scaler.setContentFrom(scaler);
+        }
+        for (int i = 0; i<outputs.size(); ++i) {
+            int scalerIndex = outputs.get(i).getReverseScalingIndex();
+            Parameter scaling = outputInterpAndScaling.getChildAt(i).getChildAt(1);
+            if (scaling instanceof BooleanParameter) ((BooleanParameter)scaling).setSelected(scalerIndex>=0);
+            else ((NumberParameter)scaling).setValue(scalerIndex);
+            Parameter scaling2 = outputScaling.getChildAt(i);
+            if (scaling2 instanceof BooleanParameter) ((BooleanParameter)scaling2).setSelected(scalerIndex>=0);
+            else ((NumberParameter)scaling2).setValue(scalerIndex);
+        }
+        if (outputs.size()==1) {
+            reverseScaling.setSelected(outputs.get(0).getReverseScalingIndex()==0);
+            outputScalerIndex.setValue(outputs.get(0).getReverseScalingIndex());
+        }
+
+    }
+
     public MODE getMode() {
         return ((EnumChoiceParameter<MODE>)action).getSelectedEnum();
     }
@@ -445,8 +486,8 @@ public class DLResizeAndScaleParameter extends ConditionalParameterAbstract<DLRe
         return targetNC;
     }
     @Override
-    public DLResizeAndScaleParameter duplicate() {
-        DLResizeAndScaleParameter res = new DLResizeAndScaleParameter(name);
+    public DLResizeAndScale duplicate() {
+        DLResizeAndScale res = new DLResizeAndScale(name);
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;

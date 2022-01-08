@@ -7,13 +7,11 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.scalers.MinMaxScaler;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.processing.RegionFactory;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.watershed.WatershedTransform;
-import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 
 import java.util.List;
@@ -29,7 +27,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setEmphasized(true).setHint("Region with size (in pixels) inferior to this value will be erased");
     BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 4, 2, 1, null ).setEmphasized(true).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
-    DLResizeAndScaleParameter dlResample = new DLResizeAndScaleParameter("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
+    DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
 
     Parameter[] parameters = new Parameter[]{dlEngine, dlResample, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
 
