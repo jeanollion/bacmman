@@ -16,12 +16,11 @@ import java.util.Map;
 public class PromptOmeroConnectionInformation extends JDialog {
     private JPanel contentPane;
     private JButton connect;
-    private JPanel connectionPanel;
-    private JPanel serverPanel;
     private JTextField hostname;
     private JTextField username;
     private JPasswordField password;
-    private JButton buttonCancel;
+    private JPanel serverPanel;
+    private JPanel connectionPanel;
     private Map<String, char[]> savedPassword;
     SetCredentials callback;
 
