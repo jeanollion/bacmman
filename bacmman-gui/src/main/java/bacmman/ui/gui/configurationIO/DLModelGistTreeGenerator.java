@@ -21,6 +21,7 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.core.DefaultWorker;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistDLModel;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.ui.GUI;
@@ -221,7 +222,7 @@ public class DLModelGistTreeGenerator {
             @Override
             public void treeExpanded(TreeExpansionEvent treeExpansionEvent) {
                 Object node = treeExpansionEvent.getPath().getLastPathComponent();
-                if (!(node instanceof GistTreeNode) && getRoot().equals(((DefaultMutableTreeNode)node).getParent())) thumbnailLazyLoader.get(node);
+                if (!(node instanceof GistTreeNode) && !(node instanceof Parameter) && getRoot().equals(((DefaultMutableTreeNode)node).getParent())) thumbnailLazyLoader.get(node);
             }
             @Override
             public void treeCollapsed(TreeExpansionEvent treeExpansionEvent) { }

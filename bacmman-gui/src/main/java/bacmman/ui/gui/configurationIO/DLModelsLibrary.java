@@ -98,7 +98,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             // check if a folder is selected
             String currentFolder = tree.getSelectedFolder();
-            SaveDLModelGist form = new SaveDLModelGist();
+            SaveDLModelGist form = new SaveDLModelGist(gateway);
             if (currentFolder != null) form.setFolder(currentFolder);
             form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
             form.display(displayingFrame, "Store dl model");
@@ -145,7 +145,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             GistDLModel gist = tree.getSelectedGist();
             if (gist == null) return;
-            SaveDLModelGist form = new SaveDLModelGist();
+            SaveDLModelGist form = new SaveDLModelGist(gateway);
             form.setFolder(gist.folder).disableFolderField()
                     .setName(gist.name).disableNameField()
                     .setDescription(gist.getDescription())
@@ -165,7 +165,7 @@ public class DLModelsLibrary {
             if (tree == null || !loggedIn) return;
             GistDLModel gist = tree.getSelectedGist();
             if (gist == null) return;
-            SaveDLModelGist form = new SaveDLModelGist();
+            SaveDLModelGist form = new SaveDLModelGist(gateway);
             form.setFolder(gist.folder)
                     .setName(gist.name)
                     .setDescription(gist.getDescription())
@@ -209,14 +209,14 @@ public class DLModelsLibrary {
                                 try {
                                     TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
                                     GistDLModel gist = tree.getSelectedGistNode().gist;
-                                    SaveDLModelGist form = new SaveDLModelGist();
+                                    SaveDLModelGist form = new SaveDLModelGist(gateway);
                                     form.setFolder(gist.folder)
                                             .setName(gist.name)
                                             .setDescription(gist.getDescription())
                                             .setURL(gist.getModelURL())
                                             .setMetadata(gist.getMetadata())
                                             .setVisible(gist.isVisible());
-                                    form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
+                                    form.setAuthAndDefaultDirectory(auth2, currentDirectory, pcb);
                                     form.display(displayingFrame, "Duplicate model to another account...");
                                     if (form.canceled) return;
                                     if (!Utils.isValid(form.name(), false)) {

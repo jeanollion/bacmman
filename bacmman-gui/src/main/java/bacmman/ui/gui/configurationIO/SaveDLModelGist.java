@@ -2,6 +2,7 @@ package bacmman.ui.gui.configurationIO;
 
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.core.DefaultWorker;
+import bacmman.core.GithubGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.github.gist.*;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
@@ -10,6 +11,7 @@ import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
+import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,10 +20,11 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.KeyAdapter;
-import java.awt.event.KeyEvent;
+import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
+import java.util.function.Consumer;
 
 import static bacmman.github.gist.GistDLModel.BASE_URL;
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
@@ -52,8 +55,9 @@ public class SaveDLModelGist {
     private String defaultDirectory;
     private ProgressLogger pcb;
     Pair<String, DefaultWorker> uploader;
+    GithubGateway gateway;
 
-    public SaveDLModelGist() {
+    public SaveDLModelGist(GithubGateway gateway) {
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
                 char c = e.getKeyChar();
@@ -64,6 +68,7 @@ public class SaveDLModelGist {
         };
         name.addKeyListener(ke);
         folder.addKeyListener(ke);
+        this.gateway = gateway;
     }
 
 
@@ -177,17 +182,45 @@ public class SaveDLModelGist {
                     dispose();
                 }
             });
-            uploadButton.addActionListener(e -> {
+            Consumer<UserAuth> uploadFile = a -> {
                 File file = Utils.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
                 if (file != null) {
                     try {
-                        uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", auth, true, id -> {
+                        uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", a, true, id -> {
                             setURL(GIST_BASE_URL + id);
                             uploader = null;
                         }, pcb);
                     } catch (IOException ex) {
                         if (pcb != null) pcb.setMessage("Could not store file:" + ex.getMessage());
                         logger.error("Error storing model file", ex);
+                    }
+                }
+            };
+            uploadButton.addActionListener(e -> {
+                uploadFile.accept(auth);
+            });
+            uploadButton.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent evt) {
+                    if (SwingUtilities.isRightMouseButton(evt)) {
+                        JPopupMenu menu = new JPopupMenu();
+                        Action upOther = new AbstractAction("Upload Model to another account") {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, false);
+                                if (cred != null) {
+                                    try {
+                                        TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                        uploadFile.accept(auth2);
+                                    } catch (IllegalArgumentException ex) {
+                                        if (pcb != null)
+                                            pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                                    }
+                                }
+                            }
+                        };
+                        menu.add(upOther);
+                        menu.show(uploadButton, evt.getX(), evt.getY());
                     }
                 }
             });
