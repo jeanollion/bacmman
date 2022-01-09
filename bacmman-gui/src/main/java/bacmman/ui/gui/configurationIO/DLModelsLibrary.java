@@ -4,6 +4,7 @@ import bacmman.core.DefaultWorker;
 import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
+import bacmman.ui.ManualEdition;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.logger.ProgressLogger;
@@ -22,10 +23,14 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -77,24 +82,13 @@ public class DLModelsLibrary {
             updateEnableButtons();
         });
         updateEnableButtons();
-        DocumentListener dl = new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
+        Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override public void removeUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override public void changedUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
         };
-        username.getDocument().addDocumentListener(dl);
-        password.getDocument().addDocumentListener(dl);
+        username.getDocument().addDocumentListener(dl.apply(false));
+        password.getDocument().addDocumentListener(dl.apply(true));
         loadToken.addActionListener(e -> {
             fetchGists();
             updateGistDisplay();
@@ -184,22 +178,89 @@ public class DLModelsLibrary {
             // check that name does not already exists
             boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
             if (exists) {
-                GUI.log("Model already exists.");
+                pcb.setMessage("Model already exists.");
                 return;
             }
             if (!Utils.isValid(form.name(), false)) {
-                GUI.log("Invalid name");
+                pcb.setMessage("Invalid name");
                 return;
             }
             if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
-                GUI.log("Invalid folder name");
+                pcb.setMessage("Invalid folder name");
                 return;
             }
             GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+            toSave.setThumbnail(gist.getThumbnail());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateGistDisplay();
             tree.setSelectedGist(toSave);
+        });
+        duplicateButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action dupOther = new AbstractAction("Duplicate To another Account") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, false);
+                            if (cred != null) {
+                                try {
+                                    TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                    GistDLModel gist = tree.getSelectedGistNode().gist;
+                                    SaveDLModelGist form = new SaveDLModelGist();
+                                    form.setFolder(gist.folder)
+                                            .setName(gist.name)
+                                            .setDescription(gist.getDescription())
+                                            .setURL(gist.getModelURL())
+                                            .setMetadata(gist.getMetadata())
+                                            .setVisible(gist.isVisible());
+                                    form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
+                                    form.display(displayingFrame, "Duplicate model to another account...");
+                                    if (form.canceled) return;
+                                    if (!Utils.isValid(form.name(), false)) {
+                                        pcb.setMessage("Invalid name");
+                                        return;
+                                    }
+                                    if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
+                                        pcb.setMessage("Invalid folder name");
+                                        return;
+                                    }
+                                    if (cred.key.equals(username.getText())) { // same account
+                                        boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
+                                        if (exists) {
+                                            pcb.setMessage("Model already exists.");
+                                            return;
+                                        }
+                                    } else { // check on remote
+                                        List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, pcb);
+                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
+                                        if (exists) {
+                                            if (pcb != null)
+                                                pcb.setMessage("Configuration already exists on other account.");
+                                            return;
+                                        }
+                                    }
+                                    GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+                                    toSave.setThumbnail(gist.getThumbnail());
+                                    toSave.createNewGist(auth2);
+                                    if (cred.key.equals(username.getText())) { // same account
+                                        gists.add(toSave);
+                                        updateGistDisplay();
+                                        tree.setSelectedGist(toSave);
+                                    }
+                                } catch (IllegalArgumentException ex) {
+                                    pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                                }
+                            }
+                        }
+                    };
+                    dupOther.setEnabled(tree != null && tree.getSelectedGist() != null);
+                    menu.add(dupOther);
+                    menu.show(duplicateButton, evt.getX(), evt.getY());
+                }
+            }
         });
         setThumbnailButton.addActionListener(e -> {
             if (tree == null) return;
@@ -261,11 +322,17 @@ public class DLModelsLibrary {
         configureParameterButton.setEnabled(gistSel && configureParameterCallback != null);
     }
 
-    private void enableTokenButtons() {
+    private void enableTokenButtons(boolean modifyingPassword) {
         String u = username.getText();
         char[] p = password.getPassword();
-        boolean enableLoad = u.length() != 0 && p.length != 0;
+        boolean enableLoad = u.length() != 0;
         loadToken.setEnabled(enableLoad);
+        if (!modifyingPassword && u.length() > 0 && p.length == 0 && gateway.getPassword(u) != null) {
+            password.setText(String.valueOf(gateway.getPassword(u)));
+            p = password.getPassword();
+        }
+        if (p.length == 0) loadToken.setText("Load Public Models");
+        else loadToken.setText("Connect");
     }
 
     private void fetchGists() {
@@ -333,7 +400,7 @@ public class DLModelsLibrary {
         credentialPane.add(panel1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         panel1.setBorder(BorderFactory.createTitledBorder(null, "Username", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         username = new JTextField();
-        username.setToolTipText("Enter the username of a github account containing configuration files");
+        username.setToolTipText("Enter the username of a github account containing configuration files. Right Click: display recent list");
         panel1.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
@@ -367,7 +434,7 @@ public class DLModelsLibrary {
         actionPanel.add(removeButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         duplicateButton = new JButton();
         duplicateButton.setText("Duplicate");
-        duplicateButton.setToolTipText("Duplicate selected model");
+        duplicateButton.setToolTipText("Duplicate selected model. Right click: duplicate to another account");
         actionPanel.add(duplicateButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         setThumbnailButton = new JButton();
         setThumbnailButton.setText("Set Thumbnail");

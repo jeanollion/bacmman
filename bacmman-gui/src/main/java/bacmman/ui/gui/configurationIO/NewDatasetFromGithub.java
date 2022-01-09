@@ -9,6 +9,7 @@ import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
+import org.eclipse.collections.api.block.function.primitive.BooleanFunction;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,6 +22,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 public class NewDatasetFromGithub extends JDialog {
     private JPanel contentPane;
@@ -77,25 +79,13 @@ public class NewDatasetFromGithub extends JDialog {
                 onCancel();
             }
         }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
-        DocumentListener dl = new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
+        Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override public void removeUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override public void changedUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
         };
-        username.getDocument().addDocumentListener(dl);
-        password.getDocument().addDocumentListener(dl);
+        username.getDocument().addDocumentListener(dl.apply(false));
+        password.getDocument().addDocumentListener(dl.apply(true));
         username.addActionListener(e -> {
             if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
                 password.setText(String.valueOf(gateway.getPassword(username.getText())));
@@ -123,11 +113,17 @@ public class NewDatasetFromGithub extends JDialog {
         buttonOK.setEnabled(false);
     }
 
-    private void enableTokenButtons() {
+    private void enableTokenButtons(boolean modifyingPassword) {
         String u = username.getText();
         char[] p = password.getPassword();
-        boolean enableLoad = u.length() != 0 && p.length != 0;
+        boolean enableLoad = u.length() != 0;
         loadTokenButton.setEnabled(enableLoad);
+        if (!modifyingPassword && u.length() > 0 && p.length == 0 && gateway.getPassword(u) != null) {
+            password.setText(String.valueOf(gateway.getPassword(u)));
+            p = password.getPassword();
+        }
+        if (p.length == 0) loadTokenButton.setText("Load Public Configurations");
+        else loadTokenButton.setText("Connect");
     }
 
     private void onOK() {
@@ -237,8 +233,7 @@ public class NewDatasetFromGithub extends JDialog {
         panel2.add(panel3, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         panel3.setBorder(BorderFactory.createTitledBorder(null, "Username", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         username = new JTextField();
-        username.setText("jeanollion");
-        username.setToolTipText("Enter the username of a github account containing configuration files and press enter");
+        username.setToolTipText("Enter the username of a github account containing configuration files. Right Click: display recent list");
         panel3.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel4 = new JPanel();
         panel4.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));

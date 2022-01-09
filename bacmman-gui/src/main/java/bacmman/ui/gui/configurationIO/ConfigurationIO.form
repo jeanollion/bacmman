@@ -131,7 +131,7 @@
                 </constraints>
                 <properties>
                   <text value="bacmman"/>
-                  <toolTipText value="Enter the username of a github account containing configuration files"/>
+                  <toolTipText value="Enter the username of a github account containing configuration files. Right Click: display recent list"/>
                 </properties>
               </component>
             </children>
@@ -223,6 +223,7 @@
             </constraints>
             <properties>
               <text value="Duplicate remote"/>
+              <toolTipText value="Duplicate selected configuration. Right click: duplicate to another account"/>
             </properties>
           </component>
           <component id="d024c" class="javax.swing.JButton" binding="deleteRemote">

@@ -80,8 +80,7 @@
                       </grid>
                     </constraints>
                     <properties>
-                      <text value="jeanollion"/>
-                      <toolTipText value="Enter the username of a github account containing configuration files and press enter"/>
+                      <toolTipText value="Enter the username of a github account containing configuration files. Right Click: display recent list"/>
                     </properties>
                   </component>
                 </children>

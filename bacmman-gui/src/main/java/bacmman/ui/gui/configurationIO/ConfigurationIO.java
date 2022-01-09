@@ -27,12 +27,12 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static bacmman.plugins.Hint.formatHint;
@@ -135,25 +135,13 @@ public class ConfigurationIO {
             fetchGists();
             updateRemoteSelector();
         });
-        DocumentListener dl = new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent documentEvent) {
-                enableTokenButtons();
-            }
-
+        Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override public void removeUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override public void changedUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
         };
-        username.getDocument().addDocumentListener(dl);
-        password.getDocument().addDocumentListener(dl);
+        username.getDocument().addDocumentListener(dl.apply(false));
+        password.getDocument().addDocumentListener(dl.apply(true));
         generateToken.addActionListener(e -> {
             Pair<String, char[]> usernameAndPassword = GenerateGistToken.generateAndStoreToken(username.getText(), password.getPassword(), bacmmanLogger);
             if (usernameAndPassword != null) {
@@ -321,15 +309,15 @@ public class ConfigurationIO {
             // check that name does not already exists
             boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
             if (exists) {
-                GUI.log("Configuration already exists.");
+                if (bacmmanLogger != null) bacmmanLogger.setMessage("Configuration already exists.");
                 return;
             }
             if (!Utils.isValid(form.name(), false)) {
-                GUI.log("Invalid name");
+                if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid name");
                 return;
             }
             if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
-                GUI.log("Invalid folder name");
+                if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid folder name");
                 return;
             }
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
@@ -337,6 +325,74 @@ public class ConfigurationIO {
             gists.add(toSave);
             remoteSelector.addGist(toSave);
             remoteSelector.setSelectedGist(toSave, -1);
+        });
+        duplicateRemote.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action dupOther = new AbstractAction("Duplicate To another Account") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, false);
+                            if (cred != null) {
+                                try {
+                                    TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                    GistConfiguration gist = remoteSelector.getSelectedGist();
+                                    SaveGistForm form = new SaveGistForm();
+                                    form.setFolder(gist.folder)
+                                            .setName(gist.name)
+                                            .setDescription(gist.getDescription())
+                                            .setVisible(gist.isVisible());
+                                    form.display(displayingFrame, "Duplicate remote configuration to another account...");
+                                    if (form.canceled) return;
+                                    JSONObject content = (JSONObject) remoteConfig.getRoot().toJSONEntry();
+                                    if (!Utils.isValid(form.name(), false)) {
+                                        if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid name");
+                                        return;
+                                    }
+                                    if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
+                                        if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid folder name");
+                                        return;
+                                    }
+                                    // check that name does not already exists
+                                    if (cred.key.equals(username.getText())) { // same account
+                                        boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
+                                        if (exists) {
+                                            if (bacmmanLogger != null)
+                                                bacmmanLogger.setMessage("Configuration already exists.");
+                                            return;
+                                        }
+                                    } else { // check on remote
+                                        List<GistConfiguration> otherConfigs = GistConfiguration.getConfigurations(auth2, bacmmanLogger);
+                                        boolean exists = otherConfigs.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()) && g.type.equals(currentMode));
+                                        if (exists) {
+                                            if (bacmmanLogger != null)
+                                                bacmmanLogger.setMessage("Configuration already exists on other account.");
+                                            return;
+                                        }
+                                    }
+                                    GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
+                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE))
+                                        toSave.setThumbnail(gist.getThumbnail(remoteSelector.getSelectedGistOC()));
+                                    else toSave.setThumbnail(gist.getThumbnail());
+                                    toSave.createNewGist(auth2);
+                                    if (cred.key.equals(username.getText())) { // same account
+                                        gists.add(toSave);
+                                        remoteSelector.addGist(toSave);
+                                        remoteSelector.setSelectedGist(toSave, -1);
+                                    }
+                                } catch (IllegalArgumentException ex) {
+                                    bacmmanLogger.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                                }
+                            }
+                        }
+                    };
+                    dupOther.setEnabled(remoteSelector != null && remoteSelector.getTree().getSelectionCount() == 1);
+                    menu.add(dupOther);
+                    menu.show(duplicateRemote, evt.getX(), evt.getY());
+                }
+            }
         });
         setThumbnailButton.addActionListener(e -> {
             Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
@@ -374,11 +430,17 @@ public class ConfigurationIO {
         dia.setVisible(true);
     }
 
-    private void enableTokenButtons() {
+    private void enableTokenButtons(boolean modifyingPassword) {
         String u = username.getText();
         char[] p = password.getPassword();
-        boolean enableLoad = u.length() != 0 && p.length != 0;
+        boolean enableLoad = u.length() != 0;
         loadToken.setEnabled(enableLoad);
+        if (!modifyingPassword && u.length() > 0 && p.length == 0 && gateway.getPassword(u) != null) {
+            password.setText(String.valueOf(gateway.getPassword(u)));
+            p = password.getPassword();
+        }
+        if (p.length == 0) loadToken.setText("Load Public Configurations");
+        else loadToken.setText("Connect");
     }
 
     {
@@ -444,7 +506,7 @@ public class ConfigurationIO {
         panel1.setBorder(BorderFactory.createTitledBorder(null, "Username", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         username = new JTextField();
         username.setText("bacmman");
-        username.setToolTipText("Enter the username of a github account containing configuration files");
+        username.setToolTipText("Enter the username of a github account containing configuration files. Right Click: display recent list");
         panel1.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
@@ -479,6 +541,7 @@ public class ConfigurationIO {
         actionPanel.add(updateRemote, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         duplicateRemote = new JButton();
         duplicateRemote.setText("Duplicate remote");
+        duplicateRemote.setToolTipText("Duplicate selected configuration. Right click: duplicate to another account");
         actionPanel.add(duplicateRemote, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         deleteRemote = new JButton();
         deleteRemote.setText("Delete remote");

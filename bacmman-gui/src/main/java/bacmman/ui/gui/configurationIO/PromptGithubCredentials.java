@@ -16,6 +16,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.function.Function;
 
 public class PromptGithubCredentials extends JDialog {
     public static final Logger logger = LoggerFactory.getLogger(PromptGithubCredentials.class);
@@ -26,11 +27,12 @@ public class PromptGithubCredentials extends JDialog {
     private JPanel credentialPane;
     private JButton generateToken;
     GithubGateway gateway;
-    JTextField token;
-    JButton storeToken;
+    boolean storeToGateway;
+    Pair<String, char[]> credentials;
 
-    public PromptGithubCredentials(GithubGateway gateway) {
+    public PromptGithubCredentials(GithubGateway gateway, boolean storeToGateway) {
         this.gateway = gateway;
+        this.storeToGateway = storeToGateway;
         setContentPane(contentPane);
         setTitle("Github Credentials");
         setModal(true);
@@ -38,31 +40,19 @@ public class PromptGithubCredentials extends JDialog {
         username.addActionListener(e -> {
             if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
                 password.setText(String.valueOf(gateway.getPassword(username.getText())));
-            updateEnableButtons();
+            updateEnableButtons(false);
         });
         PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "", true);
         if (gateway.getUsername() != null && gateway.getUsername().length() > 0)
             username.setText(gateway.getUsername());
-        updateEnableButtons();
-        DocumentListener dl = new DocumentListener() {
-            @Override
-            public void insertUpdate(DocumentEvent documentEvent) {
-                updateEnableButtons();
-            }
-
-            @Override
-            public void removeUpdate(DocumentEvent documentEvent) {
-                updateEnableButtons();
-            }
-
-            @Override
-            public void changedUpdate(DocumentEvent documentEvent) {
-                updateEnableButtons();
-            }
-
+        updateEnableButtons(false);
+        Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
+            @Override public void insertUpdate(DocumentEvent documentEvent) { updateEnableButtons(p); }
+            @Override public void removeUpdate(DocumentEvent documentEvent) { updateEnableButtons(p); }
+            @Override public void changedUpdate(DocumentEvent documentEvent) { updateEnableButtons(p); }
         };
-        username.getDocument().addDocumentListener(dl);
-        password.getDocument().addDocumentListener(dl);
+        username.getDocument().addDocumentListener(dl.apply(false));
+        password.getDocument().addDocumentListener(dl.apply(true));
 
         connect.addActionListener(e -> onOK());
 
@@ -92,10 +82,14 @@ public class PromptGithubCredentials extends JDialog {
     }
 
 
-    private void updateEnableButtons() {
+    private void updateEnableButtons(boolean modifyingPassword) {
         String u = username.getText();
         char[] p = password.getPassword();
-        boolean enableLoad = u.length() != 0; // && p.length != 0;
+        if (!modifyingPassword && u.length() > 0 && p.length == 0 && gateway.getPassword(u) != null) {
+            password.setText(String.valueOf(gateway.getPassword(u)));
+            p = password.getPassword();
+        }
+        boolean enableLoad = u.length() != 0 && p.length != 0;
         connect.setEnabled(enableLoad);
     }
 
@@ -125,7 +119,7 @@ public class PromptGithubCredentials extends JDialog {
         credentialPane.add(panel1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         panel1.setBorder(BorderFactory.createTitledBorder(null, "Username", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         username = new JTextField();
-        username.setToolTipText("Enter the username of a github account containing configuration files");
+        username.setToolTipText("Enter the username of a github account containing configuration files. Right Click: display recent list");
         panel1.add(username, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
@@ -151,19 +145,26 @@ public class PromptGithubCredentials extends JDialog {
 
 
     private void onOK() {
-        gateway.setCredentials(username.getText(), password.getPassword());
+        if (storeToGateway) gateway.setCredentials(username.getText(), password.getPassword());
+        credentials = new Pair<>(username.getText(), password.getPassword());
         dispose();
     }
 
     private void onCancel() {
-        // add your code here if necessary
+        credentials = null;
         dispose();
     }
 
+    public static Pair<String, char[]> promptCredentials(GithubGateway gateway, boolean storeToGateway) {
+        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, storeToGateway);
+        dialog.pack();
+        dialog.setVisible(true);
+        return dialog.credentials;
+    }
+
     public static void promptCredentials(GithubGateway gateway) {
-        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway);
+        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, true);
         dialog.pack();
         dialog.setVisible(true);
     }
-
 }
