@@ -4337,7 +4337,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             menu.add(newDatasetTemplate);
-            Action newDatasetGithub = new AbstractAction("New Dataset from Github") {
+            Action newDatasetGithub = new AbstractAction("New Dataset from Online Library") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
                     newDatasetFromGithubMenuItemActionPerformed(e);
