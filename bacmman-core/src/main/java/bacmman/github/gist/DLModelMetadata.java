@@ -66,7 +66,6 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     }
 
     public class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {
-        TextParameter layerName = new TextParameter("layer name", "input", true, false).setHint("Input tensor name, as exported in the model graph");
         PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Intensity Scaling", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
         BoundedNumberParameter chanelNumber = new BoundedNumberParameter("Channel Number", 0, 1, 1, null).setEmphasized(true).setHint("Number of channel of input tensor");
         BooleanParameter fixedSize = new BooleanParameter("Fixed Size").setEmphasized(true).setHint("Whether the input must a a pre-defined size or not");
@@ -76,16 +75,11 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
 
         public DLModelInputParameter(String name) {
             super(name);
-            layerName.addListener(l -> setName(layerName.getValue()));
             is3D.addListener(p-> {
                 int dim = p.getSelected() ? 3 : 2;
                 shape.setChildrenNumber(dim);
             });
-            layerName.addValidationFunction(t -> inputs.getChildren().stream().filter(c -> !c.equals(t.getParent())).map(DLModelInputParameter::getName).noneMatch(n -> n.equals(t.getValue())));
-
         }
-
-        public String getName() {return layerName.getValue();}
         public PluginParameter<HistogramScaler> getScaling() {return scaler;}
         public int getChannelNumber() {return chanelNumber.getValue().intValue();}
         public boolean fixedSize() {return fixedSize.getSelected();}
@@ -94,13 +88,12 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
 
         @Override
         protected void initChildList() {
-            super.initChildren(layerName, scaler, is3D, sizeCond, chanelNumber);
+            super.initChildren(scaler, is3D, sizeCond, chanelNumber);
         }
 
         @Override
         public Object toJSONEntry() {
             JSONObject res = new JSONObject();
-            res.put("name", layerName.toJSONEntry());
             res.put("scaling", scaler.toJSONEntry());
             res.put("channelNumber", chanelNumber.toJSONEntry());
             res.put("fixedSize", fixedSize.toJSONEntry());
@@ -113,7 +106,6 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         public void initFromJSONEntry(Object jsonEntry) {
             if (jsonEntry instanceof JSONObject) {
                 JSONObject jsonO = (JSONObject) jsonEntry;
-                if (jsonO.containsKey("name")) layerName.initFromJSONEntry(jsonO.get("name"));
                 if (jsonO.containsKey("scaling")) scaler.initFromJSONEntry(jsonO.get("scaling"));
                 if (jsonO.containsKey("channelNumber")) chanelNumber.initFromJSONEntry(jsonO.get("channelNumber"));
                 if (jsonO.containsKey("fixedSize")) fixedSize.initFromJSONEntry(jsonO.get("fixedSize"));
@@ -132,28 +124,23 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     }
 
     public class DLModelOutputParameter extends ContainerParameterImpl<DLModelOutputParameter> {
-        TextParameter layerName = new TextParameter("layer name", "output", true, false).setHint("Output tensor name, as exported in the model graph");
         BoundedNumberParameter scalerIndex = new BoundedNumberParameter("Scaler index", 0, -1, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image intensity. -1 no reverse scaling");
 
         public DLModelOutputParameter(String name) {
             super(name);
-            layerName.addListener(l -> setName(layerName.getValue()));
             scalerIndex.addValidationFunction(s -> s.getIntValue() < inputs.getChildCount());
-            layerName.addValidationFunction(t -> outputs.getChildren().stream().filter(c -> !c.equals(t.getParent())).map(DLModelOutputParameter::getName).noneMatch(n -> n.equals(t.getValue())));
         }
 
-        public String getName() {return layerName.getValue();}
         public int getReverseScalingIndex() {return scalerIndex.getIntValue();}
 
         @Override
         protected void initChildList() {
-            super.initChildren(layerName, scalerIndex);
+            super.initChildren(scalerIndex);
         }
 
         @Override
         public Object toJSONEntry() {
             JSONObject res = new JSONObject();
-            res.put("name", layerName.toJSONEntry());
             res.put("scalerIndex", scalerIndex.toJSONEntry());
             return res;
         }
@@ -162,7 +149,6 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         public void initFromJSONEntry(Object jsonEntry) {
             if (jsonEntry instanceof JSONObject) {
                 JSONObject jsonO = (JSONObject) jsonEntry;
-                if (jsonO.containsKey("name")) layerName.initFromJSONEntry(jsonO.get("name"));
                 if (jsonO.containsKey("scalerIndex")) scalerIndex.initFromJSONEntry(jsonO.get("scalerIndex"));
             }
         }
