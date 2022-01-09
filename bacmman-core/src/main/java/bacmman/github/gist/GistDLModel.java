@@ -159,7 +159,7 @@ public class GistDLModel implements Hint {
         JSONObject files = new JSONObject();
         JSONObject file = new JSONObject();
         files.put(getFileName(), file);
-        file.put("content", jsonContent.toJSONString());
+        file.put("content", getContent().toJSONString());
         JSONObject gist = new JSONObject();
         gist.put("files", files);
         gist.put("description", description);
@@ -168,7 +168,7 @@ public class GistDLModel implements Hint {
         JSONObject json = JSONUtils.parse(res);
         if (json!=null) id = (String)json.get("id");
         else logger.error("Could not create configuration file");
-        if (thumbnailModified) uploadThumbnail(auth);
+        if (getThumbnail()!=null) uploadThumbnail(auth);
     }
     public boolean delete(UserAuth auth) {
         return JSONQuery.delete(BASE_URL+"/gists/"+id, auth);

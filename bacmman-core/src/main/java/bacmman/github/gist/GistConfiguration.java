@@ -310,8 +310,8 @@ public class GistConfiguration implements Hint {
             List<JSONObject> gists = JSONQuery.fetchAllPages(p -> new JSONQuery(BASE_URL+"/gists", JSONQuery.REQUEST_PROPERTY_GITHUB_JSON, JSONQuery.getDefaultParameters(p)).method(JSONQuery.METHOD.GET).authenticate(auth));
             return gists.stream().map(GistConfiguration::new).filter(gc -> gc.type != null).collect(Collectors.toList());
         } catch (IOException | ParseException e) {
-            logger.error("Error getting public configurations", e);
-            if (pcb!=null) pcb.setMessage("Could not get public configurations: "+e.getMessage());
+            logger.error("Error getting configurations", e);
+            if (pcb!=null) pcb.setMessage("Could not get configurations: "+e.getMessage());
             return Collections.emptyList();
         }
     }

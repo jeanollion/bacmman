@@ -22,6 +22,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static bacmman.utils.ThreadRunner.sleep;
 import static org.apache.commons.codec.digest.MessageDigestAlgorithms.MD5;
 
 public class LargeFileGist {
@@ -277,7 +278,7 @@ public class LargeFileGist {
     }
     protected static boolean storeBytes(String gist_url, String name, byte[] bytes, UserAuth auth) throws IOException {
         String content = JSONQuery.encodeJSONBase64(name, bytes); // null will set empty content -> remove the file
-        return storeBytesTryout(gist_url, content, auth, 5);
+        return storeBytesTryout(gist_url, content, auth, JSONQuery.MAX_TRYOUTS);
     }
     protected static boolean storeBytesTryout(String gist_url, String content, UserAuth auth, int remainingTryouts) throws IOException {
         JSONQuery q = new JSONQuery(gist_url, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
@@ -287,16 +288,13 @@ public class LargeFileGist {
         } catch (IOException e) {
             if (e.getMessage().contains("HTTP response code: 50") && remainingTryouts>0) {
                 logger.debug("error {} -> try again, remaining tryouts: {}", e.getMessage(), remainingTryouts);
-                sleep(5);
+                sleep(5000);
                 storeBytesTryout(gist_url, content, auth, remainingTryouts-1);
             } else throw e;
         }
         return true;
     }
 
-    private static void sleep(int seconds) {
-        try { Thread.sleep(seconds * 1000); } catch (InterruptedException ex) { }
-    }
     public static List<byte[]> splitFile(InputStream inputStream, double sizeOfChunksInMB) throws IOException {
         List<byte[]> datalist = new ArrayList<>();
         int sizeOfChunk = (int) (1024 * 1024 * sizeOfChunksInMB);

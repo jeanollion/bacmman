@@ -15,8 +15,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static bacmman.utils.ThreadRunner.sleep;
 
 public class JSONQuery {
     public static final Logger logger = LoggerFactory.getLogger(JSONQuery.class);
@@ -25,6 +28,7 @@ public class JSONQuery {
     public static String REQUEST_PROPERTY_GITHUB_BASE64 = "application/vnd.github.v3.base64";
     public static String REQUEST_PROPERTY_GITHUB_JSON= "application/vnd.github+json";
     public static int MAX_PER_PAGE = 100;
+    public static int MAX_TRYOUTS = 5;
     private HttpURLConnection urlConnection;
     UserAuth auth;
     public static String GIST_BASE_URL = "https://gist.github.com/";
@@ -151,9 +155,6 @@ public class JSONQuery {
                 o_oSb.append(sLine);
             }
         } catch (IOException e) {
-            /*if (e.getMessage().contains()) { //TODO what is the respond when gist is private and no authentication is provided
-                throw new UserAuth.AuthenticationException(e);
-            }*/
             throw e;
         } finally {
             urlConnection.disconnect();
@@ -195,17 +196,33 @@ public class JSONQuery {
 
     public static List<JSONObject> fetchAllPages(IntFunction<JSONQuery> queryPerPage) throws IOException, ParseException {
         int currentPage = 1;
-        List<JSONObject> currentPageResult = fetch(queryPerPage.apply(currentPage));
+        List<JSONObject> currentPageResult = fetchAndParse(() -> queryPerPage.apply(1), MAX_TRYOUTS);
         List<JSONObject> res = new ArrayList<>(currentPageResult);
         while(currentPageResult.size()==MAX_PER_PAGE) {
-            currentPageResult = fetch(queryPerPage.apply(++currentPage));
+            int cp = ++currentPage;
+            currentPageResult = fetchAndParse(() -> queryPerPage.apply(cp), MAX_TRYOUTS);
             res.addAll(currentPageResult);
             logger.debug("retrieved page {} -> {} entries total: {}", currentPage-1, currentPageResult.size(), res.size());
         }
         return res;
     }
-    public static List<JSONObject> fetch(JSONQuery query) throws IOException, ParseException {
-        String answer = query.fetch();
+    public static String fetch(Supplier<JSONQuery> querySupplier, int tryouts) throws IOException{
+        if (tryouts==0) tryouts=1;
+        while (tryouts-->0) {
+            try {
+                return querySupplier.get().fetch();
+            } catch (IOException e) {
+                if (tryouts==0 || !e.getMessage().contains("HTTP response code: 50")) throw e;
+                else {
+                    logger.debug("error {} -> try again, remaining tryouts: {}", e.getMessage(), tryouts);
+                    sleep(5000);
+                }
+            }
+        }
+        return null;
+    }
+    public static List<JSONObject> fetchAndParse(Supplier<JSONQuery> querySupplier, int tryouts) throws IOException, ParseException {
+        String answer = fetch(querySupplier, tryouts);
         return parseJSON(answer);
     }
     public static List<JSONObject> parseJSON(String response) throws ParseException {
@@ -216,6 +233,15 @@ public class JSONQuery {
         } else {
             return new ArrayList<JSONObject>(){{add((JSONObject)json);}};
         }
+    }
+    public static boolean delete(String url, UserAuth auth) {
+        if (auth instanceof NoAuth) return false;
+        try {
+            new JSONQuery(url).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetch();
+        } catch (Exception e) {
+            return false;
+        }
+        return true;
     }
     public static JSONObject authorizeAppStep1() throws IOException, ParseException{
         List<Pair<String, String>> params = new ArrayList<>(2);
@@ -244,13 +270,5 @@ public class JSONQuery {
         logger.info("authorize step 2: {}", json);
         return (String)json.get("access_token");
     }
-    public static boolean delete(String url, UserAuth auth) {
-        if (auth instanceof NoAuth) return false;
-        try {
-            new JSONQuery(url).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetch();
-        } catch (Exception e) {
-            return false;
-        }
-        return true;
-    }
+
 }
