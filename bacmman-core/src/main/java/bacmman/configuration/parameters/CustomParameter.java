@@ -126,6 +126,7 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     public Object toJSONEntry() {
         JSONObject res = new JSONObject();
         res.put("parameterClass", currentParameter.getClass().getSimpleName());
+        res.put("key", key.toJSONEntry());
         if (currentParameter!=null) res.put("parameters", currentParameter.toJSONEntry());
         return res;
     }
@@ -135,9 +136,8 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
         if (jsonEntry instanceof JSONObject) {
             JSONObject jsonO = (JSONObject) jsonEntry;
             if (jsonO.get("parameterClass") instanceof String) setSelectedItem((String)jsonO.get("parameterClass"));
-            if (currentParameter!=null && jsonO.containsKey("parameters")) {
-                currentParameter.initFromJSONEntry(jsonO.get("parameters"));
-            }
+            if (currentParameter!=null && jsonO.containsKey("parameters")) currentParameter.initFromJSONEntry(jsonO.get("parameters"));
+            if (jsonO.get("key")!=null) key.initFromJSONEntry(jsonO.get("key"));
         }
     }
 }
