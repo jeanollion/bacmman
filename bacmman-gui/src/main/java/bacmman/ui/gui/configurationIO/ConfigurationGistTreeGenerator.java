@@ -63,8 +63,8 @@ public class ConfigurationGistTreeGenerator {
     List<GistConfiguration> gists;
     GistConfiguration.TYPE type;
     final Consumer<GistTreeNode> setSelectedConfiguration;
-    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistConfiguration, BufferedImage> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistConfiguration::getThumbnail);
-    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<Pair<GistConfiguration, Integer>, BufferedImage> iconsByOC = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> p.key.getThumbnail(p.value));
+    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistConfiguration, List<BufferedImage>> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistConfiguration::getThumbnail);
+    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<Pair<GistConfiguration, Integer>, List<BufferedImage>> iconsByOC = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> p.key.getThumbnail(p.value));
     private final Map<DefaultMutableTreeNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
 
     Supplier<Icon> currentThumbnail;
@@ -105,7 +105,6 @@ public class ConfigurationGistTreeGenerator {
                         if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
                             iconsByOC.get(new Pair<>(n.gist, oc));
                             modified = true;
-                            logger.debug("loaded oc icon for oc: {} @ {}", oc, n.getUserObject());
                         }
                     }
                     if (modified) treeModel.nodeChanged(n);
@@ -119,10 +118,23 @@ public class ConfigurationGistTreeGenerator {
             GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
             if (node.objectClassIdx>=0) {
                 node.gist.setThumbnail(icon, node.objectClassIdx);
-                iconsByOC.put(new Pair<>(node.gist, node.objectClassIdx), icon);
+                iconsByOC.put(new Pair<>(node.gist, node.objectClassIdx), new ArrayList<BufferedImage>(){{add(icon);}});
             } else {
                 node.gist.setThumbnail(icon);
-                icons.put(node.gist, icon);
+                icons.put(node.gist, new ArrayList<BufferedImage>(){{add(icon);}});
+            }
+            treeModel.nodeChanged(node);
+        }
+    }
+    public void appendIconToCurrentlySelectedGist(BufferedImage icon) {
+        if (tree.getSelectionPath()!=null && tree.getSelectionPath().getLastPathComponent() instanceof GistTreeNode) {
+            GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
+            if (node.objectClassIdx>=0) {
+                node.gist.appendThumbnail(icon, node.objectClassIdx);
+                // no need to append to icons map -> list is same instance
+            } else {
+                node.gist.appendThumbnail(icon);
+                // no need to append to icons map -> list is same instance
             }
             treeModel.nodeChanged(node);
         }
@@ -335,17 +347,25 @@ public class ConfigurationGistTreeGenerator {
         public Icon getIcon(boolean popup) {
             UnaryOperator<BufferedImage> zoomFun = popup ? im -> zoom(im, 3) : im -> zoomToSize(im, 64);
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
-                BufferedImage im = objectClassIdx>=0 ? iconsByOC.getOrDefault(new Pair<>(gist, objectClassIdx), null) : icons.getOrDefault(gist, null);
-                if (im == null) return null;
-                return new ImageIcon(zoomFun.apply(im));
+                List<BufferedImage> im = objectClassIdx>=0 ? iconsByOC.getOrDefault(new Pair<>(gist, objectClassIdx), null) : icons.getOrDefault(gist, null);
+                if (im == null || im.isEmpty()) return null;
+                else if (im.size()==1) return new ImageIcon(zoomFun.apply(im.get(0)));
+                else {
+                    Icon[] icons = im.stream().map(zoomFun).map(ImageIcon::new).toArray(Icon[]::new);
+                    AnimatedIcon icon =  new AnimatedIcon(icons);
+                    icon.start();
+                    return icon;
+                }
             } else {
                 List<BufferedImage> images = new ArrayList<>();
-                images.add(icons.getOrDefault(gist, null));
-                for (int i = 0; i<gist.getExperiment().getStructureCount(); ++i) images.add(iconsByOC.getOrDefault(new Pair<>(gist, i), null));
+                if (icons.getOrDefault(gist, null)!=null) images.addAll(icons.get(gist));
+                for (int i = 0; i<gist.getExperiment().getStructureCount(); ++i) {
+                    Pair<GistConfiguration, Integer> key = new Pair<>(gist, i);
+                    if (iconsByOC.getOrDefault(key, null)!=null) images.addAll(iconsByOC.get(key));
+                }
                 images.removeIf(Objects::isNull);
                 if (images.isEmpty()) return null;
                 Icon[] icons = images.stream().map(zoomFun).map(ImageIcon::new).toArray(Icon[]::new);
-                logger.debug("whole xp icons: {} total oc: {}", icons.length, gist.getExperiment().getStructureCount());
                 AnimatedIcon icon =  new AnimatedIcon(icons);
                 icon.start();
                 return icon;

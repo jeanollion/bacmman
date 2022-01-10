@@ -58,7 +58,6 @@ public class ConfigurationIO {
     private JButton deleteRemote;
     private JButton duplicateRemote;
     private JPanel credentialPanel;
-    private JTextField token;
     private JButton generateToken;
     private JButton loadToken;
     private JButton setThumbnailButton;
@@ -136,9 +135,20 @@ public class ConfigurationIO {
             updateRemoteSelector();
         });
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
-            @Override public void removeUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
-            @Override public void changedUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
         };
         username.getDocument().addDocumentListener(dl.apply(false));
         password.getDocument().addDocumentListener(dl.apply(true));
@@ -373,9 +383,12 @@ public class ConfigurationIO {
                                         }
                                     }
                                     GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
-                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE))
-                                        toSave.setThumbnail(gist.getThumbnail(remoteSelector.getSelectedGistOC()));
-                                    else toSave.setThumbnail(gist.getThumbnail());
+                                    if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                                        for (BufferedImage t : gist.getThumbnail(remoteSelector.getSelectedGistOC()))
+                                            toSave.appendThumbnail(t);
+                                    } else {
+                                        for (BufferedImage t : gist.getThumbnail()) toSave.appendThumbnail(t);
+                                    }
                                     toSave.createNewGist(auth2);
                                     if (cred.key.equals(username.getText())) { // same account
                                         gists.add(toSave);
@@ -400,10 +413,35 @@ public class ConfigurationIO {
                 if (image instanceof ImagePlus) {
                     ImagePlus ip = (ImagePlus) image;
                     BufferedImage bimage = getDisplayedImage(ip);
-                    ip.getWindow();
                     bimage = IconUtils.zoomToSize(bimage, 128);
                     remoteSelector.setIconToCurrentlySelectedGist(bimage);
                     remoteSelector.getSelectedGist().uploadThumbnail(getAuth());
+                }
+            }
+        });
+        setThumbnailButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action append = new AbstractAction("Append Thumbnail") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+                            if (image != null) { // if null -> remove thumbnail ?
+                                if (image instanceof ImagePlus) {
+                                    ImagePlus ip = (ImagePlus) image;
+                                    BufferedImage bimage = getDisplayedImage(ip);
+                                    bimage = IconUtils.zoomToSize(bimage, 128);
+                                    remoteSelector.appendIconToCurrentlySelectedGist(bimage);
+                                    remoteSelector.getSelectedGist().uploadThumbnail(getAuth());
+                                }
+                            }
+                        }
+                    };
+                    menu.add(append);
+                    append.setEnabled(loggedIn && remoteSelector != null && remoteSelector.getTree().getSelectionCount() == 1);
+                    menu.show(setThumbnailButton, evt.getX(), evt.getY());
                 }
             }
         });

@@ -43,8 +43,8 @@ public class JSONQuery {
         try {
             URL serverUrl = new URL(url + getQuery(parameters));
             urlConnection = (HttpURLConnection) serverUrl.openConnection();
-            urlConnection.setRequestProperty("Content-Type", request_property);
-
+            //urlConnection.setRequestProperty("Content-Type", request_property);
+            header("Accept", request_property);
         } catch (MalformedURLException e) {
             logger.error("query url error", e);
         } catch (IOException e) {
@@ -173,12 +173,12 @@ public class JSONQuery {
     public static String encodeJSONBase64(String fileName, byte[] data) {
         return encodeJSONBase64(new HashMap<String, byte[]>(1){{put(fileName, data);}});
     }
-    public static String encodeJSONBase64(Map<String, byte[]> chunks) {
+    public static String encodeJSONBase64(Map<String, byte[]> fileNameMapChunks) {
         StringBuffer sb = new StringBuffer();
         sb.append('{') // gist
                 .append('"').append("files").append('"').append(':').append('{'); // files
 
-        Iterator<Map.Entry<String, byte[]>> iter = chunks.entrySet().iterator();
+        Iterator<Map.Entry<String, byte[]>> iter = fileNameMapChunks.entrySet().iterator();
         while(iter.hasNext()) {
             Map.Entry<String, byte[]> entry = iter.next();
             sb.append('"').append(entry.getKey()).append('"').append(':')
@@ -232,6 +232,15 @@ public class JSONQuery {
             return ((Stream<JSONObject>) gistsRequest.stream()).collect(Collectors.toList());
         } else {
             return new ArrayList<JSONObject>(){{add((JSONObject)json);}};
+        }
+    }
+    public static List<String> parseJSONStringArray(String response) throws ParseException {
+        if (response.charAt(0)=='[') {
+            Object json = new JSONParser().parse(response);
+            JSONArray gistsRequest = (JSONArray)json;
+            return ((Stream<String>) gistsRequest.stream()).collect(Collectors.toList());
+        } else {
+            return new ArrayList<String>(){{add(response);}};
         }
     }
     public static boolean delete(String url, UserAuth auth) {

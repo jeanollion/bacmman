@@ -5,6 +5,7 @@ import bacmman.plugins.Hint;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
 import bacmman.utils.JSONUtils;
+import org.checkerframework.checker.units.qual.A;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -48,8 +49,8 @@ public class GistConfiguration implements Hint {
     Experiment xp;
     public static String BASE_URL = "https://api.github.com";
     private Runnable thumbnailRetriever;
-    BufferedImage thumbnail;
-    TreeMap<Integer, BufferedImage> thumbnailByObjectClass;
+    List<BufferedImage> thumbnail;
+    TreeMap<Integer, List<BufferedImage>> thumbnailByObjectClass;
     boolean thumbnailModified, contentModified;
 
     public GistConfiguration(JSONObject gist) {
@@ -79,13 +80,19 @@ public class GistConfiguration implements Hint {
                             JSONObject thumbnailFile = (JSONObject) ((JSONObject) files).get("thumbnail");
                             String thumbFileURL = (String) thumbnailFile.get("raw_url");
                             thumbnailRetriever = () -> {
+                                Base64.Decoder decoder = Base64.getDecoder();
                                 String thumbdataB64 = thumbnailFile.containsKey("content") ? (String)thumbnailFile.get("content") : new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
                                 switch(type) {
                                     default:
-                                        logger.debug("retrieved thmubnail: length = {}", thumbdataB64 == null ? 0 : thumbdataB64.length());
+                                        logger.debug("retrieved thumbnail: length = {}", thumbdataB64 == null ? 0 : thumbdataB64.length());
                                         if (thumbdataB64 != null) {
-                                            byte[] thumbdata = Base64.getDecoder().decode(thumbdataB64);
-                                            thumbnail = IconUtils.bytesToImage(thumbdata);
+                                            thumbnail = new ArrayList<>();
+                                            try {
+                                                List<String> parsed = JSONQuery.parseJSONStringArray(thumbdataB64);
+                                                for (String s : parsed) thumbnail.add(IconUtils.bytesToImage(decoder.decode(s)));
+                                            } catch (Exception e) {
+                                                logger.error("Error parsing thumbnails", e);
+                                            }
                                         }
                                         break;
                                     case WHOLE: {
@@ -94,13 +101,18 @@ public class GistConfiguration implements Hint {
                                             Object json = new JSONParser().parse(thumbdataB64);
                                             Set<Map.Entry> jsonObject = ((JSONObject) json).entrySet();
                                             for (Map.Entry e : jsonObject) {
-                                                byte[] thumbdata = Base64.getDecoder().decode((String)e.getValue());
-                                                BufferedImage image = IconUtils.bytesToImage(thumbdata);
+                                                List<BufferedImage> images;
+                                                if (e.getValue() instanceof JSONArray) {
+                                                    images = ((Stream<String>)((JSONArray)e.getValue()).stream()).map(decoder::decode).map(IconUtils::bytesToImage).collect(Collectors.toList());
+                                                } else {
+                                                    images = new ArrayList<>();
+                                                    images.add(IconUtils.bytesToImage(decoder.decode((String) e.getValue())));
+                                                }
                                                 if (e.getKey().equals(PRE_PROCESSING.name())) {
-                                                    thumbnail = image;
+                                                    thumbnail = images;
                                                 } else {
                                                     int ocIdx = Integer.parseInt((String)e.getKey());
-                                                    thumbnailByObjectClass.put(ocIdx, image);
+                                                    thumbnailByObjectClass.put(ocIdx, images);
                                                 }
                                             }
                                         } catch (ParseException e) {
@@ -212,11 +224,11 @@ public class GistConfiguration implements Hint {
         return jsonContent;
     }
 
-    public BufferedImage getThumbnail() {
+    public List<BufferedImage> getThumbnail() {
         if (thumbnail==null && thumbnailRetriever!=null) thumbnailRetriever.run();
         return thumbnail;
     }
-    public BufferedImage getThumbnail(int ocIdx) {
+    public List<BufferedImage> getThumbnail(int ocIdx) {
         if (!type.equals(WHOLE)) throw new IllegalArgumentException("Calling get thumbnail by oc idx to non whole experiment");
         if (thumbnailByObjectClass==null) {
             if (thumbnailRetriever!=null) thumbnailRetriever.run();
@@ -233,10 +245,22 @@ public class GistConfiguration implements Hint {
         if (thumbnail==null) {
             if (thumbnailByObjectClass.get(ocIdx)!=null) thumbnailModified = true;
             thumbnailByObjectClass.remove(ocIdx);
-        } else if (thumbnailByObjectClass.get(ocIdx)==null || !Arrays.equals(IconUtils.toByteArray(thumbnailByObjectClass.get(ocIdx)), IconUtils.toByteArray(thumbnail))) {
-            thumbnailByObjectClass.put(ocIdx, thumbnail);
+        } else if (thumbnailByObjectClass.get(ocIdx)==null || thumbnailByObjectClass.get(ocIdx).size()!=1 || !Arrays.equals(IconUtils.toByteArray(thumbnailByObjectClass.get(ocIdx).get(0)), IconUtils.toByteArray(thumbnail))) {
+            thumbnailByObjectClass.put(ocIdx, new ArrayList<BufferedImage>(){{add(thumbnail);}});
             thumbnailModified = true;
         }
+        return this;
+    }
+    public GistConfiguration appendThumbnail(BufferedImage thumbnail, int ocIdx) {
+        if (thumbnail==null) return this;
+        if (!type.equals(WHOLE)) throw new IllegalArgumentException("Calling set thumbnail by oc idx to non whole experiment");
+        if (thumbnailByObjectClass==null) {
+            if (thumbnailRetriever!=null) thumbnailRetriever.run();
+            else thumbnailByObjectClass = new TreeMap<>();
+        }
+        if (!thumbnailByObjectClass.containsKey(ocIdx)) thumbnailByObjectClass.put(ocIdx, new ArrayList<>());
+        thumbnailByObjectClass.get(ocIdx).add(thumbnail);
+        thumbnailModified = true;
         return this;
     }
 
@@ -244,10 +268,19 @@ public class GistConfiguration implements Hint {
         if (thumbnail==null) {
             if (this.thumbnail!=null) thumbnailModified = true;
             this.thumbnail = null;
-        } else if (this.thumbnail==null || !Arrays.equals(IconUtils.toByteArray(this.thumbnail), IconUtils.toByteArray(thumbnail))) {
-            this.thumbnail = thumbnail;
+        } else if (this.thumbnail==null || this.thumbnail.size()!=1 || !Arrays.equals(IconUtils.toByteArray(this.thumbnail.get(0)), IconUtils.toByteArray(thumbnail))) {
+            this.thumbnail = new ArrayList<BufferedImage>(){{add(thumbnail);}};
             thumbnailModified = true;
         }
+        return this;
+    }
+
+    public GistConfiguration appendThumbnail(BufferedImage thumbnail) {
+        if (thumbnail==null) return this;
+        if (this.thumbnail==null && thumbnailRetriever!=null) thumbnailRetriever.run();
+        if (this.thumbnail==null) this.thumbnail = new ArrayList<>();
+        this.thumbnail.add(thumbnail);
+        thumbnailModified = true;
         return this;
     }
 
@@ -257,19 +290,48 @@ public class GistConfiguration implements Hint {
     }
 
     public void uploadThumbnail(UserAuth auth) {
+        Base64.Encoder encoder = Base64.getEncoder();
         switch(type) {
             default: {
-                byte[] bytes = thumbnail==null ? null : IconUtils.toByteArray(thumbnail);
-                if (storeBytes("thumbnail", bytes, auth)) thumbnailModified = false;
+                if (thumbnail==null || thumbnail.isEmpty()) storeBytes("thumbnail", (byte[]) null, auth);
+                else if (thumbnail.size()==1) storeBytes("thumbnail", IconUtils.toByteArray(thumbnail.get(0)), auth);
+                else {
+                    JSONArray thumbArray = new JSONArray();
+                    for (BufferedImage thumb : thumbnail) thumbArray.add(encoder.encodeToString(IconUtils.toByteArray(thumb)));
+                    JSONObject gist = new JSONObject();
+                    JSONObject files = new JSONObject();
+                    gist.put("files", files);
+                    JSONObject file = new JSONObject();
+                    files.put("thumbnail", file);
+                    file.put("content", thumbArray.toJSONString());
+                    JSONQuery q = new JSONQuery(BASE_URL + "/gists/" + id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString());
+                    String answer = q.fetchSilently();
+                    //logger.debug("storing multi thumbnails: {}", answer);
+                }
                 break;
             } case WHOLE: {
                 if (thumbnail!=null || (thumbnailByObjectClass!=null && !thumbnailByObjectClass.isEmpty())) {
                     JSONObject thumbnailObject = new JSONObject();
-                    if (thumbnail != null)
-                        thumbnailObject.put(PRE_PROCESSING.name(), Base64.getEncoder().encodeToString(IconUtils.toByteArray(thumbnail)));
+                    if (thumbnail != null) {
+                        Object content;
+                        if (thumbnail.size() == 1) content = encoder.encodeToString(IconUtils.toByteArray(thumbnail.get(0)));
+                        else {
+                            JSONArray c = new JSONArray();
+                            thumbnail.stream().map(IconUtils::toByteArray).map(encoder::encodeToString).forEach(c::add);
+                            content = c;
+                        }
+                        thumbnailObject.put(PRE_PROCESSING.name(), content);
+                    }
                     if (thumbnailByObjectClass != null) {
-                        for (Map.Entry<Integer, BufferedImage> e : thumbnailByObjectClass.entrySet()) {
-                            thumbnailObject.put(e.getKey().toString(), Base64.getEncoder().encodeToString(IconUtils.toByteArray(e.getValue())));
+                        for (Map.Entry<Integer, List<BufferedImage>> e : thumbnailByObjectClass.entrySet()) {
+                            Object content;
+                            if (e.getValue().size() == 1) content = encoder.encodeToString(IconUtils.toByteArray(e.getValue().get(0)));
+                            else {
+                                JSONArray c = new JSONArray();
+                                e.getValue().stream().map(IconUtils::toByteArray).map(encoder::encodeToString).forEach(c::add);
+                                content = c;
+                            }
+                            thumbnailObject.put(e.getKey().toString(), content );
                         }
                     }
                     JSONObject gist = new JSONObject();
@@ -277,10 +339,9 @@ public class GistConfiguration implements Hint {
                     gist.put("files", files);
                     JSONObject file = new JSONObject();
                     files.put("thumbnail", file);
-                    file.put("content", thumbnailObject.toJSONString()); // toJSONSTRING ?
+                    file.put("content", thumbnailObject.toJSONString());
                     JSONQuery q = new JSONQuery(BASE_URL + "/gists/" + id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString());
                     String answer = q.fetchSilently();
-                    logger.debug("store multi-thumbnails answer: {}", answer);
                 }
             }
         }
@@ -289,6 +350,7 @@ public class GistConfiguration implements Hint {
 
     protected boolean storeBytes(String name, byte[] bytes, UserAuth auth) {
         String content = JSONQuery.encodeJSONBase64(name, bytes); // null will set empty content -> remove the file
+        logger.debug("storing thumbnail content: {}", content);
         JSONQuery q = new JSONQuery(BASE_URL+"/gists/"+id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
         String answer = q.fetchSilently();
         return answer!=null;
@@ -367,5 +429,8 @@ public class GistConfiguration implements Hint {
     @Override
     public int hashCode() {
         return Objects.hash(id);
+    }
+    @Override public String toString() {
+        return name;
     }
 }

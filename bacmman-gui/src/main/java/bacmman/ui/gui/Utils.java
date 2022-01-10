@@ -90,8 +90,8 @@ public class Utils {
         if (parent.getChildCount()==0) parent.add(child);
         else {
             Stream<DefaultMutableTreeNode> s = EnumerationUtils.toStream(parent.children()).map(n -> (DefaultMutableTreeNode) n);
-            List<String> uo = s.map(n -> (String)n.getUserObject()).collect(Collectors.toList());
-            int idx = Collections.binarySearch(uo, (String)child.getUserObject());
+            List<String> uo = s.map(n -> n.getUserObject().toString()).collect(Collectors.toList());
+            int idx = Collections.binarySearch(uo, child.getUserObject().toString());
             if (idx<0) idx = -idx - 1;
             parent.insert(child, idx);
         }
