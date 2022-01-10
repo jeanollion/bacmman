@@ -168,6 +168,7 @@ public class IJVirtualStack extends VirtualStack {
         }
         return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx);
     }
+
     public static Image openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, boolean interactive, int objectClassIdx) {
         if (parentTrack.isEmpty()) return null;
         int[] channelArray = ArrayUtil.generateIntegerArray(parentTrack.get(0).getExperimentStructure().getObjectClassesAsString().length);
@@ -189,7 +190,7 @@ public class IJVirtualStack extends VirtualStack {
         Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, bdsC[0].getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
         ImagePlus ip = new ImagePlus();
-        ip.setTitle(("HyperStack of Track: "+parentTrack.get(0).toStringShort()));
+        ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? "HyperStack of Track: "+parentTrack.get(0).toStringShort(): interactiveImage.getName());
         ip.setStack(s, channels,maxZ, frames);
         if (maxZ>1) ip.setZ(maxZ/2+1);
         s.setImagePlus(ip);

@@ -137,4 +137,5 @@ public class ChoiceParameterUI implements ArmableUI {
     }
 
     public Object[] getDisplayComponent() {return allActions.toArray();}
+
 }

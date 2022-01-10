@@ -74,7 +74,7 @@ public abstract class Kymograph extends InteractiveImage {
     }
     
     @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.KYMOGRAPH, childStructureIdx);
+        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.KYMOGRAPH, childStructureIdx, name);
     }
     
     @Override

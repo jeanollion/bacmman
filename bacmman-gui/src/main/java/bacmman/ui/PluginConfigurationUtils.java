@@ -27,6 +27,7 @@ import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.image_container.MemoryImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
+import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
@@ -419,29 +420,51 @@ public class PluginConfigurationUtils {
         int parentStructureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getParentObjectClassIdx(structureIdx);
         int segParentStrutureIdx = stores.values().stream().findAny().get().getParent().getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         SegmentedObjectAccessor accessor = getAccessor();
-        Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx);
-        getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), res.value.size()+1));
-        res.value.forEach((image) -> {
-            iwm.addImage(image, res.key, structureIdx, true);
-            iwm.addTestData(image, stores.values());
-        });
+        List<Image> dispImages;
+        Function<Image, InteractiveImage> getIOI;
+        // default depend on image ratio:
+        InteractiveImageKey.TYPE t = ImageWindowManager.getDefaultInteractiveType();
+        if (t==null) {
+            double imRatioThld = 4;
+            BoundingBox bounds = stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds();
+            double sX = bounds.sizeX();
+            double sY = bounds.sizeY();
+            boolean hyperstack = (sX > sY && sX / sY < imRatioThld) || (sX <= sY && sY / sX < imRatioThld);
+            t = hyperstack ? InteractiveImageKey.TYPE.HYPERSTACK : InteractiveImageKey.TYPE.KYMOGRAPH;
+        }
+        if (InteractiveImageKey.TYPE.KYMOGRAPH.equals(t)) {
+            Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx);
+            dispImages = res.value;
+            getIOI = i -> res.key;
+            getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), res.value.size()+1));
+            res.value.forEach((image) -> {
+                iwm.addImage(image, res.key, structureIdx, true);
+                iwm.addTestData(image, stores.values());
+            });
+        } else {
+            Map<String, KymographT> map = buildIntermediateImagesHyperStack(stores.values(), parentStructureIdx);
+            getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), map.size()+1));
+            Map<Image, KymographT> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx), Map.Entry::getValue));
+            getIOI = hookMapIOI::get;
+            dispImages = new ArrayList<>(hookMapIOI.keySet());
+        }
+
         if (!preFilterStep && parentStructureIdx!=segParentStrutureIdx) { // add a selection to display the segmentation parent on the intermediate image
             List<SegmentedObject> parentTrack = stores.values().stream().map(s->((s.getParent()).getParent(parentStructureIdx))).distinct().sorted().collect(Collectors.toList());
-            Collection<SegmentedObject> bact = Utils.flattenMap(SegmentedObjectUtils.getChildrenByFrame(parentTrack, segParentStrutureIdx));
+            Collection<SegmentedObject> segObjects = Utils.flattenMap(SegmentedObjectUtils.getChildrenByFrame(parentTrack, segParentStrutureIdx));
             //Selection bactS = parentTrack.get(0).getDAO().getMasterDAO().getSelectionDAO().getOrCreate("testTrackerSelection", true);
-            Selection bactS = new Selection("testTrackerSelection", accessor.getDAO(parentTrack.get(0)).getMasterDAO());
-            bactS.setColor("Grey");
-            bactS.addElements(bact);
-            bactS.setIsDisplayingObjects(true);
-            bacmman.ui.GUI.getInstance().addSelection(bactS);
-            res.value.forEach((image) -> bacmman.ui.GUI.updateRoiDisplayForSelections(image, res.key));
+            Selection sel = new Selection("testTrackerSelection", accessor.getDAO(parentTrack.get(0)).getMasterDAO());
+            sel.setColor("Grey");
+            sel.addElements(segObjects);
+            sel.setIsDisplayingObjects(true);
+            bacmman.ui.GUI.getInstance().addSelection(sel);
+            dispImages.forEach((image) -> bacmman.ui.GUI.updateRoiDisplayForSelections(image, getIOI.apply(image)));
         }
         getImageManager().setInteractiveStructure(structureIdx);
-        res.value.forEach((image) -> {
+        dispImages.forEach((image) -> {
             iwm.displayAllObjects(image);
             iwm.displayAllTracks(image);
         });
-        
     }
 
     public static JMenuItem getTransformationTest(String name, Position position, int transfoIdx, boolean showAllSteps, ProgressCallback pcb, boolean expertMode) {
@@ -566,7 +589,7 @@ public class PluginConfigurationUtils {
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s->(SegmentedObject)(s.parent).getParent(parentStructureIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.enshureContinuousTrack(parents);
-        Kymograph ioi = Kymograph.generateKymograph(parents, childStructure, !GUI.defaultDisplayKymograph);
+        Kymograph ioi = Kymograph.generateKymograph(parents, childStructure, false);
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
@@ -581,6 +604,21 @@ public class PluginConfigurationUtils {
         Map<String, Double> orderMap = allImageNames.stream().collect(Collectors.toMap(n->n, n->getOrder.apply(n)));
         Collections.sort(images, Comparator.comparingDouble(i -> orderMap.get(i.getName())));
         return new Pair<>(ioi, images);
+    }
+    public static Map<String, KymographT> buildIntermediateImagesHyperStack(Collection<TestDataStore> stores, int parentStructureIdx) {
+        if (stores.isEmpty()) return null;
+        int childStructure = stores.stream().findAny().get().parent.getStructureIdx();
+        Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
+        List<SegmentedObject> parents = stores.stream().map(s-> (s.parent).getParent(parentStructureIdx)).distinct().sorted().collect(Collectors.toList());
+        SegmentedObjectUtils.enshureContinuousTrack(parents);
+        return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
+            Kymograph ioi = Kymograph.generateKymograph(parents, childStructure, true);
+            int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
+            int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
+            ioi.setImageSupplier( (idx, oc, raw) -> stores.stream().filter(s -> s.parent.getFrame() == parents.get(idx).getFrame() && s.images.containsKey(name)).map(s -> TypeConverter.convert(s.images.get(name), maxBitDepth)).findFirst().orElse(null));
+            ioi.setName(name);
+            return (KymographT)ioi;
+        }));
     }
 
     private static SegmentedObjectAccessor getAccessor() {

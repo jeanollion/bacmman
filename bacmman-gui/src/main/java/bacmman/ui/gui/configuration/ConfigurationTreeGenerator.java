@@ -57,6 +57,8 @@ import javax.swing.JSeparator;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
 import javax.swing.ToolTipManager;
+import javax.swing.event.MenuEvent;
+import javax.swing.event.MenuListener;
 import javax.swing.tree.*;
 
 /**
@@ -392,6 +394,24 @@ public class ConfigurationTreeGenerator {
             else if (o instanceof JSeparator) menu.addSeparator();
             else if (o instanceof Component) addToMenu(label, (Component)o, menu);
         }
+    }
+    public static void addToMenu(ChoiceParameter choice, JMenu menu) {
+        ChoiceParameterUI choiceUI = new ChoiceParameterUI(choice, null);
+        menu.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent menuEvent) {
+                choiceUI.refreshArming();
+                addToMenu("", choiceUI.getDisplayComponent(), menu);
+            }
+            @Override
+            public void menuDeselected(MenuEvent menuEvent) {
+                menu.removeAll();
+            }
+            @Override
+            public void menuCanceled(MenuEvent menuEvent) {
+                menu.removeAll();
+            }
+        });
     }
     private static void addToMenu(String label, Component c, JMenu menu) {
         JPanel panel = new JPanel(new FlowLayout());

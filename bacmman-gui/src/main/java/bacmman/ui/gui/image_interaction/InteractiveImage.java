@@ -25,6 +25,8 @@ import bacmman.image.ImageInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import bacmman.utils.Pair;
 
@@ -39,7 +41,8 @@ public abstract class InteractiveImage {
     private Boolean is2D=null;
     protected boolean guiMode = true;
     boolean displayPreFilteredImages= false;
-    
+    protected ImageSupplier imageSupplier;
+    protected String name="";
     public InteractiveImage(List<SegmentedObject> parents, int childStructureIdx) {
         if (parents.isEmpty()) throw new IllegalArgumentException("Empty parent list");
         parentStructureIdx = parents.get(0).getStructureIdx();
@@ -47,6 +50,21 @@ public abstract class InteractiveImage {
         //if (parentStructureIdx>childStructureIdx) throw new IllegalArgumentException("Structure: "+childStructureIdx +" cannot be child of structure: "+parents.get(0).getStructureIdx());
         this.parents = parents;
         this.childStructureIdx = childStructureIdx;
+        imageSupplier = (idx, ocIdx, raw) -> {
+            if (raw) return parents.get(idx).getRawImage(ocIdx);
+            Image pf = parents.get(idx).getPreFilteredImage(ocIdx);
+            if (pf==null) return parents.get(idx).getRawImage(ocIdx);
+            else return pf;
+        };
+    }
+    public void setName(String name) {
+        this.name = name;
+    }
+    public String getName() {
+        return name;
+    }
+    public void setImageSupplier(ImageSupplier imageSupplier) {
+        this.imageSupplier = imageSupplier;
     }
     public boolean is2D() {
         if (is2D==null) {
@@ -88,7 +106,7 @@ public abstract class InteractiveImage {
     public void setGUIMode(boolean guiMode) {
         this.guiMode=guiMode;
     }
-    @Override
+    /*@Override
     public boolean equals(Object o) {
         if (o instanceof InteractiveImage) return ((InteractiveImage)o).parents.equals(parents) && ((InteractiveImage)o).childStructureIdx==childStructureIdx;
         else return false;
@@ -100,5 +118,9 @@ public abstract class InteractiveImage {
         hash = 73 * hash + (this.parents != null ? this.parents.hashCode() : 0);
         hash = 73 * hash + this.childStructureIdx;
         return hash;
+    }*/
+    @FunctionalInterface
+    public interface ImageSupplier {
+        Image get(int parentIdx, int objectClassIdx, boolean raw);
     }
 }

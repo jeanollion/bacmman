@@ -111,7 +111,7 @@ public abstract class ImageWindowManager<I, U, V> {
     protected final HashMapGetCreate<Image, Set<V>> displayedLabileTrackRois = new HashMapGetCreate<>(new SetFactory<>());
 
     protected final Map<Image, List<DefaultWorker>> runningWorkers = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new HashMapGetCreate.ListFactory<>());
-    
+    protected static InteractiveImageKey.TYPE defaultInteractiveType = InteractiveImageKey.TYPE.HYPERSTACK;
     public ImageWindowManager(ImageObjectListener listener, ImageDisplayer<I> displayer) {
         this.listener=null;
         this.displayer=displayer;
@@ -119,6 +119,8 @@ public abstract class ImageWindowManager<I, U, V> {
         imageObjectInterfaces = new HashMap<>();
         trackHeadTrackMap = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
     }
+    public static void setDefaultInteractiveType(InteractiveImageKey.TYPE type) {defaultInteractiveType = type;}
+    public static InteractiveImageKey.TYPE getDefaultInteractiveType() {return defaultInteractiveType;}
     public void setDisplayImageLimit(int limit) {
         this.displayedImageNumber=limit;
     }
@@ -252,6 +254,7 @@ public abstract class ImageWindowManager<I, U, V> {
     
     public void addImage(Image image, InteractiveImage i, int displayedStructureIdx, boolean displayImage) {
         if (image==null) return;
+        boolean hyperstack = i instanceof KymographT;
         //ImageObjectInterface i = getImageObjectInterface(parent, childStructureIdx, timeImage);
         GUI.logger.debug("adding image: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
         if (!imageObjectInterfaces.containsValue(i)) {
@@ -458,7 +461,8 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     public InteractiveImage getImageObjectInterface(Image image) {
         InteractiveImageKey key = imageObjectInterfaceMap.get(image);
-        InteractiveImageKey.TYPE type = key!=null ? key.imageType : InteractiveImageKey.defaultType;
+        InteractiveImageKey.TYPE type = key!=null ? key.imageType : ImageWindowManager.getDefaultInteractiveType();
+        if (type==null) type = InteractiveImageKey.TYPE.HYPERSTACK;
         return getImageObjectInterface(image, type);
     }
     public InteractiveImage getImageObjectInterface(Image image, InteractiveImageKey.TYPE type) {
@@ -497,9 +501,12 @@ public abstract class ImageWindowManager<I, U, V> {
             // create imageObjectInterface
             if (ref instanceof Kymograph) i = this.getImageTrackObjectInterface((ref).parents, structureIdx, type);
             else i = this.getImageObjectInterface(ref.parents.get(0), structureIdx, true);
+            if (ref.getName().length()>0) {
+                imageObjectInterfaces.remove(i.getKey());
+                i.setName(ref.getName());
+            }
             logger.debug("created IOI: {} from ref: {}", i.getKey(), ref);
             if (i instanceof KymographT) registerHyperStack(image, (KymographT) i);
-            this.imageObjectInterfaces.put(i.getKey(), i);
         } 
         return i;
     }

@@ -92,7 +92,7 @@ public class KymographT extends Kymograph {
     }
 
     @Override public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.HYPERSTACK, childStructureIdx);
+        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.HYPERSTACK, childStructureIdx, name);
     }
 
     @Override
@@ -143,7 +143,7 @@ public class KymographT extends Kymograph {
         return Image.createEmptyImage(name, type, new SimpleImageProperties( this.maxParentSizeX, maxParentSizeY, Math.max(type.sizeZ(), this.maxParentSizeZ), parents.get(0).getMaskProperties().getScaleXY(), parents.get(0).getMaskProperties().getScaleZ()));
     }
     public Image getImage(int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
-        Image image = raw ? parents.get(idx).getRawImage(objectClassIdx):parents.get(idx).getPreFilteredImage(objectClassIdx);
+        Image image = imageSupplier.get(idx, objectClassIdx, raw);
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else {
             Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, maxParentSizeZ).translate(trackOffset[idx]));
@@ -151,7 +151,7 @@ public class KymographT extends Kymograph {
         }
     }
     public Image getPlane(int z, int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
-        Image image = raw ? parents.get(idx).getRawImage(objectClassIdx):parents.get(idx).getPreFilteredImage(objectClassIdx);
+        Image image = imageSupplier.get(idx, objectClassIdx, raw);
         image = image.getZPlane(z);
         if (bounds2D.sameDimensions(image)) return image; // no need for padding
         else {

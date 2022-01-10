@@ -19,6 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.ui.GUI;
 
 import java.util.List;
 import java.util.Map;
@@ -32,16 +33,20 @@ public class InteractiveImageKey {
     public enum TYPE {SINGLE_FRAME, KYMOGRAPH, HYPERSTACK}
     public final TYPE imageType;
     public final List<SegmentedObject> parent;
+    public final String name;
     public final int interactiveObjectClass;
-    public final static TYPE defaultType = TYPE.HYPERSTACK;
-    public InteractiveImageKey(List<SegmentedObject> parent, TYPE imageType, int interactiveObjectClass) {
+    public InteractiveImageKey(List<SegmentedObject> parent, TYPE imageType, int interactiveObjectClass, String name) {
         this.imageType = imageType;
         this.parent = parent;
         this.interactiveObjectClass = interactiveObjectClass;
+        this.name = name;
+    }
+    public InteractiveImageKey(List<SegmentedObject> parent, TYPE imageType, int interactiveObjectClass) {
+        this(parent, imageType, interactiveObjectClass, "");
     }
     
     public InteractiveImageKey getKey(int childStructureIdx) {
-        return new InteractiveImageKey(parent, imageType, childStructureIdx);
+        return new InteractiveImageKey(parent, imageType, childStructureIdx, name);
     }
 
     @Override
@@ -51,12 +56,13 @@ public class InteractiveImageKey {
         InteractiveImageKey that = (InteractiveImageKey) o;
         return interactiveObjectClass == that.interactiveObjectClass &&
                 imageType == that.imageType &&
+                that.name.equals(name) &&
                 Objects.equals(parent, that.parent);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(imageType, parent, interactiveObjectClass);
+        return Objects.hash(imageType, parent, interactiveObjectClass, name);
     }
     
     @Override
@@ -73,6 +79,9 @@ public class InteractiveImageKey {
         }
         final InteractiveImageKey other = (InteractiveImageKey) obj;
         if (this.imageType != other.imageType) {
+            return false;
+        }
+        if (!Objects.equals(this.name, other.name)) {
             return false;
         }
         if (!Objects.equals(this.parent, other.parent)) {

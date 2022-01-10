@@ -22,6 +22,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
+import bacmman.configuration.parameters.ui.ChoiceParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.core.*;
@@ -146,6 +147,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     // enable/disable components
     private NumberParameter openImageLimit = new BoundedNumberParameter("Limit", 0, 5, 0, null);
+    private ChoiceParameter interactiveImageType = new ChoiceParameter("Default Interactive Image Type", new String[]{"AUTOMATIC", "KYMOGRAPH", "HYPERSTACK"}, "AUTOMATIC", false).setHint("Default Interactive image type, for testing. Automatic: determines with the aspect ratio of the parent image: for rather square images will be opened as hyperstacks");
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
@@ -263,7 +265,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(onlineConfigurationLibraryMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
@@ -300,11 +302,26 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue());
         openImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue()));
         ConfigurationTreeGenerator.addToMenu(openImageLimit.getName(), ParameterUIBinder.getUI(openImageLimit).getDisplayComponent(), openImageNumberLimitMenu);
+        // interactive image type
+        logger.debug("defaultInteractiveImageMenu # {}", defaultInteractiveImageMenu.getItemCount());
+        Consumer<ChoiceParameter> setDefInteractiveType = c -> {
+            if (c.getSelectedItem().equals("AUTOMATIC")) {
+                ImageWindowManager.setDefaultInteractiveType(null);
+            } else if (c.getSelectedItem().equals("KYMOGRAPH")) {
+                ImageWindowManager.setDefaultInteractiveType(InteractiveImageKey.TYPE.KYMOGRAPH);
+            } else if (c.getSelectedItem().equals("HYPERSTACK")) {
+                ImageWindowManager.setDefaultInteractiveType(InteractiveImageKey.TYPE.HYPERSTACK);
+            }
+        };
+        setDefInteractiveType.accept(interactiveImageType);
+        interactiveImageType.addListener(setDefInteractiveType);
+        ConfigurationTreeGenerator.addToMenu(interactiveImageType, defaultInteractiveImageMenu);
         // kymograph interval
         PropertyUtils.setPersistant(kymographInterval, "kymograph_interval");
         Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
         kymographInterval.addListener(p->Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographInterval.getName(), ParameterUIBinder.getUI(kymographInterval).getDisplayComponent(), kymographMenu);
+
         // local zoom
         PropertyUtils.setPersistant(localZoomFactor, "local_zoom_factor");
         PropertyUtils.setPersistant(localZoomArea, "local_zoom_area");
@@ -695,28 +712,18 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
                 updateConfigurationTabValidity();
             };
-            JMenuItem remoteIO = new JMenuItem("Online Configuration Library");
-            this.importMenu.add(remoteIO);
-            remoteIO.addActionListener(e -> {
+            onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
+            this.importMenu.add(onlineConfigurationLibraryMenuItem);
+            onlineConfigurationLibraryMenuItem.addActionListener(e -> {
                 if (!checkConnection()) return;
                 new ConfigurationIO(db, Core.getCore().getGithubGateway(), onClose, this).display(this);
             });
-            JMenuItem remoteIO2 = new JMenuItem("Online Configuration Library");
-            this.exportMenu.add(remoteIO2);
-            remoteIO2.addActionListener(e -> {
-                if (!checkConnection()) return;
-                new ConfigurationIO(db, Core.getCore().getGithubGateway(), onClose, this).display(this);
-            });
-            JMenuItem dlModelLib = new JMenuItem("Online DL Model library");
-            this.exportMenu.add(dlModelLib);
-            dlModelLib.addActionListener(e -> {
+
+            onlineDLModelLibraryMenuItem.setText("Online DL Model library");
+            onlineDLModelLibraryMenuItem.addActionListener(e -> {
                 new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(),  this).display(this);
             });
-            JMenuItem dlModelLib2 = new JMenuItem("Online DL Model library");
-            this.importMenu.add(dlModelLib);
-            dlModelLib2.addActionListener(e -> {
-                new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), this).display(this);
-            });
+            this.importMenu.add(onlineDLModelLibraryMenuItem);
         }
         if (Core.enableTrackMate) {
             openTrackMateMenuItem.setText("Open TrackMate");
@@ -1436,6 +1443,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         newXPFromTemplateMenuItem = new javax.swing.JMenuItem();
         newDatasetFromGithubMenuItem = new javax.swing.JMenuItem();
         openTrackMateMenuItem = new javax.swing.JMenuItem();
+        onlineConfigurationLibraryMenuItem = new javax.swing.JMenuItem();
+        onlineDLModelLibraryMenuItem = new javax.swing.JMenuItem();
         deleteXPMenuItem = new javax.swing.JMenuItem();
         duplicateXPMenuItem = new javax.swing.JMenuItem();
         saveConfigMenuItem = new javax.swing.JMenuItem();
@@ -1493,6 +1502,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         localZoomMenu = new javax.swing.JMenu();
         roiMenu = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
+        defaultInteractiveImageMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         pyGatewayMenu = new javax.swing.JMenu();
         logMenu = new javax.swing.JMenu();
@@ -2645,6 +2655,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         roiMenu.setText("Annotations");
         miscMenu.add(roiMenu);
+
+        defaultInteractiveImageMenu.setText("Default Interactive Image Type");
+        miscMenu.add(defaultInteractiveImageMenu);
 
         kymographMenu.setText("Kymograph");
         miscMenu.add(kymographMenu);
@@ -4791,6 +4804,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu jMenu2;
     private javax.swing.JPopupMenu.Separator jSeparator1;
+    private javax.swing.JMenu defaultInteractiveImageMenu;
     private javax.swing.JMenu kymographMenu;
     private javax.swing.JMenu pyGatewayMenu;
     private javax.swing.JButton linkObjectsButton;
@@ -4812,6 +4826,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JScrollPane moduleListJSP;
     private javax.swing.JMenuItem newDatasetFromGithubMenuItem;
     private javax.swing.JMenuItem openTrackMateMenuItem;
+    private javax.swing.JMenuItem onlineConfigurationLibraryMenuItem;
+    private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;

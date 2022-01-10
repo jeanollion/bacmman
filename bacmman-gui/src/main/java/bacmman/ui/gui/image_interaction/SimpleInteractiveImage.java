@@ -62,7 +62,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public InteractiveImageKey getKey() {
-        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx);
+        return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.SINGLE_FRAME, childStructureIdx, name);
     }
 
     public BoundingBox[] getOffsets() {
@@ -164,11 +164,9 @@ public class SimpleInteractiveImage extends InteractiveImage {
 
     @Override
     public Image generateImage(int structureIdx, boolean executeInBackground) {
-        return displayPreFilteredImages? generateFilteredImage(structureIdx, executeInBackground) : parent.getRawImage(structureIdx);
+        return imageSupplier.get(0, structureIdx, displayPreFilteredImages);
     }
-    public Image generateFilteredImage(int structureIdx, boolean executeInBackground) {
-        return parent.getPreFilteredImage(structureIdx)==null?parent.getRawImage(structureIdx):parent.getPreFilteredImage(structureIdx);
-    }
+
 
     @Override
     public void drawObjects(ImageInteger image) {
