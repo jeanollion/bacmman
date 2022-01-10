@@ -9,7 +9,7 @@ public class ToolTipImage extends JToolTip {
     JLabel text;
     JPanel ttPanel;
     public ToolTipImage(Image image) {
-        this(new ImageIcon(image));
+        this(image==null ? null : new ImageIcon(image));
     }
     public ToolTipImage(Icon image) {
         super();
