@@ -20,6 +20,7 @@ package bacmman.ui.gui.configurationIO;
 
 import bacmman.core.DefaultWorker;
 import bacmman.github.gist.GistConfiguration;
+import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
 import bacmman.utils.EnumerationUtils;
 import bacmman.utils.HashMapGetCreate;
@@ -39,6 +40,8 @@ import java.util.*;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -47,6 +50,7 @@ import static bacmman.plugins.Hint.formatHint;
 import static bacmman.ui.gui.Utils.insertSorted;
 import static bacmman.ui.gui.Utils.setNullToolTipDelays;
 import static bacmman.utils.IconUtils.zoom;
+import static bacmman.utils.IconUtils.zoomToSize;
 
 /**
  *
@@ -63,7 +67,7 @@ public class ConfigurationGistTreeGenerator {
     final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<Pair<GistConfiguration, Integer>, BufferedImage> iconsByOC = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> p.key.getThumbnail(p.value));
     private final Map<DefaultMutableTreeNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
 
-    BufferedImage currentThumbnail;
+    Supplier<Icon> currentThumbnail;
     ImageIcon folderIcon, defaultConfigurationIcon;
     public ConfigurationGistTreeGenerator(List<GistConfiguration> gists, GistConfiguration.TYPE type, Consumer<GistTreeNode> setSelectedConfiguration) {
         try {folderIcon = new ImageIcon(Objects.requireNonNull(ConfigurationGistTreeGenerator.class.getResource("../../../../folder32.png")));} catch (Exception e) {}
@@ -90,9 +94,21 @@ public class ConfigurationGistTreeGenerator {
                     treeModel.nodeChanged(n);
                 }
             } else {
+                boolean modified = false;
                 if (!icons.containsKey(n.gist)) {
                     icons.get(n.gist);
-                    treeModel.nodeChanged(n);
+                    modified = true;
+                    if (!n.gist.type.equals(GistConfiguration.TYPE.WHOLE)) treeModel.nodeChanged(n);
+                }
+                if (n.gist.type.equals(GistConfiguration.TYPE.WHOLE)) { // also load oc icons
+                    for (int oc = 0; oc<n.gist.getExperiment().getStructureCount(); ++oc) {
+                        if (!iconsByOC.containsKey(new Pair<>(n.gist, oc))) {
+                            iconsByOC.get(new Pair<>(n.gist, oc));
+                            modified = true;
+                            logger.debug("loaded oc icon for oc: {} @ {}", oc, n.getUserObject());
+                        }
+                    }
+                    if (modified) treeModel.nodeChanged(n);
                 }
             }
             return "";
@@ -164,10 +180,12 @@ public class ConfigurationGistTreeGenerator {
 
         treeModel = new DefaultTreeModel(root);
         tree = new JTree(treeModel) {
+            ToolTipImage tip;
             @Override
             public JToolTip createToolTip() {
-                JToolTip tip = new ToolTipImage( currentThumbnail );
-                //tip.setComponent(tree);
+                if (tip!=null) tip.stopAnimation();
+                tip = new ToolTipImage( currentThumbnail==null ? null : currentThumbnail.get() );
+                tip.setComponent(tree);
                 return tip;
             }
             @Override
@@ -180,9 +198,8 @@ public class ConfigurationGistTreeGenerator {
                 }
                 if (curPath.getLastPathComponent() instanceof GistTreeNode) {
                     GistTreeNode g = ((GistTreeNode)curPath.getLastPathComponent());
-                    if (g.objectClassIdx>=0) currentThumbnail = zoom(iconsByOC.get(new Pair<>(g.gist, g.objectClassIdx)), 3);
-                    else currentThumbnail = zoom(icons.get(g.gist), 3);
-                    return formatHint(g.gist.getHintText(), currentThumbnail!=null ? (int)(currentThumbnail.getWidth() * 0.7): 300);
+                    currentThumbnail = () -> g.getIcon(true);
+                    return formatHint(g.gist.getHintText(), currentThumbnail!=null ? (int)(128 * 3 * 0.7): 300);
                 } else {
                     currentThumbnail = null;
                     return "Folder containing configuration files";
@@ -314,6 +331,26 @@ public class ConfigurationGistTreeGenerator {
         public int getObjectClassIdx() {
             return objectClassIdx;
         }
+
+        public Icon getIcon(boolean popup) {
+            UnaryOperator<BufferedImage> zoomFun = popup ? im -> zoom(im, 3) : im -> zoomToSize(im, 64);
+            if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
+                BufferedImage im = objectClassIdx>=0 ? iconsByOC.getOrDefault(new Pair<>(gist, objectClassIdx), null) : icons.getOrDefault(gist, null);
+                if (im == null) return null;
+                return new ImageIcon(zoomFun.apply(im));
+            } else {
+                List<BufferedImage> images = new ArrayList<>();
+                images.add(icons.getOrDefault(gist, null));
+                for (int i = 0; i<gist.getExperiment().getStructureCount(); ++i) images.add(iconsByOC.getOrDefault(new Pair<>(gist, i), null));
+                images.removeIf(Objects::isNull);
+                if (images.isEmpty()) return null;
+                Icon[] icons = images.stream().map(zoomFun).map(ImageIcon::new).toArray(Icon[]::new);
+                logger.debug("whole xp icons: {} total oc: {}", icons.length, gist.getExperiment().getStructureCount());
+                AnimatedIcon icon =  new AnimatedIcon(icons);
+                icon.start();
+                return icon;
+            }
+        }
     }
 
     public void flush() {
@@ -344,11 +381,11 @@ public class ConfigurationGistTreeGenerator {
         @Override
         public Component getTreeCellRendererComponent(final JTree tree, final Object value, final boolean sel, final boolean expanded, final boolean leaf, final int row, final boolean hasFocus) {
             final Component ret = super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
+            setIconTextGap(5);
             if (value instanceof GistTreeNode) {
                 GistTreeNode g = (GistTreeNode)value;
-                //BufferedImage icon = g.objectClassIdx>=0 ? iconsByOC.get(new Pair<>(g.gist, g.objectClassIdx)) : icons.get(g.gist);
-                BufferedImage icon = g.objectClassIdx>=0 ? iconsByOC.getOrDefault(new Pair<>(g.gist, g.objectClassIdx), null) : icons.getOrDefault(g.gist, null);
-                if (icon!=null) setIcon(new ImageIcon(IconUtils.zoomToSize(icon, 64)));
+                Icon icon = g.getIcon(false);
+                if (icon!=null) setIcon(icon);
                 else setIcon(defaultConfigurationIcon);
             } else {
                 setIcon(folderIcon);

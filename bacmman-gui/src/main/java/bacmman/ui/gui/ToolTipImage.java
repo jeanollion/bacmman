@@ -5,10 +5,13 @@ import javax.swing.border.BevelBorder;
 import java.awt.*;
 
 public class ToolTipImage extends JToolTip {
-    private Image image;
+    private Icon image;
     JLabel text;
     JPanel ttPanel;
     public ToolTipImage(Image image) {
+        this(new ImageIcon(image));
+    }
+    public ToolTipImage(Icon image) {
         super();
         this.image = image;
         setLayout(new BorderLayout());
@@ -18,7 +21,7 @@ public class ToolTipImage extends JToolTip {
         if (image!=null) {
             ttPanel = new JPanel(new FlowLayout(1, 0, 5));
             ttPanel.add(text);
-            ttPanel.add(new JLabel(new ImageIcon(image)));
+            ttPanel.add(new JLabel(image));
             add(ttPanel);
         } else {
             ttPanel = new JPanel();
@@ -26,11 +29,15 @@ public class ToolTipImage extends JToolTip {
             add(ttPanel);
         }
     }
-
+    public void stopAnimation() {
+        if (image instanceof AnimatedIcon) {
+            ((AnimatedIcon)image).stop();
+        }
+    }
     @Override
     public Dimension getPreferredSize() {
         if (image==null) return new Dimension(text.getWidth()+10, text.getHeight()+15);
-        return new Dimension(image.getWidth(this), text.getHeight()+5+image.getHeight(this));
+        return new Dimension(image.getIconWidth(), text.getHeight()+5+image.getIconHeight());
     }
     @Override
     public void setTipText(String tipText) {
