@@ -215,7 +215,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         if (stores!=null && noPrev!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
         Map<SegmentedObject, Double> displacementMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
-                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0] * o.getParent().getBounds().sizeY() / 256d, // / 256d factor is due to rescaling: dy is computed in pixels in the 32x256 image.
+                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0],
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
         Map<SegmentedObject, TrackingObject> objectSpotMap = HashMapGetCreate.getRedirectedMap(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(), o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), displacementMap.get(o)), HashMapGetCreate.Syncronization.NO_SYNC);
