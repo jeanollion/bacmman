@@ -321,6 +321,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (ip!=null && ip.getImageStack() instanceof IJVirtualStack) {
             //logger.debug("registering frame callback on image: {} for kymograph : {}", image.getName(), k.getKey());
             ((IJVirtualStack)ip.getImageStack()).appendSetFrameCallback(k::setIdx);
+            ((IJVirtualStack)ip.getImageStack()).appendSetFrameCallback(i -> GUI.updateRoiDisplayForSelections(image, k));
         }
     }
     @Override public void closeNonInteractiveWindows() {

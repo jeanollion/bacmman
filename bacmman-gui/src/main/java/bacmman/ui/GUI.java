@@ -82,6 +82,7 @@ import javax.swing.*;
 import javax.swing.event.*;
 import javax.swing.text.*;
 
+import bacmman.utils.*;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,13 +91,6 @@ import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
 
 import static bacmman.plugins.Hint.formatHint;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.FileIO;
-import bacmman.utils.ImportExportJSON;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.ListTransferHandler;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -888,16 +882,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (image==null) {
             return; // todo -> actions on all images?
         }
+        InteractiveImage ioi = i;
         ImageWindowManagerFactory.getImageManager().hideAllRois(image, false, true);
-        //logger.debug("updateSelectionsDisplay");
-        Enumeration<Selection> sels = INSTANCE.selectionModel.elements();
-        while (sels.hasMoreElements()) {
-            Selection s = sels.nextElement();
-            //logger.debug("selection: {}", s);
-            if (s.isDisplayingTracks()) SelectionUtils.displayTracks(s, i);
-            if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, i);
-        }
+        EnumerationUtils.toStream(INSTANCE.selectionModel.elements()).forEach(s -> {
+            if (s.isDisplayingTracks()) SelectionUtils.displayTracks(s, ioi);
+            if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, ioi);
+        });
     }
+
 
     public void openExperiment(String dbName, String hostnameOrDir, boolean readOnly) {
         if (db!=null) closeExperiment();
