@@ -77,7 +77,7 @@ public class KymographFactory {
             }
         }
         public Image generateImage(String name, int objectClassIdx, boolean raw) {
-            if (direction.equals(DIRECTION.T)) throw new UnsupportedOperationException("Do not generate frame stacks this way");
+            if (direction.equals(DIRECTION.T)) throw new UnsupportedOperationException("Do not generate hyperstack this way");
             Image type = raw ? parentTrack.get(0).getRawImage(objectClassIdx):parentTrack.get(0).getPreFilteredImage(objectClassIdx);
             Image res =  generateEmptyImage(name, type);
             IntStream.range(0, trackOffset.length).parallel().forEach(i->{
