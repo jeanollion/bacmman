@@ -118,10 +118,10 @@ public class ConfigurationGistTreeGenerator {
             GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
             if (node.objectClassIdx>=0) {
                 node.gist.setThumbnail(icon, node.objectClassIdx);
-                iconsByOC.put(new Pair<>(node.gist, node.objectClassIdx), new ArrayList<BufferedImage>(){{add(icon);}});
+                iconsByOC.put(new Pair<>(node.gist, node.objectClassIdx), node.gist.getThumbnail(node.objectClassIdx));
             } else {
                 node.gist.setThumbnail(icon);
-                icons.put(node.gist, new ArrayList<BufferedImage>(){{add(icon);}});
+                icons.put(node.gist, node.gist.getThumbnail());
             }
             treeModel.nodeChanged(node);
         }
@@ -131,10 +131,10 @@ public class ConfigurationGistTreeGenerator {
             GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
             if (node.objectClassIdx>=0) {
                 node.gist.appendThumbnail(icon, node.objectClassIdx);
-                // no need to append to icons map -> list is same instance
+                iconsByOC.put(new Pair<>(node.gist, node.objectClassIdx), node.gist.getThumbnail(node.objectClassIdx));
             } else {
                 node.gist.appendThumbnail(icon);
-                // no need to append to icons map -> list is same instance
+                icons.put(node.gist, node.gist.getThumbnail());
             }
             treeModel.nodeChanged(node);
         }

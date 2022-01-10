@@ -34,7 +34,7 @@ public class JSONQuery {
     public static String GIST_BASE_URL = "https://gist.github.com/";
 
     public JSONQuery(String url) {
-        this(url, REQUEST_PROPERTY_DEFAULT);
+        this(url, REQUEST_PROPERTY_GITHUB_JSON);
     }
     public JSONQuery(String url, String request_property) {
         this(url, request_property, getDefaultParameters(1));

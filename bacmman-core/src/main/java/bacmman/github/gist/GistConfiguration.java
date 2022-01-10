@@ -244,9 +244,11 @@ public class GistConfiguration implements Hint {
         }
         if (thumbnail==null) {
             if (thumbnailByObjectClass.get(ocIdx)!=null) thumbnailModified = true;
-            thumbnailByObjectClass.remove(ocIdx);
+            if (thumbnailByObjectClass.get(ocIdx)!=null) thumbnailByObjectClass.get(ocIdx).clear();
         } else if (thumbnailByObjectClass.get(ocIdx)==null || thumbnailByObjectClass.get(ocIdx).size()!=1 || !Arrays.equals(IconUtils.toByteArray(thumbnailByObjectClass.get(ocIdx).get(0)), IconUtils.toByteArray(thumbnail))) {
-            thumbnailByObjectClass.put(ocIdx, new ArrayList<BufferedImage>(){{add(thumbnail);}});
+            if (thumbnailByObjectClass.get(ocIdx)==null) thumbnailByObjectClass.put(ocIdx, new ArrayList<>());
+            else thumbnailByObjectClass.get(ocIdx).clear();
+            thumbnailByObjectClass.get(ocIdx).add(thumbnail);
             thumbnailModified = true;
         }
         return this;
@@ -266,10 +268,14 @@ public class GistConfiguration implements Hint {
 
     public GistConfiguration setThumbnail(BufferedImage thumbnail) {
         if (thumbnail==null) {
-            if (this.thumbnail!=null) thumbnailModified = true;
-            this.thumbnail = null;
+            if (this.thumbnail!=null) {
+                this.thumbnail.clear();
+                thumbnailModified = true;
+            }
         } else if (this.thumbnail==null || this.thumbnail.size()!=1 || !Arrays.equals(IconUtils.toByteArray(this.thumbnail.get(0)), IconUtils.toByteArray(thumbnail))) {
-            this.thumbnail = new ArrayList<BufferedImage>(){{add(thumbnail);}};
+            if (this.thumbnail==null) this.thumbnail=new ArrayList<>();
+            else this.thumbnail.clear();
+            this.thumbnail.add(thumbnail);
             thumbnailModified = true;
         }
         return this;

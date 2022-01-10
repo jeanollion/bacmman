@@ -25,6 +25,7 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistDLModel;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.ui.GUI;
+import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
@@ -49,6 +50,7 @@ import java.net.URISyntaxException;
 import java.util.*;
 import java.util.List;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -67,10 +69,10 @@ public class DLModelGistTreeGenerator {
     protected DefaultTreeModel treeModel;
     List<GistDLModel> gists;
     final Runnable selectionChanged;
-    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistDLModel, BufferedImage> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistDLModel::getThumbnail);
+    final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistDLModel, List<BufferedImage>> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistDLModel::getThumbnail);
     private final Map<DefaultMutableTreeNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
 
-    BufferedImage currentThumbnail;
+    Supplier<Icon> currentThumbnail;
     Icon dlModelDefaultIcon, urlIcon, metadataIcon, folderIcon;
     String defaultDirectory;
     ProgressLogger pcb;
@@ -139,7 +141,7 @@ public class DLModelGistTreeGenerator {
         tree = new JTree(treeModel) {
             @Override
             public JToolTip createToolTip() {
-                JToolTip tip = new ToolTipImage( currentThumbnail );
+                JToolTip tip = new ToolTipImage( currentThumbnail==null ? null : currentThumbnail.get() );
                 //tip.setComponent(tree);
                 return tip;
             }
@@ -152,9 +154,20 @@ public class DLModelGistTreeGenerator {
                     return null;
                 } else if (curPath.getLastPathComponent() instanceof GistTreeNode) {
                     GistTreeNode g = (GistTreeNode)curPath.getLastPathComponent();
-                    currentThumbnail = zoom(icons.get(g.gist), 3);
-                    if (currentThumbnail == null && g.gist.getHintText().length()==0) return null;
-                    return formatHint(g.gist.getHintText(), currentThumbnail!=null ? (int)(currentThumbnail.getWidth() * 0.7): 300); // emprical factor to convert html px to screen dimension. //TOOD use fontMetrics...
+                    currentThumbnail = () -> {
+                        List<BufferedImage> images = icons.get(g.gist);
+                        if (images==null || images.isEmpty()) return null;
+                        images = images.stream().map(i -> zoom(i, 3)).collect(Collectors.toList());
+                        if (images.size()==1) return new ImageIcon(images.get(0));
+                        else {
+                            Icon[] icons = images.stream().map(ImageIcon::new).toArray(Icon[]::new);
+                            AnimatedIcon icon = new AnimatedIcon(icons);
+                            icon.start();
+                            return icon;
+                        }
+                    };
+                    if (icons.getOrDefault(g.gist, null) == null && g.gist.getHintText().length()==0) return null;
+                    return formatHint(g.gist.getHintText(), currentThumbnail!=null ? (int)(128 * 3 * 0.7): 300); // emprical factor to convert html px to screen dimension. //TOOD use fontMetrics...
                 } else if (curPath.getLastPathComponent() instanceof DefaultMutableTreeNode && (((String)((DefaultMutableTreeNode)curPath.getLastPathComponent()).getUserObject()).startsWith("<html>URL"))) {
                     currentThumbnail = null;
                     return "Double click to download file";
@@ -243,7 +256,15 @@ public class DLModelGistTreeGenerator {
         if (tree.getSelectionPath()!=null && tree.getSelectionPath().getLastPathComponent() instanceof GistTreeNode) {
             GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
             node.gist.setThumbnail(icon);
-            icons.put(node.gist, icon);
+            icons.put(node.gist, node.gist.getThumbnail());
+            treeModel.nodeChanged(node);
+        }
+    }
+    public void appendIconToCurrentlySelectedGist(BufferedImage icon) {
+        if (tree.getSelectionPath()!=null && tree.getSelectionPath().getLastPathComponent() instanceof GistTreeNode) {
+            GistTreeNode node = (GistTreeNode)tree.getSelectionPath().getLastPathComponent();
+            node.gist.appendThumbnail(icon);
+            icons.put(node.gist, node.gist.getThumbnail());
             treeModel.nodeChanged(node);
         }
     }
@@ -392,8 +413,8 @@ public class DLModelGistTreeGenerator {
             final Component ret = super.getTreeCellRendererComponent(tree, value, sel, expanded, leaf, row, hasFocus);
             if (value instanceof GistTreeNode) {
                 //BufferedImage icon = icons.get(((GistTreeNode)value).gist);
-                BufferedImage icon = icons.getOrDefault(((GistTreeNode)value).gist, null); // lazy loading
-                if (icon!=null) setIcon(new ImageIcon(IconUtils.zoomToSize(icon, 64)));
+                List<BufferedImage> icon = icons.getOrDefault(((GistTreeNode)value).gist, null); // lazy loading
+                if (icon!=null && !icon.isEmpty()) setIcon(new ImageIcon(IconUtils.zoomToSize(icon.get(0), 64))); // only show first icon
                 else if (dlModelDefaultIcon!=null) setIcon(dlModelDefaultIcon);
             } else if (value instanceof DefaultMutableTreeNode && (((String)((DefaultMutableTreeNode)value).getUserObject()).startsWith("<html>URL"))) {
                 if (urlIcon!=null) setIcon(urlIcon);

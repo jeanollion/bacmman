@@ -190,7 +190,7 @@ public class DLModelsLibrary {
                 return;
             }
             GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-            toSave.setThumbnail(gist.getThumbnail());
+            for (BufferedImage b : gist.getThumbnail()) toSave.appendThumbnail(b);
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateGistDisplay();
@@ -243,7 +243,7 @@ public class DLModelsLibrary {
                                         }
                                     }
                                     GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-                                    toSave.setThumbnail(gist.getThumbnail());
+                                    for (BufferedImage b : gist.getThumbnail()) toSave.appendThumbnail(b);
                                     toSave.createNewGist(auth2);
                                     if (cred.key.equals(username.getText())) { // same account
                                         gists.add(toSave);
@@ -272,6 +272,32 @@ public class DLModelsLibrary {
                     bimage = IconUtils.zoomToSize(bimage, 128);
                     tree.setIconToCurrentlySelectedGist(bimage);
                     tree.getSelectedGistNode().gist.uploadThumbnail(getAuth());
+                }
+            }
+        });
+        setThumbnailButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action append = new AbstractAction("Append Thumbnail") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            Object image = ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage();
+                            if (image != null) { // if null -> remove thumbnail ?
+                                if (image instanceof ImagePlus) {
+                                    ImagePlus ip = (ImagePlus) image;
+                                    BufferedImage bimage = getDisplayedImage(ip);
+                                    bimage = IconUtils.zoomToSize(bimage, 128);
+                                    tree.appendIconToCurrentlySelectedGist(bimage);
+                                    tree.getSelectedGist().uploadThumbnail(getAuth());
+                                }
+                            }
+                        }
+                    };
+                    menu.add(append);
+                    append.setEnabled(loggedIn && tree != null && tree.getTree().getSelectionCount() == 1);
+                    menu.show(setThumbnailButton, evt.getX(), evt.getY());
                 }
             }
         });

@@ -36,7 +36,7 @@ public class GistDLModel implements Hint {
     public String getHintText() {return description;}
     String id;
     public static String BASE_URL = "https://api.github.com";
-    BufferedImage thumbnail;
+    List<BufferedImage> thumbnail;
     boolean thumbnailModified, contentModified;
     public GistDLModel(String id) throws IOException {
         this.id = id;
@@ -76,13 +76,16 @@ public class GistDLModel implements Hint {
                     JSONObject thumbnailFile = (JSONObject)((JSONObject) files).get("thumbnail");
                     String thumbFileURL = (String) thumbnailFile.get("raw_url");
                     thumbnailRetriever = () -> {
+                        Base64.Decoder decoder = Base64.getDecoder();
                         String thumbdataB64= thumbnailFile.containsKey("content") ? (String)thumbnailFile.get("content") : new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
                         logger.debug("retrieved thmubnail: length = {}", thumbdataB64==null ? 0 : thumbdataB64.length());
                         if (thumbdataB64 !=null ) {
-                            byte[] thumbdata = Base64.getDecoder().decode(thumbdataB64);
-                            if (thumbdata!=null) {
-                                logger.debug("thumbnail length: {}", thumbdata.length);
-                                thumbnail = IconUtils.bytesToImage(thumbdata);
+                            thumbnail = new ArrayList<>();
+                            try {
+                                List<String> parsed = JSONQuery.parseJSONStringArray(thumbdataB64);
+                                for (String s : parsed) thumbnail.add(IconUtils.bytesToImage(decoder.decode(s)));
+                            } catch (Exception e) {
+                                logger.error("Error parsing thumbnails", e);
                             }
                         }
                     };
@@ -141,16 +144,28 @@ public class GistDLModel implements Hint {
     }
     public GistDLModel setThumbnail(BufferedImage thumbnail) {
         if (thumbnail==null) {
-            if (this.thumbnail!=null) thumbnailModified = true;
-            this.thumbnail = null;
-        } else if (this.thumbnail==null || !Arrays.equals(IconUtils.toByteArray(this.thumbnail), IconUtils.toByteArray(thumbnail))) {
-            this.thumbnail = thumbnail;
+            if (this.thumbnail!=null) {
+                this.thumbnail.clear();
+                thumbnailModified = true;
+            }
+        } else if (this.thumbnail==null || this.thumbnail.size()!=1 || !Arrays.equals(IconUtils.toByteArray(this.thumbnail.get(0)), IconUtils.toByteArray(thumbnail))) {
+            if (this.thumbnail==null) this.thumbnail=new ArrayList<>();
+            else this.thumbnail.clear();
+            this.thumbnail.add(thumbnail);
             thumbnailModified = true;
         }
         return this;
     }
+    public GistDLModel appendThumbnail(BufferedImage thumbnail) {
+        if (thumbnail==null) return this;
+        if (this.thumbnail==null && thumbnailRetriever!=null) thumbnailRetriever.run();
+        if (this.thumbnail==null) this.thumbnail = new ArrayList<>();
+        this.thumbnail.add(thumbnail);
+        thumbnailModified = true;
+        return this;
+    }
 
-    public BufferedImage getThumbnail() {
+    public List<BufferedImage> getThumbnail() {
         if (thumbnail==null && thumbnailRetriever!=null) thumbnailRetriever.run();
         return thumbnail;
     }
@@ -206,8 +221,21 @@ public class GistDLModel implements Hint {
     }
 
     public void uploadThumbnail(UserAuth auth) {
-        byte[] bytes = thumbnail==null ? null : IconUtils.toByteArray(thumbnail);
-        if (storeBytes("thumbnail", bytes, auth)) thumbnailModified = false;
+        if (thumbnail==null || thumbnail.isEmpty()) storeBytes("thumbnail", (byte[]) null, auth);
+        else if (thumbnail.size()==1) storeBytes("thumbnail", IconUtils.toByteArray(thumbnail.get(0)), auth);
+        else {
+            JSONArray thumbArray = new JSONArray();
+            for (BufferedImage thumb : thumbnail) thumbArray.add(Base64.getEncoder().encodeToString(IconUtils.toByteArray(thumb)));
+            JSONObject gist = new JSONObject();
+            JSONObject files = new JSONObject();
+            gist.put("files", files);
+            JSONObject file = new JSONObject();
+            files.put("thumbnail", file);
+            file.put("content", thumbArray.toJSONString());
+            JSONQuery q = new JSONQuery(BASE_URL + "/gists/" + id, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(gist.toJSONString());
+            String answer = q.fetchSilently();
+            //logger.debug("storing multi thumbnails: {}", answer);
+        }
     }
 
     public JSONObject getContent() {
