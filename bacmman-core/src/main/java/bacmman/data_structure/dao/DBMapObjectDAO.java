@@ -888,7 +888,7 @@ public class DBMapObjectDAO implements ObjectDAO {
             res.get(frame).add(k);
         });
         long t1 = System.currentTimeMillis();
-        logger.debug("creating frame index for: {} in {}ms", key, t1-t0);
+        //logger.debug("creating frame index for: {} in {}ms", key, t1-t0);
         return res;
     }
     protected Map<Integer, Set<String>> getFrameIndex(Pair<String, Integer> key) {
@@ -897,20 +897,20 @@ public class DBMapObjectDAO implements ObjectDAO {
             Map<Integer, Set<String>> res = new HashMap<>();
             dbmap.forEach( (f, o) -> res.put(f, new HashSet(Arrays.asList((Object[])o))));
             int size = res.values().stream().mapToInt(Set::size).sum();
-            logger.debug("retrieved frame index for {} objects over {} frames", size, res.size());
+            //logger.debug("retrieved frame index for {} objects over {} frames", size, res.size());
             return res;
         } else {
             Map<Integer, Set<String>> res = createFrameIndex(key);
             int size = res.values().stream().mapToInt(Set::size).sum();
             if (size > frameIndexLimit) { // store
-                logger.debug("storing: frame index for {} objects", size);
+                //logger.debug("storing: frame index for {} objects", size);
                 storeFrameIndex(key, res, true);
             }
             return res;
         }
     }
     protected void storeFrameIndex(Pair<String, Integer> key, Map<Integer, Set<String>> indices, boolean commit, int... frames) {
-        logger.debug("storing frame index for {} frames", frames==null || frames.length==0 ? indices.size() : frames.length);
+        //logger.debug("storing frame index for {} frames", frames==null || frames.length==0 ? indices.size() : frames.length);
         HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
         Map<Integer, Object> toStore;
         if (frames!=null && frames.length>0) toStore = Arrays.stream(frames).boxed().collect(Collectors.toMap(i -> i, i -> indices.get(i).toArray()));
