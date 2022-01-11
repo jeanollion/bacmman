@@ -43,6 +43,7 @@ public abstract class InteractiveImage {
     boolean displayPreFilteredImages= false;
     protected ImageSupplier imageSupplier;
     protected String name="";
+    boolean isSingleChannel;
     public InteractiveImage(List<SegmentedObject> parents, int childStructureIdx) {
         if (parents.isEmpty()) throw new IllegalArgumentException("Empty parent list");
         parentStructureIdx = parents.get(0).getStructureIdx();
@@ -66,6 +67,10 @@ public abstract class InteractiveImage {
     public void setImageSupplier(ImageSupplier imageSupplier) {
         this.imageSupplier = imageSupplier;
     }
+    public void setIsSingleChannel(boolean singleChannel) {
+        this.isSingleChannel = singleChannel;
+    }
+    public boolean isSingleChannel() {return isSingleChannel;}
     public boolean is2D() {
         if (is2D==null) {
             this.getObjects();

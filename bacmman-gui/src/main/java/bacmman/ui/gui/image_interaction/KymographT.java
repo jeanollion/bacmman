@@ -159,4 +159,7 @@ public class KymographT extends Kymograph {
             return resized;
         }
     }
+    public int getSizeZ(int objectClassIdx) {
+        return imageSupplier.get(idx, objectClassIdx, true).sizeZ();
+    }
 }

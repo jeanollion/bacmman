@@ -616,6 +616,7 @@ public class PluginConfigurationUtils {
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             ioi.setImageSupplier( (idx, oc, raw) -> stores.stream().filter(s -> s.parent.getFrame() == parents.get(idx).getFrame() && s.images.containsKey(name)).map(s -> TypeConverter.convert(s.images.get(name), maxBitDepth)).findFirst().orElse(null));
+            ioi.setIsSingleChannel(true);
             ioi.setName(name);
             return (KymographT)ioi;
         }));

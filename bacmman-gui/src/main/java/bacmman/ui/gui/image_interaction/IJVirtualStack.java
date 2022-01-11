@@ -171,24 +171,19 @@ public class IJVirtualStack extends VirtualStack {
 
     public static Image openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, boolean interactive, int objectClassIdx) {
         if (parentTrack.isEmpty()) return null;
-        int[] channelArray = ArrayUtil.generateIntegerArray(parentTrack.get(0).getExperimentStructure().getObjectClassesAsString().length);
-        //int[] channelArray = objectClassIdx.length==0 ? new int[]{parentTrack.get(0).getStructureIdx()} : objectClassIdx;
+        int[] channelArray = interactiveImage.isSingleChannel()? new int[]{0} : ArrayUtil.generateIntegerArray(parentTrack.get(0).getExperimentStructure().getObjectClassesAsString().length);
         int channels = channelArray.length;
         int frames = parentTrack.size();
-        Image[] bdsC = new Image[channels];
-        for (int c = 0; c<bdsC.length; ++c) bdsC[c]= parentTrack.get(0).getRawImage(channelArray[c]);
-        if (bdsC[0]==null) {
-            GUI.log("Could not open raw images");
-            return null;
-        }
-        logger.debug("scale: {}", bdsC[0].getScaleXY());
-        logger.debug("image bounds per channel: {}", Arrays.stream(bdsC).map(Image::getBoundingBox).collect(Collectors.toList()));
+
         // case of reference image with only one Z -> duplicate
-        int maxZ = Collections.max(Arrays.asList(bdsC), Comparator.comparingInt(SimpleBoundingBox::sizeZ)).sizeZ();
-        int[] sizeZC = IntStream.range(0, channels).map(i -> bdsC[i].sizeZ()).toArray();
+        int[] sizeZC = IntStream.range(0, channels).map(interactiveImage::getSizeZ).toArray();
+        int maxZ = sizeZC[ArrayUtil.max(sizeZC)];
         int[] fczSize = new int[]{frames, channels, maxZ};
+        //logger.debug("sizeZ per channel C: {}, frames: {} maxZ: {}", sizeZC, frames, maxZ);
         Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
-        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, bdsC[0].getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
+        Image plane0 = imageOpenerCT.apply(new int[]{0, 0, 0});
+        Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[1]==0 && fcz[2]==0 ? plane0 : imageOpenerCT.apply(fcz);
+        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, plane0.getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
         ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? "HyperStack of Track: "+parentTrack.get(0).toStringShort(): interactiveImage.getName());
         ip.setStack(s, channels,maxZ, frames);
@@ -196,9 +191,9 @@ public class IJVirtualStack extends VirtualStack {
         s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();
-        cal.pixelWidth=bdsC[0].getScaleXY();
-        cal.pixelHeight=bdsC[0].getScaleXY();
-        cal.pixelDepth=bdsC[0].getScaleZ();
+        cal.pixelWidth=plane0.getScaleXY();
+        cal.pixelHeight=plane0.getScaleXY();
+        cal.pixelDepth=plane0.getScaleZ();
         ip.setCalibration(cal);
         ip.setC(objectClassIdx+1);
         ip.show();
