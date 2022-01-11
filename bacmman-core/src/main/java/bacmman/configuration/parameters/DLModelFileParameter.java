@@ -15,7 +15,7 @@ import static bacmman.github.gist.JSONQuery.logger;
 
 public class DLModelFileParameter extends ContainerParameterImpl<DLModelFileParameter> {
     FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file for tensorflow)");
-    TextParameter id = new TextParameter("Model ID").setHint("Enter Stored Model Gist ID (or URL)");
+    TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
     Consumer<DLModelMetadata> metadataConsumer;
     LargeFileGist lf;
     // add option to download model
