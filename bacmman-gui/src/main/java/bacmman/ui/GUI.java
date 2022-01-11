@@ -297,7 +297,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         openImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue()));
         ConfigurationTreeGenerator.addToMenu(openImageLimit.getName(), ParameterUIBinder.getUI(openImageLimit).getDisplayComponent(), openImageNumberLimitMenu);
         // interactive image type
-        logger.debug("defaultInteractiveImageMenu # {}", defaultInteractiveImageMenu.getItemCount());
+        PropertyUtils.setPersistant(interactiveImageType, "interactive_type");
         Consumer<ChoiceParameter> setDefInteractiveType = c -> {
             if (c.getSelectedItem().equals("AUTOMATIC")) {
                 ImageWindowManager.setDefaultInteractiveType(null);
