@@ -127,7 +127,7 @@ public class Core {
         try {
             omeroGateway = impl.get(0).getDeclaredConstructor().newInstance();
             logger.debug("omero gateway created with class: {}", impl.get(0));
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+        } catch (NoClassDefFoundError | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
             logger.debug("error while instantiating omero gateway", e);
         }
     }

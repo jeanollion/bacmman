@@ -24,7 +24,6 @@ import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
 import bacmman.utils.EnumerationUtils;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,6 +50,7 @@ import static bacmman.ui.gui.Utils.insertSorted;
 import static bacmman.ui.gui.Utils.setNullToolTipDelays;
 import static bacmman.utils.IconUtils.zoom;
 import static bacmman.utils.IconUtils.zoomToSize;
+import static bacmman.utils.Utils.loadIcon;
 
 /**
  *
@@ -70,8 +70,8 @@ public class ConfigurationGistTreeGenerator {
     Supplier<Icon> currentThumbnail;
     ImageIcon folderIcon, defaultConfigurationIcon;
     public ConfigurationGistTreeGenerator(List<GistConfiguration> gists, GistConfiguration.TYPE type, Consumer<GistTreeNode> setSelectedConfiguration) {
-        try {folderIcon = new ImageIcon(Objects.requireNonNull(ConfigurationGistTreeGenerator.class.getResource("../../../../folder32.png")));} catch (Exception e) {}
-        try {defaultConfigurationIcon = new ImageIcon(Objects.requireNonNull(ConfigurationGistTreeGenerator.class.getResource("../../../../configuration64.png")));} catch (Exception e) {}
+        folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
+        defaultConfigurationIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/configuration64.png");
         this.setSelectedConfiguration=setSelectedConfiguration;
         this.type = type;
         this.gists = gists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());

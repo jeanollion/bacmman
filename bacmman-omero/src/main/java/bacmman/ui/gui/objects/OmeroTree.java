@@ -57,6 +57,7 @@ import java.util.stream.Stream;
 import static bacmman.utils.EnumerationUtils.toStream;
 import static bacmman.utils.IconUtils.bytesToImage;
 import static bacmman.utils.IconUtils.zoom;
+import static bacmman.utils.Utils.loadIcon;
 import static javax.swing.tree.TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION;
 
 /**
@@ -73,15 +74,11 @@ public class OmeroTree {
     OmeroGatewayI gateway;
     List<OmeroIJVirtualStack> openStacks = new ArrayList<>();
     public OmeroTree(OmeroGatewayI gateway, boolean displayCurrentUserOnly, Runnable selectionCallback) {
-        try {
-            projectIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/project16.png")));
-            datasetIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/dataset16.png")));
-            imageIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/picture16.png")));
-            groupIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/group16.png")));
-            experimenterIcon = new ImageIcon(Objects.requireNonNull(OmeroTree.class.getResource("../../../../icons/user16.png")));
-        } catch (NullPointerException e) {
-            logger.debug("icons not found");
-        }
+        projectIcon = loadIcon(OmeroTree.class, "/icons/project16.png");
+        datasetIcon = loadIcon(OmeroTree.class, "/icons/dataset16.png");
+        imageIcon = loadIcon(OmeroTree.class, "/icons/picture16.png");
+        groupIcon = loadIcon(OmeroTree.class, "/icons/group16.png");
+        experimenterIcon = loadIcon(OmeroTree.class, "/icons/user16.png");
         this.gateway = gateway;
         this.displayCurrentUserOnly=displayCurrentUserOnly;
         this.treeModel=new DefaultTreeModel(new DefaultMutableTreeNode());

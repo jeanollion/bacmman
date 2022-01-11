@@ -21,7 +21,6 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.core.DefaultWorker;
-import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.GistDLModel;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.ui.GUI;
@@ -58,6 +57,7 @@ import java.util.stream.Stream;
 import static bacmman.plugins.Hint.formatHint;
 import static bacmman.ui.gui.Utils.setNullToolTipDelays;
 import static bacmman.utils.IconUtils.zoom;
+import static bacmman.utils.Utils.loadIcon;
 
 /**
  *
@@ -81,11 +81,10 @@ public class DLModelGistTreeGenerator {
         this.selectionChanged=selectionChanged;
         this.pcb = pcb;
         this.defaultDirectory = defaultDirectory;
-        try {dlModelDefaultIcon = new ImageIcon(Objects.requireNonNull(DLModelGistTreeGenerator.class.getResource("../../../../neural_network64.png")));} catch (Exception e) {}
-        try {urlIcon = new ImageIcon(Objects.requireNonNull(DLModelGistTreeGenerator.class.getResource("../../../../url32.png")));} catch (Exception e) {}
-        try {metadataIcon = new ImageIcon(Objects.requireNonNull(DLModelGistTreeGenerator.class.getResource("../../../../metadata32.png")));} catch (Exception e) {}
-        try {folderIcon = new ImageIcon(Objects.requireNonNull(DLModelGistTreeGenerator.class.getResource("../../../../folder32.png")));} catch (Exception e) {}
-
+        dlModelDefaultIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/neural_network64.png");
+        urlIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/url32.png");
+        metadataIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/metadata32.png");
+        folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
     }
 
     public JTree getTree() {

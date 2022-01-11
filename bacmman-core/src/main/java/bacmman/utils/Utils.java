@@ -35,60 +35,34 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Properties;
-import java.util.Set;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import javax.swing.DefaultListModel;
-import javax.swing.JComboBox;
-import javax.swing.JFileChooser;
-import javax.swing.JList;
-import javax.swing.JOptionPane;
-import javax.swing.JPopupMenu;
-import javax.swing.JScrollBar;
-import javax.swing.JScrollPane;
-import javax.swing.JTree;
-import javax.swing.ListModel;
+import javax.swing.*;
 
 import static javax.swing.UIManager.setLookAndFeel;
 
+import javax.swing.Timer;
 import javax.swing.filechooser.FileFilter;
 import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.FileDialog;
 import java.awt.Frame;
-import java.util.HashMap;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.swing.JFrame;
-import javax.swing.JLabel;
-import javax.swing.Timer;
 
 /**
  *
@@ -1140,4 +1114,13 @@ public class Utils {
             
         });
     }*/
+    public static ImageIcon loadIcon(Class<?> clazz, String path) {
+        return loadIcon(clazz, path, null);
+    }
+    public static ImageIcon loadIcon(Class<?> clazz, String path, String alternativePath) {
+        URL image = clazz.getResource(path);
+        if (image==null && alternativePath!=null) image = clazz.getResource(alternativePath);
+        if (image==null) return null;
+        else return new ImageIcon(image);
+    }
 }
