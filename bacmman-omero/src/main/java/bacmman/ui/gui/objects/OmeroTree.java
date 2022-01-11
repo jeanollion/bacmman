@@ -466,11 +466,14 @@ public class OmeroTree {
         DatasetNode(DatasetData data) {
             super(data);
         }
-        public Collection<ImageData> getImages() { // TODO : why data.getImage do not work ? DatasetData wrongly init ?
+        public List<ImageData> getImages() { // TODO : why data.getImage do not work ? DatasetData wrongly init ?
             try {
-                return gateway.browse().getImagesForDatasets(gateway.securityContext(), Collections.singletonList(getId()));
+                Collection<ImageData> images = gateway.browse().getImagesForDatasets(gateway.securityContext(), Collections.singletonList(getId()));
+                List<ImageData> imageList= new ArrayList<>(images);
+                imageList.sort(Comparator.comparing(ImageData::getName, String::compareTo));
+                return imageList;
             } catch (DSOutOfServiceException | DSAccessException e) {
-                return Collections.EMPTY_SET;
+                return Collections.EMPTY_LIST;
             }
             /*Set<ImageData> res = new HashSet<>();
             if (data.getImages()!=null) {
