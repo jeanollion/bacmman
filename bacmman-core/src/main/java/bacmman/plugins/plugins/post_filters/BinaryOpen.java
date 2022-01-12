@@ -51,7 +51,7 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
         Neighborhood n = edt?null: Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parent.getMask());
         childPopulation.ensureEditableRegions();
         for (Region o : childPopulation.getRegions()) {
-            ImageInteger closed = edt? TypeConverter.toImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parallele), null)
+            ImageInteger closed = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parallele), null)
                     : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallele);
             o.setMask(closed);
         }

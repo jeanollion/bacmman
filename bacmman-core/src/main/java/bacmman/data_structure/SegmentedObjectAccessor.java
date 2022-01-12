@@ -3,6 +3,8 @@ package bacmman.data_structure;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
+import bacmman.data_structure.region_container.RegionContainerIjRoi;
+import bacmman.data_structure.region_container.RegionContainerVoxels;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
 import bacmman.plugins.Measurement;
@@ -40,6 +42,17 @@ public class SegmentedObjectAccessor {
     }
     public RegionContainer getRegionContainer(SegmentedObject o) {
         return o.getRegionContainer();
+    }
+    public void freeMemory(SegmentedObject o) {
+        RegionContainer c = o.getRegionContainer();
+        if (c instanceof RegionContainerIjRoi) {
+            o.getRegion().roi = ((RegionContainerIjRoi) c).getRoi();
+            o.getRegion().clearVoxels();
+            o.getRegion().clearMask();
+        } else if (c instanceof RegionContainerVoxels) {
+            o.getRegion().getVoxels();
+            o.getRegion().clearMask();
+        }
     }
 
     public String trackHeadId(SegmentedObject o) {

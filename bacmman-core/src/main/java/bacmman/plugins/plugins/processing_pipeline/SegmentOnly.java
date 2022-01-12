@@ -31,12 +31,14 @@ import java.util.Map.Entry;
 
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.DisableParallelExecution;
 import bacmman.utils.HashMapGetCreate;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
+import bacmman.utils.Utils;
 
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
@@ -90,18 +92,16 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         int segParentStructureIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         boolean subSegmentation = segParentStructureIdx>parentStructureIdx;
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
-        
+        boolean parallel = !(segmenter.instantiatePlugin() instanceof DisableParallelExecution); // TODO why this does not work ? !DisableParallelExecution.class.isAssignableFrom(segmenter.getPluginType());
+        logger.debug("PARALLEL EXECUTION: {}, seg type: {}, segName {}, instance of disable: {}", parallel, segmenter.getPluginType(), segmenter.getPluginName(), segmenter.instantiatePlugin() instanceof DisableParallelExecution);
         // segment in direct parents
         List<SegmentedObject> allParents = singleFrame ? SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream().limit(1), segParentStructureIdx).collect(Collectors.toList()) : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segParentStructureIdx).collect(Collectors.toList());
-        Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
+        if (parallel) Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
         final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getRawImage(structureIdx).sizeZ()>1;
         long t0 = System.currentTimeMillis();
-        long t1 = System.currentTimeMillis();
-        long t2 = System.currentTimeMillis();
-
         List<RegionPopulation> pops;
         try {
-            pops = safeMap(allParents.stream().parallel(), subParent -> {
+            pops = safeMap(Utils.parallele(allParents.stream(), parallel),subParent -> {
                 SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
                 Segmenter seg = segmenter.instantiatePlugin();
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);
@@ -165,7 +165,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
            }
         }
         long t4 = System.currentTimeMillis();
-        logger.debug("SegmentOnly: {}(trackLength: {}) total time: {}, load images: {}ms, compute maps: {}ms, process: {}ms, set to parents: {}", parentTrack.get(0), parentTrack.size(), t4-t0, t1-t0, t2-t1, t3-t2, t4-t3);
+        logger.debug("SegmentOnly: {}(trackLength: {}) total time: {}, load images: {}ms, compute maps: {}ms, process: {}ms, set to parents: {}", parentTrack.get(0), parentTrack.size(), t4-t0, "nan", "nan", "nan", t4-t3);
         if (!me.isEmpty()) throw me;
     }
     

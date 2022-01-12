@@ -18,8 +18,9 @@
  */
 package bacmman.image;
 
+import bacmman.processing.ImageOperations;
+
 import java.util.Arrays;
-import java.util.function.DoubleFunction;
 import java.util.function.DoubleToIntFunction;
 
 
@@ -47,6 +48,10 @@ public class TypeConverter {
             }
         }
         return output;
+    }
+    public static ImageInt toShort(Image image, ImageInt output, boolean copyIfInt) {
+        if (copyIfInt || !(image instanceof ImageInt)) return toInt(image, output);
+        else return (ImageInt)image;
     }
     public static ImageShort toShort(Image image, ImageShort output, boolean copyIfShort) {
         if (copyIfShort || !(image instanceof ImageShort)) return toShort(image, output);
@@ -76,7 +81,18 @@ public class TypeConverter {
             default: throw new IllegalArgumentException("invalid bitdepth");
         }
     }
-
+    public static ImageInt toInt(Image image, ImageInt output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageInt(image.getName(), image);
+        if (image instanceof ImageInt) Image.pasteImage(image, output, null);
+        else {
+            for (int z = 0; z<image.sizeZ(); ++z) {
+                for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                    output.setPixel(xy, z, image.getPixel(xy, z)+0.5);
+                }
+            }
+        }
+        return output;
+    }
     /**
      * 
      * @param image input image to be converted
@@ -95,6 +111,7 @@ public class TypeConverter {
         }
         return output;
     }
+
     public static ImageShort toShort(Image image, ImageShort output, DoubleToIntFunction function) {
         if (output==null || !output.sameDimensions(image)) output = new ImageShort(image.getName(), image);
         for (int z = 0; z<image.sizeZ(); ++z) {
@@ -132,9 +149,37 @@ public class TypeConverter {
         }
         return output;
     }
-    public static ImageInteger toImageInteger(ImageMask image, ImageByte output) {
+    public static ImageInteger maskToImageInteger(ImageMask image, ImageByte output) {
         if (image instanceof ImageInteger) return (ImageInteger)image;
         else return toByteMask(image, output, 1);
+    }
+
+    /**
+     * Converts {@param image} to an image of integer type (byte short or int).
+     * If {@param image} has negative values, its mean value will be added to the whole image (so it is modified)
+     * @param image image to convert
+     * @param output
+     * @return
+     */
+    public static ImageInteger toImageInteger(Image image, ImageInteger output) {
+        if (image instanceof ImageInteger) return (ImageInteger)image;
+        else {
+            // check max & min values
+            double[] minAndMax = image.getMinAndMax(null);
+            if (minAndMax[0]<-0.5) {
+                image = ImageOperations.affineOperation(image, image, 1, -minAndMax[0]);
+                minAndMax[1] -= minAndMax[0];
+                minAndMax[0] = 0;
+            }
+            if (minAndMax[1]<256) {
+                if (output instanceof ImageShort && output.sameDimensions(image)) return toShort(image, (ImageShort)output);
+                else if (output instanceof ImageInt && output.sameDimensions(image)) return toInt(image, (ImageInt)output);
+                else return toByte(image, output instanceof ImageByte ? (ImageByte)output : null);
+            } else if (minAndMax[1]<65536) {
+                if (output instanceof ImageInt && output.sameDimensions(image)) return toInt(image, (ImageInt)output);
+                else return toShort(image, output instanceof ImageShort ? (ImageShort)output : null);
+            } else return toInt(image, output instanceof ImageInt ? (ImageInt)output : null);
+        }
     }
     
     /**

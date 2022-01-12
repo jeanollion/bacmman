@@ -157,7 +157,7 @@ public class RegionContainerIjRoi extends RegionContainer {
             return res;
         }
         ThresholdToSelection tts = new ThresholdToSelection();
-        ImageInteger maskIm = TypeConverter.toImageInteger(mask, null); // copy only if necessary
+        ImageInteger maskIm = TypeConverter.maskToImageInteger(mask, null); // copy only if necessary
         ImagePlus maskPlus = IJImageWrapper.getImagePlus(maskIm);
         int maxLevel = ImageInteger.getMaxValue(maskIm, true); // TODO necessary ??
         for (int z = 0; z < mask.sizeZ(); ++z) {

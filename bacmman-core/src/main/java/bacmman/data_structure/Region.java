@@ -30,6 +30,8 @@ import bacmman.data_structure.region_container.RegionContainerVoxels;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.BoundingBox.LoopFunction;
+
+import static bacmman.data_structure.region_container.RegionContainerIjRoi.createRoi;
 import static bacmman.image.BoundingBox.getIntersection2D;
 import static bacmman.image.BoundingBox.intersect2D;
 import bacmman.image.MutableBoundingBox;
@@ -403,7 +405,7 @@ public class Region {
         voxels = null;
     }
     public synchronized void clearMask() {
-        if (voxels==null && roi == null) getVoxels();
+        if (voxels==null && roi == null) roi = createRoi(getMask(), getBounds(), !is2D());
         mask = null;
         if (roi==null) this.bounds=null;
     }
@@ -417,7 +419,7 @@ public class Region {
             mask = null;
             bounds = null;
         } else if (roi!=null) {
-            roi.toMask(bounds, scaleXY, scaleZ);
+            mask = roi.toMask(bounds, scaleXY, scaleZ);
         }
     }
     protected void createMask() {
@@ -466,7 +468,7 @@ public class Region {
         return mask;
     }
     public ImageInteger<? extends ImageInteger> getMaskAsImageInteger() {
-        return TypeConverter.toImageInteger(getMask(), null);
+        return TypeConverter.maskToImageInteger(getMask(), null);
     }
     public void ensureMaskIsImageInteger() {
         if (!(getMask() instanceof ImageInteger)) {

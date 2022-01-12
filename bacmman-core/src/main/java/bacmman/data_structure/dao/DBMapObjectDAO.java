@@ -49,7 +49,6 @@ import bacmman.utils.Utils;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
-import java.util.stream.Stream;
 
 /**
  *
@@ -58,7 +57,7 @@ import java.util.stream.Stream;
 public class DBMapObjectDAO implements ObjectDAO {
     public static final Logger logger = LoggerFactory.getLogger(DBMapObjectDAO.class);
     public static char jsonSeparator = ',';
-    public static int frameIndexLimit = 10000; // a frame index is created when more objects than this value are present
+    public static int FRAME_INDEX_LIMIT = 10000; // a frame index is created when more objects than this value are present
     final DBMapMasterDAO mDAO;
     final String positionName;
     final HashMapGetCreate<Pair<String, Integer>, Map<String, SegmentedObject>> cache = new HashMapGetCreate<>(new HashMapGetCreate.MapFactory()); // parent trackHead id -> id cache
@@ -626,6 +625,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         SegmentedObjectAccessor accessor = getMasterDAO().getAccess();
         if (readOnly) return;
         if (objects==null || objects.isEmpty()) return;
+        if (objects.size()> FRAME_INDEX_LIMIT) objects.stream().forEach(accessor::freeMemory);
         //logger.debug("storing: {} commit: {}", objects.size(), commit);
         List<SegmentedObject> upserMeas = new ArrayList<>(objects.size());
         for (SegmentedObject o : objects) accessor.setDAO(o,this);
@@ -653,7 +653,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                 toStore.forEach(o -> fi.get(o.getFrame()).add(o.getId()));
                 int[] idxs= toStore.stream().mapToInt(SegmentedObject::getFrame).distinct().toArray();
                 storeFrameIndex(key, fi, false, idxs);
-            } else if (toStore.size()>frameIndexLimit) {
+            } else if (toStore.size()> FRAME_INDEX_LIMIT) {
                 Collector<SegmentedObject, Set<String>, Set<String>> downstream = Collector.of(HashSet::new, (s, o) -> s.add(o.getId()), (s1, s2) -> { s1.addAll(s2); return s1; });
                 Map<Integer, Set<String>> fi = toStore.stream().collect(Collectors.groupingBy(SegmentedObject::getFrame, downstream));
                 storeFrameIndex(key, fi, false);
@@ -902,7 +902,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         } else {
             Map<Integer, Set<String>> res = createFrameIndex(key);
             int size = res.values().stream().mapToInt(Set::size).sum();
-            if (size > frameIndexLimit) { // store
+            if (size > FRAME_INDEX_LIMIT) { // store
                 //logger.debug("storing: frame index for {} objects", size);
                 storeFrameIndex(key, res, true);
             }

@@ -42,7 +42,7 @@ public class BinaryMorphoEDT {
      */
     public static ImageMask binaryDilateEDT(ImageMask in, double radius, double radiusZ, boolean extendImage, boolean multithread) {
         if (extendImage) {
-            ImageInteger<? extends ImageInteger> ii = TypeConverter.toImageInteger(in, null);
+            ImageInteger<? extends ImageInteger> ii = TypeConverter.maskToImageInteger(in, null);
             int rXY = (int) (radius + 1);
             int rZ = (int) (radiusZ + 1);
             if (in.sizeZ()==1) rZ=0;
