@@ -242,7 +242,6 @@ public class GistDLModel implements Hint {
         if (jsonContent==null) {
             if (contentRetriever == null) throw new RuntimeException("No query");
             String content = contentRetriever.get();
-            logger.debug("retrieved content: {}", content);
             jsonContent = JSONUtils.parse(content);
         }
         return jsonContent;

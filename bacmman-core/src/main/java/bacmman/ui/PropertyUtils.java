@@ -235,12 +235,11 @@ public class PropertyUtils {
         Enumeration<AbstractButton> enume = group.getElements();
         int idxSel = get(key, defaultSelectedIdx);
         int idx= 0;
-        logger.debug("set persistant: {} #={} current Sel: {}", key, group.getButtonCount(), idxSel);
         while (enume.hasMoreElements()) {
             AbstractButton b = enume.nextElement();
             b.setSelected(idx == idxSel);
             final int currentIdx = idx;
-            b.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", b, b.isSelected()); PropertyUtils.set(key, currentIdx); });
+            b.addActionListener((java.awt.event.ActionEvent evt) -> { PropertyUtils.set(key, currentIdx); });
             ++idx;
         }
         return idxSel;
@@ -249,26 +248,20 @@ public class PropertyUtils {
         if (parameter instanceof NumberParameter) {
             NumberParameter np = (NumberParameter)parameter;    
             np.setValue(get(key, np.getValue().doubleValue()));
-            logger.debug("persit number: {} = {} -> {}", np.getName(), np.getValue().doubleValue(), np.toString());
             parameter.addListener(p->{
-                //logger.debug("persist parameter: {}", ((Parameter)parameter).getName());
                 PropertyUtils.set(key, ((NumberParameter)p).getValue().doubleValue());
             });
         } else if (parameter instanceof ChoiceParameter) {
             ChoiceParameter cp = (ChoiceParameter) parameter;
             cp.setValue(get(key, cp.getValue()));
-            logger.debug("persit choice: {} -> {}", cp.getName(), cp.getValue());
             cp.addListener(p -> {
                 PropertyUtils.set(key, p.getValue());
-                logger.debug("persit choice: {} -> {}", p.getName(), p.getValue());
             });
         } else if (parameter instanceof TextParameter) {
             TextParameter tp = (TextParameter)parameter;
             tp.setValue(get(key, tp.getValue()));
-            logger.debug("persit text: {} -> {}", tp.getName(), tp.getValue());
             tp.addListener(p -> {
                 PropertyUtils.set(key, p.getValue());
-                logger.debug("persit text: {} -> {}", p.getName(), p.getValue());
             });
         } else logger.debug("persistance on parameter not supported yet!");
         
