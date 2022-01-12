@@ -54,7 +54,7 @@ public class FreeLineSplitter implements ObjectSplitter {
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         ImageMask mask = object.getMask();
-        ImageInteger splitMask = mask instanceof ImageInteger ? ((ImageInteger)mask).duplicate("splitMask") : TypeConverter.toImageInteger(mask, null);
+        ImageInteger splitMask = mask instanceof ImageInteger ? ((ImageInteger)mask).duplicate("splitMask") : TypeConverter.maskToImageInteger(mask, null);
         Offset off=offsetMap.get(object);
         if (off==null) {
             logger.debug("no offset found");

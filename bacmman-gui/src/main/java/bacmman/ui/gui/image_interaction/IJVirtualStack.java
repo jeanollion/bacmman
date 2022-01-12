@@ -125,24 +125,26 @@ public class IJVirtualStack extends VirtualStack {
         Position f = xp.getPosition(position);
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
-
-        Image bds = preProcessed ? f.getImageDAO().openPreProcessedImagePlane(0, 0, 0) : f.getInputImages().getRawPlane(0, 0, 0);
-        if (bds==null) {
-            GUI.log("No "+(preProcessed ? "preprocessed " : "input")+" images found for position: "+position);
+        Function<int[], Image> imageOpenerCT  = preProcessed ? (fcz) -> f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]) : (fcz) -> f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
+        Image[] planes0 = IntStream.range(0, channels).mapToObj(c -> imageOpenerCT.apply(new int[]{0, c, 0})).toArray(Image[]::new);
+        int maxBitDepth = IntStream.range(0, channels).map(c -> planes0[c].getBitDepth()).max().getAsInt();
+        Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[2]==0 ? planes0[fcz[1]] : imageOpenerCT.apply(fcz);
+        if (Arrays.stream(planes0).anyMatch(p -> p==null)) {
+            GUI.log("Missing "+(preProcessed ? "preprocessed " : "input")+" images found for position: "+position);
             return;
         }
-        logger.debug("scale: {}", bds.getScaleXY());
-        // case of reference image with only one Z -> duplicate
-        int maxZ = 0;
-        IntUnaryOperator getSizeZC = preProcessed ? c -> f.getImageDAO().getPreProcessedImageProperties(c).sizeZ() : c -> f.getInputImages().getSourceSizeZ(c);
-        int[] sizeZC = new int[channels];
-        for (int c=0; c<channels; ++c) {
-            sizeZC[c] = getSizeZC.applyAsInt(c);
-            maxZ = Math.max(maxZ, sizeZC[c]);
+        boolean invalidXY = IntStream.range(1, channels).anyMatch(c -> planes0[c].sizeX()!=planes0[0].sizeX() || planes0[c].sizeY()!=planes0[0].sizeY());
+        if (invalidXY) {
+            GUI.log("At least 2 channels have XY dimensions that differ");
+            return;
         }
+        // case of reference image with only one Z -> duplicate
+        IntUnaryOperator getSizeZC = preProcessed ? c -> f.getImageDAO().getPreProcessedImageProperties(c).sizeZ() : c -> f.getInputImages().getSourceSizeZ(c);
+        int[] sizeZC = IntStream.range(0, channels).map(getSizeZC).toArray();
+        int maxZIdx = ArrayUtil.max(sizeZC);
+        int maxZ = sizeZC[maxZIdx];
         int[] fczSize = new int[]{frames, channels, maxZ};
-        Function<int[], Image> imageOpenerCT  = preProcessed ? (fcz) -> fcz[0]==0&&fcz[1]==0&&fcz[2]==0? bds : f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]) : (fcz) -> f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
-        IJVirtualStack s = new IJVirtualStack(bds.sizeX(), bds.sizeY(), bds.getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT);
+        IJVirtualStack s = new IJVirtualStack(planes0[0].sizeX(), planes0[0].sizeY(), maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
         ip.setStack(s, channels,maxZ, frames);
@@ -150,9 +152,9 @@ public class IJVirtualStack extends VirtualStack {
         s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();
-        cal.pixelWidth=bds.getScaleXY();
-        cal.pixelHeight=bds.getScaleXY();
-        cal.pixelDepth=bds.getScaleZ();
+        cal.pixelWidth=planes0[0].getScaleXY();
+        cal.pixelHeight=planes0[0].getScaleXY();
+        cal.pixelDepth=planes0[maxZIdx].getScaleZ();
         ip.setCalibration(cal);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
@@ -177,13 +179,15 @@ public class IJVirtualStack extends VirtualStack {
 
         // case of reference image with only one Z -> duplicate
         int[] sizeZC = IntStream.range(0, channels).map(interactiveImage::getSizeZ).toArray();
-        int maxZ = sizeZC[ArrayUtil.max(sizeZC)];
+        int maxZIdx = ArrayUtil.max(sizeZC);
+        int maxZ = sizeZC[maxZIdx];
         int[] fczSize = new int[]{frames, channels, maxZ};
         //logger.debug("sizeZ per channel C: {}, frames: {} maxZ: {}", sizeZC, frames, maxZ);
         Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
-        Image plane0 = imageOpenerCT.apply(new int[]{0, 0, 0});
-        Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[1]==0 && fcz[2]==0 ? plane0 : imageOpenerCT.apply(fcz);
-        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, plane0.getBitDepth(), fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
+        Image[] planes0 = IntStream.range(0, channels).mapToObj(c -> imageOpenerCT.apply(new int[]{0, c, 0})).toArray(Image[]::new);
+        int maxBitDepth = IntStream.range(0, channels).map(c -> planes0[c].getBitDepth()).max().getAsInt();
+        Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[2]==0 ? planes0[fcz[1]] : imageOpenerCT.apply(fcz);
+        IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
         ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? "HyperStack of Track: "+parentTrack.get(0).toStringShort(): interactiveImage.getName());
         ip.setStack(s, channels,maxZ, frames);
@@ -191,9 +195,9 @@ public class IJVirtualStack extends VirtualStack {
         s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();
-        cal.pixelWidth=plane0.getScaleXY();
-        cal.pixelHeight=plane0.getScaleXY();
-        cal.pixelDepth=plane0.getScaleZ();
+        cal.pixelWidth=planes0[0].getScaleXY();
+        cal.pixelHeight=planes0[0].getScaleXY();
+        cal.pixelDepth=planes0[maxZIdx].getScaleZ();
         ip.setCalibration(cal);
         ip.setC(objectClassIdx+1);
         ip.show();
