@@ -70,7 +70,9 @@ public class LargeFileGist {
             JSONObject master = ((JSONObject) allFiles.values().stream().filter(f-> ((String)((JSONObject)f).get("filename")).endsWith("master_file.json")).findFirst().orElse(null));
             if (master != null) {
                 String masterFileUrl = (String) (master).get("raw_url");
-                String masterFileContent = new JSONQuery(masterFileUrl, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
+                String masterFileContent;
+                if (master.containsKey("content") && !(Boolean)master.getOrDefault("truncated", false)) masterFileContent =  (String)master.get("content");
+                else masterFileContent = new JSONQuery(masterFileUrl, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
                 JSONObject masterFileJSON = JSONUtils.parse(masterFileContent);
                 int n_chunks = ((Number) masterFileJSON.get("n_chunks")).intValue();
                 sizeMb = ((Number) masterFileJSON.get("size_mb")).doubleValue();
