@@ -89,7 +89,7 @@ public class TextParameter extends ParameterImpl<TextParameter> implements Liste
     }
     public String getValue() {return value;}
     
-    @Override public String toString() {return name+": "+value;}
+    @Override public String toString() {return getName()+": "+value;}
 
     @Override
     public Object toJSONEntry() {

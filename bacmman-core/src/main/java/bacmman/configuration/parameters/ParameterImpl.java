@@ -204,7 +204,7 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
     
     @Override
     public String toString() {
-        return name;
+        return getName();
     }
     
     // listenable

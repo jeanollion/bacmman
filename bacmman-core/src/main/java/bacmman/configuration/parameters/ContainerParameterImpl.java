@@ -221,10 +221,10 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     }
     
     @Override
-    public String toString() {return name;}
+    public String toString() {return getName();}
     
     @Override
-    public String toStringFull() {return name+":"+Utils.toStringList(children, p->p.toStringFull());}
+    public String toStringFull() {return getName()+":"+Utils.toStringList(children, p->p.toStringFull());}
 
     @Override
     public Parameter getChildAt(int childIndex) {

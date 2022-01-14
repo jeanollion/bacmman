@@ -399,10 +399,10 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     }
     
     @Override
-    public String toString() {return name;}
+    public String toString() {return getName();}
     
     @Override
-    public String toStringFull() {return name+":"+Utils.toStringList(children, p->p.toStringFull());}
+    public String toStringFull() {return getName()+":"+Utils.toStringList(children, p->p.toStringFull());}
     
     @Override
     public void insert(MutableTreeNode child, int index) {

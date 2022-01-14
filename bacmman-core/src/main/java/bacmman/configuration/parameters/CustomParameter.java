@@ -26,9 +26,7 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     P currentParameter;
     Class<P> clazz;
     Predicate<Class<P>> excludeClasses;
-    public CustomParameter(String name) {
-        this(name, (Class<P>)Parameter.class);
-    }
+
     public CustomParameter(String name, Class<P> clazz) {
         this(name, clazz, c -> false);
     }
@@ -54,10 +52,10 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     }
 
     @Override
-    public String getName() {
-        String k = key.getValue().length()==0 ? key.getValue() : "Key";
-        String v = currentParameter==null ? "" : currentParameter.getName();
-        return k+": "+v;
+    public String toString() {
+        String k = key.getValue().length()==0 ? "Key" : key.getValue();
+        String v = currentParameter==null ? "" : currentParameter.toString().replace("Value", "");
+        return k+v;
     }
 
     @Override
