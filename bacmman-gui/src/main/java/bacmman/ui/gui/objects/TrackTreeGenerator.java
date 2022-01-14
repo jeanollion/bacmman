@@ -40,19 +40,13 @@ import java.awt.event.MouseEvent;
 import javax.swing.JPopupMenu;
 import javax.swing.JTree;
 import javax.swing.SwingUtilities;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
-import javax.swing.tree.TreeSelectionModel;
+import javax.swing.tree.*;
 
 import bacmman.ui.gui.configuration.TrackTreeCellRenderer;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import javax.swing.tree.MutableTreeNode;
+import java.util.*;
+
+import bacmman.utils.EnumerationUtils;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 /**
@@ -72,6 +66,9 @@ public class TrackTreeGenerator {
         this.controller=controller;
         this.pcb=controller.pcb;
     }
+    public StructureObjectTreeModel getModel() {
+        return treeModel;
+    }
     public void flush() {
         this.db=null;
         pcb=null;
@@ -81,20 +78,24 @@ public class TrackTreeGenerator {
     }
     public void updateTree() {
         if (tree==null) return;
-        Object root = treeModel.getRoot();
+        TreeNode root = (TreeNode)treeModel.getRoot();
         logger.debug("updating tree: for oc:{}, parentTH: {}, root is xp: {}", getStructureIdx(), getParentTrackHead(), root instanceof TrackExperimentNode);
-        ConfigurationTreeModel.SaveExpandState expandState = new ConfigurationTreeModel.SaveExpandState(tree);
+        Enumeration<TreePath> expandedState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{root}));
         TreePath[] sel = tree.getSelectionPaths();
         if (root instanceof TrackExperimentNode) ((TrackExperimentNode)root).update();
         else if (root instanceof RootTrackNode) ((RootTrackNode)root).update();
-        expandState.setTree(tree).restoreExpandedPaths();
         tree.setSelectionPaths(sel);
+        if (expandedState!=null) EnumerationUtils.toStream(expandedState).forEach(p -> tree.expandPath(p));
         resetHighlightedObjects();
+        //treeModel.nodeChanged(root);
+        //treeModel.nodeStructureChanged(root);
         tree.updateUI();
     }
+
     public void setEnabled(boolean enabled) {
         if (tree!=null) tree.setEnabled(enabled);
     }
+
     public ObjectDAO getObjectDAO(String fieldName) {
         return db.getDao(fieldName);
     }

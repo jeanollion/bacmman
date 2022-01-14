@@ -19,16 +19,21 @@
 package bacmman.ui.gui.objects;
 
 import bacmman.data_structure.SegmentedObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 
 /**
  *
  * @author Jean Ollion
  */
-public class TrackExperimentNode implements TreeNode, UIContainer {
+public class TrackExperimentNode implements MutableTreeNode, UIContainer {
+    public static final Logger logger = LoggerFactory.getLogger(TrackExperimentNode.class);
     protected final TrackTreeGenerator generator;
     List<RootTrackNode> children;
     int structureIdx; 
@@ -42,14 +47,21 @@ public class TrackExperimentNode implements TreeNode, UIContainer {
         return generator;
     }
     public void update() {
+        logger.debug("updating trackExpNode: {}, children null ? {}", this, children==null);
         if (children==null) return;
         List<RootTrackNode> newChildren = createChildren();
-        for (int i = 0; i<newChildren.size(); ++i) { // replace by existing to keep same instances
-            int ii = i;
-            RootTrackNode t = children.stream().filter(c -> c.position.equals(newChildren.get(ii).position)).findAny().orElse(null);
-            if (t!=null) newChildren.set(i, t);
+        Set<RootTrackNode> toRemove = new HashSet<>(children);
+        newChildren.forEach(toRemove::remove);
+        toRemove.forEach(RootTrackNode::removeFromParent);
+        newChildren.removeAll(children);
+        Comparator<RootTrackNode> comparator = Comparator.comparing(t -> t.position);
+        Collections.sort(newChildren, comparator);
+        int newIdx = 0;
+        int idx = 0;
+        while(newIdx<newChildren.size()) {
+            while(idx<children.size() && comparator.compare(children.get(idx), newChildren.get(newIdx))<=0) ++idx;
+            this.insert(newChildren.get(newIdx++), idx);
         }
-        children = newChildren;
         for (RootTrackNode n : children) n.update();
     }
     public List<RootTrackNode> getChildren() {
@@ -104,5 +116,30 @@ public class TrackExperimentNode implements TreeNode, UIContainer {
     public Enumeration children() {
         return Collections.enumeration(getChildren());
     }
-    
+
+    // mutable interface
+
+    @Override
+    public void insert(MutableTreeNode child, int index) {
+        getChildren().add(index, (RootTrackNode) child);
+    }
+
+    @Override public void remove(int index) {
+        getChildren().remove(index);
+    }
+
+    @Override public void remove(MutableTreeNode node) {
+        getChildren().remove(node);
+    }
+
+    @Override public void setUserObject(Object object) {
+
+    }
+
+    @Override public void removeFromParent() {
+    }
+
+    @Override public void setParent(MutableTreeNode newParent) {
+    }
+
 }

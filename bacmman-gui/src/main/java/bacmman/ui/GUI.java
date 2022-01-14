@@ -94,6 +94,8 @@ import static bacmman.plugins.Hint.formatHint;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
+import javax.swing.tree.TreeNode;
+import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
 
@@ -733,7 +735,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
             importMenu.add(openTrackMateMenuItem);
         }
-    }
+        setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
+    } // end of constructor
+
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
         this.selectAllTracksButton.setText("Select All Tracks ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_TRACKS)+")");
@@ -1298,6 +1302,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             if (trackTreeController == null) {
                                 return;
                             }
+
                             if (tree.getSelectionCount() == 1 && tree.getSelectionPath().getLastPathComponent() instanceof TrackNode) {
                                 trackTreeController.updateLastParentTracksWithSelection(trackTreeController.getTreeIdx(entry.getKey()));
                             } else {

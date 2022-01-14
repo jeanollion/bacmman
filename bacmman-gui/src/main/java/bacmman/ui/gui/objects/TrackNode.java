@@ -19,6 +19,7 @@
 package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.experiment.Position;
 import bacmman.core.Core;
 import bacmman.core.DefaultWorker;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -62,10 +63,15 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     RootTrackNode root;
     List<TrackNode> children;
     Boolean containsErrors;
+    boolean singleFrame;
     public TrackNode(TrackNodeInterface parent, RootTrackNode root, SegmentedObject trackhead) {
         this.parent=parent;
         this.trackHead=trackhead;
         this.root=root;
+        if (root!=null && root.generator!=null) {
+            Position pos = root.generator.getExperiment().getPosition(trackhead.getPositionName());
+            this.singleFrame = pos.getEndTrimFrame() == pos.getStartTrimFrame();
+        } else singleFrame = trackHead.getNext()==null;
     }
 
     public SegmentedObject getTrackHead() {
@@ -120,15 +126,24 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     }
 
     public void update() {
-        track=null;
-        if (children == null) return;
-        List<TrackNode> newChildren = createChildren();
-        for (int i = 0; i<newChildren.size(); ++i) { // replace by existing to keep same instances
-            int ii = i;
-            TrackNode t = children.stream().filter(c -> c.trackHead.equals(newChildren.get(ii).trackHead)).findAny().orElse(null);
-            if (t!=null) newChildren.set(i, t);
+        if (track!=null) {
+            track=null;
+            getTrack();
         }
-        children = newChildren;
+        if (children == null) return; // lazy loading
+        List<TrackNode> newChildren = createChildren();
+        Set<TrackNode> toRemove = new HashSet<>(children);
+        newChildren.forEach(toRemove::remove);
+        toRemove.forEach(TrackNode::removeFromParent);
+        newChildren.removeAll(children);
+        Comparator<TrackNode> comparator = Comparator.comparing(t -> t.trackHead);
+        Collections.sort(newChildren, comparator);
+        int newIdx = 0;
+        int idx = 0;
+        while(newIdx<newChildren.size()) {
+            while(idx<children.size() && comparator.compare(children.get(idx), newChildren.get(newIdx))<=0) ++idx;
+            this.insert(newChildren.get(newIdx++), idx);
+        }
         for (TrackNode t : children) t.update();
     }
 
@@ -144,9 +159,13 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     // TreeNode implementation
     @Override public String toString() {
         if (trackHead==null) return "tracking should be re-run";
-        //getTrack();
-        int tl = track==null || track.isEmpty() ? -1 : track.get(track.size()-1).getFrame()-track.get(0).getFrame()+1;
-        return getStructureName()+" Track: "+ Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + " Frames: ["+trackHead.getFrame()+";"+(track!=null?track.get(track.size()-1).getFrame():"???")+"] (N="+(track!=null?track.size():".........")+")"+(track!=null && tl!=track.size() ? " (Gaps="+(tl-track.size())+")" : "");
+        if (singleFrame) {
+            return getStructureName() + " " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead));
+        } else {
+            //getTrack();
+            int tl = track == null || track.isEmpty() ? -1 : track.get(track.size() - 1).getFrame() - track.get(0).getFrame() + 1;
+            return getStructureName() + " Track: " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + " Frames: [" + trackHead.getFrame() + ";" + (track != null ? track.get(track.size() - 1).getFrame() : "???") + "] (N=" + (track != null ? track.size() : ".........") + ")" + (track != null && tl != track.size() ? " (Gaps=" + (tl - track.size()) + ")" : "");
+        }
     }
     private String getStructureName() {
         if (root==null || root.generator==null || root.generator.getExperiment()==null) return "Unknown Object Class";
@@ -176,6 +195,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     }
 
     @Override public boolean isLeaf() {
+        if (singleFrame) return true;
         if (track==null && getParent() instanceof RootTrackNode && firstStructureAfterRoot()) return false; // Lazy loading only for 1st structure after root
         return getChildCount()==0;
     }
@@ -220,6 +240,19 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
     @Override public void setParent(MutableTreeNode newParent) {
         if (newParent==null) parent = null;
         else parent=(TrackNodeInterface)newParent;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TrackNode trackNode = (TrackNode) o;
+        return Objects.equals(trackHead, trackNode.trackHead);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(trackHead);
     }
 
     class TrackNodeUI {
@@ -279,7 +312,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                 openKymograph[i].setAction(new AbstractAction(structureNames[i]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
-                            if (GUI.logger.isDebugEnabled()) GUI.logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
+                            logger.debug("opening track raw image for structure: {} of idx: {}", ae.getActionCommand(), getOCIdx.applyAsInt(ae.getActionCommand()));
                             //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
                             //trackNode.loadAllTrackObjects(path);
                             int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());

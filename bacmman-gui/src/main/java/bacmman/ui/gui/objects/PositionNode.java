@@ -30,14 +30,16 @@ import javax.swing.tree.TreeNode;
  *
  * @author Jean Ollion
  */
-public class FieldNode implements TreeNode, UIContainer {
+public class PositionNode implements TreeNode, UIContainer {
     ExperimentNode parent;
     TimePointNode[] children;
     String fieldName;
-    
-    public FieldNode(ExperimentNode parent, String fieldName) {
+    boolean singleFrame;
+    public PositionNode(ExperimentNode parent, String fieldName) {
         this.parent=parent;
         this.fieldName=fieldName;
+        Position pos = parent.generator.getExperiment().getPosition(fieldName);
+        this.singleFrame = pos.getEndTrimFrame() == pos.getStartTrimFrame() + 1 ;
     }
     
     public TimePointNode[] getChildren() { // charger tous les root object d'un coup en une requete?

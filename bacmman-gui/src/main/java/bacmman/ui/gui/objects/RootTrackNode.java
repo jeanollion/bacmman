@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.objects;
 
+import bacmman.configuration.experiment.Position;
 import bacmman.core.Core;
 import bacmman.data_structure.Processor;
 import bacmman.data_structure.Selection;
@@ -33,10 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionEvent;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.List;
+import java.util.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
 import javax.swing.JMenuItem;
@@ -59,12 +57,17 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     final String position;
     Boolean containsErrors;
     final boolean root;
+    final boolean singleFrame;
     public RootTrackNode(TrackTreeGenerator generator, SegmentedObject parentTrackHead, int structureIdx) {
         this.generator = generator;
         this.parentTrackHead=parentTrackHead;
         this.structureIdx=structureIdx;
         this.position=parentTrackHead.getPositionName();
         root = false;
+        if (parent!=null && parent.generator!=null) {
+            Position pos = parent.generator.getExperiment().getPosition(position);
+            this.singleFrame = pos.getEndTrimFrame() == pos.getStartTrimFrame();
+        } else singleFrame = false;
     }
     
     public RootTrackNode(TrackExperimentNode parent, String position, int structureIdx) { // constructor when parent == root
@@ -73,6 +76,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         this.position=position;
         this.structureIdx=structureIdx;
         root = true;
+        this.singleFrame = false;
         //logger.debug("creating root track node for field: {} structure: {}", position, structureIdx);
     }
 
@@ -100,7 +104,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 GUI.logger.warn("No track head or fieldName defined for RootTrackNode instance");
                 return null;
             }
-            List<SegmentedObject> roots = generator.getObjectDAO(position).getRoots();
+            List<SegmentedObject> roots = getParentTrack();
             if (roots==null || roots.isEmpty()) GUI.logger.error("No root found for position: {}, please run pre-processing", position);
             else parentTrackHead = roots.get(0);
             if (parentTrackHead!=null) GUI.logger.trace("parentTrackHead id:"+parentTrackHead.getId());
@@ -117,11 +121,14 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     }
     private List<SegmentedObject> createRemainingTracksPerFrame() {
         if (getParentTrackHead()==null) return Collections.EMPTY_LIST;
-        return generator.getObjectDAO(position).getTrackHeads(getParentTrackHead(), structureIdx);
+        return new ArrayList<>(generator.getObjectDAO(position).getTrackHeads(getParentTrackHead(), structureIdx));
     }
     @Override
     public List<TrackNode> getChildren() {
-        if (children==null) children = createChildren(getRemainingTracksPerFrame());
+        if (children==null) {
+            remainingTrackHeads = getRemainingTracksPerFrame();
+            children = createChildren(remainingTrackHeads);
+        }
         return children;
     }
     private List<TrackNode> createChildren(List<SegmentedObject> remainingTracks) {
@@ -137,12 +144,18 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         if (children==null) return;
         List<SegmentedObject> remainingTrackHeadsTemp=createRemainingTracksPerFrame();
         List<TrackNode> newChildren = createChildren(remainingTrackHeadsTemp);
-        for (int i = 0; i<newChildren.size(); ++i) { // replace by existing to keep same instances
-            int ii = i;
-            TrackNode t = children.stream().filter(c -> c.trackHead.equals(newChildren.get(ii).trackHead)).findAny().orElse(null);
-            if (t!=null) newChildren.set(i, t);
+        Set<TrackNode> toRemove = new HashSet<>(children);
+        newChildren.forEach(toRemove::remove);
+        toRemove.forEach(TrackNode::removeFromParent);
+        newChildren.removeAll(children);
+        Comparator<TrackNode> comparator = Comparator.comparing(t -> t.trackHead);
+        Collections.sort(newChildren, comparator);
+        int newIdx = 0;
+        int idx = 0;
+        while(newIdx<newChildren.size()) {
+            while(idx<children.size() && comparator.compare(children.get(idx), newChildren.get(newIdx))<=0) ++idx;
+            this.insert(newChildren.get(newIdx++), idx);
         }
-        children = newChildren;
         remainingTrackHeads = remainingTrackHeadsTemp;
         for (TrackNode t : children) t.update();
     }
@@ -178,7 +191,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     }
 
     @Override public boolean isLeaf() {
-        if (children==null) return false; // lazy-loading
+        if (children==null) return singleFrame; // lazy-loading
         return getChildCount()==0;
     }
 
@@ -218,7 +231,20 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
         if (!root) return null;
         return (new RootTrackNodeUI()).getDisplayComponent(multipleSelection);
     }
-    
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        RootTrackNode that = (RootTrackNode) o;
+        return structureIdx == that.structureIdx && root == that.root && position.equals(that.position);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(structureIdx, position, root);
+    }
+
     class RootTrackNodeUI {
         JMenuItem openRawAllFrames, openPreprocessedAllFrames;
         JMenu kymographSubMenu, hyperStackSubMenu, createSelectionSubMenu;

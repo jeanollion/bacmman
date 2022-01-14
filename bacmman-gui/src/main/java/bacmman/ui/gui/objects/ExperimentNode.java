@@ -29,7 +29,7 @@ import javax.swing.tree.TreeNode;
  */
 public class ExperimentNode implements TreeNode, UIContainer {
     protected final StructureObjectTreeGenerator generator;
-    FieldNode[] children;
+    PositionNode[] children;
     
     public ExperimentNode(StructureObjectTreeGenerator generator) {
         this.generator=generator;
@@ -39,17 +39,17 @@ public class ExperimentNode implements TreeNode, UIContainer {
         return generator;
     }
     
-    public FieldNode[] getChildren() {
+    public PositionNode[] getChildren() {
         if (children==null) {
             String[] fieldNames = generator.getExperiment().getPositionsAsString();
-            children= new FieldNode[fieldNames.length];
-            for (int i = 0; i<children.length; ++i) children[i] = new FieldNode(this, fieldNames[i]);
+            children= new PositionNode[fieldNames.length];
+            for (int i = 0; i<children.length; ++i) children[i] = new PositionNode(this, fieldNames[i]);
         }
         return children;
     }
     
-    public FieldNode getFieldNode(String fieldName) {
-        for (FieldNode f : getChildren()) if (f.fieldName.equals(fieldName)) return f;
+    public PositionNode getFieldNode(String fieldName) {
+        for (PositionNode f : getChildren()) if (f.fieldName.equals(fieldName)) return f;
         return null;
     }
     
@@ -63,7 +63,7 @@ public class ExperimentNode implements TreeNode, UIContainer {
         return generator.getExperiment().getName();
     }
     
-    public FieldNode getChildAt(int childIndex) {
+    public PositionNode getChildAt(int childIndex) {
         return getChildren()[childIndex];
     }
 

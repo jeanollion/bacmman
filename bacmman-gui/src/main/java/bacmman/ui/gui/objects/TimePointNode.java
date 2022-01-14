@@ -32,12 +32,12 @@ import javax.swing.tree.TreePath;
  * @author Jean Ollion
  */
 public class TimePointNode implements TreeNode, UIContainer, StructureNodeContainer {
-    FieldNode parent;
+    PositionNode parent;
     int timePoint;
     private StructureNode[] children;
     private SegmentedObject data;
     
-    public TimePointNode(FieldNode parent, int timePoint) {
+    public TimePointNode(PositionNode parent, int timePoint) {
         this.timePoint=timePoint;
         this.parent=parent;
     }
