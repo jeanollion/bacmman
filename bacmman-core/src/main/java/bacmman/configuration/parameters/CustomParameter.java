@@ -53,10 +53,12 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
         key.addListener(p -> setName(p.getValue()));
     }
 
-    /*@Override
+    @Override
     public String getName() {
-        return parameterName.getValue();
-    }*/
+        String k = key.getValue().length()==0 ? key.getValue() : "Key";
+        String v = currentParameter==null ? "" : currentParameter.getName();
+        return k+": "+v;
+    }
 
     @Override
     public CustomParameter<P> duplicate() {

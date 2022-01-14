@@ -4,11 +4,13 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.core.GithubGateway;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
+import bacmman.plugins.Plugin;
 import bacmman.ui.logger.ProgressLogger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.function.Consumer;
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 import static bacmman.github.gist.JSONQuery.logger;
@@ -61,16 +63,12 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         if (metadataConsumer!=null) metadataConsumer.accept(metadata);
         if (getParent()!=null) {
             ContainerParameter parent = getParent();
-            parent.getChildren().stream().filter(p -> p instanceof DLMetadataConfigurable).forEach(p -> ((DLMetadataConfigurable)p).configureFromMetadata(metadata)); // siblings -> other parameters of the DLEngine
+            DLMetadataConfigurable.configure(metadata, parent.getChildren()); // siblings -> other parameters of the DLEngine
+            DLMetadataConfigurable.configure(metadata, parent);
             if (parent.getParent()!=null) {
                 ContainerParameter grandParent = (ContainerParameter)parent.getParent();
-                grandParent.getChildren().stream().filter(p -> p instanceof DLMetadataConfigurable).forEach(p -> ((DLMetadataConfigurable)p).configureFromMetadata(metadata)); // uncles-aunts -> siblings of the DLEngine parameter
-                if (grandParent instanceof PluginParameter) {
-                    logger.debug("set metadata to plugin parameter: {}", grandParent);
-                    ((PluginParameter)grandParent).setNewInstanceConfiguration(p -> {
-                        if (p instanceof DLMetadataConfigurable) ((DLMetadataConfigurable)p).configureFromMetadata(metadata);
-                    });
-                }
+                DLMetadataConfigurable.configure(metadata, grandParent.getChildren());  // uncles-aunts -> siblings of the DLEngine parameter
+                DLMetadataConfigurable.configure(metadata, grandParent);
             }
         }
     }

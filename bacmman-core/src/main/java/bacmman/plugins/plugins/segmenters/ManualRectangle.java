@@ -12,13 +12,13 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ManualCrop implements Segmenter, TrackerSegmenter, Hint {
+public class ManualRectangle implements Segmenter, TrackerSegmenter, Hint {
 
-    SimpleListParameter<BoundingBoxParameter> objects = new SimpleListParameter<>("Objects", 1, new BoundingBoxParameter("Bounds")).setEmphasized(true);
+    SimpleListParameter<BoundingBoxParameter> objects = new SimpleListParameter<>("Objects", 0, new BoundingBoxParameter("Bounds")).setEmphasized(true);
 
     @Override
     public String getHintText() {
-        return "Creates manually defined rectangles";
+        return "Creates manually defined rectangles. Bounds must be defined relatively to parent's bounds";
     }
 
     @Override

@@ -62,7 +62,9 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
 
     public <P extends Parameter> P getOtherParameter(String key, Class<P> valueClass) {
         assert key!=null && valueClass!=null;
-        return (P)miscParameters.getChildren().stream().filter(p -> key.equals(p.getKey())).filter(p -> valueClass.equals(p.getCurrentParameter(false).getClass())).findFirst().orElse(null);
+        return (P)miscParameters.getChildren().stream()
+                .filter(p -> key.equals(p.getKey())).filter(p -> valueClass.equals(p.getCurrentParameter(false).getClass()))
+                .map(p -> p.getCurrentParameter(true)).findFirst().orElse(null);
     }
 
     public class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {

@@ -711,7 +711,7 @@ public class DBMapObjectDAO implements ObjectDAO {
 
     @Override
     public List<SegmentedObject> getTrackHeads(SegmentedObject parentTrack, int structureIdx) {
-        return trackHeads.get(new Pair<>(parentTrack.getId(), structureIdx));
+        return Collections.unmodifiableList(trackHeads.get(new Pair<>(parentTrack.getId(), structureIdx)));
         //setParents(list, new Pair<>(parentTrack.getParentTrackHeadId(), parentTrack.getStructureIdx()));
     }
     public List<SegmentedObject> getTrackHeads(Pair<String, Integer> key) {
@@ -896,7 +896,7 @@ public class DBMapObjectDAO implements ObjectDAO {
             HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
             Map<Integer, Set<String>> res = new HashMap<>();
             dbmap.forEach( (f, o) -> res.put(f, new HashSet(Arrays.asList((Object[])o))));
-            int size = res.values().stream().mapToInt(Set::size).sum();
+            //int size = res.values().stream().mapToInt(Set::size).sum();
             //logger.debug("retrieved frame index for {} objects over {} frames", size, res.size());
             return res;
         } else {
@@ -925,7 +925,7 @@ public class DBMapObjectDAO implements ObjectDAO {
 
     protected HTreeMap<Integer, Object> getFrameIndexDBMap(Pair<String, Integer> key) {
         HTreeMap<Integer, Object> res = this.dbMapsFrameIndex.get(key);
-        if (res==null) {
+        if (res==null || res.isClosed()) {
             synchronized(dbMapsFrameIndex) {
                 if (dbMapsFrameIndex.containsKey(key)) return dbMapsFrameIndex.get(key);
                 else {

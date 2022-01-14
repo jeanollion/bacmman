@@ -25,6 +25,7 @@ import bacmman.configuration.parameters.SiblingObjectClassParameter;
 import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.*;
+import bacmman.utils.Utils;
 import com.google.common.collect.Sets;
 
 import java.lang.reflect.Field;
@@ -102,12 +103,13 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
         int parentObjectClassIdx = parentTrack.get(0).getStructureIdx();
         if (oc1.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected object class 1 to duplicate");
         if (oc2.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected object class 2 to duplicate");
-        
-        Map<SegmentedObject, SegmentedObject> dupOC1 = Duplicate.duplicate(parentTrack, oc1.getSelectedClassIdx(), structureIdx, factory, editor);
-        Duplicate.setParents(dupOC1, parentObjectClassIdx, oc1.getSelectedClassIdx(), factory);
-        Map<SegmentedObject, SegmentedObject> dupOC2 = Duplicate.duplicate(parentTrack, oc2.getSelectedClassIdx(), structureIdx, factory, null);
-        Map<SegmentedObject, List<SegmentedObject>> dupOC1byParent = dupOC1.entrySet().stream().collect(Collectors.groupingBy(e->e.getKey().getParent(parentObjectClassIdx))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));
-        Map<SegmentedObject, List<SegmentedObject>> dupOC2byParent = dupOC2.entrySet().stream().collect(Collectors.groupingBy(e->e.getKey().getParent(parentObjectClassIdx))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));;
+        Map<SegmentedObject, SegmentedObject> sourceOC1MapParent = Duplicate.getParents(parentTrack, oc1.getSelectedClassIdx());
+        Map<SegmentedObject, SegmentedObject> dupOC1 = Duplicate.duplicate(sourceOC1MapParent.keySet().stream(), structureIdx, factory, editor);
+        Duplicate.setParents(dupOC1, sourceOC1MapParent, parentObjectClassIdx, oc1.getSelectedClassIdx(), factory);
+        Map<SegmentedObject, SegmentedObject> sourceOC2MapParent = Duplicate.getParents(parentTrack, oc2.getSelectedClassIdx());
+        Map<SegmentedObject, SegmentedObject> dupOC2 = Duplicate.duplicate(sourceOC2MapParent.keySet().stream(),  structureIdx, factory, null);
+        Map<SegmentedObject, List<SegmentedObject>> dupOC1byParent = dupOC1.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC1MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));
+        Map<SegmentedObject, List<SegmentedObject>> dupOC2byParent = dupOC2.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC2MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));;
         List<SegmentedObject> toRemove = new ArrayList<>();
         Sets.union(dupOC1byParent.keySet(), dupOC2byParent.keySet()).forEach(p -> {
             List<SegmentedObject> oc1 = dupOC1byParent.get(p);

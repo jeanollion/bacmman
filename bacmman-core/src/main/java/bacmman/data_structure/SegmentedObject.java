@@ -251,7 +251,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (parentObjectClassIdx<0) return getRoot();
         if (parentObjectClassIdx == this.getParent().getStructureIdx()) return getParent();
         int common = getExperiment().experimentStructure.getFirstCommonParentObjectClassIdx(structureIdx, parentObjectClassIdx);
-        //logger.debug("common idx: {}", common);
+        //logger.debug("getParent -> common idx: {}", common);
         if (common == parentObjectClassIdx) {
             SegmentedObject p = this;
             while (p!=null && p.getStructureIdx()!=parentObjectClassIdx) p = p.getParent();
@@ -259,7 +259,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         } else {
             SegmentedObject p = this;
             while (p.getStructureIdx()!=common) p = p.getParent();
-            //logger.debug("{} (2D?:{} so2D?: {}) common parent: {}, candidates: {}", this, getRegion().is2D(), is2D(), p, candidates);
+            //logger.debug("{} (2D?:{} so2D?: {}) common parent: {}", this, getRegion().is2D(), is2D(), p);
             return SegmentedObjectUtils.getContainer(getRegion(), p.getChildren(parentObjectClassIdx), null);
         }
     }
@@ -598,15 +598,18 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
      */
     public boolean isTrackHead() {return this.isTrackHead;}
     
-    public SegmentedObject resetTrackHead() {
+    public SegmentedObject resetTrackHead(boolean propagate) {
         trackHeadId=null;
         trackHead=null;
+        isTrackHead = previousId==null;
         getTrackHead();
-        SegmentedObject n = this;
-        while (n.getNext()!=null && n.getNext().getPrevious()==n) { // only on main track
-            n=n.getNext();
-            n.trackHeadId=null;
-            n.trackHead=trackHead;
+        if (propagate) {
+            SegmentedObject n = this;
+            while (n.getNext() != null && n.getNext().getPrevious() == n) { // only on main track
+                n = n.getNext();
+                n.trackHeadId = null;
+                n.trackHead = trackHead;
+            }
         }
         return this;
     }

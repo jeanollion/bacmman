@@ -82,18 +82,20 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         segmentAndTrack(structureIdx, parentTrack, apply, factory);
     }
     public void segmentAndTrack(final int structureIdx, final List<SegmentedObject> parentTrack, TrackConfigurer applyToSegmenter, SegmentedObjectFactory factory) {
+
         MultipleException me = new MultipleException();
         if (!segmenter.isOnePluginSet()) {
             logger.info("No segmenter set for structure: {}", structureIdx);
             return;
         }
         if (parentTrack.isEmpty()) return;
+        logger.debug("post Filters: {}", postFilters.getActivatedChildCount());
         int parentStructureIdx = parentTrack.get(0).getStructureIdx();
         int segParentStructureIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         boolean subSegmentation = segParentStructureIdx>parentStructureIdx;
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
         boolean parallel = !(segmenter.instantiatePlugin() instanceof DisableParallelExecution); // TODO why this does not work ? !DisableParallelExecution.class.isAssignableFrom(segmenter.getPluginType());
-        logger.debug("PARALLEL EXECUTION: {}, seg type: {}, segName {}, instance of disable: {}", parallel, segmenter.getPluginType(), segmenter.getPluginName(), segmenter.instantiatePlugin() instanceof DisableParallelExecution);
+        //logger.debug("PARALLEL EXECUTION: {}, seg type: {}, segName {}, instance of disable: {}", parallel, segmenter.getPluginType(), segmenter.getPluginName(), segmenter.instantiatePlugin() instanceof DisableParallelExecution);
         // segment in direct parents
         List<SegmentedObject> allParents = singleFrame ? SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream().limit(1), segParentStructureIdx).collect(Collectors.toList()) : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segParentStructureIdx).collect(Collectors.toList());
         if (parallel) Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
