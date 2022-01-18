@@ -1,10 +1,8 @@
 package bacmman.ui.gui.configurationIO;
 
-import bacmman.core.DefaultWorker;
 import bacmman.core.GithubGateway;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
-import bacmman.ui.ManualEdition;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.logger.ProgressLogger;
@@ -21,11 +19,8 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.tree.DefaultMutableTreeNode;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.Collections;
 import java.util.List;
@@ -42,7 +37,7 @@ public class DLModelsLibrary {
     private JButton generateToken;
     private JButton loadToken;
     private JPanel dlModelsPanel;
-    private JButton storeButton;
+    private JButton newButton;
     private JScrollPane DLModelsJSP;
     private JPanel contentPane;
     private JPanel credentialPane;
@@ -62,11 +57,13 @@ public class DLModelsLibrary {
     ProgressLogger pcb;
     BiConsumer<String, DLModelMetadata> configureParameterCallback;
     JDialog dia;
+    Runnable onClose;
 
-    public DLModelsLibrary(GithubGateway gateway, String currentDirectory, ProgressLogger pcb) {
+    public DLModelsLibrary(GithubGateway gateway, String currentDirectory, Runnable onClose, ProgressLogger pcb) {
         this.gateway = gateway;
         this.currentDirectory = currentDirectory;
         this.pcb = pcb;
+        this.onClose = onClose;
         if (pcb instanceof JFrame) displayingFrame = (JFrame) pcb;
         // persistence of username account:
         PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true); // TODO sabilab instead ?
@@ -83,9 +80,20 @@ public class DLModelsLibrary {
         });
         updateEnableButtons();
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
-            @Override public void insertUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
-            @Override public void removeUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
-            @Override public void changedUpdate(DocumentEvent documentEvent) { enableTokenButtons(p); }
+            @Override
+            public void insertUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent documentEvent) {
+                enableTokenButtons(p);
+            }
         };
         username.getDocument().addDocumentListener(dl.apply(false));
         password.getDocument().addDocumentListener(dl.apply(true));
@@ -94,7 +102,7 @@ public class DLModelsLibrary {
             updateGistDisplay();
             updateEnableButtons();
         });
-        storeButton.addActionListener(e -> {
+        newButton.addActionListener(e -> {
             if (tree == null || !loggedIn) return;
             // check if a folder is selected
             String currentFolder = tree.getSelectedFolder();
@@ -190,7 +198,8 @@ public class DLModelsLibrary {
                 return;
             }
             GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-            for (BufferedImage b : gist.getThumbnail()) toSave.appendThumbnail(b);
+            List<BufferedImage> otherThumb = gist.getThumbnail();
+            if (otherThumb != null) for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateGistDisplay();
@@ -243,7 +252,9 @@ public class DLModelsLibrary {
                                         }
                                     }
                                     GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
-                                    for (BufferedImage b : gist.getThumbnail()) toSave.appendThumbnail(b);
+                                    List<BufferedImage> otherThumb = gist.getThumbnail();
+                                    if (otherThumb != null)
+                                        for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
                                     toSave.createNewGist(auth2);
                                     if (cred.key.equals(username.getText())) { // same account
                                         gists.add(toSave);
@@ -334,13 +345,13 @@ public class DLModelsLibrary {
         tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons, currentDirectory, pcb);
         DLModelsJSP.setViewportView(tree.getTree());
         if (lastSel != null) tree.setSelectedGist(lastSel);
-        if (expState != null) tree.setExpandedState(expState);
+        tree.setExpandedState(expState);
     }
 
     private void updateEnableButtons() {
         boolean gistSel = tree != null && tree.getSelectedGist() != null;
         boolean folderSel = tree != null && tree.getSelectedFolder() != null;
-        storeButton.setEnabled(loggedIn);
+        newButton.setEnabled(loggedIn);
         duplicateButton.setEnabled(loggedIn && gistSel);
         removeButton.setEnabled(loggedIn && (gistSel || folderSel));
         updateButton.setEnabled(loggedIn && gistSel);
@@ -391,13 +402,18 @@ public class DLModelsLibrary {
     }
 
     public void display(JFrame parent) {
-        dia = new Dial(parent, "Import/Export DL Model weights from Github");
+        dia = new Dial(parent, "Online DL Model Library");
         dia.setVisible(true);
     }
 
     public void close() {
         if (dia != null) dia.dispose();
         if (tree != null) tree.flush();
+        if (onClose != null) onClose.run();
+    }
+
+    public void toFront() {
+        dia.toFront();
     }
 
     {
@@ -450,10 +466,10 @@ public class DLModelsLibrary {
         actionPanel = new JPanel();
         actionPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         contentPane.add(actionPanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
-        storeButton = new JButton();
-        storeButton.setText("New");
-        storeButton.setToolTipText("Store a new model");
-        actionPanel.add(storeButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        newButton = new JButton();
+        newButton.setText("New");
+        newButton.setToolTipText("Store a new model");
+        actionPanel.add(newButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         removeButton = new JButton();
         removeButton.setText("Remove");
         removeButton.setToolTipText("Remove selected model");
@@ -491,6 +507,14 @@ public class DLModelsLibrary {
             getContentPane().setFocusTraversalPolicy(new LayoutFocusTraversalPolicy());
             setDefaultCloseOperation(DISPOSE_ON_CLOSE);
             pack();
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent evt) {
+                    dia = null;
+                    close();
+                    logger.debug("DL Model Library closed successfully");
+                }
+            });
         }
     }
 

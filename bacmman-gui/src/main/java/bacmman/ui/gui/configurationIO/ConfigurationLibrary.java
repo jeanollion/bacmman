@@ -38,8 +38,8 @@ import java.util.stream.Collectors;
 import static bacmman.plugins.Hint.formatHint;
 import static bacmman.ui.gui.Utils.getDisplayedImage;
 
-public class ConfigurationIO {
-    private JComboBox nodeJCB;
+public class ConfigurationLibrary {
+    private JComboBox stepJCB;
     private JScrollPane localConfigJSP;
     private JScrollPane remoteConfigJSP;
     private JSplitPane configSP;
@@ -63,7 +63,7 @@ public class ConfigurationIO {
     private JButton setThumbnailButton;
     private JPanel actionPanel;
 
-    private static final Logger logger = LoggerFactory.getLogger(ConfigurationIO.class);
+    private static final Logger logger = LoggerFactory.getLogger(ConfigurationLibrary.class);
     Experiment xp;
     MasterDAO db;
     GistConfiguration.TYPE currentMode;
@@ -75,15 +75,16 @@ public class ConfigurationIO {
     GithubGateway gateway;
     Runnable onClose;
     ProgressLogger bacmmanLogger;
+    JDialog dia;
 
-    public ConfigurationIO(MasterDAO db, GithubGateway gateway, Runnable onClose, ProgressLogger bacmmanLogger) {
-        this.db = db;
+    public ConfigurationLibrary(MasterDAO mDAO, GithubGateway gateway, Runnable onClose, ProgressLogger bacmmanLogger) {
+        this.db = mDAO;
         this.bacmmanLogger = bacmmanLogger;
-        this.xp = db.getExperiment();
+        this.xp = mDAO == null ? null : mDAO.getExperiment();
         this.gateway = gateway;
         this.onClose = onClose;
-        nodeJCB.addItemListener(e -> {
-            switch (nodeJCB.getSelectedIndex()) {
+        stepJCB.addItemListener(e -> {
+            switch (stepJCB.getSelectedIndex()) {
                 case 0:
                 default:
                     setWholeConfig();
@@ -97,41 +98,14 @@ public class ConfigurationIO {
             }
         });
         localSelectorJCB.addItemListener(e -> {
-            if (currentMode == null || localSelectorJCB.getSelectedIndex() < 0) {
-                localConfigJSP.setViewportView(null);
-                localConfig = null;
-                updateCompareParameters();
-                return;
-            }
-            ContainerParameter root;
-            switch (currentMode) {
-                case WHOLE:
-                default:
-                    root = xp;
-                    break;
-                case PROCESSING:
-                    root = xp.getStructure(localSelectorJCB.getSelectedIndex()).getProcessingPipelineParameter();
-                    break;
-                case PRE_PROCESSING:
-                    int idx = localSelectorJCB.getSelectedIndex() - 1;
-                    if (idx < 0) root = xp.getPreProcessingTemplate();
-                    else root = xp.getPosition(idx).getPreProcessingChain();
-                    break;
-            }
-            localConfig = new ConfigurationTreeGenerator(xp, root, v -> {
-            }, (s, l) -> {
-            }, s -> {
-            }, db, null);
-            localConfigJSP.setViewportView(localConfig.getTree());
-            updateCompareParameters();
-            logger.debug("set local tree: {}", currentMode);
+            updateLocalSelector();
         });
         username.addActionListener(e -> {
             if (username.getText().length() > 0) {
                 if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
                     password.setText(String.valueOf(gateway.getPassword(username.getText())));
             }
-            fetchGists();
+            gists = null;
             updateRemoteSelector();
         });
         Function<Boolean, DocumentListener> dl = p -> new DocumentListener() {
@@ -161,7 +135,7 @@ public class ConfigurationIO {
             }
         });
         loadToken.addActionListener(e -> {
-            fetchGists();
+            gists = null;
             updateRemoteSelector();
         });
 
@@ -331,6 +305,13 @@ public class ConfigurationIO {
                 return;
             }
             GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
+            if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
+                if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
+            } else {
+                List<BufferedImage> otherThumb = gist.getThumbnail();
+                if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
+            }
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             remoteSelector.addGist(toSave);
@@ -384,10 +365,13 @@ public class ConfigurationIO {
                                     }
                                     GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
                                     if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
-                                        for (BufferedImage t : gist.getThumbnail(remoteSelector.getSelectedGistOC()))
-                                            toSave.appendThumbnail(t);
+                                        List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
+                                        if (otherThumb != null)
+                                            for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
                                     } else {
-                                        for (BufferedImage t : gist.getThumbnail()) toSave.appendThumbnail(t);
+                                        List<BufferedImage> otherThumb = gist.getThumbnail();
+                                        if (otherThumb != null)
+                                            for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
                                     }
                                     toSave.createNewGist(auth2);
                                     if (cred.key.equals(username.getText())) { // same account
@@ -463,9 +447,68 @@ public class ConfigurationIO {
         remoteConfigJSP.setToolTipText(formatHint("Configuration tree of the selected remote file. Differences with the configuration of the local current dataset are are displayed in blue", true));
     }
 
+    public void updateLocalSelector() {
+        if (db == null || currentMode == null || localSelectorJCB.getSelectedIndex() < 0) {
+            localConfigJSP.setViewportView(null);
+            localConfig = null;
+            updateCompareParameters();
+            return;
+        }
+        ContainerParameter root;
+        switch (currentMode) {
+            case WHOLE:
+            default:
+                root = xp;
+                break;
+            case PROCESSING:
+                root = xp.getStructure(localSelectorJCB.getSelectedIndex()).getProcessingPipelineParameter();
+                break;
+            case PRE_PROCESSING:
+                int idx = localSelectorJCB.getSelectedIndex() - 1;
+                if (idx < 0) root = xp.getPreProcessingTemplate();
+                else root = xp.getPosition(idx).getPreProcessingChain();
+                break;
+        }
+        localConfig = new ConfigurationTreeGenerator(xp, root, v -> {
+        }, (s, l) -> {
+        }, s -> {
+        }, db, null);
+        localConfigJSP.setViewportView(localConfig.getTree());
+        updateCompareParameters();
+        logger.debug("set local tree: {}", currentMode);
+    }
+
     public void display(JFrame parent) {
-        JDialog dia = new Dial(parent, "Import/Export Configuration from Github");
+        dia = new Dial(parent, "Online Configuration Library");
         dia.setVisible(true);
+    }
+
+    public void toFront() {
+        dia.toFront();
+    }
+
+    public void setDB(MasterDAO db) {
+        this.db = db;
+        this.xp = db == null ? null : db.getExperiment();
+        if (currentMode == null) {
+            setWholeConfig();
+        } else {
+            GistConfiguration.TYPE cur = currentMode;
+            currentMode = null;
+            switch (cur) {
+                case WHOLE:
+                default:
+                    logger.debug("will set whole config");
+                    setWholeConfig();
+                    break;
+                case PRE_PROCESSING:
+                    setPreProcessing();
+                    break;
+                case PROCESSING:
+                    setProcessing();
+                    break;
+            }
+        }
     }
 
     private void enableTokenButtons(boolean modifyingPassword) {
@@ -502,13 +545,13 @@ public class ConfigurationIO {
         nodePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         mainPanel.add(nodePanel, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         nodePanel.setBorder(BorderFactory.createTitledBorder(null, "Step", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
-        nodeJCB = new JComboBox();
+        stepJCB = new JComboBox();
         final DefaultComboBoxModel defaultComboBoxModel1 = new DefaultComboBoxModel();
         defaultComboBoxModel1.addElement("Whole Configuration");
         defaultComboBoxModel1.addElement("Pre-processing");
         defaultComboBoxModel1.addElement("Processing");
-        nodeJCB.setModel(defaultComboBoxModel1);
-        nodePanel.add(nodeJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        stepJCB.setModel(defaultComboBoxModel1);
+        nodePanel.add(stepJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         mainSP = new JSplitPane();
         mainSP.setDividerLocation(255);
         mainSP.setOrientation(0);
@@ -603,57 +646,76 @@ public class ConfigurationIO {
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(WindowEvent evt) {
-                    if (onClose != null) onClose.run();
-                    if (db.experimentChangedFromFile()) {
-                        if (Utils.promptBoolean("Local configuration has changed, save changes ?", mainPanel)) {
-                            db.updateExperiment();
-                        }
-                    }
-                    logger.debug("Github IO Closed successfully");
+                    dia = null;
+                    close();
+                    logger.debug("Configuration Library closed successfully");
                 }
             });
         }
 
     }
 
+    public void close() {
+        if (onClose != null) onClose.run();
+        if (dia != null) dia.dispose();
+    }
+
     private void setWholeConfig() {
         if (GistConfiguration.TYPE.WHOLE.equals(currentMode)) return;
         currentMode = null;
         localSelectorJCB.removeAllItems();
-        localSelectorJCB.addItem("Current Dataset");
-        currentMode = GistConfiguration.TYPE.WHOLE;
-        localSelectorJCB.setSelectedIndex(-1);
-        localSelectorJCB.setSelectedIndex(0); //trigger item listener to update the tree
-        updateRemoteSelector();
-        updateEnableButtons();
-        ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Dataset");
+        if (xp != null) {
+            localSelectorJCB.addItem("Current Dataset");
+            currentMode = GistConfiguration.TYPE.WHOLE;
+            localSelectorJCB.setSelectedIndex(-1);
+            localSelectorJCB.setSelectedIndex(0); //trigger item listener to update the tree
+            updateRemoteSelector();
+            updateEnableButtons();
+            ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Dataset");
+        } else {
+            currentMode = GistConfiguration.TYPE.WHOLE;
+            updateRemoteSelector();
+            updateEnableButtons();
+        }
     }
 
     private void setPreProcessing() {
         if (GistConfiguration.TYPE.PRE_PROCESSING.equals(currentMode)) return;
         currentMode = null;
         localSelectorJCB.removeAllItems();
-        localSelectorJCB.addItem("Template");
-        for (Position p : xp.getPositionParameter().getChildren()) localSelectorJCB.addItem(p.toString());
-        currentMode = GistConfiguration.TYPE.PRE_PROCESSING;
-        localSelectorJCB.setSelectedIndex(-1);
-        localSelectorJCB.setSelectedIndex(0); // select template by default
-        updateRemoteSelector();
-        updateEnableButtons();
-        ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Template / Position");
+        if (xp != null) {
+            localSelectorJCB.addItem("Template");
+            for (Position p : xp.getPositionParameter().getChildren()) localSelectorJCB.addItem(p.toString());
+            currentMode = GistConfiguration.TYPE.PRE_PROCESSING;
+            localSelectorJCB.setSelectedIndex(-1);
+            localSelectorJCB.setSelectedIndex(0); // select template by default
+            updateRemoteSelector();
+            updateEnableButtons();
+            ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Template / Position");
+        } else {
+            currentMode = GistConfiguration.TYPE.PRE_PROCESSING;
+            updateRemoteSelector();
+            updateEnableButtons();
+        }
     }
 
     private void setProcessing() {
         if (GistConfiguration.TYPE.PROCESSING.equals(currentMode)) return;
         currentMode = null;
         localSelectorJCB.removeAllItems();
-        for (Structure s : xp.getStructures().getChildren()) localSelectorJCB.addItem(s.getName());
-        currentMode = GistConfiguration.TYPE.PROCESSING;
-        localSelectorJCB.setSelectedIndex(-1);
-        localSelectorJCB.setSelectedIndex(0);
-        updateRemoteSelector();
-        updateEnableButtons();
-        ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Object Class");
+        if (xp != null) {
+            for (Structure s : xp.getStructures().getChildren()) localSelectorJCB.addItem(s.getName());
+            currentMode = GistConfiguration.TYPE.PROCESSING;
+            localSelectorJCB.setSelectedIndex(-1);
+            localSelectorJCB.setSelectedIndex(0);
+            updateRemoteSelector();
+            updateEnableButtons();
+            ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Object Class");
+        } else {
+            currentMode = GistConfiguration.TYPE.PROCESSING;
+            updateRemoteSelector();
+            updateEnableButtons();
+        }
     }
 
     private void updateRemoteSelector() {
@@ -664,50 +726,48 @@ public class ConfigurationIO {
             return;
         }
         if (gists == null) fetchGists();
-        GistConfiguration lastSel = remoteSelector == null ? null : remoteSelector.getSelectedGist();
-        int selectedOC = remoteSelector != null && GistConfiguration.TYPE.PROCESSING.equals(currentMode) ? remoteSelector.getSelectedGistOC() : -1;
-        if (remoteSelector != null) remoteSelector.flush();
-        remoteSelector = new ConfigurationGistTreeGenerator(gists, currentMode, gist -> {
-            if (gist != null) {
-                ContainerParameter root;
-                Experiment xp = gist.gist.getExperiment();
-                if (xp != null) {
-                    switch (currentMode) {
-                        case WHOLE:
-                        default:
-                            root = xp;
-                            break;
-                        case PROCESSING:
-                            if (GistConfiguration.TYPE.WHOLE.equals(gist.gist.type))
-                                root = xp.getStructure(gist.getObjectClassIdx()).getProcessingPipelineParameter();
-                            else root = xp.getStructure(0).getProcessingPipelineParameter();
-                            break;
-                        case PRE_PROCESSING:
-                            root = xp.getPreProcessingTemplate();
-                            break;
+        //if (remoteSelector != null) remoteSelector.flush();
+        if (remoteSelector == null) {
+            remoteSelector = new ConfigurationGistTreeGenerator(gists, currentMode, gist -> {
+                if (gist != null) {
+                    ContainerParameter root;
+                    Experiment xp = gist.gist.getExperiment();
+                    if (xp != null) {
+                        switch (currentMode) {
+                            case WHOLE:
+                            default:
+                                root = xp;
+                                break;
+                            case PROCESSING:
+                                if (GistConfiguration.TYPE.WHOLE.equals(gist.gist.type))
+                                    root = xp.getStructure(gist.getObjectClassIdx()).getProcessingPipelineParameter();
+                                else root = xp.getStructure(0).getProcessingPipelineParameter();
+                                break;
+                            case PRE_PROCESSING:
+                                root = xp.getPreProcessingTemplate();
+                                break;
+                        }
+                        remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
+                        }, (s, l) -> {
+                        }, s -> {
+                        }, null, null);
+                        updateCompareParameters();
+                        remoteConfigJSP.setViewportView(remoteConfig.getTree());
+                    } else {
+                        remoteConfig = null;
+                        remoteConfigJSP.setViewportView(null);
+                        updateCompareParameters();
                     }
-                    remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
-                    }, (s, l) -> {
-                    }, s -> {
-                    }, null, null);
-                    updateCompareParameters();
-                    remoteConfigJSP.setViewportView(remoteConfig.getTree());
                 } else {
                     remoteConfig = null;
                     remoteConfigJSP.setViewportView(null);
                     updateCompareParameters();
                 }
-            } else {
-                remoteConfig = null;
-                remoteConfigJSP.setViewportView(null);
-                updateCompareParameters();
-            }
-            updateEnableButtons();
-        });
-        remoteSelectorJSP.setViewportView(remoteSelector.getTree());
-        if (lastSel != null) {
-            remoteSelector.setSelectedGist(lastSel, selectedOC);
-            remoteSelector.displaySelectedConfiguration();
+                updateEnableButtons();
+            });
+            remoteSelectorJSP.setViewportView(remoteSelector.getTree());
+        } else {
+            remoteSelector.updateTree(gists, currentMode, false);
         }
     }
 

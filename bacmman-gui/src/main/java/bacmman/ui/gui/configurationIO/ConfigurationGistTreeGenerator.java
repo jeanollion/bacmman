@@ -65,7 +65,7 @@ public class ConfigurationGistTreeGenerator {
     final Consumer<GistTreeNode> setSelectedConfiguration;
     final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistConfiguration, List<BufferedImage>> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistConfiguration::getThumbnail);
     final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<Pair<GistConfiguration, Integer>, List<BufferedImage>> iconsByOC = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> p.key.getThumbnail(p.value));
-    private final Map<DefaultMutableTreeNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
+    private final Map<FolderNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
 
     Supplier<Icon> currentThumbnail;
     ImageIcon folderIcon, defaultConfigurationIcon;
@@ -73,19 +73,15 @@ public class ConfigurationGistTreeGenerator {
         folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
         defaultConfigurationIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/configuration64.png");
         this.setSelectedConfiguration=setSelectedConfiguration;
-        this.type = type;
-        this.gists = gists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
-        if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
-            Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg->gg.account.equals(g.account) && gg.folder.equals(g.folder) && gg.name.equals(g.name));
-            this.gists.addAll(gists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
-        }
+        generateTree();
+        updateTree(gists, type, true);
     }
 
     public JTree getTree() {
         if (tree==null) generateTree();
         return tree;
     }
-    protected DefaultWorker loadIconsInBackground(DefaultMutableTreeNode folder) {
+    protected DefaultWorker loadIconsInBackground(FolderNode folder) {
         return DefaultWorker.execute( i -> {
             GistTreeNode n = (GistTreeNode) folder.getChildAt(i);
             if (n.objectClassIdx>=0) {
@@ -154,6 +150,7 @@ public class ConfigurationGistTreeGenerator {
         if (path.getLastPathComponent() instanceof GistTreeNode) return ((GistTreeNode)path.getLastPathComponent()).gist;
         else return null;
     }
+
     public int getSelectedGistOC() {
         if (tree==null) return -1;
         TreePath path = tree.getSelectionPath();
@@ -179,17 +176,7 @@ public class ConfigurationGistTreeGenerator {
     }
 
     private void generateTree() {
-        DefaultMutableTreeNode root = new DefaultMutableTreeNode(type.name());
-
-        // folder nodes
-        gists.stream().map(gc -> gc.folder).distinct().sorted().map(DefaultMutableTreeNode::new).forEach(f -> {
-            root.add(f);
-            // actual configuration element
-            gists.stream().filter(g -> g.folder.equals(f.getUserObject())).sorted(Comparator.comparing(g->g.name)).forEach(g -> {
-                addGistToFolder(f, g, false);
-            });
-        });
-
+        DefaultMutableTreeNode root = new DefaultMutableTreeNode("Root");
         treeModel = new DefaultTreeModel(root);
         tree = new JTree(treeModel) {
             ToolTipImage tip;
@@ -241,13 +228,20 @@ public class ConfigurationGistTreeGenerator {
             @Override
             public void treeExpanded(TreeExpansionEvent treeExpansionEvent) {
                 Object node = treeExpansionEvent.getPath().getLastPathComponent();
-                if (!(node instanceof GistTreeNode)) thumbnailLazyLoader.get(node);
+                if (node instanceof FolderNode) thumbnailLazyLoader.get(node);
             }
             @Override
-            public void treeCollapsed(TreeExpansionEvent treeExpansionEvent) { }
+            public void treeCollapsed(TreeExpansionEvent treeExpansionEvent) {
+                Object node = treeExpansionEvent.getPath().getLastPathComponent();
+                if (node instanceof FolderNode && thumbnailLazyLoader.containsKey(node)) {
+                    DefaultWorker w = thumbnailLazyLoader.remove(node);
+                    if (w!=null) w.cancel(false);
+                }
+            }
         });
+
     }
-    private void addGistToFolder(DefaultMutableTreeNode f, GistConfiguration g, boolean sorted) {
+    private void addGistToFolder(FolderNode f, GistConfiguration g, boolean sorted) {
         if (GistConfiguration.TYPE.PROCESSING.equals(type) && g.type.equals(GistConfiguration.TYPE.WHOLE)) { // add each object class
             for (int oIdx = 0; oIdx<g.getExperiment().getStructureCount(); ++oIdx) {
                 GistTreeNode n = new GistTreeNode(g).setObjectClassIdx(oIdx);
@@ -260,10 +254,10 @@ public class ConfigurationGistTreeGenerator {
             else f.add(n);
         }
     }
-    protected DefaultMutableTreeNode getFolderNode(String folder) {
-        DefaultMutableTreeNode folderN = streamFolders().filter(n -> n.getUserObject().equals(folder)).findFirst().orElse(null);
+    protected FolderNode getFolderNode(String folder) {
+        FolderNode folderN = streamFolders().filter(n -> n.getUserObject().equals(folder)).findFirst().orElse(null);
         if (folderN == null) {
-            folderN = new DefaultMutableTreeNode(folder);
+            folderN = new FolderNode(folder);
             insertSorted(getRoot(), folderN);
             treeModel.nodeStructureChanged(getRoot());
         }
@@ -276,7 +270,7 @@ public class ConfigurationGistTreeGenerator {
         });
     }
     public void addGist(GistConfiguration gist) {
-        DefaultMutableTreeNode folder = getFolderNode(gist.folder);
+        FolderNode folder = getFolderNode(gist.folder);
         addGistToFolder(folder, gist, true);
         treeModel.nodeStructureChanged(folder);
     }
@@ -298,8 +292,8 @@ public class ConfigurationGistTreeGenerator {
         if (!emptyFolders.isEmpty()) treeModel.nodeStructureChanged(getRoot());
     }
 
-    public Stream<DefaultMutableTreeNode> streamFolders() {
-        return EnumerationUtils.toStream(getRoot().children()).map(n -> (DefaultMutableTreeNode) n);
+    public Stream<FolderNode> streamFolders() {
+        return EnumerationUtils.toStream(getRoot().children()).map(n -> (FolderNode) n);
     }
     public Stream<GistTreeNode> streamGists() {
         return streamFolders().flatMap(f -> EnumerationUtils.toStream(f.children())).map(g -> (GistTreeNode)g);
@@ -308,7 +302,43 @@ public class ConfigurationGistTreeGenerator {
     protected DefaultMutableTreeNode getRoot() {
         return  (DefaultMutableTreeNode)tree.getModel().getRoot();
     }
-
+    public void updateTree(List<GistConfiguration> newGists, GistConfiguration.TYPE mode, boolean force) {
+        logger.debug("update tree: force: {}, gist equals: {}, mode equals: {}", force, mode.equals(this.type), newGists.equals(this.gists));
+        if (force || !mode.equals(this.type) || !newGists.equals(this.gists)) {
+            this.type = mode;
+            this.gists = newGists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
+            if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
+                Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg->gg.account.equals(g.account) && gg.folder.equals(g.folder) && gg.name.equals(g.name));
+                this.gists.addAll(newGists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
+            }
+            DefaultMutableTreeNode root = getRoot();
+            Enumeration<TreePath> expState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{getRoot()}));
+            GistTreeNode sel = getSelectedGistNode();
+            root.removeAllChildren();
+            thumbnailLazyLoader.values().forEach(w -> w.cancel(false));
+            thumbnailLazyLoader.clear();
+            // folder nodes
+            gists.stream().map(gc -> gc.folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
+                root.add(f);
+                // actual configuration element
+                gists.stream().filter(g -> g.folder.equals(f.getUserObject())).sorted(Comparator.comparing(g->g.name)).forEach(g -> {
+                    addGistToFolder(f, g, false);
+                });
+            });
+            logger.debug("update tree:  mode: {}, {} folders gists: {}/{}", type, root.getChildCount(), this.gists.size(), gists.size());
+            if (expState!=null) EnumerationUtils.toStream(expState).forEach(p -> {
+                tree.expandPath(p);
+                logger.debug("expand path: {}", p.getLastPathComponent());
+                if (p.getLastPathComponent() instanceof FolderNode) thumbnailLazyLoader.get(getFolderNode(((FolderNode)p.getLastPathComponent()).name));
+            });
+            else tree.expandPath(new TreePath(new TreeNode[]{root}));
+            if (sel!=null) {
+                setSelectedGist(sel.gist, sel.objectClassIdx);
+                displaySelectedConfiguration();
+            }
+            tree.updateUI();
+        }
+    }
     public void displaySelectedConfiguration() {
         switch (tree.getSelectionCount()) {
             case 1:
@@ -321,7 +351,26 @@ public class ConfigurationGistTreeGenerator {
                 setSelectedConfiguration.accept(null);
         }
     }
+    class FolderNode extends DefaultMutableTreeNode {
+        String name;
+        public FolderNode(String name) {
+            super(name);
+            this.name = name;
+        }
 
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FolderNode that = (FolderNode) o;
+            return name.equals(that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name);
+        }
+    }
     class GistTreeNode extends DefaultMutableTreeNode {
         public final GistConfiguration gist;
         int objectClassIdx=-1;
@@ -370,6 +419,19 @@ public class ConfigurationGistTreeGenerator {
                 icon.start();
                 return icon;
             }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            GistTreeNode that = (GistTreeNode) o;
+            return objectClassIdx == that.objectClassIdx && Objects.equals(gist, that.gist);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(gist, objectClassIdx);
         }
     }
 

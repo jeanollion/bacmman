@@ -19,7 +19,7 @@ public class DLModelFileParameterUI implements ParameterUI {
                 new AbstractAction("Configure From Library") {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
-                        DLModelsLibrary library = new DLModelsLibrary(ParameterUtils.getExperiment(parameter).getGithubGateway(), parameter.getSelectedPath(), Core.getProgressLogger());
+                        DLModelsLibrary library = new DLModelsLibrary(ParameterUtils.getExperiment(parameter).getGithubGateway(), parameter.getSelectedPath(), ()->{}, Core.getProgressLogger());
                         library.setConfigureParameterCallback((id, metadata)-> {
                             parameter.configureFromMetadata(id, metadata);
                             // update display

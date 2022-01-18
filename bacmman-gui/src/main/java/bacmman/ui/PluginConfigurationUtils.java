@@ -89,9 +89,11 @@ public class PluginConfigurationUtils {
         int parentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getParentStructure();
         int segParentStrutureIdx = accessor.getExperiment(o).getStructure(structureIdx).getSegmentationParentStructure();
         // ensure scaler
-        logger.debug("get position histogram for scaling");
         Processor.ensureScalerConfiguration(accessor.getDAO(o), structureIdx);
         // get parent objects -> create graph cut
+        // TODO this is not optimal: whole parent track is duplicated event when only a subset is required
+        boolean needToDuplicateWholeParentTrack = ((plugin instanceof Tracker) && !((Tracker)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPostFilter) && !((TrackPostFilter)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPreFilter) && !((TrackPreFilter)plugin).parentTrackMode().allowIntervals());
+
         Function<SegmentedObject, SegmentedObject> getParent = c -> (c.getStructureIdx()>parentStrutureIdx) ? c.getParent(parentStrutureIdx) : c.getChildren(parentStrutureIdx).findFirst().get();
         List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead(), false);
         Map<String, SegmentedObject> dupMap = SegmentedObjectUtils.createGraphCut(wholeParentTrack, true, true);  // don't modify object directly.

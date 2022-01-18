@@ -57,6 +57,7 @@ import java.util.stream.Stream;
 import static bacmman.plugins.Hint.formatHint;
 import static bacmman.ui.gui.Utils.setNullToolTipDelays;
 import static bacmman.utils.IconUtils.zoom;
+import static bacmman.utils.Utils.getTreePath;
 import static bacmman.utils.Utils.loadIcon;
 
 /**
@@ -70,7 +71,7 @@ public class DLModelGistTreeGenerator {
     List<GistDLModel> gists;
     final Runnable selectionChanged;
     final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistDLModel, List<BufferedImage>> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistDLModel::getThumbnail);
-    private final Map<DefaultMutableTreeNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
+    private final Map<FolderNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
 
     Supplier<Icon> currentThumbnail;
     Icon dlModelDefaultIcon, urlIcon, metadataIcon, folderIcon;
@@ -130,7 +131,7 @@ public class DLModelGistTreeGenerator {
         DefaultMutableTreeNode root = new DefaultMutableTreeNode("DL Models");
 
         // folder nodes
-        gists.stream().map(gc -> gc.folder).distinct().sorted().map(DefaultMutableTreeNode::new).forEach(f -> {
+        gists.stream().map(gc -> gc.folder).distinct().sorted().map(FolderNode::new).forEach(f -> {
             root.add(f);
             // actual content
             gists.stream().filter(g -> g.folder.equals(f.getUserObject())).sorted(Comparator.comparing(g->g.name)).forEach(g ->  f.add(new GistTreeNode(g)));
@@ -234,10 +235,16 @@ public class DLModelGistTreeGenerator {
             @Override
             public void treeExpanded(TreeExpansionEvent treeExpansionEvent) {
                 Object node = treeExpansionEvent.getPath().getLastPathComponent();
-                if (!(node instanceof GistTreeNode) && !(node instanceof Parameter) && getRoot().equals(((DefaultMutableTreeNode)node).getParent())) thumbnailLazyLoader.get(node);
+                if (node instanceof FolderNode) thumbnailLazyLoader.get((FolderNode)node);
             }
             @Override
-            public void treeCollapsed(TreeExpansionEvent treeExpansionEvent) { }
+            public void treeCollapsed(TreeExpansionEvent treeExpansionEvent) {
+                Object node = treeExpansionEvent.getPath().getLastPathComponent();
+                if (node instanceof FolderNode && thumbnailLazyLoader.containsKey(node)) {
+                    DefaultWorker w = thumbnailLazyLoader.remove((FolderNode)node);
+                    if (w!=null) w.cancel(false);
+                }
+            }
         });
         tree.addMouseListener(ml);
         tree.setShowsRootHandles(true);
@@ -267,7 +274,7 @@ public class DLModelGistTreeGenerator {
             treeModel.nodeChanged(node);
         }
     }
-    protected DefaultWorker loadIconsInBackground(DefaultMutableTreeNode folder) {
+    protected DefaultWorker loadIconsInBackground(FolderNode folder) {
         return DefaultWorker.execute( i -> {
             GistTreeNode n = (GistTreeNode) folder.getChildAt(i);
             if (!icons.containsKey(n.gist)) {
@@ -291,6 +298,7 @@ public class DLModelGistTreeGenerator {
     }
     void setExpandedState(Stream<TreePath> expandedState) {
         if (expandedState!=null) expandedState.forEach(p -> tree.expandPath(p));
+        else tree.expandPath(getTreePath(getRoot()));
     }
     public void updateSelectedGistDisplay() {
         TreePath toUpdate = tree.getSelectionPath();
@@ -329,6 +337,27 @@ public class DLModelGistTreeGenerator {
     }
     public Stream<GistTreeNode> streamGists() {
         return streamFolders().flatMap(f -> EnumerationUtils.toStream(f.children())).map(g -> (GistTreeNode)g);
+    }
+
+    class FolderNode extends DefaultMutableTreeNode {
+        String name;
+        public FolderNode(String name) {
+            super(name);
+            this.name = name;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FolderNode that = (FolderNode) o;
+            return name.equals(that.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name);
+        }
     }
 
     class GistTreeNode extends DefaultMutableTreeNode {
@@ -388,7 +417,7 @@ public class DLModelGistTreeGenerator {
             ToolTipManager.sharedInstance().unregisterComponent(tree);
             tree.removeAll();
         }
-        gists.clear();
+        gists = null;
         currentThumbnail = null;
         icons.clear();
         thumbnailLazyLoader.values().forEach(l -> {if (l!=null) l.cancel(true);});

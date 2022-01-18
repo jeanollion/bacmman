@@ -22,7 +22,6 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
-import bacmman.configuration.parameters.ui.ChoiceParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.core.*;
@@ -68,7 +67,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,8 +92,6 @@ import static bacmman.plugins.Hint.formatHint;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
 
@@ -157,6 +153,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
+    ConfigurationLibrary configurationLibrary;
+    DLModelsLibrary dlModelLibrary;
     /**
      * Creates new form GUI
      */
@@ -205,6 +203,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 Core.getCore().getGithubGateway().clear();
                 INSTANCE = null;
                 if (Core.getCore().getOmeroGateway()!=null) Core.getCore().getOmeroGateway().close();
+                if (configurationLibrary!=null) configurationLibrary.close();
+                if (dlModelLibrary!=null) dlModelLibrary.close();
                 logger.debug("Closed successfully");
             }
         });
@@ -261,7 +261,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(onlineConfigurationLibraryMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
@@ -707,17 +707,25 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (configurationTreeGenerator!=null) this.configurationTreeGenerator.getTree().updateUI();
                 if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
                 updateConfigurationTabValidity();
+                configurationLibrary = null;
             };
             onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
             this.importMenu.add(onlineConfigurationLibraryMenuItem);
             onlineConfigurationLibraryMenuItem.addActionListener(e -> {
-                if (!checkConnection()) return;
-                new ConfigurationIO(db, Core.getCore().getGithubGateway(), onClose, this).display(this);
+                if (configurationLibrary!=null) configurationLibrary.toFront();
+                else {
+                    configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, this);
+                    configurationLibrary.display(this);
+                }
             });
 
             onlineDLModelLibraryMenuItem.setText("Online DL Model library");
             onlineDLModelLibraryMenuItem.addActionListener(e -> {
-                new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(),  this).display(this);
+                if (dlModelLibrary!=null) dlModelLibrary.toFront();
+                else {
+                    dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
+                    dlModelLibrary.display(this);
+                }
             });
             this.importMenu.add(onlineDLModelLibraryMenuItem);
         }
@@ -911,6 +919,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         db = MasterDAOFactory.createDAO(dbName, hostnameOrDir);
         if (db==null) {
+            if (configurationLibrary!=null) configurationLibrary.setDB(null);
             logger.warn("no config found in dataset {} @ {}", dbName, hostnameOrDir);
             return;
         }
@@ -943,7 +952,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         datasetListValueChanged(null);
         setObjectClassJCB(interactiveStructure, true);
         populateTestObjectClassJCB();
-
+        if (configurationLibrary!=null) configurationLibrary.setDB(db);
         // in case Output path is modified in configuration -> need some reload
         FileChooser outputPath = (FileChooser)db.getExperiment().getChildren().stream().filter(p->p.getName().equals("Output Path")).findAny().get();
         outputPath.addListener((FileChooser source) -> {
@@ -1023,6 +1032,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             db.clearCache();
         }
         db=null;
+        if (configurationLibrary!=null) configurationLibrary.setDB(null);
         if (configurationTreeGenerator!=null) configurationTreeGenerator.flush();
         configurationTreeGenerator=null;
         if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.flush();
@@ -1071,11 +1081,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         importConfigurationMenuItem.setText(enable ? "Configuration to current Dataset" : (getSelectedExperiment()==null? "--" : "Configuration to selected Dataset(s)") );
     }
-    
-    
+
     public void populateSelections() {
         List<Selection> selectedValues = selectionList.getSelectedValuesList();
-        
         Map<String, Selection> state = selectionModel.isEmpty() ? Collections.EMPTY_MAP : Utils.asList(selectionModel).stream().collect(Collectors.toMap(s->s.getName(), s->s));
         this.selectionModel.removeAllElements();
         if (!checkConnection()) return;

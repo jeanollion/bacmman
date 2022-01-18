@@ -12,7 +12,6 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.Image;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.gui.configurationIO.ConfigurationIO;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
