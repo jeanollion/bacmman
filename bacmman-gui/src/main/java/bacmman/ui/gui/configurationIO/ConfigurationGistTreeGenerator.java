@@ -71,7 +71,7 @@ public class ConfigurationGistTreeGenerator {
     ImageIcon folderIcon, defaultConfigurationIcon;
     public ConfigurationGistTreeGenerator(List<GistConfiguration> gists, GistConfiguration.TYPE type, Consumer<GistTreeNode> setSelectedConfiguration) {
         folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
-        defaultConfigurationIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/configuration64.png");
+        defaultConfigurationIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/configuration32.png");
         this.setSelectedConfiguration=setSelectedConfiguration;
         generateTree();
         updateTree(gists, type, true);
@@ -395,7 +395,7 @@ public class ConfigurationGistTreeGenerator {
         }
 
         public Icon getIcon(boolean popup) {
-            UnaryOperator<BufferedImage> zoomFun = popup ? im -> zoom(im, 3) : im -> zoomToSize(im, 64);
+            UnaryOperator<BufferedImage> zoomFun = popup ? im -> zoom(im, 3) : im -> zoomToSize(im, 32);
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
                 List<BufferedImage> im = objectClassIdx>=0 ? iconsByOC.getOrDefault(new Pair<>(gist, objectClassIdx), null) : icons.getOrDefault(gist, null);
                 if (im == null || im.isEmpty()) return null;

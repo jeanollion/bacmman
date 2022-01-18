@@ -82,7 +82,7 @@ public class DLModelGistTreeGenerator {
         this.selectionChanged=selectionChanged;
         this.pcb = pcb;
         this.defaultDirectory = defaultDirectory;
-        dlModelDefaultIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/neural_network64.png");
+        dlModelDefaultIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/neural_network32.png");
         urlIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/url32.png");
         metadataIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/metadata32.png");
         folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
@@ -442,7 +442,7 @@ public class DLModelGistTreeGenerator {
             if (value instanceof GistTreeNode) {
                 //BufferedImage icon = icons.get(((GistTreeNode)value).gist);
                 List<BufferedImage> icon = icons.getOrDefault(((GistTreeNode)value).gist, null); // lazy loading
-                if (icon!=null && !icon.isEmpty()) setIcon(new ImageIcon(IconUtils.zoomToSize(icon.get(0), 64))); // only show first icon
+                if (icon!=null && !icon.isEmpty()) setIcon(new ImageIcon(IconUtils.zoomToSize(icon.get(0), 32))); // only show first icon
                 else if (dlModelDefaultIcon!=null) setIcon(dlModelDefaultIcon);
             } else if (value instanceof DefaultMutableTreeNode && (((String)((DefaultMutableTreeNode)value).getUserObject()).startsWith("<html>URL"))) {
                 if (urlIcon!=null) setIcon(urlIcon);
