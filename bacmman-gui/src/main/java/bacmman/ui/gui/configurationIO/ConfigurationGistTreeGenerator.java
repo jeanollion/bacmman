@@ -304,7 +304,8 @@ public class ConfigurationGistTreeGenerator {
     }
     public void updateTree(List<GistConfiguration> newGists, GistConfiguration.TYPE mode, boolean force) {
         logger.debug("update tree: force: {}, gist equals: {}, mode equals: {}", force, mode.equals(this.type), newGists.equals(this.gists));
-        if (force || !mode.equals(this.type) || !newGists.equals(this.gists)) {
+        boolean changeMode = !mode.equals(this.type);
+        if (force || changeMode || !newGists.equals(this.gists)) {
             this.type = mode;
             this.gists = newGists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
@@ -313,7 +314,7 @@ public class ConfigurationGistTreeGenerator {
             }
             DefaultMutableTreeNode root = getRoot();
             Enumeration<TreePath> expState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{getRoot()}));
-            GistTreeNode sel = getSelectedGistNode();
+            GistTreeNode sel = changeMode? null : getSelectedGistNode();
             root.removeAllChildren();
             thumbnailLazyLoader.values().forEach(w -> w.cancel(false));
             thumbnailLazyLoader.clear();

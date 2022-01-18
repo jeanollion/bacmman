@@ -739,7 +739,7 @@ public class ConfigurationLibrary {
                                 root = xp;
                                 break;
                             case PROCESSING:
-                                if (GistConfiguration.TYPE.WHOLE.equals(gist.gist.type))
+                                if (GistConfiguration.TYPE.WHOLE.equals(gist.gist.type) && gist.getObjectClassIdx() >= 0)
                                     root = xp.getStructure(gist.getObjectClassIdx()).getProcessingPipelineParameter();
                                 else root = xp.getStructure(0).getProcessingPipelineParameter();
                                 break;
