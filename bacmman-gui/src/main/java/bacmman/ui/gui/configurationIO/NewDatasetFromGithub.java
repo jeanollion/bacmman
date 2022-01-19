@@ -148,8 +148,8 @@ public class NewDatasetFromGithub extends JDialog {
         GistConfiguration lastSel = remoteSelector == null ? null : remoteSelector.getSelectedGist();
         int selectedOC = remoteSelector == null ? -1 : remoteSelector.getSelectedGistOC();
         if (remoteSelector != null) remoteSelector.flush();
-        remoteSelector = new ConfigurationGistTreeGenerator(gists, GistConfiguration.TYPE.WHOLE, gist -> {
-            if (gist != null) selectedXP = gist.gist.getContent();
+        remoteSelector = new ConfigurationGistTreeGenerator(gists, GistConfiguration.TYPE.WHOLE, (gist, ocIdx) -> {
+            if (gist != null) selectedXP = gist.getContent();
             else selectedXP = null;
             buttonOK.setEnabled(selectedXP != null);
         });

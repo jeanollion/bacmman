@@ -10,8 +10,10 @@ import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
+import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.logger.ProgressLogger;
+import bacmman.utils.EnumerationUtils;
 import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -26,11 +28,14 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.tree.TreeNode;
+import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Enumeration;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -475,10 +480,12 @@ public class ConfigurationLibrary {
                 else root = xp.getPosition(idx).getPreProcessingChain();
                 break;
         }
+        //ConfigurationTreeModel.SaveExpandState expState = localConfig == null || !localConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(localConfig.getTree());
         localConfig = new ConfigurationTreeGenerator(xp, root, v -> {
         }, (s, l) -> {
         }, s -> {
         }, db, null);
+        //if (expState != null) expState.setTree(remoteConfig.getTree()).restoreExpandedPaths(); // not working as tree changed // TODO make it work
         localConfigJSP.setViewportView(localConfig.getTree());
         updateCompareParameters();
         logger.debug("set local tree: {}", currentMode);
@@ -741,52 +748,57 @@ public class ConfigurationLibrary {
             remoteSelectorJSP.setViewportView(null);
             if (remoteSelector != null) remoteSelector.flush();
             remoteSelector = null;
+            updateRemoteConfigTree(null, -1);
             return;
         }
         if (gists == null) fetchGists();
         //if (remoteSelector != null) remoteSelector.flush();
         if (remoteSelector == null) {
-            remoteSelector = new ConfigurationGistTreeGenerator(gists, currentMode, gist -> {
-                if (gist != null) {
-                    ContainerParameter root;
-                    Experiment xp = gist.gist.getExperiment();
-                    if (xp != null) {
-                        switch (currentMode) {
-                            case WHOLE:
-                            default:
-                                root = xp;
-                                break;
-                            case PROCESSING:
-                                if (GistConfiguration.TYPE.WHOLE.equals(gist.gist.type) && gist.getObjectClassIdx() >= 0)
-                                    root = xp.getStructure(gist.getObjectClassIdx()).getProcessingPipelineParameter();
-                                else root = xp.getStructure(0).getProcessingPipelineParameter();
-                                break;
-                            case PRE_PROCESSING:
-                                root = xp.getPreProcessingTemplate();
-                                break;
-                        }
-                        remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
-                        }, (s, l) -> {
-                        }, s -> {
-                        }, null, null);
-                        updateCompareParameters();
-                        remoteConfigJSP.setViewportView(remoteConfig.getTree());
-                    } else {
-                        remoteConfig = null;
-                        remoteConfigJSP.setViewportView(null);
-                        updateCompareParameters();
-                    }
-                } else {
-                    remoteConfig = null;
-                    remoteConfigJSP.setViewportView(null);
-                    updateCompareParameters();
-                }
-                updateEnableButtons();
-            });
+            remoteSelector = new ConfigurationGistTreeGenerator(gists, currentMode, this::updateRemoteConfigTree);
             remoteSelectorJSP.setViewportView(remoteSelector.getTree());
         } else {
             remoteSelector.updateTree(gists, currentMode, false);
         }
+    }
+
+    public void updateRemoteConfigTree(GistConfiguration gist, int objectClass) {
+        if (gist != null) {
+            ContainerParameter root;
+            Experiment xp = gist.getExperiment();
+            if (xp != null) {
+                switch (currentMode) {
+                    case WHOLE:
+                    default:
+                        root = xp;
+                        break;
+                    case PROCESSING:
+                        if (GistConfiguration.TYPE.WHOLE.equals(gist.type) && objectClass >= 0)
+                            root = xp.getStructure(objectClass).getProcessingPipelineParameter();
+                        else root = xp.getStructure(0).getProcessingPipelineParameter();
+                        break;
+                    case PRE_PROCESSING:
+                        root = xp.getPreProcessingTemplate();
+                        break;
+                }
+                //ConfigurationTreeModel.SaveExpandState expState = remoteConfig == null || !remoteConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(remoteConfig.getTree());
+                remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
+                }, (s, l) -> {
+                }, s -> {
+                }, null, null);
+                //if (expState != null) expState.setTree(remoteConfig.getTree()).restoreExpandedPaths(); // TODO make it work
+                updateCompareParameters();
+                remoteConfigJSP.setViewportView(remoteConfig.getTree());
+            } else {
+                remoteConfig = null;
+                remoteConfigJSP.setViewportView(null);
+                updateCompareParameters();
+            }
+        } else {
+            remoteConfig = null;
+            remoteConfigJSP.setViewportView(null);
+            updateCompareParameters();
+        }
+        updateEnableButtons();
     }
 
     private void fetchGists() {

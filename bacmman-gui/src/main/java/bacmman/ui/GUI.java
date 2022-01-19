@@ -739,18 +739,25 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
             importMenu.add(openTrackMateMenuItem);
         }
+        // sample datasets
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
         motherMachineDatasetMenu.setText("Mother Machine");
         sampleDatasetMenu.add(motherMachineDatasetMenu);
-        motherMachineDatasetMenu.add(mmPhaseDatasetMenuItem);
-        mmPhaseDatasetMenuItem.setText("Phase Contrast (50 fr, 53Mb)");
-        mmPhaseDatasetMenuItem.addActionListener(new java.awt.event.ActionListener() {
+        addSampleDataset(motherMachineDatasetMenu, "Phase Contrast (50 fr, 53Mb)", "01a255d5a11f71d6b7cd6a8f81b41caa");
+        addSampleDataset(motherMachineDatasetMenu, "Fluoresence (50 fr, 2 Channels, 53Mb)", "0413ec141d8d86e82a2299799728ec5a");
+        setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
+    } // end of constructor
+
+    private void addSampleDataset(JMenu targetMenu, String name, String id) {
+        JMenuItem sample = new javax.swing.JMenuItem();
+        sample.setText(name);
+        sample.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
                     try {
-                        LargeFileGist lf = new LargeFileGist("01a255d5a11f71d6b7cd6a8f81b41caa");
+                        LargeFileGist lf = new LargeFileGist(id);
                         lf.retrieveFile(f, true, true, null, INSTANCE);
                     } catch (IOException e) {
                         setMessage("Could not download file: "+ e.getMessage());
@@ -758,9 +765,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             }
         });
-        setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
-    } // end of constructor
-
+        targetMenu.add(sample);
+    }
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
         this.selectAllTracksButton.setText("Select All Tracks ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_TRACKS)+")");
@@ -1487,7 +1493,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         importMenu = new javax.swing.JMenu();
         sampleDatasetMenu = new javax.swing.JMenu();
         motherMachineDatasetMenu = new javax.swing.JMenu();
-        mmPhaseDatasetMenuItem = new javax.swing.JMenuItem();
         importDataMenuItem = new javax.swing.JMenuItem();
         importPositionsToCurrentExperimentMenuItem = new javax.swing.JMenuItem();
         importConfigurationMenuItem = new javax.swing.JMenuItem();
@@ -4852,7 +4857,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem onlineConfigurationLibraryMenuItem;
     private javax.swing.JMenu sampleDatasetMenu;
     private javax.swing.JMenu motherMachineDatasetMenu;
-    private javax.swing.JMenuItem mmPhaseDatasetMenuItem;
     private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;

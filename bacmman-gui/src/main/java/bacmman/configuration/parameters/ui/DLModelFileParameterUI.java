@@ -1,6 +1,7 @@
 package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.parameters.DLModelFileParameter;
+import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.core.Core;
 import bacmman.ui.GUI;
@@ -43,7 +44,8 @@ public class DLModelFileParameterUI implements ParameterUI {
                         File outputFile = parameter.downloadModel(new File(parameter.getModelFilePath()), true, GUI.getInstance());
                         if (outputFile!=null) {
                             parameter.setSelectedFilePath(outputFile.getAbsolutePath());
-                            model.nodeStructureChanged(parameter);
+                            for (Parameter p : parameter.getChildren()) model.nodeChanged(p); // update display
+                            model.nodeChanged(parameter);
                         }
                     }
                 }

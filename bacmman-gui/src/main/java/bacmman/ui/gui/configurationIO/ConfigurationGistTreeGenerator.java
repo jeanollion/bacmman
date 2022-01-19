@@ -37,10 +37,7 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.*;
 import java.util.List;
-import java.util.function.Consumer;
-import java.util.function.Predicate;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -62,14 +59,14 @@ public class ConfigurationGistTreeGenerator {
     protected DefaultTreeModel treeModel;
     List<GistConfiguration> gists;
     GistConfiguration.TYPE type;
-    final Consumer<GistTreeNode> setSelectedConfiguration;
+    final BiConsumer<GistConfiguration, Integer> setSelectedConfiguration;
     final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<GistConfiguration, List<BufferedImage>> icons = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(GistConfiguration::getThumbnail);
     final HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<Pair<GistConfiguration, Integer>, List<BufferedImage>> iconsByOC = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(p -> p.key.getThumbnail(p.value));
     private final Map<FolderNode, DefaultWorker> thumbnailLazyLoader = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(this::loadIconsInBackground);
 
     Supplier<Icon> currentThumbnail;
     ImageIcon folderIcon, defaultConfigurationIcon;
-    public ConfigurationGistTreeGenerator(List<GistConfiguration> gists, GistConfiguration.TYPE type, Consumer<GistTreeNode> setSelectedConfiguration) {
+    public ConfigurationGistTreeGenerator(List<GistConfiguration> gists, GistConfiguration.TYPE type, BiConsumer<GistConfiguration, Integer> setSelectedConfiguration) {
         folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
         defaultConfigurationIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/configuration32.png");
         this.setSelectedConfiguration=setSelectedConfiguration;
@@ -264,9 +261,11 @@ public class ConfigurationGistTreeGenerator {
         return folderN;
     }
     public void updateGist(GistConfiguration gist) {
+        GistTreeNode selectedNode = getSelectedGistNode();
         streamGists().filter(n -> n.gist.getID().equals(gist.getID())).forEach(n -> {
             treeModel.nodeChanged(n);
             treeModel.nodeStructureChanged(n);
+            if (n.equals(selectedNode)) this.setSelectedConfiguration.accept(n.gist, n.objectClassIdx);
         });
     }
     public void addGist(GistConfiguration gist) {
@@ -336,8 +335,9 @@ public class ConfigurationGistTreeGenerator {
             if (sel!=null) {
                 setSelectedGist(sel.gist, sel.objectClassIdx);
                 displaySelectedConfiguration();
-            }
+            } else setSelectedConfiguration.accept(null, -1);
             tree.updateUI();
+
         }
     }
     public void displaySelectedConfiguration() {
@@ -345,11 +345,12 @@ public class ConfigurationGistTreeGenerator {
             case 1:
                 Object lastO = tree.getSelectionPath().getLastPathComponent();
                 if (lastO instanceof GistTreeNode) {
-                    setSelectedConfiguration.accept(((GistTreeNode)lastO));
+                    GistTreeNode g = (GistTreeNode)lastO;
+                    setSelectedConfiguration.accept(g.gist, g.objectClassIdx);
                     return;
                 }
             default:
-                setSelectedConfiguration.accept(null);
+                setSelectedConfiguration.accept(null, -1);
         }
     }
     class FolderNode extends DefaultMutableTreeNode {
