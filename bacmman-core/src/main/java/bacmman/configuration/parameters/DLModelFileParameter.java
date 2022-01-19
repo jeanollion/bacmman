@@ -10,6 +10,8 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.function.Consumer;
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
@@ -55,7 +57,7 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         String path = modelFile.getFirstSelectedFilePath();
         File f = new File(path);
         if (!f.exists() && id.getValue().length()>0) {
-            return downloadModel(f, null);
+            return downloadModel(f, false, null);
         } else return f;
     }
     public void configureFromMetadata(String modelID, DLModelMetadata metadata) {
@@ -85,14 +87,19 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         return lf;
     }
 
-    public File downloadModel(File destFile, ProgressLogger bacmmanLogger) {
-        File parent = destFile.getParentFile();
-        if (!parent.exists()) {
-            if (!parent.mkdirs()) throw new RuntimeException("Could not create directory: "+parent.getAbsolutePath());
+    public File downloadModel(File destFile, boolean background, ProgressLogger bacmmanLogger) {
+        boolean appendModelName = destFile.exists() && destFile.isDirectory();
+        if (!appendModelName) {
+            File parent = destFile.getParentFile();
+            if (!parent.exists()) {
+                if (!parent.mkdirs())
+                    throw new RuntimeException("Could not create directory: " + parent.getAbsolutePath());
+            }
         }
         try {
             getLargeFileGist();
-            return lf.retrieveFile(destFile, false, true, null, bacmmanLogger);
+            if (appendModelName) destFile = Paths.get(destFile.getAbsolutePath(), lf.getFileName()).toFile();
+            return lf.retrieveFile(destFile, background, true, null, bacmmanLogger);
         }  catch (IOException ex) {
             if (bacmmanLogger!=null) bacmmanLogger.setMessage("Error trying to download model: "+ex.getMessage());
             logger.debug("error trying to download model", ex);

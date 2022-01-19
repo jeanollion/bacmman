@@ -59,7 +59,10 @@ public class LargeFileGist {
     public LargeFileGist(JSONObject gist) throws IOException {
         setGistData(gist);
     }
-
+    public String getFileName() {
+        if (fullFileName.endsWith(".zip")) return fullFileName.substring(0, fullFileName.length()-4);
+        else return fullFileName;
+    }
     protected void setGistData(JSONObject gist) throws IOException {
         description = (String)gist.get("description");
         id = (String)gist.get("id");

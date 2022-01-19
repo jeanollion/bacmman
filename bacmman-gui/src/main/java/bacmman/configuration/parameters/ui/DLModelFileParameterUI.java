@@ -9,6 +9,7 @@ import bacmman.ui.gui.configurationIO.DLModelsLibrary;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
+import java.io.File;
 
 public class DLModelFileParameterUI implements ParameterUI {
     JMenuItem openDLModelLibrary;
@@ -39,11 +40,16 @@ public class DLModelFileParameterUI implements ParameterUI {
                 new AbstractAction("Download Model") {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
-                        parameter.getModelFile();
+                        File outputFile = parameter.downloadModel(new File(parameter.getModelFilePath()), true, GUI.getInstance());
+                        if (outputFile!=null) {
+                            parameter.setSelectedFilePath(outputFile.getAbsolutePath());
+                            model.nodeStructureChanged(parameter);
+                        }
                     }
                 }
         );
-        downloadModel.setEnabled(parameter.isValidID());
+        String f = parameter.getModelFilePath();
+        downloadModel.setEnabled(parameter.isValidID() && f!=null && f.length()>0);
     }
 
     @Override
