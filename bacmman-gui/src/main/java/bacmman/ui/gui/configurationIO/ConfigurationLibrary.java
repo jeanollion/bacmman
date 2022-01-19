@@ -73,16 +73,17 @@ public class ConfigurationLibrary {
     JFrame displayingFrame;
     boolean loggedIn = false;
     GithubGateway gateway;
-    Runnable onClose;
+    Runnable onClose, configurationChanged;
     ProgressLogger bacmmanLogger;
     JDialog dia;
 
-    public ConfigurationLibrary(MasterDAO mDAO, GithubGateway gateway, Runnable onClose, ProgressLogger bacmmanLogger) {
+    public ConfigurationLibrary(MasterDAO mDAO, GithubGateway gateway, Runnable onClose, Runnable configurationChanged, ProgressLogger bacmmanLogger) {
         this.db = mDAO;
         this.bacmmanLogger = bacmmanLogger;
         this.xp = mDAO == null ? null : mDAO.getExperiment();
         this.gateway = gateway;
         this.onClose = onClose;
+        this.configurationChanged = configurationChanged;
         stepJCB.addItemListener(e -> {
             switch (stepJCB.getSelectedIndex()) {
                 case 0:
@@ -282,6 +283,7 @@ public class ConfigurationLibrary {
             updateCompareParameters();
             localConfig.getTree().updateUI();
             remoteConfig.getTree().updateUI();
+            if (configurationChanged != null) configurationChanged.run();
         });
         duplicateRemote.addActionListener(e -> {
             if (remoteConfig == null) return;
@@ -485,6 +487,18 @@ public class ConfigurationLibrary {
     public void display(JFrame parent) {
         dia = new Dial(parent, "Online Configuration Library");
         dia.setVisible(true);
+        if (parent != null) { // in case configuration is modified by drag and drop -> update the configuration tree in the main window
+            parent.addFocusListener(new FocusListener() {
+                @Override
+                public void focusGained(FocusEvent focusEvent) {
+                    if (configurationChanged != null) configurationChanged.run();
+                }
+
+                @Override
+                public void focusLost(FocusEvent focusEvent) {
+                }
+            });
+        }
     }
 
     public void toFront() {

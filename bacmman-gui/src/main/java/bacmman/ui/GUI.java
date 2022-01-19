@@ -28,7 +28,6 @@ import bacmman.core.*;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.data_structure.dao.*;
-import bacmman.github.gist.GistConfiguration;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
@@ -702,12 +701,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             updateConfigurationTabValidity();
             configurationLibrary = null;
         };
+        Runnable onConfigurationChanged = () -> { // update configuration trees
+            updateTestConfigurationTree();
+            updateConfigurationTree();
+        };
         onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
         this.importMenu.add(onlineConfigurationLibraryMenuItem);
         onlineConfigurationLibraryMenuItem.addActionListener(e -> {
             if (configurationLibrary!=null) configurationLibrary.toFront();
             else {
-                configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, this);
+                configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, onConfigurationChanged, this);
                 configurationLibrary.display(this);
             }
         });
@@ -738,9 +741,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
-        dataset1MenuItem.setText("Mother Machine Phase Contrast (50 fr, 53Mb)");
-        sampleDatasetMenu.add(dataset1MenuItem);
-        dataset1MenuItem.addActionListener(new java.awt.event.ActionListener() {
+        motherMachineDatasetMenu.setText("Mother Machine");
+        sampleDatasetMenu.add(motherMachineDatasetMenu);
+        motherMachineDatasetMenu.add(mmPhaseDatasetMenuItem);
+        mmPhaseDatasetMenuItem.setText("Phase Contrast (50 fr, 53Mb)");
+        mmPhaseDatasetMenuItem.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
@@ -1481,7 +1486,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         compactLocalDBMenuItem = new javax.swing.JMenuItem();
         importMenu = new javax.swing.JMenu();
         sampleDatasetMenu = new javax.swing.JMenu();
-        dataset1MenuItem = new javax.swing.JMenuItem();
+        motherMachineDatasetMenu = new javax.swing.JMenu();
+        mmPhaseDatasetMenuItem = new javax.swing.JMenuItem();
         importDataMenuItem = new javax.swing.JMenuItem();
         importPositionsToCurrentExperimentMenuItem = new javax.swing.JMenuItem();
         importConfigurationMenuItem = new javax.swing.JMenuItem();
@@ -4845,7 +4851,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem openTrackMateMenuItem;
     private javax.swing.JMenuItem onlineConfigurationLibraryMenuItem;
     private javax.swing.JMenu sampleDatasetMenu;
-    private javax.swing.JMenuItem dataset1MenuItem;
+    private javax.swing.JMenu motherMachineDatasetMenu;
+    private javax.swing.JMenuItem mmPhaseDatasetMenuItem;
     private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
