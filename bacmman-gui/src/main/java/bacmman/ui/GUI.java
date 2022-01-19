@@ -29,6 +29,7 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.data_structure.dao.*;
 import bacmman.github.gist.GistConfiguration;
+import bacmman.github.gist.LargeFileGist;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
@@ -695,40 +696,32 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
 
-        // remote configuration
-        boolean hasGitubModule = true;
-        try {
-            new GistConfiguration(null, "", null, null, null, null);
-        } catch (NoClassDefFoundError e) {
-            hasGitubModule = false;
-        }
-        if (hasGitubModule) {
-            Runnable onClose = () -> {
-                if (configurationTreeGenerator!=null) this.configurationTreeGenerator.getTree().updateUI();
-                if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
-                updateConfigurationTabValidity();
-                configurationLibrary = null;
-            };
-            onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
-            this.importMenu.add(onlineConfigurationLibraryMenuItem);
-            onlineConfigurationLibraryMenuItem.addActionListener(e -> {
-                if (configurationLibrary!=null) configurationLibrary.toFront();
-                else {
-                    configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, this);
-                    configurationLibrary.display(this);
-                }
-            });
+        Runnable onClose = () -> {
+            if (configurationTreeGenerator!=null) this.configurationTreeGenerator.getTree().updateUI();
+            if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
+            updateConfigurationTabValidity();
+            configurationLibrary = null;
+        };
+        onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
+        this.importMenu.add(onlineConfigurationLibraryMenuItem);
+        onlineConfigurationLibraryMenuItem.addActionListener(e -> {
+            if (configurationLibrary!=null) configurationLibrary.toFront();
+            else {
+                configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, this);
+                configurationLibrary.display(this);
+            }
+        });
 
-            onlineDLModelLibraryMenuItem.setText("Online DL Model library");
-            onlineDLModelLibraryMenuItem.addActionListener(e -> {
-                if (dlModelLibrary!=null) dlModelLibrary.toFront();
-                else {
-                    dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
-                    dlModelLibrary.display(this);
-                }
-            });
-            this.importMenu.add(onlineDLModelLibraryMenuItem);
-        }
+        onlineDLModelLibraryMenuItem.setText("Online DL Model library");
+        onlineDLModelLibraryMenuItem.addActionListener(e -> {
+            if (dlModelLibrary!=null) dlModelLibrary.toFront();
+            else {
+                dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
+                dlModelLibrary.display(this);
+            }
+        });
+        this.importMenu.add(onlineDLModelLibraryMenuItem);
+
         if (Core.enableTrackMate) {
             openTrackMateMenuItem.setText("Open TrackMate");
             openTrackMateMenuItem.addActionListener(new java.awt.event.ActionListener() {
@@ -743,6 +736,23 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
             importMenu.add(openTrackMateMenuItem);
         }
+        sampleDatasetMenu.setText("Sample Datasets");
+        this.importMenu.add(sampleDatasetMenu);
+        dataset1MenuItem.setText("Mother Machine Phase Contrast (50 fr, 53Mb)");
+        sampleDatasetMenu.add(dataset1MenuItem);
+        dataset1MenuItem.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
+                if (f!=null) {
+                    try {
+                        LargeFileGist lf = new LargeFileGist("01a255d5a11f71d6b7cd6a8f81b41caa");
+                        lf.retrieveFile(f, true, true, null, INSTANCE);
+                    } catch (IOException e) {
+                        setMessage("Could not download file: "+ e.getMessage());
+                    }
+                }
+            }
+        });
         setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
     } // end of constructor
 
@@ -1470,6 +1480,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         localDBMenu = new javax.swing.JMenu();
         compactLocalDBMenuItem = new javax.swing.JMenuItem();
         importMenu = new javax.swing.JMenu();
+        sampleDatasetMenu = new javax.swing.JMenu();
+        dataset1MenuItem = new javax.swing.JMenuItem();
         importDataMenuItem = new javax.swing.JMenuItem();
         importPositionsToCurrentExperimentMenuItem = new javax.swing.JMenuItem();
         importConfigurationMenuItem = new javax.swing.JMenuItem();
@@ -4832,6 +4844,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem newDatasetFromGithubMenuItem;
     private javax.swing.JMenuItem openTrackMateMenuItem;
     private javax.swing.JMenuItem onlineConfigurationLibraryMenuItem;
+    private javax.swing.JMenu sampleDatasetMenu;
+    private javax.swing.JMenuItem dataset1MenuItem;
     private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;

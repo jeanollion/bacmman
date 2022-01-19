@@ -237,6 +237,9 @@ public class ConfigurationLibrary {
             }
             gist.setJsonContent(content).uploadIfNecessary(getAuth());
             remoteSelector.updateGist(gist);
+            updateCompareParameters();
+            localConfig.getTree().updateUI();
+            remoteConfig.getTree().updateUI();
         });
         copyToLocal.addActionListener(e -> {
             if (remoteConfig == null) return;
@@ -276,6 +279,7 @@ public class ConfigurationLibrary {
                     break;
                 }
             }
+            updateCompareParameters();
             localConfig.getTree().updateUI();
             remoteConfig.getTree().updateUI();
         });
