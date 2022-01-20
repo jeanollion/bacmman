@@ -26,7 +26,7 @@ import java.util.stream.IntStream;
 public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndScale.MODE, DLResizeAndScale> implements DLMetadataConfigurable {
     static Logger logger = LoggerFactory.getLogger(DLResizeAndScale.class);
 
-    enum MODE {SCALE_ONLY, RESAMPLE, PAD, TILE}
+    public enum MODE {SCALE_ONLY, RESAMPLE, PAD, TILE}
     ArrayNumberParameter targetShape = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{0, 0}, null).setEmphasized(true).setName("Resize Shape").setHint("Input shape expected by the DNN. If the DNN has no pre-defined shape for an axis, set 0, and define contraction number for the axis.");
     ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Total Shape Contraction").setHint("Size ratio between the smallest tensor in the network and the input tensor. Only used when shape is set to zero for the axis: ensures that resized shape on this axis can be divided by the contraction. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis");
 
@@ -39,23 +39,30 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
 
     InterpolationParameter interpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.LANCZOS).setEmphasized(true).setHint("Interpolation used for resizing. Use Nearest Neighbor for label images");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
-    GroupParameter grp = new GroupParameter("Input", interpolation, scaler).setEmphasized(true);
-    SimpleListParameter<GroupParameter> inputInterpAndScaling = new SimpleListParameter<>("Input Interpolation/Scaling", grp).setNewInstanceNameFunction((s, i)->"Input #"+i).setEmphasized(true).setHint("Define here Interpolation mode and scaling mode for each input. All channels of each input will be processed together");
+    PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> grp = new PairParameter<>("Input", interpolation, scaler).setEmphasized(true);
+    SimpleListParameter<PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>>> inputInterpAndScaling = new SimpleListParameter<>("Input Interpolation/Scaling", grp).setNewInstanceNameFunction((s, i)->"Input #"+i).setEmphasized(true).setHint("Define here Interpolation mode and scaling mode for each input. All channels of each input will be processed together");
     SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new IQRScaler(), true).setNewInstanceNameFunction((s, i)->"Scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
     BooleanParameter scaleFrameByFrame = new BooleanParameter("Scale Frame by Frame", false).setHint("If true, scaling factors are computed on the histogram of the whole track, if false scale is computed frame by frame");
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. -1 no reverse scaling");
     BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true).setEmphasized(true).setHint("Whether scale the output using the scaling parameters of the corresponding input");
     GroupParameter outputGrp;
-    SimpleListParameter<GroupParameter> outputInterpAndScaling;
+    SimpleListParameter<? extends Parameter> outputInterpAndScaling;
     SimpleListParameter<? extends Parameter> outputScaling;
-
-    private void initOutput(boolean singleOutput) {
+    boolean noReverseScaling, singleOutput;
+    private void initOutput(boolean singleOutput, boolean noReverseScaling) {
+        this.noReverseScaling=noReverseScaling;
+        this.singleOutput = singleOutput;
         outputGrp = new GroupParameter("Output", interpolation, inputInterpAndScaling.getMaxChildCount()==1 ? reverseScaling : outputScalerIndex).setEmphasized(true);
-        outputInterpAndScaling = new SimpleListParameter<>("Output Interpolation/Scaling", outputGrp).setEmphasized(true).setHint("For each output, set the interpolation mode and the index of the input scaler used to reverse histogram scaling");
-        if (inputInterpAndScaling.getMaxChildCount()>1) {
-            outputInterpAndScaling.addValidationFunctionToChildren(grp -> ((BoundedNumberParameter)grp.getChildAt(1)).getValue().intValue()<inputInterpAndScaling.getChildCount());
+        if (noReverseScaling) {
+            outputInterpAndScaling = new SimpleListParameter<>("Output Interpolation", interpolation).setEmphasized(true).setHint("For each output, set the interpolation mode");
+        } else {
+            outputInterpAndScaling = new SimpleListParameter<>("Output Interpolation/Scaling", outputGrp).setEmphasized(true).setHint("For each output, set the interpolation mode and the index of the input scaler used to reverse histogram scaling");
+            if (inputInterpAndScaling.getMaxChildCount()>1) {
+                outputInterpAndScaling.addValidationFunctionToChildren(grp -> ((BoundedNumberParameter)grp.getChildAt(1)).getValue().intValue()<inputInterpAndScaling.getChildCount());
+            }
         }
+
         if (inputScaling.getMaxChildCount()==1) outputScaling = new SimpleListParameter("Output Scaling", reverseScaling);
         else outputScaling = new SimpleListParameter<>("Output Scaling", outputScalerIndex).addValidationFunctionToChildren(idx -> ((NumberParameter)idx).getValue().intValue()<inputScaling.getChildCount());
 
@@ -66,8 +73,10 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
         setMinOutputNumber(1);
     }
-
     public DLResizeAndScale(String name) {
+        this(name, false, false);
+    }
+    public DLResizeAndScale(String name, boolean singleOutput, boolean noReverseScaling) {
         super(new EnumChoiceParameter<>(name, MODE.values(), MODE.PAD));
         targetShape.addValidationFunction(InputShapesParameter.sameRankValidation());
         contraction.addValidationFunction(InputShapesParameter.sameRankValidation());
@@ -75,10 +84,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         minOverlap.addValidationFunction(InputShapesParameter.sameRankValidation());
         minPad.addValidationFunction(InputShapesParameter.sameRankValidation());
         setMinInputNumber(1);
-        initOutput(false);
+        initOutput(singleOutput, noReverseScaling);
         setConditionalParameter();
-        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>NO_RESAMPLING: no resampling is performed. Shape of input image provided must be homogeneous to be processed by the dl engine.</li><li>HOMOGENIZE: choose this option to make a prediction on the whole image. Network can have pre-defined input shape or not</li><li>PAD: expand image to a fixed shape</li><li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
+        setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>SCALE_ONLY: Only performs intensity scaling (no resizing is performed). Shape of all input image provided must be equal to be processed by the dl engine.</li><li>RESAMPLE: Resize all images to a fixed size that must be compatible with the network input requirements. Choose this option to make a prediction on the whole image.</li><li>PAD: expand image either to a fixed user-defined size, or to a size compatible with the contraction level of the network</li><li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
     }
+
     public DLResizeAndScale addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         inputScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
@@ -115,7 +125,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         if (maxOut!=0) {
             setMaxOutputNumber(maxOut);
         } else {
-            initOutput(false);
+            initOutput(false, this.noReverseScaling);
             setConditionalParameter();
         }
         return this;
@@ -129,12 +139,29 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
 
     public DLResizeAndScale setMaxOutputNumber(int max) {
-        initOutput(max==1);
+        initOutput(max==1, this.noReverseScaling);
         outputInterpAndScaling.setMaxChildCount(max);
         if (outputInterpAndScaling.getChildCount()>max) outputInterpAndScaling.setChildrenNumber(max);
         outputScaling.setMaxChildCount(max);
         if (outputScaling.getChildCount()>max) outputScaling.setChildrenNumber(max);
         setConditionalParameter();
+        return this;
+    }
+
+    public DLResizeAndScale setOutputNumber(int n) {
+        if (outputInterpAndScaling.getUnMutableIndex()>=n-1) setMinOutputNumber(n);
+        outputInterpAndScaling.setChildrenNumber(n);
+        outputScaling.setChildrenNumber(n);
+        return this;
+    }
+    public DLResizeAndScale setScaler(int inputIdx, HistogramScaler scaler) {
+        inputScaling.getChildAt(inputIdx).setPlugin(scaler);
+        ((PluginParameter<HistogramScaler>)inputInterpAndScaling.getChildAt(inputIdx).getChildAt(1)).setPlugin(scaler);
+        return this;
+    }
+
+    public DLResizeAndScale setMode(MODE mode) {
+        this.getActionableParameter().setValue(mode);
         return this;
     }
 
@@ -147,14 +174,29 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         oS.setEmphasized(true);
         iIS.setEmphasized(true);
         oIS.setEmphasized(true);
-        this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleFrameByFrame);
+        if (noReverseScaling) {
+            this.setActionParameters(MODE.SCALE_ONLY, iS, scaleFrameByFrame);
+            this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, scaleFrameByFrame);
+            this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, scaleFrameByFrame);
+        } else {
+            this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleFrameByFrame);
+            this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, oS, scaleFrameByFrame);
+            this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
+        }
         this.setActionParameters(MODE.RESAMPLE, targetShape, contraction, iIS, oIS ,scaleFrameByFrame);
-        this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, oS, scaleFrameByFrame);
-        this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
         initChildList();
     }
     public DLResizeAndScale setEmphasized(boolean emp) {
         super.setEmphasized(emp);
+        return this;
+    }
+
+    public DLResizeAndScale setDefaultTargetShape(int... targetShape) {
+        this.targetShape.setValue(targetShape);
+        return this;
+    }
+    public DLResizeAndScale setDefaultContraction(int... contraction) {
+        this.contraction.setValue(contraction);
         return this;
     }
 
@@ -182,9 +224,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
         for (int i = 0; i<outputs.size(); ++i) {
             int scalerIndex = outputs.get(i).getReverseScalingIndex();
-            Parameter scaling = outputInterpAndScaling.getChildAt(i).getChildAt(1);
-            if (scaling instanceof BooleanParameter) ((BooleanParameter)scaling).setSelected(scalerIndex>=0);
-            else ((NumberParameter)scaling).setValue(scalerIndex);
+            if (!this.noReverseScaling) {
+                Parameter scaling = ((GroupParameter)outputInterpAndScaling.getChildAt(i)).getChildAt(1);
+                if (scaling instanceof BooleanParameter) ((BooleanParameter)scaling).setSelected(scalerIndex>=0);
+                else ((NumberParameter)scaling).setValue(scalerIndex);
+            }
             Parameter scaling2 = outputScaling.getChildAt(i);
             if (scaling2 instanceof BooleanParameter) ((BooleanParameter)scaling2).setSelected(scalerIndex>=0);
             else ((NumberParameter)scaling2).setValue(scalerIndex);
@@ -193,7 +237,6 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             reverseScaling.setSelected(outputs.get(0).getReverseScalingIndex()==0);
             outputScalerIndex.setValue(outputs.get(0).getReverseScalingIndex());
         }
-
     }
 
     public MODE getMode() {
@@ -274,9 +317,9 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 HistogramScaler[] scalers = new HistogramScaler[inputINC.length];
                 InterpolatorFactory[] interpols = new InterpolatorFactory[inputINC.length];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    GroupParameter params = inputInterpAndScaling.getChildAt(i);
-                    interpols[i] = ((InterpolationParameter) params.getChildAt(0)).getInterpolation();
-                    scalers[i] = ((PluginParameter<HistogramScaler>) params.getChildAt(1)).instantiatePlugin();
+                    PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> params = inputInterpAndScaling.getChildAt(i);
+                    interpols[i] = params.getParam1().getInterpolation();
+                    scalers[i] = params.getParam2().instantiatePlugin();
                 }
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
@@ -323,7 +366,8 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 } else return ((NumberParameter)p).getValue().intValue();
             } else return -1;
         } else {
-            GroupParameter params = outputInterpAndScaling.getChildAt(outputIdx);
+            if (noReverseScaling) return -1;
+            GroupParameter params = (GroupParameter) outputInterpAndScaling.getChildAt(outputIdx);
             if (inputInterpAndScaling.getMaxChildCount()==1) {
                 return ((BooleanParameter)params.getChildAt(1)).getSelected() ? 0 : -1;
             } else return ((NumberParameter)params.getChildAt(1)).getValue().intValue();
@@ -352,8 +396,13 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             default: {
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
-                    GroupParameter params = outputInterpAndScaling.getChildAt(i);
-                    InterpolatorFactory interpol = ((InterpolationParameter)params.getChildAt(0) ).getInterpolation();
+                    InterpolatorFactory interpol;
+                    if (noReverseScaling) {
+                        interpol = ((InterpolationParameter)outputInterpAndScaling.getChildAt(0) ).getInterpolation();
+                    } else {
+                        GroupParameter params = (GroupParameter)outputInterpAndScaling.getChildAt(i);
+                        interpol = ((InterpolationParameter)params.getChildAt(0) ).getInterpolation();
+                    }
                     int scalerIndex = getOutputScalerIndex(true, i);
                     outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0], scaleFrameByFrame.getSelected());
                 }

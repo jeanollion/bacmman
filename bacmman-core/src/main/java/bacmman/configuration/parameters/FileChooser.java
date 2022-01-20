@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.swing.JFileChooser;
@@ -43,6 +44,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     boolean allowNoSelection = true;
     protected FileChooserOption option = FileChooserOption.DIRECTORIES_ONLY;
     boolean relativePath = true, mustExist=true;
+    Predicate<String> validPath;
     public FileChooser(String name) {this(name, FileChooserOption.FILE_OR_DIRECTORY, true);}
     public FileChooser(String name, FileChooserOption option) {
         this(name, option, true);
@@ -51,6 +53,10 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         super(name);
         this.option=option;
         this.allowNoSelection=allowNoSelection;
+    }
+    public FileChooser setPathValidation(Predicate<String> validPath) {
+        this.validPath = validPath;
+        return this;
     }
     public FileChooser setRelativePath(boolean relativePath) {
         if (this.relativePath==relativePath) return this;
@@ -80,7 +86,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         return selectedFiles[0];
     }
     
-    public void setSelectedFilePath(String... filePath) {
+    public FileChooser setSelectedFilePath(String... filePath) {
         if (filePath==null) selectedFiles = new String[0];
         else selectedFiles=Arrays.stream(filePath).filter(Objects::nonNull).toArray(String[]::new);
         if (relativePath) {
@@ -94,12 +100,14 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             }
         }
         fireListeners();
+        return this;
     }
-    public void setSelectedFiles(File... filePath) {
+    public FileChooser setSelectedFiles(File... filePath) {
         if (filePath==null || filePath.length==0) setSelectedFilePath(new String[0]);
         else {
             setSelectedFilePath(Arrays.stream(filePath).map(f -> f.toString()).toArray(String[]::new));
         }
+        return this;
     }
     @Override 
     public boolean isValid() {
@@ -108,9 +116,10 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         else if (selectedFiles!=null && selectedFiles.length>0 && mustExist) { // check that all files exist
             if (relativePath) {
                 Path ref = getRefPath();
-                if (ref==null) return true;
-                if (Arrays.stream(toAbsolutePath(getRefPath(), selectedFiles)).anyMatch(f -> !Files.exists(Paths.get(f)))) return false;
-            } else if (Arrays.stream(selectedFiles).anyMatch(f -> !Files.exists(Paths.get(f)))) return false;
+                if (ref!=null) {
+                    return Arrays.stream(toAbsolutePath(getRefPath(), selectedFiles)).noneMatch(f -> !Files.exists(Paths.get(f)) || (validPath != null && !validPath.test(f)));
+                }
+            } else return Arrays.stream(selectedFiles).noneMatch(f -> !Files.exists(Paths.get(f)) || (validPath != null && !validPath.test(f)));
         }
         return true;
     }

@@ -9,22 +9,37 @@ import bacmman.ui.logger.ProgressLogger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
+
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 import static bacmman.github.gist.JSONQuery.logger;
 
 public class DLModelFileParameter extends ContainerParameterImpl<DLModelFileParameter> {
-    FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file for tensorflow)");
+    FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("../../DLModels").setEmphasized(true).setHint("Select the folder containing the saved model (.pb file for tensorflow)");
     TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
     Consumer<DLModelMetadata> metadataConsumer;
     LargeFileGist lf;
+    Predicate<String> validDirectory;
+    public static Predicate<String> containsTensorflowModel = p -> {
+        File f = new File(p);
+        if (!f.isDirectory()) return false;
+        String[] sub = f.list((file, s) -> s.endsWith(".pb") || s.endsWith(".pbtxt"));
+        return sub != null && sub.length != 0;
+    };
     // add option to download model
     public DLModelFileParameter(String name) {
         super(name);
+    }
+    public DLModelFileParameter setValidDirectory(Predicate<String> validDirectory) {
+        this.validDirectory=validDirectory;
+        modelFile.setPathValidation(validDirectory);
+        return this;
     }
     public void setSelectedFilePath(String path) {
         modelFile.setSelectedFilePath(path);
@@ -55,8 +70,9 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
     }
     public File getModelFile() {
         String path = modelFile.getFirstSelectedFilePath();
+        if (path==null) return null;
         File f = new File(path);
-        if (!f.exists() && id.getValue().length()>0) {
+        if ( (!f.exists() || (validDirectory!=null && !validDirectory.test(path))) && id.getValue().length()>0) {
             return downloadModel(f, false, null);
         } else return f;
     }
@@ -86,8 +102,10 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         }
         return lf;
     }
-
     public File downloadModel(File destFile, boolean background, ProgressLogger bacmmanLogger) {
+        return downloadModel(destFile, background, null, bacmmanLogger);
+    }
+    public File downloadModel(File destFile, boolean background, Consumer<File> callback, ProgressLogger bacmmanLogger) {
         boolean appendModelName = destFile.exists() && destFile.isDirectory();
         if (!appendModelName) {
             File parent = destFile.getParentFile();
@@ -99,7 +117,7 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         try {
             getLargeFileGist();
             if (appendModelName) destFile = Paths.get(destFile.getAbsolutePath(), lf.getFileName()).toFile();
-            return lf.retrieveFile(destFile, background, true, null, bacmmanLogger);
+            return lf.retrieveFile(destFile, background, true, callback, bacmmanLogger);
         }  catch (IOException ex) {
             if (bacmmanLogger!=null) bacmmanLogger.setMessage("Error trying to download model: "+ex.getMessage());
             logger.debug("error trying to download model", ex);

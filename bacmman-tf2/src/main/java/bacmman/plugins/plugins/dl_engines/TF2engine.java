@@ -37,7 +37,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     }
 
     enum Z_AXIS {Z, CHANNEL, BATCH}
-    DLModelFileParameter modelFile = new DLModelFileParameter("Tensorflow model").setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
+    DLModelFileParameter modelFile = new DLModelFileParameter("Tensorflow model").setValidDirectory(DLModelFileParameter.containsTensorflowModel).setEmphasized(true).setHint("Select the folder containing the saved model (.pb file)");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 16, 0, null).setEmphasized(true).setHint("Size of the mini batches. Reduce to limit out-of-memory errors, and optimize according to the device");
     ArrayNumberParameter flip = InputShapesParameter.getInputShapeParameter(false, true, new int[]{0, 0}, 1).setName("Average Flipped predictions").setHint("If 1 is set to an axis, flipped image will be predicted and averaged with original image. If 1 is set to X and Y axis, 3 flips are performed (X, Y and XY) which results in a 4-fold prediction number");
     EnumChoiceParameter<Z_AXIS> zAxis = new EnumChoiceParameter<>("Z-Axis", Z_AXIS.values(), Z_AXIS.Z).setHint("Choose how to handle Z axis: <ul><li>Z_AXIS: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>BATCH: tensor are treated as 2D images </li></ul>");

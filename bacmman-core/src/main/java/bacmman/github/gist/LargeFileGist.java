@@ -138,7 +138,7 @@ public class LargeFileGist {
         }
     }
 
-    public File retrieveFile(File outputFile, boolean background, boolean unzipIfPossible, Runnable callback, ProgressLogger pcb) throws IOException {
+    public File retrieveFile(File outputFile, boolean background, boolean unzipIfPossible, Consumer<File> callback, ProgressLogger pcb) throws IOException {
         assert outputFile!=null;
         if (!isValid()) throw new IOException("File is corrupted / not fully uploaded");
         boolean willUnzip = unzipIfPossible && ( wasZipped || (fullFileName.endsWith(".zip") && !outputFile.getName().endsWith(".zip")) );
@@ -156,8 +156,8 @@ public class LargeFileGist {
         };
         Runnable actualCallback = willUnzip ? (callback==null ? unzipCallback : () -> {
             unzipCallback.run();
-            callback.run();
-        }) : callback;
+            callback.accept(actualOutputFile);
+        }) : () -> callback.accept(actualOutputFile);
 
         DefaultWorker.WorkerTask task = i -> {
             byte[] chunk = null;
