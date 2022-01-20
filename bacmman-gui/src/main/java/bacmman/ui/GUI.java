@@ -4082,6 +4082,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         db.getExperiment().setPath(db.getDir());
         db.getExperiment().setOutputDirectory("Output");
         db.updateExperiment();
+        populateActionStructureList();
         this.updateConfigurationTabValidity();
     }//GEN-LAST:event_newXPFromTemplateMenuItemActionPerformed
 
@@ -4499,6 +4500,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         db.getExperiment().setOutputDirectory(outputPath);
         db.getExperiment().setOutputImageDirectory(outputImagePath);
         db.updateExperiment();
+        populateActionStructureList();
         this.updateConfigurationTabValidity();
     }//GEN-LAST:event_newDatasetFromGithubMenuItemActionPerformed
     public void updateSelectionListUI() {
