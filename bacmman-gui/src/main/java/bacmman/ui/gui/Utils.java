@@ -76,16 +76,13 @@ public class Utils {
 
     public static BufferedImage getDisplayedImage(ImagePlus ip) {
         // try to use reflection to get the actual displayed image (with overlays)
+        ip.updateAndDraw();
         ImageCanvas c = ip.getCanvas();
-        try {
-            Field offScreenImageF = ImageCanvas.class.getDeclaredField("offScreenImage");
-            offScreenImageF.setAccessible(true);
-            Image offScreenImage = (Image)offScreenImageF.get(c);
-            return offScreenImage==null ? ip.getBufferedImage() : IconUtils.toBufferedImage(offScreenImage);
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            return ip.getBufferedImage();
-        }
+        BufferedImage target = new BufferedImage(c.getWidth(), c.getHeight(), 1);
+        c.paint(target.getGraphics());
+        return target;
     }
+
     public static void insertSorted(DefaultMutableTreeNode parent, DefaultMutableTreeNode child) {
         if (parent.getChildCount()==0) parent.add(child);
         else {
