@@ -81,7 +81,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             if (JSONUtils.isJSONArrayMap(o))
                 paramSet=JSONUtils.fromJSONArrayMap(pluginParameters, (JSONArray)o);
             else paramSet=JSONUtils.fromJSON(pluginParameters, (JSONArray)o);
-            if (!paramSet) logger.warn("Could not initialize plugin-parameter: {} plugin: {} type: {}, #parameters: {}, JSON parameters: {}", name, this.pluginName, this.pluginType, pluginParameters, jsonO.get("params") );
+            if (!paramSet) logger.info("Could not initialize plugin-parameter: {} plugin: {} type: {}, #parameters: {}, JSON parameters: {}", name, this.pluginName, this.pluginType, pluginParameters, jsonO.get("params") );
         }
     }
     public PluginParameter(String name) {this(name, (Class<T>)Plugin.class, false);}
@@ -172,7 +172,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         } else if (pluginParameters==null || !pluginName.equals(this.pluginName)) {
             T instance = PluginFactory.getPlugin(getPluginType(), pluginName);
             if (instance==null) {
-                logger.error("Couldn't find plugin: {}", pluginName);
+                logger.info("Couldn't find plugin: {}", pluginName);
                 this.pluginName=ChoiceParameter.NO_SELECTION;
                 this.pluginParameters=null;
                 return;

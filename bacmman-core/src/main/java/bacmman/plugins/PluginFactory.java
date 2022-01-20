@@ -301,7 +301,7 @@ public class PluginFactory {
             Class<? extends T> plugClass = PLUGIN_NAMES_MAP_CLASS.get(pluginName);
             if (plugClass==null && OLD_NAMES_MAP_NEW.containsKey(pluginName)) plugClass = PLUGIN_NAMES_MAP_CLASS.get(OLD_NAMES_MAP_NEW.get(pluginName));
             if (plugClass==null) {
-                logger.error("plugin: {} of class: {} not found", pluginName, clazz);
+                logger.info("plugin: {} of class: {} not found", pluginName, clazz);
                 return null;
             }
             T instance = plugClass.getDeclaredConstructor().newInstance();

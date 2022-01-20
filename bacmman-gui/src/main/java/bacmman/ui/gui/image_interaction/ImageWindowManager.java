@@ -601,7 +601,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
         if (i==null) {
-            GUI.logger.error("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
+            GUI.logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
             return;
         }
         if (i instanceof KymographT) {
@@ -623,7 +623,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         InteractiveImage i =  getImageObjectInterface(image, interactiveStructureIdx);
         if (i==null) {
-            GUI.logger.error("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
+            GUI.logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveStructureIdx);
             return;
         }
         if (i instanceof KymographT) {
