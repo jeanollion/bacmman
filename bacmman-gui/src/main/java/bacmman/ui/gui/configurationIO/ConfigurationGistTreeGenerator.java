@@ -304,16 +304,17 @@ public class ConfigurationGistTreeGenerator {
     public void updateTree(List<GistConfiguration> newGists, GistConfiguration.TYPE mode, boolean force) {
         logger.debug("update tree: force: {}, gist equals: {}, mode equals: {}", force, mode.equals(this.type), newGists.equals(this.gists));
         boolean changeMode = !mode.equals(this.type);
+        boolean keepSel = !GistConfiguration.TYPE.PROCESSING.equals(mode) && !GistConfiguration.TYPE.PROCESSING.equals(type);
         if (force || changeMode || !newGists.equals(this.gists)) {
             this.type = mode;
             this.gists = newGists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
-            if (!type.equals(GistConfiguration.TYPE.WHOLE)) {
+            if (!type.equals(GistConfiguration.TYPE.WHOLE)) { // also add parts of whole configurations
                 Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg->gg.account.equals(g.account) && gg.folder.equals(g.folder) && gg.name.equals(g.name));
                 this.gists.addAll(newGists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
             }
             DefaultMutableTreeNode root = getRoot();
             Enumeration<TreePath> expState = tree.getExpandedDescendants(new TreePath(new TreeNode[]{getRoot()}));
-            GistTreeNode sel = changeMode? null : getSelectedGistNode();
+            GistTreeNode sel = keepSel? getSelectedGistNode() : null;
             root.removeAllChildren();
             thumbnailLazyLoader.values().forEach(w -> w.cancel(false));
             thumbnailLazyLoader.clear();
@@ -332,10 +333,8 @@ public class ConfigurationGistTreeGenerator {
                 if (p.getLastPathComponent() instanceof FolderNode) thumbnailLazyLoader.get(getFolderNode(((FolderNode)p.getLastPathComponent()).name));
             });
             else tree.expandPath(new TreePath(new TreeNode[]{root}));
-            if (sel!=null) {
-                setSelectedGist(sel.gist, sel.objectClassIdx);
-                displaySelectedConfiguration();
-            } else setSelectedConfiguration.accept(null, -1);
+            if (sel!=null) setSelectedGist(sel.gist, sel.objectClassIdx);
+            displaySelectedConfiguration();
             tree.updateUI();
 
         }
