@@ -328,7 +328,7 @@ public class ParameterUtils {
             // look for equivalent of next into source's children
             if (source instanceof ContainerParameter) {
                 List<Parameter> children = ((ContainerParameter)source).getChildren();
-                if (next>=children.size()) return null;
+                if (next>=children.size() || next<0) return null;
                 source = children.get(next);
             } else return null;
         }
