@@ -205,7 +205,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public ArrayList<SegmentedObject> createRootObjects(ObjectDAO dao) {
         ArrayList<SegmentedObject> res = new ArrayList<>(getFrameNumber(false));
         if (getMask()==null) {
-            logger.warn("Could not initiate root objects, perform preProcessing first");
+            logger.info("Could not initiate root objects, perform preProcessing first");
             return null;
         }
         for (int t = 0; t<getFrameNumber(false); ++t) res.add(dao.getMasterDAO().getAccess().createRoot(t, getMask(), dao));
