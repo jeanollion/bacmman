@@ -33,7 +33,6 @@ import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.ProcessingPipelineWithSegmenter;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
-import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 import bacmman.ui.gui.image_interaction.*;
 
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
@@ -331,7 +330,7 @@ public class PluginConfigurationUtils {
                 if ((sel == null || sel.isEmpty()) ) return;
             } else sel = getImageManager().getSelectedLabileObjects(null);
             if ((sel == null || sel.isEmpty()) ) {
-                Core.userLog("No selected objects : select parent objects on a kymograph first");
+                Core.userLog("No selected objects : select parent objects on an interactive image first");
                 return;
             }
             //String pos = GUI.getInstance().getSelectedPositions(false).isEmpty() ? GUI.getDBConnection().getExperiment().getPosition(0).getName() : GUI.getInstance().getSelectedPositions(false).get(0);
@@ -435,18 +434,18 @@ public class PluginConfigurationUtils {
             t = hyperstack ? InteractiveImageKey.TYPE.HYPERSTACK : InteractiveImageKey.TYPE.KYMOGRAPH;
         }
         if (InteractiveImageKey.TYPE.KYMOGRAPH.equals(t)) {
-            Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx);
+            Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx);
             dispImages = res.value;
             getIOI = i -> res.key;
             getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), res.value.size()+1));
             res.value.forEach((image) -> {
-                iwm.addImage(image, res.key, structureIdx, true);
+                iwm.addImage(image, res.key, true);
                 iwm.addTestData(image, stores.values());
             });
         } else {
-            Map<String, KymographT> map = buildIntermediateImagesHyperStack(stores.values(), parentStructureIdx);
+            Map<String, HyperStack> map = buildIntermediateImagesHyperStack(stores.values(), parentStructureIdx, structureIdx);
             getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), map.size()+1));
-            Map<Image, KymographT> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx), Map.Entry::getValue));
+            Map<Image, HyperStack> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx), Map.Entry::getValue));
             getIOI = hookMapIOI::get;
             dispImages = new ArrayList<>(hookMapIOI.keySet());
         }
@@ -584,14 +583,14 @@ public class PluginConfigurationUtils {
         });
         return item;
     }
-    public static Pair<InteractiveImage, List<Image>> buildIntermediateImages(Collection<TestDataStore> stores, int parentStructureIdx) {
+    public static Pair<InteractiveImage, List<Image>> buildIntermediateImages(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
         if (stores.isEmpty()) return null;
-        int childStructure = stores.stream().findAny().get().parent.getStructureIdx();
+        //int childStructure = stores.stream().findAny().get().parent.getStructureIdx();
 
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
-        List<SegmentedObject> parents = stores.stream().map(s->(SegmentedObject)(s.parent).getParent(parentStructureIdx)).distinct().sorted().collect(Collectors.toList());
+        List<SegmentedObject> parents = stores.stream().map(s->(SegmentedObject)(s.parent).getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.enshureContinuousTrack(parents);
-        Kymograph ioi = Kymograph.generateKymograph(parents, childStructure, false);
+        Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, false);
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
@@ -607,20 +606,19 @@ public class PluginConfigurationUtils {
         Collections.sort(images, Comparator.comparingDouble(i -> orderMap.get(i.getName())));
         return new Pair<>(ioi, images);
     }
-    public static Map<String, KymographT> buildIntermediateImagesHyperStack(Collection<TestDataStore> stores, int parentStructureIdx) {
+    public static Map<String, HyperStack> buildIntermediateImagesHyperStack(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
         if (stores.isEmpty()) return null;
-        int childStructure = stores.stream().findAny().get().parent.getStructureIdx();
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
-        List<SegmentedObject> parents = stores.stream().map(s-> (s.parent).getParent(parentStructureIdx)).distinct().sorted().collect(Collectors.toList());
+        List<SegmentedObject> parents = stores.stream().map(s-> (s.parent).getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.enshureContinuousTrack(parents);
         return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
-            Kymograph ioi = Kymograph.generateKymograph(parents, childStructure, true);
+            Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, true);
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             ioi.setImageSupplier( (idx, oc, raw) -> stores.stream().filter(s -> s.parent.getFrame() == parents.get(idx).getFrame() && s.images.containsKey(name)).map(s -> TypeConverter.convert(s.images.get(name), maxBitDepth)).findFirst().orElse(null));
             ioi.setIsSingleChannel(true);
             ioi.setName(name);
-            return (KymographT)ioi;
+            return (HyperStack)ioi;
         }));
     }
 

@@ -317,7 +317,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                             //trackNode.loadAllTrackObjects(path);
                             int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
                             InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(getTrack(), structureIdx, InteractiveImageKey.TYPE.KYMOGRAPH);
-                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, structureIdx, true);
+                            if (i!=null) ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(structureIdx, true), i, true);
                             GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                             GUI.getInstance().setTrackStructureIdx(structureIdx);
                         }

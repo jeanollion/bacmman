@@ -37,15 +37,15 @@ import java.util.stream.Collectors;
  *
  * @author Jean Ollion
  */
-public class KymographT extends Kymograph {
-    public static final Logger logger = LoggerFactory.getLogger(KymographT.class);
+public class HyperStack extends Kymograph {
+    public static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected int idx;
     protected final int maxParentSizeX, maxParentSizeY, maxParentSizeZ;
     protected final BoundingBox bounds, bounds2D;
     public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
     protected IntConsumer changeIdxCallback;
     DefaultWorker loadObjectsWorker;
-    public KymographT(KymographFactory.KymographData data, int childStructureIdx, boolean loadObjects) {
+    public HyperStack(KymographFactory.KymographData data, int childStructureIdx, boolean loadObjects) {
         super(data, childStructureIdx, false);
         maxParentSizeX = data.maxParentSizeX;
         maxParentSizeY = data.maxParentSizeY;
@@ -71,7 +71,7 @@ public class KymographT extends Kymograph {
     }
     public int getIdx() {return idx;}
     public int getFrame()  {return idxMapFrame.get(idx);}
-    public KymographT setIdx(int idx) {
+    public HyperStack setIdx(int idx) {
         assert idx<trackObjects.length && idx>=0 : "invalid idx";
         if (idx!=this.idx) {
             this.idx=idx;
@@ -108,7 +108,7 @@ public class KymographT extends Kymograph {
         trackObjects[idx].addClickedObjects(selection, list);
     }
 
-    public KymographT setChangeIdxCallback(IntConsumer callback) {
+    public HyperStack setChangeIdxCallback(IntConsumer callback) {
         this.changeIdxCallback = callback;
         return this;
     }
@@ -146,7 +146,7 @@ public class KymographT extends Kymograph {
         Image image = imageSupplier.get(idx, objectClassIdx, raw);
         if (bounds.sameDimensions(image)) return image; // no need for padding
         else {
-            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, maxParentSizeZ).translate(trackOffset[idx]));
+            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1).translate(trackOffset[idx]));
             return resized;
         }
     }
@@ -155,7 +155,7 @@ public class KymographT extends Kymograph {
         image = image.getZPlane(z);
         if (bounds2D.sameDimensions(image)) return image; // no need for padding
         else {
-            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX, 0, maxParentSizeY, 0, 0).translate(trackOffset[idx]).translate(new SimpleOffset(0, 0, z)));
+            Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, 0).translate(trackOffset[idx]).translate(new SimpleOffset(0, 0, z)));
             return resized;
         }
     }

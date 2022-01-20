@@ -278,7 +278,7 @@ public class JSONUtils {
                 try {
                     list.get(i).initFromJSONEntry(((JSONObject)json.get(i)).values().iterator().next());
                 } catch (Throwable e) {
-                    logger.error("Error While initializing parameter: {} with: {}", list.get(i), json.get(i));
+                    logger.info("Error While initializing parameter: {} with: {}", list.get(i), json.get(i));
                     //logger.error("Error while init:", e);
                     success = false;
                 }
@@ -297,7 +297,7 @@ public class JSONUtils {
         Map<String, ParameterWithLegacyInitialization> legacyParameters = listLI.stream().filter(p -> p.getLegacyParameter()!=null).collect(Collectors.toMap(p->p.getLegacyParameter().getName(), p->p));
         for (Object o : json) {
             if (!(o instanceof JSONObject)) {
-                logger.error("Could not initialize parameters: {} with json entry: {}", list, json);
+                logger.info("Could not initialize parameters: {} with json entry: {}", list, json);
                 return false;
             }
             Entry e = (Entry)((JSONObject)o).entrySet().iterator().next();
@@ -308,12 +308,12 @@ public class JSONUtils {
                     ++count;
                     initP.add((P)r);
                 } catch(Throwable ex) {
-                    logger.error("Error While initializing parameter: {} (class: {}) with: {}", r, r.getClass(), e);
-                    logger.error("Error while init:" ,ex);
+                    logger.info("Error While initializing parameter: {} (class: {}) with: {}", r, r.getClass(), e);
+                    logger.info("Error while init:" ,ex);
                 }
             } else if (legacyParameters.containsKey(e.getKey())) {
                 Parameter lp = legacyParameters.get(e.getKey()).getLegacyParameter();
-                logger.debug("initializing legacy init parameter: {} with: {}", lp, e.getValue());
+                logger.info("initializing legacy init parameter: {} with: {}", lp, e.getValue());
                 try {
                     lp.initFromJSONEntry(e.getValue());
                 } catch(Throwable ex) {

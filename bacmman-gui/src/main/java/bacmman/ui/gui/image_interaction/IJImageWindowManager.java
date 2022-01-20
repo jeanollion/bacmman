@@ -134,7 +134,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 boolean displayTrack = displayTrackMode;
                 //logger.debug("button ctrl: {}, shift: {}, alt: {}, meta: {}, altGraph: {}, alt: {}", e.isControlDown(), e.isShiftDown(), e.isAltDown(), e.isMetaDown(), e.isAltGraphDown(), displayTrackMode);
                 InteractiveImage i = getImageObjectInterface(image);
-                boolean hyperstack = i instanceof KymographT;
+                boolean hyperstack = i instanceof HyperStack;
 
                 int completionStructureIdx=-1;
                 if (strechObjects) { // select parents
@@ -204,7 +204,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         //fire deselected objects
                         listener.fireObjectSelected(Pair.unpairKeys(selectedObjects), true);
                     }
-                    if (hyperstack) ((KymographT)i).setChangeIdxCallback(null);
+                    if (hyperstack) ((HyperStack)i).setChangeIdxCallback(null);
                 } else if (!strechObjects) {
                     if (!hyperstack) {
                         List<SegmentedObject> trackHeads = new ArrayList<>();
@@ -221,7 +221,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         if (listener != null) listener.fireTracksSelected(trackHeads, true);
                     } else {
                         // for hyper stack: create callback that displays only tracks at current frame
-                        KymographT k = ((KymographT)i);
+                        HyperStack k = ((HyperStack)i);
                         Set<SegmentedObject> trackHeads = selectedObjects.stream().map(p -> p.key.getTrackHead()).collect(Collectors.toSet());
                         IntConsumer callback = idx -> {
                             List<List<SegmentedObject>> selTracks = k.getObjects().stream().filter(p -> trackHeads.contains(p.key.getTrackHead()))
@@ -316,7 +316,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             });
         }
     }
-    @Override public void registerInteractiveHyperStackFrameCallback(Image image, KymographT k) {
+    @Override public void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k) {
         ImagePlus ip = displayer.getImage(image);
         if (ip!=null && ip.getImageStack() instanceof IJVirtualStack) {
             //logger.debug("registering frame callback on image: {} for kymograph : {}", image.getName(), k.getKey());
@@ -493,7 +493,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             o=new Overlay();
             image.setOverlay(o);
         }
-        if (!(i instanceof KymographT)) {
+        if (!(i instanceof HyperStack)) {
             for (Roi r : roi) o.add(r);
             if (roi.is2D() && image.getZ()>1) {
                 for (int z = 1; z<image.getNSlices(); ++z) {
@@ -517,7 +517,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         Overlay o = image.getOverlay();
         if (o!=null) {
             for (Roi r : roi) o.remove(r);
-            if (!(i instanceof KymographT) & image.getNSlices()>1) {
+            if (!(i instanceof HyperStack) & image.getNSlices()>1) {
                 for (TrackRoi tr : roi.getSliceDuplicates().values()) {
                     for (Roi r : tr) o.remove(r);
                 }
@@ -527,15 +527,15 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
 
     @Override
     public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
-        if (!(i instanceof KymographT)) return createKymographTrackRoi(track, color);
-        else return createHyperStackTrackRoi(parents, track, color, (KymographT)i);
+        if (!(i instanceof HyperStack)) return createKymographTrackRoi(track, color);
+        else return createHyperStackTrackRoi(parents, track, color, (HyperStack)i);
     }
     
     @Override
     protected void setTrackColor(TrackRoi roi, Color color) {
         for (Roi r : roi) if (r.getStrokeColor()!=ImageWindowManager.trackCorrectionColor && r.getStrokeColor()!=ImageWindowManager.trackErrorColor) r.setStrokeColor(color);
     }
-    protected TrackRoi createHyperStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, KymographT i) {
+    protected TrackRoi createHyperStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, HyperStack i) {
         TrackRoi trackRoi= new TrackRoi();
         trackRoi.setIs2D(track.get(0).key.is2D());
         Function<Pair<SegmentedObject, BoundingBox>, Roi3D> getRoi = p -> {

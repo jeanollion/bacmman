@@ -21,14 +21,12 @@ package bacmman.ui.gui.image_interaction;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.SimpleBoundingBox;
 import bacmman.image.TypeConverter;
 import bacmman.image.io.KymographFactory;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
 import bacmman.utils.ArrayUtil;
-import ij.IJ;
 import ij.ImagePlus;
 import ij.VirtualStack;
 import ij.measure.Calibration;
@@ -40,7 +38,6 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.*;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 /**
@@ -162,16 +159,16 @@ public class IJVirtualStack extends VirtualStack {
     }
 
     public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx) {
-        KymographT interactiveImage = null;
-        if (interactive) interactiveImage = (KymographT)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
+        HyperStack interactiveImage = null;
+        if (interactive) interactiveImage = (HyperStack)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
         if (interactiveImage==null) {
             KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
-            interactiveImage = new KymographT(data, interactiveOC, false);
+            interactiveImage = new HyperStack(data, interactiveOC, false);
         }
         return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx);
     }
 
-    public static Image openVirtual(List<SegmentedObject> parentTrack, KymographT interactiveImage, boolean interactive, int objectClassIdx) {
+    public static Image openVirtual(List<SegmentedObject> parentTrack, HyperStack interactiveImage, boolean interactive, int objectClassIdx) {
         if (parentTrack.isEmpty()) return null;
         int[] channelArray = interactiveImage.isSingleChannel()? new int[]{0} : ArrayUtil.generateIntegerArray(parentTrack.get(0).getExperimentStructure().getObjectClassesAsString().length);
         int channels = channelArray.length;

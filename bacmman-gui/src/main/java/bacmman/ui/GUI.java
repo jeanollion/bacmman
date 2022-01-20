@@ -2851,8 +2851,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {
-                if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(parentTrack, (KymographT)ii, true, currentImageStructure);
-                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
+                if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure);
+                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, true);
             }
             else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
@@ -2952,8 +2952,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx(), type);
                 Image im = iwm.getImage(nextI);
                 if (im==null) {
-                    if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(track, (KymographT)nextI, true, sel.getStructureIdx());
-                    else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
+                    if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, sel.getStructureIdx());
+                    else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(nextI.getObjects(), sel.getElementStrings(position)));

@@ -252,25 +252,24 @@ public abstract class ImageWindowManager<I, U, V> {
         if (b) displayedInteractiveImages.add(image);
     }
     
-    public void addImage(Image image, InteractiveImage i, int displayedStructureIdx, boolean displayImage) {
+    public void addImage(Image image, InteractiveImage i, boolean displayImage) {
         if (image==null) return;
-        boolean hyperstack = i instanceof KymographT;
-        //ImageObjectInterface i = getImageObjectInterface(parent, childStructureIdx, timeImage);
-        GUI.logger.debug("adding image: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
-        if (!imageObjectInterfaces.containsValue(i)) {
+        GUI.logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i.getKey(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
+        /*if (!imageObjectInterfaces.containsValue(i)) {
             //throw new RuntimeException("image object interface should be created through the manager");
             imageObjectInterfaces.put(i.getKey(), i);
-        }
+        }*/
+        imageObjectInterfaces.put(i.getKey(), i);
         //T dispImage = getImage(image);
-        imageObjectInterfaceMap.put(image, new InteractiveImageKey(i.parents, i instanceof Kymograph ? ( i instanceof KymographT ? InteractiveImageKey.TYPE.HYPERSTACK : InteractiveImageKey.TYPE.KYMOGRAPH) : InteractiveImageKey.TYPE.SINGLE_FRAME, displayedStructureIdx));
+        imageObjectInterfaceMap.put(image, i.getKey());
         if (displayImage) {
             displayImage(image, i);
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
         }
         
     }
-    public abstract void registerInteractiveHyperStackFrameCallback(Image image, KymographT k);
-    public void registerHyperStack(Image image, KymographT i) {
+    public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k);
+    public void registerHyperStack(Image image, HyperStack i) {
         imageObjectInterfaces.put(i.getKey(), i);
         imageObjectInterfaceMap.put(image, i.getKey());
         if (i.loadObjectsWorker!=null && !i.loadObjectsWorker.isDone()) {
@@ -279,7 +278,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         registerInteractiveHyperStackFrameCallback(image, i);
     }
-    public void addHyperStack(Image image, I displayedImage, KymographT i) {
+    public void addHyperStack(Image image, I displayedImage, HyperStack i) {
         logger.debug("adding frame stack: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
         //T dispImage = getImage(image);
         displayedInteractiveImages.add(image);
@@ -506,7 +505,7 @@ public abstract class ImageWindowManager<I, U, V> {
                 i.setName(ref.getName());
             }
             logger.debug("created IOI: {} from ref: {}", i.getKey(), ref);
-            if (i instanceof KymographT) registerHyperStack(image, (KymographT) i);
+            if (i instanceof HyperStack) registerHyperStack(image, (HyperStack) i);
         } 
         return i;
     }
@@ -604,8 +603,8 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.info("no image object interface found for image: {} and structure: {}", image.getName(), interactiveStructureIdx);
             return;
         }
-        if (i instanceof KymographT) {
-            KymographT k = ((KymographT)i);
+        if (i instanceof HyperStack) {
+            HyperStack k = ((HyperStack)i);
             Image im = image;
             k.setChangeIdxCallback(idx -> {
                 hideAllRois(im, true, false);
@@ -626,8 +625,8 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.info("no image object interface found for image: {} and object: {}", image.getName(), interactiveStructureIdx);
             return;
         }
-        if (i instanceof KymographT) {
-            KymographT k = ((KymographT)i);
+        if (i instanceof HyperStack) {
+            HyperStack k = ((HyperStack)i);
             Image im = image;
             IntConsumer callback = idx -> {
                 List<List<SegmentedObject>> selTracks = k.getObjects().stream().map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
@@ -645,7 +644,7 @@ public abstract class ImageWindowManager<I, U, V> {
             callback.accept(k.getIdx());
         } else {
             Collection<SegmentedObject> objects = Pair.unpairKeys(i.getObjects());
-            Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects, !(i instanceof KymographT));
+            Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects, !(i instanceof HyperStack));
             //for (Entry<StructureObject, List<StructureObject>> e : allTracks.entrySet()) logger.debug("th:{}->{}", e.getKey(), e.getValue());
             displayTracks(image, i, allTracks.values(), true);
             //if (listener!=null)
@@ -679,7 +678,7 @@ public abstract class ImageWindowManager<I, U, V> {
         ToIntFunction<SegmentedObject> getFrame = o -> 1;
         InteractiveImage i =  getImageObjectInterface(image, objectsToDisplay.iterator().next().key.getStructureIdx());
         if (i!=null) {
-            if (i instanceof KymographT) {
+            if (i instanceof HyperStack) {
                 Map<Integer, Integer> frameMapIdx = IntStream.range(0, i.getParents().size()).boxed().collect(Collectors.toMap(idx->i.getParents().get(idx).getFrame(), idx->idx));
                 getFrame = o -> {
                     Integer frameIdx = frameMapIdx.get(o.getFrame());
@@ -815,7 +814,7 @@ public abstract class ImageWindowManager<I, U, V> {
             
         }
         //logger.debug("display {} tracks on image: {}, OI: {}", tracks.size(), image.getName(), i.getClass().getSimpleName());
-        boolean hyperStack = i instanceof KymographT;
+        boolean hyperStack = i instanceof HyperStack;
         for (List<SegmentedObject> track : tracks) {
             displayTrack(image, i, i.pairWithOffset(track), hyperStack? getColor(track.get(0)) : getColor() , labile, false);
         }
@@ -823,7 +822,7 @@ public abstract class ImageWindowManager<I, U, V> {
             int minFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.stream().filter(SegmentedObject::isTrackHead).findFirst().orElse(track.size()>1 ? track.get(1).getTrackHead() : track.get(0)).getFrame()).min().orElse(-1);
             int maxFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.get(track.size() - 1).getFrame()).max().orElse(-1);
             if (minFrame > -1) {
-                int curFrame = ((KymographT)i).idxMapFrame.get(displayer.getFrame(image));
+                int curFrame = ((HyperStack)i).idxMapFrame.get(displayer.getFrame(image));
                 if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
             }
         }
@@ -849,7 +848,7 @@ public abstract class ImageWindowManager<I, U, V> {
             if (i==null) return;
         }
         InteractiveImageKey.TYPE type = i.getKey().imageType;
-        boolean hyperStack = i instanceof KymographT;
+        boolean hyperStack = i instanceof HyperStack;
         SegmentedObject trackHead = track.get(track.size()>1 ? 1 : 0).key.getTrackHead(); // idx = 1 because track might begin with previous object
         boolean canDisplayTrack = i instanceof Kymograph;
         //canDisplayTrack = canDisplayTrack && ((TrackMask)i).parent.getTrackHead().equals(trackHead.getParent().getTrackHead()); // same track head
@@ -883,7 +882,7 @@ public abstract class ImageWindowManager<I, U, V> {
                 if (hyperStack) {
                     int minFrame = trackHead.getFrame();
                     int maxFrame = track.get(track.size() - 1).key.getFrame();
-                    int curFrame = ((KymographT)i).idxMapFrame.get(displayer.getFrame(image));
+                    int curFrame = ((HyperStack)i).idxMapFrame.get(displayer.getFrame(image));
                     if (curFrame < minFrame || curFrame > maxFrame) displayer.setFrame(minFrame, image);
                 }
             }
@@ -905,7 +904,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         Set<V> disp = this.displayedLabileTrackRois.get(image);
         SegmentedObject parentTrackHead = i.getParent().getTrackHead();
-        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? ((i instanceof KymographT) ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap ) : ((i instanceof KymographT) ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
+        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? ((i instanceof HyperStack) ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap ) : ((i instanceof HyperStack) ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
         for (SegmentedObject th : trackHeads) {
             V roi=map.get(new Pair(parentTrackHead, th));
             if (roi!=null) {
@@ -983,7 +982,7 @@ public abstract class ImageWindowManager<I, U, V> {
         Set<V> rois = this.displayedLabileTrackRois.get(image);
         if (rois!=null) {
             InteractiveImage i = getImageObjectInterface(image);
-            List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof KymographT ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
+            List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof HyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
             List<SegmentedObject> res = unpairValues(pairs);
             Utils.removeDuplicates(res, false);
             return res;
@@ -1062,8 +1061,8 @@ public abstract class ImageWindowManager<I, U, V> {
         SegmentedObject nextError = next ? getNextError(maxTimePoint, trackHeads) : getPreviousError(minTimePoint, trackHeads);
         if (nextError==null) GUI.logger.info("No errors detected {} timepoint: {}", next? "after": "before", maxTimePoint);
         else {
-            if (i instanceof KymographT) {
-                ((KymographT)i).setFrame(nextError.getFrame());
+            if (i instanceof HyperStack) {
+                ((HyperStack)i).setFrame(nextError.getFrame());
             } else {
                 BoundingBox off = tm.getObjectOffset(nextError);
                 if (off == null) trackHeads = new ArrayList<>(trackHeads);
@@ -1131,8 +1130,8 @@ public abstract class ImageWindowManager<I, U, V> {
             return false;
         }
         else {
-            if (i instanceof KymographT) {
-                return ((KymographT)i).setFrame(nextObject.getFrame());
+            if (i instanceof HyperStack) {
+                return ((HyperStack)i).setFrame(nextObject.getFrame());
             } else {
                 BoundingBox off = tm.getObjectOffset(nextObject);
                 if (off == null) objects = new ArrayList<>(objects);
