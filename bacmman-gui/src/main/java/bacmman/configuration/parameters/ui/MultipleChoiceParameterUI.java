@@ -19,7 +19,6 @@
 package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.parameters.ChoosableParameterMultiple;
-import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -80,13 +79,13 @@ public class MultipleChoiceParameterUI implements ParameterUI {
     }
     
     public void updateSelectedItemsToParameter() {
-        choice.setSelectedIndicies(getSelectedItems() );
+        choice.setSelectedIndices(getSelectedItems() );
         //choice.fireListeners();
         if (model!=null) model.nodeChanged(choice);
     }
     
     public void updateUIFromParameter() {
-        list.setSelectedIndices(choice.getSelectedItems());
+        list.setSelectedIndices(choice.getSelectedIndices());
     }
     
     @Override

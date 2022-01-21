@@ -18,38 +18,62 @@
  */
 package bacmman.configuration.parameters;
 
-import org.json.simple.JSONArray;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
+import org.json.simple.JSONArray;
 
 import java.util.Arrays;
+import java.util.List;
+import java.util.function.Function;
+import java.util.function.ToIntFunction;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
  * @author Jean Ollion
  */
-public class MultipleChoiceParameter extends ParameterImpl implements ChoosableParameterMultiple {
+public class MultipleEnumChoiceParameter<E extends Enum<E>> extends ParameterImpl implements ChoosableParameterMultiple {
     int[] selectedItems;
-    String[] listChoice;
-     int displayTrimSize=75; // for toString method
-    
-    public MultipleChoiceParameter(String name, String[] listChoice, int... selectedItems) {
+    final E[] enumChoiceList;
+    Function<E, String> toString;
+    ToIntFunction<E> getIndex;
+    int displayTrimSize=75; // for toString method
+
+    public MultipleEnumChoiceParameter(String name, E[] listChoice, Function<E, String> toString) {
         super(name);
-        this.listChoice=listChoice;
-        this.selectedItems=selectedItems==null?new int[0] : selectedItems;
+        this.enumChoiceList=listChoice;
+        getIndex = e->IntStream.range(0, enumChoiceList.length).filter(i -> enumChoiceList[i].equals(e)).findFirst().orElse(-1);
+        setToStringFunction(toString);
     }
-    
-    public MultipleChoiceParameter(String name, String[] listChoice, boolean selectAll) {
+
+    public MultipleEnumChoiceParameter(String name, E[] listChoice, Function<E, String> toString, E... selectedItems) {
+        this(name, listChoice, toString);
+        setSelectedItems(selectedItems);
+    }
+
+    public MultipleEnumChoiceParameter(String name, E[] listChoice, Function<E, String> toString, boolean selectAll) {
         super(name);
-        this.listChoice=listChoice;
+        this.enumChoiceList=listChoice;
+        setToStringFunction(toString);
         if (selectAll) setAllSelectedItems();
         else selectedItems=new int[0];
     }
-    
-    
-    public void setTrimSize(int trimSize) {
-        this.displayTrimSize=trimSize;
-    }
 
+    public MultipleEnumChoiceParameter setToStringFunction(Function<E, String> toString) {
+        if (toString==null) this.toString = selectedItem -> selectedItem==null ? null : selectedItem.toString();
+        else this.toString = selectedItem -> selectedItem==null ? null : toString.apply(selectedItem);
+        return this;
+    }
+    
+    public MultipleEnumChoiceParameter setTrimSize(int trimSize) {
+        this.displayTrimSize=trimSize;
+        return this;
+    }
+    protected E getEnum(String item) {
+        return Arrays.stream(enumChoiceList).filter(e -> toString.apply(e).equals(item)).findFirst().orElse(null);
+    }
     // multiple choice parameter implementation
     @Override
     public void setSelectedIndices(int[] selectedItems) {
@@ -57,39 +81,41 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
         else this.selectedItems = selectedItems;
         fireListeners();
     }
-    
+    public void setSelectedItems(E... selectedItems) {
+        if (selectedItems==null) setSelectedIndices(new int[0]);
+        else this.selectedItems = Arrays.stream(selectedItems).mapToInt(getIndex).toArray();
+        fireListeners();
+    }
+
     public void setAllSelectedItems() {
-        this.selectedItems=new int[listChoice.length];
-        for (int i = 0; i<selectedItems.length; ++i) selectedItems[i]=i;
+        this.selectedItems= ArrayUtil.generateIntegerArray(this.enumChoiceList.length);
         fireListeners();
     }
     @Override
     public int[] getSelectedIndices() {
-        if (selectedItems==null || selectedItems.length==0) return new int[0];
+        if (selectedItems==null || selectedItems.length==0 ) return new int[0];
         return Arrays.copyOf(selectedItems, selectedItems.length);
     }
     public boolean[] getSelectedItemsAsBoolean() {
-        boolean[] res = new boolean[listChoice.length];
+        boolean[] res = new boolean[enumChoiceList.length];
         for (int i : getSelectedIndices()) res[i] = true;
         return res;
     }
      
-    public String[] getSelectedItemsNames() {
-        String[] res = new String[getSelectedIndices().length];
-        for (int i = 0 ; i<res.length; ++i) res[i] = listChoice[selectedItems[i]];
-        return res;
+    public List<E> getSelectedItems() {
+        return Arrays.stream(getSelectedIndices()).filter(i -> i>=0 && i<enumChoiceList.length).mapToObj(i -> this.enumChoiceList[i]).collect(Collectors.toList());
     }
     
     @Override
     public String[] getChoiceList() {
-        return listChoice;
+        return Arrays.stream(enumChoiceList).map(toString).toArray(String[]::new);
     }
 
     // parameter implementation 
     
     @Override
     public String toString() {
-        return name +": "+ Utils.getStringArrayAsStringTrim(displayTrimSize, getSelectedItemsNames());
+        return name +": "+ Utils.getStringArrayAsStringTrim(displayTrimSize, getSelectedItems().stream().map(toString).toArray(String[]::new));
     }
     @Override
     public boolean sameContent(Parameter other) { // checks only indicies
@@ -107,15 +133,16 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
             setSelectedIndices(((ChoosableParameterMultiple)other).getSelectedIndices());
         } else if (other instanceof ChoosableParameter) {
             String sel = ((ChoosableParameter)other).getChoiceList()[((ChoosableParameter)other).getSelectedIndex()];
-            int i = Utils.getIndex(listChoice, sel);
-            if (i>=0) this.selectedItems=new int[]{i};
+            E item = getEnum(sel);
+            if (item!=null) this.selectedItems = new int[]{getIndex.applyAsInt(item)};
         } else throw new IllegalArgumentException("wrong parameter type");
         bypassListeners=false;
     }
     
     @Override
-    public MultipleChoiceParameter duplicate() {
-        MultipleChoiceParameter res= new MultipleChoiceParameter(name, listChoice, selectedItems);
+    public MultipleEnumChoiceParameter duplicate() {
+        MultipleEnumChoiceParameter res= new MultipleEnumChoiceParameter(name, enumChoiceList, toString);
+        res.setSelectedIndices(getSelectedIndices());
         res.setListeners(listeners);
         res.addValidationFunction(additionalValidation);
         res.setHint(toolTipText);

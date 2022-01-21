@@ -1,9 +1,6 @@
 package bacmman.plugins.plugins.measurements;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
-import bacmman.data_structure.Region;
-import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
@@ -11,12 +8,9 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
-import bacmman.processing.EDT;
 import bacmman.utils.geom.Point;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,7 +46,7 @@ public class EVF implements Measurement, Hint {
     public void performMeasurement(SegmentedObject container) {
         List<SegmentedObject> children = container.getChildren(objectClass.getSelectedClassIdx()).collect(Collectors.toList());
         if (children.isEmpty()) return;
-        int[] refClasses = objectClassRef.getSelectedItems();
+        int[] refClasses = objectClassRef.getSelectedIndices();
         if (refClasses.length==0) refClasses = new int[]{container.getStructureIdx()};
         Image EVF = bacmman.processing.EVF.getEVFMap(container, refClasses, negativeInside.getSelected(), erode.getValue().doubleValue());
         for (SegmentedObject c : children) {

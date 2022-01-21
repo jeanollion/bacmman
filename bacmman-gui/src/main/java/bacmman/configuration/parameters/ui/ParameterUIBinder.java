@@ -26,7 +26,6 @@ public class ParameterUIBinder {
             if (icp.isMultipleSelection()) return new MultipleChoiceParameterUI(icp, model);
             else return new ChoiceParameterUI(icp, model);
         }
-        if (p instanceof MultipleChoiceParameter) return new MultipleChoiceParameterUI((MultipleChoiceParameter)p, model);
         if (p instanceof PluginParameter) {
             PluginParameter pp = (PluginParameter)p;
             ChoiceParameterUI ui =  new ChoiceParameterUI(pp, "Modules", model);
@@ -87,6 +86,11 @@ public class ParameterUIBinder {
 
         // other parameters
         if (p instanceof DLModelFileParameter) return new DLModelFileParameterUI((DLModelFileParameter)p, model);
+
+        // choice parameter interface
+        if (p instanceof ChoosableParameterMultiple) return new MultipleChoiceParameterUI((ChoosableParameterMultiple)p, model);
+        if (p instanceof ChoosableParameter) return new ChoiceParameterUI((ChoosableParameter)p, model);
+
         return null;
     }
 }

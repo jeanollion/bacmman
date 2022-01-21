@@ -122,7 +122,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     }
     
     public void setOutputChannel(int... channelIdx) { // null -> all selected OR same channel selected
-        if (outputChannel!=null) outputChannel.setSelectedIndicies(channelIdx);
+        if (outputChannel!=null) outputChannel.setSelectedIndices(channelIdx);
     }
     
     public void setInputChannel(int channelIdx) {
@@ -133,9 +133,9 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
         if (outputChannel==null) {
             if (allChannels) return null;
             else if (inputChannel==null) return null;
-            else return inputChannel.getSelectedItems();
+            else return inputChannel.getSelectedIndices();
         }
-        else return outputChannel.getSelectedItems();
+        else return outputChannel.getSelectedIndices();
     }
     
     public int getInputChannel() {

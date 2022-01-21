@@ -4,7 +4,6 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.MultipleChoiceParameter;
-import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 
 import javax.swing.*;
@@ -56,7 +55,7 @@ public class PreProcessingChainUI implements ParameterUI {
         overwrite.setAction(new AbstractAction(overwrite.getActionCommand()) {
                                 @Override
                                 public void actionPerformed(ActionEvent ae) {
-                                    for (int f : fields.getSelectedItems()) {
+                                    for (int f : fields.getSelectedIndices()) {
                                         //logger.debug("override pp on field: {}", f);
                                         Position position = xp.getPositions().get(f);
                                         if (position.getPreProcessingChain()!=ppc) {

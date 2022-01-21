@@ -23,7 +23,7 @@ package bacmman.configuration.parameters;
  * @author Jean Ollion
  */
 public interface ChoosableParameterMultiple<P extends Parameter<P>> extends Parameter<P>, Listenable<P> {
-    public void setSelectedIndicies(int[] selectedItems);
-    public int[] getSelectedItems();
+    public void setSelectedIndices(int[] selectedItems);
+    public int[] getSelectedIndices();
     public String[] getChoiceList();
 }

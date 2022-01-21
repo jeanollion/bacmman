@@ -21,6 +21,8 @@ package bacmman.configuration.parameters;
 import org.json.simple.JSONArray;
 import bacmman.utils.Utils;
 
+import java.util.Arrays;
+
 /**
  *
  * @author Jean Ollion
@@ -77,7 +79,7 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
         if (other instanceof IndexChoiceParameter) {
             bypassListeners=true;
             IndexChoiceParameter otherP = (IndexChoiceParameter) other;
-            if (otherP.selectedIndices!=null) this.setSelectedIndicies(Utils.copyArray(otherP.selectedIndices));
+            if (otherP.selectedIndices!=null) this.setSelectedIndices(Utils.copyArray(otherP.selectedIndices));
             else this.setSelectedIndex(-1);
             bypassListeners=false;
             //logger.debug("ICP: {} recieve from: {} -> {} ({})", name, otherP.getSelectedItems(), this.getSelectedItems(), this.getSelectedIndex());
@@ -139,12 +141,12 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
 
     // choosable parameter multiple
     @Override
-    public void setSelectedIndicies(int[] selectedItems) {
+    public void setSelectedIndices(int[] selectedItems) {
         this.selectedIndices=selectedItems;
         fireListeners();
     }
     @Override
-    public int[] getSelectedItems() {
+    public int[] getSelectedIndices() {
         /*if (selectedIndices==null) {
             String[] list = getChoiceList();
             if (!allowNoSelection && list!=null) { // select all
@@ -154,8 +156,8 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
                 selectedIndices = new int[0];
             }
         }*/
-        if (selectedIndices==null) selectedIndices = new int[0];
-        return selectedIndices;
+        if (selectedIndices==null || selectedIndices.length==0) selectedIndices = new int[0];
+        return Arrays.copyOf(selectedIndices, selectedIndices.length);
     }
     @Override
     public Object toJSONEntry() {
