@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class JACOP implements Measurement, Hint {
-    ObjectClassParameter mask = new ObjectClassParameter("Segmentation Mask", -1, false, false).setHint("Segmented Object class witin which colocalization will be computed");
+    ObjectClassParameter mask = new ObjectClassParameter("Segmentation Mask", -1, false, false).setHint("Segmented Object class within which colocalization will be computed");
     ObjectClassParameter signal1 = new ObjectClassParameter("Signal 1", -1, false, false).setHint("First signal to colocalize");
     ObjectClassParameter signal2 = new ObjectClassParameter("Signal 2", -1, false, false).setHint("Second signal to colocalize");
     PluginParameter<Thresholder> thld1 = new PluginParameter<>("Threshold for Signal 1", Thresholder.class,true).setHint("Optional. Threshold computed on signal 1. Values above this threshold will be considered in computations");

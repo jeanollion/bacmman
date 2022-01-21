@@ -72,6 +72,7 @@ public class EVF implements Measurement, Hint {
         return "The EVF of a point within a volume (which is the parent of the selected object class, e.g. nucleus) is defined as the fraction of volume lying between a considered point and the edges of the volume." +
                 "<br>The EVF rises from 0 at the edges to 1 at the center. This property holds for volumes of any size and shape. " +
                 "<br >Note that the EVF changes more rapidly near the edges than the center. For instance, in a spherical nucleus with a radius of 5 mm, a point with an EVF equal to 0.5 lies only about 1 mm from the nuclear membrane. Standard erosion analyses [Parada et al., 2004a] were based on a discretized version of the EVF." +
-                "<br >This implementation also allows to compute EVF with respect to other object classes than the parent object class, within the volume of the object class. This means that the EVF will be lower close to the reference object class.";
+                "<br >This implementation also allows to compute EVF with respect to other object classes than the parent object class, within the volume of the object class. This means that the EVF will be lower close to the reference object class." +
+                "<br/>For each object of the selected object class several EVF values are computed: the EVF at the geometrical center of the object, as well as a statistics of the EVF values within the volume of the considered object (median, mean, min and max)";
     }
 }
