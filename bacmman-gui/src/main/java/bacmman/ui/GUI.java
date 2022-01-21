@@ -915,6 +915,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (image==null) {
             return; // todo -> actions on all images?
         }
+        if (i ==null) {
+            return;
+        }
         InteractiveImage ioi = i;
         ImageWindowManagerFactory.getImageManager().hideAllRois(image, false, true);
         EnumerationUtils.toStream(INSTANCE.selectionModel.elements()).forEach(s -> {

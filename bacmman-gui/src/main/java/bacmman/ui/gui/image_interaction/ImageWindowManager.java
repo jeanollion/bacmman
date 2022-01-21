@@ -460,10 +460,11 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     public InteractiveImage getImageObjectInterface(Image image) {
         InteractiveImageKey key = imageObjectInterfaceMap.get(image);
-        InteractiveImageKey.TYPE type = key!=null ? key.imageType : ImageWindowManager.getDefaultInteractiveType();
-        if (type==null) type = InteractiveImageKey.TYPE.HYPERSTACK;
-        return getImageObjectInterface(image, type);
+        if (key==null) return null;
+        if (imageObjectInterfaces.containsKey(key)) return imageObjectInterfaces.get(key);
+        return getImageObjectInterface(image, key.imageType );
     }
+
     public InteractiveImage getImageObjectInterface(Image image, InteractiveImageKey.TYPE type) {
         return getImageObjectInterface(image, interactiveStructureIdx, type); // use the interactive structure. Creates the ImageObjectInterface if necessary
     }
@@ -477,7 +478,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         InteractiveImageKey key = imageObjectInterfaceMap.get(image);
         if (key==null) return null;
-        return this.imageObjectInterfaces.get(key.getKey(objectClassIdx));
+        return getImageObjectInterface(image, objectClassIdx, key.imageType);
     }
 
     public InteractiveImage getImageObjectInterface(Image image, int structureIdx, InteractiveImageKey.TYPE type) {
