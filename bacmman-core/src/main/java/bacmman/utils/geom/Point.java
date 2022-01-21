@@ -125,6 +125,9 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     public static Point asPoint(Offset off) {
         return new Point(off.xMin(), off.yMin(), off.zMin());
     }
+    public static Point asPoint(Offset off, double scaleXY, double scaleZ) {
+        return new Point(off.xMin() * scaleXY, off.yMin() * scaleXY, off.zMin() * scaleZ);
+    }
     public static Point wrap(RealLocalizable p) {
         if (p instanceof Point) return ((Point)p);
         float[] coords = new float[p.numDimensions()];

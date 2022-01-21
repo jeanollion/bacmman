@@ -531,9 +531,12 @@ public class Region {
             for (Voxel v: getVoxels()) if (touchBorder(v.x, v.y, v.z, neigh, mask)) res.add(v);
             */
             for (Voxel v: getVoxels()) if (touchBorderVox(v, neigh)) res.add(v);
-        } else if (roi!=null) {
+        } else if (roi!=null && is2D()) {
             return roi.getContour(getBounds());
-        } else ImageMask.loop(mask, (x, y, z)->{ if (touchBorder(x, y, z, neigh, mask)) res.add(new Voxel(x+mask.xMin(), y+mask.yMin(), z+mask.zMin()));});
+        } else {
+            getMask();
+            ImageMask.loop(mask, (x, y, z)->{ if (touchBorder(x, y, z, neigh, mask)) res.add(new Voxel(x+mask.xMin(), y+mask.yMin(), z+mask.zMin()));});
+        }
         return res;
     }
     public Set<Voxel> getOutterContour() {
