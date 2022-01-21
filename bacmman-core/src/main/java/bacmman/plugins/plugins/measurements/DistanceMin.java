@@ -14,7 +14,6 @@ import bacmman.utils.geom.Point;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
@@ -29,7 +28,7 @@ public class DistanceMin implements Measurement, Hint {
                 "Values are in scaled units, for anisotropic images make sure that images are calibrated. <br/>" +
                 "Centers can be either geometrical or mass centers, and mass centers can be computed on a user defined intensity channel<br />" +
                 "The index of target object class is appended at the end of the name of the measurement <br/>" +
-                "<ul>li>CENTER_CENTER: distance from centers of source object class to centers of target object class</li>li>CENTER_EDGE: distance from centers of source object class to edges of target object class</li>li>EDGE_CENTER: distance from edges of source object class to centers of target object class</li><li>EDGE_EDGE: distance from edges of source object class to edges of target object class</li></ul> ";
+                "<ul><li>CENTER_CENTER: distance from centers of source object class to centers of target object class</li><li>CENTER_EDGE: distance from centers of source object class to edges of target object class</li><li>EDGE_CENTER: distance from edges of source object class to centers of target object class</li><li>EDGE_EDGE: distance from edges of source object class to edges of target object class</li></ul> ";
     }
 
     public enum DISTANCE_MODE {CENTER_CENTER("DistCC"), CENTER_EDGE("DistCE"), EDGE_CENTER("DistEC"), EDGE_EDGE("DistEE");
