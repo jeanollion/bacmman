@@ -63,7 +63,7 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
     public boolean needsToDownloadModel() {
         String path = modelFile.getFirstSelectedFilePath();
         File f = new File(path);
-        return !f.exists();
+        return (!f.exists() || (validDirectory!=null && !validDirectory.test(path)));
     }
     public String getModelFilePath() {
         return modelFile.getFirstSelectedFilePath();
@@ -72,11 +72,12 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         String path = modelFile.getFirstSelectedFilePath();
         if (path==null) return null;
         File f = new File(path);
-        if ( (!f.exists() || (validDirectory!=null && !validDirectory.test(path))) && id.getValue().length()>0) {
+        if ( needsToDownloadModel() && id.getValue().length()>0) {
             return downloadModel(f, false, null);
         } else return f;
     }
     public void configureFromMetadata(String modelID, DLModelMetadata metadata) {
+        lf = null;
         id.setValue(modelID);
         if (metadataConsumer!=null) metadataConsumer.accept(metadata);
         if (getParent()!=null) {
@@ -113,10 +114,19 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
                 if (!parent.mkdirs())
                     throw new RuntimeException("Could not create directory: " + parent.getAbsolutePath());
             }
+        } else {
+            if (validDirectory!=null && validDirectory.test(destFile.getAbsolutePath())) destFile = destFile.getParentFile(); // special case : path already contains a model -> new model will be downloaded into the parent directory
         }
         try {
             getLargeFileGist();
-            if (appendModelName) destFile = Paths.get(destFile.getAbsolutePath(), lf.getFileName()).toFile();
+            if (appendModelName) {
+                destFile = Paths.get(destFile.getAbsolutePath(), lf.getFileName()).toFile();
+                if (destFile.exists() && destFile.isDirectory() && validDirectory!=null && validDirectory.test(destFile.getAbsolutePath())) {
+                    if (bacmmanLogger!=null) bacmmanLogger.setMessage("Model already exists @ "+destFile.getAbsolutePath());
+                    if (callback!=null) callback.accept(destFile);
+                    return destFile; // model already exists simply return the path
+                }
+            }
             return lf.retrieveFile(destFile, background, true, callback, bacmmanLogger);
         }  catch (IOException ex) {
             if (bacmmanLogger!=null) bacmmanLogger.setMessage("Error trying to download model: "+ex.getMessage());
