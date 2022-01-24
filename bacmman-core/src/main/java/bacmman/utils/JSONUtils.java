@@ -323,7 +323,9 @@ public class JSONUtils {
             }
         }
         if (count<list.size()) {
-            listLI.stream().filter(p->!initP.contains(p)).forEach(ParameterWithLegacyInitialization::legacyInit);
+            List<ParameterWithLegacyInitialization> lps = listLI.stream().filter(p->!initP.contains(p)).collect(Collectors.toList());
+            lps.forEach(ParameterWithLegacyInitialization::legacyInit);
+            count+=lps.size();
         }
         return count==json.size()||count==list.size();
     }
