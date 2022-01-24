@@ -2381,16 +2381,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         runMenu.add(importImagesMenuItem);
-
-        if (Core.getCore().getOmeroGateway()!=null) {
-            importImagesFromOmeroMenuItem.setText("Import/re-link Images from Omero Server ");
-            importImagesFromOmeroMenuItem.addActionListener(new java.awt.event.ActionListener() {
-                public void actionPerformed(java.awt.event.ActionEvent evt) {
-                    importImagesFromOmeroMenuItemActionPerformed(evt);
-                }
-            });
-            runMenu.add(importImagesFromOmeroMenuItem);
-        }
+        
+        importImagesFromOmeroMenuItem.setText("Import/re-link Images from Omero Server ");
+        importImagesFromOmeroMenuItem.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                importImagesFromOmeroMenuItemActionPerformed(evt);
+            }
+        });
+        importImagesFromOmeroMenuItem.setEnabled(Core.getCore().getOmeroGateway()!=null);
+        runMenu.add(importImagesFromOmeroMenuItem);
 
         runSelectedActionsMenuItem.setText("Run Selected Tasks");
         runSelectedActionsMenuItem.addActionListener(new java.awt.event.ActionListener() {

@@ -164,7 +164,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
         } else {
             //getTrack();
             int tl = track == null || track.isEmpty() ? -1 : track.get(track.size() - 1).getFrame() - track.get(0).getFrame() + 1;
-            return getStructureName() + " Track: " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + " Frames: [" + trackHead.getFrame() + ";" + (track != null ? track.get(track.size() - 1).getFrame() : "???") + "] (N=" + (track != null ? track.size() : ".........") + ")" + (track != null && tl != track.size() ? " (Gaps=" + (tl - track.size()) + ")" : "");
+            return getStructureName() + " Track: " + Selection.indicesToString(SegmentedObjectUtils.getIndexTree(trackHead)) + " Frames: [" + trackHead.getFrame() + ";" + (track != null && !track.isEmpty() ? track.get(track.size() - 1).getFrame() : "???") + "] (N=" + (track != null ? track.size() : ".........") + ")" + (track != null && tl != track.size() ? " (Gaps=" + (tl - track.size()) + ")" : "");
         }
     }
     private String getStructureName() {

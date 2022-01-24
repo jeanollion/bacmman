@@ -81,7 +81,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public static Color getColor() {
         return Palette.getColor(150, trackErrorColor, trackCorrectionColor);
     }
-    protected final Map<SegmentedObject, Color> trackColor = new HashMapGetCreate.HashMapGetCreateRedirected<>(t -> getColor());
+    protected final Map<SegmentedObject, Color> trackColor = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(t -> getColor());
     public Color getColor(SegmentedObject trackHead) {
         return trackColor.get(trackHead.getTrackHead());
         //return Palette.getColor(0, SegmentedObjectUtils.getIndexTree(trackHead.getTrackHead()));
@@ -461,8 +461,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public InteractiveImage getImageObjectInterface(Image image) {
         InteractiveImageKey key = imageObjectInterfaceMap.get(image);
         if (key==null) return null;
-        if (imageObjectInterfaces.containsKey(key)) return imageObjectInterfaces.get(key);
-        return getImageObjectInterface(image, key.imageType );
+        return getImageObjectInterface(image, interactiveStructureIdx, key.imageType);
     }
 
     public InteractiveImage getImageObjectInterface(Image image, InteractiveImageKey.TYPE type) {

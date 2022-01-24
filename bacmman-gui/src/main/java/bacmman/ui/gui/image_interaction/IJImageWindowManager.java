@@ -354,10 +354,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (r instanceof PointRoi) {
             PointRoi pRoi = (PointRoi)r;
             Polygon p = r.getPolygon();
-            
             List<Point> res = new ArrayList<>(p.npoints);
             for (int i = 0; i<p.npoints; ++i) {
-                res.add(new Point(p.xpoints[i], p.ypoints[i], Math.max(0, pRoi.getPointPosition(i)-1)));
+                int[] pos = image.convertIndexToPosition(pRoi.getPointPosition(i));
+                res.add(new Point(p.xpoints[i], p.ypoints[i], Math.max(0, pos[1]-1)));
             }
             return res;
         } else return Collections.emptyList();

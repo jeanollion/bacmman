@@ -534,12 +534,16 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
 
     public Image predictEDM(SegmentedObject parent, int objectClassIdx) {
         List<SegmentedObject> parentTrack = new ArrayList<>(3);
+        boolean next = this.next.getSelected();
+        if (next && parent.getNext()==null && parent.getPrevious()!=null && parent.getPrevious().getPrevious()!=null) parentTrack.add(parent.getPrevious().getPrevious());
         if (parent.getPrevious()!=null) parentTrack.add(parent.getPrevious());
-        else parentTrack.add(parent);
         parentTrack.add(parent);
         if (parent.getNext()!=null) parentTrack.add(parent.getNext());
-        Map<SegmentedObject, Image> predicitons = predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""))[0];
-        return predicitons.get(parent);
+        if (next && parent.getPrevious()==null && parent.getNext()!=null && parent.getNext()!=null) parentTrack.add(parent.getNext().getNext());
+        if (next && parentTrack.size()<3) throw new RuntimeException("Parent Track Must contain at least 3 frames");
+        else if (!next && parentTrack.size()<2) throw new RuntimeException("Parent Track Must contain at least 2 frames");
+        Map<SegmentedObject, Image> predictions = predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""))[0];
+        return predictions.get(parent);
     }
 
     @Override

@@ -135,6 +135,7 @@ public class OmeroGatewayI implements OmeroGateway {
         } catch (DSOutOfServiceException|ExecutionException e) {
             logger.debug("error while connecting: ", e);
             logger.debug("Could not connect to OMERO Server: " + e.getLocalizedMessage());
+            if (bacmmanLogger!=null) bacmmanLogger.setMessage("Connection error: "+e.getMessage());
             return false;
         }
     }

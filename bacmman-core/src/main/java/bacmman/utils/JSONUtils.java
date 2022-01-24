@@ -278,7 +278,7 @@ public class JSONUtils {
                 try {
                     list.get(i).initFromJSONEntry(((JSONObject)json.get(i)).values().iterator().next());
                 } catch (Throwable e) {
-                    logger.info("Error While initializing parameter: {} with: {}", list.get(i), json.get(i));
+                    logger.debug("Error While initializing parameter: {} with: {}", list.get(i), json.get(i));
                     //logger.error("Error while init:", e);
                     success = false;
                 }
@@ -313,12 +313,12 @@ public class JSONUtils {
                 }
             } else if (legacyParameters.containsKey(e.getKey())) {
                 Parameter lp = legacyParameters.get(e.getKey()).getLegacyParameter();
-                logger.info("initializing legacy init parameter: {} with: {}", lp, e.getValue());
+                logger.debug("initializing legacy init parameter: {} with: {}", lp, e.getValue());
                 try {
                     lp.initFromJSONEntry(e.getValue());
                 } catch(Throwable ex) {
-                    logger.error("Error While initializing legacy init parameter: {} (class: {}) with: {}", lp, lp.getClass(), e);
-                    logger.error("Error while init:" , ex);
+                    logger.info("Error While initializing legacy init parameter: {} (class: {}) with: {}", lp, lp.getClass(), e);
+                    logger.info("Error while init:" , ex);
                 }
             }
         }
