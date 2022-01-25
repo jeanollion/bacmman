@@ -46,8 +46,11 @@ import org.slf4j.LoggerFactory;
  */
 public class IJ1 implements PlugIn {
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
+
+
     private static Object LOCK = new Object();
     public static void initCore() {
+
         IJImageDisplayer disp = new IJImageDisplayer();
         IJImageWindowManager man = new IJImageWindowManager(null, disp);
         ImageWindowManagerFactory.setImageDisplayer(disp, man);
@@ -113,7 +116,7 @@ public class IJ1 implements PlugIn {
                     //DebugTools.enableLogging("ERROR");
                     //((Logger)LoggerFactory.getLogger(FormatHandler.class)).setLevel(Level.OFF);
                     System.setProperty("scijava.log.level", "error");
-
+                    System.setProperty("org.bytedeco.javacpp.logger", "slf4j");
 
                     // TODO find other IJ1&2 plugins & ops...
                     initCore();

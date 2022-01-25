@@ -11,24 +11,17 @@ import bacmman.tf2.TensorWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
-import org.tensorflow.internal.c_api.Listener_String;
-import org.tensorflow.internal.c_api.global.tensorflow;
 import org.tensorflow.ndarray.buffer.FloatDataBuffer;
 import org.tensorflow.types.TFloat32;
-
-import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.ToIntFunction;
 import java.util.stream.IntStream;
 
-import static bacmman.processing.ResizeUtils.getSizeZ;
-
 public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(TF2engine.class);
-
+    public final static Logger loaderLog = LoggerFactory.getLogger(org.bytedeco.javacpp.Loader.class);
     @Override
     public void configureFromMetadata(DLModelMetadata metadata) {
         if (!metadata.getInputs().get(0).is3D()) zAxis.setValue(Z_AXIS.BATCH); // TODO what if several inputs ?
@@ -54,15 +47,6 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     @Override
     public synchronized void init() {
         if (model==null) {
-            /*tensorflow.TF_RegisterLogListener(new Listener_String());
-            PrintStream stdout = System.out;
-            System.setOut(new PrintStream(System.out) {
-                public void println(String s) {
-                    super.println(s);
-                    logger.info(s);
-                    GUI.log(s);
-                }
-            });*/
             model = SavedModelBundle.load(modelFile.getModelFile().getAbsolutePath(), "serve");
             Signature s = model.function("serving_default").signature();
             //System.setOut(stdout);
