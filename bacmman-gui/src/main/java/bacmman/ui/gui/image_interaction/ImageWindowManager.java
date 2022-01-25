@@ -81,7 +81,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public static Color getColor() {
         return Palette.getColor(150, trackErrorColor, trackCorrectionColor);
     }
-    protected final Map<SegmentedObject, Color> trackColor = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(t -> getColor());
+    protected final Map<SegmentedObject, Color> trackColor = new HashMapGetCreate.HashMapGetCreateRedirected<>(t -> getColor());
     public Color getColor(SegmentedObject trackHead) {
         return trackColor.get(trackHead.getTrackHead());
         //return Palette.getColor(0, SegmentedObjectUtils.getIndexTree(trackHead.getTrackHead()));

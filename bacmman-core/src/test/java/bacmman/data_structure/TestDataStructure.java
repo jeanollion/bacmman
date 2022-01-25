@@ -34,6 +34,7 @@ import bacmman.image.ImageByte;
 import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.List;
 
@@ -72,7 +73,7 @@ public class TestDataStructure {
     }
 
     @Test
-    public void StructureObjectTestStore() {
+    public void StructureObjectTestStore() throws IOException {
         MasterDAO db = generateDB(MasterDAOFactory.DAOType.DBMap);
         Experiment xp = new Experiment("test");
         xp.setImportImageMethod(Experiment.IMPORT_METHOD.SINGLE_FILE);
@@ -104,7 +105,7 @@ public class TestDataStructure {
     }
 
     @Test
-    public void StructureObjectTest() {
+    public void StructureObjectTest() throws IOException {
         MasterDAO db = generateDB(MasterDAOFactory.DAOType.DBMap);
         
         // set-up experiment structure

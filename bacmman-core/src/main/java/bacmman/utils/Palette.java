@@ -39,7 +39,8 @@ public class Palette implements Cloneable {
 	
         private final static Palette palette = Palette.makeDefaultPalette(Palette.Spectrum);
         //private final static Random r = new Random();
-        public static double increment = 1d/25.5d;
+        public static double increment = 1d/17d;
+		public static double increment2 = 1d/13d;
         public static double currentColorIdx = 0;
 		public static Color getColorFromDouble(double position) {
 			return palette.getColor(position);
@@ -47,7 +48,7 @@ public class Palette implements Cloneable {
         public static synchronized Color getColor(int transparency, Color... avoidColors) {
             Color c = getCol();
             if (avoidColors.length>0) {
-                while (getMinDist(c, avoidColors)<4*increment) {c = getCol();}
+                while (getMinDist(c, avoidColors)<increment) {c = getCol();}
             }
             if (transparency<255 && transparency>0) c = setTransparency(c, transparency);
             return c;
@@ -67,7 +68,7 @@ public class Palette implements Cloneable {
         private static Color getCol() {
             Color c = palette.getColor(currentColorIdx);
             currentColorIdx+=increment;
-            if (currentColorIdx>1) currentColorIdx-=1;
+            if (currentColorIdx>1) currentColorIdx-=1-increment2;
             return c;
         }
         private static double getMinDist(Color c, Color... otherColors) {
@@ -156,7 +157,6 @@ public class Palette implements Cloneable {
         public static final String HotCold = "HotCold";
         public static final String Fire = "Fire";
 	/**
-	 * Creates one of the built-in palettes used in the Mandelbrot program.
 	 * @param paletteName The name of the palette.  Must be one of "Spectrum",
 	 * "PaleSpectrum", "Grayscale", "CyclicGrayscale", "CyclicRedCyan",
 	 * "EarthSky", "HotCold", or "Fire".

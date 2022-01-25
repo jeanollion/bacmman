@@ -48,7 +48,7 @@ public class TestTrackStructure {
     public TemporaryFolder testFolder = new TemporaryFolder();
     
     @Test
-    public void testTrackStructure() {
+    public void testTrackStructure() throws IOException {
         testTrackStructure(DAOType.DBMap);
     }
 
@@ -62,7 +62,7 @@ public class TestTrackStructure {
         t.testTrackStructure();
     }*/
     
-    public void testTrackStructure(DAOType daoType) {
+    public void testTrackStructure(DAOType daoType) throws IOException {
         MasterDAO masterDAO = MasterDAOFactory.createDAO("testTrack", testFolder.newFolder("testTrack").getAbsolutePath(), daoType);
         masterDAO.setConfigurationReadOnly(false);
         Experiment xp = new Experiment("test");

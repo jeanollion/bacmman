@@ -31,6 +31,7 @@ import bacmman.image.io.ImageFormat;
 import bacmman.image.io.ImageWriter;
 import bacmman.image.TypeConverter;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 
 import static org.junit.Assert.assertEquals;
@@ -77,7 +78,7 @@ public class ProcessingTest {
     }*/
 
     @Test
-    public void importFieldTest() {
+    public void importFieldTest() throws IOException {
         // creation de l'image de test
         String title = "imageTestMultiple";
         ImageFormat format = ImageFormat.OMETIF;
@@ -106,7 +107,7 @@ public class ProcessingTest {
     }
     
     @Test
-    public void testImportFieldKeyWord() {
+    public void testImportFieldKeyWord() throws IOException {
         // creation de l'image de test
         String title = "imageTestMultiple";
         ImageFormat format = ImageFormat.OMETIF;
@@ -140,7 +141,7 @@ public class ProcessingTest {
     }
     
     @Test
-    public void preProcessingTest() {
+    public void preProcessingTest() throws IOException {
         // set-up XP
         File daoFolder = testFolder.newFolder("TestPreProcessingDAOFolder");
         Experiment xp = new Experiment("test");

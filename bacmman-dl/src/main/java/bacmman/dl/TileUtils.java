@@ -65,23 +65,33 @@ public class TileUtils {
         return res;
     }
 
-    public static void mergeTiles(Image[][] targetNC, Image[][] tilesNtC, int[] minOverlapXYZ) {
+    public static void mergeTiles(Image[][] targetNC, Image[][] tilesNtC, int[] minOverlapXYZ, boolean padding) {
         int nTiles = tilesNtC.length / targetNC.length;
         Image[] tiles = new Image[nTiles];
         for (int n = 0; n<targetNC.length; ++n) {
             for (int c = 0; c<targetNC[n].length; ++c) {
                 int off = n*nTiles;
                 for (int t = 0; t < nTiles; ++t) tiles[t] = tilesNtC[off + t][c];
-                mergeTiles(targetNC[n][c], tiles, minOverlapXYZ);
+                mergeTiles(targetNC[n][c], tiles, minOverlapXYZ, padding);
             }
         }
     }
 
-    public static void mergeTiles(Image target, Image[] tiles, int[] minOverlapXYZ) {
+    public static void mergeTiles(Image target, Image[] tiles, int[] minOverlapXYZ, boolean padding) {
         //logger.debug("merge tiles target: {}", target.getBoundingBox());
         //for (Image t : tiles) logger.debug("tile: {}", t.getBoundingBox());
-        BoundingBox extend = minOverlapXYZ==null ? new MutableBoundingBox(0, 0, 0) :  new MutableBoundingBox(minOverlapXYZ[0]/2, -minOverlapXYZ[0]/2, minOverlapXYZ[1]/2, -minOverlapXYZ[1]/2, minOverlapXYZ.length>2 ? minOverlapXYZ[2]/2 : 0, minOverlapXYZ.length>2 ? -minOverlapXYZ[2]/2 : 0);
-        Map<Image, BoundingBox> tileView = Arrays.stream(tiles).collect(Collectors.toMap(Function.identity(),  tile -> tile.getBoundingBox().extend(extend).trim(target)));
+        BoundingBox defExtend = minOverlapXYZ==null ? new MutableBoundingBox(0, 0, 0) :  new MutableBoundingBox(minOverlapXYZ[0]/2, -minOverlapXYZ[0]/2, minOverlapXYZ[1]/2, -minOverlapXYZ[1]/2, minOverlapXYZ.length>2 ? minOverlapXYZ[2]/2 : 0, minOverlapXYZ.length>2 ? -minOverlapXYZ[2]/2 : 0);
+        Function<Image, BoundingBox> getExtend = padding ? t->defExtend : tile -> {
+            MutableBoundingBox res = new MutableBoundingBox(defExtend);
+            if (tile.xMin()==target.xMin()) res.setxMin(0);
+            if (tile.xMax()==target.xMax()) res.setxMax(0);
+            if (tile.yMin()==target.yMin()) res.setyMin(0);
+            if (tile.yMax()==target.yMax()) res.setyMax(0);
+            if (tile.zMin()==target.zMin()) res.setzMin(0);
+            if (tile.zMax()==target.zMax()) res.setzMax(0);
+            return res;
+        };
+        Map<Image, BoundingBox> tileView = Arrays.stream(tiles).collect(Collectors.toMap(Function.identity(),  tile -> tile.getBoundingBox().extend(getExtend.apply(tile)).trim(target)));
         Map<Integer, List<Image>> tilesPerX = Arrays.stream(tiles).collect(Collectors.groupingBy(SimpleBoundingBox::xMin));
         int[] x = tilesPerX.keySet().stream().sorted().mapToInt(i->i).toArray();
         Image[][][] tilesXYZ = new Image[x.length][][];

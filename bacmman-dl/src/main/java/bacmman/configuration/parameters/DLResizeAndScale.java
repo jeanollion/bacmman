@@ -99,6 +99,14 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         outputScaling.addValidationFunction(list -> list.getChildCount()==outputNumber.getAsInt());
         return this;
     }
+    public DLResizeAndScale setInterpolationForOutput(InterpolationParameter interpolation, int... outputIdx) {
+        if (noReverseScaling) {
+            for (int idx : outputIdx) outputInterpAndScaling.getChildAt(idx).setContentFrom(interpolation);
+        } else {
+            for (int idx : outputIdx) ((GroupParameter)outputInterpAndScaling.getChildAt(idx)).getChildAt(0).setContentFrom(interpolation);
+        }
+        return this;
+    }
     public DLResizeAndScale setMinInputNumber(int min) {
         inputInterpAndScaling.setUnmutableIndex(min-1);
         if (inputInterpAndScaling.getChildCount()<min) inputInterpAndScaling.setChildrenNumber(min);
@@ -156,7 +164,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public DLResizeAndScale setScaler(int inputIdx, HistogramScaler scaler) {
         inputScaling.getChildAt(inputIdx).setPlugin(scaler);
-        ((PluginParameter<HistogramScaler>)inputInterpAndScaling.getChildAt(inputIdx).getChildAt(1)).setPlugin(scaler);
+        inputInterpAndScaling.getChildAt(inputIdx).getParam2().setPlugin(scaler);
         return this;
     }
 
@@ -207,7 +215,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         List<DLModelMetadata.DLModelOutputParameter> outputs = metadata.getOutputs();
         contraction.setValue(metadata.getContraction());
         if (inputs.get(0).fixedSize()) {
-            getActionableParameter().setValue(MODE.RESAMPLE);
+            if (getActionableParameter().getValue().equals(MODE.SCALE_ONLY)) getActionableParameter().setValue(MODE.TILE);
             targetShape.setValue(inputs.get(0).getShape());
         } else {
             targetShape.setValue(inputs.get(0).is3D() ? new int[]{0,0,0}: new int[]{0,0});
@@ -294,7 +302,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         logger.debug("Target shape: {}", Utils.toStringArray(shape));
         return shape;
     }
-    public Image[][][] predict(DLengine engine, Image[][][] inputINC) {
+    public Image[][][] predict(DLengine engine, Image[][]... inputINC) {
         Triplet<Image[][][], int[][][], HistogramScaler[]> in = getNetworkInput(inputINC);
         Image[][][] out = engine.process(in.v1);
         return processPrediction(out, in);
@@ -358,6 +366,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
     }
     private int getOutputScalerIndex(boolean resample, int outputIdx) {
+        if (noReverseScaling) return -1;
         if (!resample) {
             if (outputScaling.getChildCount()>outputIdx) {
                 Parameter p = outputScaling.getChildAt(outputIdx);
@@ -366,7 +375,6 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 } else return ((NumberParameter)p).getValue().intValue();
             } else return -1;
         } else {
-            if (noReverseScaling) return -1;
             GroupParameter params = (GroupParameter) outputInterpAndScaling.getChildAt(outputIdx);
             if (inputInterpAndScaling.getMaxChildCount()==1) {
                 return ((BooleanParameter)params.getChildAt(1)).getSelected() ? 0 : -1;
@@ -416,7 +424,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                     for (int n = 0; n<predictionsONC[i].length; ++n) {
                         for (int c = 0; c<predictionsONC[i][n].length; ++c) predictionsONC[i][n][c].resetOffset().translate(input.v1[scalerIndex>=0?scalerIndex:0][n][0]);
                     }
-                    outputONC[i] = scaleAndTileReverse(input.v2[scalerIndex>=0?scalerIndex:0], predictionsONC[i], scalerIndex>=0 ? input.v3[scalerIndex] : null, minOverlapXYZ);
+                    outputONC[i] = scaleAndTileReverse(input.v2[scalerIndex>=0?scalerIndex:0], predictionsONC[i], scalerIndex>=0 ? input.v3[scalerIndex] : null, minOverlapXYZ, padTiles.getSelected());
                 }
                 return outputONC;
         }
@@ -520,7 +528,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
      * @param minOverlap
      * @return {@param targetNC} for convinience
      */
-    public static Image[][] scaleAndTileReverse(int[][] targetShape, Image[][] predNtC, HistogramScaler scaler, int[] minOverlap) {
+    public static Image[][] scaleAndTileReverse(int[][] targetShape, Image[][] predNtC, HistogramScaler scaler, int[] minOverlap, boolean padding) {
         if (scaler!=null){
             scaler.transformInputImage(true);
             IntStream.range(0, predNtC.length).parallel().forEach(i -> IntStream.range(0, predNtC[i].length).forEach(j -> predNtC[i][j] = scaler.reverseScale(predNtC[i][j]) ));
@@ -531,7 +539,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                         .mapToObj(c -> Image.createEmptyImage("", predNtC[i][c], new SimpleImageProperties(new SimpleBoundingBox(0, targetShape[i][0]-1, 0, targetShape[i][1]-1, 0, targetShape[i].length>2 ? (target2DC[c]?0:targetShape[i][2]-1): 0), predNtC[i][c].getScaleXY(), predNtC[i][c].getScaleZ())
                         )).toArray(Image[]::new)
                 ).toArray(Image[][]::new);
-        TileUtils.mergeTiles(targetNC, predNtC, minOverlap);
+        TileUtils.mergeTiles(targetNC, predNtC, minOverlap, padding);
         return targetNC;
     }
     @Override
