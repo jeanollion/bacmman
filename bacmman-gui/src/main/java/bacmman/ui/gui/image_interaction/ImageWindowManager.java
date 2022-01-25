@@ -237,12 +237,12 @@ public abstract class ImageWindowManager<I, U, V> {
             GUI.logger.error("cannot get image if IOI null");
             return null;
         }
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i instanceof Kymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.SINGLE_FRAME, i.childStructureIdx));
+        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, i.getKey());
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
     public Image getImage(InteractiveImage i, int displayStructureIdx) {
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, new InteractiveImageKey(i.parents, i instanceof Kymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.SINGLE_FRAME, displayStructureIdx));
+        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, i.getKey().getKey(displayStructureIdx));
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
@@ -252,7 +252,7 @@ public abstract class ImageWindowManager<I, U, V> {
         if (b) displayedInteractiveImages.add(image);
     }
     
-    public void addImage(Image image, InteractiveImage i, boolean displayImage) {
+    public void addImage(Image image, InteractiveImage i, int displayOCIdx, boolean displayImage) {
         if (image==null) return;
         GUI.logger.debug("adding image: {}, IOI {} exists: {} ({}), displayed OC: {}", image.getName(), i.getKey(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));
         /*if (!imageObjectInterfaces.containsValue(i)) {
@@ -261,12 +261,11 @@ public abstract class ImageWindowManager<I, U, V> {
         }*/
         imageObjectInterfaces.put(i.getKey(), i);
         //T dispImage = getImage(image);
-        imageObjectInterfaceMap.put(image, i.getKey());
+        imageObjectInterfaceMap.put(image, i.getKey().getKey(displayOCIdx));
         if (displayImage) {
             displayImage(image, i);
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
         }
-        
     }
     public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k);
     public void registerHyperStack(Image image, HyperStack i) {
@@ -445,20 +444,24 @@ public abstract class ImageWindowManager<I, U, V> {
     } 
     
     public InteractiveImage getCurrentImageObjectInterface() {
-        I current = getDisplayer().getCurrentImage();
-        if (current!=null) {
-            //RegisteredImageType type = this.getRegisterType(current);
-            Image im = getDisplayer().getImage(current);
-            if (im!=null) {
-                return getImageObjectInterface(im);
-            }
-        }
-        return null;
+        return getImageObjectInterface(null);
     }
     public InteractiveImageKey getImageObjectInterfaceKey(Image image) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage2();
+            if (image==null) {
+                return null;
+            }
+        }
         return imageObjectInterfaceMap.get(image);
     }
     public InteractiveImage getImageObjectInterface(Image image) {
+        if (image==null) {
+            image = getDisplayer().getCurrentImage2();
+            if (image==null) {
+                return null;
+            }
+        }
         InteractiveImageKey key = imageObjectInterfaceMap.get(image);
         if (key==null) return null;
         return getImageObjectInterface(image, interactiveStructureIdx, key.imageType);

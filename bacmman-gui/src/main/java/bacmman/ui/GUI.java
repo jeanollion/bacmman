@@ -2829,7 +2829,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             InteractiveImageKey key = ImageWindowManagerFactory.getImageManager().getImageObjectInterfaceKey(ImageWindowManagerFactory.getImageManager().getDisplayer().getCurrentImage2());
             int currentImageStructure = key ==null ? i.getChildStructureIdx() : key.interactiveObjectClass;
             idx += (next ? 1 : -1) ;
-            logger.debug("current inter object class: {}, current image child: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure);
+            logger.debug("current inter object class: {}, current image child: {}, interactive image type: {}",interactiveStructure.getSelectedIndex()-1, currentImageStructure, i.getKey().imageType);
             if (siblings.size()==idx || idx<0) { // next position
                 List<String> positions = Arrays.asList(db.getExperiment().getPositionsAsString());
                 Function<String, Pair<String, SegmentedObject>> getNextPositionAndParent = curPosition -> {
@@ -2853,10 +2853,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {
-                if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure);
-                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, true);
-            }
-            else ImageWindowManagerFactory.getImageManager().setActive(im);
+                if (InteractiveImageKey.TYPE.HYPERSTACK.equals(i.getKey().imageType)) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure);
+                else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
+            } else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
     }
     private int navigateCount = 0;
@@ -2955,7 +2954,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 Image im = iwm.getImage(nextI);
                 if (im==null) {
                     if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, sel.getStructureIdx());
-                    else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, true);
+                    else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
                 List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(nextI.getObjects(), sel.getElementStrings(position)));

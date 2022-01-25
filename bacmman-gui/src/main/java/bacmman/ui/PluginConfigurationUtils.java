@@ -440,7 +440,7 @@ public class PluginConfigurationUtils {
             getIOI = i -> res.key;
             getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), res.value.size()+1));
             res.value.forEach((image) -> {
-                iwm.addImage(image, res.key, true);
+                iwm.addImage(image, res.key, -1, true);
                 iwm.addTestData(image, stores.values());
             });
         } else {

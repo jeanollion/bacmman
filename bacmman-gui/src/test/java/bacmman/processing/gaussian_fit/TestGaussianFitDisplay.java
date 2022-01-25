@@ -57,7 +57,7 @@ public class TestGaussianFitDisplay {
         accessor.setChildren(parent, children, 0);
         InteractiveImage i = new SimpleInteractiveImage(parent, 0);
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        iwm.addImage(im, i, true);
+        iwm.addImage(im, i, 0, true);
     }
 
     private static SegmentedObjectAccessor getAccessor() {
