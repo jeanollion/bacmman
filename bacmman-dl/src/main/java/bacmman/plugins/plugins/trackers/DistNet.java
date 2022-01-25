@@ -42,7 +42,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_div_dy_np = predict(objectClassIdx, parentTrack, trackPreFilters);
         if (stores!=null && edm_div_dy_np[1]!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) edm_div_dy_np[1].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
-        segment(objectClassIdx, parentTrack, edm_div_dy_np[0], edm_div_dy_np[2], postFilters, factory);
+        segment(objectClassIdx, parentTrack, edm_div_dy_np[0], postFilters, factory);
         track(objectClassIdx, parentTrack ,edm_div_dy_np[2], edm_div_dy_np[3], edm_div_dy_np[1], edm_div_dy_np[0], editor, factory);
     }
 
@@ -167,7 +167,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         return new Map[]{edmM, divM, dyM, npM};
     }
 
-    public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
+    public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores!=null);
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
         TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instantiatePlugin());
@@ -484,7 +484,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
                     if (divMap.containsKey(prev)) { // compute size of all next objects
                         growthrate = divMap.get(prev).stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(next)) {
-                        growthrate = Double.NaN; // growth rate cannot be computes bacteria are partly out of the channel
+                        growthrate = Double.NaN; // growth rate cannot be computed bacteria are partly out of the channel
                     } else {
                         growthrate = sizeMap.get(next) / sizeMap.get(prev);
                         if (next.equals(last) && growthrate<growthRateRange[0]) { // one of the daugther cell is out ? check that distance to end of channel is short
