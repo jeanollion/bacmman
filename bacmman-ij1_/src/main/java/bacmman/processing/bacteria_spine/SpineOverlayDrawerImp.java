@@ -37,29 +37,33 @@ import java.awt.Color;
  *
  * @author Jean Ollion
  */
-public class SpineOverlayDrawer {
-    public static Line drawLine(Point start, Vector dir, Color color, double width) {
+public class SpineOverlayDrawerImp implements SpineOverlayDrawer {
+    @Override
+    public Line drawLine(Point start, Vector dir, String color, double width) {
         Line l = new Line(start.get(0), start.get(1), start.get(0)+dir.get(0), start.get(1)+dir.get(1));
-        l.setStrokeColor(color);
+        l.setStrokeColor(Color.getColor(color));
         l.setStrokeWidth(width);
         return l;
     }
-    public static Arrow drawArrow(Point start, Vector dir, Color color, double width) {
+    @Override
+    public Arrow drawArrow(Point start, Vector dir, String color, double width) {
         Arrow l = new Arrow(start.get(0), start.get(1), start.get(0)+dir.get(0), start.get(1)+dir.get(1));
-        l.setStrokeColor(color);
+        l.setStrokeColor(Color.getColor(color));
         l.setStrokeWidth(width);
         l.setHeadSize(width*3);
         return l;
     }
-    public static PointRoi drawPoint(Point point, Color color, double width, int size, int type) {
+    @Override
+    public PointRoi drawPoint(Point point, String color, double width, int size, int type) {
         PointRoi p = new PointRoi(new float[]{point.get(0)}, new float[]{point.get(1)});
-        p.setStrokeColor(color);
+        p.setStrokeColor(Color.getColor(color));
         p.setStrokeWidth(width);
         p.setPointType(type);
         p.setSize(size);
         return p;
     }
-    public static Overlay getSpineOverlay(BacteriaSpineFactory.SpineResult s, Offset offset, Color color, Color contourColor, double width) {
+    @Override
+    public Overlay getSpineOverlay(BacteriaSpineFactory.SpineResult s, Offset offset, String color, String contourColor, double width) {
         Overlay res = new Overlay();
         // draw contour
         if (contourColor!=null) {
@@ -88,31 +92,34 @@ public class SpineOverlayDrawer {
         return res;
     }
     static final IJImageDisplayer DISP = new IJImageDisplayer();
-    public static void display(String title, ImageMask image, Overlay overlay) {
+    @Override
+    public void display(String title, ImageMask image, Object overlay) {
         Image im = TypeConverter.toByteMask(image, null, 1).setName(title);
         ImagePlus ip = DISP.showImage(im);
-        ip.setOverlay(overlay);
+        ip.setOverlay((Overlay)overlay);
     }
-    public static void display(String title, Image image, Overlay overlay) {
+    @Override
+    public void display(String title, Image image, Object overlay) {
         image.setName(title);
         ImagePlus ip = DISP.showImage(image);
-        ip.setOverlay(overlay);
+        ip.setOverlay((Overlay)overlay);
     }
-    public static BacteriaSpineFactory.SpineResult trimSpine(BacteriaSpineFactory.SpineResult spine, double keepProp) {
+    @Override
+    public BacteriaSpineFactory.SpineResult trimSpine(BacteriaSpineFactory.SpineResult spine, double keepProp) {
         int finalSize = (int)Math.max(3, (int)spine.spine.length * keepProp);
         PointContainer2<Vector, Double>[] newSpine = new PointContainer2[finalSize];
         for (int i = 0; i<finalSize; ++i) newSpine[i] = spine.spine[(int) (i* (spine.spine.length-1)/(double)(finalSize-1)+0.5)];
         return new BacteriaSpineFactory.SpineResult().setSpine(newSpine).setCircContour(spine.circContour);
     }
-
-    public static void drawArrow(Overlay overlay, Offset offset, Point p1, Point p2, Color color, double width) {
+    @Override
+    public void drawArrow(Object overlay, Offset offset, Point p1, Point p2, String color, double width) {
         if (p1==null || p2==null) return;
-        overlay.add(SpineOverlayDrawer.drawArrow(p1.duplicate().translateRev(offset), Vector.vector(p1, p2), color, width));
+        ((Overlay)overlay).add(drawArrow(p1.duplicate().translateRev(offset), Vector.vector(p1, p2), color, width));
     }
-
-    public static void drawPoint(Overlay overlay, Offset offset, Point p, Color color, double width) {
+    @Override
+    public void drawPoint(Object overlay, Offset offset, Point p, String color, double width) {
         if (p==null) return;
-        overlay.add(SpineOverlayDrawer.drawPoint(p.duplicate().translateRev(offset), color, width, 1, 2));
+        ((Overlay)overlay).add(drawPoint(p.duplicate().translateRev(offset), color, width, 1, 2));
     }
 
 }

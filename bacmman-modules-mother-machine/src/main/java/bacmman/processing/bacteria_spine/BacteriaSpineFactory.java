@@ -553,7 +553,7 @@ public class BacteriaSpineFactory {
     
     public static <T extends RealLocalizable> Image drawSpine(BoundingBox bounds, PointContainer2<Vector, Double>[] spine, CircularNode<T> circularContour, int zoomFactor, boolean drawDistance) { 
         boolean spineDirIdx = false;
-        if (zoomFactor%2==0) throw new IllegalArgumentException("Zoom Factory should be uneven");
+        if (zoomFactor%2==0) throw new IllegalArgumentException("Zoom Factor should be uneven");
         ImageProperties props = new SimpleImageProperties(new SimpleBoundingBox(0, bounds.sizeX()*zoomFactor-1, 0, bounds.sizeY()*zoomFactor-1, 0, 0), 1, 1);
         Image spineImage = drawDistance ? new ImageFloat("", props) : new ImageByte("", props);
         spineImage.translate(bounds);

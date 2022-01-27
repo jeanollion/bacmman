@@ -21,11 +21,13 @@ package bacmman.plugins.plugins.trackers;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
+import bacmman.image.Image;
 import bacmman.plugins.*;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
 import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
+import bacmman.processing.bacteria_spine.SpineOverlayDrawer;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.MultipleException;
 import bacmman.utils.Pair;
@@ -304,6 +306,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         // DISPLAY SPINE ON TEST IMAGE THROUGH RIGHT-CLICK
         if (stores!=null) {
             BiConsumer<List<SegmentedObject>, Boolean> displayDistance =  (l, drawDistances) -> {
+                logger.debug("display Spine action");
                 if (l.size()==2 && l.get(0).getStructureIdx()==structureIdx && l.get(1).getStructureIdx()==structureIdx) {
                     Collections.sort(l);
                     SegmentedObject b1 = mutationMapParentBacteria.get(l.get(0).getRegion());
@@ -316,6 +319,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                         Core.userLog("bacteria spine localizer not computable for bacteria: " + b1);
                         return;
                     }
+                    logger.debug("spine1: bact contour: {}, skeleton size: {}, circontour: {}", b1.getRegion().getContour().size(), bsl1.spine.skeleton==null?"null": bsl1.spine.skeleton.size(),  bsl1.spine.contour==null?"null":bsl1.spine.contour.size());
                     bsl1.setTestMode(true);
                     if ( l.get(0).getRegion().getCenter()==null)  l.get(0).getRegion().setCenter( l.get(0).getRegion().getGeomCenter(false).translate(l.get(0).getBounds()));
                     if ( l.get(1).getRegion().getCenter()==null)  l.get(1).getRegion().setCenter( l.get(1).getRegion().getGeomCenter(false).translate(l.get(1).getBounds()));
@@ -334,30 +338,30 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                     }
                     
                     logger.info("spot: {} center: {}, bact coords: {} (other : {})", l.get(1), l.get(1).getRegion().getCenter().duplicate().translateRev(l.get(1).getBounds()), bsl2.getSpineCoord(l.get(1).getRegion().getCenter()));
-                    // TODO provide a method to draw spine when called from IJ1
+
                     // draw source with point
                     SegmentedObject mc1 = b1.getParent();
                     BacteriaSpineCoord coord = bsl1.getSpineCoord(l.get(0).getRegion().getCenter());
-                    //Overlay spineSource = SpineOverlayDrawer.getSpineOverlay(SpineOverlayDrawer.trimSpine(bsl1.spine, 0.3), mc1.getBounds(), Color.BLUE, Color.YELLOW, 0.5);
-                    //SpineOverlayDrawer.drawPoint(spineSource, mc1.getBounds(), l.get(0).getRegion().getCenter(), Color.ORANGE, 2);
-                    
+                    SpineOverlayDrawer drawer = SpineOverlayDrawer.get();
                     // draw dest with point
                     SegmentedObject mc2 = b2.getParent();
                     BacteriaSpineCoord coord2 = bsl2.getSpineCoord(l.get(1).getRegion().getCenter());
-                    //Overlay spineDest = SpineOverlayDrawer.getSpineOverlay(SpineOverlayDrawer.trimSpine(bsl2.spine, 0.3), mc2.getBounds(), Color.BLUE, Color.YELLOW, 0.5);
-                    //SpineOverlayDrawer.drawPoint(spineDest, mc2.getBounds(), l.get(1).getRegion().getCenter(), new Color(0, 150, 0), 2);
-                    
+
                     // actual projection
                     distParams.includeLQ = true;
                     NestedSpot s1 = new NestedSpot(l.get(0).getRegion(), b1, localizerMap, distParams);
                     NestedSpot s2 = new NestedSpot(l.get(1).getRegion(), b2, localizerMap, distParams);
                     Point proj = project(l.get(0).getRegion().getCenter(), b1, b2, distParams.projectionType, localizerMap, true);
-                    //SpineOverlayDrawer.drawPoint(spineDest, mc2.getBounds(), proj, Color.ORANGE, 2);
-                    
-                    // display
-                    //SpineOverlayDrawer.display("Source", mc1.getRawImage(l.get(0).getStructureIdx()), spineSource);
-                    //SpineOverlayDrawer.display("Destination", mc2.getRawImage(l.get(0).getStructureIdx()), spineDest);
-                    
+
+                    if (drawer!=null) {
+                        Object spineDest = drawer.getSpineOverlay(drawer.trimSpine(bsl2.spine, 0.3), mc2.getBounds(), "blue", "yellow", 0.5);
+                        drawer.drawPoint(spineDest, mc2.getBounds(), l.get(1).getRegion().getCenter(), "green", 2);
+                        drawer.drawPoint(spineDest, mc2.getBounds(), proj, "orange", 2);
+                        Object spineSource = drawer.getSpineOverlay(drawer.trimSpine(bsl1.spine, 0.3), mc1.getBounds(), "blue", "yellow", 0.5);
+                        drawer.drawPoint(spineSource, mc1.getBounds(), l.get(0).getRegion().getCenter(), "orange", 2);
+                        drawer.display("Source", mc1.getRawImage(l.get(0).getStructureIdx()), spineSource);
+                        drawer.display("Destination", mc2.getRawImage(l.get(0).getStructureIdx()), spineDest);
+                    }
                     // also add to object attributes
                     l.get(0).setAttribute("Curvilinear Coordinate", coord==null? "could not be computed": MeasurementExtractor.numberFormater.apply(coord.curvilinearCoord(false))+"/"+ MeasurementExtractor.numberFormater.apply(coord.spineLength()));
                     l.get(0).setAttribute("Radial Coordinate", coord==null? "could not be computed": MeasurementExtractor.numberFormater.apply(coord.radialCoord(false))+"/"+ MeasurementExtractor.numberFormater.apply(coord.spineRadius()));
@@ -378,25 +382,22 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                         Core.userLog("Point could not be projected");
                         logger.info("Point could not be projected");
                     }
-                    
                     /*
+                    int verboseZoomFactor  =  3;
                     Image spine1 = bsl1.spine.drawSpine(verboseZoomFactor, drawDistances).setName("Source Spine: "+b1);
                     BacteriaSpineLocalizer.drawPoint(l.get(0).getRegion().getCenter(), spine1, verboseZoomFactor, 1000);
                     spine1.setCalibration(spine1.getScaleXY() * l.get(0).getScaleXY(), 1);
-                    ImageWindowManagerFactory.showImage(spine1);
+                    Core.showImage(spine1);
                     Image spine2 = bsl2.spine.drawSpine(verboseZoomFactor, drawDistances).setName("Destination Spine: "+b2);
                     BacteriaSpineLocalizer.drawPoint(l.get(1).getRegion().getCenter(), spine2, verboseZoomFactor, 1001);
                     spine2.setCalibration(spine2.getScaleXY() * l.get(0).getScaleXY(), 1);
-                    
-                    NestedSpot s1 = new NestedSpot(l.get(0).getRegion(), b1, localizerMap, distParams);
-                    NestedSpot s2 = new NestedSpot(l.get(1).getRegion(), b2, localizerMap, distParams);
-                    Point proj = project(l.get(0).getRegion().getCenter(), b1, b2, distParams.projectionType, localizerMap, true);
+
                     if (proj!=null) {
                         BacteriaSpineLocalizer.drawPoint(proj, spine2, verboseZoomFactor, 1000);
                         logger.info("Dist {} -> {}: {} ({})", l.get(0), l.get(1), proj.dist(l.get(1).getRegion().getCenter()) * l.get(0).getScaleXY(), Math.sqrt(tmi.objectSpotMap.get(l.get(0).getRegion()).squareDistanceTo(tmi.objectSpotMap.get(l.get(1).getRegion()))));
                     } else logger.info("Could not project point");
                     
-                    ImageWindowManagerFactory.showImage(spine2);
+                    Core.showImage(spine2);
                     */
                     
                 }
