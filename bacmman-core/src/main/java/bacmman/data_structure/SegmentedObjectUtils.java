@@ -36,9 +36,13 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.StreamConcatenation;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.stream.Stream;
 
 /**
@@ -46,8 +50,14 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class SegmentedObjectUtils {
-    public static void enshureContinuousTrack(List<SegmentedObject> track) {
-        if (!Utils.objectsAllHaveSameProperty(track, so->so.getTrackHead())) throw new IllegalArgumentException("Cannot enshure continuous track for list of objects from different tracks");
+    final static Logger logger = LoggerFactory.getLogger(SegmentedObjectUtils.class);
+    public static void ensureContinuousTrack(List<SegmentedObject> track) {
+        if (!Utils.objectsAllHaveSameProperty(track, SegmentedObject::getTrackHead)) {
+            List<SegmentedObject> th = track.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
+            String thS = Utils.toStringList(th);
+            logger.debug("Error ensure continuous track: #{} th found: {}", th.size(), thS);
+            throw new IllegalArgumentException("Cannot ensure continuous track for list of objects from different tracks");
+        }
         int idx = 0;
         while (idx<track.size()-1) {
             if (track.get(idx).getFrame()<track.get(idx+1).getFrame()-1) {

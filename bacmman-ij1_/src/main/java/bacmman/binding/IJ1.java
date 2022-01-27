@@ -117,7 +117,7 @@ public class IJ1 implements PlugIn {
                     //((Logger)LoggerFactory.getLogger(FormatHandler.class)).setLevel(Level.OFF);
                     System.setProperty("scijava.log.level", "error");
                     System.setProperty("org.bytedeco.javacpp.logger", "slf4j");
-
+                    org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
                     // TODO find other IJ1&2 plugins & ops...
                     initCore();
                     GUI gui = new GUI();

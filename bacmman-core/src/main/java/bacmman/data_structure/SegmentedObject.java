@@ -601,7 +601,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     public SegmentedObject resetTrackHead(boolean propagate) {
         trackHeadId=null;
         trackHead=null;
-        isTrackHead = previousId==null;
+        isTrackHead = previousId==null || !this.id.equals(getPrevious().nextId);
         getTrackHead();
         if (propagate) {
             SegmentedObject n = this;

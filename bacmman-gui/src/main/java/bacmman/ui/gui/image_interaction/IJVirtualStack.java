@@ -144,9 +144,9 @@ public class IJVirtualStack extends VirtualStack {
         IJVirtualStack s = new IJVirtualStack(planes0[0].sizeX(), planes0[0].sizeY(), maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
+        s.setImagePlus(ip);
         ip.setStack(s, channels,maxZ, frames);
         if (maxZ>1) ip.setZ(maxZ/2+1);
-        s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();
         cal.pixelWidth=planes0[0].getScaleXY();
@@ -187,9 +187,9 @@ public class IJVirtualStack extends VirtualStack {
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
         ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? "HyperStack of Track: "+parentTrack.get(0).toStringShort(): interactiveImage.getName());
+        s.setImagePlus(ip);
         ip.setStack(s, channels,maxZ, frames);
         if (maxZ>1) ip.setZ(maxZ/2+1);
-        s.setImagePlus(ip);
         ip.setOpenAsHyperStack(true);
         Calibration cal = new Calibration();
         cal.pixelWidth=planes0[0].getScaleXY();

@@ -20,6 +20,7 @@ package bacmman.processing.clustering;
 
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Objects;
 
 /**
  *
@@ -114,10 +115,10 @@ public abstract class InterfaceImpl<E, T extends Interface<E, T>> implements Int
                 return false;
             }
             final InterfaceImpl other = (InterfaceImpl) obj;
-            if (this.e1 != other.e1 && (this.e1 == null || !this.e1.equals(other.e1))) {
+            if (!Objects.equals(this.e1, other.e1)) {
                 return false;
             }
-            if (this.e2 != other.e2 && (this.e2 == null || !this.e2.equals(other.e2))) {
+            if (!Objects.equals(this.e2, other.e2)) {
                 return false;
             }
             return true;

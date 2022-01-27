@@ -446,7 +446,11 @@ public class PluginConfigurationUtils {
         } else {
             Map<String, HyperStack> map = buildIntermediateImagesHyperStack(stores.values(), parentStructureIdx, structureIdx);
             getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), map.size()+1));
-            Map<Image, HyperStack> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx), Map.Entry::getValue));
+            Map<Image, HyperStack> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> {
+                Image hook = IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx);
+                iwm.addTestData(hook, stores.values());
+                return hook;
+            }, Map.Entry::getValue));
             getIOI = hookMapIOI::get;
             dispImages = new ArrayList<>(hookMapIOI.keySet());
         }
@@ -590,7 +594,7 @@ public class PluginConfigurationUtils {
 
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s->(SegmentedObject)(s.parent).getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
-        SegmentedObjectUtils.enshureContinuousTrack(parents);
+        SegmentedObjectUtils.ensureContinuousTrack(parents);
         Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, false);
         List<Image> images = new ArrayList<>();
         allImageNames.forEach(name -> {
@@ -611,7 +615,7 @@ public class PluginConfigurationUtils {
         if (stores.isEmpty()) return null;
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s-> (s.parent).getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
-        SegmentedObjectUtils.enshureContinuousTrack(parents);
+        SegmentedObjectUtils.ensureContinuousTrack(parents);
         return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
             Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, true);
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();

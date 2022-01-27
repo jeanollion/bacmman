@@ -140,6 +140,6 @@ public class Roi3D extends HashMap<Integer, Roi> {
     }
     public static Stream<Voxel> roiToVoxels(Roi roi, int z) {
         FloatPolygon p = roi.getInterpolatedPolygon();
-        return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel(Math.round(p.xpoints[i]), Math.round(p.xpoints[i]), z));
+        return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel(Math.round(p.xpoints[i]), Math.round(p.ypoints[i]), z));
     }
 }

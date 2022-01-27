@@ -531,7 +531,7 @@ public class Region {
             for (Voxel v: getVoxels()) if (touchBorder(v.x, v.y, v.z, neigh, mask)) res.add(v);
             */
             for (Voxel v: getVoxels()) if (touchBorderVox(v, neigh)) res.add(v);
-        } else if (roi!=null && is2D()) {
+        } else if ( false && roi!=null && is2D()) {
             return roi.getContour(getBounds());
         } else {
             getMask();
@@ -794,8 +794,8 @@ public class Region {
     /**
      * Counts the overlap (in voxels) between this region and {@param other}, using masks of both region (no creation of voxels)
      * @param other other region
-     * @param offset offset to add to this region so that is would be in absolute landmark
-     * @param offsetOther offset to add to {@param other} so that is would be in absolute landmark
+     * @param offset offset to add to this region so that it would be in absolute landmark
+     * @param offsetOther offset to add to {@param other} so that it would be in absolute landmark
      * @return overlap (in voxels) between this region and {@param other}
      */
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
