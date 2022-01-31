@@ -136,10 +136,10 @@ public class Roi3D extends HashMap<Integer, Roi> {
         }
     }
     public Set<Voxel> getContour(Offset offset) {
-        return entrySet().stream().flatMap( e -> roiToVoxels(e.getValue(), e.getKey())).peek(v -> v.translate(offset)).collect(Collectors.toSet());
+        return entrySet().stream().flatMap( e -> roiToVoxels(e.getValue(), e.getKey())).peek(offset==null? v->{} : v -> v.translate(offset)).collect(Collectors.toSet());
     }
     public static Stream<Voxel> roiToVoxels(Roi roi, int z) {
-        FloatPolygon p = roi.getInterpolatedPolygon();
-        return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel(Math.round(p.xpoints[i]), Math.round(p.ypoints[i]), z));
+        FloatPolygon p = roi.getInterpolatedPolygon(1, false);
+        return IntStream.range(0, p.npoints).mapToObj(i -> new Voxel((int)(p.xpoints[i]), (int)(p.ypoints[i]), z));
     }
 }

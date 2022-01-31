@@ -203,12 +203,14 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     
     public ArrayList<SegmentedObject> createRootObjects(ObjectDAO dao) {
-        ArrayList<SegmentedObject> res = new ArrayList<>(getFrameNumber(false));
-        if (getMask()==null) {
+        int frameNumber = getFrameNumber(false);
+        ArrayList<SegmentedObject> res = new ArrayList<>(frameNumber);
+        BlankMask mask = getMask();
+        if (mask==null) {
             logger.info("Could not initiate root objects, perform preProcessing first");
             return null;
         }
-        for (int t = 0; t<getFrameNumber(false); ++t) res.add(dao.getMasterDAO().getAccess().createRoot(t, getMask(), dao));
+        for (int t = 0; t<frameNumber; ++t) res.add(dao.getMasterDAO().getAccess().createRoot(t, mask, dao));
         setOpenedImageToRootTrack(res, dao.getMasterDAO().getAccess());
         setTrackLinks(res);
         return res;
@@ -220,7 +222,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             List<Integer> structureIndices =c2s.get(channelIdx);
             final int cIdx = channelIdx;
             if (structureIndices==null) continue; // no structure associated to channel
-            rootTrack.parallelStream().filter(root -> inputImages.imageOpened(cIdx, root.getFrame())).forEach(root-> {
+            rootTrack.stream().filter(root -> inputImages.imageOpened(cIdx, root.getFrame())).forEach(root-> {
                 structureIndices.forEach((s) -> accessor.setRawImage(root, s, inputImages.getImage(cIdx, root.getFrame())));
             });
         }

@@ -3,6 +3,8 @@ package bacmman.image.io;
 import bacmman.utils.JSONSerializable;
 import org.json.simple.JSONObject;
 
+import java.util.List;
+
 public class OmeroImageMetadata implements JSONSerializable {
 
     /** Identifies the type used to store pixel values. */
@@ -32,7 +34,7 @@ public class OmeroImageMetadata implements JSONSerializable {
     protected long fileId;
     protected int sizeX, sizeY, sizeZ, sizeT, sizeC;
     protected double scaleXY, scaleZ;
-
+    protected List<Long> timepoints;
     public OmeroImageMetadata(String fileName, String datasetName, long fileId, int sizeX, int sizeY, int sizeZ, int sizeT, int sizeC, double scaleXY, double scaleZ, String pixelType) {
         this.fileName = fileName;
         this.datasetName = datasetName;
@@ -46,7 +48,14 @@ public class OmeroImageMetadata implements JSONSerializable {
         this.scaleZ = scaleZ;
         this.pixelType = pixelType;
     }
-
+    public OmeroImageMetadata setTimePoint(List<Long> timePoint) {
+        assert timePoint.size() == sizeT;
+        this.timepoints = timePoint;
+        return this;
+    }
+    public List<Long> getTimepoints() {
+        return timepoints;
+    }
     public int getBitDepth() {
         if (UINT_8.equals(pixelType) || INT_8.equals(pixelType)) return 8;
         if (UINT_16.equals(pixelType) || INT_16.equals(pixelType)) return 16;

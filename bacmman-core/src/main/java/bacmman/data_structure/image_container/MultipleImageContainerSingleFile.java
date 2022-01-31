@@ -26,6 +26,7 @@ import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.json.simple.JSONObject;
@@ -120,7 +121,7 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     public boolean fromOmero() {
         return filePath.startsWith("omeroID_");
     }
-    protected long getOmeroID() {
+    public long getOmeroID() {
         return Long.parseLong(filePath.substring(8));
     }
     public MultipleImageContainerSingleFile(String name, long fileId, int timePointNumber, int channelNumber, int sizeZ, double scaleXY, double scaleZ, boolean invertTZ) {
@@ -143,13 +144,34 @@ public class MultipleImageContainerSingleFile extends MultipleImageContainer {
     }
     
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
-        return Double.NaN; // not supported
-        /*if (timePointCZT==null) initTimePointMap();
-        if (timePointCZT.isEmpty()) return Double.NaN;
+        //return Double.NaN; // not supported
+        ///f (timePointCZT==null) initTimePointMap();
+        if (timePointCZT==null || timePointCZT.isEmpty()) return Double.NaN;
         String key = getKey(c, z, t);
         Double d = timePointCZT.get(key);
+        if (d==null) {
+            key = getKey(c, 0, t);
+            d = timePointCZT.get(key);
+        }
+        if (d==null && c>0) {
+            key = getKey(0, z, t);
+            d = timePointCZT.get(key);
+            if (d==null) {
+                key = getKey(0, 0, t);
+                d = timePointCZT.get(key);
+            }
+        }
         if (d!=null) return d;
-        else return Double.NaN;*/
+        else return Double.NaN;
+    }
+
+    public MultipleImageContainerSingleFile setTimePoints(List<Long> timePoint) {
+        assert timePoint.size() == timePointNumber;
+        if (timePointCZT==null) timePointCZT = new HashMap<>();
+        for (int t = 0; t<timePointNumber; ++t) {
+            timePointCZT.put(getKey(0, 0, t), timePoint.get(t).doubleValue());
+        }
+        return this;
     }
     
     private void initTimePointMap() {

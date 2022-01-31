@@ -180,8 +180,7 @@ public class Processor {
         if (res==null || res.isEmpty()) {
             res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
             if (res!=null && !res.isEmpty()) {
-                dao.store(res);
-                dao.setRoots(res);
+                dao.setRoots(res); // also stores
             }
         } else dao.getExperiment().getPosition(dao.getPositionName()).setOpenedImageToRootTrack(res, new SegmentedObjectAccessor());
         if (res==null || res.isEmpty()) throw new RuntimeException("no pre-processed image found");

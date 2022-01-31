@@ -531,7 +531,7 @@ public class Region {
             for (Voxel v: getVoxels()) if (touchBorder(v.x, v.y, v.z, neigh, mask)) res.add(v);
             */
             for (Voxel v: getVoxels()) if (touchBorderVox(v, neigh)) res.add(v);
-        } else if ( false && roi!=null && is2D()) {
+        } else if ( false && roi!=null && is2D()) { // contour do not correspond: it is shifted 1 pixel towards high y & x values.
             return roi.getContour(getBounds());
         } else {
             getMask();

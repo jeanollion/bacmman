@@ -157,7 +157,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     public boolean fromOmero() {
         return filePathC[0].startsWith("omeroID_");
     }
-    protected long getOmeroID(int channelIdx) {
+    public long getOmeroID(int channelIdx) {
         return Long.parseLong(filePathC[channelIdx].substring(8));
     }
 
@@ -174,6 +174,15 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
             }
         }
         //logger.debug("tpMap: {}", timePointCZT);
+    }
+
+    public MultipleImageContainerChannelSerie setTimePoints(int channel, List<Long> timePoint) {
+        assert timePoint.size() == timePointNumber;
+        if (timePointCZT==null) timePointCZT = new HashMap<>();
+        for (int t = 0; t<timePointNumber; ++t) {
+            timePointCZT.put(getKey(channel, 0, t), timePoint.get(t).doubleValue());
+        }
+        return this;
     }
     
     
@@ -192,6 +201,10 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         if (timePointCZT.isEmpty()) return Double.NaN;
         String key = getKey(c, z, t);
         Double d = timePointCZT.get(key);
+        if (d==null) {
+            key = getKey(c, 0, t);
+            d = timePointCZT.get(key);
+        }
         if (d!=null) return d;
         else return Double.NaN;
     }

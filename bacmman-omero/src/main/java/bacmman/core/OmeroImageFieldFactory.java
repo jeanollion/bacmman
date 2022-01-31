@@ -87,6 +87,7 @@ public class OmeroImageFieldFactory {
     protected static void addContainerSingleFile(OmeroImageMetadata image, Experiment xp, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
         if (image.getSizeC()==xp.getChannelImageCount(false)) {
             MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(Utils.removeExtension(image.getFileName()), image.getFileId(), image.getSizeT(), image.getSizeC(), image.getSizeZ(), image.getScaleXY(), image.getScaleZ(), xp.isImportImageInvertTZ());
+            if (image.getTimepoints()!=null && image.getTimepoints().size()==c.getFrameNumber()) c.setTimePoints(image.getTimepoints());
             containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
             logger.info("image {} imported successfully", image.getFileNameAndId());
         } else {
@@ -272,6 +273,9 @@ public class OmeroImageFieldFactory {
         if (timePointNumber>0) {
             List<ImageIOCoordinates.RGB> rgbC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getRGB).collect(Collectors.toList());
             MultipleImageContainerChannelSerie c = new MultipleImageContainerChannelSerie(fieldName, Arrays.stream(imageC).map(i -> "omeroID_"+i.getFileId()).toArray(String[]::new), channelIdx, channelModulo, timePointNumber, singleFile, sizeZC, scaleXYZ[0], scaleXYZ[1], axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ(), invertZTbyC, rgbC);
+            for (int cIdx = 0; cIdx<imageC.length; ++cIdx) {
+                if (imageC[cIdx].getTimepoints()!=null && imageC[cIdx].getTimepoints().size()==c.getFrameNumber()) c.setTimePoints(cIdx, imageC[cIdx].getTimepoints());
+            }
             containersTC.add(c);
         }
     }
