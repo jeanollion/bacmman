@@ -89,7 +89,6 @@ public class IJVirtualStack extends VirtualStack {
                         if (plane.getBitDepth()!=bitdepth) plane = TypeConverter.convert(plane, bitdepth);
                         imagesFCZ[fcz[0]][fcz[1]][fcz[2]]= plane;
                     }
-
                 }
             }
         }
@@ -111,7 +110,7 @@ public class IJVirtualStack extends VirtualStack {
             double[] curDisp = displayRange.get(nextChannel);
             if (ip.getProcessor()!=null) ip.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
             else nextIP.setMinAndMax(curDisp[0], curDisp[1]); // this is the first image processor that will be set to the ip
-            //logger.debug("disp range for channel {} = [{}; {}]", nextChannel, curDisp[0], curDisp[1]);
+            logger.debug("disp range for channel {} = [{}; {}] (ip get processor=null?{})", nextChannel, curDisp[0], curDisp[1], ip.getProcessor()==null);
             lastChannel = nextChannel;
         }
     }
@@ -144,7 +143,6 @@ public class IJVirtualStack extends VirtualStack {
         IJVirtualStack s = new IJVirtualStack(planes0[0].sizeX(), planes0[0].sizeY(), maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
         ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
-        s.setImagePlus(ip);
         ip.setStack(s, channels,maxZ, frames);
         if (maxZ>1) ip.setZ(maxZ/2+1);
         ip.setOpenAsHyperStack(true);
@@ -153,6 +151,7 @@ public class IJVirtualStack extends VirtualStack {
         cal.pixelHeight=planes0[0].getScaleXY();
         cal.pixelDepth=planes0[maxZIdx].getScaleZ();
         ip.setCalibration(cal);
+        s.setImagePlus(ip);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
@@ -186,8 +185,7 @@ public class IJVirtualStack extends VirtualStack {
         Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[2]==0 ? planes0[fcz[1]] : imageOpenerCT.apply(fcz);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
         ImagePlus ip = new ImagePlus();
-        ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? "HyperStack of Track: "+parentTrack.get(0).toStringShort(): interactiveImage.getName());
-        s.setImagePlus(ip);
+        ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? (parentTrack.get(0).isRoot() ? "HyperStack of Position: #"+parentTrack.get(0).getPositionIdx() : "HyperStack of Track: "+parentTrack.get(0).toStringShort()): interactiveImage.getName());
         ip.setStack(s, channels,maxZ, frames);
         if (maxZ>1) ip.setZ(maxZ/2+1);
         ip.setOpenAsHyperStack(true);
@@ -197,6 +195,7 @@ public class IJVirtualStack extends VirtualStack {
         cal.pixelDepth=planes0[maxZIdx].getScaleZ();
         ip.setCalibration(cal);
         ip.setC(objectClassIdx+1);
+        s.setImagePlus(ip);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         Image hook = imageOpenerCT.apply(new int[]{0, 0, 0});
