@@ -232,7 +232,7 @@ public class OmeroGatewayI implements OmeroGateway {
                                 images.stream().map( m -> (MultipleImageContainerSingleFile)m).forEach(m -> {
                                     OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID());
                                     if (metadata!=null) {
-                                        String path = Paths.get(dir.getAbsolutePath(), m.getName()).toAbsolutePath().toString();
+                                        String path = Paths.get(dir.getAbsolutePath(), m.getName()+".txt").toAbsolutePath().toString();
                                         metadata.writeToFile(path);
                                     }
                                 });
@@ -242,7 +242,7 @@ public class OmeroGatewayI implements OmeroGateway {
                                     for (int cIdx = 0; cIdx<m.getChannelNumber(); ++cIdx) {
                                         OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID(cIdx));
                                         if (metadata!=null) {
-                                            String path = Paths.get(dir.getAbsolutePath(), m.getName()+"_c"+cIdx).toAbsolutePath().toString();
+                                            String path = Paths.get(dir.getAbsolutePath(), m.getName()+"_c"+cIdx+".txt").toAbsolutePath().toString();
                                             metadata.writeToFile(path);
                                         }
                                     }
