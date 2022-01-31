@@ -7,6 +7,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.plugins.feature_extractor.ColocalizationData;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
@@ -63,7 +64,7 @@ public class ExtractDatasetUtil {
                     logger.debug("feature: {}", feature);
                     Function<SegmentedObject, Image> extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
                     boolean ZtoBatch = feature.v2 instanceof RawImage && ((RawImage)feature.v2).getExtractZDim() == Task.ExtractZAxis.BATCH;
-                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, saveLabels,  saveLabels, dimensions);
+                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels,  saveLabels, dimensions);
                     saveLabels=false;
                     t.incrementProgress();
                 }
@@ -140,7 +141,7 @@ public class ExtractDatasetUtil {
                     images = s.collect(Collectors.toList());
                     logger.debug("after ZToBatch: {}", images.size());
                 }
-                extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null);
+                extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false);
                 saveLabels = false;
             }
             inputImages.flush();
@@ -170,6 +171,7 @@ public class ExtractDatasetUtil {
     }
     public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, int[] dimensions, boolean eraseTouchingContours) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> {
+            if (o.getStructureIdx() == objectClassIdx) return null;
             Image mask = o.getChildRegionPopulation(objectClassIdx, false).getLabelMap();
             ImageInteger maskR;
             if (mask instanceof ImageShort) {
@@ -196,7 +198,7 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean saveLabels, boolean saveDimensions, int... dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerImage, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> sel.getAllElements().stream().parallel() : () -> sel.getElements(position).stream().parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -222,9 +224,9 @@ public class ExtractDatasetUtil {
         }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
 
-        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions);
+        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerImage);
     }
-    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions) {
+    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerImage) {
         if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
             int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
             if (images.stream().anyMatch(i->i.getBitDepth()!=maxBD)) {
@@ -309,8 +311,9 @@ public class ExtractDatasetUtil {
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
-
-        HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, 4, saveLabels, originalDimensions, metadata );
+        if (oneEntryPerImage && images.size()>1) {
+            for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), 4, saveLabels, new int[][]{originalDimensions[i]}, metadata );
+        } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, 4, saveLabels, originalDimensions, metadata );
     }
 
     public enum WEIGHT_MAP {NONE, UNET, DELTA, DY}
