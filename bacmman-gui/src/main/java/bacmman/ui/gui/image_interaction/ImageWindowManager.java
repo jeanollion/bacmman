@@ -234,7 +234,7 @@ public abstract class ImageWindowManager<I, U, V> {
     
     public Image getImage(InteractiveImage i) {
         if (i==null) {
-            GUI.logger.error("cannot get image if IOI null");
+            logger.error("cannot get image if IOI null");
             return null;
         }
         List<Image> list = Utils.getKeys(imageObjectInterfaceMap, i.getKey());
@@ -284,7 +284,7 @@ public abstract class ImageWindowManager<I, U, V> {
         displayer.putImage(image, displayedImage);
         registerHyperStack(image, i);
         addMouseListener(image);
-        addWindowClosedListener(image, e-> {
+        addWindowClosedListener(displayedImage, e-> {
             List<DefaultWorker> l = runningWorkers.get(image);
             if (!l.isEmpty()) {
                 logger.debug("interrupting {} object lazy loading for image: {}", l.size(), image.getName());
@@ -292,6 +292,10 @@ public abstract class ImageWindowManager<I, U, V> {
             }
             runningWorkers.remove(image);
             displayedInteractiveImages.remove(image);
+            displayer.removeImage(image, displayedImage);
+            imageObjectInterfaceMap.remove(image);
+            displayedLabileObjectRois.remove(image);
+            displayedLabileTrackRois.remove(image);
             return null;
         });
         i.setGUIMode(GUI.hasInstance());
@@ -313,6 +317,7 @@ public abstract class ImageWindowManager<I, U, V> {
             }
             runningWorkers.remove(image);
             displayedInteractiveImages.remove(image);
+            displayer.removeImage(image, null);
             return null;
         });
 
@@ -333,6 +338,7 @@ public abstract class ImageWindowManager<I, U, V> {
         addWindowClosedListener(image, e-> {
             if (raw) displayedRawInputFrames.remove(position);
             else displayedPrePocessedFrames.remove(position);
+            displayer.removeImage(null, image);
             return null;
         });
         if (raw) displayedRawInputFrames.put(position, image);
@@ -526,8 +532,12 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     
     public abstract void addMouseListener(Image image);
-    public abstract void addWindowListener(Object image, WindowListener wl);
-    public void addWindowClosedListener(Object image, Function<WindowEvent, Void> closeFunction) {
+    public abstract void addWindowListener(I image, WindowListener wl);
+    public void addWindowClosedListener(Image image, Function<WindowEvent, Void> closeFunction) {
+        I im = displayer.getImage(image);
+        if (im!=null) addWindowClosedListener(im, closeFunction);
+    }
+    public void addWindowClosedListener(I image, Function<WindowEvent, Void> closeFunction) {
         addWindowListener(image, new WindowListener() {
             @Override
             public void windowOpened(WindowEvent e) { }
@@ -1099,7 +1109,6 @@ public abstract class ImageWindowManager<I, U, V> {
      * @return true if display has changed
      */
     public boolean goToNextObject(Image trackImage, List<SegmentedObject> objects, boolean next) {
-        //ImageObjectInterface i = imageObjectInterfaces.get(new ImageObjectInterfaceKey(rois.get(0).getParent().getTrackHead(), rois.get(0).getStructureIdx(), true));
         if (trackImage==null) {
             I selectedImage = displayer.getCurrentImage();
             trackImage = displayer.getImage(selectedImage);
@@ -1113,28 +1122,38 @@ public abstract class ImageWindowManager<I, U, V> {
         if (objects==null || objects.isEmpty()) objects = this.getSelectedLabileObjects(trackImage);
         if (objects==null || objects.isEmpty()) objects = Pair.unpairKeys(i.getObjects());
         if (objects==null || objects.isEmpty()) return false;
-        BoundingBox currentDisplayRange = this.displayer.getDisplayRange(trackImage);
-        int minTimePoint = tm.getClosestFrame(currentDisplayRange.xMin(), currentDisplayRange.yMin());
-        int maxTimePoint = tm.getClosestFrame(currentDisplayRange.xMax(), currentDisplayRange.yMax());
-        if (next) {
-            if (maxTimePoint == i.getParents().get(i.getParents().size()-1).getFrame()) return false;
-            if (maxTimePoint>minTimePoint+2) maxTimePoint-=2;
-            else maxTimePoint--;
+        int minTimePoint, maxTimePoint;
+        BoundingBox currentDisplayRange;
+        if (tm instanceof HyperStack) {
+            minTimePoint = ((HyperStack)tm).getFrame();
+            maxTimePoint = minTimePoint;
+            currentDisplayRange = null;
         } else {
-            if (minTimePoint == i.getParents().get(0).getFrame()) return false;
-            if (maxTimePoint>minTimePoint+2) minTimePoint+=2;
-            else minTimePoint++;
+            currentDisplayRange = this.displayer.getDisplayRange(trackImage);
+            minTimePoint = tm.getClosestFrame(currentDisplayRange.xMin(), currentDisplayRange.yMin());
+            maxTimePoint = tm.getClosestFrame(currentDisplayRange.xMax(), currentDisplayRange.yMax());
+            if (next) {
+                if (maxTimePoint == i.getParents().get(i.getParents().size() - 1).getFrame()) return false;
+                if (maxTimePoint > minTimePoint + 2) maxTimePoint -= 2;
+                else maxTimePoint--;
+            } else {
+                if (minTimePoint == i.getParents().get(0).getFrame()) return false;
+                if (maxTimePoint > minTimePoint + 2) minTimePoint += 2;
+                else minTimePoint++;
+            }
         }
-        GUI.logger.debug("Current Display range: {}, maxTimePoint: {}, minTimePoint: {}, number of objects: {}", currentDisplayRange, maxTimePoint, minTimePoint, objects.size());
+        GUI.logger.debug("Current Display range: maxTimePoint: {}, minTimePoint: {}, number of objects: {}", maxTimePoint, minTimePoint, objects.size());
         Collections.sort(objects, SegmentedObjectUtils.frameComparator()); // sort by frame
-        SegmentedObject nextObject = getNextObject(next? maxTimePoint: minTimePoint, objects, next);
+        SegmentedObject nextObject = getNextObject(next? maxTimePoint+1: minTimePoint-1, objects, next);
         if (nextObject==null) {
-            GUI.logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
+            logger.info("No object detected {} timepoint: {}", next? "after" : "before", maxTimePoint);
             return false;
-        }
-        else {
+        } else {
             if (i instanceof HyperStack) {
-                return ((HyperStack)i).setFrame(nextObject.getFrame());
+                logger.debug("Hyperstack navigate to frame: {}", nextObject.getFrame());
+                boolean ok = ((HyperStack)i).setFrame(nextObject.getFrame());
+                if (ok) displayer.setFrame(((HyperStack)i).getIdx(), trackImage);
+                return ok;
             } else {
                 BoundingBox off = tm.getObjectOffset(nextObject);
                 if (off == null) objects = new ArrayList<>(objects);
@@ -1143,7 +1162,7 @@ public abstract class ImageWindowManager<I, U, V> {
                     objects.remove(nextObject);
                     nextObject = getNextObject(nextObject.getFrame(), objects, next);
                     if (nextObject == null) {
-                        GUI.logger.info("No object detected {} timepoint: {}", next ? "after" : "before", maxTimePoint);
+                        logger.info("No object detected {} timepoint: {}", next ? "after" : "before", maxTimePoint);
                         return false;
                     }
                     off = tm.getObjectOffset(nextObject);

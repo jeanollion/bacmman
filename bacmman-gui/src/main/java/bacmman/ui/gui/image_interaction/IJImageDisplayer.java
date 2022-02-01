@@ -50,9 +50,17 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
     static Logger logger = LoggerFactory.getLogger(IJImageDisplayer.class);
     protected HashMap<Image, ImagePlus> displayedImages=new HashMap<>();
     protected HashMap<ImagePlus, Image> displayedImagesInv=new HashMap<>();
+    @Override
     public void putImage(Image image, ImagePlus displayedImage) {
         displayedImages.put(image, displayedImage);
         displayedImagesInv.put(displayedImage, image);
+    }
+    @Override
+    public void removeImage(Image image, ImagePlus displayedImage) {
+        if (image==null && displayedImage!=null) image = getImage(displayedImage);
+        else if (displayedImage==null && image!=null) displayedImage = getImage(image);
+        if (image!=null) displayedImages.remove(image);
+        if (displayedImage!=null) displayedImagesInv.remove(displayedImage);
     }
     @Override public ImagePlus showImage(Image image, double... displayRange) {
         /*if (IJ.getInstance()==null) {
@@ -108,6 +116,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
         if (im!=null) this.displayedImages.remove(im);
         image.close();
     }
+
     /*@Override public boolean isVisible(Image image) {
         return displayedImages.containsKey(image) && displayedImages.get(image).isVisible();
     }*/

@@ -19,6 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.BoundingBox;
 import bacmman.ui.GUI;
 
 import java.util.List;
@@ -94,5 +95,12 @@ public class InteractiveImageKey {
             if (k.equalsIgnoreStructure(key)) return map.get(k);
         }
         return null;
+    }
+    public static TYPE inferType(BoundingBox parentBounds) {
+        double imRatioThld = 4;
+        double sX = parentBounds.sizeX();
+        double sY = parentBounds.sizeY();
+        boolean hyperstack = (sX > sY && sX / sY < imRatioThld) || (sX <= sY && sY / sX < imRatioThld);
+        return hyperstack ? InteractiveImageKey.TYPE.HYPERSTACK : InteractiveImageKey.TYPE.KYMOGRAPH;
     }
 }

@@ -91,6 +91,11 @@ public class HyperStack extends Kymograph {
         return trackObjects[idx].getObjects();
     }
 
+    public List<Pair<SegmentedObject, BoundingBox>> getObjects(int frame) {
+        int idx = frameMapIdx.get(frame);
+        return trackObjects[idx].getObjects();
+    }
+
     @Override public InteractiveImageKey getKey() {
         return new InteractiveImageKey(parents, InteractiveImageKey.TYPE.HYPERSTACK, childStructureIdx, name);
     }

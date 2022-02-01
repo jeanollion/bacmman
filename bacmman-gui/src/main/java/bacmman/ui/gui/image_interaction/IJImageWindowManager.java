@@ -72,10 +72,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         return IJImageWrapper.getImagePlus(image);
     }*/
     @Override 
-    public void addWindowListener(Object image, WindowListener wl) {
-        if (image instanceof Image) image = displayer.getImage((Image)image);
-        if (image instanceof ImagePlus) ((ImagePlus)image).getWindow().addWindowListener(wl);
+    public void addWindowListener(ImagePlus image, WindowListener wl) {
+        image.getWindow().addWindowListener(wl);
     }
+
     String lastTool = "freeline";
     @Override
     public void toggleSetObjectCreationTool() {
@@ -340,7 +340,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         super.setActive(image);
         ImagePlus ip = this.displayer.getImage(image);
         if (displayer.isDisplayed(ip)) {
-            IJ.selectWindow(image.getName());
+            IJ.selectWindow(ip.getTitle());
         } else { // not visible -> show image
             displayer.showImage(image);
             addMouseListener(image);

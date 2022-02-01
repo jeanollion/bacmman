@@ -39,6 +39,7 @@ import java.util.function.Predicate;
 public interface ImageDisplayer<T> {
     public static double zoomMagnitude=1;
     void putImage(Image image, T displayedImage);
+    void removeImage(Image image, T displayedImage);
     public boolean isDisplayed(T image);
     public T showImage(Image image, double... displayRange);
     public void close(Image image);

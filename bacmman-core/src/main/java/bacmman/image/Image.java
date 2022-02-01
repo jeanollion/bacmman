@@ -134,6 +134,20 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
                 throw new IllegalArgumentException("Bit Depth no recognized");
         }
     }
+    public static <T extends Image<T>> T createImage(String name, int bitDepth, ImageProperties imageProperties) {
+        switch(bitDepth) {
+            case 8:
+                return (T)new ImageByte(name,imageProperties);
+            case 16:
+                return (T)new ImageShort(name,imageProperties);
+            case 32:
+                return (T)new ImageFloat(name,imageProperties);
+            case 64:
+                return (T)new ImageInt(name,imageProperties);
+            default :
+                throw new IllegalArgumentException("Bit Depth no recognized");
+        }
+    }
     public static <T extends Image<T>> T createEmptyImage(String name, Image<T> imageType, ImageProperties properties) {
         if (imageType instanceof ImageByte) return (T)new ImageByte(name, properties);
         else if (imageType instanceof ImageShort) return (T)new ImageShort(name, properties);

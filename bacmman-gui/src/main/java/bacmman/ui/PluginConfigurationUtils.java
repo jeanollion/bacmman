@@ -36,6 +36,7 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import bacmman.ui.gui.image_interaction.*;
 
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
+import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import bacmman.image.Image;
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
@@ -426,14 +427,7 @@ public class PluginConfigurationUtils {
         Function<Image, InteractiveImage> getIOI;
         // default depend on image ratio:
         InteractiveImageKey.TYPE t = ImageWindowManager.getDefaultInteractiveType();
-        if (t==null) {
-            double imRatioThld = 4;
-            BoundingBox bounds = stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds();
-            double sX = bounds.sizeX();
-            double sY = bounds.sizeY();
-            boolean hyperstack = (sX > sY && sX / sY < imRatioThld) || (sX <= sY && sY / sX < imRatioThld);
-            t = hyperstack ? InteractiveImageKey.TYPE.HYPERSTACK : InteractiveImageKey.TYPE.KYMOGRAPH;
-        }
+        if (t==null) t = inferType(stores.values().stream().findAny().get().getParent().getParent(parentStructureIdx).getBounds());
         if (InteractiveImageKey.TYPE.KYMOGRAPH.equals(t)) {
             Pair<InteractiveImage, List<Image>> res = buildIntermediateImages(stores.values(), parentStructureIdx, structureIdx);
             dispImages = res.value;

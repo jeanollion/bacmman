@@ -89,6 +89,7 @@ import bacmman.ui.logger.FileProgressLogger;
 import bacmman.ui.logger.MultiProgressLogger;
 
 import static bacmman.plugins.Hint.formatHint;
+import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
@@ -106,7 +107,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public static final String DBprefix = "boa_";
     public String currentDBPrefix = "";
     private static GUI INSTANCE;
-    public final static boolean defaultDisplayKymograph = false;
     // db-related attributes
     private MasterDAO db;
     
@@ -2894,7 +2894,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             navigateCount=2;
         } else { // try to move within current image
             i = SelectionUtils.fixIOI(i, sel.getStructureIdx());
-            List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(i.getObjects(), sel.getElementStrings(position)));
+            List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.getSegmentedObjects(i, sel.getElementStrings(position)));
             logger.debug("#objects from selection on current image: {} (display sIdx: {}, IOI: {}, sel: {})", objects.size(), structureDisplay, i.getChildStructureIdx(), sel.getStructureIdx());
             boolean move = !objects.isEmpty() && ImageWindowManagerFactory.getImageManager().goToNextObject(null, objects, next);
             if (move) navigateCount=0;
@@ -2947,17 +2947,23 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             } else {
                 SegmentedObject nextParent = parents.get(nextParentIdx);
                 logger.debug("next parent: {} among: {}", nextParent, parents);
-                List track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
+                List<SegmentedObject> track = db.getDao(nextParent.getPositionName()).getTrack(nextParent);
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-                InteractiveImageKey.TYPE type = i!=null ? i.getKey().imageType : defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.HYPERSTACK; // TODO set an option to open as kymographs / frame stack
+                InteractiveImageKey.TYPE deftype = ImageWindowManager.getDefaultInteractiveType();
+                if (deftype==null) {
+                    if (track!=null && !track.isEmpty()) deftype = inferType(track.get(0).getBounds());
+                    else deftype = InteractiveImageKey.TYPE.HYPERSTACK;
+                }
+                InteractiveImageKey.TYPE type = i!=null ? i.getKey().imageType : deftype;
                 InteractiveImage nextI = iwm.getImageTrackObjectInterface(track, sel.getStructureIdx(), type);
                 Image im = iwm.getImage(nextI);
-                if (im==null) {
-                    if (i.getKey().imageType== InteractiveImageKey.TYPE.HYPERSTACK) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, sel.getStructureIdx());
+                Object disp = im==null?null:iwm.getDisplayer().getImage(im);
+                if (disp==null) {
+                    if ( type.equals(InteractiveImageKey.TYPE.HYPERSTACK)) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, sel.getStructureIdx());
                     else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
-                List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.filterPairs(nextI.getObjects(), sel.getElementStrings(position)));
+                List<SegmentedObject> objects = Pair.unpairKeys(SelectionUtils.getSegmentedObjects(nextI, sel.getElementStrings(position)));
                 logger.debug("#objects from selection on next image: {}/{} (display sIdx: {}, IOI: {}, sel: {}, im:{}, next parent: {})", objects.size(), nextI.getObjects().size(), structureDisplay, nextI.getChildStructureIdx(), sel.getStructureIdx(), im!=null?im.getName():"null", nextParent);
                 if (!objects.isEmpty()) {
                     // wait so that new image is displayed -> magnification issue -> window is not well computed

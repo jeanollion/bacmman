@@ -23,9 +23,9 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.ui.GUI;
 import static bacmman.ui.GUI.logger;
-import bacmman.ui.gui.image_interaction.InteractiveImage;
-import bacmman.ui.gui.image_interaction.ImageWindowManager;
-import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
+
+import bacmman.ui.gui.image_interaction.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
 import bacmman.image.BoundingBox;
@@ -56,7 +56,6 @@ import javax.swing.JPopupMenu;
 import javax.swing.JSeparator;
 import javax.swing.SwingUtilities;
 
-import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -82,7 +81,7 @@ public class SelectionUtils {
         return !Utils.transform(sel, s->s.getName()).contains(name);
     }
     
-    public static List<SegmentedObject> getStructureObjects(InteractiveImage i, List<Selection> selections) {
+    public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, List<Selection> selections) {
         if (i==null) ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface();
         if (i==null) return Collections.EMPTY_LIST;
         String fieldName = i.getParent().getPositionName();
@@ -90,7 +89,7 @@ public class SelectionUtils {
         selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
         List<String> allStrings=  new ArrayList<>();
         for (Selection s : selections) allStrings.addAll(s.getElementStrings(fieldName));
-        return Pair.unpairKeys(filterPairs(i.getObjects(), allStrings));
+        return Pair.unpairKeys(getSegmentedObjects(i, allStrings));
     }
     public static Selection union(String name, Collection<Selection> selections) {
         if (selections.isEmpty()) return new Selection();
@@ -142,7 +141,7 @@ public class SelectionUtils {
         return res;
     }
     
-    public static List<SegmentedObject> getStructureObjects(List<Selection> selections, String fieldName) {
+    public static List<SegmentedObject> getSegmentedObjects(List<Selection> selections, String fieldName) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
         selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
         List<SegmentedObject> res=  new ArrayList<>();
@@ -154,7 +153,7 @@ public class SelectionUtils {
         return res;
     }
     
-    public static Map<String, List<SegmentedObject>> getStructureObjects(List<Selection> selections) {
+    public static Map<String, List<SegmentedObject>> getSegmentedObjects(List<Selection> selections) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_MAP;
         selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
         HashMapGetCreate<String, List<SegmentedObject>> res=  new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
@@ -202,6 +201,15 @@ public class SelectionUtils {
             }
         }
         return p.get(idx);
+    }
+    public static Collection<Pair<SegmentedObject, BoundingBox>> getSegmentedObjects(InteractiveImage i, Collection<String> indices) {
+        if (i instanceof HyperStack) {
+            // need to get objects from all frames of selection
+            HyperStack h = (HyperStack)i;
+            Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
+            List<Pair<SegmentedObject, BoundingBox>> objects = frames.flatMap(frame -> h.getObjects(frame).stream()).collect(Collectors.toList());
+            return filterPairs(objects, indices);
+        } else return filterPairs(i.getObjects(), indices);
     }
     public static Collection<Pair<SegmentedObject, BoundingBox>> filterPairs(List<Pair<SegmentedObject, BoundingBox>> objects, Collection<String> indices) {
         //Utils.removeDuplicates(objects, o->Selection.indicesString(o.key)); // remove duplicate labels. should not occur
@@ -307,9 +315,11 @@ public class SelectionUtils {
         if (parentStructureIdx>=-1) for (SegmentedObject o : s.getAllElements()) parents.add(o.getParent(parentStructureIdx));
         else for (SegmentedObject o : s.getAllElements()) parents.add(o.getParent());
         List<SegmentedObject> parentList = new ArrayList<>(parents);
+        if (parentList.isEmpty()) return;
         Collections.sort(parentList);
-        
-        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), GUI.defaultDisplayKymograph ? InteractiveImageKey.TYPE.KYMOGRAPH : InteractiveImageKey.TYPE.HYPERSTACK);
+        InteractiveImageKey.TYPE t = ImageWindowManager.getDefaultInteractiveType();
+        if (t==null) t = inferType(parentList.get(0).getBounds());
+        InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentList, s.getStructureIdx(), t);
         ImageWindowManagerFactory.getImageManager().addImage(i.generateImage(displayStructureIdx, true), i ,displayStructureIdx, true);
     }
         
