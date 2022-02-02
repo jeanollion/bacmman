@@ -418,6 +418,9 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         if (!includeDuplicated) return channelImages.getChildrenString();
         else return Stream.concat(channelImages.getChildren().stream().map(c->c.getName()), channelImagesDuplicated.getChildren().stream().map(c->c.getName())).toArray(String[]::new);
     }
+    public Stream<ChannelImage.CHANNEL_COLOR> getChannelColor(boolean includeDuplicated) {
+        return includeDuplicated?Stream.concat(channelImages.getChildren().stream().map(ChannelImage::getColor), channelImagesDuplicated.getChildren().stream().map(ChannelImageDuplicated::getColor)) : channelImages.getChildren().stream().map(ChannelImage::getColor);
+    }
     
     public String[] getPositionsAsString() {return positions.getChildrenString();}
     

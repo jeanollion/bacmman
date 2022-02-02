@@ -140,6 +140,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     // enable/disable components
     private NumberParameter openImageLimit = new BoundedNumberParameter("Limit", 0, 5, 0, null);
     private ChoiceParameter interactiveImageType = new ChoiceParameter("Default Interactive Image Type", new String[]{"AUTOMATIC", "KYMOGRAPH", "HYPERSTACK"}, "AUTOMATIC", false).setHint("Default Interactive image type, for testing. Automatic: determines with the aspect ratio of the parent image: for rather square images will be opened as hyperstacks");
+    private ChoiceParameter hyperstackMode = new ChoiceParameter("Default Hyperstack Mode", new String[]{"HYPERSTACK", "IMAGE5D"}, "HYPERSTACK", false).setHint("If IMAGE5D is chosen, hyperstack will be open using the image 5D plugin, allowing to display color image. Note that with this mode the whole image needs to be loaded in memory");
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
@@ -298,6 +299,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue());
         openImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue()));
         ConfigurationTreeGenerator.addToMenu(openImageLimit.getName(), ParameterUIBinder.getUI(openImageLimit).getDisplayComponent(), openImageNumberLimitMenu);
+
         // interactive image type
         PropertyUtils.setPersistant(interactiveImageType, "interactive_type");
         Consumer<ChoiceParameter> setDefInteractiveType = c -> {
@@ -312,6 +314,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setDefInteractiveType.accept(interactiveImageType);
         interactiveImageType.addListener(setDefInteractiveType);
         ConfigurationTreeGenerator.addToMenu(interactiveImageType, defaultInteractiveImageMenu);
+        // hyperstack mode
+        // interactive image type
+        PropertyUtils.setPersistant(hyperstackMode, "hyperstack_mode");
+        Consumer<ChoiceParameter> setHyperstackMode = c -> {
+            if (c.getSelectedItem().equals("IMAGE5D")) {
+                IJVirtualStack.OpenAsImage5D = true;
+            } else if (c.getSelectedItem().equals("HYPERSTACK")) {
+                IJVirtualStack.OpenAsImage5D = false;
+            }
+        };
+        setHyperstackMode.accept(hyperstackMode);
+        hyperstackMode.addListener(setHyperstackMode);
+        ConfigurationTreeGenerator.addToMenu(hyperstackMode, hyperstackModeImageMenu);
         // kymograph interval
         PropertyUtils.setPersistant(kymographInterval, "kymograph_interval");
         Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
@@ -1534,6 +1549,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         roiMenu = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
         defaultInteractiveImageMenu = new javax.swing.JMenu();
+        hyperstackModeImageMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         pyGatewayMenu = new javax.swing.JMenu();
         logMenu = new javax.swing.JMenu();
@@ -2689,6 +2705,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         defaultInteractiveImageMenu.setText("Default Interactive Image Type");
         miscMenu.add(defaultInteractiveImageMenu);
 
+        hyperstackModeImageMenu.setText("Default Hyperstack Type");
+        miscMenu.add(hyperstackModeImageMenu);
+
+
         kymographMenu.setText("Kymograph");
         miscMenu.add(kymographMenu);
 
@@ -2815,7 +2835,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 String nextPosition = db.getExperiment().getPosition(nIdx).getName();
                 boolean pp = ImageWindowManager.RegisteredImageType.PRE_PROCESSED.equals(imageType);
                 db.getExperiment().flushImages(true, true, nextPosition);
-                IJVirtualStack.openVirtual(db.getExperiment(), nextPosition, pp);
+                IJVirtualStack.openVirtual(db.getExperiment(), nextPosition, pp, IJVirtualStack.OpenAsImage5D);
             }
         } else  { // interactive: if IOI found
             final InteractiveImage i = ImageWindowManagerFactory.getImageManager().getImageObjectInterface(null);
@@ -2853,7 +2873,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {
-                if (InteractiveImageKey.TYPE.HYPERSTACK.equals(i.getKey().imageType)) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure);
+                if (InteractiveImageKey.TYPE.HYPERSTACK.equals(i.getKey().imageType)) IJVirtualStack.openVirtual(parentTrack, (HyperStack)ii, true, currentImageStructure, IJVirtualStack.OpenAsImage5D);
                 else ImageWindowManagerFactory.getImageManager().addImage(ii.generateImage(currentImageStructure, true), ii, currentImageStructure, true);
             } else ImageWindowManagerFactory.getImageManager().setActive(im);
         }
@@ -2959,7 +2979,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 Image im = iwm.getImage(nextI);
                 Object disp = im==null?null:iwm.getDisplayer().getImage(im);
                 if (disp==null) {
-                    if ( type.equals(InteractiveImageKey.TYPE.HYPERSTACK)) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, sel.getStructureIdx());
+                    if ( type.equals(InteractiveImageKey.TYPE.HYPERSTACK)) IJVirtualStack.openVirtual(track, (HyperStack)nextI, true, sel.getStructureIdx(), IJVirtualStack.OpenAsImage5D);
                     else iwm.addImage(nextI.generateImage(structureDisplay, true), nextI, structureDisplay, true);
                 } else ImageWindowManagerFactory.getImageManager().setActive(im);
                 navigateCount=0;
@@ -4124,7 +4144,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 public void actionPerformed(ActionEvent e) {
                     db.getExperiment().flushImages(true, true, position);
                     try {
-                        IJVirtualStack.openVirtual(db.getExperiment(), position, false);
+                        IJVirtualStack.openVirtual(db.getExperiment(), position, false, IJVirtualStack.OpenAsImage5D);
                     } catch(Throwable t) {
 
                         setMessage("Could not open input images for position: "+position+". If their location moved, used the re-link command. If image are on Omero server: connect to server");
@@ -4139,7 +4159,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 public void actionPerformed(ActionEvent e) {
                     db.getExperiment().flushImages(true, true, position);
                     try {
-                        IJVirtualStack.openVirtual(db.getExperiment(), position, true);
+                        IJVirtualStack.openVirtual(db.getExperiment(), position, true, IJVirtualStack.OpenAsImage5D);
                     } catch(Throwable t) {
                         setMessage("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
                         logger.debug("error while trying to open pre-processed images", t);
@@ -4842,6 +4862,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu jMenu2;
     private javax.swing.JPopupMenu.Separator jSeparator1;
     private javax.swing.JMenu defaultInteractiveImageMenu;
+    private javax.swing.JMenu hyperstackModeImageMenu;
     private javax.swing.JMenu kymographMenu;
     private javax.swing.JMenu pyGatewayMenu;
     private javax.swing.JButton linkObjectsButton;

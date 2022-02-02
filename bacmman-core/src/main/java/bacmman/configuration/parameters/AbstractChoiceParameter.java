@@ -45,7 +45,10 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         this.allowNoSelection=allowNoSelection;
         this.mapper = mapper;
     }
-
+    public P setAllowNoSelection(boolean allowNoSelection) {
+        this.allowNoSelection=allowNoSelection;
+        return (P)this;
+    }
     public String getSelectedItem() {return selectedItem;}
     public int getSelectedIndex() {
         return selectedIndex;

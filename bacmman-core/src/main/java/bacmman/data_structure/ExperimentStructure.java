@@ -1,5 +1,6 @@
 package bacmman.data_structure;
 
+import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 import bacmman.utils.Utils;
@@ -8,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static bacmman.utils.Utils.toArray;
 
@@ -179,5 +181,19 @@ public class ExperimentStructure {
     }
     public boolean singleFrame(String positionName, int objectClassIdx) {
         return xp.getPosition(positionName).singleFrame(objectClassIdx);
+    }
+    public int getChannelIdx(int objectClassIdx) {
+        if (objectClassIdx<0) return -1;
+        if (xp.getStructureCount()<=objectClassIdx) return -1;
+        return xp.getStructure(objectClassIdx).getChannelImage();
+    }
+    public String[] getChannelNames() {
+        return xp.getChannelImagesAsString(true);
+    }
+    public String[] getObjectClassNames() {
+        return xp.getStructures().getChildrenString();
+    }
+    public Stream<ChannelImage.CHANNEL_COLOR> getChannelColors() {
+        return xp.getChannelColor(true);
     }
 }

@@ -4,6 +4,7 @@ import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.TokenAuth;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
+import bacmman.ui.gui.Utils;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -24,6 +25,8 @@ import java.awt.event.*;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+
+import static bacmman.ui.gui.Utils.addCopyMenu;
 
 public class GenerateGistToken extends JDialog {
     public static final Logger logger = LoggerFactory.getLogger(GenerateGistToken.class);
@@ -48,6 +51,9 @@ public class GenerateGistToken extends JDialog {
         setModal(true);
         setPreferredSize(new Dimension(600, 450));
         PropertyUtils.setPersistant(this.username, "GITHUB_USERNAME", "", true);
+        addCopyMenu(token, true, true);
+        addCopyMenu(this.password, true, true);
+        addCopyMenu(this.username, true, true);
         if (username != null) this.username.setText(username);
         if (password != null) this.password.setText(String.valueOf(password));
         updateEnableButtons();
@@ -87,6 +93,7 @@ public class GenerateGistToken extends JDialog {
             try {
                 String token = JSONQuery.authorizeAppStep2(deviceCode);
                 this.token.setText(token);
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(token), null);
                 updateEnableButtons();
             } catch (Exception ex) {
                 if (bacmmanLogger != null)
@@ -126,7 +133,6 @@ public class GenerateGistToken extends JDialog {
             if (bacmmanLogger != null)
                 bacmmanLogger.setMessage("An error occurred while trying to authorize app: " + ex.getMessage());
         }
-
     }
 
     private void updateEnableButtons() {
@@ -161,7 +167,7 @@ public class GenerateGistToken extends JDialog {
     }
 
     public static Pair<String, char[]> generateAndStoreToken(String currentUserName, char[] currentPassword, ProgressLogger logger) {
-        GenerateGistToken dialog = new GenerateGistToken(null, null, null);
+        GenerateGistToken dialog = new GenerateGistToken(currentUserName, currentPassword, logger);
         dialog.pack();
         dialog.setVisible(true);
         return dialog.result;

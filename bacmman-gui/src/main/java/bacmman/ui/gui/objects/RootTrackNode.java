@@ -260,7 +260,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 public void actionPerformed(ActionEvent ae) {
                     generator.db.getExperiment().flushImages(true, true, position);
                     try {
-                        IJVirtualStack.openVirtual(generator.getExperiment(), position, false);
+                        IJVirtualStack.openVirtual(generator.getExperiment(), position, false, IJVirtualStack.OpenAsImage5D);
                     } catch(Throwable t) {
                         generator.pcb.log("Could not open input images for position: "+position+". If their location moved, used the re-link command");
                         logger.debug("Error while opening file position", t);
@@ -275,7 +275,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                     public void actionPerformed(ActionEvent ae) {
                         generator.db.getExperiment().flushImages(true, true, position);
                         try {
-                            IJVirtualStack.openVirtual(generator.getExperiment(), position, true);
+                            IJVirtualStack.openVirtual(generator.getExperiment(), position, true, IJVirtualStack.OpenAsImage5D);
                         } catch(Throwable t) {
                             generator.pcb.log("Could not open pre-processed images for position: "+position+". Pre-processing already performed?");
                             logger.debug("error while trying to open pre-processed images: ", t);
@@ -335,7 +335,7 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                                                     }
                                                     if (rootTrack != null) {
                                                         // TODO make this method generic for other display modes than IJ
-                                                        IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx); // TODO interface for multichannel display
+                                                        IJVirtualStack.openVirtual(rootTrack, structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO interface for multichannel display
 
                                                         GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                                                         GUI.getInstance().setTrackStructureIdx(structureIdx);

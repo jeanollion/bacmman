@@ -80,6 +80,12 @@
             <groupId>sc.fiji</groupId>
             <artifactId>imagescience</artifactId>
             <version>3.0.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>sc.fiji</groupId>
+                    <artifactId>Image_5D</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.mapdb</groupId>

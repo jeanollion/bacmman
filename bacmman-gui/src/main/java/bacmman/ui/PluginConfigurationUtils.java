@@ -441,7 +441,7 @@ public class PluginConfigurationUtils {
             Map<String, HyperStack> map = buildIntermediateImagesHyperStack(stores.values(), parentStructureIdx, structureIdx);
             getImageManager().setDisplayImageLimit(Math.max(getImageManager().getDisplayImageLimit(), map.size()+1));
             Map<Image, HyperStack> hookMapIOI = map.entrySet().stream().collect(Collectors.toMap(e -> {
-                Image hook = IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx);
+                Image hook = IJVirtualStack.openVirtual(e.getValue().getParents(), e.getValue(), true, structureIdx, false);
                 iwm.addTestData(hook, stores.values());
                 return hook;
             }, Map.Entry::getValue));

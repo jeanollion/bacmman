@@ -19,10 +19,7 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.experiment.Experiment.IMPORT_METHOD;
-import bacmman.configuration.parameters.ChannelImageParameter;
-import bacmman.configuration.parameters.ContainerParameterImpl;
-import bacmman.configuration.parameters.ParameterUtils;
-import bacmman.configuration.parameters.TextParameter;
+import bacmman.configuration.parameters.*;
 import org.json.simple.JSONObject;
 
 import java.util.function.Predicate;
@@ -35,6 +32,7 @@ import static bacmman.configuration.experiment.Experiment.IMPORT_METHOD.ONE_FILE
  */
 public class ChannelImageDuplicated extends ContainerParameterImpl<ChannelImageDuplicated> {
     ChannelImageParameter sourceChannel = new ChannelImageParameter("Source Channel").setIncludeDuplicatedChannels(false);
+    EnumChoiceParameter<ChannelImage.CHANNEL_COLOR> color = new EnumChoiceParameter<>("Color", ChannelImage.CHANNEL_COLOR.values(), null).setAllowNoSelection(true).setHint("Display color");
 
     public ChannelImageDuplicated(String name) {
         super(name);
@@ -48,10 +46,10 @@ public class ChannelImageDuplicated extends ContainerParameterImpl<ChannelImageD
     public int getSourceChannel() {
         return sourceChannel.getSelectedIndex();
     }
-
+    public ChannelImage.CHANNEL_COLOR getColor() {return color.getSelectedEnum();}
     @Override
     protected void initChildList() {
-        super.initChildren(sourceChannel);
+        super.initChildren(sourceChannel, color);
     }
     @Override 
     public boolean isEmphasized() {
@@ -63,6 +61,7 @@ public class ChannelImageDuplicated extends ContainerParameterImpl<ChannelImageD
         JSONObject res = new JSONObject();
         res.put("name", name);
         res.put("source", sourceChannel.toJSONEntry());
+        if (color.getSelectedEnum()!=null) res.put("color", this.color.toJSONEntry());
         return res;
     }
 
@@ -71,6 +70,8 @@ public class ChannelImageDuplicated extends ContainerParameterImpl<ChannelImageD
         JSONObject jsonO = (JSONObject)jsonEntry;
         name = (String)jsonO.get("name");
         sourceChannel.initFromJSONEntry(jsonO.get("source"));
+        if (jsonO.containsKey("color")) this.color.initFromJSONEntry(jsonO.get("color"));
+
     }
     
 }

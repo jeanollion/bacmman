@@ -20,23 +20,33 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
+import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.TypeConverter;
 import bacmman.image.io.KymographFactory;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
+import bacmman.ui.gui.Utils;
 import bacmman.utils.ArrayUtil;
 import ij.ImagePlus;
+import ij.ImageStack;
 import ij.VirtualStack;
 import ij.measure.Calibration;
 import ij.process.ImageProcessor;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.Image;
+import ij.process.ImageStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sc.fiji.i5d.I5DVirtualStack;
+import sc.fiji.i5d.Image5D;
+import sc.fiji.i5d.cal.ChannelDisplayProperties;
 
+import java.awt.*;
+import java.awt.image.ColorModel;
 import java.util.*;
+import java.util.List;
 import java.util.function.*;
 import java.util.stream.IntStream;
 
@@ -58,6 +68,7 @@ public class IJVirtualStack extends VirtualStack {
     ImagePlus ip;
     int lastChannel=-1;
     int[] sizeZC;
+    boolean virtual = true;
     public IJVirtualStack(int sizeX, int sizeY, int bitdepth, int[] FCZCount, int[] sizeZC, Function<Integer, int[]> getFCZ, Function<int[], Image> imageOpenerCT) {
         super(sizeX, sizeY, null, "");
         this.imageOpenerCT=imageOpenerCT;
@@ -71,6 +82,14 @@ public class IJVirtualStack extends VirtualStack {
     public void appendSetFrameCallback(IntConsumer otherSetFrameCallback) {
         if (this.setFrameCallback==null) this.setFrameCallback=otherSetFrameCallback;
         else this.setFrameCallback = setFrameCallback.andThen(otherSetFrameCallback);
+    }
+    @Override
+    public boolean isVirtual() {
+        return virtual;
+    }
+    public IJVirtualStack setVirtual(boolean virtual) {
+        this.virtual = virtual;
+        return this;
     }
     @Override
     public ImageProcessor getProcessor(int n) {
@@ -110,14 +129,15 @@ public class IJVirtualStack extends VirtualStack {
             double[] curDisp = displayRange.get(nextChannel);
             if (ip.getProcessor()!=null) ip.getProcessor().setMinAndMax(curDisp[0], curDisp[1]); // the image processor stays the same
             else nextIP.setMinAndMax(curDisp[0], curDisp[1]); // this is the first image processor that will be set to the ip
-            logger.debug("disp range for channel {} = [{}; {}] (ip get processor=null?{})", nextChannel, curDisp[0], curDisp[1], ip.getProcessor()==null);
+            //logger.debug("disp range for channel {} = [{}; {}] (ip get processor=null?{})", nextChannel, curDisp[0], curDisp[1], ip.getProcessor()==null);
             lastChannel = nextChannel;
         }
     }
     public void setImagePlus(ImagePlus ip) {
         this.ip = ip;
     }
-    public static void openVirtual(Experiment xp, String position, boolean preProcessed) {
+    public static boolean OpenAsImage5D = false;
+    public static void openVirtual(Experiment xp, String position, boolean preProcessed, boolean image5D) {
         Position f = xp.getPosition(position);
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
@@ -141,33 +161,53 @@ public class IJVirtualStack extends VirtualStack {
         int maxZ = sizeZC[maxZIdx];
         int[] fczSize = new int[]{frames, channels, maxZ};
         IJVirtualStack s = new IJVirtualStack(planes0[0].sizeX(), planes0[0].sizeY(), maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
-        ImagePlus ip = new ImagePlus();
-        ip.setTitle((preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex());
-        ip.setStack(s, channels,maxZ, frames);
-        if (maxZ>1) ip.setZ(maxZ/2+1);
-        ip.setOpenAsHyperStack(true);
+        String title = (preProcessed ? "PreProcessed Images of position: #" : "Input Images of position: #")+f.getIndex();
+        ImagePlus ip;
+        if (image5D) {
+            s.setVirtual(false);
+            Image5D i5d = new Image5D(title, s, channels, maxZ, frames);
+            String[] cNames = xp.getChannelImagesAsString(true);
+            Color[] colors = xp.getChannelColor(true).map(c -> c==null?null: Utils.getColor(c.toString())).toArray(Color[]::new);
+            for (int cidx = 0; cidx<channels; ++cidx) {
+                i5d.getChannelCalibration(cidx+1).setLabel(cNames[cidx]);
+                if (colors[cidx]!=null) {
+                    ColorModel cm = ChannelDisplayProperties.createModelFromColor(colors[cidx]);
+                    i5d.setChannelColorModel(cidx + 1, cm);
+                }
+            }
+            setMinAndMax(i5d);
+            i5d.setDisplayMode(2);
+            if (maxZ>1) i5d.setSlice(maxZ/2+1);
+            ip = i5d;
+        } else {
+            ip = new ImagePlus();
+            ip.setTitle(title);
+            ip.setStack(s, channels, maxZ, frames);
+            ip.setOpenAsHyperStack(true);
+            if (maxZ>1) ip.setZ(maxZ/2+1);
+            s.setImagePlus(ip);
+        }
         Calibration cal = new Calibration();
         cal.pixelWidth=planes0[0].getScaleXY();
         cal.pixelHeight=planes0[0].getScaleXY();
         cal.pixelDepth=planes0[maxZIdx].getScaleZ();
         ip.setCalibration(cal);
-        s.setImagePlus(ip);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
     }
 
-    public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx) {
+    public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx, boolean image5D) {
         HyperStack interactiveImage = null;
         if (interactive) interactiveImage = (HyperStack)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
         if (interactiveImage==null) {
             KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
             interactiveImage = new HyperStack(data, interactiveOC, false);
         }
-        return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx);
+        return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx, image5D);
     }
 
-    public static Image openVirtual(List<SegmentedObject> parentTrack, HyperStack interactiveImage, boolean interactive, int objectClassIdx) {
+    public static Image openVirtual(List<SegmentedObject> parentTrack, HyperStack interactiveImage, boolean interactive, int objectClassIdx, boolean image5D) {
         if (parentTrack.isEmpty()) return null;
         int[] channelArray = interactiveImage.isSingleChannel()? new int[]{0} : ArrayUtil.generateIntegerArray(parentTrack.get(0).getExperimentStructure().getObjectClassesAsString().length);
         int channels = channelArray.length;
@@ -184,18 +224,44 @@ public class IJVirtualStack extends VirtualStack {
         int maxBitDepth = IntStream.range(0, channels).map(c -> planes0[c].getBitDepth()).max().getAsInt();
         Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[2]==0 ? planes0[fcz[1]] : imageOpenerCT.apply(fcz);
         IJVirtualStack s = new IJVirtualStack(interactiveImage.maxParentSizeX, interactiveImage.maxParentSizeY, maxBitDepth, fczSize, sizeZC, IJImageWrapper.getStackIndexFunctionRev(fczSize), imageOpenerCT2);
-        ImagePlus ip = new ImagePlus();
-        ip.setTitle(interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? (parentTrack.get(0).isRoot() ? "HyperStack of Position: #"+parentTrack.get(0).getPositionIdx() : "HyperStack of Track: "+parentTrack.get(0).toStringShort()): interactiveImage.getName());
-        ip.setStack(s, channels,maxZ, frames);
-        if (maxZ>1) ip.setZ(maxZ/2+1);
-        ip.setOpenAsHyperStack(true);
+        String title = interactiveImage.getName() == null || interactiveImage.getName().length()==0 ? (parentTrack.get(0).isRoot() ? "HyperStack of Position: #"+parentTrack.get(0).getPositionIdx() : "HyperStack of Track: "+parentTrack.get(0).toStringShort()): interactiveImage.getName();
+        ImagePlus ip;
+        if (image5D) {
+            s.setVirtual(false);
+            Image5D i5d = new Image5D(title, s, channels, maxZ, frames);
+            ExperimentStructure xp = parentTrack.get(0).getExperimentStructure();
+            String[] cNames = xp.getObjectClassNames();
+            Color[] colors = xp.getChannelColors().map(c -> c==null?null:Utils.getColor(c.toString())).toArray(Color[]::new);
+            Set<Integer> dispChannels=new HashSet<>();
+            for (int ocidx = 0; ocidx<channels; ++ocidx) {
+                i5d.getChannelCalibration(ocidx+1).setLabel(cNames[ocidx]);
+                int cidx= xp.getChannelIdx(ocidx);
+                if (cidx>=0 && dispChannels.contains(cidx)) i5d.setDisplayedInOverlay(ocidx+1, false);
+                dispChannels.add(cidx);
+                if (cidx>=0 && colors[cidx]!=null) {
+                    ColorModel cm = ChannelDisplayProperties.createModelFromColor(colors[cidx]);
+                    i5d.setChannelColorModel(ocidx + 1, cm);
+                }
+            }
+            setMinAndMax(i5d);
+            i5d.setDisplayMode(2);
+            if (maxZ>1) i5d.setSlice(maxZ/2+1);
+            ip = i5d;
+        } else {
+            ip = new ImagePlus();
+            ip.setTitle(title);
+            ip.setStack(s, channels, maxZ, frames);
+            ip.setOpenAsHyperStack(true);
+            if (maxZ>1) ip.setZ(maxZ/2+1);
+            s.setImagePlus(ip);
+        }
+
         Calibration cal = new Calibration();
         cal.pixelWidth=planes0[0].getScaleXY();
         cal.pixelHeight=planes0[0].getScaleXY();
         cal.pixelDepth=planes0[maxZIdx].getScaleZ();
         ip.setCalibration(cal);
         ip.setC(objectClassIdx+1);
-        s.setImagePlus(ip);
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         Image hook = imageOpenerCT.apply(new int[]{0, 0, 0});
@@ -205,5 +271,19 @@ public class IJVirtualStack extends VirtualStack {
             ImageWindowManagerFactory.getImageManager().registerInteractiveHyperStackFrameCallback(hook, interactiveImage);
         }
         return hook;
+    }
+    private static void setMinAndMax(Image5D i5d) {
+        for (int i = 0; i < i5d.getNChannels(); ++i) {
+            double min = Double.MAX_VALUE;
+            double max = -Double.MAX_VALUE;
+            for(int slice = 1; slice <= i5d.getNSlices(); ++slice) {
+                i5d.setSlice(slice);
+                ImagePlus chan = i5d.getChannelImagePlus(i + 1);
+                ImageStatistics is = chan.getStatistics();
+                if (is.min < min) min = is.min;
+                if (is.max > max) max = is.max;
+            }
+            i5d.setChannelMinMax(i + 1, min, max);
+        }
     }
 }

@@ -335,7 +335,7 @@ public class TrackNode implements TrackNodeInterface, UIContainer {
                                                 //int[] path = trackNode.trackHead.getExperiment().getPathToStructure(trackNode.trackHead.getCommandIdx(), getCommandIdx(ae.getActionCommand(), openRaw));
                                                 //trackNode.loadAllTrackObjects(path);
                                                 int structureIdx = getOCIdx.applyAsInt(ae.getActionCommand());
-                                                IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx); // TODO made this method generic
+                                                IJVirtualStack.openVirtual(getTrack(), structureIdx, true, structureIdx, IJVirtualStack.OpenAsImage5D); // TODO made this method generic
                                                 GUI.getInstance().setInteractiveStructureIdx(structureIdx);
                                                 GUI.getInstance().setTrackStructureIdx(structureIdx);
                                             }

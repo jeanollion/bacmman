@@ -55,6 +55,7 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         res.setHint(toolTipText);
         res.setSimpleHint(toolTipTextSimple);
         res.setEmphasized(isEmphasized);
+        res.setAllowNoSelection(allowNoSelection);
         return res;
     }
 

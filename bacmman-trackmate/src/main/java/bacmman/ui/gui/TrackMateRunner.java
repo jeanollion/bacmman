@@ -43,7 +43,7 @@ public class TrackMateRunner extends TrackMatePlugIn {
     }
     public static List runTM(List<SegmentedObject> parentTrack, int objectClassIdx, JComponent container) {
         Model model = BacmmanToTrackMate.getSpotsAndTracks(parentTrack, objectClassIdx);
-        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx);
+        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
         ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
         imp.setTitle("TrackMate HyperStack");
         TrackMateRunner tmr = runTM(model, container, imp);
@@ -59,7 +59,7 @@ public class TrackMateRunner extends TrackMatePlugIn {
         if (!reader.isReadingOk()) throw new RuntimeException("Could not read file "+ reader.getErrorMessage());
         Model model = reader.getModel();
         logger.debug("imported from file: {}: spots: {},  tracks: {}", tmFile, model.getSpots().getNSpots(false), model.getTrackModel().nTracks(false));
-        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx);
+        Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
         ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
 
         TrackMateRunner tmr = runTM(model, container, imp);

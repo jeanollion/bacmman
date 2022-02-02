@@ -86,7 +86,7 @@ public class TrackMateIO {
 
         Model model = BacmmanToTrackMate.getSpotsAndTracks(microchannels, 1);
         initCore();
-        Image im = IJVirtualStack.openVirtual(microchannels, 1, false, 1);
+        Image im = IJVirtualStack.openVirtual(microchannels, 1, false, 1, false);
         ImageDisplayer<ImagePlus> disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
         ImagePlus imp = disp.getImage(im);
         imp.close();
@@ -107,7 +107,7 @@ public class TrackMateIO {
         logger.debug("all tracks: {}", model.getTrackModel().edgeSet().size());
         initCore();
 
-        Image im = IJVirtualStack.openVirtual(roots, 0, false, 0);
+        Image im = IJVirtualStack.openVirtual(roots, 0, false, 0, false);
         ImageDisplayer<ImagePlus> disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
         ImagePlus imp = disp.getImage(im);
         imp.close();

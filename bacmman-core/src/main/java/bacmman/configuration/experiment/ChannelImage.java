@@ -52,7 +52,8 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
             + "<br />First channel must have a non-null keyword is import method is <em>"+ONE_FILE_PER_CHANNEL_POSITION.getMethod()+"</em> and that there are several channels. "
             + "<br />All keywords should be distinct.");
     EnumChoiceParameter<ImageIOCoordinates.RGB> importRGBChannel = new EnumChoiceParameter<>("RGB Channel", ImageIOCoordinates.RGB.values(), ImageIOCoordinates.RGB.R).setHint("In case input images is a color image, choose which channel to import");
-
+    public enum CHANNEL_COLOR {RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, ORANGE}
+    EnumChoiceParameter<CHANNEL_COLOR> color = new EnumChoiceParameter<>("Color", CHANNEL_COLOR.values(), null).setAllowNoSelection(true).setHint("Display color");
     public ChannelImage(String name) {
         super(name);
     }
@@ -61,7 +62,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         this(name);
         setImportImageChannelKeyword(keyword);
     }
-    
+    public CHANNEL_COLOR getColor() {return color.getSelectedEnum();}
     public String getImportImageChannelKeyword() {return importKeyWord.getValue();}
     public void setImportImageChannelKeyword(String keyword) {importKeyWord.setValue(keyword);}
     public ImageIOCoordinates.RGB getRGB() {
@@ -69,7 +70,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
     }
     @Override
     protected void initChildList() {
-        super.initChildren(importKeyWord, importRGBChannel);
+        super.initChildren(importKeyWord, importRGBChannel, color);
     }
     @Override 
     public boolean isEmphasized() {
@@ -82,6 +83,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         res.put("name", name);
         res.put("importKeyword", this.importKeyWord.toJSONEntry());
         res.put("rgb", this.importRGBChannel.toJSONEntry());
+        if (color.getSelectedEnum()!=null) res.put("color", this.color.toJSONEntry());
         return res;
     }
 
@@ -91,6 +93,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         name = (String)jsonO.get("name");
         importKeyWord.initFromJSONEntry(jsonO.get("importKeyword"));
         if (jsonO.containsKey("rgb")) this.importRGBChannel.initFromJSONEntry(jsonO.get("rgb"));
+        if (jsonO.containsKey("color")) this.color.initFromJSONEntry(jsonO.get("color"));
     }
     
 }

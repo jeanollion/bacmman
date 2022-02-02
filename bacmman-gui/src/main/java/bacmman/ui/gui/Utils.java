@@ -14,6 +14,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -22,6 +23,19 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Utils {
+
+    public static void addCopyMenu(Component c, boolean paste, boolean clear) {
+        c.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    JPopupMenu menu = createCopyMenu(paste, clear);
+                    menu.show(c, e.getX(), e.getY());
+                }
+            }
+        });
+    }
+
     public static JPopupMenu createCopyMenu(boolean paste, boolean clear) {
         JPopupMenu menu = new JPopupMenu();
         Action copy = new DefaultEditorKit.CopyAction();
@@ -92,5 +106,37 @@ public class Utils {
             if (idx<0) idx = -idx - 1;
             parent.insert(child, idx);
         }
+    }
+    public static Color getColor(String col) {
+        if (col==null) return null;
+        switch (col.toLowerCase()) {
+            case "black":
+                return Color.BLACK;
+            case "blue":
+                return Color.BLUE;
+            case "cyan":
+                return Color.CYAN;
+            case "darkgray":
+                return Color.DARK_GRAY;
+            case "gray":
+                return Color.GRAY;
+            case "green":
+                return Color.GREEN;
+            case "yellow":
+                return Color.YELLOW;
+            case "lightgray":
+                return Color.LIGHT_GRAY;
+            case "magneta":
+                return Color.MAGENTA;
+            case "orange":
+                return Color.ORANGE;
+            case "pink":
+                return Color.PINK;
+            case "red":
+                return Color.RED;
+            case "white":
+                return Color.WHITE;
+        }
+        return null;
     }
 }

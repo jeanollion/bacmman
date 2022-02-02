@@ -24,7 +24,7 @@ public class PositionUI implements ParameterUI {
                                        public void actionPerformed(ActionEvent ae) {
                                            p.getExperiment().flushImages(true, true, p.getName());
                                            try {
-                                               IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), false);
+                                               IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), false, IJVirtualStack.OpenAsImage5D);
                                            } catch(Throwable t) {
                                                if (pcb!=null) pcb.log("Could no open input images for position: "+p.getName()+". If their location moved, used the re-link command");
                                                GUI.logger.debug("Error while opening file position", t);
@@ -39,7 +39,7 @@ public class PositionUI implements ParameterUI {
                                                 public void actionPerformed(ActionEvent ae) {
                                                     p.getExperiment().flushImages(true, true, p.getName());
                                                     try {
-                                                        IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), true);
+                                                        IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), true, IJVirtualStack.OpenAsImage5D);
                                                     } catch(Throwable t) {
                                                         pcb.log("Could not open pre-processed images for position: "+p.getName()+". Pre-processing already performed?");
                                                     }
