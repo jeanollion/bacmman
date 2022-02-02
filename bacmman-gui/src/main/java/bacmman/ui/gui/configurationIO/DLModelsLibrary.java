@@ -125,7 +125,7 @@ public class DLModelsLibrary {
                 GUI.log("Invalid folder name (no special chars allowed)");
                 return;
             }
-            GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+            GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             updateGistDisplay();
@@ -197,7 +197,7 @@ public class DLModelsLibrary {
                 pcb.setMessage("Invalid folder name");
                 return;
             }
-            GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+            GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
             List<BufferedImage> otherThumb = gist.getThumbnail();
             if (otherThumb != null) for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);
             toSave.createNewGist(getAuth());
@@ -217,7 +217,8 @@ public class DLModelsLibrary {
                             if (cred != null) {
                                 try {
                                     TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
-                                    GistDLModel gist = tree.getSelectedGistNode().gist;
+                                    GistDLModel gist = tree.getSelectedGist();
+                                    if (gist == null) return;
                                     SaveDLModelGist form = new SaveDLModelGist(gateway);
                                     form.setFolder(gist.folder)
                                             .setName(gist.name)
@@ -251,7 +252,7 @@ public class DLModelsLibrary {
                                             return;
                                         }
                                     }
-                                    GistDLModel toSave = new GistDLModel(username.getText(), form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+                                    GistDLModel toSave = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
                                     List<BufferedImage> otherThumb = gist.getThumbnail();
                                     if (otherThumb != null)
                                         for (BufferedImage b : otherThumb) toSave.appendThumbnail(b);

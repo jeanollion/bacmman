@@ -176,7 +176,7 @@ public class ConfigurationLibrary {
                 xp.setOutputImageDirectory("");
                 content = xp.toJSONEntry();
             } else content = (JSONObject) localConfig.getRoot().toJSONEntry();
-            GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
+            GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
             toSave.createNewGist(getAuth());
             gists.add(toSave);
             remoteSelector.addGist(toSave);
@@ -315,7 +315,7 @@ public class ConfigurationLibrary {
                 if (bacmmanLogger != null) bacmmanLogger.setMessage("Invalid folder name");
                 return;
             }
-            GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
+            GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
             if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
                 List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
                 if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
@@ -374,7 +374,7 @@ public class ConfigurationLibrary {
                                             return;
                                         }
                                     }
-                                    GistConfiguration toSave = new GistConfiguration(username.getText(), form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
+                                    GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
                                     if (currentMode.equals(GistConfiguration.TYPE.PROCESSING) && gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
                                         List<BufferedImage> otherThumb = gist.getThumbnail(remoteSelector.getSelectedGistOC());
                                         if (otherThumb != null)

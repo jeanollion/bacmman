@@ -760,7 +760,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         motherMachineDatasetMenu.setText("Mother Machine");
         sampleDatasetMenu.add(motherMachineDatasetMenu);
         addSampleDataset(motherMachineDatasetMenu, "Phase Contrast (50 fr, 53Mb)", "01a255d5a11f71d6b7cd6a8f81b41caa");
-        addSampleDataset(motherMachineDatasetMenu, "Fluoresence (50 fr, 2 Channels, 53Mb)", "0413ec141d8d86e82a2299799728ec5a");
+        addSampleDataset(motherMachineDatasetMenu, "Fluoresence (50 fr, 2 Channels, 57Mb)", "adb4e7b76c1bd261fa477f70a2768e8a"); // hosted on sabilab account
         setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
     } // end of constructor
 

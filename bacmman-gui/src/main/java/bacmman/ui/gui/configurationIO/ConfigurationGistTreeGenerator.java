@@ -309,7 +309,7 @@ public class ConfigurationGistTreeGenerator {
             this.type = mode;
             this.gists = newGists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) { // also add parts of whole configurations
-                Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg->gg.account.equals(g.account) && gg.folder.equals(g.folder) && gg.name.equals(g.name));
+                Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg-> gg.folder.equals(g.folder) && gg.name.equals(g.name));
                 this.gists.addAll(newGists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
             }
             DefaultMutableTreeNode root = getRoot();
