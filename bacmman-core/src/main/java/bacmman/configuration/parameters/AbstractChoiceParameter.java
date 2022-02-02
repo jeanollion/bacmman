@@ -94,6 +94,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     @Override
     public boolean sameContent(Parameter other) {
         if (other instanceof AbstractChoiceParameter) {
+            if (this.getSelectedItem()==null) return ((AbstractChoiceParameter)other).getSelectedItem()==null;
             return this.getSelectedItem().equals(((AbstractChoiceParameter)other).getSelectedItem());
         }
         else return false;
