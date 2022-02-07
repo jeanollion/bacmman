@@ -1,6 +1,7 @@
 package bacmman.configuration.parameters.ui;
 
 import bacmman.configuration.experiment.Position;
+import bacmman.core.DefaultWorker;
 import bacmman.core.ProgressCallback;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.IJVirtualStack;
@@ -46,8 +47,9 @@ public class PositionUI implements ParameterUI {
                                                 }
                                             }
         );
-        openPreprocessedAllFrames.setEnabled(p.getImageDAO().getPreProcessedImageProperties(0)!=null);
-
+        DefaultWorker.executeSingleTask(() -> {
+            openPreprocessedAllFrames.setEnabled(p.getImageDAO().getPreProcessedImageProperties(0)!=null);
+        });
     }
     public Object[] getDisplayComponent() {
         return actions;

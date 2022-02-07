@@ -207,6 +207,12 @@ public class ArrayUtil {
         res[1] = Math.sqrt(res[1] / (float)(stop-start) - res[0] * res[0]);
         return res;
     }
+    public static double mean(double[] array, int start, int stop) {
+        double sum=0;
+        for (int i = start; i<stop; ++i) sum+=array[i];
+        sum /= (stop-start);
+        return sum;
+    }
     public static int getFirstOccurence(double[] array, int start, int stop, DoublePredicate verify) {
         if (start<0) start=0;
         if (stop<0) stop = 0;

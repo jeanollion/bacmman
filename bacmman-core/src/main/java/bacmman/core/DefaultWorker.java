@@ -37,6 +37,12 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected Runnable endOfWork;
     protected int[] taskIdx;
     protected ProgressLogger progressor;
+    public static DefaultWorker executeSingleTask(Runnable task) {
+        return execute(t  -> {
+            task.run();
+            return null;
+        }, 1);
+    }
     public static DefaultWorker execute(WorkerTask t, int maxTaskIdx) {
         return execute(t, maxTaskIdx, Core.getProgressLogger());
     }
