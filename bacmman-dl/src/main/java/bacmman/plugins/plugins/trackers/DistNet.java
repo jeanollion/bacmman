@@ -194,10 +194,6 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
             this.next.setSelected(input.getChannelNumber() == 3);
             this.inputShape.setValue(input.getShape());
             this.scaler.setContentFrom(input.getScaling());
-            BooleanParameter is2D = metadata.getOtherParameter("is2D", BooleanParameter.class);
-            if (is2D!=null) {
-                logger.debug("metadata: is2D: {}", is2D.getSelected());
-            }
             BooleanParameter openChannelsM = metadata.getOtherParameter("Open Microchannels", BooleanParameter.class);
             if (openChannelsM!=null) {
                 logger.debug("open channel metadata: {}", openChannelsM.getSelected());
