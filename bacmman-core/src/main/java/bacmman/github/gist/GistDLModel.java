@@ -26,7 +26,7 @@ import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 public class GistDLModel implements Hint {
 
     public static final Logger logger = LoggerFactory.getLogger(GistDLModel.class);
-    public String name, account, folder;
+    public String name, folder;
     String description;
     boolean visible=true;
     private String fileURL;
@@ -67,9 +67,6 @@ public class GistDLModel implements Hint {
                 String newName = fileName.substring(configNameIdx + 1, fileName.length() - 5);
                 if (this.name!=null) assert this.name.equals(newName);
                 else this.name = newName;
-                String newAccount = (String) ((JSONObject) gist.get("owner")).get("login");
-                if (this.account!=null) assert this.account.equals(newAccount);
-                else this.account = newAccount;
                 if (file.containsKey("content")) contentRetriever = () -> (String)file.get("content");
                 // look for thumbnail file
                 if (((JSONObject) files).containsKey("thumbnail")) {
@@ -93,12 +90,10 @@ public class GistDLModel implements Hint {
             } else { // not a configuration file
                 assert this.folder==null;
                 assert this.name==null;
-                assert this.account==null;
             }
         } else {
             assert this.folder==null;
             assert this.name==null;
-            assert this.account==null;
         }
         if (contentRetriever==null) contentRetriever = () -> new JSONQuery(fileURL).fetchSilently();
     }
@@ -111,8 +106,7 @@ public class GistDLModel implements Hint {
             throw new IOException("Cannot create large file: url do not correspond to a file stored in gist. URL=" + url);
         }
     }
-    public GistDLModel(String account, String folder, String name, String description, String url, DLModelMetadata metadata) {
-        this.account=account;
+    public GistDLModel(String folder, String name, String description, String url, DLModelMetadata metadata) {
         if (folder.contains("_")) throw new IllegalArgumentException("folder name should not contain '_' character");
         this.folder=folder;
         this.name=name;
@@ -221,7 +215,7 @@ public class GistDLModel implements Hint {
     }
 
     public void uploadThumbnail(UserAuth auth) {
-        if (thumbnail==null || thumbnail.isEmpty()) storeBytes("thumbnail", (byte[]) null, auth);
+        if (thumbnail==null || thumbnail.isEmpty()) storeBytes("thumbnail", (byte[]) null, auth); // erase thumbnail
         else if (thumbnail.size()==1) storeBytes("thumbnail", IconUtils.toByteArray(thumbnail.get(0)), auth);
         else {
             JSONArray thumbArray = new JSONArray();

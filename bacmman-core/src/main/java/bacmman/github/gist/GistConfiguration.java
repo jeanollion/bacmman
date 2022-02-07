@@ -36,7 +36,7 @@ public class GistConfiguration implements Hint {
             return Arrays.stream(TYPE.values()).filter(t->fileName.startsWith(PREFIX+t.shortName)).findAny().orElse(null);
         }
     }
-    public final String name, account, folder;
+    public final String name, folder;
     String description;
     boolean visible=true;
     private String fileURL;
@@ -72,7 +72,6 @@ public class GistConfiguration implements Hint {
                 if (configNameIdx < 0) throw new IllegalArgumentException("Invalid config file name");
                 folder = fileName.substring(folderIdx + 1, configNameIdx);
                 name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
-                account = (String) ((JSONObject) gist.get("owner")).get("login");
                 if (file.containsKey("content")) contentRetriever = () -> (String)file.get("content");
                 switch(type) {
                     default: { // look for thumbnail file
@@ -128,19 +127,16 @@ public class GistConfiguration implements Hint {
             } else { // not a configuration file
                 folder = null;
                 name = null;
-                account = null;
                 type = null;
             }
         } else {
             type =null;
             folder = null;
             name = null;
-            account = null;
         }
         if (contentRetriever==null) contentRetriever = () -> new JSONQuery(fileURL).fetchSilently();
     }
-    public GistConfiguration(String account, String folder, String name, String description, JSONObject content, TYPE type) {
-        this.account=account;
+    public GistConfiguration(String folder, String name, String description, JSONObject content, TYPE type) {
         if (folder.contains("_")) throw new IllegalArgumentException("folder name should not contain '_' character");
         this.folder=folder;
         this.name=name;
