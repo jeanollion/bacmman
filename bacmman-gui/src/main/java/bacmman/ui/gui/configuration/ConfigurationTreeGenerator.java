@@ -115,6 +115,7 @@ public class ConfigurationTreeGenerator {
                 //logger.debug("checking validation for : {}", pp.toString());
                 tree.expandPath(path);
             }
+            pp.fireListeners();
             treeModel.nodeStructureChanged((TreeNode)path.getLastPathComponent());
             logger.debug("changing module ... : {}, hint: {}", pp, getHint(pp, false, expertMode, getObjectClassIdxNameF()));
             setHint.accept(getHint(pp, false, expertMode, getObjectClassIdxNameF()));

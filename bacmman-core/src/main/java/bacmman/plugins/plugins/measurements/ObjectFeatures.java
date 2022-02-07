@@ -64,12 +64,14 @@ public class ObjectFeatures implements Measurement, Hint {
     }
     
     public ObjectFeatures() {
-        def.addListener( s -> {
-            TextParameter tp = ((TextParameter)s.getAdditionalParameters().get(0));
-            if (s.isOnePluginSet()) tp.setValue(s.instantiatePlugin().getDefaultName());
-            else tp.setValue("");
+        features.addNewInstanceConfiguration(pp -> {
+            pp.addListener( s -> {
+                TextParameter tp = ((TextParameter)s.getAdditionalParameters().get(0));
+                if (s.isOnePluginSet()) tp.setValue(s.instantiatePlugin().getDefaultName());
+                else tp.setValue("");
+            });
+            ((TextParameter)pp.getAdditionalParameters().get(0)).addValidationFunction((t)-> t.getValue().length()>0);
         });
-        ((TextParameter)def.getAdditionalParameters().get(0)).addValidationFunction((t)->((TextParameter)t).getValue().length()>0);
     }
 
     public ObjectFeatures(int structureIdx) {
