@@ -37,11 +37,11 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected Runnable endOfWork;
     protected int[] taskIdx;
     protected ProgressLogger progressor;
-    public static DefaultWorker executeSingleTask(Runnable task) {
+    public static DefaultWorker executeSingleTask(Runnable task, ProgressLogger gui) {
         return execute(t  -> {
             task.run();
             return null;
-        }, 1);
+        }, 1, gui);
     }
     public static DefaultWorker execute(WorkerTask t, int maxTaskIdx) {
         return execute(t, maxTaskIdx, Core.getProgressLogger());
@@ -127,12 +127,17 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     }
     public DefaultWorker appendEndOfWork(Runnable end) {
         if (end==null) return this;
-        Runnable oldEnd = this.endOfWork;
-        this.endOfWork = () -> {
-            if (oldEnd!=null) oldEnd.run();
-            if (end!=null) end.run();
-        };
-        return this;
+        else if (this.endOfWork==null) {
+            this.endOfWork = end;
+            return this;
+        } else {
+            Runnable oldEnd = this.endOfWork;
+            this.endOfWork = () -> {
+                oldEnd.run();
+                end.run();
+            };
+            return this;
+        }
     }
 
     public interface WorkerTask {

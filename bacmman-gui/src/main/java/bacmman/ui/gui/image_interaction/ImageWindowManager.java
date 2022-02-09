@@ -642,6 +642,7 @@ public abstract class ImageWindowManager<I, U, V> {
             HyperStack k = ((HyperStack)i);
             Image im = image;
             IntConsumer callback = idx -> {
+                // a sub-track @ current frame is considered
                 List<List<SegmentedObject>> selTracks = k.getObjects().stream().map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
                 hideAllRois(im, true, false);
                 // set palette
@@ -845,6 +846,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile) {
         displayTrack(image, i, track, color, labile, true);
     }
+
     protected void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile, boolean updateDisplay) {
         //logger.debug("display selected track: image: {}, track length: {} color: {}", image, track==null?"null":track.size(), color);
         if (track==null || track.isEmpty()) return;

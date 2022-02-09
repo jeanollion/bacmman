@@ -40,6 +40,7 @@ public class PreFilterSequence extends PluginParameterList<PreFilter, PreFilterS
         return this;
     }
     public Image filter(Image input, ImageMask mask) {
+        if (isEmpty()) return input;
         ImageProperties prop = input.getProperties();
         boolean first = true;
         if (scaler!=null) {

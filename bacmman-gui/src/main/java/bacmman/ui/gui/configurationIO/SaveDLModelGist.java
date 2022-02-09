@@ -56,7 +56,6 @@ public class SaveDLModelGist {
     private ProgressLogger pcb;
     Pair<String, DefaultWorker> uploader;
     GithubGateway gateway;
-
     public SaveDLModelGist(GithubGateway gateway) {
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {

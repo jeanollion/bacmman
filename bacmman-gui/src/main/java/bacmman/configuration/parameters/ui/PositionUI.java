@@ -5,18 +5,21 @@ import bacmman.core.DefaultWorker;
 import bacmman.core.ProgressCallback;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.IJVirtualStack;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 
 public class PositionUI implements ParameterUI {
-    JMenuItem[] openRawInputAll;
-    JMenuItem openRawFrame, openRawAllFrames, openPreprocessedFrame, openPreprocessedAllFrames;
+    public static final Logger logger = LoggerFactory.getLogger(PositionUI.class);
+    JMenuItem openRawAllFrames, openPreprocessedAllFrames;
     Object[] actions;
     Position p;
     ProgressCallback pcb;
     public PositionUI(Position p, ProgressCallback pcb) {
         this.p=p;
+        this.pcb = pcb;
         actions = new Object[2];
         openRawAllFrames = new JMenuItem("Open Input Images");
         actions[0] = openRawAllFrames;
@@ -28,7 +31,7 @@ public class PositionUI implements ParameterUI {
                                                IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), false, IJVirtualStack.OpenAsImage5D);
                                            } catch(Throwable t) {
                                                if (pcb!=null) pcb.log("Could no open input images for position: "+p.getName()+". If their location moved, used the re-link command");
-                                               GUI.logger.debug("Error while opening file position", t);
+                                               logger.debug("Error while opening raw position", t);
                                            }
                                        }
                                    }
@@ -43,13 +46,14 @@ public class PositionUI implements ParameterUI {
                                                         IJVirtualStack.openVirtual(p.getExperiment(), p.getName(), true, IJVirtualStack.OpenAsImage5D);
                                                     } catch(Throwable t) {
                                                         pcb.log("Could not open pre-processed images for position: "+p.getName()+". Pre-processing already performed?");
+                                                        logger.debug("Error while opening pp position", t);
                                                     }
                                                 }
                                             }
         );
         DefaultWorker.executeSingleTask(() -> {
             openPreprocessedAllFrames.setEnabled(p.getImageDAO().getPreProcessedImageProperties(0)!=null);
-        });
+        }, null);
     }
     public Object[] getDisplayComponent() {
         return actions;

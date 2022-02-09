@@ -470,6 +470,24 @@ public class Utils {
         for (Entry<K, V> e : map.entrySet()) if (values.contains(e.getValue())) res.add(e.getKey());
         return res;
     }
+    public static <K, V> ArrayList<K> getKeysMultiple(Map<K, ? extends Collection<V>> map, V value) {
+        ArrayList<K> res = new ArrayList<>();
+        for (Entry<K, ? extends Collection<V>> e : map.entrySet()) {
+            if (e.getValue()!=null) for (V v : e.getValue()) if (value.equals(v)) res.add(e.getKey());
+        }
+        return res;
+    }
+    public static <K, V> ArrayList<K> getKeysMultiple(Map<K, ? extends Collection<V>> map, Collection<V> values) {
+        ArrayList<K> res = new ArrayList<>();
+        for (Entry<K, ? extends Collection<V>> e : map.entrySet()) {
+            if (e.getValue()!=null) for (V v : e.getValue()) if (values.contains(v)) res.add(e.getKey());
+        }
+        return res;
+    }
+    @FunctionalInterface
+    public interface TriConsumer<A, B, C> {
+        void accept(A a, B b, C c);
+    }
     public static void addHorizontalScrollBar(JComboBox box) {
         Object comp = box.getUI().getAccessibleChild(box, 0);
         if (!(comp instanceof JPopupMenu)) return;

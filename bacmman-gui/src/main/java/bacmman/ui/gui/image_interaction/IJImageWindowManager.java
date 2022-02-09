@@ -536,6 +536,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     protected void setTrackColor(TrackRoi roi, Color color) {
         for (Roi r : roi) if (r.getStrokeColor()!=ImageWindowManager.trackCorrectionColor && r.getStrokeColor()!=ImageWindowManager.trackErrorColor) r.setStrokeColor(color);
     }
+
     protected TrackRoi createHyperStackTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, HyperStack i) {
         TrackRoi trackRoi= new TrackRoi();
         trackRoi.setIs2D(track.get(0).key.is2D());
@@ -553,7 +554,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             return r;
         };
 
-        track.stream().map(getRoi::apply).filter(r -> r!=null).flatMap(r -> r.values().stream()).forEach(trackRoi::add);
+        track.stream().map(getRoi).filter(Objects::nonNull).flatMap(r -> r.values().stream()).forEach(trackRoi::add);
         // add flag when track links have been edited
         Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
         Consumer<Pair<SegmentedObject, BoundingBox>> addEditedArrow = object -> {
@@ -585,16 +586,16 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         track.stream().forEach(addEditedArrow::accept);
         // add arrow to indicate splitting
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
-        BiConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>> addSplitMergeArrow = (o1, o2) -> {
+        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitMergeArrow = (o1, o2, c) -> {
             Integer frame = i.frameMapIdx.get(o1.key.getFrame());
             Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
             Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter();
-            p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to kymograph offset
+            p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to hyperstack offset
             p2.translate(o2.value).translateRev(o2.key.getBounds());
             Arrow arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
             arrow.enableSubPixelResolution();
             arrow.setDoubleHeaded(true);
-            arrow.setStrokeColor(color);
+            arrow.setStrokeColor(c);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
             int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
@@ -610,20 +611,42 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 }
             }
         };
-        if (track.get(track.size()-1).key.getNextId()==null) {
-            List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).key);
-            if (next.size() > 1) { // show division by displaying arrows between objects
-                List<Pair<SegmentedObject, BoundingBox>> nextP = i.pairWithOffset(next);
-                for (int idx = 0; idx < next.size() - 1; ++idx)
-                    addSplitMergeArrow.accept(nextP.get(idx), nextP.get(idx + 1));
+        if (track.size()==1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
+            SegmentedObject o = track.get(0).key;
+            if (o.getPreviousId()!=null && o.getPrevious().getTrackHead()!=o.getTrackHead()) {
+                List<SegmentedObject> div = SegmentedObjectEditor.getNext(o.getPrevious());
+                if (div.size()>1) { // only show
+                    List<Pair<SegmentedObject, BoundingBox>> divP = i.pairWithOffset(div);
+                    for (Pair<SegmentedObject, BoundingBox> other : divP) {
+                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addSplitMergeArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
+                    }
+                }
             }
-        }
-        if (track.get(0).key.getPreviousId()==null) {
-            List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key);
-            if (prev.size() > 1) { // show merging by displaying arrows between objects
-                List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
-                for (int idx = 0; idx < prev.size() - 1; ++idx)
-                    addSplitMergeArrow.accept(prevP.get(idx), prevP.get(idx + 1));
+            if (o.getNextId()!=null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
+                List<SegmentedObject> merge = SegmentedObjectEditor.getPrevious(o.getNext());
+                if (merge.size()>1) { // only show
+                    List<Pair<SegmentedObject, BoundingBox>> mergeP = i.pairWithOffset(merge);
+                    for (Pair<SegmentedObject, BoundingBox> other : mergeP) {
+                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addSplitMergeArrow.accept(track.get(0), other, getColor(o.getNext().getTrackHead()));
+                    }
+                }
+            }
+        } else {
+            if (track.get(track.size() - 1).key.getNextId() == null) {
+                List<SegmentedObject> next = SegmentedObjectEditor.getNext(track.get(track.size() - 1).key);
+                if (next.size() > 1) { // show division by displaying arrows between objects
+                    List<Pair<SegmentedObject, BoundingBox>> nextP = i.pairWithOffset(next);
+                    for (int idx = 0; idx < next.size() - 1; ++idx)
+                        addSplitMergeArrow.accept(nextP.get(idx), nextP.get(idx + 1), color);
+                }
+            }
+            if (track.get(0).key.getPreviousId() == null) {
+                List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key);
+                if (prev.size() > 1) { // show merging by displaying arrows between objects
+                    List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
+                    for (int idx = 0; idx < prev.size() - 1; ++idx)
+                        addSplitMergeArrow.accept(prevP.get(idx), prevP.get(idx + 1), color);
+                }
             }
         }
         return trackRoi;

@@ -55,7 +55,7 @@ public class SegmentedObjectUtils {
         if (!Utils.objectsAllHaveSameProperty(track, SegmentedObject::getTrackHead)) {
             List<SegmentedObject> th = track.stream().map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toList());
             String thS = Utils.toStringList(th);
-            logger.debug("Error ensure continuous track: #{} th found: {}", th.size(), thS);
+            logger.debug("Error ensure continuous track: #{}/{} th found: {}", th.size(), track.size(), thS);
             throw new IllegalArgumentException("Cannot ensure continuous track for list of objects from different tracks");
         }
         int idx = 0;

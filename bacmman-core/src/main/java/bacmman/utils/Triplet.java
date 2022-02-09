@@ -67,4 +67,13 @@ public class Triplet<A, B, C> {
     public String toString() {
         return "{"+(v1==null?"null":v1.toString())+";"+(v2==null?"null":v2.toString())+";"+(v3==null?"null":v3.toString())+"}";
     }
+    public Pair<A, B> extractAB() {
+        return new Pair<>(v1, v2);
+    }
+    public Pair<B, C> extractBC() {
+        return new Pair<>(v2, v3);
+    }
+    public Pair<A, C> extractAC() {
+        return new Pair<>(v1, v3);
+    }
 }

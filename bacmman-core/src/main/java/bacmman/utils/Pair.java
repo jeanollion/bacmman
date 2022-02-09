@@ -134,4 +134,8 @@ public class Pair<K, V> {
         }
         return res;
     }
+    public static <T> T getOther(Pair<T, T> pair, T value) {
+        if (pair.key.equals(value)) return pair.value;
+        else return pair.key;
+    }
 }
