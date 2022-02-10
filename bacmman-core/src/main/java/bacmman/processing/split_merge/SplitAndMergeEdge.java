@@ -133,7 +133,9 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
         public boolean checkFusion() {
             if (addTestImage!=null) logger.debug("check fusion: {}+{}, size: {}, value: {}, threhsold: {}, fusion: {}", e1.getLabel(), e2.getLabel(), voxels.size(), value, splitThresholdValue, value<splitThresholdValue);
             if (voxels.size()+duplicatedVoxels.size()<=2 && Math.min(getE1().size(), getE2().size())>10) return false;
-            return value<splitThresholdValue;
+            boolean fusion = value<splitThresholdValue;
+            if (!fusion) return false;
+            return checkFusionCriteria(this);
         }
 
         @Override

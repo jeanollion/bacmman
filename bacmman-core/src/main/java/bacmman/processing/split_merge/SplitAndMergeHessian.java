@@ -144,7 +144,9 @@ public class SplitAndMergeHessian extends SplitAndMerge<Interface> {
             // criterion = - hessian @ border / intensity @ border < threshold
             
             if (addTestImage!=null) logger.debug("check fusion: {}+{}, size: {}, value: {}, threhsold: {}, fusion: {}", e1.getLabel(), e2.getLabel(), voxels.size(), value, splitThresholdValue, value<splitThresholdValue);
-            return value<splitThresholdValue;
+            boolean fusion = value<splitThresholdValue;
+            if (!fusion) return false;
+            return checkFusionCriteria(this);
         }
 
         @Override

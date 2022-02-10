@@ -26,6 +26,7 @@ import bacmman.image.ImageByte;
 import bacmman.image.ImageMask;
 import bacmman.processing.Filters;
 import bacmman.processing.clustering.ClusterCollection;
+import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.watershed.WatershedTransform;
@@ -34,6 +35,8 @@ import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -55,7 +58,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     protected ImageMask foregroundMask;
     protected Consumer<Region> regionChanged;
     protected double seedThreshold = Double.NaN;
-
+    protected List<FusionCriterion<Region, I>> fusionCriteria = new ArrayList<>();
     public SplitAndMerge<I> setSeedThrehsold(double seedThrehsold) {
         this.seedThreshold=seedThrehsold;
         return this;
@@ -67,17 +70,12 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
 
     public SplitAndMerge(Image intensityMap) {
         this.intensityMap=intensityMap;
-        medianValues= new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
-            if (r.getLabel()==0) return ArrayUtil.quantile(r.getVoxels().stream().filter(v->intensityMap.contains(v.x, v.y, v.z)).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).toArray(), 0.5);
-            else return BasicMeasurements.getQuantileValue(r, intensityMap, 0.5)[0];
-        });
-        meanValues = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
-            if (r.getLabel()==0) return r.getVoxels().stream().filter(v->intensityMap.contains(v.x, v.y, v.z)).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).average().getAsDouble();
-            else return BasicMeasurements.getMeanValue(r, intensityMap);
-        });
+        medianValues= InterfaceRegionImpl.getMedianValueMap(intensityMap);
+        meanValues= InterfaceRegionImpl.getMeanValueMap(intensityMap);
         regionChanged = r -> {
             medianValues.remove(r);
             meanValues.remove(r);
+            for (FusionCriterion<Region, I> crit : fusionCriteria) crit.elementChanged(r);
         };
     }
     public SplitAndMerge<I> setMapsProperties(boolean wsMapIsEdgeMap, boolean localMinOnSeedMap) {
@@ -120,11 +118,21 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
 
     public void addForbidFusion(Predicate<I> forbidFusion) {
         if (forbidFusion==null) return;
-        if (this.forbidFusion!=null) this.forbidFusion=this.forbidFusion.or(forbidFusion);
-        else this.forbidFusion = forbidFusion;
+        fusionCriteria.add(new FusionCriterion.SimpleFusionCriterion<>(forbidFusion));
     }
-    public void setForbidFusion(Predicate<I> forbidFusion) {
-        this.forbidFusion=forbidFusion;
+    public void clearFusionCriteria() {
+        this.fusionCriteria.clear();
+    }
+
+    public void addFusionCriterion(FusionCriterion<Region, I> criterion) {
+        fusionCriteria.add(criterion);
+    }
+
+    public boolean checkFusionCriteria(I inter) {
+        for (FusionCriterion<Region, I> crit : fusionCriteria) {
+            if (!crit.checkFusion(inter)) return false;
+        }
+        return true;
     }
     public void addForbidFusionForegroundBackground(Predicate<Region> isBackground, Predicate<Region> isForeground) {
         this.addForbidFusion(i->{
@@ -146,10 +154,6 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         });
     }
     
-    protected Predicate<I> forbidFusion;
-    public boolean isFusionForbidden(I inter) {
-        return forbidFusion!=null ? forbidFusion.test(inter) : false;
-    } 
     public Function<RegionCluster<I>, Boolean> objectNumberLimitCondition(int numberOfElementsToKeep) {
         return (RegionCluster<I> c) -> c.elementNumberStopCondition(numberOfElementsToKeep).getAsBoolean();
     }
@@ -162,7 +166,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     public RegionPopulation merge(RegionPopulation popWS, Function<RegionCluster<I>, Boolean> stopCondition) {
         RegionCluster.verbose=addTestImage!=null; //TODO proper test mode
         RegionCluster<I> c = new RegionCluster<>(popWS, foregroundMask, true, getFactory());
-        c.addForbidFusionPredicate(forbidFusion);
+        //c.addForbidFusionPredicate(forbidFusion); forbid fusion
         c.mergeSort(stopCondition==null, stopCondition==null ? () -> false : () -> stopCondition.apply(c));
         if (addTestImage!=null) addTestImage.accept(popWS.getLabelMap().duplicate("Split&Merge: regions after merge"));
         return popWS;

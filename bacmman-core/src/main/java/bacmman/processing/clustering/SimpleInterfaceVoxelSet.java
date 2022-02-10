@@ -46,6 +46,6 @@ public class SimpleInterfaceVoxelSet extends InterfaceVoxelSet<SimpleInterfaceVo
     }
     
     public static ClusterCollection.InterfaceFactory<Region, SimpleInterfaceVoxelSet> interfaceFactory() {
-        return (e1, e2)->new SimpleInterfaceVoxelSet(e1, e2);
+        return SimpleInterfaceVoxelSet::new;
     }
 }

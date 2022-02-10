@@ -223,7 +223,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             double l  = i.getVoxels().stream().mapToDouble(v->v.y).max().getAsDouble()- i.getVoxels().stream().mapToDouble(v->v.y).min().getAsDouble();
              //CleanVoxelLine.cleanSkeleton(e1Vox); could be used to get more accurate result
             return 1 -l/Math.min(i.getE1().getBounds().sizeY(), i.getE2().getBounds().sizeY()); // 1 - contact% because S&M used inverted criterion: small are merged
-        }).setThreshold(0.5).setForbidFusion(null);
+        }).setThreshold(0.5).clearFusionCriteria();
         sm.merge(pop, null);
         return pop;
     }

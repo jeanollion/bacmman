@@ -33,5 +33,5 @@ public interface InterfaceRegion<T extends Interface<Region, T>> extends Interfa
      * @param v1
      * @param v2 
      */
-    public abstract void addPair(Voxel v1, Voxel v2);
+    void addPair(Voxel v1, Voxel v2);
 }

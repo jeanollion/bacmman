@@ -27,15 +27,15 @@ import java.util.Comparator;
  * @param <T> type of interface
  */
 public interface Interface<E, T extends Interface<E, T>> extends Comparable<T> {
-    public E getE1();
-    public E getE2();
-    public boolean isInterfaceOf(E e1, E e2);
-    public boolean isInterfaceOf(E e1);
-    public E getOther(E e);
+    E getE1();
+    E getE2();
+    boolean isInterfaceOf(E e1, E e2);
+    boolean isInterfaceOf(E e1);
+    E getOther(E e);
     
-    public void swichElements(E newE, E oldE, Comparator<? super E> elementComparator);
-    public void performFusion();
-    public boolean checkFusion();
-    public void fusionInterface(T otherInterface, Comparator<? super E> elementComparator);
-    public void updateInterface();
+    void swichElements(E newE, E oldE, Comparator<? super E> elementComparator);
+    void performFusion();
+    boolean checkFusion();
+    void fusionInterface(T otherInterface, Comparator<? super E> elementComparator);
+    void updateInterface();
 }

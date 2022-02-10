@@ -19,6 +19,13 @@
 package bacmman.processing.clustering;
 
 import bacmman.data_structure.Region;
+import bacmman.image.Image;
+import bacmman.measurement.BasicMeasurements;
+import bacmman.utils.ArrayUtil;
+import bacmman.utils.HashMapGetCreate;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -35,4 +42,18 @@ public abstract class InterfaceRegionImpl<T extends Interface<Region, T>> extend
         e1.addVoxels(e2.getVoxels());
     }
 
+    public static HashMapGetCreate<Region, Double> getMedianValueMap(Image image) {
+        return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
+            if (r.getLabel() == 0)
+                return ArrayUtil.quantile(r.getVoxels().stream().filter(v -> image.contains(v.x, v.y, v.z)).mapToDouble(v -> image.getPixel(v.x, v.y, v.z)).toArray(), 0.5);
+            else return BasicMeasurements.getQuantileValue(r, image, 0.5)[0];
+        });
+    }
+    public static HashMapGetCreate<Region, Double> getMeanValueMap(Image image) {
+        return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
+            if (r.getLabel() == 0)
+                return r.getVoxels().stream().filter(v->image.contains(v.x, v.y, v.z)).mapToDouble(v->image.getPixel(v.x, v.y, v.z)).average().getAsDouble();
+            else return BasicMeasurements.getMeanValue(r, image);
+        });
+    }
 }

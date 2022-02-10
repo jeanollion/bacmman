@@ -303,7 +303,9 @@ public class SplitAndMergeBacteriaShape extends SplitAndMerge<InterfaceLocalShap
             double norm = Math.min(max1, max2);
             value = maxDistance/norm;
             if (addTestImage!=null) logger.debug("Thickness criterioninterface: {}+{}, norm: {} maxInter: {}, criterion value: {} threshold: {} fusion: {}, scale: {}", e1.getLabel(), e2.getLabel(), norm, maxDistance,value, relativeThicknessThreshold, value>relativeThicknessThreshold, e1.getScaleXY() );
-            return  value>relativeThicknessThreshold;
+            boolean fusion = value>relativeThicknessThreshold;
+            if (!fusion) return false;
+            return checkFusionCriteria(this);
         }
         private void searchKDTree(RadiusNeighborSearchOnKDTree<Double> search, RealLocalizable r, double searchScale, Map<RealLocalizable, double[]> res) {
             search.search(r, searchScale, false);

@@ -12,6 +12,8 @@ import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.processing.RegionFactory;
+import bacmman.processing.clustering.FusionCriterion;
+import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.geom.Point;
@@ -19,7 +21,7 @@ import bacmman.utils.geom.Point;
 import java.util.*;
 import java.util.function.Consumer;
 
-public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPlugin, Hint, ObjectSplitter, ManualSegmenter {
+public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPlugin, Hint, ObjectSplitter, ManualSegmenter, FusionCriterion.AcceptsFusionCriterion<Region, SplitAndMergeEDM.Interface> {
 
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 4, 2.75, 0.0001, null ).setEmphasized(true).setHint("Controls over-segmentation. With a lower value, the method will split more bacteria. See <em>Foreground detection: Interface Values</em> map in test mode to tune this parameter: when this parameter is higher than the value at interface between two regions, they are merged<br />When two regions are in contact, an interface criterion is computed as the median EDM value at the interface, normalized by the median value of local extrema of EDM in the two segmented regions. <br/>Note that if the parameter <em>Invert</em> is set to false, the behavior is inverted: with a higher value, the method will split more bacteria");
     BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 4, 1, 0.1, null ).setEmphasized(true).setHint("EDM value inferior to this parameter are considered to be part of background").setEmphasized(true);
@@ -48,10 +50,16 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
         res.filter(object -> object.size()>minSize && (minMaxEDM < minEDM || BasicMeasurements.getMaxValue(object, edm)>minMaxEDM));
         return res;
     }
-
+    List<FusionCriterion<Region, SplitAndMergeEDM.Interface>> fusionCriteria = new ArrayList<>();
+    @Override
+    public void addFusionCriterion(FusionCriterion<Region, SplitAndMergeEDM.Interface> crit) {
+        fusionCriteria.add(crit);
+    }
     protected SplitAndMergeEDM initSplitAndMerge(Image edm) {
-        return (SplitAndMergeEDM)new SplitAndMergeEDM(edm, edm, splitThreshold.getValue().doubleValue(), interfaceValue.getSelectedEnum(), normalizeInterfaceValue.getSelected(), invert.getSelected())
+        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(edm, edm, splitThreshold.getValue().doubleValue(), interfaceValue.getSelectedEnum(), normalizeInterfaceValue.getSelected(), invert.getSelected())
                 .setMapsProperties(false, false);
+        for (FusionCriterion<Region, ? extends InterfaceRegionImpl<?>> crit : fusionCriteria) sm.addFusionCriterion((FusionCriterion<Region, SplitAndMergeEDM.Interface>) crit);
+        return sm;
     }
 
 

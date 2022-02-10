@@ -39,7 +39,6 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new ThresholdMask(proba, minimalProba.getValue().doubleValue(), true, false);
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
-                .setDivisionCriterion(SplitAndMergeEDM.DIVISION_CRITERION.NONE, 0)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
@@ -106,7 +105,6 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     protected SplitAndMergeEDM initSplitAndMerge(Image input) {
         Image probaMap = predict(input)[0];
         return (SplitAndMergeEDM)new SplitAndMergeEDM(probaMap, probaMap, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
-                .setDivisionCriterion(SplitAndMergeEDM.DIVISION_CRITERION.NONE, Double.NaN)
                 .setMapsProperties(false, false);
     }
 
