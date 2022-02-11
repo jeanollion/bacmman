@@ -1,35 +1,54 @@
 package bacmman.processing.track_post_processing;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.SegmentedObjectFactory;
+import bacmman.data_structure.TrackLinkEditor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class TrackTree extends TreeMap<SegmentedObject, Track> {
+    public final static Logger logger = LoggerFactory.getLogger(TrackTree.class);
+    public int getFisrtFrame() {
+        return values().stream().findFirst().get().head().getFrame();
+    }
 
     public Track getFirstMerge() {
         return values().stream().filter(Track::merge).findFirst().orElse(null);
+    }
+
+    public Track getNextMerge(Track from) {
+        return values().stream().filter(Track::merge).filter(t -> t.head().getFrame() > from.head().getFrame()).findFirst().orElse(null);
     }
 
     public Track getLastMerge() {
         return descendingMap().values().stream().filter(Track::merge).findFirst().orElse(null);
     }
 
-    public static List<TrackTree> getIndependentTrackTrees(Map<SegmentedObject, Track> tracks) {
-        List<TrackTree> trees = new ArrayList<>();
-        tracks.forEach((head, track) -> {
-            List<TrackTree> connected = trees.stream().filter(track::belongTo).collect(Collectors.toList());
-            if (connected.isEmpty()) {
-                TrackTree t = new TrackTree();
-                t.put(head, track);
-                trees.add(t);
-            } else {
-                connected.get(0).put(head, track); // add to existing tree
-                if (connected.size()>1) { // fusion
-                    for (int i = 1; i<connected.size(); ++i) connected.get(0).putAll(connected.get(i));
-                }
-            }
-        });
-        return trees;
+    public List<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        boolean change = split(t1, t2, false, sm, factory, editor) || split(t1, t2, true, sm, factory, editor);
+        if (change) {
+            TrackTreePopulation newPop = new TrackTreePopulation(this);
+            return newPop.trees;
+        }
+        return null;
     }
+
+    protected boolean split(Track t1, Track t2, boolean next, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        Track toSplit = t1.getCommonTrack(t2, next, false);
+        boolean split = false;
+        while(toSplit!=null) {
+            if (toSplit.getSplitRegions()==null) toSplit.setSplitRegions(sm);
+            Track newTrack = Track.splitTrack(toSplit, factory, editor);
+            if (newTrack!=null) {
+                split = true;
+                toSplit = toSplit.simplifyTrack(editor);
+                newTrack = newTrack.simplifyTrack(editor);
+                toSplit = toSplit.getCommonTrack(newTrack, next, true); // also search in linked tracks because simplify track will not merge if newTrack or toSplit have several next/previous
+            } else return split;
+        }
+        return split;
+    }
+
 }

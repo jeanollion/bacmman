@@ -40,6 +40,7 @@ import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_MER
 import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_SPLITTING_MAX_DISTANCE;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import org.jgrapht.graph.DefaultWeightedEdge;
@@ -109,6 +110,7 @@ public class TrackMateInterface<S extends Spot> {
 
     public boolean processFTF(double distanceThreshold) {
         long t0 = System.currentTimeMillis();
+        logger.trace("FTF distance: {} objects {}", distanceThreshold, Utils.toStringMap(this.collection.keySet().stream().collect(Collectors.toMap(f->f, f -> collection.getNSpots(f, false))), i->i+"", i->i+"" ) );
         // Prepare settings object
         final Map< String, Object > ftfSettings = new HashMap<>();
         ftfSettings.put( KEY_LINKING_MAX_DISTANCE, distanceThreshold );
@@ -341,6 +343,7 @@ public class TrackMateInterface<S extends Spot> {
         logger.debug("reset track links between {} & {}", minF, maxF);
         for (SegmentedObject o : objects) editor.resetTrackLinks(o,o.getFrame()>minF, o.getFrame()<maxF, true);
     }
+
     public void setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
         if (objectsF==null || objectsF.isEmpty()) return;
         List<SegmentedObject> objects = Utils.flattenMap(objectsF);
@@ -355,10 +358,10 @@ public class TrackMateInterface<S extends Spot> {
         TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(Comparator.comparingDouble(arg0 -> graph.getEdgeWeight(arg0)));
         setEdges(objects, objectsF, false, edgeBucket, editor);
         setEdges(objects, objectsF, true, edgeBucket, editor);
-        // set trackhead
         Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
         for (SegmentedObject so : objects) {
-            if (so.getPrevious()!=null && so.equals(so.getPrevious().getNext())) editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, false);
+            if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
+                editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, false);
             else editor.setTrackHead(so, so, false, false);
         }
     }

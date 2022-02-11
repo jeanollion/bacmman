@@ -9,12 +9,19 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.segmenters.BacteriaEDM;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
+import bacmman.processing.clustering.FusionCriterion;
+import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.track_post_processing.SplitAndMerge;
+import bacmman.processing.track_post_processing.Track;
+import bacmman.processing.track_post_processing.TrackTreePopulation;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Triplet;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.*;
@@ -22,12 +29,14 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
+    public final static Logger logger = LoggerFactory.getLogger(DistNet2D.class);
     private InterpolationParameter defInterpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.NEAREAST);
     PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 1.1, 0, null).setEmphasized(true).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and the <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified and the predicted division probability is lower than 0.7 for all cells, they are merged.");
     BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(true).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");
+    BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setEmphasized(true).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null);
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5, 0.6, 0.01, 1);
 
@@ -40,14 +49,15 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & category for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, category for current frame, category for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
 
-    Parameter[] parameters =new Parameter[]{dlEngine, dlResizeAndScale, next, edmSegmenter, minOverlap, divisionCost, correctionMaxCost, growthRateRange, averagePredictions};
+    Parameter[] parameters =new Parameter[]{dlEngine, dlResizeAndScale, next, edmSegmenter, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, growthRateRange, averagePredictions};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Map<SegmentedObject, Image>[] edm_dy_dx_div_np = predict(objectClassIdx, parentTrack, trackPreFilters, null);
         if (stores!=null && edm_dy_dx_div_np[3]!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) edm_dy_dx_div_np[3].forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
-        segment(objectClassIdx, parentTrack, edm_dy_dx_div_np[0], postFilters, factory);
+        segment(objectClassIdx, parentTrack, edm_dy_dx_div_np[0], edm_dy_dx_div_np[1], edm_dy_dx_div_np[2], postFilters, factory);
         track(objectClassIdx, parentTrack ,edm_dy_dx_div_np[1], edm_dy_dx_div_np[2], edm_dy_dx_div_np[4], edm_dy_dx_div_np[3], edm_dy_dx_div_np[0], editor, factory);
+        postFilterTracking(objectClassIdx, parentTrack, edm_dy_dx_div_np[0], editor, factory);
     }
 
     // 2D mode: prediction is 0=edm, 1=dy, 2=dx, 3=div, 4=div_next
@@ -189,7 +199,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return new Map[]{edmM, dyM, dxM, divM, npM};
     }
 
-    public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
+    public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> dx, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores!=null);
         if (stores!=null) edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
         TrackConfigurable.TrackConfigurer applyToSegmenter=TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, edmSegmenter.instantiatePlugin());
@@ -201,10 +211,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 ((TestableProcessingPlugin) segmenter).setTestDataStore(stores);
             }
             if (applyToSegmenter != null) applyToSegmenter.apply(p, segmenter);
+            if (displacementThreshold.getDoubleValue()>0 && segmenter instanceof FusionCriterion.AcceptsFusionCriterion) {
+                ((FusionCriterion.AcceptsFusionCriterion<Region, ? extends InterfaceRegionImpl<?>>)segmenter).addFusionCriterion(new DisplacementFusionCriterion(displacementThreshold.getDoubleValue(), dx.get(p), dy.get(p)));
+            }
             RegionPopulation pop = segmenter.runSegmenter(edmI, objectClassIdx, p);
             postFilters.filter(pop, objectClassIdx, p);
             factory.setChildObjects(p, pop);
             p.getChildren(objectClassIdx).forEach(o -> { // save memory
+                if (o.getRegion().getCenter()==null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
                 o.getRegion().clearVoxels();
                 o.getRegion().clearMask();
             });
@@ -234,31 +248,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         return res;
     }
-    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> dx, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, Map<SegmentedObject, Image> edm, TrackLinkEditor editor, SegmentedObjectFactory factory) {
-        logger.debug("tracking : test mode: {}", stores!=null);
-        if (stores!=null  && this.stores.get(parentTrack.get(0)).isExpertMode()) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
-        if (stores!=null  && this.stores.get(parentTrack.get(0)).isExpertMode()) dx.forEach((o, im) -> stores.get(o).addIntermediateImage("dx", im));
-        if (stores!=null && noPrev!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
-        Map<SegmentedObject, Double> dyMap = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
-                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0],
-                HashMapGetCreate.Syncronization.NO_SYNC
-        );
-        Map<SegmentedObject, Double> dxMap = HashMapGetCreate.getRedirectedMap(
-                parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
-                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dx.get(o.getParent()), 0.5)[0],
-                HashMapGetCreate.Syncronization.NO_SYNC
-        );
-        Map<SegmentedObject, TrackingObject> objectSpotMap = HashMapGetCreate.getRedirectedMap(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(), o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), dyMap.get(o), dxMap.get(o)), HashMapGetCreate.Syncronization.NO_SYNC);
-        Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
-
-        // link each object to the closest previous object
-        int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
-        int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
-        double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
-        double divisionCost = this.divisionCost.getValue().doubleValue();
+    protected SplitAndMerge getSplitAndMerge(Map<SegmentedObject, Image> edm) {
         SegmenterSplitAndMerge seg = getSegmenter();
-
         SplitAndMerge sm = new SplitAndMerge() {
             @Override
             public double computeMergeCost(List<SegmentedObject> toMergeL) {
@@ -307,12 +298,38 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 return new Triplet<>(res.get(0), res.get(1), cost);
             }
         };
+        return sm;
+    }
+    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> dy, Map<SegmentedObject, Image> dx, Map<SegmentedObject, Image> noPrev, Map<SegmentedObject, Image> division, Map<SegmentedObject, Image> edm, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+        logger.debug("tracking : test mode: {}", stores!=null);
+        if (stores!=null  && this.stores.get(parentTrack.get(0)).isExpertMode()) dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
+        if (stores!=null  && this.stores.get(parentTrack.get(0)).isExpertMode()) dx.forEach((o, im) -> stores.get(o).addIntermediateImage("dx", im));
+        if (stores!=null && noPrev!=null && this.stores.get(parentTrack.get(0)).isExpertMode()) noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
+        Map<SegmentedObject, Double> dyMap = HashMapGetCreate.getRedirectedMap(
+                parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
+                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dy.get(o.getParent()), 0.5)[0],
+                HashMapGetCreate.Syncronization.NO_SYNC
+        );
+        Map<SegmentedObject, Double> dxMap = HashMapGetCreate.getRedirectedMap(
+                parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(),
+                o-> BasicMeasurements.getQuantileValue(o.getRegion(), dx.get(o.getParent()), 0.5)[0],
+                HashMapGetCreate.Syncronization.NO_SYNC
+        );
+        Map<SegmentedObject, TrackingObject> objectSpotMap = HashMapGetCreate.getRedirectedMap(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)).parallel(), o->new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), dyMap.get(o), dxMap.get(o)), HashMapGetCreate.Syncronization.NO_SYNC);
+        Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
+
+        // link each object to the closest previous object
+        int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
+        int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
+        double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
+        double divisionCost = this.divisionCost.getValue().doubleValue();
+        SplitAndMerge sm = getSplitAndMerge(edm);
         BiConsumer<List<SegmentedObject>, Collection<SegmentedObject>> mergeFunNoPrev = (noPrevObjects, allObjects) -> {
             for (int i = 0;i<noPrevObjects.size()-1; ++i) {
                 SegmentedObject oi = noPrevObjects.get(i);
                 for (int j=i+1; j<noPrevObjects.size(); ++j) {
                     SegmentedObject oj = noPrevObjects.get(j);
-                    if (BoundingBox.intersect2D(oi.getBounds(), oj.getBounds())) {
+                    if (BoundingBox.intersect2D(oi.getBounds(), oj.getBounds(), 1)) {
                         double cost = sm.computeMergeCost(Arrays.asList(oi, oj));
                         if (cost <= divisionCost) {
                             SegmentedObject rem = noPrevObjects.remove(j);
@@ -607,6 +624,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
+    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, Map<SegmentedObject, Image> edm, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+        SplitAndMerge sm = getSplitAndMerge(edm);
+        solveMergeEvents(parentTrack, objectClassIdx, sm, factory, editor);
+    }
+
     public SegmenterSplitAndMerge getSegmenter() {
         return edmSegmenter.instantiatePlugin();
     }
@@ -771,9 +793,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 if (frame()==next.frame()+1) return next.overlap(this);
                 if (frame()!=next.frame()-1) return 0;
                 double overlap = r.getOverlapArea(next.r, offset, next.offsetToPrev);
-                /*if ((Math.abs(dx)>4 || Math.abs(dy)>4 ) && overlap>0) {
-                    logger.debug("{}->{}, overlap: {}, overlap without dis: {}", r.getLabel(), next.r.getLabel(), overlap, r.getOverlapArea(next.r, offset, next.offset));
-                }*/
                 return overlap;
             } else return 0;
         }
@@ -785,5 +804,55 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 return BoundingBox.intersect2D(r.getBounds(), next.r.getBounds().duplicate().translate(next.offsetToPrev));
             } else return false;
         }
+    }
+
+    public static class DisplacementFusionCriterion<I extends InterfaceRegionImpl<I>> implements FusionCriterion<Region, I> {
+        final Map<Region, Double> dx, dy;
+        final double threshold;
+        public DisplacementFusionCriterion(double threshold, Image dx, Image dy) {
+            this.dx= InterfaceRegionImpl.getMedianValueMap(dx);
+            this.dy= InterfaceRegionImpl.getMedianValueMap(dy);
+            this.threshold= threshold;
+        }
+
+        @Override
+        public boolean checkFusion(I inter) {
+            double dy1  = dy.get(inter.getE1());
+            double dy2  = dy.get(inter.getE2());
+
+            double dx1  = dx.get(inter.getE1());
+            double dx2  = dx.get(inter.getE2());
+            double dd = Math.max(Math.abs(dy1 - dy2), Math.abs(dx1 - dx2));
+            return dd<threshold;
+            //double ddyIfDiv = Math.abs(inter.getE1().getGeomCenter(false).get(1) - inter.getE2().getGeomCenter(false).get(1));
+            //return (ddy<ddyIfDiv * divCritValue); // TODO tune this parameter default = 0.75
+        }
+
+        @Override
+        public void elementChanged(Region region) {
+            dx.remove(region);
+            dy.remove(region);
+        }
+    }
+    public static BiPredicate<Region, Region> contact =  (r1, r2) -> {
+            if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), 1)) return false;
+            for (Voxel v1 : r1.getContour()) {
+                for (Voxel v2 : r2.getContour()) {
+                    if (v1.getDistanceSquare(v2)<=1) return true;
+                }
+            }
+            return false;
+    };
+
+    public static BiPredicate<Track, Track> gapBetweenTracks = (t1, t2) -> {
+        assert t1.size() == t2.size();
+        for (int i = 0; i<t1.size(); ++i) {
+            if (!contact.test(t1.getObjects().get(i).getRegion(), t2.getObjects().get(i).getRegion())) return true;
+        }
+        return false;
+    };
+    public static void solveMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx);
+        trackPop.solveMergeEventsBySplitting(gapBetweenTracks, sm, factory, editor);
     }
 }

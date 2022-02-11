@@ -48,9 +48,19 @@ public class SegmentedObjectFactory {
 
     public void removeFromParent(SegmentedObject... objects) {
         for (SegmentedObject o : objects) {
-            if (o.getStructureIdx() != editableObjectClassIdx)
-                throw new IllegalArgumentException("Object is not editable");
+            if (o.getStructureIdx() != editableObjectClassIdx) throw new IllegalArgumentException("Object is not editable");
             o.getParent().getDirectChildren(editableObjectClassIdx).remove(o);
+        }
+    }
+    public void addToParent(SegmentedObject parent, boolean relabelChildren, SegmentedObject... objects) {
+        assert parent.getExperimentStructure().isDirectChildOf(parent.getStructureIdx(), editableObjectClassIdx) : "parent is not direct parent of editableObjectClassIdx";
+        for (SegmentedObject o : objects) {
+            assert o.getStructureIdx() == editableObjectClassIdx : "Object is not editable";
+            o.setParent(parent);
+            parent.getDirectChildren(editableObjectClassIdx).add(o);
+        }
+        if (relabelChildren && objects.length>0) {
+            relabelChildren(parent);
         }
     }
 }
