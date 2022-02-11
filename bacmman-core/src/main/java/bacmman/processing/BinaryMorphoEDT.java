@@ -18,19 +18,17 @@
  */
 package bacmman.processing;
 
-import bacmman.image.BoundingBox;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.TypeConverter;
+import bacmman.image.*;
+import bacmman.plugins.Plugin;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class BinaryMorphoEDT {
+    public final static Logger logger = LoggerFactory.getLogger(BinaryMorphoEDT.class);
     /**
      * dilate binary mask using EDT
      * @param in
@@ -41,6 +39,7 @@ public class BinaryMorphoEDT {
      * @return 
      */
     public static ImageMask binaryDilateEDT(ImageMask in, double radius, double radiusZ, boolean extendImage, boolean multithread) {
+        if (radiusZ<=0 && in.sizeZ()>1) return ImageOperations.applyPlaneByPlaneMask(in, i -> (Image)binaryDilateEDT(i, radius, radius, extendImage, multithread));
         if (extendImage) {
             ImageInteger<? extends ImageInteger> ii = TypeConverter.maskToImageInteger(in, null);
             int rXY = (int) (radius + 1);
@@ -65,6 +64,7 @@ public class BinaryMorphoEDT {
      * @return 
      */
     public static ImageMask binaryErode(ImageMask in, double radius, double radiusZ, boolean multithread) {
+        if (radiusZ<=0 && in.sizeZ()>1) return ImageOperations.applyPlaneByPlaneMask(in, i -> (Image)binaryErode(i, radius, radius, multithread));
         ImageFloat edm = EDT.transform(in, true, 1, radius / radiusZ, multithread);
         BoundingBox.loop(new SimpleBoundingBox(edm).resetOffset(), (x, y, z) -> {
             if (edm.getPixel(x, y, z)<=radius) edm.setPixel(x, y, z, 0);
@@ -73,10 +73,12 @@ public class BinaryMorphoEDT {
         return edm;
     }
     public static ImageMask binaryOpen(ImageMask in, double radius, double radiusZ, boolean multithread) {
+        if (radiusZ<=0 && in.sizeZ()>1) return ImageOperations.applyPlaneByPlaneMask(in, i -> (Image)binaryOpen(i, radius, radius, multithread));
         ImageMask min = binaryErode(in, radius, radiusZ, multithread);
         return binaryDilateEDT(min, radius, radiusZ, false, multithread);
     }
     public static ImageByte binaryClose(ImageMask in, double radius, double radiusZ, boolean multithread) {
+        if (radiusZ<=0 && in.sizeZ()>1) return (ImageByte)ImageOperations.applyPlaneByPlaneMask(in, i -> binaryClose(i, radius, radius, multithread));
         ImageMask max = binaryDilateEDT(in, radius, radiusZ, true, multithread);
         ImageMask min = binaryErode(max, radius, radiusZ, multithread);
         ImageByte res = new ImageByte("close of "+in.getName(), in);

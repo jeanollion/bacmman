@@ -43,7 +43,9 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.BinaryOperator;
 import java.util.function.DoublePredicate;
+import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -88,8 +90,18 @@ public class ImageOperations {
             return Image.mergeZPlanes(planes);
         }
     }
+    public static Image applyPlaneByPlaneMask(ImageMask image, Function<ImageMask, Image> function, boolean parallel) {
+        if (image.sizeZ()==1) return function.apply(image);
+        else {
+            List<Image> planes = IntStream.range(0, image.sizeZ()).mapToObj(z -> function.apply(new ImageMask2D(image, z))).collect(Collectors.toList());
+            return Image.mergeZPlanes(planes);
+        }
+    }
     public static Image applyPlaneByPlane(Image image, Function<Image, Image> function) {
         return applyPlaneByPlane(image, function, false);
+    }
+    public static Image applyPlaneByPlaneMask(ImageMask image, Function<ImageMask, Image> function) {
+        return applyPlaneByPlaneMask(image, function, false);
     }
     public static Image average(Image output, Image... images) {
         if (images.length==0) throw new IllegalArgumentException("Cannot average zero images!");
