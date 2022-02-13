@@ -31,7 +31,7 @@ import bacmman.plugins.object_feature.IntensityMeasurement;
  *
  * @author Jean Ollion
  */
-public class StatisticsAtBorder extends IntensityMeasurement implements Hint {
+public class ContourFeature extends IntensityMeasurement implements Hint {
     enum STAT {MEAN, MAX, MIN, QUANTILE};
     public EnumChoiceParameter<STAT> stat= new EnumChoiceParameter<>("Statistic", STAT.values(), STAT.MEAN);
     public BoundedNumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
@@ -39,15 +39,26 @@ public class StatisticsAtBorder extends IntensityMeasurement implements Hint {
 
     @Override
     public double performMeasurement(Region object) {
-        return BasicMeasurements.getMeanValue(object.getContour(), core.getIntensityMap(true), object.isAbsoluteLandMark());
+        switch (stat.getSelectedEnum()) {
+            case MEAN:
+            default:
+                return BasicMeasurements.getMeanValue(object.getContour(), core.getIntensityMap(true), object.isAbsoluteLandMark());
+            case MAX:
+                return BasicMeasurements.getMaxValue(object.getContour(), core.getIntensityMap(true), object.isAbsoluteLandMark());
+            case MIN:
+                return BasicMeasurements.getMinValue(object.getContour(), core.getIntensityMap(true), object.isAbsoluteLandMark());
+            case QUANTILE:
+                return BasicMeasurements.getQuantileValue(object.getContour(), core.getIntensityMap(true), object.isAbsoluteLandMark(), quantile.getDoubleValue())[0];
+        }
+
     }
     @Override
     public String getDefaultName() {
-        return "MeanIntensityBorder";
+        return "ContourMean";
     }
     @Override
     public String getHintText() {
-        return "Average intensity value at the border of the object";
+        return "Statistics on intensity value at the contour of segmented objects";
     }
 
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity, statCond};}
