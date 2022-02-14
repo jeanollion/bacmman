@@ -223,11 +223,10 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             double l  = i.getVoxels().stream().mapToDouble(v->v.y).max().getAsDouble()- i.getVoxels().stream().mapToDouble(v->v.y).min().getAsDouble();
              //CleanVoxelLine.cleanSkeleton(e1Vox); could be used to get more accurate result
             return 1 -l/Math.min(i.getE1().getBounds().sizeY(), i.getE2().getBounds().sizeY()); // 1 - contact% because S&M used inverted criterion: small are merged
-        }).setThreshold(0.5).clearFusionCriteria();
+        }).setThreshold(0.5).setForbidFusion(null);
         sm.merge(pop, null);
         return pop;
     }
-    public static boolean verbosePlus=false;
     @Override
     protected RegionPopulation filterRegionsAfterEdgeDetector(SegmentedObject parent, int structureIdx, RegionPopulation pop) {
         // TODO: filter artifacts according to their hessian value
@@ -237,10 +236,10 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         if (Double.isNaN(upperThld)) throw new RuntimeException("Upper Threshold not computed");
         if (Double.isNaN(lowerThld)) throw new RuntimeException("Lower Threshold not computed");
         
-        // define 3 categories: background / forground / unknown
+        // define 3 categories: background / foreground / unknown
         // foreground -> high intensity, foreground -> low intensity 
         Function<Region, Integer> artifactFunc = getFilterBorderArtifacts(parent, structureIdx);
-        if (stores!=null && verbosePlus) {
+        if (stores!=null && stores.get(parent).isExpertMode()) {
             Map<Region, Double> valuesArt = pop.getRegions().stream().collect(Collectors.toMap(r->r, r->artifactFunc.apply(r)+2d));
             imageDisp.accept(EdgeDetector.generateRegionValueMap(parent.getPreFilteredImage(structureIdx), valuesArt).setName("artifact map: 1 = artifact / 2 = unknown / 3 = not artifact"));
             //imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, this.splitAndMerge.getHessian()).setName("hessian"));
@@ -259,11 +258,11 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             pop.getRegions().removeAll(foregroundL);
             pop.getRegions().addAll(0, foregroundL);
             pop.relabel(true);
-            if (stores!=null&&verbosePlus) imageDisp.accept(pop.getLabelMap().duplicate("before merge undetermined regions with foreground"));
+            if (stores!=null&&stores.get(parent).isExpertMode()) imageDisp.accept(pop.getLabelMap().duplicate("before merge undetermined regions with foreground"));
             SplitAndMergeRegionCriterion sm = new SplitAndMergeRegionCriterion(null, parent.getPreFilteredImage(structureIdx), -Double.MIN_VALUE, SplitAndMergeRegionCriterion.InterfaceValue.ABSOLUTE_DIFF_MEDIAN_BTWN_REGIONS);
             sm.addForbidFusion(i->foregroundL.contains(i.getE1())==foregroundL.contains(i.getE2()));
             sm.merge(pop, null);
-            if (stores!=null&&verbosePlus ) imageDisp.accept(pop.getLabelMap().duplicate("after merge undetermined regions with foreground"));
+            if (stores!=null&&stores.get(parent).isExpertMode() ) imageDisp.accept(pop.getLabelMap().duplicate("after merge undetermined regions with foreground"));
             relabeled= true;
         }
         if (pop.getRegions().size()>foregroundL.size()) { // there are still undetermined regions
@@ -280,7 +279,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                     pop.getRegions().removeAll(foregroundL);
                     pop.getRegions().addAll(backgroundL.size(), foregroundL);
                     pop.relabel(false);*/
-                    if (verbosePlus) imageDisp.accept(pop.getLabelMap().duplicate("After fore & back fusion"));
+                    if (stores.get(parent).isExpertMode()) imageDisp.accept(pop.getLabelMap().duplicate("After fore & back fusion"));
                 }
                 SplitAndMergeEdge sm = new SplitAndMergeEdge(edgeDetector.getWsMap(parent.getPreFilteredImage(structureIdx), parent.getMask()), parent.getPreFilteredImage(structureIdx), 1, false);
                 sm.setInterfaceValue(0.1, false);
@@ -288,7 +287,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                 sm.allowMergeWithBackground(parent.getMask()); // helps to remove artifacts on the side but can remove head of mother cell
                 sm.addForbidFusionForegroundBackground(r->r==background, r->r==foreground);
                 //sm.addForbidFusionForegroundBackground(r->backgroundL.contains(r), r->foregroundL.contains(r));
-                if (verbosePlus) sm.setTestMode(imageDisp);
+                if (stores.get(parent).isExpertMode()) sm.setTestMode(imageDisp);
                 sm.merge(pop, sm.objectNumberLimitCondition(2)); // merge intertermined until 2 categories in the image
                 pop.getRegions().remove(background);
                 //pop.getRegions().removeAll(backgroundL);
