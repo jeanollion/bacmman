@@ -287,7 +287,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                 sm.allowMergeWithBackground(parent.getMask()); // helps to remove artifacts on the side but can remove head of mother cell
                 sm.addForbidFusionForegroundBackground(r->r==background, r->r==foreground);
                 //sm.addForbidFusionForegroundBackground(r->backgroundL.contains(r), r->foregroundL.contains(r));
-                if (stores.get(parent).isExpertMode()) sm.setTestMode(imageDisp);
+                if (stores!=null && stores.get(parent).isExpertMode()) sm.setTestMode(imageDisp);
                 sm.merge(pop, sm.objectNumberLimitCondition(2)); // merge intertermined until 2 categories in the image
                 pop.getRegions().remove(background);
                 //pop.getRegions().removeAll(backgroundL);

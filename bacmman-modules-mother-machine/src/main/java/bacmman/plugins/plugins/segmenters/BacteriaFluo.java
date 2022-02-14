@@ -195,7 +195,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         
         // merge background regions: value is proportional to background sigma
         sm.setInterfaceValue(i-> {
-            if (i.getVoxels().isEmpty() || !sm.checkFusionCriteria(i)) {
+            if (i.getVoxels().isEmpty() || !sm.checkFusionCriteria(i) || sm.isFusionForbidden(i)) {
                 return Double.NaN;
             } else {
                 int size = i.getVoxels().size()+i.getDuplicatedVoxels().size();
@@ -213,7 +213,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         boolean remThld = remMethod == BACKGROUND_REMOVAL.THRESHOLDING || remMethod == BACKGROUND_REMOVAL.BORDER_CONTACT_AND_THRESHOLDING;
         if (remThld) { // merge foreground regions: normalized values
             sm.setInterfaceValue(i-> {
-                if (i.getVoxels().isEmpty() || !sm.checkFusionCriteria(i)) {
+                if (i.getVoxels().isEmpty() || !sm.checkFusionCriteria(i) || sm.isFusionForbidden(i)) {
                     return Double.NaN;
                 } else {
                     //int size = i.getVoxels().size()+i.getDuplicatedVoxels().size();
@@ -266,7 +266,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
             pop.relabel(false);
             SplitAndMergeEdge sm = new SplitAndMergeEdge(edgeDetector.getWsMap(parent.getPreFilteredImage(structureIdx), parent.getMask()), parent.getPreFilteredImage(structureIdx), 1, false);
             sm.setInterfaceValue(i-> {
-                if (i.getVoxels().isEmpty() || !sm.checkFusionCriteria(i)) {
+                if (i.getVoxels().isEmpty() || !sm.checkFusionCriteria(i) || sm.isFusionForbidden(i)) {
                     return Double.NaN;
                 } else {
                     int size = i.getVoxels().size()+i.getDuplicatedVoxels().size();
