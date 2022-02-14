@@ -30,10 +30,7 @@ import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.watershed.WatershedTransform;
-import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.HashMapGetCreate;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -115,13 +112,19 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         if (factory == null) factory = createFactory();
         return factory;
     }
-
-    public void addForbidFusion(Predicate<I> forbidFusion) {
-        if (forbidFusion==null) return;
-        fusionCriteria.add(new FusionCriterion.SimpleFusionCriterion<>(forbidFusion));
+    Predicate<I> forbidFusion;
+    public SplitAndMerge<I> addForbidFusion(Predicate<I> forbidFusion) {
+        if (forbidFusion==null) return this;
+        if (this.forbidFusion==null) this.forbidFusion = forbidFusion;
+        else this.forbidFusion = this.forbidFusion.or(forbidFusion);
+        return this;
     }
-    public void clearFusionCriteria() {
-        this.fusionCriteria.clear();
+    public SplitAndMerge<I> setForbidFusion(Predicate<I> forbidFusion) {
+        this.forbidFusion = forbidFusion;
+        return this;
+    }
+    public boolean isFusionForbidden(I inter) {
+        return forbidFusion != null && forbidFusion.test(inter);
     }
 
     public void addFusionCriterion(FusionCriterion<Region, I> criterion) {
@@ -140,7 +143,6 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
             if (isForeground.test(i.getE1()) && isBackground.test(i.getE2())) return true;
             return false;
         });
-        
     }
     /**
      * Fusion is forbidden if difference of median values within regions is superior to {@param thldDiff}
@@ -166,7 +168,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     public RegionPopulation merge(RegionPopulation popWS, Function<RegionCluster<I>, Boolean> stopCondition) {
         RegionCluster.verbose=addTestImage!=null; //TODO proper test mode
         RegionCluster<I> c = new RegionCluster<>(popWS, foregroundMask, true, getFactory());
-        //c.addForbidFusionPredicate(forbidFusion); forbid fusion
+        c.addForbidFusionPredicate(forbidFusion);
         c.mergeSort(stopCondition==null, stopCondition==null ? () -> false : () -> stopCondition.apply(c));
         if (addTestImage!=null) addTestImage.accept(popWS.getLabelMap().duplicate("Split&Merge: regions after merge"));
         return popWS;
