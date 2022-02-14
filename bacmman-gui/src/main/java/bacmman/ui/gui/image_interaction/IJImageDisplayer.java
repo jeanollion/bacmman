@@ -38,6 +38,7 @@ import org.slf4j.LoggerFactory;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.MouseWheelListener;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -97,7 +98,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
     }
     
     public void flush() {
-        for (ImagePlus ip : displayedImages.values()) if (ip.isVisible()) ip.close();
+        for (ImagePlus ip : new ArrayList<>(displayedImages.values())) if (ip.isVisible()) ip.close();
         displayedImages.clear();
         displayedImagesInv.clear();
         WindowManager.closeAllWindows(); // also close all open windows
