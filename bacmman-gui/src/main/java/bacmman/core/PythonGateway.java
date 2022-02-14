@@ -59,7 +59,7 @@ public class PythonGateway {
         try {
             server = new GatewayServer(this, port, address(), 0, 0, null, new CallbackClient(pythonPort, address()), ServerSocketFactory.getDefault());
             server.start();
-
+            logger.info("Python Gateway started : port: {} python port: {} address: {}", port, pythonPort, address);
         } catch(Exception e) {
             logger.error("Error with Python Gateway: binding with python will not be available", e);
         }
