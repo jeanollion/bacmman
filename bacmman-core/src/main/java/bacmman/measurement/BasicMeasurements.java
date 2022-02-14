@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -60,6 +61,14 @@ public class BasicMeasurements {
         if (voxelsInAbsoluteLandMark) for (Voxel v : voxels) value+=image.getPixelWithOffset(v.x, v.y, v.z);
         else for (Voxel v : voxels) value+=image.getPixel(v.x, v.y, v.z);
         return value/(double)voxels.size();
+    }
+    public static double getMaxValue(Collection<Voxel> voxels, Image image, boolean voxelsInAbsoluteLandMark) {
+        if (voxelsInAbsoluteLandMark) return voxels.stream().mapToDouble(v -> image.getPixelWithOffset(v.x, v.y, v.z)).max().orElse(Double.NaN);
+        else return voxels.stream().mapToDouble(v -> image.getPixel(v.x, v.y, v.z)).max().orElse(Double.NaN);
+    }
+    public static double getMinValue(Collection<Voxel> voxels, Image image, boolean voxelsInAbsoluteLandMark) {
+        if (voxelsInAbsoluteLandMark) return voxels.stream().mapToDouble(v -> image.getPixelWithOffset(v.x, v.y, v.z)).min().orElse(Double.NaN);
+        else return voxels.stream().mapToDouble(v -> image.getPixel(v.x, v.y, v.z)).min().orElse(Double.NaN);
     }
     public static double[] getMeanSdValue(Region object, Image image) {
         if (object.voxelsCreated()) {
@@ -164,6 +173,17 @@ public class BasicMeasurements {
             if (object.isAbsoluteLandMark()) stream = object.getVoxels().stream().mapToDouble(v->image.getPixelWithOffset(v.x, v.y, v.z));
             else stream = object.getVoxels().stream().mapToDouble(v->image.getPixel(v.x, v.y, v.z));
         } else stream = image.stream(object.getMask(), object.isAbsoluteLandMark()).sorted();
+        stream = stream.sorted();
+        return ArrayUtil.quantiles(stream.toArray(), quantiles);
+    }
+    public static double[] getQuantileValue(Collection<Voxel> voxels, Image image, boolean voxelsInAbsoluteLandMark, double... quantiles) {
+        if (quantiles.length==0) return new double[0];
+        if (voxels.isEmpty()) return IntStream.range(0, quantiles.length).mapToDouble(i -> Double.NaN).toArray();
+        if (quantiles.length==1 && quantiles[0]<=0) return new double[]{getMinValue(voxels, image, voxelsInAbsoluteLandMark)};
+        if (quantiles.length==1 && quantiles[0]>=1) return new double[]{getMaxValue(voxels, image ,voxelsInAbsoluteLandMark)};
+        DoubleStream stream;
+        if (voxelsInAbsoluteLandMark) stream = voxels.stream().mapToDouble(v->image.getPixelWithOffset(v.x, v.y, v.z));
+        else stream = voxels.stream().mapToDouble(v->image.getPixel(v.x, v.y, v.z));
         stream = stream.sorted();
         return ArrayUtil.quantiles(stream.toArray(), quantiles);
     }

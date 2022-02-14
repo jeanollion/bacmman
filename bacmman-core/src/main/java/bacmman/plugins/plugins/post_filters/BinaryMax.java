@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.Ellipse2D;
@@ -36,7 +37,8 @@ import bacmman.plugins.PostFilter;
  * @author Jean Ollion
  */
 public class BinaryMax implements PostFilter, MultiThreaded, Hint {
-    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
+    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, false).setEmphasized(true);
+
     @Override
     public String getHintText() {
         return "Performs an max operation on region masks<br />When several segmented regions are present, the filter is applied label-wise";
@@ -60,9 +62,10 @@ public class BinaryMax implements PostFilter, MultiThreaded, Hint {
             return childPopulation;
         }
         // TODO manage case when only part are spots...
-        Neighborhood n = Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parent.getMask());
+
+        Neighborhood n = Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), childPopulation.getImageProperties());
         childPopulation.relabel(false); // ensure label are ordered
-        ImageInteger labelMap =  (ImageInteger)Filters.applyFilter(childPopulation.getLabelMap(), null, new Filters.BinaryMaxLabelWise(), n, parallele);
+        ImageInteger labelMap =  (ImageInteger)Filters.applyFilter(childPopulation.getLabelMap(), null, new Filters.BinaryMaxLabelWise(), n, parallel);
         RegionPopulation res = new RegionPopulation(labelMap, true);
         return res;
     }
@@ -72,9 +75,9 @@ public class BinaryMax implements PostFilter, MultiThreaded, Hint {
         return new Parameter[]{scale};
     }
 
-    boolean parallele;
+    boolean parallel;
     @Override
     public void setMultiThread(boolean parallel) {
-        this.parallele= parallel;
+        this.parallel= parallel;
     }
 }

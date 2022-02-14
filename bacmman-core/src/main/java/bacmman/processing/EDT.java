@@ -321,7 +321,7 @@ public class EDT {
         int thread, nThreads, w, h, d;
         float[][] s;
         ImageMask mask;
-        float scaleZ;
+        float scaleZ, scaleZ2;
         boolean insideMask;
         
         public Step3Thread(int thread, int nThreads, int w, int h, int d, float[][] s, ImageMask mask, boolean insideMask, float scaleZ) {
@@ -332,7 +332,8 @@ public class EDT {
             this.d = d;
             this.s = s;
             this.mask = mask;
-            this.scaleZ = scaleZ * scaleZ;
+            this.scaleZ2 = scaleZ * scaleZ;
+            this.scaleZ = scaleZ;
             this.insideMask=insideMask;
         }
 
@@ -395,7 +396,7 @@ public class EDT {
                                 delta = (k - zBegin);
 
                                 for (int z = zBegin; z <= zEnd; z++) {
-                                    test = tempS[z] + delta * delta-- * scaleZ;
+                                    test = tempS[z] + delta * delta-- * scaleZ2;
                                     if (test < min) {
                                         min = test;
                                     }

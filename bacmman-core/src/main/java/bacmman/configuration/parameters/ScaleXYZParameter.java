@@ -95,9 +95,9 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
     public double getScaleXY() {
         return scaleXY.getValue().doubleValue();
     }
-    public double getScaleZ(double theoScaleXY, double theoScaleZ) {
+    public double getScaleZ(double calXY, double calZ) {
         if (useImageCalibration.getSelected()) {
-            return theoScaleZ * getScaleXY() / theoScaleXY;
+            return calXY * getScaleXY() / calZ;
         } else return scaleZ.getValue().doubleValue();
     }
     public ScaleXYZParameter setScaleXY(double scaleXY) {

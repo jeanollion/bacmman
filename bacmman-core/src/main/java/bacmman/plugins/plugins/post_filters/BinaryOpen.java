@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.*;
@@ -35,8 +36,9 @@ import bacmman.plugins.Hint;
  * @author Jean Ollion
  */
 public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
-    ScaleXYZParameter scale = new ScaleXYZParameter("Opening Radius", 3, 1, true).setEmphasized(true);
-    
+    ScaleXYZParameter scale = new ScaleXYZParameter("Opening Radius", 3, 0, false).setEmphasized(true).setHint("Radius of the filter. For 3D iamges , if ScaleZ==0 filter is applied plane by plane");
+    EnumChoiceParameter<BinaryClose.USE_EDT> useEDT = new EnumChoiceParameter<>("Use EDT", BinaryClose.USE_EDT.values(), BinaryClose.USE_EDT.AUTO).setHint("Perform filter using Euclidean Distance Transform or loop on neighborhood");
+
     @Override
     public String getHintText() {
         return "Performs an opening operation on region masks<br />Useful to remove small protuberances<br />When several segmented regions are present, the filter is applied label-wise";
@@ -47,24 +49,30 @@ public class BinaryOpen implements PostFilter, MultiThreaded, Hint {
         if (childPopulation.getRegions().stream().allMatch(r->r instanceof Analytical)) { // do nothing
             return childPopulation;
         }
-        boolean edt = scale.getScaleXY()>=8;
-        Neighborhood n = edt?null: Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parent.getMask());
+        double radius = scale.getScaleXY();
+        double radiusZ = childPopulation.getImageProperties().sizeZ()==1 ? 1 : scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
+
+        Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
         childPopulation.ensureEditableRegions();
         for (Region o : childPopulation.getRegions()) {
-            ImageInteger closed = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parallele), null)
-                    : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallele);
-            o.setMask(closed);
+            logger.debug("mask bds: {}, size: {}x{}", o.getBounds(), o.getBounds().sizeX(), o.getBounds().sizeY());
+            ImageInteger open = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryOpen(o.getMask(), radius, radiusZ, parallel), null)
+                    : Filters.binaryOpen(o.getMaskAsImageInteger(), null, n, parallel);
+            o.setMask(open);
+            logger.debug("after open: mask bds: {}, size: {}x{}", open, open.sizeX(), open.sizeY());
         }
+        childPopulation.filter(new RegionPopulation.Size().setMin(1)); // delete blank objects
         return childPopulation;
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scale};
+        return new Parameter[]{scale, useEDT};
     }
-    boolean parallele;
+    boolean parallel;
     @Override
     public void setMultiThread(boolean parallel) {
-        this.parallele= parallel;
+        this.parallel = parallel;
     }
 }

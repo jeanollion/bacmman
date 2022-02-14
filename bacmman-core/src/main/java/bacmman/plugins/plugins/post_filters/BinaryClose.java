@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
+import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.*;
@@ -34,8 +35,18 @@ import bacmman.plugins.PostFilter;
  * @author Jean Ollion
  */
 public class BinaryClose implements PostFilter, MultiThreaded, Hint {
-    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
-    
+    enum USE_EDT {AUTO(64), FALSE(Integer.MAX_VALUE), TRUE(0);
+        private final int sizeLimit;
+
+        USE_EDT(int sizeLimit) {
+            this.sizeLimit=sizeLimit;
+        }
+        public boolean useEDT(double radius, double radiusZ) {
+            return radius*radius*radiusZ>=sizeLimit;
+        }
+    }
+    ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, false).setEmphasized(true).setHint("Radius of the filter. For 3D iamges , if ScaleZ==0 filter is applied plane by plane");
+    EnumChoiceParameter<USE_EDT> useEDT = new EnumChoiceParameter<>("Use EDT", USE_EDT.values(), USE_EDT.AUTO).setHint("Perform filter using Euclidean Distance Transform or loop on neighborhood");
     @Override
     public String getHintText() {
         return "Performs a close operation on region masks<br />Useful to fill invaginations<br />When several segmented regions are present, the filter is applied label-wise";
@@ -50,12 +61,14 @@ public class BinaryClose implements PostFilter, MultiThreaded, Hint {
         if (childPopulation.getRegions().stream().allMatch(r->r instanceof Analytical)) { // do nothing
             return childPopulation;
         }
-        boolean edt = scale.getScaleXY()>=8;
+        double radius = scale.getScaleXY();
+        double radiusZ = childPopulation.getImageProperties().sizeZ()==1 ? 1 : scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        boolean edt = useEDT.getSelectedEnum().useEDT(radius, radiusZ);
         childPopulation.ensureEditableRegions();
-        Neighborhood n = edt?null: Filters.getNeighborhood(scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parent.getMask());
+        Neighborhood n = edt?null: Filters.getNeighborhood(radius, radiusZ, childPopulation.getImageProperties());
         for (Region o : childPopulation.getRegions()) {
-            ImageInteger closed = edt ? BinaryMorphoEDT.binaryClose(o.getMaskAsImageInteger(), scale.getScaleXY(), scale.getScaleZ(parent.getScaleXY(), parent.getScaleZ()), parallele)
-                    : Filters.binaryCloseExtend(o.getMaskAsImageInteger(), n, parallele);
+            ImageInteger closed = edt ? BinaryMorphoEDT.binaryClose(o.getMaskAsImageInteger(), radius, radiusZ, parallel)
+                    : Filters.binaryCloseExtend(o.getMaskAsImageInteger(), n, parallel);
             o.setMask(closed);
         }
         childPopulation.relabel(true);
@@ -64,12 +77,12 @@ public class BinaryClose implements PostFilter, MultiThreaded, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scale};
+        return new Parameter[]{scale, useEDT};
     }
-    boolean parallele;
+    boolean parallel;
     @Override
     public void setMultiThread(boolean parallel) {
-        this.parallele= parallel;
+        this.parallel = parallel;
     }
 
 }

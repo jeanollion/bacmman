@@ -18,8 +18,8 @@
  */
 package bacmman.processing;
 
+import bacmman.core.Core;
 import bacmman.image.*;
-import bacmman.plugins.Plugin;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,8 +38,8 @@ public class BinaryMorphoEDT {
      * @param multithread
      * @return 
      */
-    public static ImageMask binaryDilateEDT(ImageMask in, double radius, double radiusZ, boolean extendImage, boolean multithread) {
-        if (radiusZ<=0 && in.sizeZ()>1) return ImageOperations.applyPlaneByPlaneMask(in, i -> (Image)binaryDilateEDT(i, radius, radius, extendImage, multithread));
+    public static ImageMask binaryDilate(ImageMask in, double radius, double radiusZ, boolean extendImage, boolean multithread) {
+        if (radiusZ<=0 && in.sizeZ()>1) return ImageOperations.applyPlaneByPlaneMask(in, i -> (Image) binaryDilate(i, radius, radius, extendImage, multithread));
         if (extendImage) {
             ImageInteger<? extends ImageInteger> ii = TypeConverter.maskToImageInteger(in, null);
             int rXY = (int) (radius + 1);
@@ -75,11 +75,11 @@ public class BinaryMorphoEDT {
     public static ImageMask binaryOpen(ImageMask in, double radius, double radiusZ, boolean multithread) {
         if (radiusZ<=0 && in.sizeZ()>1) return ImageOperations.applyPlaneByPlaneMask(in, i -> (Image)binaryOpen(i, radius, radius, multithread));
         ImageMask min = binaryErode(in, radius, radiusZ, multithread);
-        return binaryDilateEDT(min, radius, radiusZ, false, multithread);
+        return binaryDilate(min, radius, radiusZ, false, multithread);
     }
     public static ImageByte binaryClose(ImageMask in, double radius, double radiusZ, boolean multithread) {
         if (radiusZ<=0 && in.sizeZ()>1) return (ImageByte)ImageOperations.applyPlaneByPlaneMask(in, i -> binaryClose(i, radius, radius, multithread));
-        ImageMask max = binaryDilateEDT(in, radius, radiusZ, true, multithread);
+        ImageMask max = binaryDilate(in, radius, radiusZ, true, multithread);
         ImageMask min = binaryErode(max, radius, radiusZ, multithread);
         ImageByte res = new ImageByte("close of "+in.getName(), in);
         int offXY = (int) (radius + 1);
