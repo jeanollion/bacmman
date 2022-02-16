@@ -800,7 +800,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             if (region!=null && region.regionModified) {
                 setRegionAttributesToAttributes();
                 regionContainer.update();
-                region.regionModified=false;
+                region.regionModified = false;
             }
         }
     }

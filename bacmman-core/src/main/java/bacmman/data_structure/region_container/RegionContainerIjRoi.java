@@ -45,7 +45,7 @@ import org.json.simple.JSONObject;
 
 public class RegionContainerIjRoi extends RegionContainer {
     List<byte[]> roiZ; // persists
-    Roi3D roi; // not persistant
+    Roi3D roi; // not persistent
     public RegionContainerIjRoi(SegmentedObject structureObject) {
         super(structureObject);
         createRoi(structureObject.getRegion());
@@ -53,8 +53,8 @@ public class RegionContainerIjRoi extends RegionContainer {
 
 
     private void createRoi(Region object) {
-        if (object.getRoi()!=null) roi = object.getRoi();
-        else roi = createRoi(object.getMask(), object.getBounds(), !object.is2D());
+        if (object.getRoi()==null) object.createRoi(); // calls static method createRoi of this class
+        roi = object.getRoi();
     }
 
     private void encodeRoi() {

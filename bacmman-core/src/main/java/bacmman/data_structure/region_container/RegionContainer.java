@@ -60,7 +60,7 @@ public abstract class RegionContainer {
     public boolean is2D() {return is2D;}
     public abstract Region getRegion();
     public void update() {
-        bounds = new SimpleBoundingBox(segmentedObject.getBounds());
+        bounds = new SimpleBoundingBox(segmentedObject.getRegion().getBounds());
         is2D = segmentedObject.is2D();
     }
     public void initFromJSON(Map<String, Object> json) {

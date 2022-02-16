@@ -126,7 +126,7 @@ public class Utils {
                 return Color.YELLOW;
             case "lightgray":
                 return Color.LIGHT_GRAY;
-            case "magneta":
+            case "magenta":
                 return Color.MAGENTA;
             case "orange":
                 return Color.ORANGE;

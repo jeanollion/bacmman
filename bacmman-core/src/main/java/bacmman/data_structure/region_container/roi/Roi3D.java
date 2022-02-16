@@ -33,15 +33,20 @@ public class Roi3D extends HashMap<Integer, Roi> {
         MutableBoundingBox bounds2D= new MutableBoundingBox(bounds).setzMin(0).setzMax(0);
         IntStream.rangeClosed(bounds.zMin(), bounds.zMax()).forEachOrdered(z -> {
             Roi r = get(z);
-            Rectangle bds = r.getBounds();
-            ImageProcessor mask = r.getMask();
-            if (mask==null) { // mask is rectangle
-                mask = IJImageWrapper.getImagePlus(TypeConverter.maskToImageInteger(new BlankMask(bounds.sizeX(), bounds.sizeY(), 1, bounds.xMin(), bounds.yMin(), 0, 1, 1), null)).getProcessor();
-            } else if (mask.getWidth()!=stack.getWidth() || mask.getHeight()!=stack.getHeight()) { // need to paste image // TODO simply change ROI with before calling getMask
-                ImageByte i = (ImageByte)IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
-                mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
+            if (r!=null) {
+                Rectangle bds = r.getBounds();
+                ImageProcessor mask = r.getMask();
+                if (mask == null) { // mask is rectangle
+                    mask = IJImageWrapper.getImagePlus(TypeConverter.maskToImageInteger(new BlankMask(bounds.sizeX(), bounds.sizeY(), 1, bounds.xMin(), bounds.yMin(), 0, 1, 1), null)).getProcessor();
+                } else if (mask.getWidth() != stack.getWidth() || mask.getHeight() != stack.getHeight()) { // need to paste image // TODO simply change ROI with before calling getMask
+                    ImageByte i = (ImageByte) IJImageWrapper.wrap(new ImagePlus("", mask)).translate(new SimpleOffset(bds.x, bds.y, 0));
+                    mask = IJImageWrapper.getImagePlus(i.cropWithOffset(bounds2D)).getProcessor();
+                }
+                stack.setProcessor(mask, z - bounds.zMin() + 1);
+            } else { // in case bounds where not updated : some planes are empty
+                ImageByte mask = new ImageByte("", bounds.sizeX(), bounds.sizeY(), 1);
+                stack.setProcessor(IJImageWrapper.getImagePlus(mask).getProcessor(), z - bounds.zMin() + 1);
             }
-            stack.setProcessor(mask, z-bounds.zMin()+1);
         });
         ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
         res.setCalibration(new SimpleImageProperties(bounds, scaleXY, scaleZ)).translate(bounds);

@@ -72,7 +72,7 @@ public class RegionFactory {
     }
     public static BoundingBox getBounds(ImageMask mask) {
         MutableBoundingBox bounds = new MutableBoundingBox();
-        ImageMask.loop(mask, (x, y, z)->{bounds.union(x, y, z);});
+        ImageMask.loop(mask, bounds::union);
         return bounds;
     }
     
@@ -101,6 +101,7 @@ public class RegionFactory {
     public static Region getObjectImage(ImageMask mask) {
         if (mask instanceof BlankMask) return new Region(mask, 1, mask.sizeZ()==1);
         BoundingBox bounds = getBounds(mask);
+        if (!bounds.isValid()) return null; // invalid bounds -> mask has no non null values
         if (bounds.sameDimensions(mask)) {
             return  new Region(mask, 1, mask.sizeZ()==1);
         } else {
