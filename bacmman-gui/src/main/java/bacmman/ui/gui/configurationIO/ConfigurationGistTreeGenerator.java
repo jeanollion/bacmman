@@ -251,9 +251,10 @@ public class ConfigurationGistTreeGenerator {
             else f.add(n);
         }
     }
-    protected FolderNode getFolderNode(String folder) {
+
+    protected FolderNode getFolderNode(String folder, boolean createIfNotExisting) {
         FolderNode folderN = streamFolders().filter(n -> n.getUserObject().equals(folder)).findFirst().orElse(null);
-        if (folderN == null) {
+        if (folderN == null && createIfNotExisting) {
             folderN = new FolderNode(folder);
             insertSorted(getRoot(), folderN);
             treeModel.nodeStructureChanged(getRoot());
@@ -269,9 +270,15 @@ public class ConfigurationGistTreeGenerator {
         });
     }
     public void addGist(GistConfiguration gist) {
-        FolderNode folder = getFolderNode(gist.folder);
+        FolderNode folder = getFolderNode(gist.folder, true);
         addGistToFolder(folder, gist, true);
         treeModel.nodeStructureChanged(folder);
+        if (thumbnailLazyLoader.containsKey(folder)) {
+            DefaultWorker w = thumbnailLazyLoader.get(folder);
+            w.cancel(false);
+            thumbnailLazyLoader.remove(folder);
+        }
+        thumbnailLazyLoader.get(folder);
     }
 
     public void removeGist(GistConfiguration... gists) {
@@ -330,7 +337,10 @@ public class ConfigurationGistTreeGenerator {
             if (expState!=null) EnumerationUtils.toStream(expState).forEach(p -> {
                 tree.expandPath(p);
                 logger.debug("expand path: {}", p.getLastPathComponent());
-                if (p.getLastPathComponent() instanceof FolderNode) thumbnailLazyLoader.get(getFolderNode(((FolderNode)p.getLastPathComponent()).name));
+                if (p.getLastPathComponent() instanceof FolderNode) {
+                    FolderNode folder = getFolderNode(((FolderNode)p.getLastPathComponent()).name, false);
+                    if (folder!=null) thumbnailLazyLoader.get(folder);
+                }
             });
             else tree.expandPath(new TreePath(new TreeNode[]{root}));
             if (sel!=null) setSelectedGist(sel.gist, sel.objectClassIdx);

@@ -322,6 +322,13 @@ public class ConfigurationLibrary {
             } else {
                 List<BufferedImage> otherThumb = gist.getThumbnail();
                 if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
+                if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                    for (int ocIdx = 0; ocIdx < gist.getExperiment().getStructureCount(); ++ocIdx) {
+                        otherThumb = gist.getThumbnail(ocIdx);
+                        logger.debug("dup thumbs: oc: {} #{}", ocIdx, otherThumb == null ? 0 : otherThumb.size());
+                        if (otherThumb != null) for (BufferedImage t : otherThumb) toSave.appendThumbnail(t, ocIdx);
+                    }
+                }
             }
             toSave.createNewGist(getAuth());
             gists.add(toSave);
@@ -383,6 +390,13 @@ public class ConfigurationLibrary {
                                         List<BufferedImage> otherThumb = gist.getThumbnail();
                                         if (otherThumb != null)
                                             for (BufferedImage t : otherThumb) toSave.appendThumbnail(t);
+                                        if (gist.type.equals(GistConfiguration.TYPE.WHOLE)) {
+                                            for (int ocIdx = 0; ocIdx < gist.getExperiment().getStructureCount(); ++ocIdx) {
+                                                otherThumb = gist.getThumbnail(ocIdx);
+                                                if (otherThumb != null)
+                                                    for (BufferedImage t : otherThumb) toSave.appendThumbnail(t, ocIdx);
+                                            }
+                                        }
                                     }
                                     toSave.createNewGist(auth2);
                                     if (cred.key.equals(username.getText())) { // same account

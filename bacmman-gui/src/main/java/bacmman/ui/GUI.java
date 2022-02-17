@@ -145,7 +145,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("incase of HiDPI screen, a zoom factor is applied to the display, set here this factor");
-    private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 0.5, 0.5, 5).setHint("Stoke width of displayed contours");
+    private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
