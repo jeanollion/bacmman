@@ -507,7 +507,9 @@ public class PluginConfigurationUtils {
                             if (pcb!=null) pcb.log("Error while configuring transformation: "+t.toString());
                         }
                         images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
-                        
+                        if (i<transfoIdx &&  transfo instanceof TransformationApplyDirectly) { // copyTo
+                            images.applyTranformationsAndSave(false, false);
+                        }
                         if (showAllSteps || i==transfoIdx) {
                             int[] outputChannels =null;
                             if (!showAllSteps) {
