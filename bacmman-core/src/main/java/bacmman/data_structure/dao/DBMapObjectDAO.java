@@ -33,6 +33,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import org.mapdb.DB;
+import org.mapdb.DBException;
 import org.mapdb.HTreeMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -894,11 +895,18 @@ public class DBMapObjectDAO implements ObjectDAO {
     protected Map<Integer, Set<String>> getFrameIndex(Pair<String, Integer> key) {
         if (hasFrameIndex(key)) {
             HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
-            Map<Integer, Set<String>> res = new HashMap<>();
-            dbmap.forEach( (f, o) -> res.put(f, new HashSet(Arrays.asList((Object[])o))));
+            try {
+                Map<Integer, Set<String>> res = new HashMap<>();
+                dbmap.forEach( (f, o) -> res.put(f, new HashSet(Arrays.asList((Object[])o))));
+                return res;
+            } catch (DBException.VolumeIOError e) {
+                logger.debug("Error retrieving frame index: will re-create it", e);
+                Map<Integer, Set<String>> res2 = createFrameIndex(key);
+                storeFrameIndex(key, res2, true);
+                return res2;
+            }
             //int size = res.values().stream().mapToInt(Set::size).sum();
             //logger.debug("retrieved frame index for {} objects over {} frames", size, res.size());
-            return res;
         } else {
             Map<Integer, Set<String>> res = createFrameIndex(key);
             int size = res.values().stream().mapToInt(Set::size).sum();
