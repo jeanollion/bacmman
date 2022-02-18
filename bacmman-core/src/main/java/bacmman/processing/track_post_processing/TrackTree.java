@@ -11,7 +11,7 @@ import java.util.*;
 public class TrackTree extends TreeMap<SegmentedObject, Track> {
     public final static Logger logger = LoggerFactory.getLogger(TrackTree.class);
     public int getFisrtFrame() {
-        return values().stream().findFirst().get().head().getFrame();
+        return values().stream().findFirst().get().getFirstFrame();
     }
 
     public Track getFirstMerge() {
@@ -19,11 +19,15 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
     }
 
     public Track getNextMerge(Track from) {
-        return values().stream().filter(Track::merge).filter(t -> t.head().getFrame() > from.head().getFrame()).findFirst().orElse(null);
+        return values().stream().filter(Track::merge).filter(t -> t.getFirstFrame() > from.getFirstFrame()).findFirst().orElse(null);
     }
 
-    public Track getLastMerge() {
-        return descendingMap().values().stream().filter(Track::merge).findFirst().orElse(null);
+    public Track getFirstSplit() {
+        return values().stream().filter(Track::split).findFirst().orElse(null);
+    }
+
+    public Track getNextSplit(Track from) {
+        return values().stream().filter(Track::split).filter(t -> t.getFirstFrame() > from.getFirstFrame()).findFirst().orElse(null);
     }
 
     public List<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -43,8 +47,8 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
             Track newTrack = Track.splitTrack(toSplit, factory, editor);
             if (newTrack!=null) {
                 split = true;
-                toSplit = toSplit.simplifyTrack(editor);
-                newTrack = newTrack.simplifyTrack(editor);
+                toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
+                newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
                 toSplit = toSplit.getCommonTrack(newTrack, next, true); // also search in linked tracks because simplify track will not merge if newTrack or toSplit have several next/previous
             } else return split;
         }

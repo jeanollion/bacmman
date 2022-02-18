@@ -196,4 +196,10 @@ public class ExperimentStructure {
     public Stream<ChannelImage.CHANNEL_COLOR> getChannelColors() {
         return xp.getChannelColor(true);
     }
+    public boolean allowMerge(int objectClassIdx) {
+        return xp.getStructure(objectClassIdx).allowMerge();
+    }
+    public boolean allowSplit(int objectClassIdx) {
+        return xp.getStructure(objectClassIdx).allowSplit();
+    }
 }
