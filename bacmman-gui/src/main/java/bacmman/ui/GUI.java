@@ -4031,7 +4031,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         } else return this;
     }
     private void workingDirectoryActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_workingDirectoryActionPerformed
-        // TODO add your handling code here:
+        String wd = workingDirectory.getText();
+        File f = new File(wd);
+        if (f.exists()) {
+            closeExperiment();
+            PropertyUtils.set(PropertyUtils.LOCAL_DATA_PATH, f.getAbsolutePath());
+            PropertyUtils.addFirstStringToList(PropertyUtils.LOCAL_DATA_PATH, f.getAbsolutePath());
+            localFileSystemDatabaseRadioButton.setSelected(true);
+            populateDatasetTree();
+        }
+
     }//GEN-LAST:event_workingDirectoryActionPerformed
 
     private void workingDirectoryMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_workingDirectoryMousePressed
