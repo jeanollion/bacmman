@@ -54,7 +54,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
             inputNames = s.inputNames().stream().sorted().toArray(String[]::new);
             outputNames = s.outputNames().stream().sorted().toArray(String[]::new);
             logger.debug("model loaded: inputs: {} (imported order: {}), outputs: {} (imported order: {})", inputNames, s.inputNames(), outputNames, s.outputNames());
-            assert inputNames!=null && inputNames.length>1 && outputNames !=null && outputNames.length>1;
+            if (inputNames==null || inputNames.length==0 || outputNames ==null || outputNames.length==0 ) throw new RuntimeException("invalid input/output");
         }
     }
     public TF2engine setModelPath(String path) {
