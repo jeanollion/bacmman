@@ -48,8 +48,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter next = new BooleanParameter("Predict Next", true).addListener(b -> dlResizeAndScale.setOutputNumber(b.getSelected()?5:4))
             .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & category for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, category for current frame, category for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
-
-    Parameter[] parameters =new Parameter[]{dlEngine, dlResizeAndScale, next, edmSegmenter, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, growthRateRange, averagePredictions};
+    ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue()>1);
+    Parameter[] parameters =new Parameter[]{dlEngine, dlResizeAndScale, next, edmSegmenter, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, growthRateRange, averagePredictions, frameSubsampling};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -160,13 +160,29 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         // average with prediction with frame interval 2
-        if (parentTrack.size()>5) {
-            Image[][] input2 = getInputs(images, parentTrack.get(0).isTrackHead() ? null : parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx), next, 2);
-            Image[][] input2sub = IntStream.range(2, input2.length - 2).boxed().map(i -> input2[i]).toArray(Image[][]::new);
-            Image[][][] predictions2 = dlResizeAndScale.predict(engine, input2sub); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
-            //predictions2 = new Image[][][]{predictions2[1], predictions2[2], predictions2[3], predictions2[0]}; // TOOD temp correction
-            Image[] edm2 = ResizeUtils.getChannel(predictions2[0], channelEdmCur);
-            for (int i = 2; i < edm.length - 2; ++i) ImageOperations.average(edm[i], edm[i], edm2[i - 2]);
+
+        if (frameSubsampling.getChildCount()>0) {
+            int size = parentTrack.size();
+            IntPredicate filter = next ? frameInterval -> 2 * frameInterval < size : frameInterval -> frameInterval < size;
+            int[] frameSubsampling = IntStream.of(this.frameSubsampling.getArrayInt()).filter(filter).toArray();
+            ToIntFunction<Integer> getNSubSampling = next ? frame -> (int)IntStream.of(frameSubsampling).filter(fi -> frame>=fi && frame<size-fi).count() : frame -> (int)IntStream.of(frameSubsampling).filter(fi -> frame>=fi).count();
+            if (frameSubsampling.length>0) {
+                for (int frame = 1; frame<edm.length; frame++) { // half of the final value is edm without frame subsampling
+                    if (getNSubSampling.applyAsInt(frame)>0) ImageOperations.affineOperation(edm[frame], edm[frame], 0.5, 0);
+                }
+                for (int frameInterval : frameSubsampling) {
+                    logger.debug("averaging with frame subsampled: {}", frameInterval);
+                    Image[][] input2 = getInputs(images, parentTrack.get(0).isTrackHead() ? null : parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx), next, frameInterval);
+                    Image[][] input2sub = IntStream.range(frameInterval, next ? input2.length - frameInterval : input2.length).boxed().map(i -> input2[i]).toArray(Image[][]::new);
+                    Image[][][] predictions2 = dlResizeAndScale.predict(engine, input2sub); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
+                    //predictions2 = new Image[][][]{predictions2[1], predictions2[2], predictions2[3], predictions2[0]}; // TOOD temp correction
+                    Image[] edm2 = ResizeUtils.getChannel(predictions2[0], channelEdmCur);
+                    for (int frame = frameInterval; frame < edm2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
+                        double n = getNSubSampling.applyAsInt(frame);
+                        ImageOperations.weightedSum(edm[frame], new double[]{1, 0.5/n}, edm[frame], edm2[frame - frameInterval]);
+                    }
+                }
+            }
         }
 
         // offset & calibration
