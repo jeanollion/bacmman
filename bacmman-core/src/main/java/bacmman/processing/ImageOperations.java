@@ -25,7 +25,6 @@ import bacmman.image.wrappers.IJImageWrapper;
 
 import static bacmman.image.BoundingBox.loop;
 
-import bacmman.plugins.Plugin;
 import bacmman.utils.DoubleStatistics;
 import java.util.ArrayList;
 import java.util.List;
@@ -133,7 +132,7 @@ public class ImageOperations {
         }
         return output;
     }
-    public static Image average(Image output, double[] weights, Image... images) {
+    public static Image weightedSum(Image output, double[] weights, Image... images) {
         assert weights.length == images.length: "as many weights as images should be prodided";
         assert weights.length>=1 : "minimum 1 image should be provided";
         if (output==null) output = new ImageFloat("avg", images[0]);
@@ -141,18 +140,16 @@ public class ImageOperations {
             if (!output.sameDimensions(images[i])) throw new IllegalArgumentException("image:#"+i+" dimensions differ from output ("+images[i]+" != "+output+")");
         }
         int nImages = images.length;
-        double div = IntStream.range(0, nImages).mapToDouble(i -> weights[i]).sum();
-        assert div!=0:"sum of weights cannot be null";
         if (nImages==2) {
             for (int z = 0; z<output.sizeZ(); ++z) {
                 for (int xy=0; xy<output.sizeXY(); ++xy) {
-                    output.setPixel(xy, z, (images[0].getPixel(xy, z) * weights[0] + images[1].getPixel(xy, z) * weights[1])/div);
+                    output.setPixel(xy, z, (images[0].getPixel(xy, z) * weights[0] + images[1].getPixel(xy, z) * weights[1]));
                 }
             }
         } else if (nImages == 3) {
             for (int z = 0; z<output.sizeZ(); ++z) {
                 for (int xy=0; xy<output.sizeXY(); ++xy) {
-                    output.setPixel(xy, z, (images[0].getPixel(xy, z) * weights[0] + images[1].getPixel(xy, z) * weights[1] + images[2].getPixel(xy, z) * weights[2])/div);
+                    output.setPixel(xy, z, (images[0].getPixel(xy, z) * weights[0] + images[1].getPixel(xy, z) * weights[1] + images[2].getPixel(xy, z) * weights[2]));
                 }
             }
         } else {
@@ -160,7 +157,7 @@ public class ImageOperations {
                 for (int xy=0; xy<output.sizeXY(); ++xy) {
                     double avg = images[0].getPixel(xy, z);
                     for (int i = 1; i<nImages; ++i) avg+=images[i].getPixel(xy, z) * weights[i];
-                    output.setPixel(xy, z, avg/div);
+                    output.setPixel(xy, z, avg);
                 }
             }
         }

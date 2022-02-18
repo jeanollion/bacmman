@@ -26,7 +26,7 @@ import java.util.Collections;
  * @author Jean Ollion
  */
 public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParameter, ArrayNumberParameter> {
-    boolean sorted;
+    boolean sorted, distinct;
     public ArrayNumberParameter(String name, int unMutableIndex, BoundedNumberParameter childInstance) {
         super(name, unMutableIndex, childInstance);
         newInstanceNameFunction = (l, i)->Integer.toString(i);
@@ -35,6 +35,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
                 this.insert(createChildInstance());
             }
         }
+        addValidationFunctionToChildren( n -> !distinct || Arrays.stream(getArrayDouble()).distinct().count() == getActivatedChildCount());
         addListener();
     }
     private void addListener() {
@@ -47,10 +48,13 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
         this.sorted=sorted;
         return this;
     }
+    public ArrayNumberParameter setDistinct(boolean distinct) {
+        this.distinct=distinct;
+        return this;
+    }
     @Override
     public BoundedNumberParameter createChildInstance() {
         BoundedNumberParameter res = super.createChildInstance();
-        
         res.addListener(num -> {
             ArrayNumberParameter a = ParameterUtils.getFirstParameterFromParents(ArrayNumberParameter.class, num, false);
             if (a==null) return;
@@ -86,10 +90,10 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
         } else throw new IllegalArgumentException("wrong parameter type");
     }
     public int[] getArrayInt() {
-        return getChildren().stream().mapToInt(p -> (int)Math.round(p.getValue().doubleValue())).toArray();
+        return getActivatedChildren().stream().mapToInt(p -> (int)Math.round(p.getValue().doubleValue())).toArray();
     }
     public double[] getArrayDouble() {
-        return getChildren().stream().mapToDouble(p -> p.getValue().doubleValue()).toArray();
+        return getActivatedChildren().stream().mapToDouble(p -> p.getValue().doubleValue()).toArray();
     }
     public Object getValue() {
         if (this.getChildCount()==1) {
@@ -104,6 +108,7 @@ public class ArrayNumberParameter extends ListParameterImpl<BoundedNumberParamet
         ArrayNumberParameter res = new ArrayNumberParameter(name, unMutableIndex, childInstance);
         res.setContentFrom(this);
         res.setSorted(sorted);
+        res.setDistinct(distinct);
         transferStateArguments(this, res);
         return res;
     }
