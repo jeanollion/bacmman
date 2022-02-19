@@ -30,7 +30,7 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
         return values().stream().filter(Track::split).filter(t -> t.getFirstFrame() > from.getFirstFrame()).findFirst().orElse(null);
     }
 
-    public List<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public Collection<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         boolean change = split(t1, t2, false, sm, factory, editor) || split(t1, t2, true, sm, factory, editor);
         if (change) {
             TrackTreePopulation newPop = new TrackTreePopulation(this);
@@ -55,4 +55,13 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
         return split;
     }
 
+    @Override
+    public boolean equals(Object object) {
+        return this == object;
+    }
+
+    @Override
+    public int hashCode() {
+        return System.identityHashCode(this);
+    }
 }

@@ -152,6 +152,11 @@ public class Track {
         return Objects.hash(head());
     }
 
+    @Override
+    public String toString() {
+        return head()+"["+getFirstFrame()+"->"+getLastFrame()+"]";
+    }
+
     public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass) {
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));
@@ -189,7 +194,7 @@ public class Track {
         SegmentedObject head1 = track.head();
         SegmentedObject head2 = factory.duplicate(head1, true, false, false);
         factory.addToParent(head1.getParent(),true, head2);
-        logger.debug("splitting track: {} -> {}", head1, head2);
+        logger.debug("splitting track: {} -> {}", track, head2);
         factory.setRegion(head1, regions.get(0).v1);
         factory.setRegion(head2, regions.get(0).v2);
         Track track2 = new Track(new ArrayList<SegmentedObject>(){{add(head2);}});
@@ -286,7 +291,7 @@ public class Track {
         if (track2.getFirstFrame()<track1.getFirstFrame()) return appendTrack(track2, track1, trackEditor, removeTrack);
         if (track2.getFirstFrame()<=track1.getLastFrame()) throw new RuntimeException("Could not append track: "+track1.head()+"->"+track1.getLastFrame()+" to " + track2.head());
         //if (track2.getPrevious().size()>1 || !track2.getPrevious().iterator().next().equals(track1)) return null; // TODO or disconnect ?
-        logger.debug("appending tracks: {}(->{}) + {}(->{})", track1.head(), track1.getLastFrame(), track2.head(), track2.getLastFrame());
+        //flogger.debug("appending tracks: {} + {}", track1, track2);
         removeTrack.accept(track2);
         track2.getNext().forEach(n -> n.getPrevious().remove(track2));
         // disconnect prevs of track2
@@ -302,7 +307,6 @@ public class Track {
             n.addPrevious(track1);
             track1.addNext(n);
         });
-        //track2.getNext().clear(); // TODO why is this needed to avoid error at solveSplitEventsByMerging (track2 is re-visited)?
         return track1;
     }
 
@@ -334,7 +338,7 @@ public class Track {
         int prevFrame = prev.iterator().next().getLastFrame();
         int nextFrame = next.iterator().next().getFirstFrame();
         if (prevFrame+1!=nextFrame) throw new IllegalArgumentException("frame should be successive");
-        if (prev.size()==2 && next.size()==2) {
+        if (prev.size()==2 && next.size()==2) { // quicker method for the most common case: 2 vs 2
             List<Track> prevL = prev instanceof List ? (List<Track>)prev : new ArrayList<>(prev);
             List<Track> nextL = next instanceof List ? (List<Track>)next : new ArrayList<>(next);
             boolean matchOrder = matchOrder(new Pair<>(prevL.get(0).tail().getRegion(), prevL.get(1).tail().getRegion()), new Pair<>(nextL.get(0).head().getRegion(), nextL.get(1).head().getRegion()));
