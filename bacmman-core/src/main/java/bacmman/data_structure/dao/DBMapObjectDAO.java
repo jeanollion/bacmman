@@ -64,7 +64,6 @@ public class DBMapObjectDAO implements ObjectDAO {
     final HashMapGetCreate<Pair<String, Integer>, Map<String, SegmentedObject>> cache = new HashMapGetCreate<>(new HashMapGetCreate.MapFactory()); // parent trackHead id -> id cache
     final HashMapGetCreate<Pair<String, Integer>, Boolean> allObjectsRetrievedInCache = new HashMapGetCreate<>(p -> false);
     final Map<Pair<String, Integer>, HTreeMap<String, String>> dbMaps = new HashMap<>();
-    final Map<Pair<String, Integer>, HTreeMap<Integer, Object>> dbMapsFrameIndex = new HashMap<>();
     final Map<Pair<String, Integer>, Map<Integer, Set<String>>> frameIndex = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getFrameIndex);
     final Map<Pair<String, Integer>, List<SegmentedObject>> trackHeads = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(this::getTrackHeads);
     final Path dir;
@@ -927,25 +926,17 @@ public class DBMapObjectDAO implements ObjectDAO {
         if (commit) getDB(key.value).commit();
     }
     protected boolean hasFrameIndex(Pair<String, Integer> key) {
-        if (dbMapsFrameIndex.containsKey(key) && dbMapsFrameIndex.get(key)!=null) return true;
+        //if (dbMapsFrameIndex.containsKey(key) && dbMapsFrameIndex.get(key)!=null) return true;
         return DBMapUtils.contains(getDB(key.value), "frameIndex_"+key.key);
     }
 
     protected HTreeMap<Integer, Object> getFrameIndexDBMap(Pair<String, Integer> key) {
-        HTreeMap<Integer, Object> res = this.dbMapsFrameIndex.get(key);
-        if (res==null || res.isClosed()) {
-            synchronized(dbMapsFrameIndex) {
-                if (dbMapsFrameIndex.containsKey(key)) return dbMapsFrameIndex.get(key);
-                else {
-                    DB db = getDB(key.value);
-                    if (db!=null) {
-                        res = DBMapUtils.createFrameIndexHTreeMap(db, key.key!=null? "frameIndex_"+key.key : "frameIndex_root");
-                        if (res!=null || readOnly) dbMapsFrameIndex.put(key, res); // readonly case && not already created -> null
-                    }
-                }
-            }
+        DB db = getDB(key.value);
+        if (db!=null) {
+            return DBMapUtils.createFrameIndexHTreeMap(db, key.key!=null? "frameIndex_"+key.key : "frameIndex_root");
+            //if (res!=null || readOnly) dbMapsFrameIndex.put(key, res); // readonly case && not already created -> null
         }
-        return res;
+        return null;
     }
 
 }
