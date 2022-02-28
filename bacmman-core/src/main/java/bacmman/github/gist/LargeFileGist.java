@@ -169,7 +169,7 @@ public class LargeFileGist {
                 chunk = retrieveChunk(chunkNames.get(i));
             }
             fos.write(chunk, 0, chunk.length);
-            return String.format("%.2f", chunk.length/(1024d*1024d))+"MB retrieved and written to "+actualOutputFile.getName();
+            return null; //String.format("%.2f", chunk.length/(1024d*1024d))+"MB retrieved and written to "+actualOutputFile.getName();
         };
         if (background) DefaultWorker.execute(task, chunkNames.size(), pcb).appendEndOfWork(actualCallback);
         else {
@@ -233,7 +233,7 @@ public class LargeFileGist {
                 logger.debug("storing chunk {}/{}", i + 1, chunks.size());
                 storeBytes(gist_url, chunkList.get(i).getKey(), chunkList.get(i).getValue(), auth);
                 //sleep(1);
-                return String.format("%.2f", chunkList.get(i).getValue().length / (1024d * 1024d)) + "MB stored";
+                return null; // String.format("%.2f", chunkList.get(i).getValue().length / (1024d * 1024d)) + "MB stored";
             };
             if (background) {
                 DefaultWorker w = DefaultWorker.execute(task, chunks.size(), pcb).appendEndOfWork(callback==null?null:()->callback.accept(fileID));

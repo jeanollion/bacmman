@@ -208,7 +208,7 @@ public class DLModelGistTreeGenerator {
                             if (destDir!=null && destDir.exists()) {
                                 File modelFile = lf.retrieveFile(destDir, true, true, null, pcb);
                                 if (modelFile!=null) {
-                                    if (pcb!=null) pcb.setMessage("Model downloaded @:" + modelFile);
+                                    if (pcb!=null) pcb.setMessage("Model weights of size: "+String.format("%.2f", lf.getSizeMb())+"Mb will be downloaded @:" + modelFile);
                                     return;
                                 } else return;
                             } else return;
