@@ -67,8 +67,8 @@ public class ZipUtils {
     }
 
     public static void unzipFile(File sourceFile, File destinationDirectory) throws IOException {
-        assert destinationDirectory.isDirectory();
-        assert !sourceFile.equals(destinationDirectory);
+        //assert destinationDirectory.isDirectory();
+        if (!sourceFile.equals(destinationDirectory)) throw new IllegalArgumentException("Source and destination cannot be equal");
         byte[] buffer = new byte[1024];
         ZipInputStream zis = new ZipInputStream(new FileInputStream(sourceFile));
         ZipEntry zipEntry = zis.getNextEntry();
