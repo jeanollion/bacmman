@@ -3011,10 +3011,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private Selection getNavigatingSelection() {
         List<Selection> res = getSelections();
         res.removeIf(s->!s.isNavigate());
-        if (res.isEmpty()) {
-            if (selectionList.getSelectedIndex()>=0) return (Selection)selectionList.getSelectedValue();
-            else return null;
-        } else if (res.size()==1) return res.get(0);
+        if (res.size()==1) return res.get(0);
         else return null;
     }
     private List<Selection> getAddObjectsSelection(int selNumber) {
