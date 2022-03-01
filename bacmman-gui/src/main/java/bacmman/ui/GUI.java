@@ -3546,7 +3546,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         String file = Paths.get(dir,db.getDBName()+Utils.toStringArray(structureIdx, "_", "", "_")+".csv").toString();
         logger.info("measurements will be extracted to: {}", file);
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structureIdx);
-        MeasurementExtractor.extractMeasurementObjects(db, file, getSelectedPositions(true), keys);
+        MeasurementExtractor.extractMeasurementObjects(db, file, getSelectedPositions(true), null, keys);
     }
     private void runActionAllXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runActionAllXPMenuItemActionPerformed
         List<String> xps = dsTree.getSelectedDatasetNames();

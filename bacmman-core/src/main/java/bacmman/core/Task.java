@@ -880,7 +880,8 @@ public class Task implements ProgressCallback{
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structures);
         logger.debug("keys: {}", Utils.toStringList(keys.entrySet()));
         logger.debug("extract read only positions: {}", getPositions().stream().filter(p -> db.getDao(p).isReadOnly()).toArray());
-        MeasurementExtractor.extractMeasurementObjects(db, file, positions, keys);
+        Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
+        MeasurementExtractor.extractMeasurementObjects(db, file, positions, sel, keys);
         incrementProgress();
     }
     /*public void exportData() {
@@ -1050,6 +1051,7 @@ public class Task implements ProgressCallback{
         this.publish("Errors: "+this.errors.getExceptions().size()+ " For JOB: "+this.toString());
         for (Pair<String, ? extends Throwable> e : errors.getExceptions()) publishError(e.key, e.value);
     }
+
     public void publishError(String localizer, Throwable error) {
         publish("Error @"+localizer+" "+(error==null?"null":error.toString()));
         publishError(error);

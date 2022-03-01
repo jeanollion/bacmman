@@ -28,15 +28,14 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.TreeMap;
+import java.util.function.BiPredicate;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
+import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
 
 /**
@@ -105,19 +104,19 @@ public class MeasurementExtractor {
         for (String[] s : measurements.values()) l.addAll(Arrays.asList(s));
         return l;
     }
-    public static void extractMeasurementObjects(MasterDAO db, String outputFile, int structureIdx,  List<String> positions, String... measurements) {
+    public static void extractMeasurementObjects(MasterDAO db, String outputFile, int structureIdx, List<String> positions, Selection selection, String... measurements) {
         Map<Integer, String[]> map = new HashMap<>(1);
         map.put(structureIdx, measurements);
         MeasurementExtractor de= new MeasurementExtractor(db, structureIdx);
-        de.extractMeasurementObjects(outputFile, positions, map);
+        de.extractMeasurementObjects(outputFile, positions, selection, map);
     }
-    public static void extractMeasurementObjects(MasterDAO db, String outputFile, List<String> positions, Map<Integer, String[]> allMeasurements) {
+    public static void extractMeasurementObjects(MasterDAO db, String outputFile, List<String> positions, Selection selection, Map<Integer, String[]> allMeasurements) {
         TreeMap<Integer, String[]> allMeasurementsSort = new TreeMap<>(allMeasurements);
         //if (allMeasurementsSort.isEmpty()) return;
         MeasurementExtractor de= new MeasurementExtractor(db, allMeasurementsSort.lastKey());
-        de.extractMeasurementObjects(outputFile, positions, allMeasurementsSort);
+        de.extractMeasurementObjects(outputFile, positions, selection, allMeasurementsSort);
     }
-    protected void extractMeasurementObjects(String outputFile, List<String> positions, Map<Integer, String[]> allMeasurements) {
+    protected void extractMeasurementObjects(String outputFile, List<String> positions, Selection selection, Map<Integer, String[]> allMeasurements) {
         Experiment xp = db.getExperiment();
         if (positions==null) positions = Arrays.asList(db.getExperiment().getPositionsAsString());
         long t0 = System.currentTimeMillis();
@@ -147,9 +146,32 @@ public class MeasurementExtractor {
                 for (Entry<Integer, String[]> e : allMeasurementsSort.entrySet()) parentMeasurements.put(e.getKey(), dao.getMeasurements(e.getKey(), e.getValue()));
                 List<Measurements> currentMeasurements = dao.getMeasurements(currentStructureIdx, currentMeasurementNames);
                 Collections.sort(currentMeasurements);
+                final Predicate<Indices> curOCPredicate;
+                if (selection!=null) {
+
+                    Set<Indices> selElements = selection.getElementStrings(positions).stream().map(Selection::parseIndices).map(Indices::new).collect(Collectors.toSet());
+                    if (selection.getStructureIdx() == currentStructureIdx) {
+                        curOCPredicate = selElements::contains;
+                    } else if (selection.getStructureIdx() < currentStructureIdx) {
+                        int order = xp.experimentStructure.getPathToStructure(selection.getStructureIdx(), currentStructureIdx).length;
+                        if (order > 0 ) {
+                            Map<Indices, Indices> parentIndicesMap = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(i -> i.getIndices(order));
+                            curOCPredicate = i -> selElements.contains(parentIndicesMap.get(i));
+                        } else curOCPredicate = i -> false;
+                    } else {
+                        int order = xp.experimentStructure.getPathToStructure(currentStructureIdx, selection.getStructureIdx()).length;
+                        if (order > 0) {
+                            Set<Indices> selParentElements = selElements.stream().map(i -> i.getIndices(order)).collect(Collectors.toSet());
+                            curOCPredicate = selParentElements::contains;
+                        } else curOCPredicate = i -> false;
+                    }
+                } else {
+                    curOCPredicate = i -> true;
+                }
                 for (Measurements m : currentMeasurements) {
+                    if (!curOCPredicate.test(new Indices(m.getIndices()))) continue;
                     StringBuilder line = getBaseLine(m, posIdx);
-                    // add measurements from parents of the the current structure
+                    // add measurements from parents of the current structure
                     for (Entry<Integer, List<Measurements>> e : parentMeasurements.entrySet()) {
                         Measurements key = m.getParentMeasurementKey(parentOrder[e.getKey()]);
                         int pIdx = e.getValue().indexOf(key);
@@ -185,5 +207,29 @@ public class MeasurementExtractor {
             logger.debug("init extract data error: {}", ex);
         }
     }
-    
+    private static class Indices {
+        final int[] indices;
+
+        public Indices(int[] indices) {
+            this.indices = indices;
+        }
+
+        public Indices getIndices(int order) {
+            if (order == 0) return this;
+            else return new Indices(Arrays.copyOfRange(indices, 0, indices.length - order));
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Indices indices1 = (Indices) o;
+            return Arrays.equals(indices, indices1.indices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(indices);
+        }
+    }
 }
