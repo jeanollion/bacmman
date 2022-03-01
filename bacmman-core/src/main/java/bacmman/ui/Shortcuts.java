@@ -18,9 +18,8 @@
  */
 package bacmman.ui;
 
-import java.awt.KeyboardFocusManager;
-import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
+import java.awt.*;
+import java.awt.event.*;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BooleanSupplier;
@@ -31,10 +30,7 @@ import java.util.stream.Collectors;
 import javax.swing.*;
 
 import static bacmman.ui.Shortcuts.ACTION.*;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Font;
+
 import java.awt.print.PrinterException;
 import java.text.MessageFormat;
 import java.util.Arrays;
@@ -81,7 +77,8 @@ public class Shortcuts {
     private final Map<ACTION, KeyStroke> actionMapKey = new HashMap<>();
     private final Map<ACTION, Action> actionMap; 
     private final KeyboardFocusManager kfm;
-    
+    Dial displayedFrame;
+
     public Shortcuts(Map<ACTION, Action> actionMap, PRESET preset, BooleanSupplier isCurrentFocusOwnerAnImage) {
         this.actionMap = actionMap;
         setPreset(preset);
@@ -203,32 +200,49 @@ public class Shortcuts {
         }
         actionMapKey.clear();
         actionMapKey.putAll(keyMapAction.entrySet().stream().collect(Collectors.toMap(e->e.getValue(), e->e.getKey())));
-        updateTable();
+        if (displayedFrame!=null) updateTable(displayedFrame.scrollPane);
     }
-    JFrame displayedFrame;
-    JScrollPane scrollPane;
-    public int updateTable() {
-        if (displayedFrame==null) return 0;
+
+
+    public void updateTable(JScrollPane scrollPane) {
         JTable table = generateTable(false);
         scrollPane.setViewportView(table);
         table.setFillsViewportHeight(true);
-        return (table.getRowCount()+1) * (table.getRowHeight() + table.getIntercellSpacing().height);
+        int height = (table.getRowCount()+1) * (table.getRowHeight() + table.getIntercellSpacing().height);
+        scrollPane.setPreferredSize(new Dimension(700, height+5));
     }
     
-    public void displayTable() {
-        if (displayedFrame==null) {
-            displayedFrame = new JFrame("Shortcuts");
-            scrollPane = new JScrollPane();
-            displayedFrame.add(scrollPane);
-            int height = updateTable();
-            scrollPane.setPreferredSize(new Dimension(700, height+5));
-            //displayedFrame.setPreferredSize(table.getPreferredScrollableViewportSize());
-            displayedFrame.pack();
-        }
+    public void displayTable(JFrame parent) {
+        if (displayedFrame==null) displayedFrame = new Dial(parent);
         displayedFrame.setVisible(true);
     }
-    public void toggleDisplayTable() {
-        if (displayedFrame==null) displayTable();
+
+    private class Dial extends JDialog {
+        JScrollPane scrollPane;
+        Dial(JFrame parent) {
+            super(parent, "Shortcuts", false);
+            scrollPane = new JScrollPane();
+            updateTable(scrollPane);
+            getContentPane().add(scrollPane);
+            getContentPane().setFocusTraversalPolicy(new LayoutFocusTraversalPolicy());
+            setDefaultCloseOperation(HIDE_ON_CLOSE);
+            pack();
+            addWindowFocusListener(new WindowFocusListener() { // current dirty workaround : images are not shown when this dialog is shown
+                @Override
+                public void windowGainedFocus(WindowEvent windowEvent) {
+
+                }
+
+                @Override
+                public void windowLostFocus(WindowEvent windowEvent) {
+                    toggleDisplayTable(parent);
+                }
+            });
+        }
+    }
+
+    public void toggleDisplayTable(JFrame parent) {
+        if (displayedFrame==null) displayTable(parent);
         else if (displayedFrame.isVisible()) displayedFrame.setVisible(false);
         else displayedFrame.setVisible(true);
     }

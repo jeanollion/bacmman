@@ -72,10 +72,11 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
                 if (!ppm.isOnePluginSet()) return false;
                 Measurement m = ppm.instantiatePlugin();
                 if (m==null) return false;
-                Map<Integer, List<String>> currentmkByStructure= m.getMeasurementKeys().stream().collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toList())));               
+                Map<Integer, List<String>> currentmkByStructure= m.getMeasurementKeys().stream().collect(Collectors.groupingBy(MeasurementKey::getStoreStructureIdx, Collectors.mapping(MeasurementKey::getKey, Collectors.toList())));
                 if (currentmkByStructure.values().stream().anyMatch((l) -> ((new HashSet<>(l).size()!=l.size())))) return false; // first check if duplicated keys for the measurement
                 SimpleListParameter<PluginParameter<Measurement>> ml= (SimpleListParameter) ppm.getParent();
-                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp->pp!=ppm).map(pp -> pp.instantiatePlugin()).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toSet())));
+                if (ml==null) return true; // incase the child was removed from parent
+                Map<Integer, Set<String>> allmkByStructure= ml.getActivatedChildren().stream().filter(pp -> pp!=ppm).map(PluginParameter::instantiatePlugin).filter(mes->mes!=null).flatMap(mes -> mes.getMeasurementKeys().stream()).collect(Collectors.groupingBy(mk->mk.getStoreStructureIdx(), Collectors.mapping(mk->mk.getKey(), Collectors.toSet())));
                 return !currentmkByStructure.entrySet().stream().anyMatch( e -> {
                     Set<String> otherKeys = allmkByStructure.get(e.getKey());
                     if (otherKeys==null) return false;

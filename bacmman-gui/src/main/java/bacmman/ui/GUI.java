@@ -381,7 +381,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.SHORTCUT_TABLE, new AbstractAction("Shortcut table") {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-                shortcuts.toggleDisplayTable();
+                shortcuts.toggleDisplayTable(INSTANCE);
             }
         });
         actionMap.put(Shortcuts.ACTION.LINK, new AbstractAction("Link") {
@@ -4445,7 +4445,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_datasetListMouseClicked
 
     private void displayShortcutMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_displayShortcutMenuItemActionPerformed
-        this.shortcuts.displayTable();
+        this.shortcuts.displayTable(this);
     }//GEN-LAST:event_displayShortcutMenuItemActionPerformed
 
     private void printShortcutMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_printShortcutMenuItemActionPerformed

@@ -340,14 +340,14 @@ public class TrackMatePanel {
                     if (onCloseCallback != null) onCloseCallback.run();
                 }
             });
-            addFocusListener(new FocusListener() {
+            addWindowFocusListener(new WindowFocusListener() {
                 @Override
-                public void focusGained(FocusEvent focusEvent) {
+                public void windowGainedFocus(WindowEvent focusEvent) {
                     updateComponents(db, progress);
                 }
 
                 @Override
-                public void focusLost(FocusEvent focusEvent) {
+                public void windowLostFocus(WindowEvent focusEvent) {
 
                 }
             });

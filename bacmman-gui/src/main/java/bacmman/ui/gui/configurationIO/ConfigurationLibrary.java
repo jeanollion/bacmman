@@ -509,14 +509,15 @@ public class ConfigurationLibrary {
         dia = new Dial(parent, "Online Configuration Library");
         dia.setVisible(true);
         if (parent != null) { // in case configuration is modified by drag and drop -> update the configuration tree in the main window
-            parent.addFocusListener(new FocusListener() {
+            dia.addWindowFocusListener(new WindowFocusListener() {
                 @Override
-                public void focusGained(FocusEvent focusEvent) {
-                    if (configurationChanged != null) configurationChanged.run();
+                public void windowGainedFocus(WindowEvent focusEvent) {
+
                 }
 
                 @Override
-                public void focusLost(FocusEvent focusEvent) {
+                public void windowLostFocus(WindowEvent focusEvent) {
+                    if (configurationChanged != null) configurationChanged.run();
                 }
             });
         }
