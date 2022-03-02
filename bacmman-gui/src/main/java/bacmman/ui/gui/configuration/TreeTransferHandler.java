@@ -86,7 +86,7 @@ public class TreeTransferHandler extends TransferHandler {
 
         TreePath dest = dl.getPath();
         TreePath destParent = dest.getParentPath();
-        if (destParent==null) return false;
+
         // only allow to move nodes from same parent
         TreePath sourcePath0 = sourceTree.getPathForRow(selRows[0]);
         if (sourcePath0.getPathCount()<=1) return false;
@@ -99,6 +99,10 @@ public class TreeTransferHandler extends TransferHandler {
                 return false;
             }
         }
+        if (destParent==null) {
+            return canRecieve.test(dest, sourcePath0.getParentPath());
+            //return false;
+        }
         if (sourceParent.equals(destParent.getLastPathComponent())) { // Do not allow a drop on the drag source selections.
             for (int i = 0; i < selRows.length; i++) {
                 if (selRows[i] == dropRow) {
@@ -108,7 +112,8 @@ public class TreeTransferHandler extends TransferHandler {
         }
 
         if (!canRecieve.test(destParent, sourcePath0.getParentPath())) {
-            logger.debug("can recieve test failed: dest: {} source: {}", dest, sourcePath0);
+            if (canRecieve.test(dest, sourcePath0.getParentPath())) return true; // if drop is on the list itself:
+            //logger.debug("can receive test failed: dest: {} source: {}", dest, sourcePath0);
             return false;
         }
 
@@ -132,7 +137,7 @@ public class TreeTransferHandler extends TransferHandler {
         
         MutableTreeNode[] nodes =  copies.toArray(new MutableTreeNode[copies.size()]);
         nodesToRemove = toRemove.toArray(new MutableTreeNode[toRemove.size()]);
-        return new NodesTransferable(nodes, tree);
+        return new NodesTransferable(nodes, tree, paths.get(0).getParentPath());
         
     }
   
@@ -173,23 +178,28 @@ public class TreeTransferHandler extends TransferHandler {
         // Extract transfer data.
         MutableTreeNode[] nodes = null;
         NodesTransferable nt = null;
+        TreePath sourceParent = null;
         try {
             Transferable t = support.getTransferable();
             nt = ((NodesTransferable)t.getTransferData(nodesFlavor));
             nodes = nt.nodes;
-            if (nodes==null) {
+            sourceParent = nt.sourceParent;
+            if (nodes==null || nodes.length==0) {
                 return false;
             }
         } catch(UnsupportedFlavorException | IOException ufe) {
             logger.debug("dnd error: {}", ufe);
+            return false;
         }
         // Get drop location info.
         JTree.DropLocation dl = (JTree.DropLocation)support.getDropLocation();
         //int childIndex = dl.getChildIndex();
         TreePath dest = dl.getPath();
         TreePath parentDest = dest.getParentPath();
+        if (sourceParent!=null && !canRecieve.test(parentDest, sourceParent)) parentDest = dest; // drop was made on list root
+
         MutableTreeNode parent =  (MutableTreeNode)parentDest.getLastPathComponent();
-        int childIndex = parent.getIndex((MutableTreeNode)dest.getLastPathComponent());
+        int childIndex = parentDest==dest ? -1 : parent.getIndex((MutableTreeNode)dest.getLastPathComponent());
         JTree tree = (JTree)support.getComponent();
         DefaultTreeModel model = (DefaultTreeModel)tree.getModel();
         nt.destModel=model;
@@ -198,13 +208,13 @@ public class TreeTransferHandler extends TransferHandler {
         if(childIndex == -1) {     // DropMode.ON
             destIndex = parent.getChildCount();
         }
-        if (model.equals(nt.sourceModel)) { //TODO test on parent instead
+        if (model.equals(nt.sourceModel) && dest!=parentDest) { // if same list & insert: add after existing node
             int firstSourceIndex = nodesToRemove[0].getParent().getIndex(nodesToRemove[0]);
             if (firstSourceIndex<destIndex) destIndex+=1;
         }
         // Add data to model.
         for(int i = 0; i < nodes.length; i++) {
-            //logger.debug("drop: {} to {} @ {}", nodes[i], parent, index);
+            //logger.debug("drop: {} to {} @{}", nodes[i], parent, destIndex);
             model.insertNodeInto(nodes[i], parent, destIndex++);
         }
         return true;
@@ -217,10 +227,12 @@ public class TreeTransferHandler extends TransferHandler {
     public class NodesTransferable implements Transferable {
         MutableTreeNode[] nodes;
         JTree sourceTree;
+        TreePath sourceParent;
         DefaultTreeModel destModel, sourceModel;
-        public NodesTransferable(MutableTreeNode[] nodes, JTree sourceTree) {
+        public NodesTransferable(MutableTreeNode[] nodes, JTree sourceTree, TreePath sourceParent) {
             this.nodes = nodes;
             this.sourceTree = sourceTree;
+            this.sourceParent = sourceParent;
             this.sourceModel=(DefaultTreeModel)sourceTree.getModel();
          }
         @Override

@@ -343,7 +343,7 @@ public class ConfigurationTreeGenerator {
         tree.setDropMode(DropMode.ON_OR_INSERT);
         tree.setTransferHandler(new TreeTransferHandler( 
                 (TreeNode n) -> ((Parameter)n).duplicate(), 
-                (TreePath p, TreePath sourceP)-> {
+                (TreePath p, TreePath sourceP)-> { // can receive bi-predicate
                     if (p==null) return false;
                     if (!(p.getLastPathComponent() instanceof ListParameter)) return false;
                     ListParameter dest= (ListParameter)p.getLastPathComponent();
