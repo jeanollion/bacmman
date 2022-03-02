@@ -2,7 +2,7 @@ package bacmman.omero;
 
 import omero.*;
 
-public class TyperConverter {
+public class TypeConverter {
     public static Object convert(RType object) {
         if (object instanceof RString) {
             return ((RString)object).getValue();

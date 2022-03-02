@@ -220,8 +220,8 @@ public class OmeroImageFieldFactory {
         int[] channelIdx = IntStream.range(0, imageC.length).boxed().mapToInt(getChannelIdx).toArray();
         int[] channelModulo = new int[channelIdx.length];
         Arrays.fill(channelModulo, 1);
-        Map<String, Integer> channelDuplucatedCount = Arrays.stream(imageC).collect(Collectors.groupingBy(OmeroImageMetadata::getFileName)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
-        logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelDuplucatedCount);
+        Map<String, Integer> channelDuplicatedCount = Arrays.stream(imageC).collect(Collectors.groupingBy(OmeroImageMetadata::getFileName)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
+        logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelDuplicatedCount);
         Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
         boolean[] invertZTbyC = new boolean[imageC.length];
         for (int c = 0; c< imageC.length; ++c) {
@@ -234,8 +234,8 @@ public class OmeroImageFieldFactory {
                 sizeZ = cur.getSizeT();
             }
             logger.debug("channel : {} invert: {}", c, invertZTbyC[c]);
-            if (channelDuplucatedCount.get(cur.getFileName())>1 && cur.getSizeC()==1) {
-                channelModulo[c] = channelDuplucatedCount.get(cur.getFileName());
+            if (channelDuplicatedCount.get(cur.getFileName())>1 && cur.getSizeC()==1) {
+                channelModulo[c] = channelDuplicatedCount.get(cur.getFileName());
                 if (sizeT%channelModulo[c]!=0) {
                     logger.warn("File: {} contains {} frames and one channel but is expected to contain {} channels: number of frames should be a multiple of number of expected channels", imageC[c], cur.getSizeC(), channelModulo[c]);
                     if (pcb!=null) pcb.log("File: "+imageC[c]+" contains "+sizeT+" frames and one channel but is expected to contain "+channelModulo[c]+" channels: number of frames should be a multiple of number of expected channels");

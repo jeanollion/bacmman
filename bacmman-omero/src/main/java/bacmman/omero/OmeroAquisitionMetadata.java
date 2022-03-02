@@ -32,7 +32,7 @@ public class OmeroAquisitionMetadata {
     public void writeToFile(String outputFile) {
         List<Map.Entry<String, RType>> entries = new ArrayList<>(globalMetadata.entrySet());
         Collections.sort(entries, Comparator.comparing(Map.Entry::getKey));
-        FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+TyperConverter.convert(e.getValue()));
+        FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+ TypeConverter.convert(e.getValue()));
     }
     public List<Long> extractTimepoints() {
         List<Date> dates = globalMetadata.entrySet().stream().filter(e-> e.getKey().startsWith("timestamp")).sorted(Map.Entry.comparingByKey()).map(e -> ((RLong)(e.getValue())).getValue()).map(Date::new).collect(Collectors.toList());

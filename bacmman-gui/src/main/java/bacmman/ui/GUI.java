@@ -964,7 +964,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         db.setConfigurationReadOnly(readOnly);
         if (db.getExperiment()==null) {
-            logger.warn("no config found in dataset {} @ {}", dbName, hostnameOrDir);
+            if (configurationLibrary!=null) configurationLibrary.setDB(null);
+            logger.warn("no xp found in dataset {} @ {}", dbName, hostnameOrDir);
             closeExperiment();
             return;
         }
@@ -3006,19 +3007,21 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             }
         }
-
     }
+
     private Selection getNavigatingSelection() {
         List<Selection> res = getSelections();
         res.removeIf(s->!s.isNavigate());
         if (res.size()==1) return res.get(0);
         else return null;
     }
+
     private List<Selection> getAddObjectsSelection(int selNumber) {
         List<Selection> res = getSelections();
         res.removeIf(s->!s.isActive(selNumber));
         return res;
     }
+
     private static String createSubdir(File path, String dbName) {
         if (!path.isDirectory()) {
             if (!path.mkdirs()) return null;
