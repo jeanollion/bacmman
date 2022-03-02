@@ -44,10 +44,7 @@ import bacmman.image.ImageShort;
 import bacmman.utils.Pair;
 
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import loci.common.DataTools;
@@ -127,7 +124,7 @@ public class ImageReaderFile implements ImageReader {
     }
     //loci.formats.ImageReader ifr;
     private void initReader() {
-        if (!new File(getImagePath()).exists()) Image.logger.error("File: {} was not found", getImagePath());
+        if (!new File(getImagePath()).exists()) logger.error("File: {} was not found", getImagePath());
         //logger.debug("init reader: {}", getImagePath());
         //ifr = LociPrefs.makeImageReader();
         //reader = new ImageProcessorReader(new ChannelSeparator(LociPrefs.makeImageReader()));
@@ -141,13 +138,24 @@ public class ImageReaderFile implements ImageReader {
                 reader.setMetadataStore(meta);
                 //logTimeAnnotations();
             } catch (ServiceException ex) {
-                Image.logger.error(ex.getMessage(), ex);
+                logger.error(ex.getMessage(), ex);
             }
         } catch (DependencyException ex) {
-            Image.logger.error(ex.getMessage(), ex);
+            logger.error(ex.getMessage(), ex);
         }
         setId();
     }
+    public Map<String, Object> getMetadata() {
+        return reader.getGlobalMetadata();
+    }
+    public synchronized Map<String, Object> getSeriesMetadata(int series) {
+        int s = reader.getSeries();
+        if (series!=s) reader.setSeries(series);
+        Map<String, Object> res = reader.getSeriesMetadata();
+        if (series!=s) reader.setSeries(s);
+        return res;
+    }
+
     private void setId() {
         try {
             //long t0 = System.currentTimeMillis();
@@ -155,7 +163,7 @@ public class ImageReaderFile implements ImageReader {
             //long t1 = System.currentTimeMillis();
             //logger.debug("set id in  {}ms", t1-t0);
         } catch (FormatException | IOException ex) {
-            Image.logger.error("An error occurred while setting image id: {}, message: {}", getImagePath(),  ex.getMessage());
+            logger.error("An error occurred while setting image id: {}, message: {}", getImagePath(),  ex.getMessage());
             reader=null;
         }
     }
@@ -170,7 +178,7 @@ public class ImageReaderFile implements ImageReader {
         try {
             reader.close();
         } catch (IOException ex) {
-            Image.logger.error("An error occurred while closing reader for image: "+getImagePath(),  ex);
+            logger.error("An error occurred while closing reader for image: "+getImagePath(),  ex);
         }
     }
     
@@ -224,7 +232,7 @@ public class ImageReaderFile implements ImageReader {
                 double[] scaleXYZ = getScaleXYZ(1);
                 if (scaleXYZ[0]!=1) res.setCalibration((float)scaleXYZ[0], (float)scaleXYZ[2]);
             } catch (FormatException | IOException ex) {
-                Image.logger.error("An error occurred while opening image: {}, c:{}, t:{}, s:{}, message: {}", reader.getCurrentFile() , coords.getChannel() , coords.getTimePoint(), coords.getSerie(), ex.getMessage());
+                logger.error("An error occurred while opening image: {}, c:{}, t:{}, s:{}, message: {}", reader.getCurrentFile() , coords.getChannel() , coords.getTimePoint(), coords.getSerie(), ex.getMessage());
             }
         }
         return res;
@@ -395,17 +403,17 @@ public class ImageReaderFile implements ImageReader {
     
     public void logTimeAnnotations() {
         if (meta!=null) {
-            Image.logger.debug("image count: {}", meta.getImageCount());
+            logger.debug("image count: {}", meta.getImageCount());
             for (int i = 0; i<meta.getImageCount(); ++i) {
-                Image.logger.debug("i:{}, time: {}, {} {}", i, meta.getImageAcquisitionDate(i), meta.getImageAcquisitionDate(i)==null? "":meta.getImageAcquisitionDate(i).asDateTime(DateTimeZone.UTC), meta.getImageAcquisitionDate(i)==null? "":meta.getImageAcquisitionDate(i).asInstant());
+                logger.debug("i:{}, time: {}, {} {}", i, meta.getImageAcquisitionDate(i), meta.getImageAcquisitionDate(i)==null? "":meta.getImageAcquisitionDate(i).asDateTime(DateTimeZone.UTC), meta.getImageAcquisitionDate(i)==null? "":meta.getImageAcquisitionDate(i).asInstant());
             }
             int c = meta.getTimestampAnnotationCount();
             for (int i = 0; i<c; ++c) {
-                Image.logger.debug("time: i={}, time: {}({}/{}), ns={}, id={}, desc={}, annotator={}", i, meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asDateTime(DateTimeZone.UTC), meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asInstant(), meta.getTimestampAnnotationNamespace(i), meta.getTimestampAnnotationID(i), meta.getTimestampAnnotationDescription(i), meta.getTimestampAnnotationAnnotator(i));
+                logger.debug("time: i={}, time: {}({}/{}), ns={}, id={}, desc={}, annotator={}", i, meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asDateTime(DateTimeZone.UTC), meta.getTimestampAnnotationValue(i), meta.getTimestampAnnotationValue(i)==null? "":meta.getTimestampAnnotationValue(i).asInstant(), meta.getTimestampAnnotationNamespace(i), meta.getTimestampAnnotationID(i), meta.getTimestampAnnotationDescription(i), meta.getTimestampAnnotationAnnotator(i));
                 
                 int cc = meta.getTimestampAnnotationAnnotationCount(i);
                 for (int ii = 0; ii<cc; ++ii) {
-                    Image.logger.debug("time: i={}, ref.idx={}, ref={}", i, ii, meta.getTimestampAnnotationAnnotationRef(i, ii));
+                    logger.debug("time: i={}, ref.idx={}, ref={}", i, ii, meta.getTimestampAnnotationAnnotationRef(i, ii));
                 }
             }
         }

@@ -28,6 +28,7 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReaderFile;
 import java.io.File;
 import java.io.FileFilter;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.Map.Entry;
@@ -37,6 +38,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import bacmman.utils.FileIO;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +51,9 @@ import org.slf4j.LoggerFactory;
 public class ImageFieldFactory {
     private static final Logger logger = LoggerFactory.getLogger(ImageFieldFactory.class);
     private final static List<String> ignoredExtensions = Arrays.asList(new String[]{".log"});
+
     public static List<MultipleImageContainer> importImages(String[] path, Experiment xp, ProgressCallback pcb) {
+
         ArrayList<MultipleImageContainer> res = new ArrayList<>();
         switch (xp.getImportImageMethod()) {
             case SINGLE_FILE:
@@ -81,8 +85,16 @@ public class ImageFieldFactory {
         Collections.sort(res, (MultipleImageContainer arg0, MultipleImageContainer arg1) -> arg0.getName().compareToIgnoreCase(arg1.getName()));
         return res;
     }
-    
-    
+
+    private static void writeMetadata(Path xpPath, String fileName, Map<String, Object> metadata) {
+        if (metadata==null || metadata.isEmpty()) return;
+        File dir = Paths.get(xpPath.toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+        if (!dir.exists()) dir.mkdirs(); // for image metadata
+        String outputFile = Paths.get(dir.getAbsolutePath(), fileName+".txt").toAbsolutePath().toString();
+        List<Map.Entry<String, Object>> entries = new ArrayList<>(metadata.entrySet());
+        Collections.sort(entries, Comparator.comparing(Map.Entry::getKey));
+        FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+e.getValue().toString());
+    }
     protected static void importImagesSingleFile(File f, Experiment xp, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
         if (f.isDirectory()) {
             for (File ff : f.listFiles()) {
@@ -118,6 +130,8 @@ public class ImageFieldFactory {
                 double[] scaleXYZ = reader.getScaleXYZ(1);
                 MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
                 containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
+                Map<String, Object> metadata = reader.getSeriesMetadata(s);
+                writeMetadata(xp.getPath(), c.getName(), metadata);
                 logger.info("image {} imported successfully", image.getAbsolutePath());
             } else {
                 if (pcb!=null) pcb.log("WARNING: Invalid Image: "+image.getAbsolutePath()+" has: "+tc[1]+" channels instead of: "+xp.getChannelImageCount(false));
@@ -125,6 +139,8 @@ public class ImageFieldFactory {
             }
             ++s;
         }
+        Map<String, Object> metadata = reader.getMetadata();
+        writeMetadata(xp.getPath(), Utils.removeExtension(image.getName()), metadata);
         reader.closeReader();
         long t3 = System.currentTimeMillis();
         logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t1-t0, t2-t1, t3-t2);
@@ -364,7 +380,8 @@ public class ImageFieldFactory {
                     sizeZC[c] = stc[0][4];
                     if (sizeZC[c]>sizeZC[scaleChannel]) scaleXYZ = reader.getScaleXYZ(1);
                 }
-                
+                Map<String, Object> metadata = reader.getMetadata();
+                writeMetadata(xp.getPath(), fieldName+"_c"+c, metadata);
             }
         }
         if (timePointNumber>0) {
