@@ -461,6 +461,7 @@ public class SelectionUtils {
             addCurrentObjectsToSelections(selectedValues, dao);
             list.updateUI();
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
         menu.add(add);
@@ -470,6 +471,7 @@ public class SelectionUtils {
             if (selectedValues.isEmpty()) return;
             removeCurrentObjectsFromSelections(selectedValues, dao);
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
             list.updateUI();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
@@ -480,6 +482,7 @@ public class SelectionUtils {
             if (selectedValues.isEmpty()) return;
             removeAllCurrentImageObjectsFromSelections(selectedValues, dao);
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
             list.updateUI();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
@@ -511,6 +514,8 @@ public class SelectionUtils {
                     s.getMasterDAO().getSelectionDAO().store(s);
                 }
                 GUI.getInstance().populateSelections();
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
                 list.updateUI();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
             });
@@ -527,6 +532,7 @@ public class SelectionUtils {
             }
             list.updateUI();
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
         menu.add(clear);
@@ -539,6 +545,7 @@ public class SelectionUtils {
             for (Selection s : selectedValues) model.removeElement(s);
             list.updateUI();
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
         menu.add(delete);
@@ -553,6 +560,8 @@ public class SelectionUtils {
                     GUI.getInstance().populateSelections();
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
                 }
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
             });
             menu.add(union);
         }
@@ -566,6 +575,8 @@ public class SelectionUtils {
                     GUI.getInstance().populateSelections();
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
                 }
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
             });
             menu.add(union);
         }
@@ -580,6 +591,8 @@ public class SelectionUtils {
                 diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
                     SelectionUtils.removeAll(s, sel);
                     s.getMasterDAO().getSelectionDAO().store(s);
+                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.getInstance().resetSelectionHighlight();
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
                 }));
                 diffMenu.add(diff);

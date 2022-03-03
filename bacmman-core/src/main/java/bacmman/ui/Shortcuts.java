@@ -39,11 +39,11 @@ import javax.print.attribute.HashPrintRequestAttributeSet;
 import javax.print.attribute.standard.MediaPrintableArea;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
-import javax.swing.table.TableCellRenderer;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.JTextComponent;
 
 import bacmman.core.Core;
+import ij.gui.ImageWindow;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +78,6 @@ public class Shortcuts {
     private final Map<ACTION, Action> actionMap; 
     private final KeyboardFocusManager kfm;
     Dial displayedFrame;
-
     public Shortcuts(Map<ACTION, Action> actionMap, PRESET preset, BooleanSupplier isCurrentFocusOwnerAnImage) {
         this.actionMap = actionMap;
         setPreset(preset);
@@ -225,8 +224,14 @@ public class Shortcuts {
             updateTable(scrollPane);
             getContentPane().add(scrollPane);
             getContentPane().setFocusTraversalPolicy(new LayoutFocusTraversalPolicy());
-            setDefaultCloseOperation(HIDE_ON_CLOSE);
+            setDefaultCloseOperation(DISPOSE_ON_CLOSE);
             pack();
+            addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosed(WindowEvent windowEvent) {
+                    displayedFrame.setVisible(false);
+                }
+            });
             addWindowFocusListener(new WindowFocusListener() { // current dirty workaround : images are not shown when this dialog is shown
                 @Override
                 public void windowGainedFocus(WindowEvent windowEvent) {
@@ -235,7 +240,9 @@ public class Shortcuts {
 
                 @Override
                 public void windowLostFocus(WindowEvent windowEvent) {
-                    toggleDisplayTable(parent);
+                    if (displayedFrame!=null && displayedFrame.isVisible()) {
+                        displayedFrame.setVisible(false);
+                    }
                 }
             });
         }
