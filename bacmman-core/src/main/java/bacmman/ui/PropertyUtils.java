@@ -18,10 +18,7 @@
  */
 package bacmman.ui;
 
-import bacmman.configuration.parameters.ChoiceParameter;
-import bacmman.configuration.parameters.Listenable;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.TextParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
@@ -244,6 +241,7 @@ public class PropertyUtils {
         }
         return idxSel;
     }
+
     public static void setPersistant(Listenable parameter, String key) {
         if (parameter instanceof NumberParameter) {
             NumberParameter np = (NumberParameter)parameter;    
@@ -251,11 +249,11 @@ public class PropertyUtils {
             parameter.addListener(p->{
                 PropertyUtils.set(key, ((NumberParameter)p).getValue().doubleValue());
             });
-        } else if (parameter instanceof ChoiceParameter) {
-            ChoiceParameter cp = (ChoiceParameter) parameter;
-            cp.setValue(get(key, cp.getValue()));
+        } else if (parameter instanceof AbstractChoiceParameter) {
+            AbstractChoiceParameter<?, ? extends AbstractChoiceParameter<?, ?>> cp = (AbstractChoiceParameter) parameter;
+            cp.setSelectedItem(get(key, cp.getSelectedItem()));
             cp.addListener(p -> {
-                PropertyUtils.set(key, p.getValue());
+                PropertyUtils.set(key, p.getSelectedItem());
             });
         } else if (parameter instanceof TextParameter) {
             TextParameter tp = (TextParameter)parameter;
@@ -263,7 +261,7 @@ public class PropertyUtils {
             tp.addListener(p -> {
                 PropertyUtils.set(key, p.getValue());
             });
-        } else logger.debug("persistance on parameter not supported yet!");
+        } else logger.debug("persistance on parameter not supported yet: {} of class {}", parameter.toString(), parameter.getClass());
         
     }
 }
