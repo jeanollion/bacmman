@@ -16,6 +16,7 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.gaussian_fit.GaussianFit;
+import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 

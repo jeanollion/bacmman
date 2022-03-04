@@ -168,6 +168,11 @@ public class SplitAndMergeHessian extends SplitAndMerge<Interface> {
         }
 
         @Override
+        public double getValue() {
+            return value;
+        }
+
+        @Override
         public String toString() {
             return "Interface: " + e1.getLabel()+"+"+e2.getLabel()+ " sortValue: "+value;
         } 

@@ -46,6 +46,7 @@ import java.util.function.Predicate;
  * @param <I>
  */
 public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& RegionCluster.InterfaceVoxels<I>
+    public enum INTERFACE_VALUE { MEDIAN, CENTER }
     protected Consumer<Image> addTestImage;
     protected ClusterCollection.InterfaceFactory<Region, I> factory;
     protected final Map<Region, Double> medianValues;
@@ -75,6 +76,13 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
             for (FusionCriterion<Region, I> crit : fusionCriteria) crit.elementChanged(r);
         };
     }
+
+    /**
+     *
+     * @param wsMapIsEdgeMap if true: watershed will be performed with a decreasing propagation
+     * @param localMinOnSeedMap if true seeds are local minima of the seed map
+     * @return this instance for convenience
+     */
     public SplitAndMerge<I> setMapsProperties(boolean wsMapIsEdgeMap, boolean localMinOnSeedMap) {
         this.wsMapIsEdgeMap=wsMapIsEdgeMap;
         this.localMinOnSeedMap=localMinOnSeedMap;
@@ -90,7 +98,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     public Map<Region, Double> getMeanValues() {
         return meanValues;
     }
-    
+    public abstract Image drawInterfaceValues(RegionPopulation pop);
     public Image getIntensityMap() {
         return intensityMap;
     }

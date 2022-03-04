@@ -251,6 +251,7 @@ public class RegionCluster<I extends InterfaceRegion<I>> extends ClusterCollecti
     
     public static interface InterfaceVoxels<T extends Interface<Region, T>> extends InterfaceRegion<T> {
         public Collection<Voxel> getVoxels();
+        public double getValue();
     }
     
     

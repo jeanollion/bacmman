@@ -19,6 +19,7 @@
 package bacmman.processing.split_merge;
 
 import bacmman.data_structure.Region;
+import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.Voxel;
 import bacmman.image.Image;
 import bacmman.processing.clustering.ClusterCollection;
@@ -100,6 +101,12 @@ public class SplitAndMergeRegionCriterion extends SplitAndMerge<SplitAndMergeReg
     @Override public Image getWatershedMap() {
         return wsMap;
     }
+
+    @Override
+    public Image drawInterfaceValues(RegionPopulation pop) {
+        throw new RuntimeException("not implemented");
+    }
+
     @Override
     public Image getSeedCreationMap() {
         return wsMap;

@@ -11,6 +11,7 @@ import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
 import bacmman.processing.RegionFactory;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
+import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.geom.Point;
 

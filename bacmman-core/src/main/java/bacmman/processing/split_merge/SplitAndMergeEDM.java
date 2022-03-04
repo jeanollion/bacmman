@@ -1,19 +1,14 @@
-package bacmman.plugins.plugins.segmenters;
+package bacmman.processing.split_merge;
 
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.Voxel;
 import bacmman.image.*;
-import bacmman.measurement.BasicMeasurements;
-import bacmman.measurement.GeometricalMeasurements;
 import bacmman.processing.Filters;
 import bacmman.processing.clustering.ClusterCollection;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
-import bacmman.processing.split_merge.SplitAndMerge;
-import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,7 +26,7 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
     final Image edm;
     Image edmLocalMax;
     public double splitThresholdValue, divCritValue;
-    public enum INTERFACE_VALUE { MEDIAN, CENTER }
+
     Function<SplitAndMergeEDM.Interface, Double> interfaceValue;
     boolean invert;
     public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, INTERFACE_VALUE interfaceValueMode, boolean normalizeEdgeValues) {
@@ -127,6 +122,11 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
             duplicatedVoxels = new HashSet<>();
         }
 
+
+        @Override
+        public double getValue() {
+            return value;
+        }
 
         @Override
         public void performFusion() {

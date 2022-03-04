@@ -43,6 +43,7 @@ import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.plugins.plugins.pre_filters.StandardDeviation;
 import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
+import static bacmman.processing.split_merge.SplitAndMerge.INTERFACE_VALUE.MEDIAN;
 
 import ij.process.AutoThresholder;
 
@@ -282,7 +283,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                     if (stores.get(parent).isExpertMode()) imageDisp.accept(pop.getLabelMap().duplicate("After fore & back fusion"));
                 }
                 SplitAndMergeEdge sm = new SplitAndMergeEdge(edgeDetector.getWsMap(parent.getPreFilteredImage(structureIdx), parent.getMask()), parent.getPreFilteredImage(structureIdx), 1, false);
-                sm.setInterfaceValue(0.1, false);
+                sm.setInterfaceValue(0.1, MEDIAN,  false);
                 //SplitAndMergeRegionCriterion sm = new SplitAndMergeRegionCriterion(null, parent.getPreFilteredImage(structureIdx), Double.POSITIVE_INFINITY, SplitAndMergeRegionCriterion.InterfaceValue.DIFF_MEDIAN_BTWN_REGIONS);
                 sm.allowMergeWithBackground(parent.getMask()); // helps to remove artifacts on the side but can remove head of mother cell
                 sm.addForbidFusionForegroundBackground(r->r==background, r->r==foreground);

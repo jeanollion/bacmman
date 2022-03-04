@@ -92,7 +92,12 @@ public class SplitAndMergeBacteriaShape extends SplitAndMerge<InterfaceLocalShap
     public SplitAndMergeBacteriaShape(Image intensityMap) {
         super(intensityMap);
     }
-    
+
+    @Override
+    public Image drawInterfaceValues(RegionPopulation pop) {
+        throw new RuntimeException("not implemented");
+    }
+
     @Override
     public Image getWatershedMap() {
         return distanceMap;
@@ -216,6 +221,12 @@ public class SplitAndMergeBacteriaShape extends SplitAndMerge<InterfaceLocalShap
         @Override public Collection<Voxel> getVoxels() {
             return voxels;
         }
+
+        @Override
+        public double getValue() {
+            return value;
+        }
+
         public double getCurvatureValue() {
             return curvatureValue;
         }

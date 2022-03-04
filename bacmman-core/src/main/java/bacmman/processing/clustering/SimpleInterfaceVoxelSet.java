@@ -48,4 +48,9 @@ public class SimpleInterfaceVoxelSet extends InterfaceVoxelSet<SimpleInterfaceVo
     public static ClusterCollection.InterfaceFactory<Region, SimpleInterfaceVoxelSet> interfaceFactory() {
         return SimpleInterfaceVoxelSet::new;
     }
+
+    @Override
+    public double getValue() {
+        return voxels.size();
+    }
 }

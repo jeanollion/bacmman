@@ -34,6 +34,8 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Function;
 import static bacmman.plugins.Plugin.logger;
+import static bacmman.processing.split_merge.SplitAndMerge.INTERFACE_VALUE.CENTER;
+import static bacmman.processing.split_merge.SplitAndMerge.INTERFACE_VALUE.MEDIAN;
 
 import bacmman.utils.ArrayUtil;
 import org.slf4j.Logger;
@@ -51,12 +53,17 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
     final Image edge;
     public double splitThresholdValue;
     Function<Interface, Double> interfaceValue;
+    boolean seedsOnEdgeMap = true;
 
-    public SplitAndMergeEdge(Image edgeMap, Image intensityMap, double splitThreshold, boolean normalizeEdgeValues) {
+    public SplitAndMergeEdge(Image edgeMap, Image intensityMap, double splitThreshold, boolean normalizeEdgeValues, INTERFACE_VALUE mode) {
         super(intensityMap);
         this.edge = edgeMap;
         splitThresholdValue=splitThreshold;
-        setInterfaceValue(0.5, normalizeEdgeValues);
+        setInterfaceValue(0.5, mode, normalizeEdgeValues);
+    }
+
+    public SplitAndMergeEdge(Image edgeMap, Image intensityMap, double splitThreshold, boolean normalizeEdgeValues) {
+        this(edgeMap, intensityMap, splitThreshold, normalizeEdgeValues, MEDIAN);
     }
 
     public BiFunction<? super Interface, ? super Interface, Integer> compareMethod=null;
@@ -68,13 +75,35 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
         this.splitThresholdValue = splitThreshold;
         return this;
     }
-    public SplitAndMergeEdge setInterfaceValue(double quantile, boolean normalizeEdgeValues) {
+    public SplitAndMergeEdge setInterfaceValue(double quantile, INTERFACE_VALUE mode, boolean normalizeEdgeValues) {
         interfaceValue = i-> {
             if (i.getVoxels().isEmpty()) {
                 return Double.NaN;
             } else {
-                int size = i.voxels.size()+i.duplicatedVoxels.size();
-                double val= ArrayUtil.quantile(Stream.concat(i.voxels.stream(), i.duplicatedVoxels.stream()).mapToDouble(v->edge.getPixel(v.x, v.y, v.z)).sorted(), size, quantile);
+                double val;
+                switch (mode) {
+                    case MEDIAN:
+                    default: {
+                        int size = i.voxels.size()+i.duplicatedVoxels.size();
+                        val= ArrayUtil.quantile(Stream.concat(i.voxels.stream(), i.duplicatedVoxels.stream()).mapToDouble(v->edge.getPixel(v.x, v.y, v.z)).sorted(), size, quantile);
+                        break;
+                    }
+                    case CENTER: {
+                        float[] center = new float[3];
+                        Stream.concat(i.getVoxels().stream(), i.getDuplicatedVoxels().stream()).forEach(v -> {
+                            center[0] += v.x;
+                            center[1] += v.y;
+                            center[2] += v.z;
+                        });
+                        double count = i.getVoxels().size() + i.getDuplicatedVoxels().size();
+                        center[0]/=count;
+                        center[1]/=count;
+                        center[2]/=count;
+                        val = edge.getPixel(center[0], center[1], center[2]);
+                        break;
+                    }
+                }
+
                 if (normalizeEdgeValues) {// normalize by intensity (mean better than median, better than mean @ edge)
                     double sum = BasicMeasurements.getSum(i.getE1(), intensityMap)+BasicMeasurements.getSum(i.getE2(), intensityMap);
                     double mean = sum /(double)(i.getE1().size()+i.getE2().size());
@@ -92,14 +121,17 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
     @Override public Image getWatershedMap() {
         return edge;
     }
-    @Override
-    public Image getSeedCreationMap() {
-        return edge;
+    @Override public Image getSeedCreationMap() {
+        return seedsOnEdgeMap?edge:intensityMap;
     }
-    
+
+    public SplitAndMergeEdge seedsOnEdgeMap(boolean seedsOnEdgeMap) {
+        this.seedsOnEdgeMap = seedsOnEdgeMap;
+        return this;
+    }
     @Override
     protected ClusterCollection.InterfaceFactory<Region, Interface> createFactory() {
-        return (Region e1, Region e2) -> new Interface(e1, e2);
+        return Interface::new;
     }
     
     public class Interface extends InterfaceRegionImpl<Interface> implements RegionCluster.InterfaceVoxels<Interface> {
@@ -155,6 +187,12 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
         public Collection<Voxel> getVoxels() {
             return voxels;
         }
+
+        @Override
+        public double getValue() {
+            return value;
+        }
+
         public Collection<Voxel> getDuplicatedVoxels() {
             return duplicatedVoxels;
         }

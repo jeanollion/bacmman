@@ -15,21 +15,27 @@ import bacmman.processing.RegionFactory;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
+import bacmman.processing.split_merge.SplitAndMerge;
+import bacmman.processing.split_merge.SplitAndMergeEDM;
+import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.geom.Point;
 
 import java.util.*;
 import java.util.function.Consumer;
 
-public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPlugin, Hint, ObjectSplitter, ManualSegmenter, FusionCriterion.AcceptsFusionCriterion<Region, SplitAndMergeEDM.Interface> {
+public class BacteriaEDM<I extends InterfaceRegionImpl<I> & RegionCluster.InterfaceVoxels<I>> implements SegmenterSplitAndMerge, TestableProcessingPlugin, Hint, ObjectSplitter, ManualSegmenter, FusionCriterion.AcceptsFusionCriterion<Region, I> {
 
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 4, 2.75, 0.0001, null ).setEmphasized(true).setHint("Controls over-segmentation. With a lower value, the method will split more bacteria. See <em>Foreground detection: Interface Values</em> map in test mode to tune this parameter: when this parameter is higher than the value at interface between two regions, they are merged<br />When two regions are in contact, an interface criterion is computed as the median EDM value at the interface, normalized by the median value of local extrema of EDM in the two segmented regions. <br/>Note that if the parameter <em>Invert</em> is set to false, the behavior is inverted: with a higher value, the method will split more bacteria");
     BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 4, 1, 0.1, null ).setEmphasized(true).setHint("EDM value inferior to this parameter are considered to be part of background").setEmphasized(true);
     BoundedNumberParameter minMaxEDMValue = new BoundedNumberParameter("Minimal Max EDM value", 4, 2, 1, null ).setEmphasized(true).setHint("Bacteria with maximal EDM value inferior to this parameter will be removed").setEmphasized(true);
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 20, 1, null ).setEmphasized(true).setHint("Bacteria with size (in pixels) inferior to this value will be erased");
     BooleanParameter normalizeInterfaceValue = new BooleanParameter("Normalize Interface", true).setHint("If True, interface value is normalized by the median value of local extrema of EDM in the two segmented regions");
-    EnumChoiceParameter<SplitAndMergeEDM.INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Computation Mode", SplitAndMergeEDM.INTERFACE_VALUE.values(), SplitAndMergeEDM.INTERFACE_VALUE.CENTER).setLegacyInitializationValue(SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN);
+    EnumChoiceParameter<SplitAndMerge.INTERFACE_VALUE> interfaceValue = new EnumChoiceParameter<>("Interface Computation Mode", SplitAndMerge.INTERFACE_VALUE.values(), SplitAndMerge.INTERFACE_VALUE.CENTER).setLegacyInitializationValue(SplitAndMerge.INTERFACE_VALUE.MEDIAN);
     BooleanParameter invert = new BooleanParameter("Invert", true).setHint("If false, interface value is EDM/Norm or EDM, otherwise it is Norm/EDM or 1/EDM");
+
+    Map<SegmentedObject, Image> contourImages;
+
     public BacteriaEDM setInterfaceParameters(SplitAndMergeEDM.INTERFACE_VALUE mode, boolean normalize) {
         normalizeInterfaceValue.setValue(normalize);
         interfaceValue.setValue(mode);
@@ -39,7 +45,7 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
     public RegionPopulation runSegmenter(Image edm, int objectClassIdx, SegmentedObject parent) {
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new ThresholdMask(edm, minimalEDMValue.getValue().doubleValue(), true, true);
-        SplitAndMergeEDM sm = initSplitAndMerge(edm);
+        SplitAndMerge sm = initSplitAndMerge(edm, contourImages==null?null:contourImages.get(parent));
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
         RegionPopulation res = sm.merge(popWS, null);
@@ -50,18 +56,31 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
         res.filter(object -> object.size()>minSize && (minMaxEDM < minEDM || BasicMeasurements.getMaxValue(object, edm)>minMaxEDM));
         return res;
     }
-    List<FusionCriterion<Region, SplitAndMergeEDM.Interface>> fusionCriteria = new ArrayList<>();
+    List<FusionCriterion<Region, I>> fusionCriteria = new ArrayList<>();
     @Override
-    public void addFusionCriterion(FusionCriterion<Region, SplitAndMergeEDM.Interface> crit) {
+    public void addFusionCriterion(FusionCriterion<Region, I> crit) {
         fusionCriteria.add(crit);
     }
-    protected SplitAndMergeEDM initSplitAndMerge(Image edm) {
-        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(edm, edm, splitThreshold.getValue().doubleValue(), interfaceValue.getSelectedEnum(), normalizeInterfaceValue.getSelected(), invert.getSelected())
-                .setMapsProperties(false, false);
-        for (FusionCriterion<Region, ? extends InterfaceRegionImpl<?>> crit : fusionCriteria) sm.addFusionCriterion((FusionCriterion<Region, SplitAndMergeEDM.Interface>) crit);
+    public BacteriaEDM setContourImage(Map<SegmentedObject, Image> contourImages) {
+        this.contourImages=contourImages;
+        return this;
+    }
+    protected SplitAndMerge<I> initSplitAndMerge(Image edm, Image contour) {
+        SplitAndMerge<I> sm;
+        if (contour==null) {
+            SplitAndMergeEDM smEDM = new SplitAndMergeEDM(edm, edm, splitThreshold.getValue().doubleValue(), interfaceValue.getSelectedEnum(), normalizeInterfaceValue.getSelected(), invert.getSelected());
+            smEDM.setMapsProperties(false, false);
+            sm = (SplitAndMerge<I>)smEDM;
+
+        } else {
+            logger.info("INIT SM WITH EDGES");
+            SplitAndMergeEdge smE = new SplitAndMergeEdge(contour, edm, splitThreshold.getValue().doubleValue(), normalizeInterfaceValue.getSelected(), interfaceValue.getSelectedEnum());
+            smE.seedsOnEdgeMap(false).setMapsProperties(true, false);
+            sm = (SplitAndMerge<I>)smE;
+        }
+        for (FusionCriterion<Region, I> crit : fusionCriteria) sm.addFusionCriterion(crit);
         return sm;
     }
-
 
     @Override
     public Parameter[] getParameters() {
@@ -98,10 +117,10 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
     // Object Splitter implementation
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        return splitObject(input, parent, structureIdx, object,initSplitAndMerge(input) );
+        return splitObject(input, parent, structureIdx, object, initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent)) );
     }
 
-    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMergeEDM sm) {
+    public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMerge sm) {
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
@@ -120,10 +139,10 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
     // Split and Merge implementation
 
     // segmenter split and merge interface
-    private SplitAndMergeEDM.Interface getInterface(Region o1, Region o2, SplitAndMergeEDM sm, ImageByte tempSplitMask) {
+    private  I getInterface(Region o1, Region o2, SplitAndMerge<I> sm, ImageByte tempSplitMask) {
         o1.draw(tempSplitMask, o1.getLabel());
         o2.draw(tempSplitMask, o2.getLabel());
-        SplitAndMergeEDM.Interface inter = RegionCluster.getInteface(o1, o2, tempSplitMask, sm.getFactory());
+        I inter = RegionCluster.getInteface(o1, o2, tempSplitMask, sm.getFactory());
         inter.updateInterface();
         o1.draw(tempSplitMask, 0);
         o2.draw(tempSplitMask, 0);
@@ -133,16 +152,16 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
     public double split(Image input, SegmentedObject parent, int structureIdx, Region o, List<Region> result) {
         result.clear();
         if (input==null) parent.getPreFilteredImage(structureIdx);
-        SplitAndMergeEDM sm = initSplitAndMerge(input);
+        SplitAndMerge<I> sm = initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent));
         RegionPopulation pop =  splitObject(input, parent, structureIdx, o, sm); // after this step pop is in same landmark as o's landmark
         if (pop.getRegions().size()<=1) return Double.POSITIVE_INFINITY;
         else {
             result.addAll(pop.getRegions());
             if (pop.getRegions().size()>2) return 0; //   objects could not be merged during step process means no contact (effect of local threshold)
-            SplitAndMergeEDM.Interface inter = getInterface(result.get(0), result.get(1), sm, new ImageByte("split mask", parent.getMask()));
+            I inter = getInterface(result.get(0), result.get(1), sm, new ImageByte("split mask", parent.getMask()));
             //logger.debug("split @ {}-{}, inter size: {} value: {}/{}", parent, o.getLabel(), inter.getVoxels().size(), inter.value, splitAndMerge.splitThresholdValue);
             if (inter.getVoxels().size()<=1) return 0;
-            double cost = getCost(inter.value, splitThreshold.getValue().doubleValue(), invert.getSelected());
+            double cost = getCost(inter.getValue(), splitThreshold.getValue().doubleValue(), invert.getSelected());
             return cost;
         }
 
@@ -153,7 +172,7 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
         if (input==null) input = parent.getPreFilteredImage(structureIdx);
         RegionPopulation mergePop = new RegionPopulation(objects, objects.get(0).isAbsoluteLandMark() ? input : new BlankMask(input).resetOffset());
         mergePop.relabel(false); // ensure distinct labels , if not cluster cannot be found
-        SplitAndMergeEDM sm = initSplitAndMerge(input);
+        SplitAndMerge<I> sm = initSplitAndMerge(input, contourImages==null?null:contourImages.get(parent));
 
         RegionCluster c = new RegionCluster(mergePop, true, sm.getFactory());
         List<Set<Region>> clusters = c.getClusters();
@@ -163,13 +182,13 @@ public class BacteriaEDM implements SegmenterSplitAndMerge, TestableProcessingPl
         }
         boolean invert = this.invert.getSelected();
         double maxCost = invert? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-        Set<SplitAndMergeEDM.Interface> allInterfaces = c.getInterfaces(clusters.get(0));
-        for (SplitAndMergeEDM.Interface i : allInterfaces) {
+        Set<I> allInterfaces = c.getInterfaces(clusters.get(0));
+        for (I i : allInterfaces) {
             i.updateInterface();
             if (invert) {
-                if (i.value > maxCost) maxCost = i.value;
+                if (i.getValue() > maxCost) maxCost = i.getValue();
             } else {
-                if (i.value<maxCost) maxCost = i.value;
+                if (i.getValue()<maxCost) maxCost = i.getValue();
             }
         }
 
