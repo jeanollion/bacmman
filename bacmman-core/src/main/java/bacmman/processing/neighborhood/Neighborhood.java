@@ -23,6 +23,8 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.image.MutableBoundingBox;
 
+import java.util.stream.DoubleStream;
+
 /**
  *
  * @author Jean Ollion
@@ -44,6 +46,7 @@ public interface Neighborhood {
      */
     public MutableBoundingBox getBoundingBox();
     public double[] getPixelValues();
+    public DoubleStream getPixelValuesAsStream();
     public double getMin(int x, int y, int z, Image image, double... outOfBoundValue);
     public double getMax(int x, int y, int z, Image image);
     public boolean hasNonNullValue(int x, int y, int z, ImageMask mask, boolean outOfBoundIsNonNull);

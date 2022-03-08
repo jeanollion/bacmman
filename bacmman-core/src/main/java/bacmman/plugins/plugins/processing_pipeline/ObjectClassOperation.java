@@ -39,7 +39,7 @@ import java.util.stream.Stream;
  */
 public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipeline<ObjectClassOperation, Tracker> implements Hint {
     protected PluginParameter<Tracker> tracker = new PluginParameter<>("Tracker", Tracker.class, true);
-    SiblingObjectClassParameter oc1 = new SiblingObjectClassParameter("Object Class 1", -1, true, false, false);
+    SiblingObjectClassParameter oc1 = new SiblingObjectClassParameter("Object Class 1", -1, true, false, true);
     SiblingObjectClassParameter oc2 = new SiblingObjectClassParameter("Object Class 2", -1, true, false, false);
 
     enum OPERATION {DIFFERENCE, INTERSECTION}
@@ -101,9 +101,15 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
     protected void segmentOnly(final int structureIdx, final List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
         int parentObjectClassIdx = parentTrack.get(0).getStructureIdx();
-        if (oc1.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected object class 1 to duplicate");
         if (oc2.getSelectedClassIdx()<0) throw new IllegalArgumentException("No selected object class 2 to duplicate");
-        Map<SegmentedObject, SegmentedObject> sourceOC1MapParent = Duplicate.getParents(parentTrack, oc1.getSelectedClassIdx());
+        Map<SegmentedObject, SegmentedObject> sourceOC1MapParent;
+        if (oc1.getSelectedClassIdx()<0) {
+            //throw new IllegalArgumentException("No selected object class 1 to duplicate");
+            sourceOC1MapParent = parentTrack.stream().collect(Collectors.toMap(p->p, p->p));
+        } else {
+            sourceOC1MapParent = Duplicate.getParents(parentTrack, oc1.getSelectedClassIdx());
+        }
+
         Map<SegmentedObject, SegmentedObject> dupOC1 = Duplicate.duplicate(sourceOC1MapParent.keySet().stream(), structureIdx, factory, editor);
         Duplicate.setParents(dupOC1, sourceOC1MapParent, parentObjectClassIdx, oc1.getSelectedClassIdx(), factory);
         Map<SegmentedObject, SegmentedObject> sourceOC2MapParent = Duplicate.getParents(parentTrack, oc2.getSelectedClassIdx());
@@ -156,6 +162,9 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
                         it1.remove();
                         toRemove.add(o1);
                     } else {
+                        logger.debug("ref object: {}, reg abs: {}", o1, o1.getRegion().isAbsoluteLandMark());
+                        for (SegmentedObject o : oc2) logger.debug("2d obj: {}, reg abs: {}", o, o.getRegion().isAbsoluteLandMark());
+                        logger.debug("intersecting o2: {}", inter);
                         r1.and(Region.merge(inter));
                         if (r1.size()==0) {
                             it1.remove();

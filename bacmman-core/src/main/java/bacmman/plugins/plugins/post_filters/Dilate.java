@@ -18,7 +18,6 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
-import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ScaleXYZParameter;
 import bacmman.data_structure.Ellipse2D;
@@ -36,15 +35,15 @@ import bacmman.plugins.PostFilter;
  *
  * @author Jean Ollion
  */
-public class BinaryMax implements PostFilter, MultiThreaded, Hint {
+public class Dilate implements PostFilter, MultiThreaded, Hint {
     ScaleXYZParameter scale = new ScaleXYZParameter("Radius", 5, 1, false).setEmphasized(true);
 
     @Override
     public String getHintText() {
-        return "Performs an max operation on region masks<br />When several segmented regions are present, the filter is applied label-wise";
+        return "Performs a max (dilate) operation on region masks<br />When several segmented regions are present, the filter is applied label-wise";
     }
-    public BinaryMax() {}
-    public BinaryMax(double radius) {
+    public Dilate() {}
+    public Dilate(double radius) {
         this.scale.setScaleXY(radius);
     }
     @Override

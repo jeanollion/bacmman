@@ -30,7 +30,7 @@ import bacmman.image.ImageMask;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
-import bacmman.image.ThresholdMask;
+import bacmman.image.PredicateMask;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.ConfigurableTransformation;
 
@@ -46,7 +46,6 @@ import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
 
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
 
 /**
  *
@@ -124,15 +123,15 @@ public class RemoveStripesSignalExclusion implements ConfigurableTransformation,
                 Image se1 = allImagesExcl[frame];
                 if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
                 double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
-                ThresholdMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new ThresholdMask(se1, thld1, true, true, 0):new ThresholdMask(se1, thld1, true, true);
+                PredicateMask mask = currentImage.sizeZ()>1 && se1.sizeZ()==1 ? new PredicateMask(se1, thld1, true, true, 0):new PredicateMask(se1, thld1, true, true);
                 if (testMode.testExpert()) synchronized(testMasks) {testMasks.put(frame, TypeConverter.toByteMask(mask, null, 1));}
                 if (chExcl2>=0) {
                     Image se2 = allImagesExcl2[frame];
                     if (mScale>0) se2 = ImageFeatures.gaussianSmooth(se2, mScale, mScaleZ, false);
                     double thld2 = signalExclusionThreshold2.instantiatePlugin().runSimpleThresholder(se2, null);
-                    ThresholdMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new ThresholdMask(se2, thld2, true, true, 0):new ThresholdMask(se2, thld2, true, true);
+                    PredicateMask mask2 = currentImage.sizeZ()>1 && se2.sizeZ()==1 ? new PredicateMask(se2, thld2, true, true, 0):new PredicateMask(se2, thld2, true, true);
                     if (testMode.testExpert()) synchronized(testMasks2) {testMasks2.put(frame, TypeConverter.toByteMask(mask2, null, 1));}
-                    mask = ThresholdMask.or(mask, mask2);
+                    mask = PredicateMask.or(mask, mask2);
                 }
                 m = mask;
             } else m = new BlankMask(currentImage);

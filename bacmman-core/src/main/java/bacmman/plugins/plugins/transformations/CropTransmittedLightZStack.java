@@ -4,7 +4,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
-import bacmman.image.ThresholdMask;
+import bacmman.image.PredicateMask;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import org.slf4j.Logger;
@@ -15,7 +15,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class CropTransmittedLightZStack implements ConfigurableTransformation, MultichannelTransformation, Filter, Hint, PreFilter {
     public final static Logger logger = LoggerFactory.getLogger(CropTransmittedLightZStack.class);
@@ -85,7 +84,7 @@ public class CropTransmittedLightZStack implements ConfigurableTransformation, M
             default: {
                 Image sdImage = TransmitedLightZStackCorrelation.getSDProjection(image);
                 double thld = thresholder.instantiatePlugin().runSimpleThresholder(sdImage, null);
-                ImageMask mask = new ThresholdMask(sdImage, thld, true, false);
+                ImageMask mask = new PredicateMask(sdImage, thld, true, false);
                 TransmitedLightZStackCorrelation.ZPlane zPlane = TransmitedLightZStackCorrelation.getFocusPlane(image, tileSize.getValue().intValue(), mask, tileThreshold.getValue().doubleValue());
                 zCenter = (int)Math.round(zPlane.avgZ);
                 break;

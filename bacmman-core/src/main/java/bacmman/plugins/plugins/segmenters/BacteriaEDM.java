@@ -44,7 +44,7 @@ public class BacteriaEDM<I extends InterfaceRegionImpl<I> & RegionCluster.Interf
     @Override
     public RegionPopulation runSegmenter(Image edm, int objectClassIdx, SegmentedObject parent) {
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
-        ImageMask mask = new ThresholdMask(edm, minimalEDMValue.getValue().doubleValue(), true, true);
+        ImageMask mask = new PredicateMask(edm, minimalEDMValue.getValue().doubleValue(), true, true);
         SplitAndMerge sm = initSplitAndMerge(edm, contourImages==null?null:contourImages.get(parent));
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
@@ -106,8 +106,8 @@ public class BacteriaEDM<I extends InterfaceRegionImpl<I> & RegionCluster.Interf
     }
     @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
-        ThresholdMask mask = new ThresholdMask(input, minimalEDMValue.getValue().doubleValue(), true, true);
-        mask = ThresholdMask.and(mask, segmentationMask);
+        PredicateMask mask = new PredicateMask(input, minimalEDMValue.getValue().doubleValue(), true, true);
+        mask = PredicateMask.and(mask, segmentationMask);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
         RegionPopulation res = WatershedTransform.watershed(input, mask, seedObjects, config);
         res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);

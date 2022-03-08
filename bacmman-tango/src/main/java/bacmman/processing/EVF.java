@@ -6,7 +6,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageMask;
 import bacmman.image.SubtractedMask;
-import bacmman.image.ThresholdMask;
+import bacmman.image.PredicateMask;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -24,7 +24,7 @@ public class EVF {
             mask = container.getMask();
             edt = EDT.transform(mask, true, 1, zAspectRatio, false);
             if (erodeContainer>0) {
-                erosionMask = new ThresholdMask(edt, erodeContainer, false, true);
+                erosionMask = new PredicateMask(edt, erodeContainer, false, true);
                 mask = new SubtractedMask(mask, erosionMask);
             }
         } else {
@@ -32,7 +32,7 @@ public class EVF {
             mask = new SubtractedMask(container.getMask(), inside);
             if (erodeContainer>0) {
                 ImageFloat parentEdt = EDT.transform(container.getMask(), true, 1, zAspectRatio, false);
-                erosionMask = new ThresholdMask(parentEdt, 0, true, erodeContainer, true);
+                erosionMask = new PredicateMask(parentEdt, 0, true, erodeContainer, true);
                 mask = new SubtractedMask(mask, erosionMask);
             }
             if (parentIsPartOfRef) edt = EDT.transform(mask, true, 1, zAspectRatio, false);

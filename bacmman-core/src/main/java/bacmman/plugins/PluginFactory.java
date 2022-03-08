@@ -52,7 +52,7 @@ public class PluginFactory {
     private final static TreeMap<String, Class> PLUGIN_NAMES_MAP_CLASS = new TreeMap<>();
     private final static Map<Class, String> CLASS_MAP_PLUGIN_NAME = new HashMap<>();
     private final static Logger logger = LoggerFactory.getLogger(PluginFactory.class);
-    private final static Map<String, String> OLD_NAMES_MAP_NEW = new HashMap<String, String>(){{put("BorderContact", "EdgeContact"); put("StatisticsAtBorder", "ContourFeature"); put("RemoveDeadPixels", "RemoveHotPixels"); put("FitRegionsToEdges", "FitMicrochannelsToEdges");}};
+    private final static Map<String, String> OLD_NAMES_MAP_NEW = new HashMap<String, String>(){{put("BinaryMax", "Dilate"); put("BorderContact", "EdgeContact"); put("StatisticsAtBorder", "ContourFeature"); put("RemoveDeadPixels", "RemoveHotPixels"); put("FitRegionsToEdges", "FitMicrochannelsToEdges");}};
     public static void importIJ1Plugins() {
         Hashtable<String, String> table = ij.Menus.getCommands();
         if (table==null) {

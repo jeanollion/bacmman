@@ -24,6 +24,7 @@ import bacmman.image.ImageMask;
 import bacmman.image.MutableBoundingBox;
 
 import java.util.HashMap;
+import java.util.stream.DoubleStream;
 
 /**
  *
@@ -78,7 +79,9 @@ public class ConditionalNeighborhoodZ implements Neighborhood {
     @Override public double[] getPixelValues() {
         return currentNeighborhood.getPixelValues();
     }
-
+    @Override public DoubleStream getPixelValuesAsStream() {
+        return currentNeighborhood.getPixelValuesAsStream();
+    }
     @Override public float[] getDistancesToCenter() {
         return currentNeighborhood.getDistancesToCenter();
     }

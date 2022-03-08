@@ -9,14 +9,10 @@ import bacmman.plugins.DevPlugin;
 import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.TestableOperation;
 import bacmman.plugins.Transformation;
-import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.processing.ImageOperations;
 import bacmman.utils.ArrayUtil;
-import ij.gui.Plot;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.stat.regression.SimpleRegression;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +49,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
         }
         Image sdImage = getSDProjection(image);
         double thld = thresholder.instantiatePlugin().runSimpleThresholder(sdImage, null);
-        ImageMask mask = new ThresholdMask(sdImage, thld, true, false);
+        ImageMask mask = new PredicateMask(sdImage, thld, true, false);
         ZPlane zPlane = getFocusPlane(image, tileSize.getValue().intValue(), mask, tileThreshold.getValue().doubleValue());
         if (testMode.testSimple()) {
             Core.showImage(sdImage.setName("sd z-projection @ frame: "+timePoint));

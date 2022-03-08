@@ -60,7 +60,7 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
             Image se1 = allImagesExcl[frame];
             if (mScale>0) se1 = ImageFeatures.gaussianSmooth(se1, mScale, mScaleZ, false);
             double thld1 = signalExclusionThreshold.instantiatePlugin().runSimpleThresholder(se1, null);
-            ThresholdMask maskT = currentImage.sizeZ() > 1 && se1.sizeZ() == 1 ? new ThresholdMask(se1, thld1, true, true, 0) : new ThresholdMask(se1, thld1, true, true);
+            PredicateMask maskT = currentImage.sizeZ() > 1 && se1.sizeZ() == 1 ? new PredicateMask(se1, thld1, true, true, 0) : new PredicateMask(se1, thld1, true, true);
             bck[frame] = getBackgroundImage(currentImage, maskT, scale, scaleZ);
             if (testMode.testExpert()) mask[frame] = new RegionPopulation(maskT).getLabelMap();
 

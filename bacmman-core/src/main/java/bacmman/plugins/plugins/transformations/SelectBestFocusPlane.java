@@ -32,14 +32,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import bacmman.plugins.SimpleThresholder;
 import bacmman.processing.ImageFeatures;
-import bacmman.image.ThresholdMask;
+import bacmman.image.PredicateMask;
 import java.util.List;
 import bacmman.plugins.Autofocus;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.utils.ThreadRunner;
 
 import java.util.function.Consumer;
-import java.util.stream.IntStream;
+
 /**
  *
  * @author Jean Ollion
@@ -85,14 +85,14 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
         int max=-1;
         for (int zz = 0; zz<planes.size(); ++zz) {
             if (thlder!=null) {
-                final ImageMask maskThld = new ThresholdMask(planes.get(zz), thlder.runSimpleThresholder(planes.get(zz), globalMask), true, false);
+                final ImageMask maskThld = new PredicateMask(planes.get(zz), thlder.runSimpleThresholder(planes.get(zz), globalMask), true, false);
                 final int zzz = zz;
-                if (globalMask!=null) mask = new ThresholdMask(planes.get(zz), (x, y, z)->globalMask.insideMask(x, y, zzz)&&maskThld.insideMask(x, y, z), (xy, z)->globalMask.insideMask(xy, zzz)&&maskThld.insideMask(xy, z), true);
+                if (globalMask!=null) mask = new PredicateMask(planes.get(zz), (x, y, z)->globalMask.insideMask(x, y, zzz)&&maskThld.insideMask(x, y, z), (xy, z)->globalMask.insideMask(xy, zzz)&&maskThld.insideMask(xy, z), true);
                 else mask = maskThld;
                 if (mask.count()==0) continue;
             } else if (globalMask!=null) {
                 final int zzz = zz;
-                mask = new ThresholdMask(planes.get(zz), (x, y, z)->globalMask.insideMask(x, y, zzz), (xy, z)->globalMask.insideMask(xy, zzz), true);
+                mask = new PredicateMask(planes.get(zz), (x, y, z)->globalMask.insideMask(x, y, zzz), (xy, z)->globalMask.insideMask(xy, zzz), true);
             }
             double temp = evalPlane(planes.get(zz), scale, mask);
             if (temp>maxValues) {

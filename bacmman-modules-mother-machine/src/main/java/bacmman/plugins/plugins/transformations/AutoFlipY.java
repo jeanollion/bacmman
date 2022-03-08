@@ -21,9 +21,7 @@ package bacmman.plugins.plugins.transformations;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
-import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.ConditionalParameter;
 import bacmman.data_structure.input_image.InputImages;
@@ -40,7 +38,6 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.FLUO_HALF_IMAGE;
 import static bacmman.plugins.plugins.transformations.AutoFlipY.AutoFlipMethod.OPTICAL_FLOW;
 
 import bacmman.processing.ImageTransformation;
@@ -277,7 +274,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
         SimpleThresholder thlder = fluoThld.instantiatePlugin();
         double thld = thlder.runSimpleThresholder(image, null);
         if (testMode.testSimple()) logger.debug("threshold: {}", thld);
-        ImageMask mask = new ThresholdMask(image, thld, true, true);
+        ImageMask mask = new PredicateMask(image, thld, true, true);
         List<Region> objects = ImageLabeller.labelImageList(mask);
         objects.removeIf(o->o.size()<minSize);
         // filter by median sizeY

@@ -38,7 +38,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         if (stores!=null) stores.get(parent).addIntermediateImage("SegModelOutput", proba);
         // perform watershed on probability map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
-        ImageMask mask = new ThresholdMask(proba, minimalProba.getValue().doubleValue(), true, false);
+        ImageMask mask = new PredicateMask(proba, minimalProba.getValue().doubleValue(), true, false);
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
@@ -118,8 +118,8 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
         Image probaMap = predict(input)[0];
-        ThresholdMask mask = new ThresholdMask(probaMap, minimalProba.getValue().doubleValue(), true, true);
-        mask = ThresholdMask.and(mask, segmentationMask);
+        PredicateMask mask = new PredicateMask(probaMap, minimalProba.getValue().doubleValue(), true, true);
+        mask = PredicateMask.and(mask, segmentationMask);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
         RegionPopulation res = WatershedTransform.watershed(probaMap, mask, seedObjects, config);
         res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);

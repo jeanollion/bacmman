@@ -24,11 +24,11 @@ import java.util.function.Predicate;
  *
  * @author Jean Ollion
  */
-public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implements ImageMask<ThresholdMask> {
+public class PredicateMask extends SimpleImageProperties<PredicateMask> implements ImageMask<PredicateMask> {
     final InsideMaskFunction insideMask;
     final InsideMaskXYFunction insideMaskXY;
     final boolean is2D;
-    public ThresholdMask(Image imageToThreshold, double threshold, boolean foregroundOverthreshold, boolean strict) {
+    public PredicateMask(Image imageToThreshold, double threshold, boolean foregroundOverthreshold, boolean strict) {
         super(imageToThreshold);
         if (foregroundOverthreshold) {
             if (strict) insideMask = (x, y, z) -> imageToThreshold.getPixel(x, y, z)>threshold;
@@ -46,7 +46,7 @@ public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implemen
         }
         is2D = false;
     }
-    public ThresholdMask(Image imageToThreshold, double thresholdLow, boolean thresholdLowStrict, double thresholdHigh, boolean thresholdHighStrict) {
+    public PredicateMask(Image imageToThreshold, double thresholdLow, boolean thresholdLowStrict, double thresholdHigh, boolean thresholdHighStrict) {
         super(imageToThreshold);
         if (thresholdLowStrict && thresholdHighStrict) {
             insideMask = (x, y, z) -> {
@@ -95,7 +95,7 @@ public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implemen
      * @param strict
      * @param z 
      */
-    public ThresholdMask(Image imageToThreshold, double threshold, boolean foregroundOverthreshold, boolean strict, int z) {
+    public PredicateMask(Image imageToThreshold, double threshold, boolean foregroundOverthreshold, boolean strict, int z) {
         super(imageToThreshold);
         if (foregroundOverthreshold) {
             if (strict) insideMask = (x, y, zz) -> imageToThreshold.getPixel(x, y, z)>threshold;
@@ -113,23 +113,35 @@ public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implemen
         }
         is2D=true;
     }
-    public ThresholdMask(ImageProperties imageProperties, InsideMaskFunction insideMask, InsideMaskXYFunction insideMaskXY, boolean is2D) {
+    public PredicateMask(ImageProperties imageProperties, InsideMaskFunction insideMask, InsideMaskXYFunction insideMaskXY, boolean is2D) {
         super(imageProperties);
         this.insideMask=insideMask;
         this.insideMaskXY=insideMaskXY;
         this.is2D = is2D;
     }
-    public static ThresholdMask or(ThresholdMask mask1, ImageMask mask2) {
+    public static PredicateMask or(ImageMask mask1, ImageMask mask2) {
         if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
-        Predicate<ImageMask> is2D = m -> m instanceof ThresholdMask ? ((ThresholdMask)m).is2D : false;
-        if (mask1.sizeZ()!=mask2.sizeZ() && !mask1.is2D && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
-        return new ThresholdMask(mask1.is2D?mask2:mask1, (x, y, z)->mask1.insideMask.insideMask(x, y, z)||mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)||mask2.insideMask(xy, z), mask1.is2D && is2D.test(mask2));
+        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : false;
+        if (mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
+        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)||mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)||mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
     }
-    public static ThresholdMask and(ThresholdMask mask1, ImageMask mask2) {
+    public static PredicateMask and(ImageMask mask1, ImageMask mask2) {
         if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
-        Predicate<ImageMask> is2D = m -> m instanceof ThresholdMask ? ((ThresholdMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
-        if (mask1.sizeZ()!=mask2.sizeZ() && !mask1.is2D && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
-        return new ThresholdMask(mask1.is2D?mask2:mask1, (x, y, z)->mask1.insideMask.insideMask(x, y, z)&&mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)&&mask2.insideMask(xy, z), mask1.is2D && is2D.test(mask2));
+        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
+        if (mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
+        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)&&mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)&&mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
+    }
+    public static PredicateMask xor(ImageMask mask1, ImageMask mask2) {
+        if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
+        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
+        if (mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
+        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)!=mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)!=mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
+    }
+    public static PredicateMask andNot(ImageMask mask1, ImageMask mask2) {
+        if (mask1.sizeX()!=mask2.sizeX() || mask1.sizeY()!=mask2.sizeY()) throw new IllegalArgumentException("Mask1 & 2 should have same XY dimensions");
+        Predicate<ImageMask> is2D = m -> m instanceof PredicateMask ? ((PredicateMask)m).is2D : m instanceof ImageMask2D || m.sizeZ() == 1;
+        if (mask1.sizeZ()!=mask2.sizeZ() && !is2D.test(mask1) && !is2D.test(mask2)) throw new IllegalArgumentException("Mask1 & 2 should either have same Z dimensions or be 2D");
+        return new PredicateMask(is2D.test(mask1)?mask2:mask1, (x, y, z)->mask1.insideMask(x, y, z)&&!mask2.insideMask(x,y, z), (xy, z)->mask1.insideMask(xy, z)&&!mask2.insideMask(xy, z), is2D.test(mask1) && is2D.test(mask2));
     }
     @Override
     public boolean insideMask(int x, int y, int z) {
@@ -163,8 +175,8 @@ public class ThresholdMask extends SimpleImageProperties<ThresholdMask> implemen
     }
 
     @Override
-    public ThresholdMask duplicateMask() {
-        return new ThresholdMask(this, insideMask, insideMaskXY, is2D);
+    public PredicateMask duplicateMask() {
+        return new PredicateMask(this, insideMask, insideMaskXY, is2D);
     }
 
     public interface InsideMaskFunction {

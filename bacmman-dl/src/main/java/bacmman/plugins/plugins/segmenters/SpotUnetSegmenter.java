@@ -56,7 +56,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         METHOD method = this.method.getSelectedEnum();
         double minProba = GAUSSIAN_FIT_ON_PREDICTION.equals(method) ? minimalProbability.getValue().doubleValue() : probaRange.getValuesAsDouble()[0];
-        ThresholdMask mask = new ThresholdMask(proba, minProba, true, false);
+        PredicateMask mask = new PredicateMask(proba, minProba, true, false);
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
                 .setMapsProperties(false, false);
         if (THRESHOLD_ON_PREDICTION.equals(method)) sm.setSeedThrehsold(probaRange.getValuesAsDouble()[1]);

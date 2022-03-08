@@ -22,6 +22,7 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -98,6 +99,10 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
 
     @Override public double[] getPixelValues() {
         return values;
+    }
+    @Override public DoubleStream getPixelValuesAsStream() {
+        if (valueCount == values.length) return DoubleStream.of(values);
+        else return java.util.Arrays.stream(values, 0, valueCount);
     }
     @Override public int getValueCount() {
         return valueCount;

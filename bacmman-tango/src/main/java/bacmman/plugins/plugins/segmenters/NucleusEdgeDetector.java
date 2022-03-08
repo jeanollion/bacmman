@@ -43,7 +43,7 @@ public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, Tes
         Image smooth = getSmoothedImage(input);
 
         logger.debug("smooth performed");
-        RegionPopulation nuclei = SimpleThresholder.run(smooth, threshold_g.instantiatePlugin(), parent);
+        RegionPopulation nuclei = SimpleThresholder.run(smooth, threshold_g.instantiatePlugin(), parent, true, false);
         logger.debug("global segmentation performed: found {} nuclei", nuclei.getRegions().size());
         nuclei.filter(new RegionPopulation.Size().setMin(minSize.getDoubleValue()));
         nuclei.getRegions().forEach(Region::clearVoxels); // saves memory

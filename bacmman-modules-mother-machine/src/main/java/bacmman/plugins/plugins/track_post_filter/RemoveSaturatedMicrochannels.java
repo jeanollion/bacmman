@@ -27,7 +27,7 @@ import ij.process.AutoThresholder;
 import bacmman.image.Histogram;
 import bacmman.image.HistogramFactory;
 import bacmman.image.Image;
-import bacmman.image.ThresholdMask;
+import bacmman.image.PredicateMask;
 import bacmman.plugins.Hint;
 import java.util.ArrayList;
 import java.util.List;
@@ -85,7 +85,7 @@ public class RemoveSaturatedMicrochannels implements TrackPostFilter, Hint {
         Image image = o.getRawImage(o.getStructureIdx());
         Histogram hist = HistogramFactory.getHistogram(()->image.stream().parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
         double thld = IJAutoThresholder.runThresholder(AutoThresholder.Method.Otsu, hist);
-        ThresholdMask mask = new ThresholdMask(image, thld, true, false);
+        PredicateMask mask = new PredicateMask(image, thld, true, false);
         double stauratedPixelsThld =  mask.count() * minPercentageOfSaturatedPixels.getValue().doubleValue() / 100d;
         int i = hist.getMaxNonNullIdx();
         if (testMode) logger.debug("test saturated object: {}: total bact pixels: {} (thld: {}) sat pixel limit: {}, max value count: {} max value: {} ", o, mask.count(), thld, stauratedPixelsThld, i>0?hist.getData()[i]:0, hist.getValueFromIdx(i) );

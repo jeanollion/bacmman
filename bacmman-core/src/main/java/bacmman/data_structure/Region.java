@@ -359,6 +359,7 @@ public class Region {
         };
         BoundingBox.loop(BoundingBox.getIntersection(otherMask, getBounds()), function);
         this.roi=null;
+        resetMask();
         regionModified=true;
     }
     public synchronized void and(ImageMask otherMask) {
@@ -878,7 +879,7 @@ public class Region {
     }
     public static Region merge(Collection<Region> regions) {
         if (regions==null || regions.isEmpty()) return null;
-        if (!Utils.objectsAllHaveSameProperty(regions, r->r.isAbsoluteLandMark())) throw new IllegalArgumentException("Trying to merge regions with different landmarks");
+        if (!Utils.objectsAllHaveSameProperty(regions, Region::isAbsoluteLandMark)) throw new IllegalArgumentException("Trying to merge regions with different landmarks");
         if (!Utils.objectsAllHaveSameProperty(regions, r->r.is2D)) throw new IllegalArgumentException("Trying to merge 2D with 3D regions");
         Iterator<Region> it = regions.iterator();
         Region ref = it.next();
