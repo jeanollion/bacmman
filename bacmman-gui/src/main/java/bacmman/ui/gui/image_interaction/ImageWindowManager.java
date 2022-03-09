@@ -810,7 +810,14 @@ public abstract class ImageWindowManager<I, U, V> {
             return res;
         } else return Collections.emptyList();
     }
-    
+
+    public List<SegmentedObject> getSelectedLabileObjectsOrTracks(Image image) {
+        if (displayTrackMode) {
+            List<SegmentedObject> th = getSelectedLabileTrackHeads(image);
+            logger.debug("number of labile th: {} -> {}", th.size(), th);
+            return th.stream().flatMap(t -> SegmentedObjectUtils.getTrack(t).stream()).collect(Collectors.toList());
+        } else return getSelectedLabileObjects(image);
+    }
     /// track-related methods
     
     protected abstract void displayTrack(I image, V roi, InteractiveImage i);
@@ -873,22 +880,22 @@ public abstract class ImageWindowManager<I, U, V> {
             tm.trimTrack(track);
             canDisplayTrack = !track.isEmpty();
         }
-        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? (hyperStack ? labileParentTrackHeadKymographTrackRoiMap : labileParentTrackHeadTrackRoiMap  ) : (hyperStack ? parentTrackHeadKymographTrackRoiMap : parentTrackHeadTrackRoiMap ) ;
-        if (hyperStack && track.size()==1 ) map =null; // partial tracks: do not store //&& (!trackHead.equals(track.get(0).key) || trackHead.getNextId()!=null)
+        Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? (hyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap  ) : (hyperStack ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
+        boolean doNotStore = hyperStack && track.size()==1; // partial tracks: do not store //&& (!trackHead.equals(track.get(0).key) || trackHead.getNextId()!=null)
         if (canDisplayTrack) {
             if (i.getKey().interactiveObjectClass != trackHead.getStructureIdx()) { // change current object class
                 i = getImageTrackObjectInterface(i.parents, trackHead.getStructureIdx(), type);
-                if (map!=null) map.clear();
+                map.clear();
             }
             if (i.getParent()==null) logger.error("Track mask parent null!!!");
             else if (i.getParent().getTrackHead()==null) logger.error("Track mask parent trackHead null!!!");
             Pair<SegmentedObject, SegmentedObject> key = new Pair<>(i.getParent().getTrackHead(), trackHead);
             Set<V>  disp = null;
             if (labile) disp = displayedLabileTrackRois.getAndCreateIfNecessary(image);
-            V roi = map==null ? null:map.get(key);
+            V roi = doNotStore ? null:map.get(key);
             if (roi==null) {
                 roi = generateTrackRoi(i.parents,track, color, i);
-                if (map!=null) map.put(key, roi);
+                map.put(key, roi);
             } else setTrackColor(roi, color);
             if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi ,i);
             if (disp!=null) disp.add(roi);
@@ -997,6 +1004,9 @@ public abstract class ImageWindowManager<I, U, V> {
         Set<V> rois = this.displayedLabileTrackRois.get(image);
         if (rois!=null) {
             InteractiveImage i = getImageObjectInterface(image);
+            if (i instanceof HyperStack) { // tracks are not stored
+
+            }
             List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof HyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
             List<SegmentedObject> res = unpairValues(pairs);
             Utils.removeDuplicates(res, false);

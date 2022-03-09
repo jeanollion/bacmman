@@ -121,7 +121,7 @@ public class SegmentedObjectEditor {
 
             }
             if (doubleLink) {
-                if (allNext.size()==1 && allPrev.size()==1 && allNext.get(0).equals(next) && allPrev.get(0).equals(prev) && !next.isTrackHead()) { // only remove errors but do not set modified tag
+                if (allNext.size()==1 && allPrev.size()==1 && allNext.get(0).equals(next) && allPrev.get(0).equals(prev) && prev.getTrackHead().equals(next.getTrackHead())) { // only remove errors but do not set modified tag
                     prev.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, null);
                     next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, null);
                     return;

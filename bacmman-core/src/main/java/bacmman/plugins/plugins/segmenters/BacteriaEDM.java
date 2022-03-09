@@ -73,7 +73,6 @@ public class BacteriaEDM<I extends InterfaceRegionImpl<I> & RegionCluster.Interf
             sm = (SplitAndMerge<I>)smEDM;
 
         } else {
-            logger.info("INIT SM WITH EDGES");
             SplitAndMergeEdge smE = new SplitAndMergeEdge(contour, edm, splitThreshold.getValue().doubleValue(), normalizeInterfaceValue.getSelected(), interfaceValue.getSelectedEnum());
             smE.seedsOnEdgeMap(false).setMapsProperties(true, false);
             sm = (SplitAndMerge<I>)smE;

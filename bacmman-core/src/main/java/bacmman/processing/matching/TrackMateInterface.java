@@ -361,8 +361,8 @@ public class TrackMateInterface<S extends Spot> {
         Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
         for (SegmentedObject so : objects) {
             if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
-                editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, false);
-            else editor.setTrackHead(so, so, false, false);
+                editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, true);
+            else editor.setTrackHead(so, so, false, true);
         }
     }
     private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor) {

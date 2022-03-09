@@ -4299,7 +4299,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (!checkConnection()) return;
         logger.info("delete: evt source {}, evt: {}, ac: {}, param: {}", evt.getSource(), evt, evt.getActionCommand(), evt.paramString());
         //if (db.isReadOnly()) return;
-        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, true);
     }//GEN-LAST:event_deleteObjectsButtonActionPerformed
 
@@ -4348,7 +4348,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void mergeObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_mergeObjectsButtonActionPerformed
         if (!checkConnection()) return;
         //if (db.isReadOnly()) return;
-        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least two objects to Merge first!");
         else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects ? ", null))  ManualEdition.mergeObjects(db, selList, true);
     }//GEN-LAST:event_mergeObjectsButtonActionPerformed
@@ -4356,14 +4356,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void splitObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_splitObjectsButtonActionPerformed
         if (!checkConnection()) return;
         //if (db.isReadOnly()) return;
-        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
         else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) ManualEdition.splitObjects(db, selList, true, false);
     }//GEN-LAST:event_splitObjectsButtonActionPerformed
 
     private void postFilterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_postFilterActionPerformed
         if (!checkConnection()) return;
-        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to apply post-filters on!");
         else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, true);
     }//GEN-LAST:event_postFilterActionPerformed
