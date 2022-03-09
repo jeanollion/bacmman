@@ -41,8 +41,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5, 0.6, 0.01, 1);
 
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true)
-            .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(5).setMinOutputNumber(4).setOutputNumber(5)
-            .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(16, 16).setDefaultTargetShape(128, 128)
+            .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
+            .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(16, 16).setDefaultTargetShape(192, 192)
             .setInterpolationForOutput(defInterpolation, 1, 2, 3, 4)
             .setEmphasized(true);
     BooleanParameter next = new BooleanParameter("Predict Next", true).addListener(b -> dlResizeAndScale.setOutputNumber(b.getSelected()?5:4))
@@ -683,9 +683,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Segmenter seg = getSegmenter(null);
         if (seg instanceof ObjectSplitter) { // Predict EDM and delegate method to segmenter
             ObjectSplitter splitter = new ObjectSplitter() {
+                final Map<Pair<SegmentedObject, Integer>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.key, k.value));
                 @Override
                 public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-                    PredictionResults pred = predictEDM(parent, structureIdx);
+                    PredictionResults pred = predictions.get(new Pair<>(parent, structureIdx));
                     synchronized (seg) {
                         if (pred.contours != null && seg instanceof BacteriaEDM)
                             ((BacteriaEDM) seg).setContourImage(pred.contours);
@@ -709,12 +710,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             return splitter;
         } else return null;
     }
-
     @Override
     public ManualSegmenter getManualSegmenter() {
         Segmenter seg = getSegmenter(null);
         if (seg instanceof ManualSegmenter) {
             ManualSegmenter ms = new ManualSegmenter() {
+                final Map<Pair<SegmentedObject, Integer>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.key, k.value));
                 @Override
                 public void setManualSegmentationVerboseMode(boolean verbose) {
                     ((ManualSegmenter)seg).setManualSegmentationVerboseMode(verbose);
@@ -722,7 +723,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
                 @Override
                 public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-                    PredictionResults pred = predictEDM(parent, objectClassIdx);
+                    PredictionResults pred = predictions.get(new Pair<>(parent, objectClassIdx));
                     synchronized (seg) {
                         if (pred.contours != null && seg instanceof BacteriaEDM)
                             ((BacteriaEDM) seg).setContourImage(pred.contours);
