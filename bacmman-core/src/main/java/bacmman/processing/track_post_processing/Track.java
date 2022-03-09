@@ -165,8 +165,13 @@ public class Track {
             if (next!=null) {
                 Track nextT = tracks.get(next.getTrackHead());
                 if (nextT != null) {
-                    t.addNext(nextT);
-                    nextT.addPrevious(t);
+                    try {
+                        t.addNext(nextT);
+                        nextT.addPrevious(t);
+                    } catch (java.lang.IllegalArgumentException e) {
+                        logger.error("Track: {}, tail: {}, nObjects: {} thIdx: {}, next: {}, trackhead: {} (id: {}) track: {}, prev: {}", t, t.tail(), t.objects.size(), t.head().getId(), next, next.getTrackHead(), next.getTrackHead().getId(), nextT, next.getPrevious());
+                        throw e;
+                    }
                 }
             }
             SegmentedObject prev = t.head().getPrevious();
