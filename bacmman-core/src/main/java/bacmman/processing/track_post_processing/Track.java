@@ -245,7 +245,7 @@ public class Track {
         //logger.debug("before assign next: all next: {} all next's prev: {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(allNextPrev, Track::head));
         assignTracks(allNextPrev, new ArrayList<>(track.getNext()), trackEditor);
         //logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(track2.getNext(), Track::head));
-
+        track.splitRegions = null;
         return track2;
     }
 
@@ -304,6 +304,7 @@ public class Track {
             p.addNext(track1);
             track1.addPrevious(p);
         });
+        track1.splitRegions = null; // TODO record regions at this step
         return track1;
     }
 
@@ -328,6 +329,10 @@ public class Track {
             n.addPrevious(track1);
             track1.addNext(n);
         });
+        if (track1.splitRegions!=null) {
+            if (track2.splitRegions!=null) track1.splitRegions.addAll(track2.splitRegions);
+            else track1.splitRegions = null;
+        }
         return track1;
     }
 
