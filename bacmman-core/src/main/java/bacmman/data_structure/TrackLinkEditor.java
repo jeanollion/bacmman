@@ -1,6 +1,7 @@
 package bacmman.data_structure;
 
 import java.util.Set;
+import java.util.stream.Stream;
 
 public class TrackLinkEditor {
     private final int editableObjectClassIdx;
@@ -20,6 +21,17 @@ public class TrackLinkEditor {
     public void resetTrackLinks(SegmentedObject object, boolean prev, boolean next, boolean propagateTrackHead) {
         if (editableObjectClassIdx>=0 && editableObjectClassIdx!=object.getStructureIdx()) throw new IllegalArgumentException("This object is not editable");
         object.resetTrackLinks(prev, next, propagateTrackHead, modifiedObjects);
+        if (object.getParent()!=null) { // merging / division : current object has no prev/next
+            if (object.getParent().getPrevious()!=null) {  // in case there is a merging link
+                Stream<SegmentedObject> prevs = object.getParent().getPrevious().getChildren(editableObjectClassIdx);
+                if (prevs!=null) prevs.filter(o -> object.equals(o.getNext())).forEach(o->resetTrackLinks(o, false, true, false));
+            }
+            if (object.getParent().getNext()!=null) { // in case there is a division link
+                Stream<SegmentedObject> nexts = object.getParent().getNext().getChildren(editableObjectClassIdx);
+                nexts.filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
+            }
+        }
+
     }
     public void setTrackLinks(SegmentedObject prev, SegmentedObject next, boolean setPrev, boolean setNext, boolean propagateTrackHead) {
         if (editableObjectClassIdx>=0 && ( (prev!=null && editableObjectClassIdx!=prev.getStructureIdx()) || (next!=null && editableObjectClassIdx!=next.getStructureIdx()))) throw new IllegalArgumentException("This object is not editable");

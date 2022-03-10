@@ -49,6 +49,7 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
                 split = true;
                 toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
                 newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
+                put(newTrack.head(), newTrack);
                 toSplit = toSplit.getCommonTrack(newTrack, next, true); // also search in linked tracks because simplify track will not merge if newTrack or toSplit have several next/previous
             } else return split;
         }

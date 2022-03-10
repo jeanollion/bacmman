@@ -343,13 +343,15 @@ public class TrackMateInterface<S extends Spot> {
         logger.debug("reset track links between {} & {}", minF, maxF);
         for (SegmentedObject o : objects) editor.resetTrackLinks(o,o.getFrame()>minF, o.getFrame()<maxF, true);
     }
-
     public void setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
+        setTrackLinks(objectsF, editor, true);
+    }
+    public void setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean propagateTrackHead) {
         if (objectsF==null || objectsF.isEmpty()) return;
         List<SegmentedObject> objects = Utils.flattenMap(objectsF);
         int minF = objectsF.keySet().stream().min(Comparator.comparingInt(i -> i)).get();
         int maxF = objectsF.keySet().stream().max(Comparator.comparingInt(i -> i)).get();
-        for (SegmentedObject o : objects) editor.resetTrackLinks(o, o.getFrame()>minF, o.getFrame()<maxF, true);
+        for (SegmentedObject o : objects) editor.resetTrackLinks(o, o.getFrame()>minF, o.getFrame()<maxF, propagateTrackHead);
         if (graph==null) {
             logger.error("Graph not initialized!");
             return;
@@ -361,8 +363,8 @@ public class TrackMateInterface<S extends Spot> {
         Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
         for (SegmentedObject so : objects) {
             if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
-                editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, true);
-            else editor.setTrackHead(so, so, false, true);
+                editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, propagateTrackHead);
+            else editor.setTrackHead(so, so, false, propagateTrackHead);
         }
     }
     private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor) {

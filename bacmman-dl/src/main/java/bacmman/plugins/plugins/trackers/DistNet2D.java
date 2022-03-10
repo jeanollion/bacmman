@@ -366,6 +366,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             dyMap.remove(rem);
                             dxMap.remove(rem);
                             factory.removeFromParent(rem);
+                            editor.resetTrackLinks(rem, true, true, true);
                             objectSpotMap.remove(rem);
                             factory.relabelChildren(oi.getParent());
                             dyMap.remove(oi);
@@ -484,6 +485,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 nextCount.put(prev, nextCount.get(prev)-toMergeL.size());
                 // also erase segmented objects
                 factory.removeFromParent(toMergeL.toArray(new SegmentedObject[0]));
+                toMergeL.forEach(rem -> editor.resetTrackLinks(rem, true, true, true));
                 factory.relabelChildren(result.getParent());
                 dyMap.remove(result);
                 objectSpotMap.remove(result);

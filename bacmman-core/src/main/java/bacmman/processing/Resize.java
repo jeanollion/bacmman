@@ -202,9 +202,9 @@ public class Resize {
         }
     }
 
-    public static Image[] crop(Image input, long[][] coords, long[][] sizes, EXPAND_MODE mode) {
-        RandomAccessibleInterval<? extends RealType<?>> in = ImgLib2ImageWrapper.getImage(input);
-        RandomAccessible<? extends RealType<?>> inView;
+    public static <T extends RealType<T>> Image[] crop(Image input, long[][] coords, long[][] sizes, EXPAND_MODE mode) {
+        RandomAccessibleInterval<T> in = ImgLib2ImageWrapper.getImage(input);
+        RandomAccessible<T> inView;
         if (mode==null) mode = EXPAND_MODE.BORDER;
         switch (mode) {
             case MIRROR:
@@ -215,7 +215,7 @@ public class Resize {
                 inView = Views.extendBorder(  in );
                 break;
             case ZERO:
-                inView = Views.extendZero( (RandomAccessibleInterval<? extends NumericType>) in );
+                inView = Views.extendZero( in );
                 break;
         }
         Image[] res = IntStream.range(0, coords.length)
