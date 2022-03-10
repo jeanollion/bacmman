@@ -471,18 +471,18 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 r.put(-z-1, arrowS);
             });
         }
-        setRoiAttributes(r, color, frameIdx, null);
+        setRoiAttributes(r, color, frameIdx);
         return r;
     }
     
     @Override
-    protected void setRoiAttributes(Roi3D roi, Color color, int frameIdx, Offset location) {
+    protected void setRoiAttributes(Roi3D roi, Color color, int frameIdx) {
         roi.entrySet().stream().filter(e->e.getKey()>=0).forEach(e -> {
             e.getValue().setStrokeColor(color);
             e.getValue().setStrokeWidth(ROI_STROKE_WIDTH);
         });
         if (frameIdx>=0) roi.setFrame(frameIdx);
-        if (location!=null) roi.setLocation(location);
+        //if (location!=null) roi.setLocation(location);
     }
 
     
@@ -549,7 +549,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 r = generateObjectRoi(p, color, frame);
                 objectRoiMap.put(p, r);
             } else {
-                setRoiAttributes(r, color, frame, p.value);
+                setRoiAttributes(r, color, frame);
             }
             return r;
         };

@@ -44,7 +44,7 @@ public class BacteriaEDM<I extends InterfaceRegionImpl<I> & RegionCluster.Interf
     @Override
     public RegionPopulation runSegmenter(Image edm, int objectClassIdx, SegmentedObject parent) {
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
-        ImageMask mask = new PredicateMask(edm, minimalEDMValue.getValue().doubleValue(), true, true);
+        ImageMask mask = PredicateMask.and(parent.getMask(), new PredicateMask(edm, minimalEDMValue.getValue().doubleValue(), true, true));
         SplitAndMerge sm = initSplitAndMerge(edm, contourImages==null?null:contourImages.get(parent));
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));

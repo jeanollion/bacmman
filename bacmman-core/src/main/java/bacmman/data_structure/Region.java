@@ -144,6 +144,13 @@ public class Region {
         }
         return this;
     }
+    public Region setBounds(BoundingBox bounds) {
+        if (bounds.sameBounds(getBounds())) return this;
+        if (roi==null && mask!=null) createRoi();
+        mask = null; // reset mask
+        this.bounds = new SimpleBoundingBox(bounds);
+        return this;
+    }
     public Region setQuality(double quality) {
         this.quality=quality;
         regionModified=true;

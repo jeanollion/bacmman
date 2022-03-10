@@ -669,7 +669,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public abstract void displayObject(I image, U roi);
     public abstract void hideObject(I image, U roi);
     protected abstract U generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color, int frameIdx);
-    protected abstract void setRoiAttributes(U roi, Color color, int frameIdx, Offset location);
+    protected abstract void setRoiAttributes(U roi, Color color, int frameIdx);
     public void setRoiModifier(RoiModifier<U> modifier) {this.roiModifier=modifier;}
     RoiModifier<U> roiModifier;
     public static interface RoiModifier<U> {
@@ -729,12 +729,13 @@ public abstract class ImageWindowManager<I, U, V> {
                         */
                     }
                 } else {
-                    setRoiAttributes(roi, color, frame, p.value);
+                    setRoiAttributes(roi, color, frame);
                     displayObject(dispImage, roi);
                     labiles.add(roi);
                 }
             } else {
-                setRoiAttributes(roi, color, frame, p.value);
+
+                setRoiAttributes(roi, color, frame);
                 displayObject(dispImage, roi);
             }
         }

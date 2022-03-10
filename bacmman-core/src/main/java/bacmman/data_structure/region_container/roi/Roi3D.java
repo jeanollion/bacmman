@@ -1,5 +1,6 @@
 package bacmman.data_structure.region_container.roi;
 
+import bacmman.core.Core;
 import bacmman.data_structure.Voxel;
 import bacmman.image.*;
 import bacmman.image.wrappers.IJImageWrapper;
@@ -83,9 +84,9 @@ public class Roi3D extends HashMap<Integer, Roi> {
     public MutableBoundingBox getBounds() {
         try {
             int xMin = stream().mapToInt(e -> e.getBounds().x).min().getAsInt();
-            int xMax = stream().mapToInt(e -> e.getBounds().x + e.getBounds().width).max().getAsInt();
+            int xMax = stream().mapToInt(e -> e.getBounds().x + e.getBounds().width-1).max().getAsInt();
             int yMin = stream().mapToInt(e -> e.getBounds().y).min().getAsInt();
-            int yMax = stream().mapToInt(e -> e.getBounds().y + e.getBounds().height).max().getAsInt();
+            int yMax = stream().mapToInt(e -> e.getBounds().y + e.getBounds().height-1).max().getAsInt();
             int zMin = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).min().getAsInt();
             int zMax = keySet().stream().filter(points -> points >= 0).mapToInt(i -> i).max().getAsInt();
             return new MutableBoundingBox(xMin, xMax, yMin, yMax, zMin, zMax);
