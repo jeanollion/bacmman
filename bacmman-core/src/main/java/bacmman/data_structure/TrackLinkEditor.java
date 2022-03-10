@@ -22,11 +22,11 @@ public class TrackLinkEditor {
         if (editableObjectClassIdx>=0 && editableObjectClassIdx!=object.getStructureIdx()) throw new IllegalArgumentException("This object is not editable");
         object.resetTrackLinks(prev, next, propagateTrackHead, modifiedObjects);
         if (object.getParent()!=null) { // merging / division : current object has no prev/next
-            if (object.getParent().getPrevious()!=null) {  // in case there is a merging link
+            if (prev && object.getParent().getPrevious()!=null) {  // in case there is a merging link
                 Stream<SegmentedObject> prevs = object.getParent().getPrevious().getChildren(editableObjectClassIdx);
                 if (prevs!=null) prevs.filter(o -> object.equals(o.getNext())).forEach(o->resetTrackLinks(o, false, true, false));
             }
-            if (object.getParent().getNext()!=null) { // in case there is a division link
+            if (next && object.getParent().getNext()!=null) { // in case there is a division link
                 Stream<SegmentedObject> nexts = object.getParent().getNext().getChildren(editableObjectClassIdx);
                 nexts.filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
             }
