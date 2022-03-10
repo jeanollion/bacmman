@@ -120,15 +120,20 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (isRoot()) res = new SegmentedObject(timePoint, (BlankMask)(duplicateObject?getMask().duplicateMask():getMask()), dao);
         else res= new SegmentedObject(timePoint, structureIdx, idx, duplicateObject?getRegion().duplicate():getRegion(), getParent());
         if (!generateNewID) res.id=id;
+        res.parentTrackHeadId=parentTrackHeadId;
         res.previousId=previousId;
         res.nextId=nextId;
-        res.parentTrackHeadId=parentTrackHeadId;
         res.parentId=parentId;
-        res.trackHeadId=trackHeadId;
-        res.isTrackHead=isTrackHead;
         res.previous=previous;
         res.next=next;
-        res.trackHead=trackHead;
+        res.isTrackHead=isTrackHead;
+        if (isTrackHead) {
+            res.trackHead = res;
+            res.trackHeadId=res.id;
+        } else {
+            res.trackHead=trackHead;
+            res.trackHeadId=trackHeadId;
+        }
         if (duplicateImages) {
             res.rawImagesC=rawImagesC.duplicate();
             res.trackImagesC=trackImagesC.duplicate();
@@ -459,8 +464,8 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     }
 
     SegmentedObject resetTrackLinks(boolean prev, boolean next, boolean propagate, Collection<SegmentedObject> modifiedObjects) {
-        if (prev && this.previous!=null && this.previous.next==this) previous.unSetTrackLinksOneWay(false, true, propagate, modifiedObjects); // remove next of prev
-        if (next && this.next!=null && this.next.previous==this) this.next.unSetTrackLinksOneWay(true, false, propagate, modifiedObjects); // remove prev of next & propagate new trackHead in track
+        if (prev && this.previousId!=null && getPrevious()!=null && this.previous.next==this) previous.unSetTrackLinksOneWay(false, true, propagate, modifiedObjects); // remove next of prev
+        if (next && this.nextId!=null && getNext()!=null && this.next.previous==this) this.next.unSetTrackLinksOneWay(true, false, propagate, modifiedObjects); // remove prev of next & propagate new trackHead in track
         unSetTrackLinksOneWay(prev, next, propagate, modifiedObjects);
         return this;
     }

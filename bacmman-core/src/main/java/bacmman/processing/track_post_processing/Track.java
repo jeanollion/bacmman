@@ -26,9 +26,17 @@ public class Track {
     final List<SegmentedObject> objects;
     List<Triplet<Region,Region,Double>> splitRegions;
     public Track(Collection<SegmentedObject> objects) {
-        if (objects instanceof ArrayList) this.objects = (List)(objects);
+        if (objects instanceof ArrayList) this.objects = (List<SegmentedObject>)(objects);
         else this.objects = new ArrayList<>(objects);
         this.objects.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+        if (!this.objects.get(0).isTrackHead()) {
+            logger.error("First track item should be TrackHead: first item: {} track head: {}", this.objects.get(0), this.objects.get(0).getTrackHead());
+            throw new IllegalArgumentException("First track item should be TrackHead");
+        }
+        if (!this.objects.get(0).equals(this.objects.get(0).getTrackHead())) {
+            logger.error("INVALID TRACKHEAD: first item: {} track head: {}", this.objects.get(0), this.objects.get(0).getTrackHead());
+            throw new IllegalArgumentException("Invalid First track item TrackHead");
+        }
         this.previous = new HashSet<>();
         this.next = new HashSet<>();
     }
@@ -169,7 +177,11 @@ public class Track {
                         t.addNext(nextT);
                         nextT.addPrevious(t);
                     } catch (java.lang.IllegalArgumentException e) {
-                        logger.error("Track: {}, tail: {}, nObjects: {} thIdx: {}, next: {}, trackhead: {} (id: {}) track: {}, prev: {}", t, t.tail(), t.objects.size(), t.head().getId(), next, next.getTrackHead(), next.getTrackHead().getId(), nextT, next.getPrevious());
+                        Set<SegmentedObject> allObjects = parent.stream().filter(p -> p.getFrame()==next.getFrame()).flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.toSet());
+                        SegmentedObject next2 = allObjects.stream().filter(o -> o.getIdx()==next.getIdx()).findAny().orElse(null);
+                        logger.error("Track: {}, tail: {}, nObjects: {} thIdx: {}, next: {}, trackhead: {} (id: {}) track: {}, prev: {}, next in {}", t, t.tail(), t.objects.size(), t.head().getId(), next, next.getTrackHead(), next.getTrackHead().getId(), nextT, next.getPrevious(), allObjects.contains(next));
+                        if (next2!=null) logger.debug("next with same idx: id={} vs {}, th: {}, prev: {}, loc: {} vs {}", next2.getId(), next.getId(), next2.getTrackHead(), next2.getPrevious(), next2.getRegion().getGeomCenter(false), next.getRegion().getGeomCenter(false));
+                        logger.debug("all next objects: {}", allObjects);
                         throw e;
                     }
                 }
@@ -195,16 +207,19 @@ public class Track {
             logger.debug("cannot split track: {} (center: {})", track.head(), track.head().getRegion().getGeomCenter(false));
             return null;
         }
-
         SegmentedObject head1 = track.head();
         SegmentedObject head2 = factory.duplicate(head1, true, false, false);
-        factory.addToParent(head1.getParent(),true, head2);
+        factory.addToParent(head1.getParent(),true, head2); // will set a new idx to head2
         logger.debug("splitting track: {} -> {}", track, head2);
         factory.setRegion(head1, regions.get(0).v1);
         factory.setRegion(head2, regions.get(0).v2);
+        if (!head2.isTrackHead()) {
+            logger.error("Split Track error: head: {}, track head: {}, new head: {}, track head: {}", head1, head1.getTrackHead(), head2, head2.getTrackHead());
+            throw new IllegalArgumentException("Invalid track to split (track head)");
+        }
         Track track2 = new Track(new ArrayList<SegmentedObject>(){{add(head2);}});
         //logger.debug("setting regions: {} + {}", regions.get(0).v1.getGeomCenter(false), regions.get(0).v2.getGeomCenter(false));
-        for (int i = 1; i< track.length(); ++i) {
+        for (int i = 1; i< track.length(); ++i) { // populate track
             Pair<Region, Region> r = regions.get(i).extractAB();
             SegmentedObject prev = track.objects.get(i-1);
             boolean matchInOrder = matchOrder(new Pair<>(prev.getRegion(), track2.tail().getRegion()), r);
@@ -296,8 +311,8 @@ public class Track {
         if (track2.getFirstFrame()<track1.getFirstFrame()) return appendTrack(track2, track1, trackEditor, removeTrack);
         if (track2.getFirstFrame()<=track1.getLastFrame()) throw new RuntimeException("Could not append track: "+track1.head()+"->"+track1.getLastFrame()+" to " + track2.head());
         //if (track2.getPrevious().size()>1 || !track2.getPrevious().iterator().next().equals(track1)) return null; // TODO or disconnect ?
-        //flogger.debug("appending tracks: {} + {}", track1, track2);
-        removeTrack.accept(track2);
+        //logger.debug("appending tracks: {} (th: {}) + {} (th: {})", track1, track1.head().getTrackHead(), track2, track2.head().getTrackHead());
+        removeTrack.accept(track2); // remove before changing trackhead
         track2.getNext().forEach(n -> n.getPrevious().remove(track2));
         // disconnect prevs of track2
         track2.getPrevious().forEach(n -> n.getNext().remove(track2));
@@ -305,7 +320,8 @@ public class Track {
         track1.getNext().forEach(n -> n.getPrevious().remove(track1));
         track1.getNext().clear();
         // link tracks & add objects
-        trackEditor.setTrackLinks(track1.tail(), track2.head(), true, true, true);
+        trackEditor.setTrackLinks(track1.tail(), track2.head(), true, true, false);
+        track2.getObjects().forEach(o -> trackEditor.setTrackHead(o, track1.head(), false, false)); // manually set to keep consitency (in case there is only one next track)
         track1.getObjects().addAll(track2.getObjects());
         // track 1 new nexts = track2 nexts
         track2.getNext().forEach(n -> {
@@ -354,16 +370,17 @@ public class Track {
                 prevL.get(1).addNext(nextL.get(1));
                 nextL.get(0).addPrevious(prevL.get(0));
                 nextL.get(1).addPrevious(prevL.get(1));
-                editor.setTrackLinks(prevL.get(0).tail(), nextL.get(0).head(), true, true, true);
-                editor.setTrackLinks(prevL.get(1).tail(), nextL.get(1).head(), true, true, true);
+                editor.setTrackLinks(prevL.get(0).tail(), nextL.get(0).head(), true, true, false);
+                editor.setTrackLinks(prevL.get(1).tail(), nextL.get(1).head(), true, true, false);
             } else {
                 prevL.get(0).addNext(nextL.get(1));
                 prevL.get(1).addNext(nextL.get(0));
                 nextL.get(0).addPrevious(prevL.get(1));
                 nextL.get(1).addPrevious(prevL.get(0));
-                editor.setTrackLinks(prevL.get(0).tail(), nextL.get(1).head(), true, true, true);
-                editor.setTrackLinks(prevL.get(1).tail(), nextL.get(0).head(), true, true, true);
+                editor.setTrackLinks(prevL.get(0).tail(), nextL.get(1).head(), true, true, false);
+                editor.setTrackLinks(prevL.get(1).tail(), nextL.get(0).head(), true, true, false);
             }
+            next.forEach(n -> editor.setTrackHead(n.head(), n.head(), false, false)); // keep track head as long as tracks are not fused
         } else {
             Map<Integer, List<SegmentedObject>> map = new HashMap<>();
             map.put(prevFrame, prev.stream().map(Track::tail).collect(Collectors.toList()));
@@ -372,8 +389,8 @@ public class Track {
             tmi.addObjects(map);
             double dMax = Math.sqrt(Double.MAX_VALUE) / 100; // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
             if (tmi.processFTF(dMax)) {
-                tmi.setTrackLinks(map, editor);
-                next.forEach(n -> editor.setTrackHead(n.head(), n.head(), false, true)); // keep track head as long as tracks are not fused
+                tmi.setTrackLinks(map, editor, false);
+                next.forEach(n -> editor.setTrackHead(n.head(), n.head(), false, false)); // keep track head as long as tracks are not fused
                 next.forEach(n -> n.getPrevious().clear());
                 prev.forEach(p -> p.getNext().clear());
                 next.forEach(n -> {
