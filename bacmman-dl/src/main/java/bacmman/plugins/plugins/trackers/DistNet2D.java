@@ -475,17 +475,22 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             logger.debug("{} divisions @ frame {}: {}", divMap.size(), frame, Utils.toStringMap(divMap, o -> o.getIdx()+"", s->Utils.toStringList(s.stream().map(SegmentedObject::getIdx).collect(Collectors.toList()))));
 
             TriConsumer<SegmentedObject, SegmentedObject, Collection<SegmentedObject>> mergeNextFun = (prev, result, toMergeL) -> {
+                List<SegmentedObject> prevs = nextToAllPrevMap.get(result);
+                if (prevs==null) prevs = new ArrayList<>();
                 for (SegmentedObject toRemove : toMergeL) {
                     removePrev.accept(prev, toRemove);
                     objects.remove(toRemove);
                     result.getRegion().merge(toRemove.getRegion());
                     dyMap.remove(toRemove);
                     objectSpotMap.remove(toRemove);
+                    List<SegmentedObject> p = nextToAllPrevMap.remove(toRemove);
+                    if (p!=null) prevs.addAll(p);
                 }
+                if (!prevs.isEmpty()) nextToAllPrevMap.put(result, Utils.removeDuplicates(prevs, false)); // transfer links
                 nextCount.put(prev, nextCount.get(prev)-toMergeL.size());
                 // also erase segmented objects
                 factory.removeFromParent(toMergeL.toArray(new SegmentedObject[0]));
-                toMergeL.forEach(rem -> editor.resetTrackLinks(rem, true, true, true));
+                //toMergeL.forEach(rem -> editor.resetTrackLinks(rem, true, true, true));
                 factory.relabelChildren(result.getParent());
                 dyMap.remove(result);
                 objectSpotMap.remove(result);

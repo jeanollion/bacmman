@@ -181,11 +181,12 @@ public class Track {
                         t.addNext(nextT);
                         nextT.addPrevious(t);
                     } catch (java.lang.IllegalArgumentException e) {
+                        logger.debug("next trackhead is equal: {}", t.head().equals(next.getTrackHead()));
                         Set<SegmentedObject> allObjects = parent.stream().filter(p -> p.getFrame()==next.getFrame()).flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.toSet());
-                        SegmentedObject next2 = allObjects.stream().filter(o -> o.getIdx()==next.getIdx()).findAny().orElse(null);
+                        List<SegmentedObject> nextL = allObjects.stream().filter(o -> o.getIdx()==next.getIdx()).collect(Collectors.toList());
                         logger.error("Track: {}, tail: {}, nObjects: {} thIdx: {}, next: {}, trackhead: {} (id: {}) track: {}, prev: {}, next in {}", t, t.tail(), t.objects.size(), t.head().getId(), next, next.getTrackHead(), next.getTrackHead().getId(), nextT, next.getPrevious(), allObjects.contains(next));
-                        if (next2!=null) logger.debug("next with same idx: id={} vs {}, th: {}, prev: {}, loc: {} vs {}", next2.getId(), next.getId(), next2.getTrackHead(), next2.getPrevious(), next2.getRegion().getGeomCenter(false), next.getRegion().getGeomCenter(false));
-                        logger.debug("all next objects: {}", allObjects);
+                        nextL.forEach(next2 -> logger.debug("next with same idx: id={} vs {}, th: {}, prev: {}, loc: {} vs {}", next2.getId(), next.getId(), next2.getTrackHead(), next2.getPrevious(), next2.getRegion().getGeomCenter(false), next.getRegion().getGeomCenter(false)));
+
                         throw e;
                     }
                 }

@@ -908,13 +908,14 @@ public class Utils {
         return new TreePath(path.toArray(new TreeNode[path.size()]));
     }
     
-    public static <T> void removeDuplicates(Collection<T> list, boolean keepOrder) {
+    public static <C extends Collection<T>, T> C removeDuplicates(C list, boolean keepOrder) {
         Collection<T> set = keepOrder? new LinkedHashSet<T>(list) : new HashSet<T>(list);
         list.clear();
         list.addAll(set);
+        return list;
     }
     
-    public static <T, U> void removeDuplicates(Collection<T> list, Function<T, U> duplicateTestFunction) {
+    public static <C extends Collection<T>, T, U> Collection<T> removeDuplicates(C list, Function<T, U> duplicateTestFunction) {
         Set<U> uniqueValues = new HashSet<>(list.size());
         Iterator<T> it = list.iterator();
         while (it.hasNext()) {
@@ -922,6 +923,7 @@ public class Utils {
             if (uniqueValues.contains(duplicateTestValue)) it.remove();
             else uniqueValues.add(duplicateTestValue);
         }
+        return list;
     }
     
     public static <K, V> Entry<K, V> removeFromMap(Map<K, V> map, K key) {

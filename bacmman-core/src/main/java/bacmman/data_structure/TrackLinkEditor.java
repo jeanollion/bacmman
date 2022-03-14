@@ -28,7 +28,7 @@ public class TrackLinkEditor {
             }
             if (next && object.getParent().getNext()!=null) { // in case there is a division link
                 Stream<SegmentedObject> nexts = object.getParent().getNext().getChildren(editableObjectClassIdx);
-                nexts.filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
+                if (nexts!=null) nexts.filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
             }
         }
 
