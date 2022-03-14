@@ -37,6 +37,10 @@ public class Track {
             logger.error("INVALID TRACKHEAD: first item: {} track head: {}", this.objects.get(0), this.objects.get(0).getTrackHead());
             throw new IllegalArgumentException("Invalid First track item TrackHead");
         }
+        if (!Utils.objectsAllHaveSameProperty(this.objects, o->!head().equals(o.getTrackHead()))) {
+            logger.error("Invalid track: track head differ: {}", Utils.toStringList(objects, o -> o.toString()+" (th="+o.getTrackHead().toString()+") "));
+            throw new IllegalArgumentException("Invalid Track: at least one object has a different track head");
+        }
         this.previous = new HashSet<>();
         this.next = new HashSet<>();
     }
@@ -226,7 +230,7 @@ public class Track {
             //logger.debug("setting regions: {} + {}", match.key.getGeomCenter(false), match.value.getGeomCenter(false));
             SegmentedObject nextO1 = track.objects.get(i);
             SegmentedObject nextO2 = factory.duplicate(nextO1, true, false, false);
-            trackEditor.setTrackLinks(track2.tail(), nextO2, true, true, true);
+            trackEditor.setTrackLinks(track2.tail(), nextO2, true, true, false);
             factory.addToParent(nextO1.getParent(),true, nextO2);
             factory.setRegion(nextO1, matchInOrder ? r.key : r.value);
             factory.setRegion(nextO2, matchInOrder ? r.value : r.key);
@@ -314,7 +318,7 @@ public class Track {
         //if (track2.getPrevious().size()>1 || !track2.getPrevious().iterator().next().equals(track1)) return null; // TODO or disconnect ?
         //logger.debug("appending tracks: {} (th: {}) + {} (th: {})", track1, track1.head().getTrackHead(), track2, track2.head().getTrackHead());
         removeTrack.accept(track2); // remove before changing trackhead
-        track2.getNext().forEach(n -> n.getPrevious().remove(track2));
+        track2.getNext().forEach(n -> n.getPrevious().remove(track2)); // disconnect nexts of track2 as it will become track1
         // disconnect prevs of track2
         track2.getPrevious().forEach(n -> n.getNext().remove(track2));
         // disconnect nexts of track1
@@ -322,7 +326,7 @@ public class Track {
         track1.getNext().clear();
         // link tracks & add objects
         trackEditor.setTrackLinks(track1.tail(), track2.head(), true, true, false);
-        track2.getObjects().forEach(o -> trackEditor.setTrackHead(o, track1.head(), false, false)); // manually set to keep consitency (in case there is only one next track)
+        track2.getObjects().forEach(o -> trackEditor.setTrackHead(o, track1.head(), false, false)); // manually set to keep consistency (in case there is only one next track)
         track1.getObjects().addAll(track2.getObjects());
         // track 1 new nexts = track2 nexts
         track2.getNext().forEach(n -> {
