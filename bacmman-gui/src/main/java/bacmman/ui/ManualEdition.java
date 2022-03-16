@@ -139,6 +139,9 @@ public class ManualEdition {
     public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean allowMerge, boolean allowSplit, TrackLinkEditor editor) {
         if (objects.size()<=1) return;
         int objectClassIdx =objects.get(0).getStructureIdx();
+        if (objects.stream().anyMatch(o -> o==null)) {
+            logger.error("Objects list contain a null: {}", objects);
+        }
         if (objects.stream().anyMatch(o->o.getStructureIdx()!=objectClassIdx)) throw new IllegalArgumentException("At least 2 object have different object class");
         TreeMap<SegmentedObject, List<SegmentedObject>> objectsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParent(objects)); // sorted by time point
         List<Pair<SegmentedObject, SegmentedObject>> existingUneditedLinks=null;
@@ -555,10 +558,10 @@ public class ManualEdition {
                 for (SegmentedObject objectToSplit : track) {
                     List<SegmentedObject> prevs = getPrevious(objectToSplit);
                     for (SegmentedObject p : prevs) unlinkObjects(p, objectToSplit, ALWAYS_MERGE, editor);
-                    if (prevs.size()==1 && objectMapNew.containsKey(prevs.get(0))) prevs.add(objectMapNew.get(prevs.get(0))); // previous object has been split
+                    if (prevs.size()==1 && objectMapNew.get(prevs.get(0))!=null) prevs.add(objectMapNew.get(prevs.get(0))); // previous object has been split
                     List<SegmentedObject> nexts = getNext(objectToSplit);
                     for (SegmentedObject n : nexts) unlinkObjects(objectToSplit, n, ALWAYS_MERGE, editor);
-                    if (nexts.size()==1 && objectMapNew.containsKey(nexts.get(0))) nexts.add(objectMapNew.get(nexts.get(0))); // next object has been split
+                    if (nexts.size()==1 && objectMapNew.get(nexts.get(0))!=null) nexts.add(objectMapNew.get(nexts.get(0))); // next object has been split
                     SegmentedObject newObject = objectMapNew.get(objectToSplit);
                     if (!prevs.isEmpty()) {
                         prevs.add(objectToSplit);
