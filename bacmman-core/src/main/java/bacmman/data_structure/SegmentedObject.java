@@ -610,9 +610,9 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         getTrackHead();
         if (propagate) {
             SegmentedObject n = this;
-            while (n.getNext() != null && n.getNext().getPrevious() == n) { // only on main track
+            while (n.getNext() != null && n.equals(n.getNext().getPrevious())) { // only on main track
                 n = n.getNext();
-                n.trackHeadId = null;
+                n.trackHeadId = trackHeadId;
                 n.trackHead = trackHead;
             }
         }
@@ -635,10 +635,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             if (modifiedObjects!=null) modifiedObjects.add(this);
         }
         if (propagateToNextObjects) {
-            SegmentedObject n = getNext();
-            while(n!=null) {
-                n.setTrackHead(trackHead, false, false, modifiedObjects);
+            SegmentedObject n = this;
+            while(n.getNext()!=null && n.equals(n.getNext().getPrevious())) {
                 n = n.getNext();
+                n.setTrackHead(trackHead, false, false, modifiedObjects);
             }
         }
         return this;
