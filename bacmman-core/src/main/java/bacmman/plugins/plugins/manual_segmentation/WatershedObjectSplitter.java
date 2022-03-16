@@ -46,9 +46,18 @@ import bacmman.processing.watershed.WatershedTransform;
  */
 public class WatershedObjectSplitter implements ObjectSplitter {
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth Scale (0=no smooth)", 1, 2, 0, null);
+    BooleanParameter decreasingPropagation = new BooleanParameter("Decreasing propagation", true).setHint("True if foreground has higher values than background").setEmphasized(true);
     BooleanParameter keepOnlyTwoSeeds = new BooleanParameter("Use only two best seeds", false);
-    Parameter[] parameters = new Parameter[]{smoothScale, keepOnlyTwoSeeds};
+    Parameter[] parameters = new Parameter[]{smoothScale, keepOnlyTwoSeeds, decreasingPropagation};
     boolean splitVerbose;
+
+    public WatershedObjectSplitter() {}
+    public WatershedObjectSplitter(double smoothScale, boolean keepOnly2Seeds, boolean decreasingPropagation) {
+        this.smoothScale.setValue(smoothScale);
+        this.decreasingPropagation.setSelected(decreasingPropagation);
+        this.keepOnlyTwoSeeds.setSelected(keepOnly2Seeds);
+    }
+
     public void setSplitVerboseMode(boolean verbose) {
         this.splitVerbose=verbose;
     }
@@ -57,8 +66,8 @@ public class WatershedObjectSplitter implements ObjectSplitter {
         double sScale = smoothScale.getValue().doubleValue();
         if (sScale>0) input = ImageFeatures.gaussianSmooth(input, sScale, false);
         input = object.isAbsoluteLandMark() ? input.cropWithOffset(object.getBounds()) : input.crop(object.getBounds());
-        RegionPopulation res= splitInTwo(input, object.getMask(), true, keepOnlyTwoSeeds.getSelected(), splitVerbose);
-        res.translate(object.getBounds(), object.isAbsoluteLandMark());
+        RegionPopulation res= splitInTwo(input, object.getMask(), decreasingPropagation.getSelected(), keepOnlyTwoSeeds.getSelected(), splitVerbose);
+        if (res!=null) res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }
     
@@ -76,7 +85,7 @@ public class WatershedObjectSplitter implements ObjectSplitter {
                 for (Region o : seeds) {
                     for (Voxel v : o.getVoxels()) v.value = watershedMap.getPixel(v.x, v.y, v.z);
                 }
-                Comparator<Region> c = (Region o1, Region o2) -> Double.compare(getMeanVoxelValue(o1), getMeanVoxelValue(o2));
+                Comparator<Region> c = Comparator.comparingDouble(WatershedObjectSplitter::getMeanVoxelValue);
                 Collections.sort(seeds, c);
                 
                 if (keepOnlyTwoSeeds) {
