@@ -11,7 +11,7 @@ import bacmman.plugins.PostFilterFeature;
 import java.util.List;
 
 public class FeatureFilterOR implements PostFilterFeature, Hint {
-    SimplePluginParameterList<FeatureFilter> filters = new SimplePluginParameterList<>("Filters", "Filter", FeatureFilter.class, new FeatureFilter(), false);
+    SimplePluginParameterList<FeatureFilter> filters = new SimplePluginParameterList<>("Filters", "Filter", FeatureFilter.class, new FeatureFilter(), false).setEmphasized(true);
     public FeatureFilterOR() {
         filters.setUnmutableIndex(1);
         filters.setChildrenNumber(2);
