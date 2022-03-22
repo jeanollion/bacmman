@@ -25,13 +25,10 @@ import bacmman.configuration.parameters.SiblingObjectClassParameter;
 import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.*;
-import bacmman.utils.Utils;
 import com.google.common.collect.Sets;
 
-import java.lang.reflect.Field;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  *
@@ -107,12 +104,12 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
             //throw new IllegalArgumentException("No selected object class 1 to duplicate");
             sourceOC1MapParent = parentTrack.stream().collect(Collectors.toMap(p->p, p->p));
         } else {
-            sourceOC1MapParent = Duplicate.getParents(parentTrack, oc1.getSelectedClassIdx());
+            sourceOC1MapParent = Duplicate.getSourceMapParents(parentTrack, oc1.getSelectedClassIdx());
         }
 
         Map<SegmentedObject, SegmentedObject> dupOC1 = Duplicate.duplicate(sourceOC1MapParent.keySet().stream(), structureIdx, factory, editor);
         Duplicate.setParents(dupOC1, sourceOC1MapParent, parentObjectClassIdx, oc1.getSelectedClassIdx(), factory);
-        Map<SegmentedObject, SegmentedObject> sourceOC2MapParent = Duplicate.getParents(parentTrack, oc2.getSelectedClassIdx());
+        Map<SegmentedObject, SegmentedObject> sourceOC2MapParent = Duplicate.getSourceMapParents(parentTrack, oc2.getSelectedClassIdx());
         Map<SegmentedObject, SegmentedObject> dupOC2 = Duplicate.duplicate(sourceOC2MapParent.keySet().stream(),  structureIdx, factory, null);
         Map<SegmentedObject, List<SegmentedObject>> dupOC1byParent = dupOC1.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC1MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));
         Map<SegmentedObject, List<SegmentedObject>> dupOC2byParent = dupOC2.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC2MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));;
