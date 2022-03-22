@@ -21,10 +21,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 public class ObjectFeatureGroupedBy implements Measurement {
     ObjectClassParameter groupClass = new ObjectClassParameter("Group By Class");
-    public enum REDUCTION_OP {MEAN, STD, MEDIAN, MIN, MAX}
+    public enum REDUCTION_OP {MEAN, STD, MEDIAN, MIN, MAX, SUM}
     MultipleEnumChoiceParameter<REDUCTION_OP> reductionOP = new MultipleEnumChoiceParameter<>("Reduction operation", REDUCTION_OP.values(), Enum::name, REDUCTION_OP.MEAN);
 
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
@@ -75,7 +76,6 @@ public class ObjectFeatureGroupedBy implements Measurement {
         int childOCIdx = objectClass.getSelectedIndex();
         List<SegmentedObject> children = object.getChildren(childOCIdx, false).collect(Collectors.toList());
         RegionPopulation pop = new RegionPopulation(children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), object.getMaskProperties());
-        HashMap<String, List<Double>> measurements = new HashMap<>();
         Map<Image, IntensityMeasurementCore> cores = new ConcurrentHashMap<>();
         BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
         List<REDUCTION_OP> reduction = reductionOP.getSelectedItems();
@@ -105,6 +105,9 @@ public class ObjectFeatureGroupedBy implements Measurement {
                             break;
                         case MEDIAN:
                             value = ArrayUtil.median(values);
+                            break;
+                        case SUM:
+                            value = DoubleStream.of(values).sum();
                             break;
                     }
                     object.getMeasurements().setValue(name + "_"+op.name(), value);
