@@ -38,7 +38,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     protected PluginParameter<Tracker> tracker = new PluginParameter<>("Tracker", Tracker.class, true);
     ParentObjectClassParameter dup = new ParentObjectClassParameter("Duplicate From").setAllowNoSelection(false);
     protected Parameter[] parameters = new Parameter[]{dup, preFilters, trackPreFilters, tracker, trackPostFilters};
-    public Duplicate() {} // for plugin instanciation
+    public Duplicate() {} // for plugin instantiation
     @Override
     public String getHintText() {
         return "Duplicates the segmented objects of another object class. Tracker and post-filter can be applied. If no tracker is set, the lineage is also duplicated";
@@ -95,11 +95,11 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         logger.debug("dup: {} dup parent: {}, parentTrack: {}", dup.getSelectedClassIdx(), dup.getParentObjectClassIdx(), parentTrack.get(0).getStructureIdx());
         int sourceObjectClassIdx = dup.getSelectedClassIdx();
         //if (dup.getParentStructureIdx()!=parentTrack.get(0).getStructureIdx() && dup.getSelectedStructureIdx()!=parentTrack.get(0).getStructureIdx()) throw new IllegalArgumentException("Parent Structure should be the same as duplicated's parent strucutre");
-        Map<SegmentedObject, SegmentedObject> sourceMapParent = getParents(parentTrack, sourceObjectClassIdx);
-        logger.debug("duplicate for parentTrack: {} structure: {}: #{}objects", parentTrack.get(0), structureIdx, sourceMapParent.size());
+        Map<SegmentedObject, SegmentedObject> sourceMapParent = getSourceMapParents(parentTrack, sourceObjectClassIdx);
+        logger.debug("duplicate for parentTrack: {} structure: {}: #{} objects", parentTrack.get(0), structureIdx, sourceMapParent.size());
         Map<SegmentedObject, SegmentedObject> sourceMapDup = duplicate(sourceMapParent.keySet().stream().parallel(), structureIdx, factory, editor);
         setParents(sourceMapDup, sourceMapParent, parentObjectClassIdx, sourceObjectClassIdx, factory);
-        getTrackPreFilters(true).filter(structureIdx, parentTrack);
+        getTrackPreFilters(true).filter(structureIdx, parentTrack); // TODO  why ?
     }
     @Override
     public Parameter[] getParameters() {
@@ -128,6 +128,7 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
             }
         });
         if (editor!=null) {
+            sourceMapDup.values().forEach(o -> editor.resetTrackLinks(o, true, true, false));
             // copy track links
             sourceMapDup.entrySet().forEach(e -> {
                 if (e.getKey().getNext() != null)
@@ -137,15 +138,14 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
             });
             // sets trackHeads afterwards because trackHeads depend on the order of the previous operation
             // as some source objects may not have duplicated objects trackHeads are computed de novo
-            sourceMapDup.values().stream().sorted(Comparator.comparingInt(SegmentedObject::getFrame)).forEach(o -> o.resetTrackHead(false));
-            /*sourceMapDup.entrySet().forEach(e -> {
-                if (e.getKey().getTrackHead() != null)
-                    editor.setTrackHead(e.getValue(), sourceMapDup.get(e.getKey().getTrackHead()), false, false);
-            });*/
+            sourceMapDup.values().stream().sorted(Comparator.comparingInt(SegmentedObject::getFrame)).forEach(o -> {
+                if (o.getPrevious()==null) editor.setTrackHead(o, o, false, false);
+                else editor.setTrackHead(o, o.getPrevious().getTrackHead(), false, false);
+            });
         }
         return sourceMapDup;
     }
-    public static Map<SegmentedObject, SegmentedObject> getParents(List<SegmentedObject> parentTrack, int sourceObjectClassIdx) {
+    public static Map<SegmentedObject, SegmentedObject> getSourceMapParents(List<SegmentedObject> parentTrack, int sourceObjectClassIdx) {
         int parentOCIdx = parentTrack.get(0).getStructureIdx();
         Stream<SegmentedObject> sourceStream = sourceObjectClassIdx == parentOCIdx ? parentTrack.stream() : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sourceObjectClassIdx);
         return sourceObjectClassIdx == parentTrack.get(0).getStructureIdx() ? sourceStream.collect(Collectors.toMap(o->o, o->o)) : Utils.toMapWithNullValues(sourceStream.parallel(), o->o, o->o.getParent(parentOCIdx), false);
