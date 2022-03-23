@@ -48,6 +48,9 @@ public final class StreamConcatenation {
   private StreamConcatenation() {
     throw new AssertionError("This class cannot be instantiated");
   }
+    public static <T> Stream<T> emptyIfNull(Stream<T> stream) {
+        return stream==null?Stream.empty() : stream;
+    }
     public static <T, U extends Collection<T>> Stream<T> concatNestedCollections(Collection< U > col) {
         switch(col.size()) {
             case 0: return Stream.empty();

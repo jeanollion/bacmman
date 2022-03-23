@@ -97,14 +97,6 @@ public class SegmentedObjectUtils {
         }
     }
 
-
-    public static List<SegmentedObject> getIncludedStructureObjects(List<SegmentedObject> candidates, SegmentedObject container) {
-        if (candidates==null) return Collections.EMPTY_LIST;
-        ArrayList<SegmentedObject> res = new ArrayList<>();
-        for (SegmentedObject c : candidates) if (c.getRegion().intersect(container.getRegion())) res.add(c); // strict inclusion?
-        return res;
-    }
-    
     public static SegmentedObject getContainer(Region children, Stream<SegmentedObject> potentialContainers, Offset offset) {
         if (children==null) return null;
         Map<Region, SegmentedObject> soOMap = potentialContainers.collect(Collectors.toMap(SegmentedObject::getRegion, o->o));

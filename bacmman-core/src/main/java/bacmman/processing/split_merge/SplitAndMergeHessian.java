@@ -86,7 +86,7 @@ public class SplitAndMergeHessian extends SplitAndMerge<Interface> {
     }
     public SplitAndMergeHessian setWatershedMap(Image wsMap, boolean isEdgeMap) {
         this.watershedMap = wsMap;
-        this.wsMapIsEdgeMap=isEdgeMap;
+        this.increasingPropagation =isEdgeMap;
         return this;
     }
     public Image getHessian() {

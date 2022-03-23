@@ -25,10 +25,12 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
     public final static Logger logger = LoggerFactory.getLogger(SplitAndMergeEDM.class);
     final Image edm;
     Image edmLocalMax;
-    public double splitThresholdValue, divCritValue;
+    public double splitThresholdValue;
 
     Function<SplitAndMergeEDM.Interface, Double> interfaceValue;
     boolean invert;
+    boolean smallEdgesFirst=true;
+
     public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, INTERFACE_VALUE interfaceValueMode, boolean normalizeEdgeValues) {
         this(edm, intensityMap, splitThreshold, interfaceValueMode, normalizeEdgeValues, true);
     }
@@ -40,8 +42,6 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
         setInterfaceValue(0.5, interfaceValueMode, normalizeEdgeValues);
     }
 
-    public BiFunction<? super SplitAndMergeEDM.Interface, ? super SplitAndMergeEDM.Interface, Integer> compareMethod=null;
-
     public Image drawInterfaceValues(RegionPopulation pop) {
         return RegionCluster.drawInterfaceValues(new RegionCluster<>(pop, true, getFactory()), i->{i.updateInterface(); return i.value;});
     }
@@ -49,6 +49,12 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
         this.splitThresholdValue = splitThreshold;
         return this;
     }
+
+    public SplitAndMergeEDM setSmallEdgesFirst(boolean smallEdgesFirst) {
+        this.smallEdgesFirst = smallEdgesFirst;
+        return this;
+    }
+
     public SplitAndMergeEDM setInterfaceValue(double quantile, INTERFACE_VALUE mode, boolean normalizeEdgeValues) {
         if (normalizeEdgeValues && this.edmLocalMax==null) {
             ImageInteger lmMask = Filters.localExtrema(edm, null, true, quantile, null, Filters.getNeighborhood(3, edm));
@@ -110,7 +116,7 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
 
     @Override
     protected ClusterCollection.InterfaceFactory<Region, SplitAndMergeEDM.Interface> createFactory() {
-        return (Region e1, Region e2) -> new SplitAndMergeEDM.Interface(e1, e2);
+        return Interface::new;
     }
     public class Interface extends InterfaceRegionImpl<Interface> implements RegionCluster.InterfaceVoxels<Interface> {
         public double value;
@@ -169,10 +175,10 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
 
         @Override
         public int compareTo(Interface t) {
-            int c = compareMethod != null ? compareMethod.apply(this, t) : (invert ? Double.compare(value, t.value) : Double.compare(t.value, value) ); // small edges first if invert
+            int c = (invert ? Double.compare(value, t.value) : Double.compare(t.value, value) ); // small edges first if invert
             if (c == 0)
                 return super.compareElements(t, RegionCluster.regionComparator); // consistency with equals method
-            else return c;
+            else return smallEdgesFirst ? c : -c;
         }
 
         @Override

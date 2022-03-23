@@ -192,7 +192,7 @@ public class RegionPopulation {
         if (objects == null || objects.isEmpty()) {
             labelImage = ImageInteger.createEmptyLabelImage("labelImage", 0, getImageProperties());
         } else {
-            labelImage = ImageInteger.createEmptyLabelImage("labelImage", objects.size(), getImageProperties());
+            labelImage = ImageInteger.createEmptyLabelImage("labelImage", objects.stream().mapToInt(Region::getLabel).max().getAsInt(), getImageProperties());
             //logger.debug("creating image: properties: {} imagetype: {} number of objects: {}", properties, labelImage.getClass(), objects.size());
             for (Region o : objects) draw(o, o.getLabel());
         }

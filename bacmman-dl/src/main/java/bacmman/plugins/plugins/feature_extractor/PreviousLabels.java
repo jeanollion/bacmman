@@ -12,6 +12,7 @@ import net.imglib2.interpolation.InterpolatorFactory;
 import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public class PreviousLabels implements FeatureExtractor {
     @Override
@@ -26,7 +27,10 @@ public class PreviousLabels implements FeatureExtractor {
         if (parent.getPrevious()!=null && resampledPopulation.get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
             parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null).forEach(c -> {
                 Region r = curPop.getRegion(c.getIdx()+1);
-                if (r==null) throw new RuntimeException("Invalid lineage: @ bacteria: "+c);
+                if (r==null) {
+                    logger.error("Object: {} (rel center: {}, bds: {}) not found from it's label. all labels (-1): {}, all objects: {}", c, c.getRegion().getGeomCenter(false).translate(c.getParent().getBounds().duplicate().reverseOffset()), c.getRelativeBoundingBox(c.getParent()), curPop.getRegions().stream().mapToInt(re -> re.getLabel()-1).toArray(), parent.getChildren(objectClassIdx).filter(o->o.getPrevious()!=null).collect(Collectors.toList()));
+                    throw new RuntimeException("Object not found from it's label");
+                }
                 r.draw(prevLabel, c.getPrevious().getIdx()+1);
             });
         }

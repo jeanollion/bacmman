@@ -8,6 +8,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
+import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.pre_filters.ImageFeature;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.processing.ImageFeatures;
@@ -18,8 +19,6 @@ import ij.process.AutoThresholder;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
-
-import static bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter.splitInTwo;
 
 public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, TestableProcessingPlugin {
     ScaleXYZParameter smoothScale = new ScaleXYZParameter("Smooth Scale", 5, 1, false).setHint("Scale for Gaussian Smooth. Set 0 as Z-scale for 2D smoothing");
@@ -113,7 +112,7 @@ public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, Tes
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         input = object.isAbsoluteLandMark() ? input.cropWithOffset(object.getBounds()) : input.crop(object.getBounds());
         input = getSmoothedImage(input);
-        RegionPopulation res= splitInTwo(input, object.getMask(), true, false, splitVerbose);
+        RegionPopulation res= WatershedObjectSplitter.splitInTwoInterface(input, object.getMask(), true, splitVerbose);
         res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }

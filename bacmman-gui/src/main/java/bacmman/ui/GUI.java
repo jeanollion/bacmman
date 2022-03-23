@@ -391,6 +391,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 linkObjectsButtonActionPerformed(e);
             }
         });
+        actionMap.put(Shortcuts.ACTION.APPEND_LINK, new AbstractAction("Link") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                appendLinkObjectsButtonActionPerformed(e);
+            }
+        });
         actionMap.put(Shortcuts.ACTION.UNLINK, new AbstractAction("Unlink") {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -4267,7 +4274,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             logger.warn("Select at least one object to modify its links");
             return;
         }
-        ManualEdition.modifyObjectLinks(db, sel, true, true);
+        ManualEdition.modifyObjectLinks(db, sel, true, false, true);
     }//GEN-LAST:event_unlinkObjectsButtonActionPerformed
 
     private void linkObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_linkObjectsButtonActionPerformed
@@ -4278,8 +4285,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             logger.warn("Select at least one object to modify its links");
             return;
         }
-        ManualEdition.modifyObjectLinks(db, sel, false, true);
+        ManualEdition.modifyObjectLinks(db, sel, false, true, true);
     }//GEN-LAST:event_linkObjectsButtonActionPerformed
+
+    private void appendLinkObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_appendLinkObjectsButtonActionPerformed
+        if (!checkConnection()) return;
+        //if (db.isReadOnly()) return;
+        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        if (sel.isEmpty()) {
+            logger.warn("Select at least one object to modify its links");
+            return;
+        }
+        ManualEdition.modifyObjectLinks(db, sel, false, false, true);
+    }//GEN-LAST:event_appendLinkObjectsButtonActionPerformed
 
     private void testManualSegmentationButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testManualSegmentationButtonActionPerformed
         ManualEdition.manualSegmentation(db, null, true);

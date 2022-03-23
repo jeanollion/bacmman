@@ -293,7 +293,12 @@ public class Spot extends Region implements Analytical {
      */
     @Override
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        return Analytical.getOverlapArea(this, other, offset, offsetOther);
+        return Analytical.getOverlapArea(this, other, offset, offsetOther, false);
+    }
+
+    @Override
+    public boolean intersect(Region other) {
+        return Analytical.getOverlapArea(this, other, null, null, true)>0;
     }
 
     @Override

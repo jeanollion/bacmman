@@ -172,15 +172,11 @@ public class ExtractDatasetUtil {
     public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, int[] dimensions, boolean eraseTouchingContours) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> {
             if (o.getStructureIdx() == objectClassIdx) return null;
-            Image mask = o.getChildRegionPopulation(objectClassIdx, false).getLabelMap();
+            RegionPopulation pop = o.getChildRegionPopulation(objectClassIdx, false);
+            Image mask = pop.getLabelMap();
             ImageInteger maskR;
-            if (mask instanceof ImageShort) {
-                if (mask.sizeX()!=dimensions[0] || mask.sizeY()!=dimensions[1]) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
-                else maskR = (ImageShort) mask.resetOffset();
-            } else {
-                if (mask.sizeX()!=dimensions[0] || mask.sizeY()!=dimensions[1]) maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
-                else maskR = (ImageByte)mask.resetOffset();
-            }
+            if (mask instanceof ImageShort) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
+            else maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
             RegionPopulation res = new RegionPopulation(maskR, true);
             if (eraseTouchingContours) res.eraseTouchingContours(false);
             return res;

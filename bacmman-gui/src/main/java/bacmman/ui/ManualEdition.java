@@ -97,7 +97,7 @@ public class ManualEdition {
             return false;
         } return true;
     }
-    public static void modifyObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean unlink, boolean updateDisplay) {
+    public static void modifyObjectLinks(MasterDAO db, List<SegmentedObject> objects, boolean unlink, boolean forceDoubleLink, boolean updateDisplay) {
         SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
         SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.size()<=1) return;
@@ -107,7 +107,7 @@ public class ManualEdition {
         boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
         Set<SegmentedObject> modifiedObjects = new HashSet<>();
         if (!canEdit(objects.stream(), db)) return;
-        modifyObjectLinks(objects, unlink, merge, split, modifiedObjects);
+        modifyObjectLinks(objects, unlink, forceDoubleLink, merge, split, modifiedObjects);
         if (db!=null) db.getDao(objects.get(0).getPositionName()).store(modifiedObjects);
         if (updateDisplay) {
             // reload track-tree and update selection toDelete
@@ -129,14 +129,14 @@ public class ManualEdition {
 
         }
     }
-    public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean allowMerge, boolean allowSplit, Set<SegmentedObject> modifiedObjects) {
+    public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean forceDoubleLink, boolean allowMerge, boolean allowSplit, Set<SegmentedObject> modifiedObjects) {
         if (objects.size()<=1) return;
         int objectClassIdx =objects.get(0).getStructureIdx();
         TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
-        modifyObjectLinks(objects, unlink, allowMerge, allowSplit, editor);
+        modifyObjectLinks(objects, unlink, forceDoubleLink, allowMerge, allowSplit, editor);
         Utils.removeDuplicates(modifiedObjects, false);
     }
-    public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean allowMerge, boolean allowSplit, TrackLinkEditor editor) {
+    public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean forceDoubleLink, boolean allowMerge, boolean allowSplit, TrackLinkEditor editor) {
         if (objects.size()<=1) return;
         int objectClassIdx =objects.get(0).getStructureIdx();
         if (objects.stream().anyMatch(o -> o==null)) {
@@ -157,12 +157,21 @@ public class ManualEdition {
                 //if (prev!=null) logger.debug("prev: {}, prevTh: {}, prevIsTh: {}, prevPrev: {}, prevNext: {}", Utils.toStringList(prev), Utils.toStringList(prev, o->o.getTrackHead()), Utils.toStringList(prev, o->o.isTrackHead()), Utils.toStringList(prev, o->o.getPrevious()), Utils.toStringList(prev, o->o.getNext()));
                 //logger.debug("current: {}, currentTh: {}, currentIsTh: {}, currentPrev: {}, currentNext: {}", Utils.toStringList(current), Utils.toStringList(current, o->o.getTrackHead()), Utils.toStringList(current, o->o.isTrackHead()), Utils.toStringList(current, o->o.getPrevious()), Utils.toStringList(current, o->o.getNext()));
                 if (prev.size()==1 && current.size()==1) {
+                    SegmentedObject p = prev.get(0);
+                    SegmentedObject n = current.get(0);
                     if (unlink) {
-                        if (current.get(0).getPrevious()==prev.get(0) || prev.get(0).getNext()==current.get(0)) { //unlink the 2 spots
-                            unlinkObjects(prev.get(0), current.get(0), ALWAYS_MERGE, editor);
+                        if (n.getPrevious()==p || p.getNext()==n) { //unlink the 2 spots
+                            unlinkObjects(p, n, ALWAYS_MERGE, editor);
                         }
-                    } else linkObjects(prev.get(0), current.get(0), true, editor);
-                } else if (prev.size()==1 && allowSplit && !allowMerge) {
+                    } else {
+                        if (p.getNext()!=null && p.getNext().equals(n) && n.getPrevious()!=null && n.getPrevious().equals(p) && n.getTrackHead().equals(p.getTrackHead())) continue;
+                        if (forceDoubleLink) { // unlink
+                            editor.resetTrackLinks(p, false, true, false);
+                            editor.resetTrackLinks(n, true, false, false);
+                        }
+                        linkObjects(prev.get(0), n, true, editor);
+                    }
+                } else if (prev.size()==1) {
                     for (SegmentedObject c : current) {
                         if (unlink) {
                             if (c.getPrevious()==prev.get(0) || prev.get(0).getNext()==c) { //unlink the 2 spots
@@ -170,7 +179,7 @@ public class ManualEdition {
                             }
                         } else linkObjects(prev.get(0), c, false, editor);
                     }
-                } else if (current.size()==1 && !allowSplit && allowMerge) {
+                } else if (current.size()==1) {
                     for (SegmentedObject p : prev) {
                         if (unlink) {
                             if (current.get(0).getPrevious()==p || p.getNext()==current.get(0)) { //unlink the 2 spots
@@ -220,7 +229,7 @@ public class ManualEdition {
             //logger.debug("Mean size: {}", meanLength);
             double dMax = Math.sqrt(Double.MAX_VALUE)/100;
             tmi.processFTF(dMax); // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
-            tmi.processGC(dMax, 0, allowSplit, allowMerge);
+            tmi.processGC(dMax, 0, true, true);
             logger.debug("link objects: {}", allObjects);
             tmi.setTrackLinks(map, editor);
             // unset EDITED flag for links that already existed
@@ -242,6 +251,12 @@ public class ManualEdition {
                     if (getPrevious(p.value).stream().allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null)) p.value.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
                 }
             });
+            if (!allowMerge) {
+                allObjects.stream().filter(o -> o.getPrevious()==null).filter(o -> getPrevious(o).size()>=1).forEach(o -> o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
+            }
+            if (!allowSplit) {
+                allObjects.stream().filter(o -> o.getNext()==null).filter(o -> getNext(o).size()>1).forEach(o -> o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
+            }
         }
         //repairLinkInconsistencies(db, modifiedObjects, modifiedObjects);
     }
@@ -531,7 +546,7 @@ public class ManualEdition {
             Set<SegmentedObject> objectsToStore = new HashSet<>();
             TrackLinkEditor editor = getEditor(structureIdx, objectsToStore);
             List<SegmentedObject> newObjects = new ArrayList<>();
-            if (!(splitter instanceof FreeLineSplitter)) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(o->o.getParent()), structureIdx, xp, dao);
+            if (!(splitter instanceof FreeLineSplitter)) ensurePreFilteredImages(objectsByPosition.get(f).stream().map(SegmentedObject::getParent), structureIdx, xp, dao);
             List<SegmentedObject> objectsToSplit = objectsByPosition.get(f);
             // order is important for links not to be lost by link rules
             //if (split && !merge) Collections.sort(objectsToSplit, Comparator.comparingInt(o->-o.getFrame()));
@@ -540,7 +555,7 @@ public class ManualEdition {
             for (List<SegmentedObject> track: tracks.values()) {
                 track.sort(Comparator.comparingInt(SegmentedObject::getFrame));
                 Map<SegmentedObject, SegmentedObject> objectMapNew = new HashMap<>();
-                for (SegmentedObject objectToSplit : track) {
+                for (SegmentedObject objectToSplit : track) { // create split object
                     if (defaultSplitter == null) splitter = xp.getStructure(structureIdx).getObjectSplitter();
                     splitter.setSplitVerboseMode(test);
                     if (test)
@@ -555,7 +570,7 @@ public class ManualEdition {
                         }
                     }
                 }
-                for (SegmentedObject objectToSplit : track) {
+                for (SegmentedObject objectToSplit : track) { // set links
                     List<SegmentedObject> prevs = getPrevious(objectToSplit);
                     for (SegmentedObject p : prevs) unlinkObjects(p, objectToSplit, ALWAYS_MERGE, editor);
                     if (prevs.size()==1 && objectMapNew.get(prevs.get(0))!=null) prevs.add(objectMapNew.get(prevs.get(0))); // previous object has been split
@@ -566,14 +581,14 @@ public class ManualEdition {
                     if (!prevs.isEmpty()) {
                         prevs.add(objectToSplit);
                         if (newObject!=null) prevs.add(newObject);
-                        modifyObjectLinks(prevs, false, merge, split, editor);
+                        modifyObjectLinks(prevs, false, false, merge, split, editor);
                     }
                     if (!nexts.isEmpty()) {
-                        nexts.add(newObject);
                         nexts.add(objectToSplit);
-                        modifyObjectLinks(nexts, false, merge, split, editor);
+                        if (newObject!=null) nexts.add(newObject);
+                        modifyObjectLinks(nexts, false, false, merge, split, editor);
                     }
-                    objectsToStore.add(newObject);
+                    if (newObject!=null) objectsToStore.add(newObject);
                     objectsToStore.add(objectToSplit);
                 }
             }

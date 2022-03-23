@@ -195,7 +195,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         });
     }
     
-    public static void loop(BoundingBox bb, LoopFunction function) {
+    static void loop(BoundingBox bb, LoopFunction function) {
         for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
             for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
                 for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
@@ -204,7 +204,8 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
             }
         }
     }
-    public static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate) {
+
+    static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate) {
         if (predicate==null) {
             loop(bb, function);
             return;
@@ -217,7 +218,18 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
             }
         }
     }
-    
+
+    static boolean test(BoundingBox bb, LoopPredicate predicate) {
+        for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+            for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
+                for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                    if (predicate.test(x, y, z)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static interface LoopFunction {
         public void loop(int x, int y, int z);
     }

@@ -614,9 +614,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         if (track.size()==1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
             SegmentedObject o = track.get(0).key;
             if (o.getPreviousId()!=null) {
-                if (o.getPrevious()==null) logger.error("object: {}, previous null, previous id: {}", o, o.getPreviousId());
+                if (o.getPrevious()==null) logger.debug("object: {} center: {}, previous null, previous id: {}", o,o.getRegion().getGeomCenter(false), o.getPreviousId());
             }
-            if (o.getPreviousId()!=null && o.getPrevious().getTrackHead()!=o.getTrackHead()) {
+            if (o.getPreviousId()!=null && o.getPrevious()!=null && o.getPrevious().getTrackHead()!=o.getTrackHead()) {
                 List<SegmentedObject> div = SegmentedObjectEditor.getNext(o.getPrevious());
                 if (div.size()>1) { // only show
                     List<Pair<SegmentedObject, BoundingBox>> divP = i.pairWithOffset(div);
@@ -625,7 +625,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     }
                 }
             }
-            if (o.getNextId()!=null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
+            if (o.getNextId()!=null) {
+                if (o.getNext()==null) logger.debug("object: {} center: {}, next null, next id: {}", o, o.getRegion().getGeomCenter(false), o.getNextId());
+            }
+            if (o.getNextId()!=null && o.getNext()!=null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
                 List<SegmentedObject> merge = SegmentedObjectEditor.getPrevious(o.getNext());
                 if (merge.size()>1) { // only show
                     List<Pair<SegmentedObject, BoundingBox>> mergeP = i.pairWithOffset(merge);

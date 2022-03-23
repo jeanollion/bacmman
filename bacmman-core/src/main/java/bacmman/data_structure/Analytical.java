@@ -69,7 +69,7 @@ public interface Analytical {
         return res;
     }
 
-    static double getOverlapArea(Analytical r1, Analytical r2, Offset offset1, Offset offset2) {
+    static double getOverlapArea(Analytical r1, Analytical r2, Offset offset1, Offset offset2, boolean stopAtFirstIntersection) {
         BoundingBox bounds2 = offset2==null? new SimpleBoundingBox(r2.getBounds()) : new SimpleBoundingBox(r2.getBounds()).translate(offset2);
         BoundingBox bounds1 = offset1==null? new SimpleBoundingBox(r1.getBounds()) : new SimpleBoundingBox(r2.getBounds()).translate(offset1);
         final boolean inter2D = r1.is2D() || r2.is2D();
@@ -93,30 +93,27 @@ public interface Analytical {
         final int off2X = offset2==null ? 0 : bounds2.xMin();
         final int off2Y = offset2==null ? 0 : bounds2.yMin();
         final int off2Z = offset2==null ? 0 : bounds2.zMin();
-
-        // simple resolution
-        /*BoundingBox.loop(inter, (int x, int y, int z) -> {
-            if (inside1.test(x-off1X, y-off1Y, z-off1Z) && inside2.test(x-off2X, y-off2Y, z-off2Z)) count[0]++;
-        });
-        return count[0];
-        */
-        // better precision -> resolution x2
-        SimpleBoundingBox loopsBds2 = new SimpleBoundingBox(0, inter.sizeX()*2, 0, inter.sizeY()*2, 0, inter.sizeZ()*2);
-        BoundingBox.loop(loopsBds2,
-                (x, y, z) -> {
-                    double xx = inter.xMin() + x/2.;
-                    double yy = inter.yMin() + y/2.;
-                    double zz = inter.zMin() + z/2.;
-                    if (inside1.test(xx-off1X, yy-off1Y, zz-off1Z) && inside2.test(xx-off2X, yy-off2Y, zz-off2Z)) count[0]++;
-                });
-        double voxFraction =  8;
-        return count[0] / voxFraction;
+        if (stopAtFirstIntersection) { // simple resolution
+            return BoundingBox.test(inter, (x, y, z) -> inside1.test(x-off1X, y-off1Y, z-off1Z) && inside2.test(x-off2X, y-off2Y, z-off2Z)) ? 1 : 0;
+        } else { // better precision -> resolution x2
+            SimpleBoundingBox loopsBds2 = new SimpleBoundingBox(0, inter.sizeX() * 2, 0, inter.sizeY() * 2, 0, inter.sizeZ() * 2);
+            BoundingBox.loop(loopsBds2,
+                    (x, y, z) -> {
+                        double xx = inter.xMin() + x / 2.;
+                        double yy = inter.yMin() + y / 2.;
+                        double zz = inter.zMin() + z / 2.;
+                        if (inside1.test(xx - off1X, yy - off1Y, zz - off1Z) && inside2.test(xx - off2X, yy - off2Y, zz - off2Z))
+                            count[0]++;
+                    });
+            double voxFraction = 8;
+            return count[0] / voxFraction;
+        }
     }
     interface DoubleLoopPredicate {
         boolean test(double x, double y, double z);
     }
-    static double getOverlapArea(Analytical r1, Region r2, Offset offset1, Offset offset2) {
-        if (r2 instanceof Analytical) return Analytical.getOverlapArea(r1, (Analytical)r2, offset1, offset2);
+    static double getOverlapArea(Analytical r1, Region r2, Offset offset1, Offset offset2, boolean stopAtFirstIntersection) {
+        if (r2 instanceof Analytical) return Analytical.getOverlapArea(r1, (Analytical)r2, offset1, offset2, stopAtFirstIntersection);
         BoundingBox bounds2 = offset2==null? r2.getBounds().duplicate() :  r2.getBounds().duplicate().translate(offset2);
         BoundingBox bounds1 = offset1==null? r1.getBounds().duplicate() : r1.getBounds().duplicate().translate(offset1);
         final boolean inter2D = r1.is2D() || r2.is2D();
@@ -137,12 +134,13 @@ public interface Analytical {
         final int otherOffX = bounds2.xMin(); // bounds2 because inside2 is in relative landmark
         final int otherOffY = bounds2.yMin();
         final int otherOffZ = bounds2.zMin();
-        final int[] count = new int[1];
-
-        BoundingBox.loop(inter,
-                (x, y, z) -> count[0]++,
-                (x, y, z) -> inside1.test(x - offX, y - offY, z - offZ) && inside2.test(x - otherOffX, y - otherOffY, z - otherOffZ));
-
-        return count[0];
+        BoundingBox.LoopPredicate intersect = (x, y, z) -> inside1.test(x - offX, y - offY, z - offZ) && inside2.test(x - otherOffX, y - otherOffY, z - otherOffZ);
+        if (stopAtFirstIntersection) {
+            return BoundingBox.test(inter, intersect) ? 1 : 0;
+        } else {
+            final int[] count = new int[1];
+            BoundingBox.loop(inter, (x, y, z) -> count[0]++, intersect);
+            return count[0];
+        }
     }
 }

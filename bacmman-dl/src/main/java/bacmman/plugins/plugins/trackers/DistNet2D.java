@@ -816,7 +816,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     protected SplitAndMerge getSplitAndMerge(PredictionResults prediction) {
         SegmenterSplitAndMerge seg = getSegmenter(prediction);
-        WatershedObjectSplitter ws = new WatershedObjectSplitter(1, true, false); // TODO : set as parameters (for fluo images etc...)
+        WatershedObjectSplitter ws = new WatershedObjectSplitter(1, false, false); // TODO : set as parameters (for fluo images etc...)
         SplitAndMerge sm = new SplitAndMerge() {
             @Override
             public double computeMergeCost(List<SegmentedObject> toMergeL) {

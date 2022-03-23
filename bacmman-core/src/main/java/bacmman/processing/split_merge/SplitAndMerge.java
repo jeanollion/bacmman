@@ -52,7 +52,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     protected final Map<Region, Double> medianValues;
     protected final Map<Region, Double> meanValues;
     protected Image intensityMap;
-    boolean wsMapIsEdgeMap = true, localMinOnSeedMap=true;
+    boolean increasingPropagation = true, localMinOnSeedMap=true;
     protected ImageMask foregroundMask;
     protected Consumer<Region> regionChanged;
     protected double seedThreshold = Double.NaN;
@@ -79,12 +79,12 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
 
     /**
      *
-     * @param wsMapIsEdgeMap if true: watershed will be performed with a decreasing propagation
+     * @param increasingPropagation if true: watershed will be performed with a increasing propagation (e.g. if watershed map represent edges)
      * @param localMinOnSeedMap if true seeds are local minima of the seed map
      * @return this instance for convenience
      */
-    public SplitAndMerge<I> setMapsProperties(boolean wsMapIsEdgeMap, boolean localMinOnSeedMap) {
-        this.wsMapIsEdgeMap=wsMapIsEdgeMap;
+    public SplitAndMerge<I> setMapsProperties(boolean increasingPropagation, boolean localMinOnSeedMap) {
+        this.increasingPropagation =increasingPropagation;
         this.localMinOnSeedMap=localMinOnSeedMap;
         return this;
     }
@@ -169,7 +169,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     }
      /**
      * 
-     * @param popWS population to merge according to criterion on hessian value @ interface / value @ interfacepopWS.filterAndMergeWithConnected(new RegionPopulation.Size().setMin(minSize));
+     * @param popWS population to merge according to criterion on hessian value @ interface
      * @param stopCondition condition to stop merging. if not null, criterion will not be checked
      * @return 
      */
@@ -199,7 +199,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation) {
         ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap())) :
                 Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap()));
-        WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!wsMapIsEdgeMap);
+        WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!increasingPropagation);
         if (minSizePropagation>1) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
         RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);
         if (addTestImage!=null) popWS.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);

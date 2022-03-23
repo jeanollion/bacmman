@@ -38,6 +38,8 @@ import java.util.List;
 import bacmman.plugins.ObjectSplitter;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
+import bacmman.processing.split_merge.SplitAndMerge;
+import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
 
 /**
@@ -47,15 +49,13 @@ import bacmman.processing.watershed.WatershedTransform;
 public class WatershedObjectSplitter implements ObjectSplitter {
     NumberParameter smoothScale = new BoundedNumberParameter("Smooth Scale (0=no smooth)", 1, 2, 0, null);
     BooleanParameter decreasingPropagation = new BooleanParameter("Decreasing propagation", true).setHint("True if foreground has higher values than background").setEmphasized(true);
-    BooleanParameter keepOnlyTwoSeeds = new BooleanParameter("Use only two best seeds", false);
-    Parameter[] parameters = new Parameter[]{smoothScale, keepOnlyTwoSeeds, decreasingPropagation};
+    Parameter[] parameters = new Parameter[]{smoothScale, decreasingPropagation};
     boolean splitVerbose;
 
     public WatershedObjectSplitter() {}
     public WatershedObjectSplitter(double smoothScale, boolean keepOnly2Seeds, boolean decreasingPropagation) {
         this.smoothScale.setValue(smoothScale);
         this.decreasingPropagation.setSelected(decreasingPropagation);
-        this.keepOnlyTwoSeeds.setSelected(keepOnly2Seeds);
     }
 
     public void setSplitVerboseMode(boolean verbose) {
@@ -66,13 +66,21 @@ public class WatershedObjectSplitter implements ObjectSplitter {
         double sScale = smoothScale.getValue().doubleValue();
         if (sScale>0) input = ImageFeatures.gaussianSmooth(input, sScale, false);
         input = object.isAbsoluteLandMark() ? input.cropWithOffset(object.getBounds()) : input.crop(object.getBounds());
-        RegionPopulation res= splitInTwo(input, object.getMask(), decreasingPropagation.getSelected(), keepOnlyTwoSeeds.getSelected(), splitVerbose);
+        RegionPopulation res= splitInTwoInterface(input, object.getMask(), decreasingPropagation.getSelected(), splitVerbose);
         if (res!=null) res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }
-    
-    public static RegionPopulation splitInTwo(Image watershedMap, ImageMask mask, final boolean decreasingPropagation, boolean keepOnlyTwoSeeds, boolean verbose) {
-        
+    // splits regions at the interface with the lowest median value in case decreasingPropagation is true (highest otherwise)
+    public static RegionPopulation splitInTwoInterface(Image watershedMap, ImageMask mask, boolean decreasingPropagation, boolean verbose) {
+        SplitAndMergeEDM sm = new SplitAndMergeEDM(watershedMap, watershedMap, 0, SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, false).setSmallEdgesFirst(decreasingPropagation);
+        sm.setMapsProperties(!decreasingPropagation, !decreasingPropagation);
+        RegionPopulation split = sm.split(mask, 10);
+        if (verbose) Core.showImage(sm.drawInterfaceValues(split));
+        return sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
+    }
+
+    // selects two highest seeds and perform watershed
+    public static RegionPopulation splitInTwoSeedSelect(Image watershedMap, ImageMask mask, final boolean decreasingPropagation, boolean keepOnlyTwoSeeds, boolean verbose) {
         ImageByte localMax = Filters.localExtrema(watershedMap, null, decreasingPropagation, mask, Filters.getNeighborhood(1, 1, watershedMap)).setName("Split seeds");
         List<Region> seeds = Arrays.asList(ImageLabeller.labelImage(localMax));
         if (seeds.size()<2) {
@@ -87,7 +95,7 @@ public class WatershedObjectSplitter implements ObjectSplitter {
                 }
                 Comparator<Region> c = Comparator.comparingDouble(WatershedObjectSplitter::getMeanVoxelValue);
                 Collections.sort(seeds, c);
-                
+
                 if (keepOnlyTwoSeeds) {
                     if (decreasingPropagation) seeds = seeds.subList(seeds.size()-2, seeds.size());
                     else seeds = seeds.subList(0, 2);
@@ -106,7 +114,7 @@ public class WatershedObjectSplitter implements ObjectSplitter {
             return pop;
         }
     }
-    
+
     public static RegionPopulation splitInTwo(Image watershedMap, ImageMask mask, final boolean decreasingPropagation, int minSize, boolean verbose) {
         
         ImageByte localMax = Filters.localExtrema(watershedMap, null, decreasingPropagation, mask, Filters.getNeighborhood(1, 1, watershedMap)).setName("Split seeds");

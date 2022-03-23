@@ -483,7 +483,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
         ImageFloat wsMap = ImageFeatures.getLaplacian(input, 1.5, false, false);
         wsMap = object.isAbsoluteLandMark() ? wsMap.cropWithOffset(object.getBounds()) : wsMap.crop(object.getBounds());
-        RegionPopulation res =  WatershedObjectSplitter.splitInTwo(wsMap, object.getMask(), true, true, manualSplitVerbose);
+        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, true, manualSplitVerbose);
         res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }

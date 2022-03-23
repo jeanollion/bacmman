@@ -781,7 +781,7 @@ public class Region {
     
     public Set<Voxel> getIntersection(Region other) {
         if (other instanceof Analytical) return other.getIntersection(this); // spot version is more efficient
-        if (!intersect(other)) return Collections.emptySet();
+        if (!boundsIntersect(other)) return Collections.emptySet();
         if (other.is2D()!=is2D()) { // should not take into acount z for intersection -> cast to voxel2D (even for the 2D object to enshure voxel2D), and return voxels from the 3D objects
             Set s1 = Sets.newHashSet(Utils.transform(getVoxels(), v->v.toVoxel2D()));
             Set s2 = Sets.newHashSet(Utils.transform(other.getVoxels(), v->v.toVoxel2D()));
@@ -795,10 +795,15 @@ public class Region {
         } else return Sets.intersection(Sets.newHashSet(getVoxels()), Sets.newHashSet(other.getVoxels()));
     }
 
-    public boolean intersect(Region other) {
+    public boolean boundsIntersect(Region other) {
         if (is2D()||other.is2D()) return BoundingBox.intersect2D(getBounds(), other.getBounds());
         return BoundingBox.intersect(getBounds(), other.getBounds());
     }
+
+    public boolean intersect(Region other) {
+        return getOverlapArea(other, null, null, true)>0;
+    }
+
     public double getOverlapArea(Region other) {
         return getOverlapArea(other, null, null);
     }
@@ -811,6 +816,9 @@ public class Region {
      * @return overlap (in voxels) between this region and {@param other}
      */
     public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
+        return getOverlapArea(other, offset, offsetOther, false);
+    }
+    private double getOverlapArea(Region other, Offset offset, Offset offsetOther, boolean stopAtFirstIntersection) {
         if (other instanceof Analytical) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
         BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
         BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);
@@ -825,18 +833,21 @@ public class Region {
         final ImageMask otherMask = other.is2D() && !is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
         BoundingBox inter = inter2D ? (!is2D() ? getIntersection2D(thisBounds, otherBounds):getIntersection2D(otherBounds, thisBounds)) : BoundingBox.getIntersection(thisBounds, otherBounds);
         //logger.debug("off: {}, otherOff: {}, is2D: {} other Is2D: {}, inter: {}", thisBounds, otherBounds, is2D(), other.is2D(), inter);
-        final int count[] = new int[1];
+
         final int offX = thisBounds.xMin();
         final int offY = thisBounds.yMin();
         final int offZ = thisBounds.zMin();
         final int otherOffX = otherBounds.xMin();
         final int otherOffY = otherBounds.yMin();
         final int otherOffZ = otherBounds.zMin();
-        BoundingBox.loop(inter, (int x, int y, int z) -> {
-            if (mask.insideMask(x-offX, y-offY, z-offZ) 
-                    && otherMask.insideMask(x-otherOffX, y-otherOffY, z-otherOffZ)) count[0]++;
-        });
-        return count[0];
+        BoundingBox.LoopPredicate intersect = (x, y, z) -> mask.insideMask(x - offX, y - offY, z - offZ) && otherMask.insideMask(x - otherOffX, y - otherOffY, z - otherOffZ);
+        if (stopAtFirstIntersection) {
+            return BoundingBox.test(inter, intersect) ? 1:0;
+        } else {
+            final int[] count = new int[1];
+            BoundingBox.loop(inter, (x, y, z) -> ++count[0], intersect);
+            return count[0];
+        }
     }
     
     public List<Region> getIncludedObjects(List<Region> candidates) {
