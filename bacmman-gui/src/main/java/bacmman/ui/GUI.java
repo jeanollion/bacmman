@@ -426,7 +426,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 deleteObjectsButtonActionPerformed(e);
             }
         });
-        actionMap.put(Shortcuts.ACTION.DELETE_AFTER_FRAME, new AbstractAction("Delete") {
+        actionMap.put(Shortcuts.ACTION.DELETE_AFTER_FRAME, new AbstractAction("Delete After Frame") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
@@ -532,6 +532,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (ImageWindowManager.displayTrackMode) ImageWindowManager.displayTrackMode = false;
                 else ImageWindowManager.displayTrackMode = true;
                 logger.debug("TrackMode is {}", ImageWindowManager.displayTrackMode? "ON":"OFF");
+                if (closePreviousMessage[0]!=null) closePreviousMessage[0].run();
+                closePreviousMessage[0] = Utils.displayTemporaryMessage("Track Mode is : "+ (ImageWindowManager.displayTrackMode? "ON":"OFF"), 1000);
             }
         });
         actionMap.put(Shortcuts.ACTION.TOGGLE_LOCAL_ZOOM, new AbstractAction("Local Zoom") {
