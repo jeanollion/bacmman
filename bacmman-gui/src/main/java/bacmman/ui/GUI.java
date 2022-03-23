@@ -1622,7 +1622,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionJSP.setViewportView(runActionList);
 
         datasetJSP.setBorder(javax.swing.BorderFactory.createTitledBorder("Datasets"));
-
+        datasetJSP.setMinimumSize(new Dimension(150, 100));
+        datasetJSP.setPreferredSize(new Dimension(250, 400));
+        actionPositionJSP.setMinimumSize(new Dimension(150, 100));
+        actionPositionJSP.setMaximumSize(new Dimension(350, 350));
         datasetTree.addMouseListener(new java.awt.event.MouseAdapter() {
             public void mouseClicked(java.awt.event.MouseEvent evt) {
             datasetListMouseClicked(evt);
