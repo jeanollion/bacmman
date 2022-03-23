@@ -391,7 +391,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 linkObjectsButtonActionPerformed(e);
             }
         });
-        actionMap.put(Shortcuts.ACTION.APPEND_LINK, new AbstractAction("Link") {
+        actionMap.put(Shortcuts.ACTION.APPEND_LINK, new AbstractAction("Append Link") {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;

@@ -226,10 +226,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         IntConsumer callback = idx -> {
                             List<List<SegmentedObject>> selTracks = k.getObjects().stream().filter(p -> trackHeads.contains(p.key.getTrackHead()))
                                     .map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
-                            hideAllRois(image, true, false);
                             if (!selTracks.isEmpty()) displayTracks(image, k, selTracks, true);
                         };
-                        k.setChangeIdxCallback(callback);
+                        if (!addToSelection) k.setChangeIdxCallback( idx -> hideAllRois(image, true, false));
+                        k.appendChangeIdxCallback(callback);
                         callback.accept(k.getIdx());
                     }
                 }

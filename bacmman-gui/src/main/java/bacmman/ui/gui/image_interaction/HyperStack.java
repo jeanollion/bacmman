@@ -118,6 +118,11 @@ public class HyperStack extends Kymograph {
         return this;
     }
 
+    public HyperStack appendChangeIdxCallback(IntConsumer callback) {
+        if (this.changeIdxCallback==null) return setChangeIdxCallback(callback);
+        this.changeIdxCallback = this.changeIdxCallback.andThen(callback);
+        return this;
+    }
 
     @Override
     public int getClosestFrame(int x, int y) {
