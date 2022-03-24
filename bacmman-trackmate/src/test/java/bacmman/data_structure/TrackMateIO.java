@@ -14,6 +14,7 @@ import fiji.plugin.trackmate.io.TmXmlReader;
 import fiji.plugin.trackmate.io.TmXmlWriter;
 import ij.ImageJ;
 import ij.ImagePlus;
+import ij.measure.Calibration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -26,8 +27,8 @@ public class TrackMateIO {
         initCore();
         //tmFakeTracksToBacmman();
         //fakeTracksToTM();
-        //bactToTM();
-        tmBactToBacmman();
+        bactToTM();
+        //tmBactToBacmman();
         //Region r = TrackMateConverter.tmSpotToRegion(s, 1);
         //ImageDisplayer disp = new IJImageDisplayer();
         //disp.showImage(r.getMaskAsImageInteger());
@@ -77,25 +78,18 @@ public class TrackMateIO {
         String dir = "/data/Images/BACMMAN/dataset1";
         MasterDAO mDAO = MasterDAOFactory.createDAO("dataset1", dir);
         mDAO.lockPositions();
-        ObjectDAO dao = mDAO.getDao("150609_21");
+        ObjectDAO dao = mDAO.getDao("dataset1_0-50");
 
         List<SegmentedObject> roots = dao.getRoots();
         List<SegmentedObject> microchannels = SegmentedObjectUtils.getAllTracks(roots, 0).entrySet().stream().filter(e -> e.getKey().getIdx() == 0).findAny().get().getValue();
         logger.debug("n frames : {}",  microchannels.size() );
         logger.debug("n bacts: {}, n tracks: {}", SegmentedObjectUtils.getAllChildrenAsStream(microchannels.stream(), 1).count(), SegmentedObjectUtils.getAllTracks(microchannels, 1).size());
-
-        Model model = BacmmanToTrackMate.getSpotsAndTracks(microchannels, 1);
         initCore();
-        Image im = IJVirtualStack.openVirtual(microchannels, 1, false, 1, false);
-        ImageDisplayer<ImagePlus> disp = ImageWindowManagerFactory.getImageManager().getDisplayer();
-        ImagePlus imp = disp.getImage(im);
-        imp.close();
-
-        TrackMateRunner.runTM(model, null, imp);
+        TrackMateRunner.runTM(microchannels, 1, null);
     }
 
     private static void fakeTracksToTM() {
-        String dir = "/data/Images/MaximeDeforet/TestTrackMate/";
+        String dir = "/data/Images/TestTrackMate/";
         MasterDAO mDAO = MasterDAOFactory.createDAO("TestTrackMate", dir);
         mDAO.lockPositions();
         // TODO  get or create root...

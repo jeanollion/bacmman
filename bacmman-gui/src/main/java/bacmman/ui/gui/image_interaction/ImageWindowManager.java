@@ -267,7 +267,7 @@ public abstract class ImageWindowManager<I, U, V> {
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
         }
     }
-    public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k);
+    public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive);
     public void registerHyperStack(Image image, HyperStack i) {
         imageObjectInterfaces.put(i.getKey(), i);
         imageObjectInterfaceMap.put(image, i.getKey());
@@ -275,7 +275,7 @@ public abstract class ImageWindowManager<I, U, V> {
             runningWorkers.get(image).add(i.loadObjectsWorker);
             i.loadObjectsWorker.appendEndOfWork(()->runningWorkers.get(image).remove(i.loadObjectsWorker));
         }
-        registerInteractiveHyperStackFrameCallback(image, i);
+        registerInteractiveHyperStackFrameCallback(image, i, true);
     }
     public void addHyperStack(Image image, I displayedImage, HyperStack i) {
         logger.debug("adding frame stack: {} (hash: {}), IOI exists: {} ({})", image.getName(), image.hashCode(), imageObjectInterfaces.containsKey(i.getKey()), imageObjectInterfaces.containsValue(i));

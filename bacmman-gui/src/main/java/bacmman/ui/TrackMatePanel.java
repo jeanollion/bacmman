@@ -383,59 +383,66 @@ public class TrackMatePanel {
      * @noinspection ALL
      */
     private void $$$setupUI$$$() {
-        trackMatePanel = new javax.swing.JPanel();
-        trackMatePanel.setLayout(new GridLayoutManager(1, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
-        final javax.swing.JSplitPane splitPane1 = new javax.swing.JSplitPane();
-        trackMatePanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new java.awt.Dimension(200, 200), null, 0, false));
-        trackMateControlPanel = new javax.swing.JPanel();
-        trackMateControlPanel.setLayout(new GridLayoutManager(9, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
+        trackMatePanel = new JPanel();
+        trackMatePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        final JSplitPane splitPane1 = new JSplitPane();
+        splitPane1.setDividerLocation(360);
+        trackMatePanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, new Dimension(200, 200), null, 0, false));
+        trackMateControlPanel = new JPanel();
+        trackMateControlPanel.setLayout(new GridLayoutManager(9, 1, new Insets(0, 0, 0, 0), -1, -1));
         splitPane1.setLeftComponent(trackMateControlPanel);
-        trackMateControlPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "Contols", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
-        positionPanel = new javax.swing.JPanel();
-        positionPanel.setLayout(new GridLayoutManager(1, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
+        trackMateControlPanel.setBorder(BorderFactory.createTitledBorder(null, "Contols", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        positionPanel = new JPanel();
+        positionPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         trackMateControlPanel.add(positionPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        positionPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "Position", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
-        positionJCB = new javax.swing.JComboBox();
+        positionPanel.setBorder(BorderFactory.createTitledBorder(null, "Position", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        positionJCB = new JComboBox();
         positionPanel.add(positionJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        objectClass = new javax.swing.JPanel();
-        objectClass.setLayout(new GridLayoutManager(1, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
+        objectClass = new JPanel();
+        objectClass.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         trackMateControlPanel.add(objectClass, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        objectClass.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "Object Class", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
-        objectClassJCB = new javax.swing.JComboBox();
+        objectClass.setBorder(BorderFactory.createTitledBorder(null, "Object Class", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        objectClassJCB = new JComboBox();
         objectClass.add(objectClassJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        parentTrack = new javax.swing.JPanel();
-        parentTrack.setLayout(new GridLayoutManager(1, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
+        parentTrack = new JPanel();
+        parentTrack.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         trackMateControlPanel.add(parentTrack, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        parentTrack.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "Parent Track", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
-        parentTrackJCB = new javax.swing.JComboBox();
+        parentTrack.setBorder(BorderFactory.createTitledBorder(null, "Parent Track", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        parentTrackJCB = new JComboBox();
         parentTrack.add(parentTrackJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        openInTrackMate = new javax.swing.JButton();
+        openInTrackMate = new JButton();
+        openInTrackMate.setText("Open In TrackMate");
         trackMateControlPanel.add(openInTrackMate, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        importTMOptions = new javax.swing.JPanel();
-        importTMOptions.setLayout(new GridLayoutManager(1, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
-        trackMateControlPanel.add(importTMOptions, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new java.awt.Dimension(-1, 100), null, null, 0, false));
-        importTMOptions.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "Import Options", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
-        importTMOptionsJSP = new javax.swing.JScrollPane();
+        importTMOptions = new JPanel();
+        importTMOptions.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        importTMOptions.setToolTipText("Options for importing Objects/Tracks edited in TrackMate");
+        trackMateControlPanel.add(importTMOptions, new GridConstraints(6, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(-1, 100), null, null, 0, false));
+        importTMOptions.setBorder(BorderFactory.createTitledBorder(null, "Import Options", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        importTMOptionsJSP = new JScrollPane();
         importTMOptions.add(importTMOptionsJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
-        importFromTrackMate = new javax.swing.JButton();
+        importFromTrackMate = new JButton();
+        importFromTrackMate.setText("Import From TrackMate");
         trackMateControlPanel.add(importFromTrackMate, new GridConstraints(7, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        frameRangePanel = new javax.swing.JPanel();
-        frameRangePanel.setLayout(new GridLayoutManager(1, 1, new java.awt.Insets(0, 0, 0, 0), -1, -1));
+        frameRangePanel = new JPanel();
+        frameRangePanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         trackMateControlPanel.add(frameRangePanel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        frameRangePanel.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "Frame Range", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
-        frameRangeLabel = new javax.swing.JLabel();
+        frameRangePanel.setBorder(BorderFactory.createTitledBorder(null, "Frame Range", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
+        frameRangeLabel = new JLabel();
+        frameRangeLabel.setText("[0; 0]");
         frameRangePanel.add(frameRangeLabel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        closeTrackMate = new javax.swing.JButton();
+        closeTrackMate = new JButton();
+        closeTrackMate.setText("Close TrackMate");
         trackMateControlPanel.add(closeTrackMate, new GridConstraints(8, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        openTrackMateFile = new javax.swing.JButton();
+        openTrackMateFile = new JButton();
+        openTrackMateFile.setText("Open TrackMate File");
         trackMateControlPanel.add(openTrackMateFile, new GridConstraints(5, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        trackMateGUIPanelContainer = new javax.swing.JPanel();
-        trackMateGUIPanelContainer.setLayout(new GridLayoutManager(2, 2, new java.awt.Insets(0, 0, 0, 0), -1, -1));
+        trackMateGUIPanelContainer = new JPanel();
+        trackMateGUIPanelContainer.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
         splitPane1.setRightComponent(trackMateGUIPanelContainer);
-        trackMateGUIPanel = new javax.swing.JPanel();
-        trackMateGUIPanel.setLayout(new java.awt.GridBagLayout());
-        trackMateGUIPanelContainer.add(trackMateGUIPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new java.awt.Dimension(350, 560), null, null, 0, false));
-        trackMateGUIPanel.setBorder(javax.swing.BorderFactory.createTitledBorder(null, "TrackMate GUI", javax.swing.border.TitledBorder.DEFAULT_JUSTIFICATION, javax.swing.border.TitledBorder.DEFAULT_POSITION, null, null));
+        trackMateGUIPanel = new JPanel();
+        trackMateGUIPanel.setLayout(new GridBagLayout());
+        trackMateGUIPanelContainer.add(trackMateGUIPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(350, 560), null, null, 0, false));
+        trackMateGUIPanel.setBorder(BorderFactory.createTitledBorder(null, "TrackMate GUI", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         final Spacer spacer1 = new Spacer();
         trackMateGUIPanelContainer.add(spacer1, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, 1, null, null, null, 0, false));
         final Spacer spacer2 = new Spacer();
@@ -445,7 +452,7 @@ public class TrackMatePanel {
     /**
      * @noinspection ALL
      */
-    public javax.swing.JComponent $$$getRootComponent$$$() {
+    public JComponent $$$getRootComponent$$$() {
         return trackMatePanel;
     }
 

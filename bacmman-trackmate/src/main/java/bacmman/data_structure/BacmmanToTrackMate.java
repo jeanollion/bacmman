@@ -28,9 +28,12 @@ public class BacmmanToTrackMate {
     public static Model getSpotsAndTracks(List<SegmentedObject> parentTrack, int objectClassIdx) {
         return getSpotsAndTracks(parentTrack, TrackMateToBacmman.getDefaultOffset(parentTrack), objectClassIdx);
     }
+    public static double getFrameDuration(SegmentedObject object) {
+        return object.getExperiment()==null? 1d: object.getExperiment().getPosition(object.getPositionName()).getFrameDuration();
+    }
     public static Model getSpotsAndTracks(List<SegmentedObject> parentTrack, List<BoundingBox> parentTrackOffset, int objectClassIdx) {
         assert parentTrack.size()==parentTrackOffset.size() : "parent track  & offset lists should match" ;
-        double timeScale = parentTrack.get(0).getExperiment()==null? 1d: parentTrack.get(0).getExperiment().getPosition(parentTrack.get(0).getPositionName()).getFrameDuration();
+        double timeScale = 1; //getFrameDuration(parentTrack.get(0));
         IntFunction<Offset> getOffset = i -> parentTrackOffset.get(i).duplicate().translate(parentTrack.get(i).getBounds().duplicate().reverseOffset());
         SpotCollection spots = new SpotCollection();
         SimpleWeightedGraph<fiji.plugin.trackmate.Spot, DefaultWeightedEdge> graph = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);

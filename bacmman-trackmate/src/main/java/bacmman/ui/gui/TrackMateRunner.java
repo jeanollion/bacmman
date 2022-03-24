@@ -19,6 +19,7 @@ import fiji.plugin.trackmate.visualization.TrackMateModelView;
 import fiji.plugin.trackmate.visualization.hyperstack.HyperStackDisplayer;
 import ij.IJ;
 import ij.ImagePlus;
+import ij.measure.Calibration;
 import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
@@ -46,6 +47,10 @@ public class TrackMateRunner extends TrackMatePlugIn {
         Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
         ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
         imp.setTitle("TrackMate HyperStack");
+        //Calibration cal = imp.getCalibration();
+        //cal.frameInterval = 1; //BacmmanToTrackMate.getFrameDuration(parentTrack.get(0));
+        //cal.setTimeUnit("frame");
+        //imp.setCalibration(cal);
         TrackMateRunner tmr = runTM(model, container, imp);
         Runnable close = () -> {
             ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);

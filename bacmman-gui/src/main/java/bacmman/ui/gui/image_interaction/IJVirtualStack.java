@@ -268,7 +268,7 @@ public class IJVirtualStack extends VirtualStack {
         if (interactive) ImageWindowManagerFactory.getImageManager().addHyperStack(hook, ip, interactiveImage);
         else {
             ImageWindowManagerFactory.getImageManager().getDisplayer().putImage(hook, ip);
-            ImageWindowManagerFactory.getImageManager().registerInteractiveHyperStackFrameCallback(hook, interactiveImage);
+            ImageWindowManagerFactory.getImageManager().registerInteractiveHyperStackFrameCallback(hook, interactiveImage, false);
         }
         return hook;
     }

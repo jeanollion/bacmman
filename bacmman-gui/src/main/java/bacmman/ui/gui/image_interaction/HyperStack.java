@@ -61,7 +61,6 @@ public class HyperStack extends Kymograph {
             return "";
         }, super.getParents().size()-1, null);
         if (loadObjects) loadObjectsWorker.execute();
-
     }
     public boolean setFrame(int frame) {
         Integer idx = frameMapIdx.get(frame);
@@ -155,7 +154,7 @@ public class HyperStack extends Kymograph {
     public Image getImage(int objectClassIdx, boolean raw, Resize.EXPAND_MODE paddingMode) {
         Image image = imageSupplier.get(idx, objectClassIdx, raw);
         if (bounds.sameDimensions(image)) return image; // no need for padding
-        else {
+        else { // TODO larger crop instead of PAD
             Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1).translate(trackOffset[idx]));
             return resized;
         }
@@ -164,7 +163,7 @@ public class HyperStack extends Kymograph {
         Image image = imageSupplier.get(idx, objectClassIdx, raw);
         image = image.getZPlane(z);
         if (bounds2D.sameDimensions(image)) return image; // no need for padding
-        else {
+        else { // TODO larger crop instead of PAD
             Image resized = Resize.pad(image, paddingMode, new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, 0).translate(trackOffset[idx]).translate(new SimpleOffset(0, 0, z)));
             return resized;
         }
