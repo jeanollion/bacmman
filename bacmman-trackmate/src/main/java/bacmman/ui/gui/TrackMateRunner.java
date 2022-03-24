@@ -108,6 +108,12 @@ public class TrackMateRunner extends TrackMatePlugIn {
                 imp.getCalibration().getUnit(),
                 imp.getCalibration().getTimeUnit() );
         trackmate = createTrackMate( model, settings );
+        logger.debug("computing spot features...");
+        trackmate.computeSpotFeatures(true);
+        logger.debug("computing edge features...");
+        trackmate.computeEdgeFeatures(true);
+        logger.debug("computing track features...");
+        trackmate.computeTrackFeatures(true);
         final SelectionModel selectionModel = new SelectionModel( model );
         final DisplaySettings displaySettings = createDisplaySettings();
         // Main view.
