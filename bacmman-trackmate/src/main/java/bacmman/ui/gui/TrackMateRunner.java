@@ -5,6 +5,7 @@ import bacmman.data_structure.BacmmanToTrackMate;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackMateToBacmman;
 import bacmman.image.Image;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.IJVirtualStack;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import fiji.plugin.trackmate.*;
@@ -47,10 +48,10 @@ public class TrackMateRunner extends TrackMatePlugIn {
         Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
         ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
         imp.setTitle("TrackMate HyperStack");
-        //Calibration cal = imp.getCalibration();
-        //cal.frameInterval = 1; //BacmmanToTrackMate.getFrameDuration(parentTrack.get(0));
+        Calibration cal = imp.getCalibration();
+        cal.frameInterval = BacmmanToTrackMate.getFrameDuration(parentTrack.get(0));
         //cal.setTimeUnit("frame");
-        //imp.setCalibration(cal);
+        imp.setCalibration(cal);
         TrackMateRunner tmr = runTM(model, container, imp);
         Runnable close = () -> {
             ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);
@@ -109,10 +110,13 @@ public class TrackMateRunner extends TrackMatePlugIn {
                 imp.getCalibration().getTimeUnit() );
         trackmate = createTrackMate( model, settings );
         logger.debug("computing spot features...");
+        GUI.log("Computing Spot Features....");
         trackmate.computeSpotFeatures(true);
         logger.debug("computing edge features...");
+        GUI.log("Computing Edge Features....");
         trackmate.computeEdgeFeatures(true);
         logger.debug("computing track features...");
+        GUI.log("Computing Track Features....");
         trackmate.computeTrackFeatures(true);
         final SelectionModel selectionModel = new SelectionModel( model );
         final DisplaySettings displaySettings = createDisplaySettings();

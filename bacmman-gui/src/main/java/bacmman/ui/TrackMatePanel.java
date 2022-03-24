@@ -361,7 +361,7 @@ public class TrackMatePanel {
 
     public void dispose() {
         if (dia != null) {
-            dispose();
+            dia.dispose();
             closeTrackMate(false);
             if (onCloseCallback != null) onCloseCallback.run();
         }
