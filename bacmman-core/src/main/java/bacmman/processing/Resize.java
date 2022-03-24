@@ -171,7 +171,9 @@ public class Resize {
 
     public static <T extends Image<T>> T pad(T input, EXPAND_MODE mode, BoundingBox newBounds) {
         Img in = ImgLib2ImageWrapper.getImage(input);
-        return (T)ImgLib2ImageWrapper.wrap(pad(in, mode, newBounds));
+        T res =  (T)ImgLib2ImageWrapper.wrap(pad(in, mode, newBounds));
+        res.setCalibration(input.getScaleXY(), input.getScaleZ());
+        return res;
     }
 
     public static <T extends RealType<T>> RandomAccessibleInterval<T> pad(RandomAccessibleInterval<T> input, EXPAND_MODE mode, BoundingBox newBounds) {

@@ -824,7 +824,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                 if (rawImagesC.get(channelIdx)==null) {
                     if (isRoot()) {
                         if (rawImagesC.getAndExtend(channelIdx)==null) {
-                            if (getPosition().singleFrame(structureIdx) && timePoint>0 && trackHead!=null) { // getImage from trackHead
+                            if (getPosition().singleFrame(structureIdx) && !isTrackHead && trackHead!=null) { // getImage from trackHead
                                 rawImagesC.set(trackHead.getRawImage(structureIdx), channelIdx);
                             } else {
                                 Image im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint);
