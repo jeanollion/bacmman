@@ -38,7 +38,7 @@ public class BacmmanToTrackMate {
         SpotCollection spots = new SpotCollection();
         SimpleWeightedGraph<fiji.plugin.trackmate.Spot, DefaultWeightedEdge> graph = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
         Map<SegmentedObject, fiji.plugin.trackmate.Spot> map = new HashMap<>();
-        IntStream.range(0, parentTrack.size()).forEach(i -> parentTrack.get(i).getDirectChildren(objectClassIdx).stream().forEach(c -> {
+        IntStream.range(0, parentTrack.size()).forEach(i -> parentTrack.get(i).getChildren(objectClassIdx).forEach(c -> {
             fiji.plugin.trackmate.Spot spot = regionToSpot(c.getRegion(), getOffset.apply(i), c.getFrame(), timeScale);
             map.put(c, spot);
             spots.add(spot, c.getFrame());
