@@ -108,7 +108,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         void appendPrediction(Image[][][] predictions, int idx) {
-            boolean next = edmN!=null;
             predictCategories = true; //predictions.length>3;
             int channelEdmCur = predictions[0][0].length==1 ? 0 : 1;
             predictContours = (next && predictions.length == 6) || (!next && predictions.length==5);
@@ -251,7 +250,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             ToIntFunction<Integer> getNSubSampling = next ? frame -> (int)IntStream.of(frameSubsampling).filter(fi -> frame>=fi && frame<size-fi).count() : frame -> (int)IntStream.of(frameSubsampling).filter(fi -> frame>=fi).count();
             if (frameSubsampling.length>0) {
                 for (int frame = 1; frame<pred.edmC.length; frame++) { // half of the final value is edm without frame subsampling
-                    if (getNSubSampling.applyAsInt(frame)>0) ImageOperations.affineOperation(pred.edmC[frame], pred.edmC[frame], 0.5, 0);
+                    if (getNSubSampling.applyAsInt(frame)>0) {
+                        ImageOperations.affineOperation(pred.edmC[frame], pred.edmC[frame], 0.5, 0);
+                        if (pred.predictContours) ImageOperations.affineOperation(pred.contourC[frame], pred.contourC[frame], 0.5, 0);
+                    }
                 }
                 for (int frameInterval : frameSubsampling) {
                     logger.debug("averaging with frame subsampled: {}", frameInterval);

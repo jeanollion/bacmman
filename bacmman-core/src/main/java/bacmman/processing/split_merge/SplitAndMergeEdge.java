@@ -54,7 +54,7 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
     public double splitThresholdValue;
     Function<Interface, Double> interfaceValue;
     boolean seedsOnEdgeMap = true;
-
+    boolean watershedOnEdgeMap = true;
     public SplitAndMergeEdge(Image edgeMap, Image intensityMap, double splitThreshold, boolean normalizeEdgeValues, INTERFACE_VALUE mode) {
         super(intensityMap);
         this.edge = edgeMap;
@@ -119,7 +119,7 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
         return this;
     }
     @Override public Image getWatershedMap() {
-        return edge;
+        return watershedOnEdgeMap?edge:intensityMap;
     }
     @Override public Image getSeedCreationMap() {
         return seedsOnEdgeMap?edge:intensityMap;
@@ -127,6 +127,10 @@ public class SplitAndMergeEdge extends SplitAndMerge<SplitAndMergeEdge.Interface
 
     public SplitAndMergeEdge seedsOnEdgeMap(boolean seedsOnEdgeMap) {
         this.seedsOnEdgeMap = seedsOnEdgeMap;
+        return this;
+    }
+    public SplitAndMergeEdge watershedOnEdgeMap(boolean watershedOnEdgeMap) {
+        this.watershedOnEdgeMap = watershedOnEdgeMap;
         return this;
     }
     @Override

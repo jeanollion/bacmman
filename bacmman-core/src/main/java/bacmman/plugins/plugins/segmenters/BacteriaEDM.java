@@ -74,7 +74,8 @@ public class BacteriaEDM<I extends InterfaceRegionImpl<I> & RegionCluster.Interf
 
         } else {
             SplitAndMergeEdge smE = new SplitAndMergeEdge(contour, edm, splitThreshold.getValue().doubleValue(), normalizeInterfaceValue.getSelected(), interfaceValue.getSelectedEnum());
-            smE.seedsOnEdgeMap(false).setMapsProperties(true, false);
+            smE.watershedOnEdgeMap(false).seedsOnEdgeMap(false).setMapsProperties(false, false);
+            smE.setInterfaceValue(0.5, SplitAndMerge.INTERFACE_VALUE.CENTER, false);
             sm = (SplitAndMerge<I>)smE;
         }
         for (FusionCriterion<Region, I> crit : fusionCriteria) sm.addFusionCriterion(crit);
