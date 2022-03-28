@@ -35,7 +35,7 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("Scale XY", 5, 1, 0.00001, null);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("Scale Z", 5, 1, 0.00001, null);
     ConditionalParameter<Boolean> imageScaleCond = new ConditionalParameter<>(useImageScale).setActionParameters(false, scaleXY, scaleZ);
-    BoundedNumberParameter frameDuration= new BoundedNumberParameter("Time Step", 4, 4, 0, null).setHint("Time between two frames. This parameter is used only when the time step cannot be found in the image metadata");
+    BoundedNumberParameter frameDuration= new BoundedNumberParameter("Time Step", 5, 1, 0, null).setHint("Time between two frames. This parameter is used only when the time step cannot be found in the image metadata");
     IntervalParameter trimFrames = new IntervalParameter("Trim Frames", 0, 0, 0, 0, 0).setHint("Frame interval (inclusive) to be pre-processed. [0;0] = no trimming");
     SimpleListParameter<TransformationPluginParameter<Transformation>> transformations = new SimpleListParameter<>("Pre-Processing pipeline", new TransformationPluginParameter<>("Transformation", Transformation.class, false));
     final boolean template;

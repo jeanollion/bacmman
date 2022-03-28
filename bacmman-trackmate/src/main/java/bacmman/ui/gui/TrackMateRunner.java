@@ -5,15 +5,17 @@ import bacmman.data_structure.BacmmanToTrackMate;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.TrackMateToBacmman;
 import bacmman.image.Image;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.image_interaction.IJVirtualStack;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import fiji.plugin.trackmate.*;
 import fiji.plugin.trackmate.gui.GuiUtils;
 import fiji.plugin.trackmate.gui.displaysettings.DisplaySettings;
-import fiji.plugin.trackmate.gui.wizard.TrackMateWizardSequence;
+import fiji.plugin.trackmate.gui.displaysettings.DisplaySettingsIO;
+import fiji.plugin.trackmate.gui.displaysettings.DisplaySettingsLazy;
 import fiji.plugin.trackmate.gui.wizard.WizardController;
 import fiji.plugin.trackmate.gui.wizard.WizardSequence;
-import fiji.plugin.trackmate.gui.wizard.descriptors.GrapherDescriptor;
+import fiji.plugin.trackmate.gui.wizard.descriptors.ConfigureViewsDescriptor;
 import fiji.plugin.trackmate.io.TmXmlReader;
 import fiji.plugin.trackmate.visualization.TrackMateModelView;
 import fiji.plugin.trackmate.visualization.hyperstack.HyperStackDisplayer;
@@ -24,9 +26,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 
-import java.awt.*;
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +37,7 @@ public class TrackMateRunner extends TrackMatePlugIn {
     TrackMateModelView displayer;
     WizardSequence sequence;
     TrackMate trackmate;
+    DisplaySettings displaySettings;
     ImagePlus imp;
     public static void importToBacmman(Object model, List<SegmentedObject> parentTrack, int objectClassIdx, boolean overwrite, boolean trackOnly, boolean matchWithOverlap, double matchThreshold, ProgressCallback progress) {
         TrackMateToBacmman.storeTrackMateObjects(((Model) model).getSpots(), ((Model) model).getTrackModel(), parentTrack, objectClassIdx, overwrite, trackOnly, matchWithOverlap, matchThreshold, progress);
@@ -47,10 +47,10 @@ public class TrackMateRunner extends TrackMatePlugIn {
         Image hook = IJVirtualStack.openVirtual(parentTrack, objectClassIdx, false, objectClassIdx, false);
         ImagePlus imp = (ImagePlus)ImageWindowManagerFactory.getImageManager().getDisplayer().getImage(hook);
         imp.setTitle("TrackMate HyperStack");
-        //Calibration cal = imp.getCalibration();
-        //cal.frameInterval = 1; //BacmmanToTrackMate.getFrameDuration(parentTrack.get(0));
+        Calibration cal = imp.getCalibration();
+        cal.frameInterval = BacmmanToTrackMate.getFrameDuration(parentTrack.get(0));
         //cal.setTimeUnit("frame");
-        //imp.setCalibration(cal);
+        imp.setCalibration(cal);
         TrackMateRunner tmr = runTM(model, container, imp);
         Runnable close = () -> {
             ImageWindowManagerFactory.getImageManager().getDisplayer().close(hook);
@@ -108,15 +108,26 @@ public class TrackMateRunner extends TrackMatePlugIn {
                 imp.getCalibration().getUnit(),
                 imp.getCalibration().getTimeUnit() );
         trackmate = createTrackMate( model, settings );
+        //logger.debug("computing object features...");
+        //GUI.log("Computing Object Features....");
+        //trackmate.computeSpotFeatures(true); // TODO set those that are already computed in bacmman
+        logger.debug("computing edge features...");
+        GUI.log("Computing Edge Features....");
+        trackmate.computeEdgeFeatures(true);
+        logger.debug("computing track features...");
+        GUI.log("Computing Track Features....");
+        trackmate.computeTrackFeatures(true);
         final SelectionModel selectionModel = new SelectionModel( model );
-        final DisplaySettings displaySettings = createDisplaySettings();
+        displaySettings = new DisplaySettingsLazy(createDisplaySettings(), trackmate); // createDisplaySettings();//
+        //displaySettings.setTrackDisplayMode(DisplaySettings.TrackDisplayMode.LOCAL);
         // Main view.
         displayer = new HyperStackDisplayer( model, selectionModel, imp, displaySettings );
         displayer.render();
 
         // Wizard.
         sequence = createSequence( trackmate, selectionModel, displaySettings );
-        sequence.setCurrent("ConfigureViews");
+        sequence.setCurrent(ConfigureViewsDescriptor.KEY);
+
         if (container==null) {
             final JFrame frame = sequence.run("TrackMate" + imp.getShortTitle());
             frame.setIconImage(TRACKMATE_ICON.getImage());
@@ -130,6 +141,7 @@ public class TrackMateRunner extends TrackMatePlugIn {
         }
     }
     public void close() {
+        //if (displaySettings!=null) DisplaySettingsIO.saveToUserDefault(displaySettings); // causes java.lang.IllegalArgumentException: class ij.gui.Toolbar declares multiple JSON fields named x
         trackmate.cancel("closing");
         trackmate=null;
         displayer.clear();
