@@ -76,7 +76,7 @@ public class WatershedObjectSplitter implements ObjectSplitter {
         sm.setMapsProperties(!decreasingPropagation, !decreasingPropagation);
         RegionPopulation split = sm.split(mask, 10);
         if (verbose) Core.showImage(sm.drawInterfaceValues(split));
-        return sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
+        return sm.merge(split, sm.objectNumberLimitCondition(2));
     }
 
     // selects two highest seeds and perform watershed

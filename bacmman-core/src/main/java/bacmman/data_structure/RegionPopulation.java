@@ -275,14 +275,18 @@ public class RegionPopulation {
             for (Region o : getRegions()) draw(o, o.getLabel());
         }
     }
-
     public void translate(Offset offset, boolean absoluteLandmark) {
+        translate(offset, absoluteLandmark, false);
+    }
+    public void translate(Offset offset, boolean absoluteLandmark, boolean onlyObjects) {
         for (Region o : getRegions()) {
             o.translate(offset);
             o.setIsAbsoluteLandmark(absoluteLandmark);
         }
-        this.properties = new BlankMask(this.properties).translate(offset);
-        if (labelImage != null) labelImage.translate(offset);
+        if (!onlyObjects) {
+            this.properties = new BlankMask(this.properties).translate(offset);
+            if (labelImage != null) labelImage.translate(offset);
+        }
     }
 
     public void setVoxelIntensities(Image intensityMap) {

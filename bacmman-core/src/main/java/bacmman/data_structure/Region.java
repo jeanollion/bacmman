@@ -162,7 +162,7 @@ public class Region {
 
     public Region duplicate(boolean duplicateVoxels) {
         if (this.roi!=null) {
-            Region res = new Region(roi.duplicate(), label, new SimpleBoundingBox(bounds), scaleXY, scaleZ);
+            Region res = new Region(roi.duplicate(), label, new SimpleBoundingBox(bounds), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null : center.duplicate());
             if (!duplicateVoxels && voxelsCreated()) res.voxels = new HashSet<>(voxels);
             return res;
         } else if (this.mask!=null) {

@@ -509,11 +509,11 @@ public class SegmentedObjectUtils {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // transform track to root track in order to include indirect children
-        track = track.stream().map(o->o.getRoot()).collect(Collectors.toList());
+        track = track.stream().map(SegmentedObject::getRoot).collect(Collectors.toList());
         // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
         Experiment xp = track.get(0).getExperiment();
-        Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap((Integer s) -> xp.experimentStructure.getAllDirectChildStructures(s), HashMapGetCreate.Syncronization.SYNC_ON_MAP);
-        Consumer<SegmentedObject> openTrackImages = so -> directChildren.get(so.getStructureIdx()).forEach(cIdx -> so.getTrackImage(cIdx));
+        Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap(xp.experimentStructure::getAllDirectChildStructures, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
+        Consumer<SegmentedObject> openTrackImages = so -> directChildren.get(so.getStructureIdx()).forEach(so::getTrackImage);
         for (SegmentedObject o : track) {
             openTrackImages.accept(o);
             SegmentedObject p = o.getParent();
@@ -532,7 +532,7 @@ public class SegmentedObjectUtils {
         BasicObjectDAO dao = mDAO.getDao(track.get(0).getPositionName());
         
         List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, includeChildren, true, generateNewId));
-        List<SegmentedObject> rootTrack = dup.stream().map(o->o.getRoot()).distinct().sorted().collect(Collectors.toList());
+        List<SegmentedObject> rootTrack = dup.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         dao.setRoots(rootTrack);
         
         // update links

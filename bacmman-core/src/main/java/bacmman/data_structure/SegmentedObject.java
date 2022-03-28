@@ -115,10 +115,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         return duplicate(false, false, false);
     }
 
-    SegmentedObject duplicate(boolean generateNewID, boolean duplicateObject, boolean duplicateImages) {
+    SegmentedObject duplicate(boolean generateNewID, boolean duplicateRegion, boolean duplicateImages) {
         SegmentedObject res;
-        if (isRoot()) res = new SegmentedObject(timePoint, (BlankMask)(duplicateObject?getMask().duplicateMask():getMask()), dao);
-        else res= new SegmentedObject(timePoint, structureIdx, idx, duplicateObject?getRegion().duplicate():getRegion(), getParent());
+        if (isRoot()) res = new SegmentedObject(timePoint, (BlankMask)(duplicateRegion?getMask().duplicateMask():getMask()), dao);
+        else res= new SegmentedObject(timePoint, structureIdx, idx, duplicateRegion?getRegion().duplicate():getRegion(), getParent());
         if (!generateNewID) res.id=id;
         res.parentTrackHeadId=parentTrackHeadId;
         res.previousId=previousId;
