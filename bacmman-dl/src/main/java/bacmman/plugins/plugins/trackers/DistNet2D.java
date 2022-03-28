@@ -46,7 +46,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     EnumChoiceParameter<GAP_CRITERION> gapCriterion = new EnumChoiceParameter<>("Gap Criterion", GAP_CRITERION.values(), GAP_CRITERION.MIN_BORDER_DISTANCE);
     BoundedNumberParameter gapMaxDist = new BoundedNumberParameter("Max. Distance", 5, 3.5, 0, null).setEmphasized(true).setHint("If the distance between 2 regions is higher than this value, they are not merged");
-    BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
+    BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 3.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
     ConditionalParameter<GAP_CRITERION> gapCriterionCond = new ConditionalParameter<>(gapCriterion)
             .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
             .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize);
