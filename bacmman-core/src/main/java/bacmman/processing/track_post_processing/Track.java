@@ -278,7 +278,7 @@ public class Track {
                 double minDistSq = o1.getRegion().getContour().stream().mapToDouble(v1 -> contour2.stream().mapToDouble(v1::getDistanceSquare).min().orElse(0)).min().orElse(0);
                 o1.getRegion().merge(o2.getRegion());
                 if (minDistSq > 1) { // in case objects do not touch : perform binary close
-                    binaryClose(o1.getRegion(), Math.sqrt(minDistSq));
+                    binaryClose(o1.getRegion(), Math.sqrt(minDistSq+1));
                 }
                 factory.removeFromParent(o2);
             }
