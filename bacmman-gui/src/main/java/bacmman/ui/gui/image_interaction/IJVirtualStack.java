@@ -186,6 +186,7 @@ public class IJVirtualStack extends VirtualStack {
             ip.setOpenAsHyperStack(true);
             if (maxZ>1) ip.setZ(maxZ/2+1);
             s.setImagePlus(ip);
+            s.getProcessor(ip.getCurrentSlice()); // update display range
         }
         Calibration cal = new Calibration();
         cal.pixelWidth=planes0[0].getScaleXY();
@@ -254,6 +255,7 @@ public class IJVirtualStack extends VirtualStack {
             ip.setOpenAsHyperStack(true);
             if (maxZ>1) ip.setZ(maxZ/2+1);
             s.setImagePlus(ip);
+            s.getProcessor(ip.getCurrentSlice()); // update display range
         }
 
         Calibration cal = new Calibration();
