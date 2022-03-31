@@ -38,16 +38,16 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setEmphasized(true).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 32, 1, null).setHint("Defines how many frames are processed at the same time");
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5, 0.6, 0.01, 1);
-    BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true);
-    BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
-    BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
+    BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
+    BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
+    BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
 
     enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
 
     EnumChoiceParameter<GAP_CRITERION> gapCriterion = new EnumChoiceParameter<>("Gap Criterion", GAP_CRITERION.values(), GAP_CRITERION.MIN_BORDER_DISTANCE);
-    BoundedNumberParameter gapMaxDist = new BoundedNumberParameter("Max. Distance", 5, 3.5, 0, null).setEmphasized(true).setHint("If the distance between 2 regions is higher than this value, they are not merged");
+    BoundedNumberParameter gapMaxDist = new BoundedNumberParameter("Max. Distance", 5, 2.5, 0, null).setEmphasized(true).setHint("If the distance between 2 regions is higher than this value, they are not merged");
     BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 3.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
-    ConditionalParameter<GAP_CRITERION> gapCriterionCond = new ConditionalParameter<>(gapCriterion)
+    ConditionalParameter<GAP_CRITERION> gapCriterionCond = new ConditionalParameter<>(gapCriterion).setEmphasized(true)
             .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
             .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize);
     ConditionalParameter<Boolean> solveSplitAndMergeCond = new ConditionalParameter<>(solveSplitAndMerge).setEmphasized(true)
