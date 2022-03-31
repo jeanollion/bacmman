@@ -311,6 +311,7 @@ public class Region {
         }
         this.roi = null;
         this.bounds=null;
+        this.center = null;
         regionModified=true;
     }
     public synchronized void add(Region r) {
@@ -338,6 +339,7 @@ public class Region {
         }
         this.roi=null;
         this.bounds=null;
+        this.center = null;
         regionModified=true;
     }
     public synchronized void retainVoxels(Collection<Voxel> voxelsToRetain) {
@@ -351,6 +353,7 @@ public class Region {
         }
         this.roi=null;
         mask = null;
+        this.center = null;
         this.bounds=null;
         regionModified=true;
     }
@@ -366,6 +369,7 @@ public class Region {
         };
         BoundingBox.loop(BoundingBox.getIntersection(otherMask, getBounds()), function);
         this.roi=null;
+        this.center = null;
         resetMask();
         regionModified=true;
     }
@@ -381,6 +385,7 @@ public class Region {
         };
         ImageMask.loopWithOffset(mask, function);
         this.roi=null;
+        this.center = null;
         resetMask();
         regionModified=true;
     }
@@ -401,6 +406,7 @@ public class Region {
         this.mask = newMask;
         this.bounds=newBounds;
         roi = null;
+        this.center = null;
         regionModified=true;
     }
     public boolean contains(Voxel v) {
@@ -775,6 +781,7 @@ public class Region {
             this.bounds=null;
             this.voxels=null;
             this.roi=null;
+            this.center = null;
             regionModified=true;
         }
     }
@@ -890,6 +897,7 @@ public class Region {
         this.mask=null; // reset mask
         this.bounds=null; // reset bounds
         this.roi = null;
+        this.center = null;
         regionModified=true;
     }
     public static Region merge(Region... regions) {
