@@ -119,7 +119,7 @@ public class TrackMateRunner extends TrackMatePlugIn {
         trackmate.computeTrackFeatures(true);
         final SelectionModel selectionModel = new SelectionModel( model );
         displaySettings = new DisplaySettingsLazy(createDisplaySettings(), trackmate); // createDisplaySettings();//
-        //displaySettings.setTrackDisplayMode(DisplaySettings.TrackDisplayMode.LOCAL);
+        displaySettings.setTrackDisplayMode(DisplaySettings.TrackDisplayMode.LOCAL); // show tracks local in time. // TODO record GUI parameter
         // Main view.
         displayer = new HyperStackDisplayer( model, selectionModel, imp, displaySettings );
         displayer.render();
