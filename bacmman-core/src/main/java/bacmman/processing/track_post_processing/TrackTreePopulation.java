@@ -15,6 +15,9 @@ import java.util.stream.Collectors;
 public class TrackTreePopulation {
     public final static Logger logger = LoggerFactory.getLogger(TrackTreePopulation.class);
     final Set<TrackTree> trees;
+    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks) {
+        this(Track.getTracks(parentTrack,objectClassIdx, additionalLinks));
+    }
     public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx) {
         this(Track.getTracks(parentTrack,objectClassIdx));
     }
@@ -38,6 +41,8 @@ public class TrackTreePopulation {
         });
     }
     public void solveMergeEvents(BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        logger.debug("solving merge events by merging on {} trackTrees", trees.size());
+        solveMergeEventsByMerging(trees, forbidFusion, factory, editor);
         Collection<TrackTree> correctedTracks = trees;
         ArrayList<TrackTree> toRemove=  new ArrayList<>();
         while(!correctedTracks.isEmpty()) {
@@ -47,11 +52,11 @@ public class TrackTreePopulation {
             toRemove.clear();
             trees.addAll(correctedTracks);
         }
-        logger.debug("solving merge events by merging on {} trackTrees", trees.size());
-        solveMergeEventsByMerging(trees, forbidFusion, factory, editor);
     }
 
     public void solveSplitEvents(BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        logger.debug("solving split events by merging on {} trackTrees", trees.size());
+        solveSplitEventsByMerging(trees, forbidFusion, factory, editor);
         Collection<TrackTree> correctedTracks = trees;
         List<TrackTree> toRemove = new ArrayList<>();
         while(!correctedTracks.isEmpty()) {
@@ -61,8 +66,6 @@ public class TrackTreePopulation {
             toRemove.clear();
             trees.addAll(correctedTracks);
         }
-        logger.debug("solving split events by merging on {} trackTrees", trees.size());
-        solveSplitEventsByMerging(trees, forbidFusion, factory, editor);
     }
 
     public void solveMergeEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor) {

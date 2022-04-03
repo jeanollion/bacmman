@@ -53,7 +53,7 @@ public class WatershedObjectSplitter implements ObjectSplitter {
     boolean splitVerbose;
 
     public WatershedObjectSplitter() {}
-    public WatershedObjectSplitter(double smoothScale, boolean keepOnly2Seeds, boolean decreasingPropagation) {
+    public WatershedObjectSplitter(double smoothScale, boolean decreasingPropagation) {
         this.smoothScale.setValue(smoothScale);
         this.decreasingPropagation.setSelected(decreasingPropagation);
     }

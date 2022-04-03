@@ -41,6 +41,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
     BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
     BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
+    BooleanParameter brightObjects = new BooleanParameter("Bright Objects", false).setEmphasized(true).setHint("If true: bright objects on dark background (e.g. fluorescence) otherwise dark objects on bright background (e.g. phase contrast). <br/>Use for regions splitting");
 
     enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
 
@@ -51,7 +52,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
             .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize);
     ConditionalParameter<Boolean> solveSplitAndMergeCond = new ConditionalParameter<>(solveSplitAndMerge).setEmphasized(true)
-            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond);
+            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond, brightObjects);
 
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
@@ -71,8 +72,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.division.forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
         segment(objectClassIdx, parentTrack, prediction, postFilters, factory);
-        track(objectClassIdx, parentTrack, prediction, editor, factory);
-        postFilterTracking(objectClassIdx, parentTrack, prediction, editor, factory);
+        List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, prediction, editor, factory);
+        logger.debug("additional links detected: {}", additionalLinks);
+        postFilterTracking(objectClassIdx, parentTrack, additionalLinks, prediction, editor, factory);
     }
 
     private class PredictedChannels {
@@ -413,8 +415,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         return res;
     }
-
-    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    // returns links that could not be encoded in the segmented objects
+    public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
@@ -472,6 +474,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         double minOverlap = this.minOverlap.getDoubleValue();
         Map<Integer, Map<SegmentedObject, List<SegmentedObject>>> nextToPrevMapByFrame = new HashMap<>();
         Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
+        List<SymetricalPair<SegmentedObject>> additionalLinks = new ArrayList<>();
         for (int frame = minFrame + 1; frame <= maxFrame; ++frame) {
             List<SegmentedObject> objects = objectsF.get(frame);
             if (objects == null || objects.isEmpty()) continue;
@@ -707,10 +710,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
             // SET TRACK LINKS
             nextToAllPrevMap.entrySet().stream().filter(e -> e.getValue() != null).forEach(e -> {
-                if (e.getValue().size() == 1)
+                if (e.getValue().size() == 1) {
                     editor.setTrackLinks(e.getValue().get(0), e.getKey(), true, nextCount.get(e.getValue().get(0)) <= 1, true);
-                else
+                } else {
                     e.getValue().stream().filter(p -> nextCount.get(p) <= 1).forEach(p -> editor.setTrackLinks(p, e.getKey(), false, true, true));
+                    e.getValue().stream().filter(p -> nextCount.get(p) > 1).forEach(p -> additionalLinks.add(new SymetricalPair<>(p, e.getKey()))); // this links cannot be encoded in the SegmentedObject
+                }
             });
             divisionMap.putAll(divMap);
 
@@ -748,11 +753,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             });
         }
+        return additionalLinks;
     }
 
-    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, List<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         SplitAndMerge sm = getSplitAndMerge(prediction);
-        solveSplitMergeEvents(parentTrack, objectClassIdx, sm, factory, editor);
+        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, sm, factory, editor);
     }
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
@@ -848,7 +854,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     protected SplitAndMerge getSplitAndMerge(PredictionResults prediction) {
         SegmenterSplitAndMerge seg = getSegmenter(prediction);
-        WatershedObjectSplitter ws = new WatershedObjectSplitter(1, false, false); // TODO : set as parameters (for fluo images etc...)
+        WatershedObjectSplitter ws = new WatershedObjectSplitter(1, brightObjects.getSelected());
         SplitAndMerge sm = new SplitAndMerge() {
             @Override
             public double computeMergeCost(List<SegmentedObject> toMergeL) {
@@ -937,7 +943,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             return new Pair<>(target, overlap);
         }).filter(Objects::nonNull).sorted(Comparator.comparingDouble(p -> -p.value)).collect(Collectors.toList());
         if (prevOverlap.size() > 1) {
-            List<SegmentedObject> res = prevOverlap.stream().filter(p -> p.value / p.key.getRegion().size() > minOverlapProportion).map(p -> p.key).collect(Collectors.toList());
+            double sourceSize = source.getRegion().size();
+            List<SegmentedObject> res = prevOverlap.stream().filter(p -> p.value / Math.min(sourceSize, p.key.getRegion().size()) > minOverlapProportion).map(p -> p.key).collect(Collectors.toList());
             if (res.isEmpty()) res.add(prevOverlap.get(0).key);
             return res;
         } else if (prevOverlap.isEmpty()) return null;
@@ -1086,11 +1093,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         };
     }
 
-    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        if (!solveSplitAndMerge.getSelected()) return;
         boolean solveSplit = this.solveSplit.getSelected();
         boolean solveMerge= this.solveMerge.getSelected();
         if (!solveSplit && !solveMerge) return;
-        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx);
+        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
         if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), sm, factory, editor);
         if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), sm, factory, editor);
     }

@@ -168,13 +168,19 @@ public class Track {
     public String toString() {
         return head()+"["+getFirstFrame()+"->"+getLastFrame()+"]";
     }
-
     public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass) {
+        return getTracks(parent, segmentedObjectClass, Collections.emptyList());
+    }
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, List<SymetricalPair<SegmentedObject>> additionalLinks) {
+        Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
+        Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));
         for (Track t : tracks.values()) {
-            SegmentedObject next = t.tail().getNext();
-            if (next!=null) {
+            Set<SegmentedObject> nexts = additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(p -> p.value).collect(Collectors.toSet());
+            SegmentedObject n = t.tail().getNext();
+            if (n!=null) nexts.add(n);
+            for (SegmentedObject next : nexts) {
                 Track nextT = tracks.get(next.getTrackHead());
                 if (nextT != null) {
                     try {
@@ -191,8 +197,10 @@ public class Track {
                     }
                 }
             }
-            SegmentedObject prev = t.head().getPrevious();
-            if (prev!=null) {
+            Set<SegmentedObject> prevs = additionalPrevs.getOrDefault(t.head(), Collections.emptyList()).stream().map(p -> p.key).collect(Collectors.toSet());
+            SegmentedObject p = t.head().getPrevious();
+            if (p!=null) prevs.add(p);
+            for (SegmentedObject prev : prevs) {
                 Track prevT = tracks.get(prev.getTrackHead());
                 if (prevT != null) {
                     t.addPrevious(prevT);
