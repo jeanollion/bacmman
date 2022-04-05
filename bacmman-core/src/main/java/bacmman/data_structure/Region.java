@@ -207,7 +207,27 @@ public class Region {
         regionModified=true;
         return this;
     }
-    
+    public double[] getSecondCentralMoments2D() {
+        Point center = getCenter()==null ? getGeomCenter(false) : getCenter();
+        double cx = center.get(0);
+        double cy = center.get(1);
+        double[] buffer = new double[4];
+        LoopFunction fun  = (x, y, z) -> {
+            double xx = x - cx;
+            double yy = y - cy;
+            buffer[0] += xx*xx;
+            buffer[1] += yy*yy;
+            buffer[2] += xx*yy;
+            ++buffer[3];
+        };
+        if (voxelsCreated()) {
+            voxels.forEach(v -> fun.loop(v.x, v.y, v.z));
+        } else {
+            ImageMask.loopWithOffset(getMask(), fun);
+        }
+        return new double[]{buffer[0] / buffer[3] + 1./12, buffer[1]/buffer[3] + 1./12, buffer[2]/buffer[3]}; // 1/12 is the normalized second central moment of a pixel with unit length.
+    }
+
     public Point getCenter() {
         return center;
     }
