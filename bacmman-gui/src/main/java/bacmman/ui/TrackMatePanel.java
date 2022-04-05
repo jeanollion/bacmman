@@ -54,7 +54,7 @@ public class TrackMatePanel {
     private JPanel parentObjectClass;
     private JComboBox parentObjectClassJCB;
     private IntervalParameter frameRange = new IntervalParameter("", 0, 0, null, 0, 0);
-    JDialog dia;
+    JFrame dia;
     private final String VIEWFIELD_NAME = "Viewfield";
 
     enum MATCH_MODE {CENTER, OVERLAP}
@@ -352,9 +352,9 @@ public class TrackMatePanel {
         return track.subList(track.indexOf(first), track.indexOf(last) + 1);
     }
 
-    private class Dial extends JDialog {
+    private class Dial extends JFrame {
         Dial(JFrame parent, String title) {
-            super(parent, title, false);
+            super(title);
             getContentPane().add(trackMatePanel);
             getContentPane().setFocusTraversalPolicy(new LayoutFocusTraversalPolicy());
             setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
