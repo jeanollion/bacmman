@@ -1,6 +1,7 @@
 package bacmman.github.gist;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.plugins.Hint;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.IconUtils;
@@ -27,7 +28,8 @@ public class GistConfiguration implements Hint {
     public enum TYPE {
         WHOLE("whole"),
         PRE_PROCESSING("pre"),
-        PROCESSING("pro");
+        PROCESSING("pro"),
+        MEASUREMENTS("meas");
         private final String shortName;
         TYPE(String shortName) {
             this.shortName = shortName;
@@ -73,57 +75,56 @@ public class GistConfiguration implements Hint {
                 folder = fileName.substring(folderIdx + 1, configNameIdx);
                 name = fileName.substring(configNameIdx + 1, fileName.length() - 5);
                 if (file.containsKey("content")) contentRetriever = () -> (String)file.get("content");
-                switch(type) {
-                    default: { // look for thumbnail file
-                        if (((JSONObject) files).containsKey("thumbnail")) {
-                            JSONObject thumbnailFile = (JSONObject) ((JSONObject) files).get("thumbnail");
-                            String thumbFileURL = (String) thumbnailFile.get("raw_url");
-                            thumbnailRetriever = () -> {
-                                Base64.Decoder decoder = Base64.getDecoder();
-                                String thumbdataB64 = thumbnailFile.containsKey("content") ? (String)thumbnailFile.get("content") : new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
-                                switch(type) {
-                                    default:
-                                        logger.debug("retrieved thumbnail: length = {}", thumbdataB64 == null ? 0 : thumbdataB64.length());
-                                        if (thumbdataB64 != null) {
-                                            thumbnail = new ArrayList<>();
-                                            try {
-                                                List<String> parsed = JSONQuery.parseJSONStringArray(thumbdataB64);
-                                                for (String s : parsed) thumbnail.add(IconUtils.bytesToImage(decoder.decode(s)));
-                                            } catch (Exception e) {
-                                                logger.error("Error parsing thumbnails", e);
-                                            }
-                                        }
-                                        break;
-                                    case WHOLE: {
-                                        thumbnailByObjectClass = new TreeMap<>();
-                                        try {
-                                            Object json = new JSONParser().parse(thumbdataB64);
-                                            Set<Map.Entry> jsonObject = ((JSONObject) json).entrySet();
-                                            for (Map.Entry e : jsonObject) {
-                                                List<BufferedImage> images;
-                                                if (e.getValue() instanceof JSONArray) {
-                                                    images = ((Stream<String>)((JSONArray)e.getValue()).stream()).map(decoder::decode).map(IconUtils::bytesToImage).collect(Collectors.toList());
-                                                } else {
-                                                    images = new ArrayList<>();
-                                                    images.add(IconUtils.bytesToImage(decoder.decode((String) e.getValue())));
-                                                }
-                                                if (e.getKey().equals(PRE_PROCESSING.name())) {
-                                                    thumbnail = images;
-                                                } else {
-                                                    int ocIdx = Integer.parseInt((String)e.getKey());
-                                                    thumbnailByObjectClass.put(ocIdx, images);
-                                                }
-                                            }
-                                        } catch (ParseException e) {
-                                            logger.debug("error parsing multi-thumbnail file", e);
-                                        }
+                // look for thumbnail file
+                if (((JSONObject) files).containsKey("thumbnail")) {
+                    JSONObject thumbnailFile = (JSONObject) ((JSONObject) files).get("thumbnail");
+                    String thumbFileURL = (String) thumbnailFile.get("raw_url");
+                    thumbnailRetriever = () -> {
+                        Base64.Decoder decoder = Base64.getDecoder();
+                        String thumbdataB64 = thumbnailFile.containsKey("content") ? (String)thumbnailFile.get("content") : new JSONQuery(thumbFileURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
+                        switch(type) {
+                            default:
+                                logger.debug("retrieved thumbnail: length = {}", thumbdataB64 == null ? 0 : thumbdataB64.length());
+                                if (thumbdataB64 != null) {
+                                    thumbnail = new ArrayList<>();
+                                    try {
+                                        List<String> parsed = JSONQuery.parseJSONStringArray(thumbdataB64);
+                                        for (String s : parsed) thumbnail.add(IconUtils.bytesToImage(decoder.decode(s)));
+                                    } catch (Exception e) {
+                                        logger.error("Error parsing thumbnails", e);
                                     }
                                 }
-
-                            };
+                                break;
+                            case WHOLE: {
+                                thumbnailByObjectClass = new TreeMap<>();
+                                try {
+                                    Object json = new JSONParser().parse(thumbdataB64);
+                                    Set<Map.Entry> jsonObject = ((JSONObject) json).entrySet();
+                                    for (Map.Entry e : jsonObject) {
+                                        List<BufferedImage> images;
+                                        if (e.getValue() instanceof JSONArray) {
+                                            images = ((Stream<String>)((JSONArray)e.getValue()).stream()).map(decoder::decode).map(IconUtils::bytesToImage).collect(Collectors.toList());
+                                        } else {
+                                            images = new ArrayList<>();
+                                            images.add(IconUtils.bytesToImage(decoder.decode((String) e.getValue())));
+                                        }
+                                        if (e.getKey().equals(PRE_PROCESSING.name())) {
+                                            thumbnail = images;
+                                        } else {
+                                            int ocIdx = Integer.parseInt((String)e.getKey());
+                                            thumbnailByObjectClass.put(ocIdx, images);
+                                        }
+                                    }
+                                } catch (ParseException e) {
+                                    logger.debug("error parsing multi-thumbnail file", e);
+                                }
+                            }
                         }
-                    }
+
+                    };
                 }
+
+
             } else { // not a configuration file
                 folder = null;
                 name = null;
@@ -410,6 +411,12 @@ public class GistConfiguration implements Hint {
                 break;
             case PRE_PROCESSING:
                 res.getPreProcessingTemplate().initFromJSONEntry(jsonContent);
+                break;
+            case MEASUREMENTS:
+                res.getMeasurements().initFromJSONEntry(jsonContent);
+                // add object classes to avoid getting display errors
+                int maxOC = res.getMeasurements().getChildren().stream().mapToInt(m -> m.getParameters().stream().mapToInt(p -> p instanceof ObjectClassParameter ? ((ObjectClassParameter)p).getSelectedClassIdx() : 0 ).max().getAsInt()).max().orElse(0);
+                for (int i = 0; i<=maxOC; ++i) res.getStructures().insert(res.getStructures().createChildInstance("Object Class #"+i));
                 break;
             case PROCESSING:
                 res.getChannelImages().insert(res.getChannelImages().createChildInstance());

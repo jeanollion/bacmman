@@ -25,6 +25,7 @@
                 <item value="Whole Configuration"/>
                 <item value="Pre-processing"/>
                 <item value="Processing"/>
+                <item value="Measurements"/>
               </model>
             </properties>
           </component>

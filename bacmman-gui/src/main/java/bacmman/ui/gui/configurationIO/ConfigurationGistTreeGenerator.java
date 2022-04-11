@@ -164,11 +164,21 @@ public class ConfigurationGistTreeGenerator {
     }
 
     public void setSelectedGist(GistConfiguration gist, int selectedOC) {
+        if (gist==null) {
+            tree.setSelectionPath(null);
+            return;
+        }
         TreeNode root = (TreeNode)tree.getModel().getRoot();
         TreeNode folder = IntStream.range(0, root.getChildCount()).mapToObj(i->(DefaultMutableTreeNode)root.getChildAt(i)).filter(n->n.getUserObject().equals(gist.folder)).findAny().orElse(null);
-        if (folder==null) return;
+        if (folder==null) {
+            tree.setSelectionPath(null);
+            return;
+        }
         GistTreeNode element = IntStream.range(0, folder.getChildCount()).mapToObj(i->(GistTreeNode)folder.getChildAt(i)).filter(g->g.gist.name.equals(gist.name) && (g.objectClassIdx==selectedOC) ).findAny().orElse(null);
-        if (element==null) return;
+        if (element==null) {
+            tree.setSelectionPath(null);
+            return;
+        }
         tree.setSelectionPath(new TreePath(new Object[]{root, folder, element}));
     }
 
@@ -309,14 +319,14 @@ public class ConfigurationGistTreeGenerator {
         return  (DefaultMutableTreeNode)tree.getModel().getRoot();
     }
     public void updateTree(List<GistConfiguration> newGists, GistConfiguration.TYPE mode, boolean force) {
-        logger.debug("update tree: force: {}, gist equals: {}, mode equals: {}", force, mode.equals(this.type), newGists.equals(this.gists));
         boolean changeMode = !mode.equals(this.type);
-        boolean keepSel = !GistConfiguration.TYPE.PROCESSING.equals(mode) && !GistConfiguration.TYPE.PROCESSING.equals(type);
+        boolean keepSel = !changeMode ||  (!GistConfiguration.TYPE.PROCESSING.equals(mode) && !GistConfiguration.TYPE.PROCESSING.equals(type));
+        logger.debug("update tree: force: {}, mode equals: {}, gist equals: {}, keep selection: {}", force, !changeMode, newGists.equals(this.gists), keepSel);
         if (force || changeMode || !newGists.equals(this.gists)) {
             this.type = mode;
             this.gists = newGists.stream().filter(g -> g.type.equals(type)).collect(Collectors.toList());
             if (!type.equals(GistConfiguration.TYPE.WHOLE)) { // also add parts of whole configurations
-                Predicate<GistConfiguration> notPresent = g -> ! this.gists.stream().anyMatch(gg-> gg.folder.equals(g.folder) && gg.name.equals(g.name));
+                Predicate<GistConfiguration> notPresent = g -> this.gists.stream().noneMatch(gg-> gg.folder.equals(g.folder) && gg.name.equals(g.name));
                 this.gists.addAll(newGists.stream().filter(g -> g.type.equals(GistConfiguration.TYPE.WHOLE)).filter(notPresent).collect(Collectors.toList()));
             }
             DefaultMutableTreeNode root = getRoot();
@@ -334,16 +344,18 @@ public class ConfigurationGistTreeGenerator {
                 });
             });
             logger.debug("update tree:  mode: {}, {} folders gists: {}/{}", type, root.getChildCount(), this.gists.size(), gists.size());
-            if (expState!=null) EnumerationUtils.toStream(expState).forEach(p -> {
-                tree.expandPath(p);
-                logger.debug("expand path: {}", p.getLastPathComponent());
-                if (p.getLastPathComponent() instanceof FolderNode) {
-                    FolderNode folder = getFolderNode(((FolderNode)p.getLastPathComponent()).name, false);
-                    if (folder!=null) thumbnailLazyLoader.get(folder);
-                }
-            });
-            else tree.expandPath(new TreePath(new TreeNode[]{root}));
+            if (expState!=null) {
+                EnumerationUtils.toStream(expState).forEach(p -> {
+                    tree.expandPath(p);
+                    logger.debug("expand path: {}", p.getLastPathComponent());
+                    if (p.getLastPathComponent() instanceof FolderNode) {
+                        FolderNode folder = getFolderNode(((FolderNode)p.getLastPathComponent()).name, false);
+                        if (folder!=null) thumbnailLazyLoader.get(folder);
+                    }
+                });
+            } else tree.expandPath(new TreePath(new TreeNode[]{root}));
             if (sel!=null) setSelectedGist(sel.gist, sel.objectClassIdx);
+            else setSelectedGist(null, -1);
             displaySelectedConfiguration();
             tree.updateUI();
 

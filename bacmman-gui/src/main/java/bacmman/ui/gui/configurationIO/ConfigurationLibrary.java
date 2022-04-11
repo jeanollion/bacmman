@@ -101,6 +101,9 @@ public class ConfigurationLibrary {
                 case 2:
                     setProcessing();
                     break;
+                case 3:
+                    setMeasurements();
+                    break;
             }
         });
         localSelectorJCB.addItemListener(e -> {
@@ -172,8 +175,8 @@ public class ConfigurationLibrary {
                 Experiment xp = ((Experiment) localConfig.getRoot()).duplicate();
                 xp.getPositionParameter().removeAllElements();
                 xp.setNote("");
-                xp.setOutputDirectory("");
-                xp.setOutputImageDirectory("");
+                //xp.setOutputDirectory("");
+                //xp.setOutputImageDirectory("");
                 content = xp.toJSONEntry();
             } else content = (JSONObject) localConfig.getRoot().toJSONEntry();
             GistConfiguration toSave = new GistConfiguration(form.folder(), form.name(), form.description(), content, currentMode).setVisible(form.visible());
@@ -229,6 +232,12 @@ public class ConfigurationLibrary {
                         content = xp.toJSONEntry();
                         break;
                     }
+                    case MEASUREMENTS: {
+                        Experiment xp = gist.getExperiment();
+                        xp.getMeasurements().initFromJSONEntry(localConfig.getRoot().toJSONEntry());
+                        content = xp.toJSONEntry();
+                        break;
+                    }
                 }
             }
             if (content == null) {
@@ -277,6 +286,11 @@ public class ConfigurationLibrary {
                     } else { // one position is selected
                         this.xp.getPosition(pIdx).getPreProcessingChain().setContentFrom(remoteXP.getPreProcessingTemplate());
                     }
+                    break;
+                }
+                case MEASUREMENTS: {
+                    Experiment remoteXP = GistConfiguration.getExperiment(content, currentMode);
+                    this.xp.getMeasurements().setContentFrom(remoteXP.getMeasurements());
                     break;
                 }
                 case PROCESSING: {
@@ -488,11 +502,16 @@ public class ConfigurationLibrary {
             case PROCESSING:
                 root = xp.getStructure(localSelectorJCB.getSelectedIndex()).getProcessingPipelineParameter();
                 break;
-            case PRE_PROCESSING:
+            case PRE_PROCESSING: {
                 int idx = localSelectorJCB.getSelectedIndex() - 1;
                 if (idx < 0) root = xp.getPreProcessingTemplate();
                 else root = xp.getPosition(idx).getPreProcessingChain();
                 break;
+            }
+            case MEASUREMENTS: {
+                root = xp.getMeasurements();
+                break;
+            }
         }
         //ConfigurationTreeModel.SaveExpandState expState = localConfig == null || !localConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(localConfig.getTree());
         localConfig = new ConfigurationTreeGenerator(xp, root, v -> {
@@ -544,6 +563,9 @@ public class ConfigurationLibrary {
                 case PRE_PROCESSING:
                     setPreProcessing();
                     break;
+                case MEASUREMENTS:
+                    setMeasurements();
+                    break;
                 case PROCESSING:
                     setProcessing();
                     break;
@@ -590,6 +612,7 @@ public class ConfigurationLibrary {
         defaultComboBoxModel1.addElement("Whole Configuration");
         defaultComboBoxModel1.addElement("Pre-processing");
         defaultComboBoxModel1.addElement("Processing");
+        defaultComboBoxModel1.addElement("Measurements");
         stepJCB.setModel(defaultComboBoxModel1);
         nodePanel.add(stepJCB, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         mainSP = new JSplitPane();
@@ -719,6 +742,25 @@ public class ConfigurationLibrary {
         }
     }
 
+    private void setMeasurements() {
+        if (GistConfiguration.TYPE.MEASUREMENTS.equals(currentMode)) return;
+        currentMode = null;
+        localSelectorJCB.removeAllItems();
+        if (xp != null) {
+            localSelectorJCB.addItem("Current Dataset");
+            currentMode = GistConfiguration.TYPE.MEASUREMENTS;
+            localSelectorJCB.setSelectedIndex(-1);
+            localSelectorJCB.setSelectedIndex(0); //trigger item listener to update the tree
+            updateRemoteSelector();
+            updateEnableButtons();
+            ((TitledBorder) this.localSelectorPanel.getBorder()).setTitle("Local Dataset");
+        } else {
+            currentMode = GistConfiguration.TYPE.MEASUREMENTS;
+            updateRemoteSelector();
+            updateEnableButtons();
+        }
+    }
+
     private void setPreProcessing() {
         if (GistConfiguration.TYPE.PRE_PROCESSING.equals(currentMode)) return;
         currentMode = null;
@@ -771,6 +813,7 @@ public class ConfigurationLibrary {
         if (remoteSelector == null) {
             remoteSelector = new ConfigurationGistTreeGenerator(gists, currentMode, this::updateRemoteConfigTree);
             remoteSelectorJSP.setViewportView(remoteSelector.getTree());
+            updateRemoteConfigTree(null, -1);
         } else {
             remoteSelector.updateTree(gists, currentMode, false);
         }
@@ -793,6 +836,9 @@ public class ConfigurationLibrary {
                         break;
                     case PRE_PROCESSING:
                         root = xp.getPreProcessingTemplate();
+                        break;
+                    case MEASUREMENTS:
+                        root = xp.getMeasurements();
                         break;
                 }
                 //ConfigurationTreeModel.SaveExpandState expState = remoteConfig == null || !remoteConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(remoteConfig.getTree());
