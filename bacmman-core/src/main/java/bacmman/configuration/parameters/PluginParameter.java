@@ -332,5 +332,8 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         }
         return pluginType;
     }
-
+    public Class<? extends T> getSelectedPluginClass() {
+        if (!isOnePluginSet()) return null;
+        return PluginFactory.getPluginClass(pluginName);
+    }
 }

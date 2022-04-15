@@ -20,6 +20,7 @@ package bacmman.configuration.parameters;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.plugins.ConfigurableTransformation;
+import bacmman.plugins.Filter;
 import bacmman.plugins.MultichannelTransformation;
 
 import java.util.ArrayList;
@@ -87,7 +88,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     }
     @Override 
     public TransformationPluginParameter<T> setPlugin(T pluginInstance) {
-        if (pluginInstance instanceof ConfigurableTransformation) initInputChannel();
+        if (pluginInstance instanceof ConfigurableTransformation && !(pluginInstance instanceof Filter)) initInputChannel();
         else inputChannel = null;
         
         if (pluginInstance instanceof MultichannelTransformation) {  
@@ -140,6 +141,7 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
     
     public int getInputChannel() {
         if (inputChannel!=null) return inputChannel.getSelectedIndex();
+        else if (Filter.class.isAssignableFrom(getSelectedPluginClass())) return outputChannel.getSelectedIndex();
         return -1;
     }
     
