@@ -109,13 +109,15 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
 
-        void predict(DLengine engine, Image[] images, Image prev, int frameInterval) {
+        void predict(DLengine engine, Image[] images, Image prev, boolean[] noPrevParent, int frameInterval) {
             int idxLimMin = frameInterval > 1 ? frameInterval : 0;
             int idxLimMax = frameInterval > 1 ? next ? images.length - frameInterval : images.length : images.length;
             init(idxLimMax - idxLimMin);
-            for (int i = idxLimMin; i < idxLimMax; i += batchSize.getIntValue()) {
+            double interval = idxLimMax - idxLimMin;
+            int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
+            for (int i = idxLimMin; i < idxLimMax; i += increment ) {
                 int idxMax = Math.min(i + batchSize.getIntValue(), idxLimMax);
-                Image[][] input = getInputs(images, i == 0 ? prev : images[i - 1], next, i, idxMax, frameInterval);
+                Image[][] input = getInputs(images, i == 0 ? prev : images[i - 1], noPrevParent, next, i, idxMax, frameInterval);
                 logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
                 Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
                 appendPrediction(predictions, i - idxLimMin);
@@ -244,17 +246,18 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         long t2 = System.currentTimeMillis();
         logger.debug("track prefilters run in {}ms", t2 - t1);
         Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
+        boolean[] noPrevParent = new boolean[parentTrack.size()]; // in case parent track contains gaps
+        noPrevParent[0] = true;
+        for (int i = 1; i < noPrevParent.length; ++i)
+            if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
         PredictedChannels pred = new PredictedChannels(this.averagePredictions.getSelected(), this.next.getSelected());
-        pred.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, 1);
+        pred.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, noPrevParent, 1);
         long t3 = System.currentTimeMillis();
 
         logger.info("{} predictions made in {}ms", parentTrack.size(), t3 - t2);
 
-        // in case parent track is not continuous
-        boolean[] noPrevParent = new boolean[parentTrack.size()];
-        noPrevParent[0] = true;
-        for (int i = 1; i < noPrevParent.length; ++i)
-            if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
+
+
         pred.averagePredictions(noPrevParent, null, null, null, null);
         long t4 = System.currentTimeMillis();
         logger.info("averaging: {}ms", t4 - t3);
@@ -279,7 +282,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 for (int frameInterval : frameSubsampling) {
                     logger.debug("averaging with frame subsampled: {}", frameInterval);
                     PredictedChannels pred2 = new PredictedChannels(false, this.next.getSelected());
-                    pred2.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, frameInterval);
+                    pred2.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, noPrevParent, frameInterval);
                     Image[] edm2 = pred2.edmC;
                     for (int frame = frameInterval; frame < edm2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
                         double n = getNSubSampling.applyAsInt(frame);
@@ -907,11 +910,26 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         this.stores = stores;
     }
 
-    protected static Image[][] getInputs(Image[] images, Image prev, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
+    protected static Image[][] getInputs(Image[] images, Image prev, boolean[] noPrevParent, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
+        BiFunction<Integer, Integer, Image> getImage[] = new BiFunction[1];
+        getImage[0] = (cur, i) -> {
+            if (i < 0) {
+                if (prev != null) return prev;
+                else return images[0];
+            } else if (i >= images.length) {
+                return images[images.length - 1];
+            }
+            if (i < cur) {
+                if (noPrevParent[i + 1]) return getImage[0].apply(cur, i+1);
+            } else if (i > cur) {
+                if (noPrevParent[i]) return getImage[0].apply(cur, i-1);
+            }
+            return images[i];
+        };
         if (addNext) {
-            return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> new Image[]{i - frameInterval < 0 ? (prev == null ? images[0] : prev) : images[i - frameInterval], images[i], i + frameInterval >= images.length ? images[images.length - 1] : images[i + frameInterval]}).toArray(Image[][]::new);
+            return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> new Image[]{getImage[0].apply(i, i-frameInterval), getImage[0].apply(i, i), getImage[0].apply(i, i+frameInterval)}).toArray(Image[][]::new);
         } else {
-            return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> i - frameInterval < 0 ? new Image[]{(prev == null ? images[0] : prev), images[i]} : new Image[]{images[i - frameInterval], images[i]}).toArray(Image[][]::new);
+            return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> new Image[]{getImage[0].apply(i, i-frameInterval), getImage[0].apply(i, i)}).toArray(Image[][]::new);
         }
     }
 
