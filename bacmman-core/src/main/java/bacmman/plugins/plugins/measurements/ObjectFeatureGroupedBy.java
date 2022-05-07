@@ -7,6 +7,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
+import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.object_feature.IntensityMeasurement;
@@ -22,11 +23,18 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.IntStream;
 
-public class ObjectFeatureGroupedBy implements Measurement {
+public class ObjectFeatureGroupedBy implements Measurement, Hint {
     ObjectClassParameter groupClass = new ObjectClassParameter("Group By Class");
-    public enum REDUCTION_OP {MEAN, STD, MEDIAN, MIN, MAX, SUM}
-    MultipleEnumChoiceParameter<REDUCTION_OP> reductionOP = new MultipleEnumChoiceParameter<>("Reduction operation", REDUCTION_OP.values(), Enum::name, REDUCTION_OP.MEAN);
+
+    @Override
+    public String getHintText() {
+        return "For each object of class <em>Group Class</em>: Gather all included objects of class <em>object class</em>, perform measurement and return a reduction of these values. <br>WEIGHTED_MEAN corresponds to the average value weighted by the size/volume of the objects";
+    }
+
+    public enum REDUCTION_OP {WEIGHTED_MEAN, MEAN, STD, MEDIAN, MIN, MAX, SUM}
+    MultipleEnumChoiceParameter<REDUCTION_OP> reductionOP = new MultipleEnumChoiceParameter<>("Reduction operation", REDUCTION_OP.values(), Enum::name, REDUCTION_OP.WEIGHTED_MEAN);
 
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
@@ -96,8 +104,13 @@ public class ObjectFeatureGroupedBy implements Measurement {
                         case MIN:
                             value = values[ArrayUtil.min(values)];
                             break;
-                        case MEAN:
+                        case WEIGHTED_MEAN:
                         default:
+                            double[] size = children.stream().mapToDouble(o->  o.getRegion().size() ).toArray();
+                            double sumSize = DoubleStream.of(size).sum();
+                            value = IntStream.range(0, values.length).mapToDouble(i -> values[i] * size[i] / sumSize).sum();
+                            break;
+                        case MEAN:
                             value = meanSigma==null? ArrayUtil.mean(values, 0, values.length) : meanSigma[0];
                             break;
                         case STD:
