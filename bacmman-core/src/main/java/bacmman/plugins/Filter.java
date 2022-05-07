@@ -23,7 +23,7 @@ package bacmman.plugins;
  * @author Jean Ollion
  */
 /**
- * Transformation applied on one single image at single frame (not need to configure)
+ * Filters have same input channel as output channel
  * @author Jean Ollion
  */
 public interface Filter extends Transformation {
