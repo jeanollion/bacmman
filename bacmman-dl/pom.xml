@@ -5,7 +5,7 @@
     <parent>
         <artifactId>bacmman</artifactId>
         <groupId>com.github.jeanollion.bacmman</groupId>
-        <version>3.3.1</version>
+        <version>3.3.2</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -14,7 +14,7 @@
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-core</artifactId>
-            <version>3.3.1</version>
+            <version>3.3.2</version>
         </dependency>
         <dependency>
             <groupId>cisd</groupId>
@@ -24,7 +24,7 @@
         <dependency>
             <groupId>com.github.jeanollion.bacmman</groupId>
             <artifactId>bacmman-gui</artifactId>
-            <version>3.3.1</version>
+            <version>3.3.2</version>
             <scope>compile</scope>
         </dependency>
 
