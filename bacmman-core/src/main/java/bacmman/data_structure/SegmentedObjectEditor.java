@@ -254,6 +254,7 @@ public class SegmentedObjectEditor {
                     if (res.getPrevious() != null) res.getPrevious().setAttribute(SegmentedObject.TRACK_ERROR_NEXT, null);
                     if (res.getNext() != null) res.getNext().setAttribute(SegmentedObject.TRACK_ERROR_PREV, null);
                     editor.getModifiedObjects().add(res);
+                    parent.relabelChildren(res.structureIdx, editor.getModifiedObjects()); // relabel
                 }
             }
             dao.delete(toRemove, true, true, true);
