@@ -360,7 +360,10 @@ public class ConfigurationTreeGenerator {
             // configure call back for position (delete position from DAO)
             Predicate<Position> erasePosition = p -> {
                 logger.debug("erase position: {}", p.getName());
-                if (mDAO != null) mDAO.getDao(p.getName()).deleteAllObjects();
+                if (mDAO != null) {
+                    mDAO.getDao(p.getName()).deleteAllObjects();
+                    mDAO.unlockPositions(p.getName());
+                }
                 if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
                 for (int s = 0; s < experiment.getStructureCount(); ++s)
                     if (p.getImageDAO() instanceof ImageDAOTrack) ((ImageDAOTrack) p.getImageDAO()).deleteTrackImages(s);

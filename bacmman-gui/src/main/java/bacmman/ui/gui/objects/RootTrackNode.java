@@ -30,6 +30,7 @@ import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.core.DefaultWorker;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -246,12 +247,12 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
     }
 
     class RootTrackNodeUI {
-        JMenuItem openRawAllFrames, openPreprocessedAllFrames;
+        JMenuItem openRawAllFrames, openPreprocessedAllFrames, delete;
         JMenu kymographSubMenu, hyperStackSubMenu, createSelectionSubMenu;
         Object[] actions;
         JMenuItem[] openKymograph, openHyperStack, createSelection;
         public RootTrackNodeUI() {
-            this.actions = new JMenuItem[5];
+            this.actions = new JMenuItem[6];
             
             openRawAllFrames = new JMenuItem("Open Input Images");
             actions[0] = openRawAllFrames;
@@ -381,11 +382,33 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                     }
                 );
                 createSelectionSubMenu.add(createSelection[i]);
+
+                delete = new JMenuItem("Delete");
+                actions[5] = delete;
+                delete.setAction(new AbstractAction(delete.getActionCommand()) {
+                        @Override
+                        public void actionPerformed(ActionEvent ae) {
+                            List<RootTrackNode> selectedNodes = generator.getSelectedRootTrackNodes();
+                            List<String> positions = selectedNodes.stream().map(n -> n.position).distinct().collect(Collectors.toList());
+                            if (!Utils.promptBoolean("Delete "+(positions.size()>1?"all":"")+" selected position"+(positions.size()>1?"s":""), null)) return;
+                            for (String pos : positions) {
+                                generator.db.getExperiment().getPosition(pos).eraseData();
+                                generator.db.getExperiment().getPosition(pos).removeFromParent();
+                            }
+                            generator.db.updateExperiment();
+                            GUI.getInstance().populateActionPositionList();
+                            GUI.getInstance().populateTestPositionJCB();
+                            GUI.getInstance().updateConfigurationTree();
+                            GUI.getInstance().loadObjectTrees();
+                            GUI.getInstance().displayTrackTrees();
+                        }
+                    }
+                );
             }
         }
         public Object[] getDisplayComponent(boolean multipleSelection) {
             if (multipleSelection) {
-                return new Object[]{createSelectionSubMenu};
+                return new Object[]{createSelectionSubMenu, delete};
             } else return actions;
         }
         

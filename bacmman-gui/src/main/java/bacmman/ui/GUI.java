@@ -1020,7 +1020,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
     }
     Consumer<String> moduleSelectionCallBack;
-    private void updateConfigurationTree() {
+    public void updateConfigurationTree() {
         if (db==null) {
             configurationTreeGenerator=null;
             configurationJSP.setViewportView(null);
@@ -1179,7 +1179,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.selectionModel.addElement(s);
     }
     
-    protected void loadObjectTrees() {
+    public void loadObjectTrees() {
         if (db==null) {
             trackTreeController = null;
             setTrackTreeStructures();
@@ -1220,6 +1220,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             for (int i =0; i<db.getExperiment().getPositionCount(); ++i) actionMicroscopyFieldModel.addElement(db.getExperiment().getPosition(i).toString());
             Utils.setSelectedValues(sel, microscopyFieldList, actionMicroscopyFieldModel);
         }
+        if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
     }
     public int[] getSelectedPositionIdx() {
         int[] res = microscopyFieldList.getSelectedIndices();
@@ -3497,11 +3498,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), omeroGateway, () -> {
             populateActionPositionList();
             populateTestPositionJCB();
-            if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
             updateConfigurationTree();
             db.updateExperiment();
             // also lock all new positions
             db.lockPositions();
+            if (tabs.getSelectedComponent()==dataPanel) {
+                reloadObjectTrees = false;
+                loadObjectTrees();
+                displayTrackTrees();
+            } else reloadObjectTrees = true;
+
         });
     }//GEN-LAST:event_importImagesFromOmeroMenuItemActionPerformed
 
@@ -3519,20 +3525,24 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             }
-
             DefaultWorker.execute(i -> {
                 Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), Utils.convertFilesToString(selectedFiles));
                 File dir = Utils.getOneDir(selectedFiles);
                 if (dir!=null) PropertyUtils.set(PropertyUtils.LAST_IMPORT_IMAGE_DIR, dir.getAbsolutePath());
                 db.updateExperiment(); //stores imported position
                 // also lock all new positions
-                db.lockPositions();
+                boolean lock = db.lockPositions();
+                //logger.debug("locking positions: {} success: {}", db.getExperiment().getPositionsAsString(), lock);
                 return "";
             }, 1).setEndOfWork( ()->{
                 populateActionPositionList();
                 populateTestPositionJCB();
-                if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
                 updateConfigurationTree();
+                if (tabs.getSelectedComponent()==dataPanel) {
+                    reloadObjectTrees = false;
+                    loadObjectTrees();
+                    displayTrackTrees();
+                } else reloadObjectTrees = true;
             } );
 
         }
@@ -4204,8 +4214,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     db.updateExperiment();
                     populateActionPositionList();
                     populateTestPositionJCB();
-                    if (trackMatePanel!=null) trackMatePanel.populatePositionJCB();
                     updateConfigurationTree();
+                    reloadObjectTrees = true;
                 }
             };
             menu.add(delete);
