@@ -146,7 +146,7 @@ public class ImageReaderFile implements ImageReader {
         setId();
     }
     public Map<String, Object> getMetadata() {
-        return reader.getGlobalMetadata();
+        return reader==null ? null : reader.getGlobalMetadata();
     }
     public synchronized Map<String, Object> getSeriesMetadata(int series) {
         int s = reader.getSeries();

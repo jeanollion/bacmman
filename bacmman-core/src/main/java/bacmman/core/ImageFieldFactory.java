@@ -140,7 +140,7 @@ public class ImageFieldFactory {
             ++s;
         }
         Map<String, Object> metadata = reader.getMetadata();
-        writeMetadata(xp.getPath(), Utils.removeExtension(image.getName()), metadata);
+        if (metadata!=null) writeMetadata(xp.getPath(), Utils.removeExtension(image.getName()), metadata);
         reader.closeReader();
         long t3 = System.currentTimeMillis();
         logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t1-t0, t2-t1, t3-t2);
