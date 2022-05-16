@@ -532,6 +532,27 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         res.elements=elements;
         return res;
     }
+    public static Selection generateSelection(String name, MasterDAO mDAO, Map<String, List<SegmentedObject>> elements) {
+        Selection res= new Selection();
+        if (name==null) name="current";
+        res.name=name;
+        res.mDAO = mDAO;
+        List<String> positions = new ArrayList<>(elements.keySet());
+        for (String p : positions) if (elements.get(p).isEmpty()) elements.remove(p);
+        if (elements.isEmpty()) res.structureIdx = -1;
+        else {
+            res.structureIdx=elements.entrySet().iterator().next().getValue().get(0).getStructureIdx();
+            for (List<SegmentedObject> l : elements.values()) {
+                if (!Utils.objectsAllHaveSameProperty(l, o->o.getStructureIdx()==res.structureIdx)) {
+                    throw new IllegalArgumentException("All elements should have same object class index");
+                }
+            }
+        }
+
+        res.elements=new HashMap<>(elements.size());
+        elements.forEach((p, e) -> res.elements.put(p, e.stream().map(Selection::indicesString).collect(Collectors.toList())));
+        return res;
+    }
     public static String getParent(String idx) {
         int[] i = parseIndices(idx);
         if (i.length==1) {

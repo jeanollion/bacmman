@@ -57,14 +57,38 @@ public class ExtractDatasetUtil {
             }
             for (String position : sel.getAllPositions()) {
                 logger.debug("position: {}", position);
-                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc ->  ExtractDatasetUtil.getResampledPopMap(oc, dimensions, eraseTouchingContours.test(oc)));
+                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                    if (parent.getStructureIdx() == oc) return null; // this case is handled separately
+                    RegionPopulation pop = parent.getChildRegionPopulation(oc, false);
+                    return resamplePopulation(pop, dimensions, eraseTouchingContours.test(oc));
+                }));
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
                 boolean saveLabels = true;
                 for (Triplet<String, FeatureExtractor, Integer> feature : features) {
                     logger.debug("feature: {}", feature);
-                    Function<SegmentedObject, Image> extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPops.get(feature.v3), dimensions);
+                    boolean featureOCIsSelectionOC = feature.v3 == sel.getStructureIdx();
+                    Function<SegmentedObject, Image> extractFunction;
+                    Selection parentSelection;
+                    Map<SegmentedObject, RegionPopulation> resampledPop;
+                    if (featureOCIsSelectionOC) {
+                        Set<SegmentedObject> allElements = sel.getElements(position);
+                        resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                            List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).equals(parent)).map(SegmentedObject::getRegion).collect(Collectors.toList());
+                            RegionPopulation p = new RegionPopulation(childrenFiltered, parent.getMaskProperties());
+                            return resamplePopulation(p, dimensions, eraseTouchingContours.test(feature.v3));
+                        });
+                        List<SegmentedObject> allParents = sel.getElements(position).stream().map(SegmentedObject::getParent).distinct().collect(Collectors.toList());
+                        parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1){{put(position, allParents);}});
+                        parentSelection.setMasterDAO(mDAO);
+
+                    }
+                    else {
+                        resampledPop = resampledPops.get(feature.v3);
+                        parentSelection = sel;
+                    }
+                    extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPop, dimensions);
                     boolean ZtoBatch = feature.v2 instanceof RawImage && ((RawImage)feature.v2).getExtractZDim() == Task.ExtractZAxis.BATCH;
-                    extractFeature(outputPath, outputName + feature.v1, sel, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels,  saveLabels, dimensions);
+                    extractFeature(outputPath, outputName + feature.v1, parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels,  saveLabels, dimensions);
                     saveLabels=false;
                     t.incrementProgress();
                 }
@@ -169,18 +193,15 @@ public class ExtractDatasetUtil {
         });
         writer.close();
     }
-    public static Map<SegmentedObject, RegionPopulation> getResampledPopMap(int objectClassIdx, int[] dimensions, boolean eraseTouchingContours) {
-        return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> {
-            if (o.getStructureIdx() == objectClassIdx) return null;
-            RegionPopulation pop = o.getChildRegionPopulation(objectClassIdx, false);
-            Image mask = pop.getLabelMap();
-            ImageInteger maskR;
-            if (mask instanceof ImageShort) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
-            else maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
-            RegionPopulation res = new RegionPopulation(maskR, true);
-            if (eraseTouchingContours) res.eraseTouchingContours(false);
-            return res;
-        });
+
+    private static RegionPopulation resamplePopulation(RegionPopulation pop, int[] dimensions, boolean eraseTouchingContours) {
+        Image mask = pop.getLabelMap();
+        ImageInteger maskR;
+        if (mask instanceof ImageShort) maskR =  TypeConverter.toShort(resample(mask, true, dimensions), null).resetOffset();
+        else maskR =  TypeConverter.toByte(resample(mask, true, dimensions), null).resetOffset();
+        RegionPopulation res = new RegionPopulation(maskR, true);
+        if (eraseTouchingContours) res.eraseTouchingContours(false);
+        return res;
     }
 
     public static Selection getAllElements(MasterDAO mDAO, int objectClassIdx) {
@@ -194,8 +215,8 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection sel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerImage, boolean saveLabels, boolean saveDimensions, int... dimensions) {
-        Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> sel.getAllElements().stream().parallel() : () -> sel.getElements(position).stream().parallel();
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerImage, boolean saveLabels, boolean saveDimensions, int... dimensions) {
+        Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElements().stream().parallel() : () -> parentSel.getElements(position).stream().parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);
