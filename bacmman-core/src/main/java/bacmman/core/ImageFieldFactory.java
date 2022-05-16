@@ -50,7 +50,8 @@ import org.slf4j.LoggerFactory;
 
 public class ImageFieldFactory {
     private static final Logger logger = LoggerFactory.getLogger(ImageFieldFactory.class);
-    private final static List<String> ignoredExtensions = Arrays.asList(new String[]{".log"});
+    private final static List<String> ignoredExtensions = Arrays.asList(".log");
+    private final static String[] IMAGE_EXTENSION_CTP = new String[]{"tif", "tiff", "nd2", "png"};
 
     public static List<MultipleImageContainer> importImages(String[] path, Experiment xp, ProgressCallback pcb) {
 
@@ -62,15 +63,15 @@ public class ImageFieldFactory {
             case ONE_FILE_PER_CHANNEL_POSITION:
                 {
                     // get keywords
-                    String[] keyWords = xp.getChannelImages().getChildren().stream().map(c -> c.getImportImageChannelKeyword()).toArray(s->new String[s]);
+                    String[] keyWords = xp.getChannelImages().getChildren().stream().map(ChannelImage::getImportImageChannelKeyword).toArray(String[]::new);
                     logger.debug("import image channel: keywords: {}", (Object)keyWords);
                     for (String p : path) ImageFieldFactory.importImagesChannel(new File(p), xp, keyWords, res, pcb);
                     break;
                 }
             case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
                 {
-                    String[] keyWords = xp.getChannelImages().getChildren().stream().map(c -> c.getImportImageChannelKeyword()).toArray(s->new String[s]);
-                    long countBlank = Arrays.stream(keyWords).filter(s->"".equals(s)).count();
+                    String[] keyWords = xp.getChannelImages().getChildren().stream().map(ChannelImage::getImportImageChannelKeyword).toArray(String[]::new);
+                    long countBlank = Arrays.stream(keyWords).filter(""::equals).count();
                     if (countBlank>1) {
                         if (pcb!=null) pcb.log("When Experiment has several channels, one must specify channel keyword for this import method");
                         logger.error("When Experiment has several channels, one must specify channel keyword for this import method");
@@ -97,8 +98,11 @@ public class ImageFieldFactory {
     }
     protected static void importImagesSingleFile(File f, Experiment xp, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
         if (f.isDirectory()) {
-            for (File ff : f.listFiles()) {
-                ImageFieldFactory.importImagesSingleFile(ff, xp, containersTC, pcb);
+            File[] files = f.listFiles();
+            if (files!=null) {
+                for (File ff : files) {
+                    ImageFieldFactory.importImagesSingleFile(ff, xp, containersTC, pcb);
+                }
             }
         } else if (!isIgnoredFile(f.getName())) {
             addContainerSingleFile(f, xp, containersTC, pcb);
@@ -143,7 +147,7 @@ public class ImageFieldFactory {
         if (metadata!=null) writeMetadata(xp.getPath(), Utils.removeExtension(image.getName()), metadata);
         reader.closeReader();
         long t3 = System.currentTimeMillis();
-        logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t1-t0, t2-t1, t3-t2);
+        logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t3-t0, t1-t0, t2-t1, t3-t2);
     }
     
     protected static void importImagesChannel(File input, Experiment xp, String[] channelKeywords, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
@@ -174,8 +178,7 @@ public class ImageFieldFactory {
             
         }
     }
-    
-    private static String[] IMAGE_EXTENSION_CTP = new String[]{"tif", "tiff", "nd2", "png"};
+
     protected static void importImagesCTP(File input, Experiment xp, String[] channelKeywords, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb, String posName) {
         String posSep = xp.getImportImagePositionSeparator();
         String frameSep = xp.getImportImageFrameSeparator();
@@ -186,8 +189,14 @@ public class ImageFieldFactory {
         // 1 : filter by extension
         Pattern allchanPattern = getAllChannelPattern(channelKeywords);
         Pattern allExtPattern = getAllImageExtension(IMAGE_EXTENSION_CTP);
-        Map<String, List<File>> filesByExtension = Arrays.stream(input.listFiles((File dir, String name) -> name.charAt(0)!='.' && allExtPattern.matcher(name).find() && allchanPattern.matcher(name).find())).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
+        File[] allFiles = input.listFiles((File dir, String name) -> name.charAt(0)!='.' && allExtPattern.matcher(name).find() && allchanPattern.matcher(name).find() && (new File(dir.getAbsolutePath() + File.separator+ name)).isFile());
+        Map<String, List<File>> filesByExtension = allFiles==null?Collections.emptyMap():Arrays.stream(allFiles).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
         logger.debug("file by extension: {}, {}", filesByExtension.size(), filesByExtension.entrySet().stream().map(e-> e.getKey()+ " n="+ e.getValue().size()).toArray());
+        if (filesByExtension.size()==1 && filesByExtension.entrySet().iterator().next().getValue().size()==1) {
+            File f = filesByExtension.entrySet().iterator().next().getValue().get(0);
+            logger.debug("only 1 file found: {}, extension matcher: {} channel matcher: {}", f, allExtPattern.matcher(f.getName()).find(), allchanPattern.matcher(f.getName()).find());
+            logger.debug("extension matcher: .tof: {}, .tif: {}", allExtPattern.matcher(".tof").find(), allExtPattern.matcher(".tif").find());
+        }
         List<File> files=null;
         String extension = null;
         if (filesByExtension.size()>1) { // keep most common extension
@@ -423,9 +432,9 @@ public class ImageFieldFactory {
         return Pattern.compile(pat);
     }
     private static Pattern getAllImageExtension(String[] extensions) {
-        String pat = "[(\\."+extensions[0]+")";
+        String pat = "(\\."+extensions[0]+")";
         for (int i = 1; i<extensions.length; ++i) pat+="|(\\."+extensions[i]+")";
-        pat+="]$";
+        pat+="$";
         return Pattern.compile(pat);
     }
 }
