@@ -33,7 +33,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and the <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified and the predicted division probability is lower than 0.7 for all cells, they are merged.");
-    BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");
     BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setEmphasized(true).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 32, 1, null).setHint("Defines how many frames are processed at the same time");
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5, 0.6, 0.01, 1);
@@ -64,7 +63,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
     ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue() > 1);
 
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling};
+    BooleanParameter correctDivisions = new BooleanParameter("Correct Divisions", false).setEmphasized(false).setHint("Reduce false division by using the predicted division image. Two rules among cells that have a common previous cell: <ol><li> remove the link to previous cell of non-divided cells (only if at least on of the cell is divided)</li><li>If all cells are non-divided : try to merge all connected cells if the cost is lower than the maxCorrectionCost threshold</li><li>If two cells are linked to the same cell, tries to merge them using the divisonCost criterion</li></ol>");
+    BoundedNumberParameter divThld = new BoundedNumberParameter("Division Threshold", 5, 0.75, 0, 1).setHint("A cell is considered as divided (result of a division) if the median value of the predicted division image is over this threshold");
+    BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");
+
+    ConditionalParameter<Boolean> correctDivisionsCond = new ConditionalParameter<>(correctDivisions).setActionParameters(true, divThld, divisionCost);
+    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, correctDivisionsCond, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -443,7 +447,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         int minFrame = objectsF.keySet().stream().mapToInt(i -> i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i -> i).max().getAsInt();
         double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
-        double divisionCost = this.divisionCost.getValue().doubleValue();
         SplitAndMerge sm = getSplitAndMerge(prediction);
         BiConsumer<List<SegmentedObject>, Collection<SegmentedObject>> mergeFunNoPrev = (noPrevObjects, allObjects) -> {
             for (int i = 0; i < noPrevObjects.size() - 1; ++i) {
@@ -452,7 +455,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     SegmentedObject oj = noPrevObjects.get(j);
                     if (BoundingBox.intersect2D(oi.getBounds(), oj.getBounds(), 1)) {
                         double cost = sm.computeMergeCost(Arrays.asList(oi, oj));
-                        if (cost <= divisionCost) {
+                        if (cost <= maxCorrectionCost) {
                             SegmentedObject rem = noPrevObjects.remove(j);
                             allObjects.remove(rem);
                             oi.getRegion().merge(rem.getRegion());
@@ -558,15 +561,37 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             nextToAllPrevMap.values().forEach(prevs -> {
                 if (prevs != null) for (SegmentedObject p : prevs) nextCount.replace(p, nextCount.get(p) + 1);
             });
-            Map<SegmentedObject, Set<SegmentedObject>> divMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new HashSet<>());
+            Map<SegmentedObject, Set<SegmentedObject>> divMapPrevMapNext = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new HashSet<>());
             nextToAllPrevMap.forEach((next, prevs) -> {
                 if (prevs != null) {
                     for (SegmentedObject prev : prevs) {
-                        if (nextCount.get(prev) > 1) divMap.get(prev).add(next);
+                        if (nextCount.get(prev) > 1) divMapPrevMapNext.get(prev).add(next);
                     }
                 }
             });
-            logger.debug("{} divisions @ frame {}: {}", divMap.size(), frame, Utils.toStringMap(divMap, o -> o.getIdx() + "", s -> Utils.toStringList(s.stream().map(SegmentedObject::getIdx).collect(Collectors.toList()))));
+            logger.debug("{} divisions @ frame {}: {}", divMapPrevMapNext.size(), frame, Utils.toStringMap(divMapPrevMapNext, o -> o.getIdx() + "", s -> Utils.toStringList(s.stream().map(SegmentedObject::getIdx).collect(Collectors.toList()))));
+
+            // CORRECTION 3 : use division state to remove wrong divisions:
+            ToDoubleFunction<SegmentedObject> getDivScore = o -> BasicMeasurements.getMeanValue(o.getRegion(), prediction.division.get(o.getParent()));
+            Map<SegmentedObject, Double> divScoreMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(getDivScore::applyAsDouble);
+            if (correctDivisions.getSelected() && divThld.getDoubleValue()>0 && prediction.division != null) {
+                double divThld = this.divThld.getDoubleValue();
+                Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMapPrevMapNext.entrySet().iterator();
+                while(it.hasNext()) {
+                    Map.Entry<SegmentedObject, Set<SegmentedObject>> e = it.next();
+                    Iterator<SegmentedObject> nextIt = e.getValue().iterator();
+                    if (e.getValue().stream().mapToDouble(divScoreMap::get).anyMatch(d -> d >= divThld)) { // if all objects have low division -> handled by CORRECTION #5
+                        while (nextIt.hasNext()) {
+                            SegmentedObject nextO = nextIt.next();
+                            if (divScoreMap.get(nextO) < divThld) { // remove link
+                                nextIt.remove();
+                                nextToAllPrevMap.get(nextO).remove(e.getKey());
+                            }
+                        }
+                        if (e.getValue().size() <= 1) it.remove();
+                    }
+                }
+            }
 
             TriConsumer<SegmentedObject, SegmentedObject, Collection<SegmentedObject>> mergeNextFun = (prev, result, toMergeL) -> {
                 List<SegmentedObject> prevs = nextToAllPrevMap.get(result);
@@ -592,17 +617,18 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 objectSpotMap.get(result);
             };
 
-            // CORRECTION 3: REDUCE OVER-SEGMENTATION ON OBJECTS WITH NO PREV
-            if (divisionCost > 0) {
+            // CORRECTION 4: REDUCE OVER-SEGMENTATION ON OBJECTS WITH NO PREV
+            if (maxCorrectionCost > 0) {
                 List<SegmentedObject> noPrevO = objects.stream().filter(o -> nextToAllPrevMap.get(o) == null).collect(Collectors.toList());
                 if (noPrevO.size() > 1) {
                     mergeFunNoPrev.accept(noPrevO, objects);
                 }
             }
 
-            // CORRECTION 4: USE OF PREDICTION OF DIVISION STATE AND DISPLACEMENT TO REDUCE OVER-SEGMENTATION.
-            if (prediction.division != null && maxCorrectionCost > 0) { // Take into account div map: when 2 objects have same previous cell
-                Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
+            // CORRECTION 5: USE OF PREDICTION OF DIVISION STATE AND DISPLACEMENT TO REDUCE OVER-SEGMENTATION: WHEN ALL OBJECT WITH SAME PREV AND ARE NOT DIVIDING -> TRY TO MERGE THEM
+            double divisionCost = this.divisionCost.getDoubleValue();
+            if (correctDivisions.getSelected()) { // Take into account div map: when 2 objects have same previous cell
+                Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMapPrevMapNext.entrySet().iterator();
                 while (it.hasNext()) {
                     boolean corr = false;
                     Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
@@ -618,7 +644,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                                 corr = true;
                             }
                         }
-                        if (!corr && div.getValue().stream().mapToDouble(o -> BasicMeasurements.getMeanValue(o.getRegion(), prediction.division.get(o.getParent()))).allMatch(d -> d < 0.7)) {
+                        if (!corr && maxCorrectionCost>0 && divThld.getDoubleValue()>0 && prediction.division != null && div.getValue().stream().mapToDouble(divScoreMap::get).allMatch(d -> d < divThld.getDoubleValue())) {
                             // try to merge all objects if they are in contact...
                             List<SegmentedObject> divL = new ArrayList<>(div.getValue());
                             double cost = sm.computeMergeCost(divL);
@@ -719,7 +745,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     e.getValue().stream().filter(p -> nextCount.get(p) > 1).forEach(p -> additionalLinks.add(new SymetricalPair<>(p, e.getKey()))); // this links cannot be encoded in the SegmentedObject
                 }
             });
-            divisionMap.putAll(divMap);
+            divisionMap.putAll(divMapPrevMapNext);
 
             // FLAG ERROR for division that yield more than 3 bacteria
             divisionMap.entrySet().stream().filter(e -> e.getValue().size() > 2).forEach(e -> {
@@ -736,8 +762,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     double growthrate;
                     if (prevs.size() == 1) {
                         SegmentedObject prev = prevs.get(0);
-                        if (divMap.containsKey(prev)) { // compute size of all next objects
-                            growthrate = divMap.get(prev).stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
+                        if (divMapPrevMapNext.containsKey(prev)) { // compute size of all next objects
+                            growthrate = divMapPrevMapNext.get(prev).stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                         } else if (touchBorder.test(prev) || touchBorder.test(next)) {
                             growthrate = Double.NaN; // growth rate cannot be computed bacteria are partly out of the channel
                         } else {
