@@ -7,7 +7,7 @@ import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
-import bacmman.plugins.plugins.segmenters.BacteriaEDM;
+import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.utils.HashMapGetCreate;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
-    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
+    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new EDMCellSegmenter(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, new MinMaxScaler(), true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction. For phase contrast images, default is MinMaxScaler. For fluorescence images use either a constant scaler or ModePercentileScaler or IQRScaler");
 
@@ -174,7 +174,7 @@ public class DistNet implements TrackerSegmenter, TestableProcessingPlugin, Hint
         parentTrack.parallelStream().forEach(p -> {
             Image edmI = edm.get(p);
             Segmenter segmenter = edmSegmenter.instantiatePlugin();
-            if (segmenter instanceof BacteriaEDM) {
+            if (segmenter instanceof EDMCellSegmenter) {
                 //((BacteriaEDM)segmenter).setDivisionCriterionMap(dy,  SplitAndMergeEDM.DIVISION_CRITERION.DY  ,   1  ); // TODO tune this parameter or set as parameter ? // remove this ?
             }
             if (stores!=null && segmenter instanceof TestableProcessingPlugin) {

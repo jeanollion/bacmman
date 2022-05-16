@@ -39,7 +39,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         // perform watershed on probability map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new PredicateMask(proba, minimalProba.getValue().doubleValue(), true, false);
-        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
+        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
@@ -105,7 +105,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
 
     protected SplitAndMergeEDM initSplitAndMerge(Image input) {
         Image probaMap = predict(input)[0];
-        return (SplitAndMergeEDM)new SplitAndMergeEDM(probaMap, probaMap, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
+        return (SplitAndMergeEDM)new SplitAndMergeEDM(probaMap, probaMap, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
     }
 

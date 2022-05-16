@@ -30,16 +30,15 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
     Function<SplitAndMergeEDM.Interface, Double> interfaceValue;
     boolean invert;
     boolean smallEdgesFirst=true;
-
-    public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, INTERFACE_VALUE interfaceValueMode, boolean normalizeEdgeValues) {
-        this(edm, intensityMap, splitThreshold, interfaceValueMode, normalizeEdgeValues, true);
+    public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, INTERFACE_VALUE interfaceValueMode) {
+        this(edm, intensityMap, splitThreshold, interfaceValueMode, false, 3, 2, true);
     }
-    public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, INTERFACE_VALUE interfaceValueMode, boolean normalizeEdgeValues, boolean invert) {
+    public SplitAndMergeEDM(Image edm, Image intensityMap, double splitThreshold, INTERFACE_VALUE interfaceValueMode, boolean normalizeEdgeValues, double localMaxRadius, double localMaxThreshold, boolean invert) {
         super(intensityMap);
         this.edm = edm;
         splitThresholdValue=splitThreshold;
         this.invert = invert;
-        setInterfaceValue(0.5, interfaceValueMode, normalizeEdgeValues);
+        setInterfaceValue(interfaceValueMode, normalizeEdgeValues, localMaxRadius, localMaxThreshold);
     }
 
     public Image drawInterfaceValues(RegionPopulation pop) {
@@ -55,9 +54,9 @@ public class SplitAndMergeEDM extends SplitAndMerge<SplitAndMergeEDM.Interface> 
         return this;
     }
 
-    public SplitAndMergeEDM setInterfaceValue(double quantile, INTERFACE_VALUE mode, boolean normalizeEdgeValues) {
+    public SplitAndMergeEDM setInterfaceValue(INTERFACE_VALUE mode, boolean normalizeEdgeValues, double localMaxRadius, double localMaxThreshold) {
         if (normalizeEdgeValues && this.edmLocalMax==null) {
-            ImageInteger lmMask = Filters.localExtrema(edm, null, true, quantile, null, Filters.getNeighborhood(3, edm));
+            ImageInteger lmMask = Filters.localExtrema(edm, null, true, localMaxThreshold, null, Filters.getNeighborhood(localMaxRadius, edm));
             edmLocalMax = new ImageFloat("edm local max", lmMask);
             ImageMask.loop(lmMask, (x, y, z) -> edmLocalMax.setPixel(x, y, z, edm.getPixel(x, y, z)));
         }

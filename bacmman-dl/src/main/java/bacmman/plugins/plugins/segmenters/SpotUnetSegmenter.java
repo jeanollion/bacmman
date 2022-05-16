@@ -57,7 +57,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
         METHOD method = this.method.getSelectedEnum();
         double minProba = GAUSSIAN_FIT_ON_PREDICTION.equals(method) ? minimalProbability.getValue().doubleValue() : probaRange.getValuesAsDouble()[0];
         PredicateMask mask = new PredicateMask(proba, minProba, true, false);
-        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false)
+        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
         if (THRESHOLD_ON_PREDICTION.equals(method)) sm.setSeedThrehsold(probaRange.getValuesAsDouble()[1]);
         RegionPopulation popWS = sm.split(mask, 0);

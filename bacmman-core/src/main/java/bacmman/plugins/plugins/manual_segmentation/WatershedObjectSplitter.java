@@ -72,7 +72,7 @@ public class WatershedObjectSplitter implements ObjectSplitter {
     }
     // splits regions at the interface with the lowest median value in case decreasingPropagation is true (highest otherwise)
     public static RegionPopulation splitInTwoInterface(Image watershedMap, ImageMask mask, boolean decreasingPropagation, boolean verbose) {
-        SplitAndMergeEDM sm = new SplitAndMergeEDM(watershedMap, watershedMap, 0, SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, false).setSmallEdgesFirst(decreasingPropagation);
+        SplitAndMergeEDM sm = new SplitAndMergeEDM(watershedMap, watershedMap, 0, SplitAndMerge.INTERFACE_VALUE.MEDIAN, false, 1, 1, false).setSmallEdgesFirst(decreasingPropagation);
         sm.setMapsProperties(!decreasingPropagation, !decreasingPropagation);
         RegionPopulation split = sm.split(mask, 10);
         if (verbose) Core.showImage(sm.drawInterfaceValues(split));

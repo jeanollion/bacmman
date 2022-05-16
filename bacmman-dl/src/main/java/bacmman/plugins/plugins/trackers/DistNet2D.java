@@ -7,8 +7,7 @@ import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
-import bacmman.plugins.plugins.segmenters.BacteriaEDM;
-import bacmman.plugins.plugins.segmenters.WatershedSegmenter;
+import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
@@ -30,7 +29,7 @@ import java.util.stream.IntStream;
 public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DistNet2D.class);
     private InterpolationParameter defInterpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.NEAREAST);
-    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new BacteriaEDM(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
+    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new EDMCellSegmenter(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and the <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified and the predicted division probability is lower than 0.7 for all cells, they are merged.");
@@ -42,7 +41,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
     BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
     BooleanParameter brightObjects = new BooleanParameter("Bright Objects", false).setEmphasized(true).setHint("If true: bright objects on dark background (e.g. fluorescence) otherwise dark objects on bright background (e.g. phase contrast). <br/>Use for regions splitting");
-    BooleanParameter useContours = new BooleanParameter("Use Contours", true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently BacteriaEDM is able to use them)");
+    BooleanParameter useContours = new BooleanParameter("Use Contours", true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
 
     enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
 
@@ -767,7 +766,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
         SegmenterSplitAndMerge seg = edmSegmenter.instantiatePlugin();
         if (predictionResults != null && predictionResults.contours != null && useContours.getSelected()) {
-            if (seg instanceof BacteriaEDM) ((BacteriaEDM) seg).setContourImage(predictionResults.contours);
+            if (seg instanceof EDMCellSegmenter) ((EDMCellSegmenter) seg).setContourImage(predictionResults.contours);
         }
         return seg;
     }
@@ -799,11 +798,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
                     PredictionResults pred = predictions.get(new Pair<>(parent, structureIdx));
                     synchronized (seg) {
-                        if (pred.contours != null && seg instanceof BacteriaEDM)
-                            ((BacteriaEDM) seg).setContourImage(pred.contours);
+                        if (pred.contours != null && seg instanceof EDMCellSegmenter)
+                            ((EDMCellSegmenter) seg).setContourImage(pred.contours);
                         RegionPopulation pop = ((ObjectSplitter) seg).splitObject(pred.edm.get(parent), parent, structureIdx, object);
-                        if (pred.contours != null && seg instanceof BacteriaEDM)
-                            ((BacteriaEDM) seg).setContourImage(null);
+                        if (pred.contours != null && seg instanceof EDMCellSegmenter)
+                            ((EDMCellSegmenter) seg).setContourImage(null);
                         return pop;
                     }
                 }
@@ -838,11 +837,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
                     PredictionResults pred = predictions.get(new Pair<>(parent, objectClassIdx));
                     synchronized (seg) {
-                        if (pred.contours != null && seg instanceof BacteriaEDM)
-                            ((BacteriaEDM) seg).setContourImage(pred.contours);
+                        if (pred.contours != null && seg instanceof EDMCellSegmenter)
+                            ((EDMCellSegmenter) seg).setContourImage(pred.contours);
                         RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(pred.edm.get(parent), parent, segmentationMask, objectClassIdx, seedsXYZ);
-                        if (pred.contours != null && seg instanceof BacteriaEDM)
-                            ((BacteriaEDM) seg).setContourImage(null);
+                        if (pred.contours != null && seg instanceof EDMCellSegmenter)
+                            ((EDMCellSegmenter) seg).setContourImage(null);
                         return pop;
                     }
                 }
