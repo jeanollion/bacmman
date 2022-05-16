@@ -42,6 +42,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
     BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
     BooleanParameter brightObjects = new BooleanParameter("Bright Objects", false).setEmphasized(true).setHint("If true: bright objects on dark background (e.g. fluorescence) otherwise dark objects on bright background (e.g. phase contrast). <br/>Use for regions splitting");
+    BooleanParameter useContours = new BooleanParameter("Use Contours", true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently BacteriaEDM is able to use them)");
 
     enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
 
@@ -64,7 +65,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
     ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue() > 1);
 
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, next, edmSegmenter, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, growthRateRange, averagePredictions, frameSubsampling, batchSize, solveSplitAndMergeCond};
+    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -376,7 +377,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         parentTrack.parallelStream().forEach(p -> {
             Image edmI = prediction.edm.get(p);
             Segmenter segmenter = getSegmenter(prediction);
-
             if (stores != null && segmenter instanceof TestableProcessingPlugin) {
                 ((TestableProcessingPlugin) segmenter).setTestDataStore(stores);
             }
@@ -766,8 +766,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
         SegmenterSplitAndMerge seg = edmSegmenter.instantiatePlugin();
-        if (predictionResults != null && predictionResults.contours != null && seg instanceof BacteriaEDM)
-            ((BacteriaEDM) seg).setContourImage(predictionResults.contours);
+        if (predictionResults != null && predictionResults.contours != null && useContours.getSelected()) {
+            if (seg instanceof BacteriaEDM) ((BacteriaEDM) seg).setContourImage(predictionResults.contours);
+        }
         return seg;
     }
 
