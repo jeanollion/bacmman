@@ -176,7 +176,7 @@ public class ExtractRawDataset extends JDialog {
 
     private void setDefaultValues(String outputFile, int[] channels, BoundingBox bounds, FRAME_CHOICE_MODE mode, int nFrames, Task.ExtractZAxis zAXis, int extractZPlaneIdx) {
         if (outputFile != null) this.outputFile.setSelectedFilePath(outputFile);
-        channelSelector.setSelectedIndices(channels);
+        if (channels != null) channelSelector.setSelectedIndices(channels);
         if (bounds != null) {
             xMin.setValue(bounds.xMin());
             xSize.setValue(bounds.sizeX());
@@ -185,8 +185,7 @@ public class ExtractRawDataset extends JDialog {
             zMin.setValue(bounds.zMin());
             zSize.setValue(bounds.sizeZ());
         }
-        if (mode != null) this.frameChoiceMode.setSelectedEnum(mode);
-        else this.frameChoiceMode.setSelectedEnum(null);
+        this.frameChoiceMode.setSelectedEnum(mode);
         this.nFrames.setValue(nFrames);
         this.extractZ.setSelectedEnum(zAXis);
         this.extractZPlaneIdx.setValue(extractZPlaneIdx);

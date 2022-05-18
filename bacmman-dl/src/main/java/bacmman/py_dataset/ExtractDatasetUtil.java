@@ -87,7 +87,7 @@ public class ExtractDatasetUtil {
                         parentSelection = sel;
                     }
                     extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPop, dimensions);
-                    boolean ZtoBatch = feature.v2 instanceof RawImage && ((RawImage)feature.v2).getExtractZDim() == Task.ExtractZAxis.BATCH;
+                    boolean ZtoBatch = feature.v2.getExtractZDim() == Task.ExtractZAxis.BATCH;
                     extractFeature(outputPath, outputName + feature.v1, parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels,  saveLabels, dimensions);
                     saveLabels=false;
                     t.incrementProgress();
@@ -120,36 +120,7 @@ public class ExtractDatasetUtil {
                 image = image.crop(bds);
                 logger.debug("bounds after adjust: {}, image: {}", bds, image.getBoundingBox());
             }
-            switch (t.getExtractRawZAxis()) {
-                case IMAGE3D:
-                case BATCH:
-                default:
-                    return image;
-                case SINGLE_PLANE:
-                    return image.getZPlane(t.getExtractRawZAxisPlaneIdx());
-                case MIDDLE_PLANE:
-                    return image.getZPlane(image.sizeZ()/2);
-                case CHANNEL: // simply transpose dimensions x,y,z -> z,y,x
-                    int sizeZ = image.sizeY();
-                    int sizeY = image.sizeX();
-                    int sizeX = image.sizeZ();
-                    Image im;
-                    switch(image.getBitDepth()) {
-                        case 32:
-                        default:
-                            im = new ImageFloat(image.getName(), sizeX, sizeY, sizeZ);
-                            break;
-                        case 16:
-                            im = new ImageShort(image.getName(), sizeX, sizeY, sizeZ);
-                            break;
-                        case 8:
-                            im = new ImageByte(image.getName(), sizeX, sizeY, sizeZ);
-                            break;
-                    }
-                    Image i = image;
-                    BoundingBox.loop(image, (x, y, z) -> im.setPixel(z, x, y, i.getPixel(x, y, z)));
-                    return im;
-            }
+            return RawImage.handleZ(image, t.getExtractRawZAxis(), t.getExtractRawZAxisPlaneIdx());
         };
         for (String position : positionMapFrames.keySet()) {
             logger.debug("position: {}", position);

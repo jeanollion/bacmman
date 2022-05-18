@@ -4,6 +4,7 @@ import bacmman.configuration.parameters.ObjectClassOrChannelParameter;
 import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.SimpleListParameter;
+import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
@@ -39,6 +40,9 @@ public class ColocalizationData implements FeatureExtractor, Hint {
             ++idx[0];
         });
         return res;
+    }
+    public Task.ExtractZAxis getExtractZDim() {
+        return Task.ExtractZAxis.IMAGE3D;
     }
 
     @Override

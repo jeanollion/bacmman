@@ -1,5 +1,6 @@
 package bacmman.plugins;
 
+import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
@@ -11,4 +12,5 @@ public interface FeatureExtractor extends Plugin {
     Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions);
     InterpolatorFactory interpolation();
     String defaultName();
+    Task.ExtractZAxis getExtractZDim();
 }

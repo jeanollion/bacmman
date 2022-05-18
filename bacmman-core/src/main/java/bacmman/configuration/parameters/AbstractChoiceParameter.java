@@ -129,7 +129,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     }
 
     protected void setCondValue() {
-        if (cond!=null) cond.setActionValue(mapper.apply(selectedItem));
+        if (cond!=null) cond.setActionValue(selectedItem ==null ? null : mapper.apply(selectedItem));
     }
     @Override
     public void setConditionalParameter(ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond) {
