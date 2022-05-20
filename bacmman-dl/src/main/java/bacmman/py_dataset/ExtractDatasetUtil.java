@@ -77,19 +77,20 @@ public class ExtractDatasetUtil {
                             RegionPopulation p = new RegionPopulation(childrenFiltered, parent.getMaskProperties());
                             return resamplePopulation(p, dimensions, eraseTouchingContours.test(feature.v3));
                         });
-                        List<SegmentedObject> allParents = sel.getElements(position).stream().map(SegmentedObject::getParent).distinct().collect(Collectors.toList());
+                        List<SegmentedObject> allParents = allElements.stream().map(SegmentedObject::getParent).distinct().collect(Collectors.toList());
                         parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1){{put(position, allParents);}});
                         parentSelection.setMasterDAO(mDAO);
-
                     }
                     else {
                         resampledPop = resampledPops.get(feature.v3);
                         parentSelection = sel;
                     }
-                    extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPop, dimensions);
-                    boolean ZtoBatch = feature.v2.getExtractZDim() == Task.ExtractZAxis.BATCH;
-                    extractFeature(outputPath, outputName + feature.v1, parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels,  saveLabels, dimensions);
-                    saveLabels=false;
+                    if (!parentSelection.isEmpty()) {
+                        extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPop, dimensions);
+                        boolean ZtoBatch = feature.v2.getExtractZDim() == Task.ExtractZAxis.BATCH;
+                        extractFeature(outputPath, outputName + feature.v1, parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels, saveLabels, dimensions);
+                        saveLabels = false;
+                    }
                     t.incrementProgress();
                 }
                 resampledPops.clear();
