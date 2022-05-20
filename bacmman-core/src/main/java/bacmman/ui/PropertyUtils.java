@@ -20,7 +20,11 @@ package bacmman.ui;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.MasterDAOFactory;
-import bacmman.utils.Utils;
+import bacmman.utils.JSONSerializable;
+import bacmman.utils.JSONUtils;
+import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -178,15 +182,15 @@ public class PropertyUtils {
         return f;
     }
 
-    public static void setPersistant(JMenuItem item, String key, boolean defaultValue) {
+    public static void setPersistent(JMenuItem item, String key, boolean defaultValue) {
         item.setSelected(PropertyUtils.get(key, defaultValue));
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
     }
-    public static void setPersistant(JCheckBox item, String key, boolean defaultValue) {
+    public static void setPersistent(JCheckBox item, String key, boolean defaultValue) {
         item.setSelected(PropertyUtils.get(key, defaultValue));
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
     }
-    public static void setPersistant(JTextField item, String key, String defaultValue, boolean multiple) {
+    public static void setPersistent(JTextField item, String key, String defaultValue, boolean multiple) {
         item.setText(PropertyUtils.get(key, defaultValue));
         for (ActionListener al : item.getActionListeners()) al.actionPerformed(null); // perform action after having set default value
         if (!multiple) item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.getText());PropertyUtils.set(key, item.getText()); });
@@ -228,7 +232,7 @@ public class PropertyUtils {
             });
         }
     }
-    public static int setPersistant(ButtonGroup group, String key, int defaultSelectedIdx) {
+    public static int setPersistent(ButtonGroup group, String key, int defaultSelectedIdx) {
         Enumeration<AbstractButton> enume = group.getElements();
         int idxSel = get(key, defaultSelectedIdx);
         int idx= 0;
@@ -242,7 +246,7 @@ public class PropertyUtils {
         return idxSel;
     }
 
-    public static void setPersistant(Listenable parameter, String key) {
+    public static void setPersistent(Listenable parameter, String key) {
         if (parameter instanceof NumberParameter) {
             NumberParameter np = (NumberParameter)parameter;    
             np.setValue(get(key, np.getValue().doubleValue()));
@@ -261,7 +265,20 @@ public class PropertyUtils {
             tp.addListener(p -> {
                 PropertyUtils.set(key, p.getValue());
             });
-        } else logger.debug("persistance on parameter not supported yet: {} of class {}", parameter.toString(), parameter.getClass());
-        
+        } else if (parameter instanceof JSONSerializable) {
+            JSONSerializable jp = ((JSONSerializable)parameter);
+            String jsonString = get(key, "");
+            if (jsonString.length()>0) {
+                try {
+                    Object o = new JSONParser().parse(jsonString);
+                    jp.initFromJSONEntry(o);
+                } catch (ParseException ex) {
+                    logger.info("Persistence error for "+key+": could not parse: "+jsonString, ex);
+                }
+            }
+            parameter.addListener(p -> {
+                PropertyUtils.set(key, ((JSONSerializable)p).toJSONEntry().toString());
+            });
+        } else logger.debug("persistence on parameter not supported yet: {} of class {}", parameter.toString(), parameter.getClass());
     }
 }

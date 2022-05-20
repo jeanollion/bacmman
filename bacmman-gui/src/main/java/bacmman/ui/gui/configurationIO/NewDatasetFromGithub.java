@@ -9,7 +9,6 @@ import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
-import org.eclipse.collections.api.block.function.primitive.BooleanFunction;
 import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -109,7 +108,7 @@ public class NewDatasetFromGithub extends JDialog {
             updateRemoteSelector();
         });
         // persistence of username account:
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true);
+        PropertyUtils.setPersistent(username, "GITHUB_USERNAME", "jeanollion", true);
         buttonOK.setEnabled(false);
     }
 

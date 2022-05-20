@@ -151,6 +151,43 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
     private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory");
 
+    private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
+            "  1 means to allocate all of the GPU memory, 0.5 means the process\n" +
+            "  allocates up to ~50% of the available GPU memory.\n" +
+            "  GPU memory is pre-allocated unless the allow_growth option is enabled.\n" +
+            "  If greater than 1.0, uses CUDA unified memory to potentially oversubscribe\n" +
+            "  the amount of memory available on the GPU device by using host memory as a\n" +
+            "  swap space. Accessing memory not available on the device will be\n" +
+            "  significantly slower as that would require memory transfer between the host\n" +
+            "  and the device. Options to reduce the memory requirement should be\n" +
+            "  considered before enabling this option as this may come with a negative\n" +
+            "  performance impact. Oversubscription using the unified memory requires\n" +
+            "  Pascal class or newer GPUs and it is currently only supported on the Linux\n" +
+            "  operating system. See\n" +
+            "  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#um-requirements\n" +
+            "  for the detailed requirements.");
+    private TextParameter tfSetAllowGrowth = new TextParameter("Set Allow Growth", "true", false, false).setHint("If true, the allocator does not pre-allocate the entire specified GPU memory region, instead starting small and growing as needed.");
+    private TextParameter tfVisibleDeviceList = new TextParameter("Visible GPU List").setHint("Comma-separated list of GPU ids that determines the 'visible'\n" +
+            "  to 'virtual' mapping of GPU devices.  For example, if TensorFlow\n" +
+            "  can see 8 GPU devices in the process, and one wanted to map\n" +
+            "  visible GPU devices 5 and 3 as \"/device:GPU:0\", and \"/device:GPU:1\",\n" +
+            "  then one would specify this field as \"5,3\".  This field is similar in\n" +
+            "  spirit to the CUDA_VISIBLE_DEVICES environment variable, except\n" +
+            "  it applies to the visible GPU devices in the process.\n" +
+            "  NOTE:\n" +
+            "  1. The GPU driver provides the process with the visible GPUs\n" +
+            "     in an order which is not guaranteed to have any correlation to\n" +
+            "     the *physical* GPU id in the machine.  This field is used for\n" +
+            "     remapping \"visible\" to \"virtual\", which means this operates only\n" +
+            "     after the process starts.  Users are required to use vendor\n" +
+            "     specific mechanisms (e.g., CUDA_VISIBLE_DEVICES) to control the\n" +
+            "     physical to visible device mapping prior to invoking TensorFlow.\n" +
+            "  2. In the code, the ids in this list are also called \"platform GPU id\"s,\n" +
+            "     and the 'virtual' ids of GPU devices (i.e. the ids in the device\n" +
+            "     name \"/device:GPU:<id>\") are also called \"TF GPU id\"s. Please\n" +
+            "     refer to third_party/tensorflow/core/common_runtime/gpu/gpu_id.h\n" +
+            "     for more information.");
+
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
@@ -236,6 +273,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
         helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
         localZoomMenu.setToolTipText(formatHint("Local zoom is activated/deactivated with TAB"));
+        localZoomMenu.setToolTipText(formatHint("Tensorflow Option"));
         roiMenu.setToolTipText(formatHint("Controls on displayed annotations"));
         this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite pre-processing template"));
         this.selectionPanel.setToolTipText(formatHint("Selections are lists of segmented objects.<br />" +
@@ -281,27 +319,27 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         measurementMode.add(measurementModeDeleteRadioButton);
         measurementMode.add(measurementModeOverwriteRadioButton);
         measurementMode.add(measurementModeOnlyNewRadioButton);
-        PropertyUtils.setPersistant(measurementMode, "measurement_mode", 0);
+        PropertyUtils.setPersistent(measurementMode, "measurement_mode", 0);
         
         // import / export options
-        PropertyUtils.setPersistant(importConfigMenuItem, "import_config", true);
-        PropertyUtils.setPersistant(importSelectionsMenuItem, "import_selections", true);
-        PropertyUtils.setPersistant(importObjectsMenuItem, "import_objects", true);
-        PropertyUtils.setPersistant(importPPImagesMenuItem, "import_ppimages", true);
-        PropertyUtils.setPersistant(importTrackImagesMenuItem, "import_trackImages", true);
-        PropertyUtils.setPersistant(exportConfigMenuItem, "export_config", true);
-        PropertyUtils.setPersistant(exportSelectionsMenuItem, "export_selections", true);
-        PropertyUtils.setPersistant(exportObjectsMenuItem, "export_objects", true);
-        PropertyUtils.setPersistant(exportPPImagesMenuItem, "export_ppimages", true);
-        PropertyUtils.setPersistant(exportTrackImagesMenuItem, "export_trackImages", true);
+        PropertyUtils.setPersistent(importConfigMenuItem, "import_config", true);
+        PropertyUtils.setPersistent(importSelectionsMenuItem, "import_selections", true);
+        PropertyUtils.setPersistent(importObjectsMenuItem, "import_objects", true);
+        PropertyUtils.setPersistent(importPPImagesMenuItem, "import_ppimages", true);
+        PropertyUtils.setPersistent(importTrackImagesMenuItem, "import_trackImages", true);
+        PropertyUtils.setPersistent(exportConfigMenuItem, "export_config", true);
+        PropertyUtils.setPersistent(exportSelectionsMenuItem, "export_selections", true);
+        PropertyUtils.setPersistent(exportObjectsMenuItem, "export_objects", true);
+        PropertyUtils.setPersistent(exportPPImagesMenuItem, "export_ppimages", true);
+        PropertyUtils.setPersistent(exportTrackImagesMenuItem, "export_trackImages", true);
         // image display limit
-        PropertyUtils.setPersistant(openImageLimit, "limit_disp_images");
+        PropertyUtils.setPersistent(openImageLimit, "limit_disp_images");
         ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue());
         openImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue()));
         ConfigurationTreeGenerator.addToMenu(openImageLimit.getName(), ParameterUIBinder.getUI(openImageLimit).getDisplayComponent(), openImageNumberLimitMenu);
 
         // interactive image type
-        PropertyUtils.setPersistant(interactiveImageType, "interactive_type");
+        PropertyUtils.setPersistent(interactiveImageType, "interactive_type");
         Consumer<ChoiceParameter> setDefInteractiveType = c -> {
             if (c.getSelectedItem().equals("AUTOMATIC")) {
                 ImageWindowManager.setDefaultInteractiveType(null);
@@ -316,7 +354,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(interactiveImageType, defaultInteractiveImageMenu);
         // hyperstack mode
         // interactive image type
-        PropertyUtils.setPersistant(hyperstackMode, "hyperstack_mode");
+        PropertyUtils.setPersistent(hyperstackMode, "hyperstack_mode");
         Consumer<ChoiceParameter> setHyperstackMode = c -> {
             if (c.getSelectedItem().equals("IMAGE5D")) {
                 IJVirtualStack.OpenAsImage5D = true;
@@ -328,33 +366,52 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         hyperstackMode.addListener(setHyperstackMode);
         ConfigurationTreeGenerator.addToMenu(hyperstackMode, hyperstackModeImageMenu);
         // kymograph interval
-        PropertyUtils.setPersistant(kymographInterval, "kymograph_interval");
+        PropertyUtils.setPersistent(kymographInterval, "kymograph_interval");
         Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue();
         kymographInterval.addListener(p->Kymograph.INTERVAL_PIX = kymographInterval.getValue().intValue());
         ConfigurationTreeGenerator.addToMenu(kymographInterval.getName(), ParameterUIBinder.getUI(kymographInterval).getDisplayComponent(), kymographMenu);
 
         // local zoom
-        PropertyUtils.setPersistant(localZoomFactor, "local_zoom_factor");
-        PropertyUtils.setPersistant(localZoomArea, "local_zoom_area");
-        PropertyUtils.setPersistant(localZoomScale, "local_zoom_scale");
+        PropertyUtils.setPersistent(localZoomFactor, "local_zoom_factor");
+        PropertyUtils.setPersistent(localZoomArea, "local_zoom_area");
+        PropertyUtils.setPersistent(localZoomScale, "local_zoom_scale");
 
         ConfigurationTreeGenerator.addToMenu(localZoomFactor.getName(), ParameterUIBinder.getUI(localZoomFactor).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomArea.getName(), ParameterUIBinder.getUI(localZoomArea).getDisplayComponent(), localZoomMenu);
         ConfigurationTreeGenerator.addToMenu(localZoomScale.getName(), ParameterUIBinder.getUI(localZoomScale).getDisplayComponent(), localZoomMenu);
 
         // roi
-        PropertyUtils.setPersistant(roiStrokeWidth, "roi_stroke_width");
+        PropertyUtils.setPersistent(roiStrokeWidth, "roi_stroke_width");
         ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue());
         roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue()));
         ConfigurationTreeGenerator.addToMenu(roiStrokeWidth.getName(), ParameterUIBinder.getUI(roiStrokeWidth).getDisplayComponent(), roiMenu);
 
         ConfigurationTreeGenerator.addToMenu(memoryThreshold.getName(), ParameterUIBinder.getUI(memoryThreshold).getDisplayComponent(), memoryMenu);
-        PropertyUtils.setPersistant(memoryThreshold, "memory_threshold");
+        PropertyUtils.setPersistent(memoryThreshold, "memory_threshold");
+
+        // tensorflow
+        PropertyUtils.setPersistent(tfPerProcessGpuMemoryFraction, "tf_per_process_gpu_memory_fraction");
+        PropertyUtils.setPersistent(tfSetAllowGrowth, "tf_set_allow_growth");
+        PropertyUtils.setPersistent(tfVisibleDeviceList, "tf_visible_device_list");
+
+        ConfigurationTreeGenerator.addToMenu(tfVisibleDeviceList.getName(), ParameterUIBinder.getUI(tfVisibleDeviceList).getDisplayComponent(), tensorflowMenu);
+        ConfigurationTreeGenerator.addToMenu(tfSetAllowGrowth.getName(), ParameterUIBinder.getUI(tfSetAllowGrowth).getDisplayComponent(), tensorflowMenu);
+        ConfigurationTreeGenerator.addToMenu(tfPerProcessGpuMemoryFraction.getName(), ParameterUIBinder.getUI(tfPerProcessGpuMemoryFraction).getDisplayComponent(), tensorflowMenu);
+        Runnable setTFProps = () -> {
+            Core.getCore().tfPerProcessGpuMemoryFraction = tfPerProcessGpuMemoryFraction.getDoubleValue();
+            Core.getCore().tfSetAllowGrowth = !"false".equalsIgnoreCase(tfSetAllowGrowth.getValue());
+            Core.getCore().tfVisibleDeviceList = tfVisibleDeviceList.getValue();
+            if (db!=null) db.getExperiment().getDLengineProvider().closeAllEngines();
+        };
+        setTFProps.run();
+        tfVisibleDeviceList.addListener(p->setTFProps.run());
+        tfSetAllowGrowth.addListener(p->setTFProps.run());
+        tfPerProcessGpuMemoryFraction.addListener(p->setTFProps.run());
 
         // python gateway
-        PropertyUtils.setPersistant(pyGatewayPort, "py_gateway_port");
-        PropertyUtils.setPersistant(pyGatewayPythonPort, "py_gateway_python_port");
-        PropertyUtils.setPersistant(pyGatewayAddress, "py_gateway_address");
+        PropertyUtils.setPersistent(pyGatewayPort, "py_gateway_port");
+        PropertyUtils.setPersistent(pyGatewayPythonPort, "py_gateway_python_port");
+        PropertyUtils.setPersistent(pyGatewayAddress, "py_gateway_address");
         ConfigurationTreeGenerator.addToMenu(pyGatewayPort.getName(), ParameterUIBinder.getUI(pyGatewayPort).getDisplayComponent(), pyGatewayMenu);
         ConfigurationTreeGenerator.addToMenu(pyGatewayPythonPort.getName(), ParameterUIBinder.getUI(pyGatewayPythonPort).getDisplayComponent(), pyGatewayMenu);
         ConfigurationTreeGenerator.addToMenu(pyGatewayAddress.getName(), ParameterUIBinder.getUI(pyGatewayAddress).getDisplayComponent(), pyGatewayMenu);
@@ -632,7 +689,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY);
-        PropertyUtils.setPersistant(shortcutPreset, "shortcut_preset");
+        PropertyUtils.setPersistent(shortcutPreset, "shortcut_preset");
         
         this.shortcuts = new Shortcuts(actionMap, shortcutPreset.getSelectedEnum(), ()->ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage());
         
@@ -1557,6 +1614,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         clearPPImageMenuItem = new javax.swing.JMenuItem();
         openImageNumberLimitMenu = new javax.swing.JMenu();
         localZoomMenu = new javax.swing.JMenu();
+        tensorflowMenu = new javax.swing.JMenu();
         roiMenu = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
         defaultInteractiveImageMenu = new javax.swing.JMenu();
@@ -2728,6 +2786,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         pyGatewayMenu.setText("Python Gateway");
         miscMenu.add(pyGatewayMenu);
+
+        tensorflowMenu.setText("Tensorflow Options");
+        miscMenu.add(tensorflowMenu);
 
         logMenu.setText("Log");
 
@@ -4916,6 +4977,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu localDBMenu;
     private javax.swing.JRadioButtonMenuItem localFileSystemDatabaseRadioButton;
     private javax.swing.JMenu localZoomMenu;
+    private javax.swing.JMenu tensorflowMenu;
     private javax.swing.JMenu roiMenu;
     private javax.swing.JMenu logMenu;
     private javax.swing.JMenuBar mainMenu;

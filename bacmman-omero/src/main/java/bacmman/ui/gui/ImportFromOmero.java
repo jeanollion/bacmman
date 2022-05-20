@@ -58,9 +58,9 @@ public class ImportFromOmero extends JFrame {
                 password.setText(String.valueOf(savedPassword.get(username.getText())));
             updateConnectButton();
         });
-        PropertyUtils.setPersistant(username, "OMERO_USERNAME", "", true);
-        PropertyUtils.setPersistant(hostname, "OMERO_HOSTNAME", "localhost", true);
-        PropertyUtils.setPersistant(displayAllUsersCheckBox, "OMERO_SHOW_ALL_USERS", false);
+        PropertyUtils.setPersistent(username, "OMERO_USERNAME", "", true);
+        PropertyUtils.setPersistent(hostname, "OMERO_HOSTNAME", "localhost", true);
+        PropertyUtils.setPersistent(displayAllUsersCheckBox, "OMERO_SHOW_ALL_USERS", false);
         updateConnectButton();
         updateImportButton();
         DocumentListener dl = new DocumentListener() {

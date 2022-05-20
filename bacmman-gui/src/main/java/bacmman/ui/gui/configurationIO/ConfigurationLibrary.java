@@ -10,10 +10,8 @@ import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
-import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.EnumerationUtils;
 import bacmman.utils.IconUtils;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -28,14 +26,11 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import javax.swing.tree.TreeNode;
-import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Enumeration;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -469,7 +464,7 @@ public class ConfigurationLibrary {
             }
         });
         // persistence of username account:
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true);
+        PropertyUtils.setPersistent(username, "GITHUB_USERNAME", "jeanollion", true);
 
         setWholeConfig();
 

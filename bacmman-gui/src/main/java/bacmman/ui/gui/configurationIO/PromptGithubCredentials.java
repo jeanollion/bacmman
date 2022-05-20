@@ -1,8 +1,6 @@
 package bacmman.ui.gui.configurationIO;
 
 import bacmman.core.GithubGateway;
-import bacmman.github.gist.*;
-import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -42,7 +40,7 @@ public class PromptGithubCredentials extends JDialog {
                 password.setText(String.valueOf(gateway.getPassword(username.getText())));
             updateEnableButtons(false);
         });
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "", true);
+        PropertyUtils.setPersistent(username, "GITHUB_USERNAME", "", true);
         if (gateway.getUsername() != null && gateway.getUsername().length() > 0)
             username.setText(gateway.getUsername());
         updateEnableButtons(false);

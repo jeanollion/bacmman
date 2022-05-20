@@ -10,7 +10,6 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.HashMap;
 import java.util.Map;
 
 public class PromptOmeroConnectionInformation extends JDialog {
@@ -36,8 +35,8 @@ public class PromptOmeroConnectionInformation extends JDialog {
                 password.setText(String.valueOf(savedPassword.get(username.getText())));
             updateOKButton();
         });
-        PropertyUtils.setPersistant(username, "OMERO_USERNAME", "", true);
-        PropertyUtils.setPersistant(hostname, "OMERO_HOSTNAME", "localhost", true);
+        PropertyUtils.setPersistent(username, "OMERO_USERNAME", "", true);
+        PropertyUtils.setPersistent(hostname, "OMERO_HOSTNAME", "localhost", true);
 
         updateOKButton();
         DocumentListener dl = new DocumentListener() {

@@ -2,9 +2,7 @@ package bacmman.ui.gui.configurationIO;
 
 import bacmman.github.gist.JSONQuery;
 import bacmman.github.gist.TokenAuth;
-import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
-import bacmman.ui.gui.Utils;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Pair;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -18,7 +16,6 @@ import javax.swing.border.TitledBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.event.HyperlinkEvent;
-import javax.swing.event.HyperlinkListener;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
@@ -50,7 +47,7 @@ public class GenerateGistToken extends JDialog {
         setContentPane(contentPane);
         setModal(true);
         setPreferredSize(new Dimension(600, 450));
-        PropertyUtils.setPersistant(this.username, "GITHUB_USERNAME", "", true);
+        PropertyUtils.setPersistent(this.username, "GITHUB_USERNAME", "", true);
         addCopyMenu(token, true, true);
         addCopyMenu(this.password, true, true);
         addCopyMenu(this.username, true, true);

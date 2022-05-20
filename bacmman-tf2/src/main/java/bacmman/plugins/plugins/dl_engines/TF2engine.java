@@ -1,6 +1,7 @@
 package bacmman.plugins.plugins.dl_engines;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
 import bacmman.plugins.DLengine;
@@ -12,6 +13,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
 import org.tensorflow.ndarray.buffer.FloatDataBuffer;
+import org.tensorflow.proto.framework.ConfigProto;
+import org.tensorflow.proto.framework.DeviceProperties;
+import org.tensorflow.proto.framework.GPUOptions;
 import org.tensorflow.types.TFloat32;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -47,7 +51,24 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     @Override
     public synchronized void init() {
         if (model==null) {
-            model = SavedModelBundle.load(modelFile.getModelFile().getAbsolutePath(), "serve");
+            logger.debug("GPU options: visible device list {}, per process memory fraction: {}, allow growth: {}" ,Core.getCore().tfVisibleDeviceList, Core.getCore().tfPerProcessGpuMemoryFraction, Core.getCore().tfSetAllowGrowth);
+            // TO SET THE GPU : https://github.com/tensorflow/java/issues/443
+            GPUOptions gpu = GPUOptions.newBuilder() //
+                    .setVisibleDeviceList(Core.getCore().tfVisibleDeviceList)
+                    .setPerProcessGpuMemoryFraction(Core.getCore().tfPerProcessGpuMemoryFraction) //
+                    .setAllowGrowth(Core.getCore().tfSetAllowGrowth) //
+                    .build(); //
+            ConfigProto configProto = ConfigProto.newBuilder() //
+                    .setAllowSoftPlacement(true) //
+                    .setLogDevicePlacement(true) //
+                    .mergeGpuOptions(gpu) //
+                    .build(); //
+            model = SavedModelBundle
+                    .loader(modelFile.getModelFile().getAbsolutePath())
+                    .withTags("serve")
+                    .withConfigProto(configProto)
+                    .load();
+            //model = SavedModelBundle.load(modelFile.getModelFile().getAbsolutePath(), "serve");
             Signature s = model.function("serving_default").signature();
             //System.setOut(stdout);
             logger.debug("model signature : {}", s.toString());

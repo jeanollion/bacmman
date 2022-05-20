@@ -60,6 +60,9 @@ public class Core {
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
     private static GithubGateway githubGateway;
+    public String tfVisibleDeviceList="";
+    public boolean tfSetAllowGrowth=false;
+    public double tfPerProcessGpuMemoryFraction=1;
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {

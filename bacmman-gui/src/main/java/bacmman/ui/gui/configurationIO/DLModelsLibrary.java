@@ -66,7 +66,7 @@ public class DLModelsLibrary {
         this.onClose = onClose;
         if (pcb instanceof JFrame) displayingFrame = (JFrame) pcb;
         // persistence of username account:
-        PropertyUtils.setPersistant(username, "GITHUB_USERNAME", "jeanollion", true); // TODO sabilab instead ?
+        PropertyUtils.setPersistent(username, "GITHUB_USERNAME", "jeanollion", true); // TODO sabilab instead ?
         if (gateway.getUsername() != null && gateway.getUsername().length() > 0)
             username.setText(gateway.getUsername());
         if (password.getPassword().length == 0 && gateway.getPassword(username.getText()) != null)
