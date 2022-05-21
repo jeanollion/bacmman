@@ -88,8 +88,8 @@ public class ExperimentSearchUtils {
         Map<String, File> configs = new HashMap<>();
         Set<Pair<String, File>> dup = new HashSet<>();
         if (f.isDirectory()) { // only in directories included in path
-            File[] sub = f.listFiles(subF -> subF.isDirectory());
-            for (File subF : sub) addConfig(subF, configs, dup);
+            File[] sub = f.listFiles(File::isDirectory);
+            if (sub != null) for (File subF : sub) addConfig(subF, configs, dup);
         } 
         if (!dup.isEmpty()) {
             for (Pair<String, File> p : dup) {

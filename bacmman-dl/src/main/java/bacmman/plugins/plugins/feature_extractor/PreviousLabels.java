@@ -39,7 +39,7 @@ public class PreviousLabels implements FeatureExtractor, Hint {
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
         RegionPopulation curPop = resampledPopulation.get(parent);
-        Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().size(), curPop.getImageProperties());
+        Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().stream().mapToInt(Region::getLabel).max().orElse(0), curPop.getImageProperties());
         if (parent.getPrevious()!=null && resampledPopulation.get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
             parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null).forEach(c -> {
                 Region r = curPop.getRegion(c.getIdx()+1);
