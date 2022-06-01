@@ -57,6 +57,9 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
         return value;
     }
     public int getIntValue() {return value.intValue();}
+
+    public long getLongValue() {return value.longValue();}
+
     public double getDoubleValue() {return value.doubleValue();}
     public void setValue(Number value) {
         this.value=value;

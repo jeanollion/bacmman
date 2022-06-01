@@ -76,7 +76,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
             this.selectedItem=listChoice[selectedIndex];
             this.selectedIndex=selectedIndex;
         } else {
-            selectedIndex=-1;
+            this.selectedIndex=-1;
             selectedItem=getNoSelectionString();
         }
         fireListeners();
@@ -148,15 +148,6 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
         super(name);
         this.selectedItem=selectedItem;
     }
-    
-    //@PostLoad
-    /*public void postLoad() {
-        if (!postLoaded) {
-            selectedIndex=Utils.getIndex(listChoice, selectedItem); 
-            postLoaded = true;
-        }
-    }
-    */
 
     @Override
     public Object toJSONEntry() {
@@ -167,15 +158,26 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     public void initFromJSONEntry(Object json) {
         if (json instanceof String) {
             setSelectedItem((String)json);
+            if (getSelectedIndex()==-1) legacyInit();
         } else throw new IllegalArgumentException("JSON Entry is not String");
     }
 
     // legacy init
+
+    /**
+     * When parameter cannot be initialized, this value is used as default. Useful when parametrization of a module has changed.
+     * @param value default value
+     * @return this parameter for convenience
+     */
     @Override
     public P setLegacyInitializationValue(V value) {
         this.legacyInitItem = value;
         return (P)this;
     }
+
+    /**
+     * This method is run when a parameter cannot be initialized, meaning that the parametrization of the module has changed.
+     */
     @Override
     public void legacyInit() {
         if (legacyParameter!=null && setValue!=null) legacyInitItem = setValue.apply(legacyParameter);
@@ -187,6 +189,13 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     V legacyInitItem;
     Parameter legacyParameter;
     Function<Parameter, V> setValue;
+
+    /**
+     * When a parameter A of a module has been replaced by B, this methods allows to initialize B using the former value of A
+     * @param p
+     * @param setValue
+     * @return
+     */
     public P setLegacyParameter(Parameter p, Function<Parameter, V> setValue) {
         this.legacyParameter = p;
         this.setValue = setValue;

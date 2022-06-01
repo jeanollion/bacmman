@@ -19,7 +19,7 @@
 package bacmman.core;
 
 import bacmman.configuration.experiment.PreProcessingChain;
-import bacmman.configuration.parameters.DLModelFileParameter;
+import bacmman.configuration.parameters.MLModelFileParameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.Processor;
@@ -519,8 +519,8 @@ public class Task implements ProgressCallback{
 
     public boolean isValid() {
         initDB(); // read only by default
-        Map<String, DLModelFileParameter> dlModelToDownload= new HashMap<>();
-        Consumer<List<DLModelFileParameter>> analyzeDLModelFP = l -> l.stream().filter(DLModelFileParameter::needsToDownloadModel).forEach(m -> dlModelToDownload.put(m.getModelFilePath(), m));
+        Map<String, MLModelFileParameter> dlModelToDownload= new HashMap<>();
+        Consumer<List<MLModelFileParameter>> analyzeDLModelFP = l -> l.stream().filter(MLModelFileParameter::needsToDownloadModel).forEach(m -> dlModelToDownload.put(m.getModelFilePath(), m));
         if (db.getExperiment()==null) {
             errors.addExceptions(new Pair(dbName, new Exception("DB: "+ dbName+ " not found")));
             printErrors();
@@ -570,7 +570,7 @@ public class Task implements ProgressCallback{
             for (int p : positions) {
                 if (!db.getExperiment().getPosition(p).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Position: "+ db.getExperiment().getPosition(p).getName())));
                 // check dl model is on disk
-                List<DLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getPosition(p), DLModelFileParameter.class);
+                List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getPosition(p), MLModelFileParameter.class);
                 analyzeDLModelFP.accept(dlModelFP);
             }
         }
@@ -578,7 +578,7 @@ public class Task implements ProgressCallback{
             ensurePositionAndStructures(false, true);
             for (int s : structures) {
                 if (!db.getExperiment().getStructure(s).isValid()) errors.addExceptions(new Pair(dbName, new Exception("Configuration error @ Object Class: "+ db.getExperiment().getStructure(s).getName())));
-                List<DLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getStructure(s), DLModelFileParameter.class);
+                List<MLModelFileParameter> dlModelFP = ParameterUtils.getParameterByClass(db.getExperiment().getStructure(s), MLModelFileParameter.class);
                 analyzeDLModelFP.accept(dlModelFP);
             }
         }

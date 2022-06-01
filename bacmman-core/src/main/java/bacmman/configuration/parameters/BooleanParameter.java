@@ -73,11 +73,4 @@ public class BooleanParameter extends AbstractChoiceParameter<Boolean, BooleanPa
     public Object toJSONEntry() {
         return selectedItem;
     }
-
-    @Override
-    public void initFromJSONEntry(Object json) {
-        if (json instanceof String) {
-            setSelectedItem((String)json);
-        } else throw new IllegalArgumentException("JSON Entry is not String");
-    }
 }

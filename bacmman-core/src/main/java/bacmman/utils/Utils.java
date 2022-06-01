@@ -113,6 +113,17 @@ public class Utils {
         }
         return true;
     }
+
+    public static <T> boolean objectsAllHaveSameProperty(Collection<T> objects, BiPredicate<T, T> equals) {
+        if (objects==null || objects.size()<=1) return true;
+        T ref = null;
+        for (T o: objects) {
+            if (ref==null) ref = o;
+            else if (!equals.test(ref, o)) return false;
+        }
+        return true;
+    }
+
     public static <T, P> boolean twoObjectsHaveSameProperty(Collection<T> objects, Function<T, P> propertyFunction) {
         if (objects==null || objects.size()<=1) return true;
         Set<P> allProperties = new HashSet<>(objects.size());

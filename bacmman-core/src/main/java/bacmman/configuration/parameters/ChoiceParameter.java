@@ -50,21 +50,4 @@ public class ChoiceParameter extends AbstractChoiceParameter<String, ChoiceParam
         this.setSelectedItem(value);
     }
 
-
-    public static String NO_SELECTION="no selection";
-    @Override
-    public String getNoSelectionString() {
-        return NO_SELECTION;
-    }
-    @Override
-    public Object toJSONEntry() {
-        return selectedItem;
-    }
-
-    @Override
-    public void initFromJSONEntry(Object json) {
-        if (json instanceof String) {
-            setSelectedItem((String)json);
-        } else throw new IllegalArgumentException("JSON Entry is not String");
-    }
 }

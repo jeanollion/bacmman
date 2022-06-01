@@ -1,6 +1,6 @@
 package bacmman.configuration.parameters.ui;
 
-import bacmman.configuration.parameters.DLModelFileParameter;
+import bacmman.configuration.parameters.MLModelFileParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParameterUtils;
 import bacmman.core.Core;
@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 public class DLModelFileParameterUI implements ParameterUI {
     JMenuItem openDLModelLibrary;
     JMenuItem downloadModel;
-    public DLModelFileParameterUI(DLModelFileParameter parameter, ConfigurationTreeModel model) {
+    public DLModelFileParameterUI(MLModelFileParameter parameter, ConfigurationTreeModel model) {
         openDLModelLibrary = new JMenuItem("Configure From Library");
         openDLModelLibrary.setAction(
                 new AbstractAction("Configure From Library") {

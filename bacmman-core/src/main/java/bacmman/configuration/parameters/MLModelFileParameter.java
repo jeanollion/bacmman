@@ -1,27 +1,20 @@
 package bacmman.configuration.parameters;
 
-import bacmman.configuration.experiment.Experiment;
-import bacmman.core.GithubGateway;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
-import bacmman.plugins.Plugin;
 import bacmman.ui.logger.ProgressLogger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
-import static bacmman.github.gist.JSONQuery.logger;
 
-public class DLModelFileParameter extends ContainerParameterImpl<DLModelFileParameter> {
-    FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("../../DLModels").setEmphasized(true).setHint("Select the folder containing the saved model (.pb file for tensorflow)");
+public class MLModelFileParameter extends ContainerParameterImpl<MLModelFileParameter> {
+    FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("../../DLModels").setEmphasized(true).setHint("Deep learning with Tensorflow: Select the folder containing the saved model (.pb file)<br/>Ilastik: select project file (.ilp)");
     TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
     Consumer<DLModelMetadata> metadataConsumer;
     LargeFileGist lf;
@@ -32,11 +25,20 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
         String[] sub = f.list((file, s) -> s.endsWith(".pb") || s.endsWith(".pbtxt"));
         return sub != null && sub.length != 0;
     };
+    public static Predicate<String> isIlastikProject = p -> {
+        File f = new File(p);
+        if (f.isFile()) return f.getName().endsWith(".ilp");
+        else return false;
+    };
     // add option to download model
-    public DLModelFileParameter(String name) {
+    public MLModelFileParameter(String name) {
         super(name);
     }
-    public DLModelFileParameter setValidDirectory(Predicate<String> validDirectory) {
+    public MLModelFileParameter setFileChooserOption(FileChooser.FileChooserOption option) {
+        modelFile.setOption(option);
+        return this;
+    }
+    public MLModelFileParameter setValidDirectory(Predicate<String> validDirectory) {
         this.validDirectory=validDirectory;
         modelFile.setPathValidation(validDirectory);
         return this;
@@ -47,7 +49,7 @@ public class DLModelFileParameter extends ContainerParameterImpl<DLModelFilePara
     public String getSelectedPath() {
         return modelFile.getFirstSelectedFilePath();
     }
-    public DLModelFileParameter setMetadataConsumer(Consumer<DLModelMetadata> consumer) {
+    public MLModelFileParameter setMetadataConsumer(Consumer<DLModelMetadata> consumer) {
         metadataConsumer = consumer;
         return this;
     }

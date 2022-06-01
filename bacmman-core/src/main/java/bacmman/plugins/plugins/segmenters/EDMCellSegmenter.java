@@ -25,7 +25,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
 
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 4, 2.75, 0.0001, null ).setEmphasized(true).setHint("Controls over-segmentation. With a lower value, the method will split more bacteria. See <em>Foreground detection: Interface Values</em> map in test mode to tune this parameter: when this parameter is higher than the value at interface between two regions, they are merged<br />When two regions are in contact, an interface criterion is computed as the median EDM value at the interface, normalized by the median value of local extrema of EDM in the two segmented regions. <br/>Note that if the parameter <em>Invert</em> is set to false, the behavior is inverted: with a higher value, the method will split more bacteria");
     BoundedNumberParameter minimalEDMValue = new BoundedNumberParameter("Minimal EDM value", 4, 1, 0.1, null ).setEmphasized(true).setHint("EDM value inferior to this parameter are considered to be part of background").setEmphasized(true);
-    BoundedNumberParameter minMaxEDMValue = new BoundedNumberParameter("Minimal Max EDM value", 4, 2, 1, null ).setEmphasized(true).setHint("Bacteria with maximal EDM value inferior to this parameter will be removed").setEmphasized(true);
+    BoundedNumberParameter minMaxEDMValue = new BoundedNumberParameter("Minimal Max EDM value", 4, 2, 0.5, null ).setEmphasized(true).setHint("Bacteria with maximal EDM value inferior to this parameter will be removed").setEmphasized(true);
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 20, 1, null ).setEmphasized(true).setHint("Bacteria with size (in pixels) inferior to this value will be erased");
     BooleanParameter normalizeInterfaceValue = new BooleanParameter("Normalize Interface", true).setHint("If True, interface value is normalized by the median value of local extrema of EDM in the two segmented regions");
     BoundedNumberParameter lmThreshold = new BoundedNumberParameter("Local Max Threshold", 4, 2, 0.5, null ).setHint("Local Max used for normalization have an EDM value greater than this threshold");
@@ -53,7 +53,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         int minSize = this.minimalSize.getValue().intValue();
         double minMaxEDM = this.minMaxEDMValue.getValue().doubleValue();
         double minEDM = this.minimalEDMValue.getValue().doubleValue();
-        res.filter(object -> object.size()>minSize && (minMaxEDM < minEDM || BasicMeasurements.getMaxValue(object, edm)>minMaxEDM));
+        res.filter(object -> object.size()>minSize && (minMaxEDM < minEDM || BasicMeasurements.getMaxValue(object, edm)>=minMaxEDM));
         return res;
     }
     List<FusionCriterion<Region, I>> fusionCriteria = new ArrayList<>();

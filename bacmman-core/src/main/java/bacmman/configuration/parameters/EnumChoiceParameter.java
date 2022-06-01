@@ -84,15 +84,4 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
     public String getNoSelectionString() {
         return null;
     }
-    @Override
-    public Object toJSONEntry() {
-        return selectedItem;
-    }
-
-    @Override
-    public void initFromJSONEntry(Object json) {
-        if (json instanceof String) {
-            setSelectedItem((String)json);
-        } else throw new IllegalArgumentException("JSON Entry is not String");
-    }
 }

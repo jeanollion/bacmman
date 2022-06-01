@@ -54,6 +54,10 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         this.option=option;
         this.allowNoSelection=allowNoSelection;
     }
+    public FileChooser setOption(FileChooserOption option) {
+        this.option = option;
+        return this;
+    }
     public FileChooser setPathValidation(Predicate<String> validPath) {
         this.validPath = validPath;
         return this;

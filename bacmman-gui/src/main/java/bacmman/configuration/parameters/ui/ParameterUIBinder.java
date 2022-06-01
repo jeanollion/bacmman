@@ -85,7 +85,7 @@ public class ParameterUIBinder {
         if (p instanceof IntervalParameter) return new IntervalParameterUI((IntervalParameter)p, model);
 
         // other parameters
-        if (p instanceof DLModelFileParameter) return new DLModelFileParameterUI((DLModelFileParameter)p, model);
+        if (p instanceof MLModelFileParameter) return new DLModelFileParameterUI((MLModelFileParameter)p, model);
 
         // choice parameter interface
         if (p instanceof ChoosableParameterMultiple) return new MultipleChoiceParameterUI((ChoosableParameterMultiple)p, model);
