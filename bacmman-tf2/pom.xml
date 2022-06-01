@@ -13,8 +13,8 @@
         <!--javacpp.platform>windows-x86_64</javacpp.platform-->
         <javacpp.platform>linux-x86_64</javacpp.platform>
 
-        <javacpp.platform.extension></javacpp.platform.extension>
-        <!--javacpp.platform.extension>-gpu</javacpp.platform.extension-->
+        <!--javacpp.platform.extension></javacpp.platform.extension-->
+        <javacpp.platform.extension>-gpu</javacpp.platform.extension>
         <!-->set "-gpu" for gpu support <-->
     </properties>
     <artifactId>bacmman-tf2</artifactId>
@@ -37,7 +37,7 @@
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
-            <version>0.4.0-SNAPSHOT</version>
+            <version>0.4.1</version>
             <!--exclusions>
                 <exclusion>
                     <groupId>com.google.protobuf</groupId>
@@ -48,7 +48,7 @@
         <dependency>
             <groupId>org.tensorflow</groupId>
             <artifactId>tensorflow-core-api</artifactId>
-            <version>0.3.3</version>
+            <version>0.4.1</version>
             <classifier>${javacpp.platform}${javacpp.platform.extension}</classifier>
         </dependency>
         <!--dependency>

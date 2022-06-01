@@ -37,6 +37,8 @@ import javax.swing.JFrame;
 import javax.swing.UIManager;
 import javax.swing.UIManager.LookAndFeelInfo;
 import javax.swing.UnsupportedLookAndFeelException;
+
+import net.imagej.patcher.LegacyInjector;
 import org.slf4j.LoggerFactory;
 
 
@@ -46,7 +48,7 @@ import org.slf4j.LoggerFactory;
  */
 public class IJ1 implements PlugIn {
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(IJ1.class);
-
+    static {LegacyInjector.preinit();}
 
     private static Object LOCK = new Object();
     public static void initCore() {

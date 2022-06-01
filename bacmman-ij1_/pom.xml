@@ -65,6 +65,11 @@
             <artifactId>bacmman-tf${tensorflow.version}</artifactId>
             <version>3.3.2</version>
         </dependency>
+        <dependency>
+            <groupId>com.github.jeanollion.bacmman</groupId>
+            <artifactId>bacmman-ilastik</artifactId>
+            <version>3.3.2</version>
+        </dependency>
     </dependencies>
     <repositories>
         <repository>

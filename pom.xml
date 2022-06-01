@@ -35,6 +35,7 @@
         <module>bacmman-tango</module>
         <module>bacmman-trackmate</module>
         <module>bacmman-omero</module>
+        <module>bacmman-ilastik</module>
     </modules>
 
     <name>BACMMAN</name>
