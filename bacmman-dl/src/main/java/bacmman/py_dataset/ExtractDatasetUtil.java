@@ -197,7 +197,7 @@ public class ExtractDatasetUtil {
             return out;
         }).sorted(Comparator.comparing(Image::getName)).collect(Collectors.toList());
 
-        int[][] originalDimensions = saveDimensions ? streamSupplier.get().sorted(Comparator.comparing(e->getLabel(e))).map(o->{
+        int[][] originalDimensions = saveDimensions ? streamSupplier.get().sorted(Comparator.comparing(ExtractDatasetUtil::getLabel)).map(o->{
             if (o.is2D()) return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY()};
             else return new int[]{o.getBounds().sizeX(), o.getBounds().sizeY(), o.getBounds().sizeZ()};
         }).toArray(int[][]::new) : null;
@@ -300,12 +300,11 @@ public class ExtractDatasetUtil {
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
+        int compression = 0;
         if (oneEntryPerImage && images.size()>1) {
-            for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), 4, saveLabels, new int[][]{originalDimensions[i]}, metadata );
-        } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, 4, saveLabels, originalDimensions, metadata );
+            for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), compression, saveLabels, new int[][]{originalDimensions[i]}, metadata );
+        } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels, originalDimensions, metadata ); // TODO : compression level as option
     }
-
-    public enum WEIGHT_MAP {NONE, UNET, DELTA, DY}
 
     public enum SCALE_MODE {NO_SCALE, MAX_MIN_BYTE_SAFE_FLOAT, MAX_MIN_BYTE, MAX_MIN_SHORT, TO_SHORT, TO_FLOAT}
 }
