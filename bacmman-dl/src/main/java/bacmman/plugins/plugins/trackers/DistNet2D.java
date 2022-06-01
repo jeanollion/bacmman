@@ -39,7 +39,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
     BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
     BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
-    BooleanParameter brightObjects = new BooleanParameter("Bright Objects", false).setEmphasized(true).setHint("If true: bright objects on dark background (e.g. fluorescence) otherwise dark objects on bright background (e.g. phase contrast). <br/>Use for regions splitting");
+    enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
+    EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setLegacyInitializationValue(ALTERNATIVE_SPLIT.BRIGHT_OBJECTS).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
     BooleanParameter useContours = new BooleanParameter("Use Contours", true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
 
     enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
@@ -51,7 +52,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
             .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize);
     ConditionalParameter<Boolean> solveSplitAndMergeCond = new ConditionalParameter<>(solveSplitAndMerge).setEmphasized(true)
-            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond, brightObjects);
+            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond, altSPlit);
 
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
@@ -883,7 +884,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     protected SplitAndMerge getSplitAndMerge(PredictionResults prediction) {
         SegmenterSplitAndMerge seg = getSegmenter(prediction);
-        WatershedObjectSplitter ws = new WatershedObjectSplitter(1, brightObjects.getSelected());
+        ALTERNATIVE_SPLIT as = altSPlit.getSelectedEnum();
+        WatershedObjectSplitter ws = ALTERNATIVE_SPLIT.DISABLED.equals(as)? null : new WatershedObjectSplitter(1, ALTERNATIVE_SPLIT.BRIGHT_OBJECTS.equals(as));
         SplitAndMerge sm = new SplitAndMerge() {
             @Override
             public double computeMergeCost(List<SegmentedObject> toMergeL) {
@@ -898,7 +900,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 SegmentedObject parent = toSplit.getParent();
                 Region r = toSplit.getRegion();
                 double cost = seg.split(prediction.edm.get(parent), parent, toSplit.getStructureIdx(), r, res);
-                if (res.size() <= 1) { // split failed -> try to split using input image
+                if (res.size() <= 1 && ws!=null) { // split failed -> try to split using input image
                     RegionPopulation pop = ws.splitObject(parent.getPreFilteredImage(toSplit.getStructureIdx()), parent, toSplit.getStructureIdx(), r);
                     res.clear();
                     if (pop != null) res.addAll(pop.getRegions());
