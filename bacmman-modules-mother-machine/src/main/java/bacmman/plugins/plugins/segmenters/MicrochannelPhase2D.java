@@ -66,7 +66,9 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
 
     EnumChoiceParameter<END_DETECTION_METHOD> endDetectionMethod = new EnumChoiceParameter<>("End Detection Method", END_DETECTION_METHOD.values(), END_DETECTION_METHOD.CLOSED_END_WITH_ADJUST).setHint("Method for precise detection of microchannel closed-ends");
     NumberParameter closedEndYAdjustWindow = new BoundedNumberParameter("Closed-end Y Adjust Window", 0, 5, 0, null).setHint("Defines the window (in pixels) within which the y-coordinate of the closed-end of the microchannel will be refined. Searches for the first local maximum of the Y-derivative within the window: [y - <em>Closed-end Y adjust window</em>; y + <em>Closed-end Y adjust window</em>] ");
-    ConditionalParameter<END_DETECTION_METHOD> endDetectionMethodCond = new ConditionalParameter<>(endDetectionMethod).setActionParameters(END_DETECTION_METHOD.CLOSED_END_WITH_ADJUST, closedEndYAdjustWindow);
+    NumberParameter minLength = new BoundedNumberParameter("Min Length", 0, 75, 0, null).setHint("Minimal Microchannel Length in pixels");
+
+    ConditionalParameter<END_DETECTION_METHOD> endDetectionMethodCond = new ConditionalParameter<>(endDetectionMethod).setActionParameters(END_DETECTION_METHOD.CLOSED_END_WITH_ADJUST, closedEndYAdjustWindow, minLength);
 
     Parameter[] parameters = new Parameter[]{channelWidth, xDerPeakThldCond, endDetectionMethodCond};
     public final static double PEAK_RELATIVE_THLD = 0.6;
@@ -158,14 +160,13 @@ public class MicrochannelPhase2D implements MicrochannelSegmenter, TestableProce
         }
         
         double derScale = 2;
-        // get aberration
         int[] yStartStop = new int[]{0, image.sizeY()-1};
         Image imCrop = (image instanceof ImageFloat ? image.duplicate() : image);
         
         // get global closed-end Y coordinate
         Image imDerY = ImageFeatures.getDerivative(imCrop, derScale, 0, 1, 0, true);
         float[] yProj = openEnd?null: ImageOperations.meanProjection(imDerY, ImageOperations.Axis.Y, null);
-        int closedEndY = openEnd?yStartStop[0] : ArrayUtil.max(yProj, 0, yProj.length) + yStartStop[0];
+        int closedEndY = openEnd?yStartStop[0] : ArrayUtil.max(yProj, 0, yProj.length-minLength.getIntValue()) + yStartStop[0];
 
         // get X coordinates of each microchannel
         imCrop = closedEndY==0?image:image.crop(new MutableBoundingBox(0, image.sizeX()-1, closedEndY, image.sizeY()-1, 0, image.sizeZ()-1));
