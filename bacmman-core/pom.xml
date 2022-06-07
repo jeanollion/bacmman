@@ -35,11 +35,11 @@
             <artifactId>imagej-ops</artifactId>
             <version>0.45.8</version>
         </dependency>
-        <!--dependency>
+        <dependency>
             <groupId>net.imglib2</groupId>
             <artifactId>imglib2</artifactId>
-            <version>5.6.3</version>
-        </dependency-->
+            <version>5.13.0</version>
+        </dependency>
         <dependency>
             <groupId>net.imglib2</groupId>
             <artifactId>imglib2-algorithm-gpl</artifactId>
@@ -112,6 +112,11 @@
             <groupId>com.github.thorstenwagner</groupId>
             <artifactId>ij-nl-means</artifactId>
             <version>1.4.6</version>
+        </dependency>
+        <dependency>
+            <groupId>net.imagej</groupId>
+            <artifactId>ij1-patcher</artifactId>
+            <version>1.2.2</version>
         </dependency>
     </dependencies>
     <repositories>
