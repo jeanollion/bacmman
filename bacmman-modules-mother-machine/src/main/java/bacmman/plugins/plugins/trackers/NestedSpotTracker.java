@@ -21,7 +21,6 @@ package bacmman.plugins.plugins.trackers;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.data_structure.*;
-import bacmman.image.Image;
 import bacmman.plugins.*;
 import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
 import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
@@ -238,10 +237,6 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                 return new NestedSpot(o, b, localizerMap, distParams);
             }
 
-            @Override
-            public NestedSpot duplicate(NestedSpot s) {
-                return s.duplicate();
-            }
         });
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         long t0 = System.currentTimeMillis();
@@ -258,7 +253,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             distParams.includeLQ=true;
             if (ok) ok = tmi.processFTF(maxLinkingDistance); // FTF HQ+LQ
             distParams.includeLQ=true;
-            if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxFrameDiff-1, false, false); // GC HQ+LQ (dist param: no gap closing between LQ spots)
+            if (ok) ok = tmi.processSegments(maxLinkingDistanceGC, maxFrameDiff-1, false, false); // GC HQ+LQ (dist param: no gap closing between LQ spots)
             if (ok) {
                 tmi.setTrackLinks(objectsF, editor);
                 tmi.resetEdges();
@@ -271,7 +266,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         long t2 = System.currentTimeMillis();
         boolean ok = true; 
         ok = tmi.processFTF(maxLinkingDistance);
-        if (ok) ok = tmi.processGC(maxLinkingDistanceGC, maxFrameDiff-1, allowSplit, allowMerge);
+        if (ok) ok = tmi.processSegments(maxLinkingDistanceGC, maxFrameDiff-1, allowSplit, allowMerge);
         if (ok && LQSpots) {
             //switchCrossingLinksWithLQBranches(tmi, maxLinkingDistanceGC/Math.sqrt(2), maxLinkingDistanceGC, maxGap); // remove crossing links
             tmi.setTrackLinks(objectsF, editor);

@@ -59,7 +59,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
     NumberParameter maxDistanceFTF = new BoundedNumberParameter("Maximal Distance for Frame-to-Frame Tracking", 0, 50, 10, null).setHint("Maximal distance (in pixels) used for Frame-to-Frame tracking procedure.<br />If two microchannels between two successive frames are separated by a distance superior to this threshold they can't be linked. <br />Increase the value to take into account XY shift between two successive frames due to stabilization issues, but not too much to avoid connecting distinct microchannels");
     NumberParameter yShiftQuantile = new BoundedNumberParameter("Y-shift Quantile", 2, 0.5, 0, 1).setHint("After Tracking, the y-shift of microchannels are normalized for each track: the y-shift of a given microchannel at a given frame is replaced by the quantile of the distribution of the y-shift of this microchannel at all frames");
     NumberParameter widthQuantile = new BoundedNumberParameter("With Quantile", 2, 0.9, 0, 1).setHint("After Tracking, microchannel widths are normalized for each track: the width of a given microchannel at a given frame is replaced by the quantile of the distribution of the width of this microchannel at all frames");
-    BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", true).setHint("If a frame contains no microchannels (typically when the focus is lost), allows connecting the microchannel track before and after the gap. This will results in microchannel tracks containing gaps. This will results in microchannel tracks containing gaps. If this parameter is set to false, the tracks will be cut");
+    BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", true).setHint("If a frame contains no microchannels (typically when the focus is lost), allows connecting the microchannel track before and after the gap. This will result in microchannel tracks containing gaps. If this parameter is set to false, the tracks will be cut");
     BooleanParameter normalizeWidths = new BooleanParameter("Normalize Widths", false).setHint("If set to <em>true</em>, the width of segmented microchannels will be normalized for the whole track (i.e. a given microchannel has the same width for all frames)");
     ConditionalParameter<Boolean> widthCond = new ConditionalParameter<>(normalizeWidths).setActionParameters(true, new Parameter[]{widthQuantile});
     BooleanParameter normalizeYshift = new BooleanParameter("Normalize Y-shifts", false).setHint("the term <em>y-shift</em> refers to the difference between the y-coordinate of the closed-end of a microchannel and the mean y-coordinate of the closed-end of all microchannels.<br />If set to <em>true</em>, the y-shift of segmented microchannels will be normalized for the whole track (i.e. a given microchannel has the same y-shift for all frames)");
@@ -137,13 +137,6 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
                 //if (frame<2) logger.debug("Frame={} x={}, y={} ([{};{}]), scale: {}", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax(), o.getScaleXY());
                 return s;
             }
-
-            @Override
-            public Spot duplicate(Spot s) {
-                Spot res =  new Spot(s.getFeature(Spot.POSITION_X), s.getFeature(Spot.POSITION_Y), s.getFeature(Spot.POSITION_Z), s.getFeature(Spot.RADIUS), s.getFeature(Spot.QUALITY));
-                res.getFeatures().put(Spot.FRAME, s.getFeature(Spot.FRAME));
-                return res;
-            }
         });
         //tmi.setNumThreads(ThreadRunner.getMaxCPUs());
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
@@ -163,9 +156,9 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         boolean ok = tmi.processFTF(ftfDistance);
         int maxGap = this.maxGapGC.getValue().intValue();
         if (maxGap>=1) {
-            if (ok) ok = tmi.processGC(maxDistance, maxGap, false, false);
+            if (ok) ok = tmi.processSegments(maxDistance, maxGap, false, false);
             if (ok) tmi.removeCrossingLinksFromGraph(meanWidth / 4);
-            if (ok) ok = tmi.processGC(maxDistance, maxGap, false, false); // second GC for crossing links!
+            if (ok) ok = tmi.processSegments(maxDistance, maxGap, false, false); // second GC for crossing links!
         }
         tmi.setTrackLinks(map, editor);
     }

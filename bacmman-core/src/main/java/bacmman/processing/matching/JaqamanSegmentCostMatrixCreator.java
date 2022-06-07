@@ -42,28 +42,27 @@ import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.Resiz
 import bacmman.processing.matching.trackmate.tracking.sparselap.linker.SparseCostMatrix;
 import static bacmman.processing.matching.trackmate.util.TMUtils.checkMapKeys;
 import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import bacmman.utils.StreamConcatenation;
 import net.imglib2.algorithm.MultiThreaded;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.DefaultWeightedEdge;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author from trackMate
  */
-public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot, Spot >, MultiThreaded
-{
-
-	private static final String BASE_ERROR_MESSAGE = "[JaqamanSegmentCostMatrixCreator] ";
+public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot, Spot >, MultiThreaded {
+	public static final org.slf4j.Logger logger = LoggerFactory.getLogger(JaqamanSegmentCostMatrixCreator.class);
+	private static final String BASE_ERROR_MESSAGE = "[JaqamanSegmentCostMatrixCreatorCSTThld] ";
 
 	private final Map< String, Object > settings;
 
@@ -83,27 +82,25 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 	private int numThreads;
         
-        protected final CostThreshold<Spot, Spot> gcCostThreshold;
+
+	Set<Spot> unlinkedSpots;
 	/**
 	 * Instantiates a cost matrix creator for the top-left quadrant of the
 	 * segment linking cost matrix.
 	 * 
 	 */
-	public JaqamanSegmentCostMatrixCreator( final Graph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings, final CostThreshold<Spot, Spot> gcCostThreshold, final double alternativeCost )
-	{
+	public JaqamanSegmentCostMatrixCreator(final Graph< Spot, DefaultWeightedEdge > graph, Set<Spot> unlinkedSpots, final Map< String, Object > settings, final double alternativeCost ) {
 		this.graph = graph;
+		this.unlinkedSpots=unlinkedSpots;
 		this.settings = settings;
-		this.gcCostThreshold=gcCostThreshold;
 		this.alternativeCost=alternativeCost;
 		setNumThreads();
 	}
 
 	@Override
-	public boolean checkInput()
-	{
+	public boolean checkInput() {
 		final StringBuilder str = new StringBuilder();
-		if ( !checkSettingsValidity( settings, str ) )
-		{
+		if ( !checkSettingsValidity( settings, str ) ) {
 			errorMessage = BASE_ERROR_MESSAGE + "Incorrect settings map:\n" + str.toString();
 			return false;
 		}
@@ -117,8 +114,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 	}
 
 	@Override
-	public boolean process()
-	{
+	public boolean process() {
 		final long start = System.currentTimeMillis();
 
 		/*
@@ -131,7 +127,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		final CostFunction< Spot, Spot > gcCostFunction = getCostFunctionFor( gcFeaturePenalties );
 		final int maxFrameInterval = ( Integer ) settings.get( KEY_GAP_CLOSING_MAX_FRAME_GAP );
 		final double gcMaxDistance = ( Double ) settings.get( KEY_GAP_CLOSING_MAX_DISTANCE );
-		//final double gcCostThreshold = gcMaxDistance * gcMaxDistance;
+		final double gcCostThreshold = gcMaxDistance * gcMaxDistance;
 		final boolean allowGapClosing = ( Boolean ) settings.get( KEY_ALLOW_GAP_CLOSING );
 
 		// Merging
@@ -148,7 +144,8 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		final boolean allowSplitting = ( Boolean ) settings.get( KEY_ALLOW_TRACK_SPLITTING );
 		final double sMaxDistance = ( Double ) settings.get( KEY_SPLITTING_MAX_DISTANCE );
 		final double sCostThreshold = sMaxDistance * sMaxDistance;
-                // Alternative cost
+		//logger.debug("Split Distance: {} cost threshold: {}", sMaxDistance, sCostThreshold);
+		// Alternative cost
 		final double alternativeCostFactor = ( Double ) settings.get( KEY_ALTERNATIVE_LINKING_COST_FACTOR );
 		final double percentile = ( Double ) settings.get( KEY_CUTOFF_PERCENTILE );
 
@@ -174,37 +171,24 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		/*
 		 * Generate all middle points list. We have to sort it by the same order
 		 * we will sort the unique list of targets, otherwise the SCM will
-		 * complains it does not receive columns in the right order.
+		 * complain it does not receive columns in the right order.
 		 */
-		final List< Spot > allMiddlesMerge;
-                final List< Spot > allMiddlesSplit;
-		if ( mergingOrSplitting )
-		{
+		final List< Spot > allMiddles;
+		if ( mergingOrSplitting ) {
 			final List< List< Spot >> segmentMiddles = segmentSplitter.getSegmentMiddles();
-			List<Spot>allMiddles = new ArrayList< Spot >();
-			for ( final List< Spot > segment : segmentMiddles )
-			{
-				allMiddles.addAll( segment );
+			List<Spot> middles = new ArrayList< Spot >();
+			for ( final List< Spot > segment : segmentMiddles ) {
+				middles.addAll( segment );
 			}
-                        // also adds duplicated spots
-                        for (DefaultWeightedEdge e : graph.edgeSet()) {
-                            Spot source = graph.getEdgeSource(e);
-                            Spot target = graph.getEdgeTarget(e);
-                            if (Objects.equals(source.getFeature(Spot.FRAME), target.getFeature(Spot.FRAME))) {
-                                //logger.debug("adding middle: {}-{}", source.getFeature(Spot.FRAME), source.getFeature("Idx"));
-                                allMiddles.add(source);
-                            }
-                        }
-                        allMiddlesMerge = Stream.concat(allMiddles.stream(), segmentEnds.stream()).collect(Collectors.toList());
-                        allMiddlesSplit = Stream.concat(segmentStarts.stream(), allMiddles.stream()).collect(Collectors.toList());
-                        Collections.sort(allMiddlesMerge, Spot.frameComparator);
-                        Collections.sort(allMiddlesSplit, Spot.frameComparator);
+			allMiddles = StreamConcatenation.concat(unlinkedSpots.stream(), segmentStarts.stream(), middles.stream(), segmentEnds.stream()).collect(Collectors.toList());
+			allMiddles.sort(Spot.frameComparator);
 		}
-		else
-		{
-                        allMiddlesMerge = Collections.EMPTY_LIST;
-                        allMiddlesSplit = Collections.EMPTY_LIST;
+		else {
+			allMiddles = Collections.EMPTY_LIST;
 		}
+		//logger.debug("segment starts: {}, ends: {}, unlinked: {}, middles: {}", segmentStarts.size(), segmentEnds.size(), unlinkedSpots.size(), allMiddles.size());
+		segmentStarts.addAll(unlinkedSpots);
+		segmentEnds.addAll(unlinkedSpots);
 
 		final Object lock = new Object();
 
@@ -250,13 +234,11 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 							// Check max distance
 							final double cost = gcCostFunction.linkingCost( source, target );
-                                                        if ( cost > gcCostThreshold.linkingCostThreshold(source, target) )
-							{
+							if ( cost > gcCostThreshold ) {
 								continue;
 							}
 
-							synchronized ( lock )
-							{
+							synchronized ( lock ) {
 								sources.add( source );
 								targets.add( target );
 								linkCosts.add( cost );
@@ -270,7 +252,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 					if ( allowMerging )
 					{
-						for ( final Spot target : allMiddlesMerge )
+						for ( final Spot target : allMiddles )
 						{
 							// Check frame interval, must be 1.
 							final int targetFrame = target.getFeature( Spot.FRAME ).intValue();
@@ -315,7 +297,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		if ( allowSplitting )
 		{
 			final ExecutorService executorS = Executors.newFixedThreadPool( numThreads );
-			for ( final Spot source : allMiddlesSplit )
+			for ( final Spot source : allMiddles )
 			{
 				executorS.submit( new Runnable()
 				{
@@ -336,12 +318,13 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 
 							// Check max distance
 							final double cost = sCostFunction.linkingCost( source, target );
-                                                        //logger.debug("link: F:{}I:{}+F:{}+I:{} cost: {}, thld: {}", source.getFeature(Spot.FRAME), source.getFeature("Idx"), target.getFeature(Spot.FRAME), target.getFeature("Idx"), target, cost,sCostThreshold );
-							if ( cost > sCostThreshold )
-							{
-								//logger.debug("link: {}+{} not accepted" );
-                                                                continue;
-							}
+							//logger.debug("split link: F:{}-I:{} + F:{}-I:{} cost: {}, thld: {}", source.getFeature(Spot.FRAME), source.getFeature("Idx"), target.getFeature(Spot.FRAME), target.getFeature("Idx"), cost,sCostThreshold );
+							if ( cost > sCostThreshold ) {
+								//logger.debug("link: F:{}-I:{} + F:{}-I{} not accepted", source.getFeature(Spot.FRAME), source.getFeature("Idx"), target.getFeature(Spot.FRAME), target.getFeature("Idx") );
+								continue;
+							} /*else {
+								logger.debug("split link: F:{}-I:{} + F:{}-I:{} cost: {}, thld: {}", source.getFeature(Spot.FRAME), source.getFeature("Idx"), target.getFeature(Spot.FRAME), target.getFeature("Idx"), cost,sCostThreshold );
+							}*/
 							synchronized ( lock )
 							{
 								sources.add( source );
@@ -351,7 +334,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 						}
 					}
 				}
-						);
+				);
 			}
 			executorS.shutdown();
 			try
@@ -370,8 +353,7 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 		 * empty.
 		 */
 
-		if ( sources.isEmpty() || targets.isEmpty() )
-		{
+		if ( sources.isEmpty() || targets.isEmpty() ) {
 			uniqueSources = Collections.emptyList();
 			uniqueTargets = Collections.emptyList();
 			alternativeCost = Double.NaN;
@@ -379,13 +361,10 @@ public class JaqamanSegmentCostMatrixCreator implements CostMatrixCreator< Spot,
 			/*
 			 * CAREFUL! We return null if no acceptable links are found.
 			 */
-		}
-		else
-		{
+		} else {
 
 			final DefaultCostMatrixCreator< Spot, Spot > creator = new DefaultCostMatrixCreator< Spot, Spot >( sources, targets, linkCosts.data, alternativeCostFactor, percentile );
-			if ( !creator.checkInput() || !creator.process() )
-			{
+			if ( !creator.checkInput() || !creator.process() ) {
 				errorMessage = "Linking track segments: " + creator.getErrorMessage();
 				return false;
 			}

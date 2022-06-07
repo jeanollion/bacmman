@@ -371,11 +371,6 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
             public RegionDistOverlap toSpot(Region o, int frame) {
                 return new RegionDistOverlap(o, frame, overlapMap);
             }
-
-            @Override
-            public RegionDistOverlap duplicate(RegionDistOverlap spot) {
-                return new RegionDistOverlap(spot.r, spot.frame(), overlapMap);
-            }
         });
     }
     static class RegionDistOverlap extends Spot {

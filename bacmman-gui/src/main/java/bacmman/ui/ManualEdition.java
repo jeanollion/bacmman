@@ -34,7 +34,6 @@ import bacmman.ui.gui.image_interaction.InteractiveImage;
 import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
-import bacmman.utils.SymetricalPair;
 import bacmman.utils.geom.Point;
 import bacmman.processing.matching.trackmate.Spot;
 
@@ -229,7 +228,7 @@ public class ManualEdition {
             //logger.debug("Mean size: {}", meanLength);
             double dMax = Math.sqrt(Double.MAX_VALUE)/100;
             tmi.processFTF(dMax); // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
-            tmi.processGC(dMax, 0, true, true);
+            tmi.processSegments(dMax, 0, true, true);
             logger.debug("link objects: {}", allObjects);
             tmi.setTrackLinks(map, editor);
             // unset EDITED flag for links that already existed

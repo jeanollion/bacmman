@@ -133,26 +133,18 @@ public class TrackMateInterface<S extends Spot> {
         return true;
     }
 
-    public boolean processGC(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) { // maxFrameGap changed -> now 1= 1 frame gap 4/09/19
+    public boolean processSegments(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) { // maxFrameGap changed -> now 1= 1 frame gap 4/09/19
         long t0 = System.currentTimeMillis();
-        Set<S> unlinkedSpots;
+        Set<Spot> unlinkedSpots;
         if (graph == null) {
             graph = new SimpleWeightedGraph<>( DefaultWeightedEdge.class );
             unlinkedSpots = new HashSet<>(spotObjectMap.keySet());
         } else {
-            Set<Spot> linkedSpots = graph.vertexSet();
+            Set<Spot> linkedSpots = Stream.concat(graph.edgeSet().stream().map(e -> graph.getEdgeSource(e)), graph.edgeSet().stream().map(e -> graph.getEdgeTarget(e))).collect(Collectors.toSet());
+            //Set<Spot> linkedSpots = graph.vertexSet();
             unlinkedSpots = new HashSet<>(Sets.difference(spotObjectMap.keySet(), linkedSpots));
         }
-        Map<Spot, Spot> clonedSpots = new HashMap<>();
-        // duplicate unlinked spots to include them in the gap-closing part
-        for (S s : unlinkedSpots) {
-            Spot clone = factory.duplicate(s);
-            graph.addVertex(s);
-            graph.addVertex(clone);
-            clonedSpots.put(clone, s);
-            graph.addEdge(s,clone);
-            //logger.debug("unlinked object: f={}, Idx={}", s.getFeature(Spot.FRAME), spotObjectMap.get(s).getLabel()-1);
-        }
+        for (Spot s : unlinkedSpots) graph.addVertex(s);
         // Prepare settings object
         final Map< String, Object > slSettings = new HashMap<>();
 
@@ -172,7 +164,7 @@ public class TrackMateInterface<S extends Spot> {
         slSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
         slSettings.put( KEY_CUTOFF_PERCENTILE, 1.0 );
         // Solve.
-        final SparseLAPSegmentTracker segmentLinker = new SparseLAPSegmentTracker( graph, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
+        final SparseLAPSegmentTracker segmentLinker = new SparseLAPSegmentTracker( graph, unlinkedSpots, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
         //final bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker segmentLinker = new bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker( graph, slSettings);
         segmentLinker.setNumThreads(numThreads);
         final Logger.SlaveLogger slLogger = new Logger.SlaveLogger( internalLogger, 0.5, 0.5 );
@@ -182,14 +174,14 @@ public class TrackMateInterface<S extends Spot> {
             logger.error(errorMessage);
             return false;
         }
-        for (Map.Entry<Spot, Spot> e : clonedSpots.entrySet()) transferLinks(e.getKey(), e.getValue());
         long t1 = System.currentTimeMillis();
         logger.trace("number of edges after GC step: {}, nb of vertices: {} (unlinked: {}), processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), unlinkedSpots.size(), t1-t0);
         return true;
     }
 
     public void logGraphStatus(String step, long processingTime) {
-        logger.debug("number of edges after {}: {}, nb of vertices: {}, processing time: {}", step, graph.edgeSet().size(), graph.vertexSet().size(),processingTime);
+        if (processingTime>0) logger.debug("number of edges after {}: {}, nb of vertices: {}, processing time: {}", step, graph.edgeSet().size(), graph.vertexSet().size(),processingTime);
+        else logger.debug("number of edges after {}: {}, nb of vertices: {}", step, graph.edgeSet().size(), graph.vertexSet().size());
     }
 
     private void transferLinks(Spot from, Spot to) {
@@ -487,7 +479,6 @@ public class TrackMateInterface<S extends Spot> {
     }
     public interface SpotFactory<S extends Spot> {
         public S toSpot(Region o, int frame);
-        public S duplicate(S s);
     }
 
     public static class DefaultRegionSpotFactory implements SpotFactory<Spot> {
@@ -498,11 +489,6 @@ public class TrackMateInterface<S extends Spot> {
             Spot s = new Spot(center.get(0), center.get(1), center.getWithDimCheck(2), 1, 1);
             s.getFeatures().put(Spot.FRAME, (double)frame);
             return s;
-        }
-        @Override public Spot duplicate(Spot s) {
-            Spot res =  new Spot(s.getFeature(Spot.POSITION_X), s.getFeature(Spot.POSITION_Y), s.getFeature(Spot.POSITION_Z), s.getFeature(Spot.RADIUS), s.getFeature(Spot.QUALITY));
-            res.getFeatures().put(Spot.FRAME, s.getFeature(Spot.FRAME));
-            return res;
         }
     }
 }

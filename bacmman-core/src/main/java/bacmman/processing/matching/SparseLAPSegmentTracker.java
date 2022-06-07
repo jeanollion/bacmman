@@ -31,6 +31,8 @@ import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP
 import bacmman.processing.matching.trackmate.tracking.sparselap.linker.JaqamanLinker;
 import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
 import java.util.Map;
+import java.util.Set;
+
 import net.imglib2.algorithm.Benchmark;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
@@ -40,7 +42,7 @@ import org.jgrapht.graph.SimpleWeightedGraph;
  * @author fromTrackMate
  */
 public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
-{
+{ // VERSION WITH CONSTANT ALTERNATIVE COST INSTEAD OF PERCENTILE-BASED
 
 	private static final String BASE_ERROR_MESSAGE = "[SparseLAPSegmentTracker] ";
 
@@ -56,9 +58,11 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 
 	private int numThreads;
     private final double alternativeDistance;
-	public SparseLAPSegmentTracker( final SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph, final Map< String, Object > settings, final double alternativeDistance)
+	Set<Spot> unlinkedSpots;
+	public SparseLAPSegmentTracker(final SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph, Set<Spot> unlinkedSpots, final Map< String, Object > settings, final double alternativeDistance)
 	{
 		this.graph = graph;
+		this.unlinkedSpots=unlinkedSpots;
 		this.settings = settings;
 		this.alternativeDistance=alternativeDistance;
 		setNumThreads();
@@ -110,17 +114,8 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 
 		logger.setProgress( 0d );
 		logger.setStatus( "Creating the segment linking cost matrix..." );
-		//final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, settings );
-                final double gcmd = ( Double ) settings.get( KEY_GAP_CLOSING_MAX_DISTANCE );
-                final CostThreshold<Spot, Spot> gcCostThreshold = new CostThreshold<Spot, Spot>() {
-                    final double threshold = gcmd * gcmd;
-                    public double linkingCostThreshold(Spot source, Spot target) {
-                        return threshold;
-                        //return threshold + distanceParameters.getDistancePenalty(source.getFeature(Spot.FRAME).intValue(), target.getFeature(Spot.FRAME).intValue());
-                    }
-                };
-                final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, settings, gcCostThreshold, alternativeDistance * alternativeDistance );
-                costMatrixCreator.setNumThreads(numThreads);
+		final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, unlinkedSpots, settings, alternativeDistance * alternativeDistance );
+		costMatrixCreator.setNumThreads(numThreads);
 		final Logger.SlaveLogger jlLogger = new Logger.SlaveLogger( logger, 0, 0.9 );
 		final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker< Spot, Spot >( costMatrixCreator, jlLogger );
 		if ( !linker.checkInput() || !linker.process() )
