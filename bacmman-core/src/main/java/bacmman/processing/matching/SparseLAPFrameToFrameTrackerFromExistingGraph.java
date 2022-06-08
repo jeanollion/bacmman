@@ -247,9 +247,7 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 						 * Run the linker.
 						 */
 
-						final JaqamanLinkingCostMatrixCreator< Spot, Spot > creator = Double.isNaN(alternativeCost) ? new JaqamanLinkingCostMatrixCreator<>( sources, targets, costFunction, costThreshold, alternativeCostFactor, 1 ) :
-								new JaqamanLinkingCostMatrixCreatorWithConstantAltCost<>( sources, targets, costFunction, costThreshold, alternativeCost);
-
+						final JaqamanLinkingCostMatrixCreator< Spot, Spot > creator = new JaqamanLinkingCostMatrixCreator<>( sources, targets, costFunction, costThreshold, alternativeCost );
 
 						final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker< Spot, Spot >( creator );
 						if ( !linker.checkInput() || !linker.process() )
@@ -361,22 +359,5 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 
 		return ok;
 	}
-	private class JaqamanLinkingCostMatrixCreatorWithConstantAltCost< K extends Comparable< K >, J extends Comparable< J >> extends JaqamanLinkingCostMatrixCreator<K, J> {
-		final double altCost;
-		public JaqamanLinkingCostMatrixCreatorWithConstantAltCost( final Iterable< K > sources, final Iterable< J > targets, final CostFunction< K, J > costFunction, final double costThreshold, final double alternativeCost) {
-			super(sources, targets, costFunction, costThreshold, 1.05, 1);
-			this.altCost=alternativeCost;
-		}
-		@Override
-		public double getAlternativeCostForSource( final K source )
-		{
-			return altCost;
-		}
 
-		@Override
-		public double getAlternativeCostForTarget( final J target )
-		{
-			return altCost;
-		}
-	}
 }

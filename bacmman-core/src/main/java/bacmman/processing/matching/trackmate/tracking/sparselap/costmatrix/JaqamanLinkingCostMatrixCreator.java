@@ -43,18 +43,13 @@ public class JaqamanLinkingCostMatrixCreator< K extends Comparable< K >, J exten
 
 	private double alternativeCost;
 
-	private final double alternativeCostFactor;
-
-	private final double percentile;
-
-	public JaqamanLinkingCostMatrixCreator(final Iterable< K > sources, final Iterable< J > targets, final CostFunction< K, J > costFunction, final double costThreshold, final double alternativeCostFactor, final double percentile )
+	public JaqamanLinkingCostMatrixCreator(final Iterable< K > sources, final Iterable< J > targets, final CostFunction< K, J > costFunction, final double costThreshold, final double alternativeCost )
 	{
 		this.sources = sources;
 		this.targets = targets;
 		this.costFunction = costFunction;
 		this.costThreshold = costThreshold;
-		this.alternativeCostFactor = alternativeCostFactor;
-		this.percentile = percentile;
+		this.alternativeCost = alternativeCost;
 	}
 
 	@Override
@@ -116,7 +111,7 @@ public class JaqamanLinkingCostMatrixCreator< K extends Comparable< K >, J exten
 		else
 		{
 
-			final DefaultCostMatrixCreator< K, J > cmCreator = new DefaultCostMatrixCreator< >( accSources, accTargets, costs.data, alternativeCostFactor, percentile );
+			final DefaultCostMatrixCreator< K, J > cmCreator = new DefaultCostMatrixCreator< >( accSources, accTargets, costs.data, alternativeCost );
 			if ( !cmCreator.checkInput() || !cmCreator.process() )
 			{
 				errorMessage = cmCreator.getErrorMessage();
@@ -126,7 +121,7 @@ public class JaqamanLinkingCostMatrixCreator< K extends Comparable< K >, J exten
 			scm = cmCreator.getResult();
 			sourceList = cmCreator.getSourceList();
 			targetList = cmCreator.getTargetList();
-			alternativeCost = cmCreator.computeAlternativeCosts();
+			// alternativeCost = cmCreator.computeAlternativeCosts(); // constant alternative cost
 		}
 
 

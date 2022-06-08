@@ -28,6 +28,8 @@ import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_ALL
 import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_FEATURE_PENALTIES;
 import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_DISTANCE;
 import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_GAP_CLOSING_MAX_FRAME_GAP;
+
+import bacmman.processing.matching.trackmate.tracking.sparselap.costmatrix.JaqamanSegmentCostMatrixCreator;
 import bacmman.processing.matching.trackmate.tracking.sparselap.linker.JaqamanLinker;
 import static bacmman.processing.matching.trackmate.util.TMUtils.checkParameter;
 import java.util.Map;

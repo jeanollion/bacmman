@@ -40,17 +40,12 @@ public class DefaultCostMatrixCreator< K extends Comparable< K >, J extends Comp
 
 	private final double[] costs;
 
-	private final double alternativeCostFactor;
-
-	private final double percentile;
-
-	public DefaultCostMatrixCreator( final List< K > rows, final List< J > cols, final double[] costs, final double alternativeCostFactor, final double percentile )
+	public DefaultCostMatrixCreator( final List< K > rows, final List< J > cols, final double[] costs, final double alternativeCost )
 	{
 		this.rows = rows;
 		this.cols = cols;
 		this.costs = costs;
-		this.alternativeCostFactor = alternativeCostFactor;
-		this.percentile = percentile;
+		this.alternativeCost = alternativeCost;
 	}
 
 	@Override
@@ -80,16 +75,6 @@ public class DefaultCostMatrixCreator< K extends Comparable< K >, J extends Comp
 		if ( rows.size() != costs.length )
 		{
 			errorMessage = BASE_ERROR_MESSAGE + "Row list and cost array do not have the same number of elements. Found " + rows.size() + " and " + costs.length + ".";
-			return false;
-		}
-		if ( alternativeCostFactor <= 0 )
-		{
-			errorMessage = BASE_ERROR_MESSAGE + "The alternative cost factor must be greater than 0. Was: " + alternativeCostFactor + ".";
-			return false;
-		}
-		if ( percentile < 0 || percentile > 1 )
-		{
-			errorMessage = BASE_ERROR_MESSAGE + "The percentile must no be smaller than 0 or greater than 1. Was: " + percentile;
 			return false;
 		}
 		return true;
@@ -164,8 +149,7 @@ public class DefaultCostMatrixCreator< K extends Comparable< K >, J extends Comp
 
 	protected double computeAlternativeCosts()
 	{
-		if ( percentile == 1 ) { return alternativeCostFactor * Util.max( costs ); }
-		return alternativeCostFactor * Util.percentile( costs, percentile );
+		return alternativeCost;
 	}
 
 	@Override
