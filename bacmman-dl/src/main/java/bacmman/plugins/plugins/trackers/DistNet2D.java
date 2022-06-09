@@ -5,6 +5,7 @@ import bacmman.data_structure.*;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
+import bacmman.measurement.FitEllipseShape;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
@@ -33,26 +34,32 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and the <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified and the predicted division probability is lower than 0.7 for all cells, they are merged.");
-    BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setEmphasized(true).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 32, 1, null).setHint("Defines how many frames are processed at the same time");
+    BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 1, null).setHint("Defines how many frames are predicted at the same time within the frame window");
+    BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Defines how many frames are processed (prediction + segmentation + tracking + post-processing) at the same time. O means all frames");
+
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5, 0.6, 0.01, 1);
     BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
+    BooleanParameter perWindow = new BooleanParameter("Per Window", false).setHint("If false: performs post-processing after all frame windows have been processed. Otherwise: performs post-processing after each frame window is processed");
+
     BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
     BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
     enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
-    EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setLegacyInitializationValue(ALTERNATIVE_SPLIT.BRIGHT_OBJECTS).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
-    BooleanParameter useContours = new BooleanParameter("Use Contours", true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
+    EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setLegacyInitializationValue(ALTERNATIVE_SPLIT.DARK_OBJECT).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
+    BooleanParameter useContours = new BooleanParameter("Use Contours", false).setLegacyInitializationValue(true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
 
     enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
 
     EnumChoiceParameter<GAP_CRITERION> gapCriterion = new EnumChoiceParameter<>("Gap Criterion", GAP_CRITERION.values(), GAP_CRITERION.MIN_BORDER_DISTANCE);
     BoundedNumberParameter gapMaxDist = new BoundedNumberParameter("Max. Distance", 5, 2.5, 0, null).setEmphasized(true).setHint("If the distance between 2 regions is higher than this value, they are not merged");
-    BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 3.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
+    BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 4.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
+    BoundedNumberParameter eccentricityThld = new BoundedNumberParameter("Eccentricity Threshold", 5, 0.87, 0, 1).setEmphasized(true).setHint("If eccentricity of the fitted ellipse is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on over-segmented objects that may be circular<br/>Ellipse is fitted using the normalized second central moments");
+
     ConditionalParameter<GAP_CRITERION> gapCriterionCond = new ConditionalParameter<>(gapCriterion).setEmphasized(true)
             .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
-            .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize);
+            .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize, eccentricityThld);
     ConditionalParameter<Boolean> solveSplitAndMergeCond = new ConditionalParameter<>(solveSplitAndMerge).setEmphasized(true)
-            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond, altSPlit);
+            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond, altSPlit, perWindow);
 
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
@@ -64,312 +71,59 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
     ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue() > 1);
 
-    BooleanParameter correctDivisions = new BooleanParameter("Correct Divisions", false).setEmphasized(false).setHint("Reduce false division by using the predicted division image. Two rules among cells that have a common previous cell: <ol><li> remove the link to previous cell of non-divided cells (only if at least on of the cell is divided)</li><li>If all cells are non-divided : try to merge all connected cells if the cost is lower than the maxCorrectionCost threshold</li><li>If two cells are linked to the same cell, tries to merge them using the divisonCost criterion</li></ol>");
+    BooleanParameter correctDivisions = new BooleanParameter("Correct Divisions", false).setEmphasized(false).setHint("Reduce false division by using the predicted division image -> it allows to determine if a cell is divided (a division occurred at the previous frame) or non-divided. Two rules among cells that have a common previous cell: <ol><li>When several cells are link to a single previous cell and at least one of them is in a divided state: remove links to previous cell of non-divided cells</li><li>If all cells are non-divided : try to merge all connected cells if the cost is lower than the maxCorrectionCost threshold</li><li>If two cells are linked to the same cell, tries to merge them using the divisonCost criterion</li></ol>");
     BoundedNumberParameter divThld = new BoundedNumberParameter("Division Threshold", 5, 0.75, 0, 1).setHint("A cell is considered as divided (result of a division) if the median value of the predicted division image is over this threshold");
     BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");
 
     ConditionalParameter<Boolean> correctDivisionsCond = new ConditionalParameter<>(correctDivisions).setActionParameters(true, divThld, divisionCost);
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, correctDivisionsCond, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling};
+    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, frameWindow, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, correctDivisionsCond, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        PredictionResults prediction = predict(objectClassIdx, parentTrack, trackPreFilters);
-        if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode())
-            prediction.division.forEach((o, im) -> stores.get(o).addIntermediateImage("divMap", im));
-        segment(objectClassIdx, parentTrack, prediction, postFilters, factory);
-        List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, prediction, editor, factory);
-        logger.debug("additional links detected: {}", additionalLinks);
-        postFilterTracking(objectClassIdx, parentTrack, additionalLinks, prediction, editor, factory);
-    }
-
-    private class PredictedChannels {
-        Image[] edmP, edmC, edmN;
-        Image[] contourP, contourC, contourN;
-        Image[] dyC, dyN;
-        Image[] dxC, dxN;
-        Image[] divMap, noPrevMap;
-        boolean avg, next, predictContours, predictCategories;
-
-        PredictedChannels(boolean avg, boolean next) {
-            this.avg = avg;
-            this.next = next;
-        }
-
-        void init(int n) {
-            edmC = new Image[n];
-            contourC = new Image[n];
-            dyC = new Image[n];
-            dxC = new Image[n];
-            divMap = new Image[n];
-            noPrevMap = new Image[n];
-            if (avg && next) {
-                contourP = new Image[n];
-                edmP = new Image[n];
-                if (next) {
-                    edmN = new Image[n];
-                    contourN = new Image[n];
-                    dyN = new Image[n];
-                    dxN = new Image[n];
-                }
+        // divide by frame window
+        int increment = frameWindow.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / frameWindow.getIntValue()) );
+        PredictionResults prevPrediction = null;
+        boolean incrementalPostProcessing = perWindow.getSelected();
+        List<SymetricalPair<SegmentedObject>> allAdditionalLinks = new ArrayList<>();
+        for (int i = 0; i<parentTrack.size(); i+=increment) {
+            boolean last = i+increment>parentTrack.size();
+            int maxIdx = Math.min(parentTrack.size(), i+increment);
+            logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
+            List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
+            PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction);
+            if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+                subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
+            logger.debug("Segmentation window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
+            segment(objectClassIdx, subParentTrack, prediction, postFilters, factory);
+            if (i>0) {
+                subParentTrack = new ArrayList<>(subParentTrack);
+                subParentTrack.add(0, parentTrack.get(i-1));
             }
-        }
-
-        void predict(DLengine engine, Image[] images, Image prev, boolean[] noPrevParent, int frameInterval) {
-            int idxLimMin = frameInterval > 1 ? frameInterval : 0;
-            int idxLimMax = frameInterval > 1 ? next ? images.length - frameInterval : images.length : images.length;
-            init(idxLimMax - idxLimMin);
-            double interval = idxLimMax - idxLimMin;
-            int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
-            for (int i = idxLimMin; i < idxLimMax; i += increment ) {
-                int idxMax = Math.min(i + batchSize.getIntValue(), idxLimMax);
-                Image[][] input = getInputs(images, i == 0 ? prev : images[i - 1], noPrevParent, next, i, idxMax, frameInterval);
-                logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
-                Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
-                appendPrediction(predictions, i - idxLimMin);
+            logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
+            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, factory, i==0);
+            // clear images to free-memory and leave the last item for next prediction. leave EDM as it is used for post-processing
+            int maxF = subParentTrack.get(0).getFrame();
+            for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
+                SegmentedObject p = subParentTrack.get(j);
+                prediction.contours.remove(p);
+                prediction.division.remove(p);
+                prediction.dx.remove(p);
+                prediction.dy.remove(p);
+                prediction.noPrev.remove(p);
+                if (p.getFrame()>maxF) maxF = p.getFrame();
             }
-        }
+            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), maxF);
 
-        void appendPrediction(Image[][][] predictions, int idx) {
-            predictCategories = true; //predictions.length>3;
-            int channelEdmCur = predictions[0][0].length == 1 ? 0 : 1;
-            predictContours = (next && predictions.length == 6) || (!next && predictions.length == 5);
-            int inc = predictContours ? 1 : 0;
-            int n = predictions[0].length;
-            System.arraycopy(ResizeUtils.getChannel(predictions[0], channelEdmCur), 0, this.edmC, idx, n);
-            if (predictContours)
-                System.arraycopy(ResizeUtils.getChannel(predictions[1], channelEdmCur), 0, this.contourC, idx, n);
-            System.arraycopy(ResizeUtils.getChannel(predictions[1 + inc], 0), 0, this.dyC, idx, n);
-            System.arraycopy(ResizeUtils.getChannel(predictions[2 + inc], 0), 0, this.dxC, idx, n);
-            if (predictCategories) {
-                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 2), 0, this.divMap, idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 3), 0, this.noPrevMap, idx, n);
-            }
-            if (avg) {
-                System.arraycopy(ResizeUtils.getChannel(predictions[0], 0), 0, this.edmP, idx, n);
-                if (predictContours)
-                    System.arraycopy(ResizeUtils.getChannel(predictions[1], 0), 0, this.contourP, idx, n);
-                if (next) {
-                    System.arraycopy(ResizeUtils.getChannel(predictions[0], 2), 0, this.edmN, idx, n);
-                    if (predictContours)
-                        System.arraycopy(ResizeUtils.getChannel(predictions[1], 2), 0, this.contourN, idx, n);
-                    System.arraycopy(ResizeUtils.getChannel(predictions[1 + inc], 1), 0, this.dyN, idx, n);
-                    System.arraycopy(ResizeUtils.getChannel(predictions[2 + inc], 1), 0, this.dxN, idx, n);
-                }
-            }
-        }
-
-        void averagePredictions(boolean[] noPrevParent, Image previousEDM, Image previousContour, Image previousDY, Image previousDX) {
-            if (avg) {
-                if (next) {
-                    // avg edm & contours
-                    BiFunction<Image[][], Image, Image[]> average3 = (pcn, prevN) -> {
-                        Image[] prevI = pcn[0];
-                        Image[] curI = pcn[1];
-                        Image[] nextI = pcn[2];
-                        int last = curI.length - 1;
-                        if (prevI.length > 1 && !noPrevParent[1]) {
-                            if (prevN != null) ImageOperations.average(curI[0], curI[0], prevI[1], prevN);
-                            else ImageOperations.average(curI[0], curI[0], prevI[1]);
-                        }
-                        for (int i = 1; i < last; ++i) {
-                            if (!noPrevParent[i + 1] && !noPrevParent[i]) {
-                                ImageOperations.average(curI[i], curI[i], prevI[i + 1], nextI[i - 1]);
-                            } else if (!noPrevParent[i + 1]) {
-                                ImageOperations.average(curI[i], curI[i], prevI[i + 1]);
-                            } else if (!noPrevParent[i]) {
-                                ImageOperations.average(curI[i], curI[i], nextI[i - 1]);
-                            }
-                        }
-                        if (!noPrevParent[last]) ImageOperations.average(curI[last], curI[last], nextI[last - 1]);
-                        return curI;
-                    };
-                    Image[][] edm_pcn = new Image[][]{edmP, edmC, edmN};
-                    edmC = average3.apply(edm_pcn, previousEDM);
-                    edmP = null;
-                    edmN = null;
-                    if (predictContours) {
-                        Image[][] contours_pcn = new Image[][]{contourP, contourC, contourN};
-                        contourC = average3.apply(contours_pcn, previousContour);
-                        contourP = null;
-                        contourN = null;
-                    }
-
-                    // average on dy & dx
-                    BiFunction<Image[][], Image, Image[]> average2 = (cn, prevN) -> {
-                        Image[] curI = cn[0];
-                        Image[] nextI = cn[1];
-                        if (prevN != null) ImageOperations.average(curI[0], curI[0], prevN);
-                        for (int i = 1; i < curI.length; ++i) {
-                            if (!noPrevParent[i]) ImageOperations.average(curI[i], curI[i], nextI[i - 1]);
-                        }
-                        return curI;
-                    };
-                    Image[][] cn = new Image[][]{dyC, dyN};
-                    dyC = average2.apply(cn, previousDY);
-                    dyN = null;
-                    cn = new Image[][]{dxC, dxN};
-                    dxC = average2.apply(cn, previousDX);
-                    dxN = null;
-                    /*if (predictCategories) {
-                        Image[] noPrevMapN = ResizeUtils.getChannel(predictions[4], 3);
-                        Image[][] cn = new Image[][]{noPrevMap, noPrevMapN};
-                        noPrevMap = average2.apply(cn, null);
-                    }*/
-                } else {
-                    Function<Image[][], Image[]> average = (pc) -> {
-                        Image[] prev = pc[0];
-                        Image[] cur = pc[1];
-                        for (int i = 0; i < cur.length - 1; ++i) {
-                            if (!noPrevParent[i + 1]) ImageOperations.average(cur[i], cur[i], prev[i + 1]);
-                        }
-                        return cur;
-                    };
-                    Image[][] edm_pn = new Image[][]{edmP, edmC};
-                    edmC = average.apply(edm_pn);
-                    edmP = null;
-                    if (predictContours) {
-                        Image[][] contours_pn = new Image[][]{contourP, contourC};
-                        contourC = average.apply(contours_pn);
-                        contourP = null;
-                    }
-                }
-                System.gc();
-            }
-        }
-    }
-
-    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters) {
-        boolean next = this.next.getSelected();
-        long t0 = System.currentTimeMillis();
-        DLengine engine = dlEngine.instantiatePlugin();
-        engine.init();
-        long t1 = System.currentTimeMillis();
-        logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
-        trackPreFilters.filter(objectClassIdx, parentTrack);
-        if (stores != null && !trackPreFilters.isEmpty())
-            parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
-        long t2 = System.currentTimeMillis();
-        logger.debug("track prefilters run in {}ms", t2 - t1);
-        Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
-        boolean[] noPrevParent = new boolean[parentTrack.size()]; // in case parent track contains gaps
-        noPrevParent[0] = true;
-        for (int i = 1; i < noPrevParent.length; ++i)
-            if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
-        PredictedChannels pred = new PredictedChannels(this.averagePredictions.getSelected(), this.next.getSelected());
-        pred.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, noPrevParent, 1);
-        long t3 = System.currentTimeMillis();
-
-        logger.info("{} predictions made in {}ms", parentTrack.size(), t3 - t2);
-
-
-
-        pred.averagePredictions(noPrevParent, null, null, null, null);
-        long t4 = System.currentTimeMillis();
-        logger.info("averaging: {}ms", t4 - t3);
-
-        // average with prediction with user-defined frame intervals
-
-        if (frameSubsampling.getChildCount() > 0) {
-            int channelEdmCur = 1;
             System.gc();
-            int size = parentTrack.size();
-            IntPredicate filter = next ? frameInterval -> 2 * frameInterval < size : frameInterval -> frameInterval < size;
-            int[] frameSubsampling = IntStream.of(this.frameSubsampling.getArrayInt()).filter(filter).toArray();
-            ToIntFunction<Integer> getNSubSampling = next ? frame -> (int) IntStream.of(frameSubsampling).filter(fi -> frame >= fi && frame < size - fi).count() : frame -> (int) IntStream.of(frameSubsampling).filter(fi -> frame >= fi).count();
-            if (frameSubsampling.length > 0) {
-                for (int frame = 1; frame < pred.edmC.length; frame++) { // half of the final value is edm without frame subsampling
-                    if (getNSubSampling.applyAsInt(frame) > 0) {
-                        ImageOperations.affineOperation(pred.edmC[frame], pred.edmC[frame], 0.5, 0);
-                        if (pred.predictContours)
-                            ImageOperations.affineOperation(pred.contourC[frame], pred.contourC[frame], 0.5, 0);
-                    }
-                }
-                for (int frameInterval : frameSubsampling) {
-                    logger.debug("averaging with frame subsampled: {}", frameInterval);
-                    PredictedChannels pred2 = new PredictedChannels(false, this.next.getSelected());
-                    pred2.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, noPrevParent, frameInterval);
-                    Image[] edm2 = pred2.edmC;
-                    for (int frame = frameInterval; frame < edm2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
-                        double n = getNSubSampling.applyAsInt(frame);
-                        ImageOperations.weightedSum(pred.edmC[frame], new double[]{1, 0.5 / n}, pred.edmC[frame], edm2[frame - frameInterval]);
-                    }
-                    if (pred2.predictContours) {
-                        Image[] contours2 = pred2.contourC;
-                        for (int frame = frameInterval; frame < contours2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
-                            double n = getNSubSampling.applyAsInt(frame);
-                            ImageOperations.weightedSum(pred.contourC[frame], new double[]{1, 0.5 / n}, pred.contourC[frame], contours2[frame - frameInterval]);
-                        }
-                    }
-
-                }
-            }
+            logger.debug("additional links detected: {}", additionalLinks);
+            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, editor, factory);
+            else allAdditionalLinks.addAll(additionalLinks);
+            prevPrediction = prediction;
         }
-
-        // offset & calibration
-        for (int idx = 0; idx < parentTrack.size(); ++idx) {
-            pred.edmC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            pred.edmC[idx].translate(parentTrack.get(idx).getMaskProperties());
-            if (pred.predictContours) {
-                pred.contourC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-                pred.contourC[idx].translate(parentTrack.get(idx).getMaskProperties());
-            }
-            pred.dyC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            pred.dyC[idx].translate(parentTrack.get(idx).getMaskProperties());
-            pred.dxC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            pred.dxC[idx].translate(parentTrack.get(idx).getMaskProperties());
-            if (pred.predictCategories) {
-                pred.divMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-                pred.divMap[idx].translate(parentTrack.get(idx).getMaskProperties());
-                pred.noPrevMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-                pred.noPrevMap[idx].translate(parentTrack.get(idx).getMaskProperties());
-            }
-        }
-        Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.edmC[i]));
-        Map<SegmentedObject, Image> divM = !pred.predictCategories ? null : IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.divMap[i]));
-        Map<SegmentedObject, Image> npM = !pred.predictCategories ? null : IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.noPrevMap[i]));
-        Map<SegmentedObject, Image> dyM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.dyC[i]));
-        Map<SegmentedObject, Image> dxM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.dxC[i]));
-        PredictionResults res = new PredictionResults().setEdm(edmM).setDx(dxM).setDy(dyM).setDivision(divM).setNoPrev(npM);
-        if (pred.predictContours) {
-            Map<SegmentedObject, Image> contoursM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.contourC[i]));
-            res.setContours(contoursM);
-        }
-        return res;
+        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, editor, factory);
     }
 
-    private static class PredictionResults {
-        Map<SegmentedObject, Image> edm, contours, dx, dy, division, noPrev;
 
-        public PredictionResults setEdm(Map<SegmentedObject, Image> edm) {
-            this.edm = edm;
-            return this;
-        }
-
-        public PredictionResults setContours(Map<SegmentedObject, Image> contours) {
-            this.contours = contours;
-            return this;
-        }
-
-        public PredictionResults setDx(Map<SegmentedObject, Image> dx) {
-            this.dx = dx;
-            return this;
-        }
-
-        public PredictionResults setDy(Map<SegmentedObject, Image> dy) {
-            this.dy = dy;
-            return this;
-        }
-
-        public PredictionResults setDivision(Map<SegmentedObject, Image> division) {
-            this.division = division;
-            return this;
-        }
-
-        public PredictionResults setNoPrev(Map<SegmentedObject, Image> noPrev) {
-            this.noPrev = noPrev;
-            return this;
-        }
-    }
 
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores != null);
@@ -422,8 +176,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         return res;
     }
+    //TODO faire le tracking via trackMate interface ...
     // returns links that could not be encoded in the segmented objects
-    public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory, boolean firstWindow) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
@@ -507,7 +262,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             };
             // CORRECTION 1 merge regions @minFrame if they are merged at minFrame+1
-            if (frame == minFrame + 1) {
+            if (firstWindow && frame == minFrame + 1) {
                 objects.stream().filter(o -> nextToAllPrevMap.get(o) != null && nextToAllPrevMap.get(o).size() > 1).forEach(o -> {
                     mergeFunNoPrev.accept(nextToAllPrevMap.get(o), objects);
                 });
@@ -741,6 +496,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             nextToAllPrevMap.entrySet().stream().filter(e -> e.getValue() != null).forEach(e -> {
                 if (e.getValue().size() == 1) {
                     editor.setTrackLinks(e.getValue().get(0), e.getKey(), true, nextCount.get(e.getValue().get(0)) <= 1, true);
+                    //if (nextCount.get(e.getValue().get(0))>1) logger.debug("set prev and not next: {} <- {}, next counts: {}", e.getValue().get(0), e.getKey(), nextCount.get(e.getValue().get(0)));
                 } else {
                     e.getValue().stream().filter(p -> nextCount.get(p) <= 1).forEach(p -> editor.setTrackLinks(p, e.getKey(), false, true, true));
                     e.getValue().stream().filter(p -> nextCount.get(p) > 1).forEach(p -> additionalLinks.add(new SymetricalPair<>(p, e.getKey()))); // this links cannot be encoded in the SegmentedObject
@@ -748,7 +504,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             });
             divisionMap.putAll(divMapPrevMapNext);
 
-            // FLAG ERROR for division that yield more than 3 bacteria
+            // FLAG ERROR for division that yield more than 3 cells
             divisionMap.entrySet().stream().filter(e -> e.getValue().size() > 2).forEach(e -> {
                 e.getKey().setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
                 e.getValue().forEach(n -> n.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
@@ -766,7 +522,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         if (divMapPrevMapNext.containsKey(prev)) { // compute size of all next objects
                             growthrate = divMapPrevMapNext.get(prev).stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                         } else if (touchBorder.test(prev) || touchBorder.test(next)) {
-                            growthrate = Double.NaN; // growth rate cannot be computed bacteria are partly out of the channel
+                            growthrate = Double.NaN; // growth rate cannot be computed bacteria are partly out of the image
                         } else {
                             growthrate = sizeMap.get(next) / sizeMap.get(prev);
                         }
@@ -811,7 +567,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (next && parentTrack.size() < 3) throw new RuntimeException("Parent Track Must contain at least 3 frames");
         else if (!next && parentTrack.size() < 2)
             throw new RuntimeException("Parent Track Must contain at least 2 frames");
-        return predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""));
+        return predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""), null);
     }
 
     @Override
@@ -986,12 +742,16 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         List<Pair<SegmentedObject, Double>> prevOverlap = previousObjects.stream().map(target -> {
             double overlap = objectSpotMap.get(target).overlap(sourceTo);
             if (overlap == 0) return null;
+            target.getMeasurements().setValue("Overlap_"+source.getIdx(), overlap);
+            target.getMeasurements().setValue("Overlap_prop_"+source.getIdx(), overlap / Math.min(source.getRegion().size(), target.getRegion().size()));
+            target.getMeasurements().setValue("Size", target.getRegion().size());
             return new Pair<>(target, overlap);
         }).filter(Objects::nonNull).sorted(Comparator.comparingDouble(p -> -p.value)).collect(Collectors.toList());
         if (prevOverlap.size() > 1) {
             double sourceSize = source.getRegion().size();
             List<SegmentedObject> res = prevOverlap.stream().filter(p -> p.value / Math.min(sourceSize, p.key.getRegion().size()) > minOverlapProportion).map(p -> p.key).collect(Collectors.toList());
-            if (res.isEmpty()) res.add(prevOverlap.get(0).key);
+            //if (res.isEmpty()) res.add(prevOverlap.get(0).key);
+            if (res.isEmpty()) return null;
             return res;
         } else if (prevOverlap.isEmpty()) return null;
         else {
@@ -1095,8 +855,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 return (r1, r2) -> {
                     if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gaxMaxDist))) return false;
                     double d2Thld = Math.pow(gaxMaxDist, 2); // 1 pixel gap diagonal
-                    Set<Voxel> contour1 = getPoles(r1.getContour(), poleDist);
-                    Set<Voxel> contour2 = getPoles(r2.getContour(), poleDist);
+                    FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r1);
+                    FitEllipseShape.Ellipse e2 = FitEllipseShape.fitShape(r2);
+                    double eccentricityThld = this.eccentricityThld.getDoubleValue();
+                    Set<Voxel> contour1 = e1.getEccentricity()<eccentricityThld ? r1.getContour() : getPoles(r1.getContour(), poleDist);
+                    Set<Voxel> contour2 = e2.getEccentricity()<eccentricityThld ? r2.getContour() : getPoles(r2.getContour(), poleDist);
                     for (Voxel v1 : contour1) {
                         for (Voxel v2 : contour2) {
                             if (v1.getDistanceSquare(v2) <= d2Thld) return true;
@@ -1125,6 +888,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             }
         }
+        // for small objects poles are not well-defined.
         return max;
     }
 
@@ -1147,5 +911,303 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
         if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), sm, factory, editor);
         if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), sm, factory, editor);
+    }
+
+    /// DL prediction
+
+    private class PredictedChannels {
+        Image[] edmP, edmC, edmN;
+        Image[] contourP, contourC, contourN;
+        Image[] dyC, dyN;
+        Image[] dxC, dxN;
+        Image[] divMap, noPrevMap;
+        boolean avg, next, predictContours, predictCategories;
+
+        PredictedChannels(boolean avg, boolean next) {
+            this.avg = avg;
+            this.next = next;
+        }
+
+        void init(int n) {
+            edmC = new Image[n];
+            contourC = new Image[n];
+            dyC = new Image[n];
+            dxC = new Image[n];
+            divMap = new Image[n];
+            noPrevMap = new Image[n];
+            if (avg && next) {
+                contourP = new Image[n];
+                edmP = new Image[n];
+                if (next) {
+                    edmN = new Image[n];
+                    contourN = new Image[n];
+                    dyN = new Image[n];
+                    dxN = new Image[n];
+                }
+            }
+        }
+
+        void predict(DLengine engine, Image[] images, Image prev, boolean[] noPrevParent, int frameInterval) {
+            int idxLimMin = frameInterval > 1 ? frameInterval : 0;
+            int idxLimMax = frameInterval > 1 ? next ? images.length - frameInterval : images.length : images.length;
+            init(idxLimMax - idxLimMin);
+            double interval = idxLimMax - idxLimMin;
+            int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
+            for (int i = idxLimMin; i < idxLimMax; i += increment ) {
+                int idxMax = Math.min(i + batchSize.getIntValue(), idxLimMax);
+                Image[][] input = getInputs(images, i == 0 ? prev : images[i - 1], noPrevParent, next, i, idxMax, frameInterval);
+                logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
+                Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
+                appendPrediction(predictions, i - idxLimMin);
+            }
+        }
+
+        void appendPrediction(Image[][][] predictions, int idx) {
+            predictCategories = true; //predictions.length>3;
+            int channelEdmCur = predictions[0][0].length == 1 ? 0 : 1;
+            predictContours = (next && predictions.length == 6) || (!next && predictions.length == 5);
+            int inc = predictContours ? 1 : 0;
+            int n = predictions[0].length;
+            System.arraycopy(ResizeUtils.getChannel(predictions[0], channelEdmCur), 0, this.edmC, idx, n);
+            if (predictContours)
+                System.arraycopy(ResizeUtils.getChannel(predictions[1], channelEdmCur), 0, this.contourC, idx, n);
+            System.arraycopy(ResizeUtils.getChannel(predictions[1 + inc], 0), 0, this.dyC, idx, n);
+            System.arraycopy(ResizeUtils.getChannel(predictions[2 + inc], 0), 0, this.dxC, idx, n);
+            if (predictCategories) {
+                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 2), 0, this.divMap, idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 3), 0, this.noPrevMap, idx, n);
+            }
+            if (avg) {
+                System.arraycopy(ResizeUtils.getChannel(predictions[0], 0), 0, this.edmP, idx, n);
+                if (predictContours)
+                    System.arraycopy(ResizeUtils.getChannel(predictions[1], 0), 0, this.contourP, idx, n);
+                if (next) {
+                    System.arraycopy(ResizeUtils.getChannel(predictions[0], 2), 0, this.edmN, idx, n);
+                    if (predictContours)
+                        System.arraycopy(ResizeUtils.getChannel(predictions[1], 2), 0, this.contourN, idx, n);
+                    System.arraycopy(ResizeUtils.getChannel(predictions[1 + inc], 1), 0, this.dyN, idx, n);
+                    System.arraycopy(ResizeUtils.getChannel(predictions[2 + inc], 1), 0, this.dxN, idx, n);
+                }
+            }
+        }
+
+        void averagePredictions(boolean[] noPrevParent, Image previousEDM, Image previousContour, Image previousDY, Image previousDX) {
+            if (avg) {
+                if (next) {
+                    // avg edm & contours
+                    BiFunction<Image[][], Image, Image[]> average3 = (pcn, prevN) -> {
+                        Image[] prevI = pcn[0];
+                        Image[] curI = pcn[1];
+                        Image[] nextI = pcn[2];
+                        int last = curI.length - 1;
+                        if (prevI.length > 1 && !noPrevParent[1]) {
+                            if (prevN != null) ImageOperations.average(curI[0], curI[0], prevI[1], prevN);
+                            else ImageOperations.average(curI[0], curI[0], prevI[1]);
+                        }
+                        for (int i = 1; i < last; ++i) {
+                            if (!noPrevParent[i + 1] && !noPrevParent[i]) {
+                                ImageOperations.average(curI[i], curI[i], prevI[i + 1], nextI[i - 1]);
+                            } else if (!noPrevParent[i + 1]) {
+                                ImageOperations.average(curI[i], curI[i], prevI[i + 1]);
+                            } else if (!noPrevParent[i]) {
+                                ImageOperations.average(curI[i], curI[i], nextI[i - 1]);
+                            }
+                        }
+                        if (!noPrevParent[last]) ImageOperations.average(curI[last], curI[last], nextI[last - 1]);
+                        return curI;
+                    };
+                    Image[][] edm_pcn = new Image[][]{edmP, edmC, edmN};
+                    edmC = average3.apply(edm_pcn, previousEDM);
+                    edmP = null;
+                    edmN = null;
+                    if (predictContours) {
+                        Image[][] contours_pcn = new Image[][]{contourP, contourC, contourN};
+                        contourC = average3.apply(contours_pcn, previousContour);
+                        contourP = null;
+                        contourN = null;
+                    }
+
+                    // average on dy & dx
+                    BiFunction<Image[][], Image, Image[]> average2 = (cn, prevN) -> {
+                        Image[] curI = cn[0];
+                        Image[] nextI = cn[1];
+                        if (prevN != null) ImageOperations.average(curI[0], curI[0], prevN);
+                        for (int i = 1; i < curI.length; ++i) {
+                            if (!noPrevParent[i]) ImageOperations.average(curI[i], curI[i], nextI[i - 1]);
+                        }
+                        return curI;
+                    };
+                    Image[][] cn = new Image[][]{dyC, dyN};
+                    dyC = average2.apply(cn, previousDY);
+                    dyN = null;
+                    cn = new Image[][]{dxC, dxN};
+                    dxC = average2.apply(cn, previousDX);
+                    dxN = null;
+                    /*if (predictCategories) {
+                        Image[] noPrevMapN = ResizeUtils.getChannel(predictions[4], 3);
+                        Image[][] cn = new Image[][]{noPrevMap, noPrevMapN};
+                        noPrevMap = average2.apply(cn, null);
+                    }*/
+                } else {
+                    Function<Image[][], Image[]> average = (pc) -> {
+                        Image[] prev = pc[0];
+                        Image[] cur = pc[1];
+                        for (int i = 0; i < cur.length - 1; ++i) {
+                            if (!noPrevParent[i + 1]) ImageOperations.average(cur[i], cur[i], prev[i + 1]);
+                        }
+                        return cur;
+                    };
+                    Image[][] edm_pn = new Image[][]{edmP, edmC};
+                    edmC = average.apply(edm_pn);
+                    edmP = null;
+                    if (predictContours) {
+                        Image[][] contours_pn = new Image[][]{contourP, contourC};
+                        contourC = average.apply(contours_pn);
+                        contourP = null;
+                    }
+                }
+                System.gc();
+            }
+        }
+    }
+
+    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PredictionResults previousPredictions) {
+        boolean next = this.next.getSelected();
+        long t0 = System.currentTimeMillis();
+        DLengine engine = dlEngine.instantiatePlugin();
+        engine.init();
+        long t1 = System.currentTimeMillis();
+        logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
+        trackPreFilters.filter(objectClassIdx, parentTrack);
+        if (stores != null && !trackPreFilters.isEmpty())
+            parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
+        long t2 = System.currentTimeMillis();
+        logger.debug("track prefilters run in {}ms", t2 - t1);
+        Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
+        boolean[] noPrevParent = new boolean[parentTrack.size()]; // in case parent track contains gaps
+        noPrevParent[0] = true;
+        for (int i = 1; i < noPrevParent.length; ++i)
+            if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
+        PredictedChannels pred = new PredictedChannels(this.averagePredictions.getSelected(), this.next.getSelected());
+        SegmentedObject previousParent = parentTrack.get(0).getPrevious();
+        pred.predict(engine, images, previousParent != null ? previousParent.getPreFilteredImage(objectClassIdx) : null, noPrevParent, 1);
+        long t3 = System.currentTimeMillis();
+
+        logger.info("{} predictions made in {}ms", parentTrack.size(), t3 - t2);
+
+
+        boolean prevPred = previousPredictions!=null && previousPredictions!=null;
+        pred.averagePredictions(noPrevParent, prevPred?previousPredictions.edm.get(previousParent):null, prevPred?previousPredictions.contours.get(previousParent):null, prevPred?previousPredictions.dy.get(previousParent):null, prevPred?previousPredictions.dx.get(previousParent):null);
+        long t4 = System.currentTimeMillis();
+        logger.info("averaging: {}ms", t4 - t3);
+
+        // average with prediction with user-defined frame intervals
+
+        if (frameSubsampling.getChildCount() > 0) {
+            int channelEdmCur = 1;
+            System.gc();
+            int size = parentTrack.size();
+            IntPredicate filter = next ? frameInterval -> 2 * frameInterval < size : frameInterval -> frameInterval < size;
+            int[] frameSubsampling = IntStream.of(this.frameSubsampling.getArrayInt()).filter(filter).toArray();
+            ToIntFunction<Integer> getNSubSampling = next ? frame -> (int) IntStream.of(frameSubsampling).filter(fi -> frame >= fi && frame < size - fi).count() : frame -> (int) IntStream.of(frameSubsampling).filter(fi -> frame >= fi).count();
+            if (frameSubsampling.length > 0) {
+                for (int frame = 1; frame < pred.edmC.length; frame++) { // half of the final value is edm without frame subsampling
+                    if (getNSubSampling.applyAsInt(frame) > 0) {
+                        ImageOperations.affineOperation(pred.edmC[frame], pred.edmC[frame], 0.5, 0);
+                        if (pred.predictContours)
+                            ImageOperations.affineOperation(pred.contourC[frame], pred.contourC[frame], 0.5, 0);
+                    }
+                }
+                for (int frameInterval : frameSubsampling) {
+                    logger.debug("averaging with frame subsampled: {}", frameInterval);
+                    PredictedChannels pred2 = new PredictedChannels(false, this.next.getSelected());
+                    pred2.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, noPrevParent, frameInterval);
+                    Image[] edm2 = pred2.edmC;
+                    for (int frame = frameInterval; frame < edm2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
+                        double n = getNSubSampling.applyAsInt(frame);
+                        ImageOperations.weightedSum(pred.edmC[frame], new double[]{1, 0.5 / n}, pred.edmC[frame], edm2[frame - frameInterval]);
+                    }
+                    if (pred2.predictContours) {
+                        Image[] contours2 = pred2.contourC;
+                        for (int frame = frameInterval; frame < contours2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
+                            double n = getNSubSampling.applyAsInt(frame);
+                            ImageOperations.weightedSum(pred.contourC[frame], new double[]{1, 0.5 / n}, pred.contourC[frame], contours2[frame - frameInterval]);
+                        }
+                    }
+
+                }
+            }
+        }
+
+        // offset & calibration
+        for (int idx = 0; idx < parentTrack.size(); ++idx) {
+            pred.edmC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+            pred.edmC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            if (pred.predictContours) {
+                pred.contourC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+                pred.contourC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            }
+            pred.dyC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+            pred.dyC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            pred.dxC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+            pred.dxC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            if (pred.predictCategories) {
+                pred.divMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+                pred.divMap[idx].translate(parentTrack.get(idx).getMaskProperties());
+                pred.noPrevMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
+                pred.noPrevMap[idx].translate(parentTrack.get(idx).getMaskProperties());
+            }
+        }
+        Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.edmC[i]));
+        Map<SegmentedObject, Image> divM = !pred.predictCategories ? null : IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.divMap[i]));
+        Map<SegmentedObject, Image> npM = !pred.predictCategories ? null : IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.noPrevMap[i]));
+        Map<SegmentedObject, Image> dyM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.dyC[i]));
+        Map<SegmentedObject, Image> dxM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.dxC[i]));
+        PredictionResults res = (previousPredictions == null ? new PredictionResults() : previousPredictions).setEdm(edmM).setDx(dxM).setDy(dyM).setDivision(divM).setNoPrev(npM);
+        if (pred.predictContours) {
+            Map<SegmentedObject, Image> contoursM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.contourC[i]));
+            res.setContours(contoursM);
+        }
+        return res;
+    }
+
+    private static class PredictionResults {
+        Map<SegmentedObject, Image> edm, contours, dx, dy, division, noPrev;
+
+        public PredictionResults setEdm(Map<SegmentedObject, Image> edm) {
+            if (this.edm == null) this.edm = edm;
+            else this.edm.putAll(edm);
+            return this;
+        }
+
+        public PredictionResults setContours(Map<SegmentedObject, Image> contours) {
+            if (this.contours == null) this.contours = contours;
+            else this.contours.putAll(contours);
+            return this;
+        }
+
+        public PredictionResults setDx(Map<SegmentedObject, Image> dx) {
+            if (this.dx == null) this.dx = dx;
+            else this.dx.putAll(dx);
+            return this;
+        }
+
+        public PredictionResults setDy(Map<SegmentedObject, Image> dy) {
+            if (this.dy == null) this.dy = dy;
+            else this.dy.putAll(dy);
+            return this;
+        }
+
+        public PredictionResults setDivision(Map<SegmentedObject, Image> division) {
+            if (this.division == null) this.division = division;
+            else this.division.putAll(division);
+            return this;
+        }
+
+        public PredictionResults setNoPrev(Map<SegmentedObject, Image> noPrev) {
+            if (this.noPrev == null) this.noPrev = noPrev;
+            else this.noPrev.putAll(noPrev);
+            return this;
+        }
     }
 }

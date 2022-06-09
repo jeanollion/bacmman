@@ -153,7 +153,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         }        
         return res;
     }
-    
+
+    public static Comparator<SegmentedObject> frameComparator() {
+        return Comparator.comparingInt(SegmentedObject::getFrame);
+    }
     
     // structure-related methods
     ObjectDAO getDAO() {return dao;}

@@ -22,13 +22,13 @@ import java.util.stream.Collectors;
 
 public class Track {
     public final static Logger logger = LoggerFactory.getLogger(Track.class);
-    final Set<Track> previous, next;
+    final List<Track> previous, next; // no hashset because hash of Tracks can change with merge
     final List<SegmentedObject> objects;
     List<Triplet<Region,Region,Double>> splitRegions;
     public Track(Collection<SegmentedObject> objects) {
         if (objects instanceof ArrayList) this.objects = (List<SegmentedObject>)(objects);
         else this.objects = new ArrayList<>(objects);
-        this.objects.sort(Comparator.comparingInt(SegmentedObject::getFrame));
+        this.objects.sort(SegmentedObject.frameComparator());
         if (!this.objects.get(0).isTrackHead()) {
             logger.error("First track item should be TrackHead: first item: {} track head: {}", this.objects.get(0), this.objects.get(0).getTrackHead());
             throw new IllegalArgumentException("First track item should be TrackHead");
@@ -41,8 +41,8 @@ public class Track {
             logger.error("Invalid track: track head differ: {}", Utils.toStringList(objects, o -> o.toString()+" (th="+o.getTrackHead().toString()+") "));
             throw new IllegalArgumentException("Invalid Track: at least one object has a different track head");
         }
-        this.previous = new HashSet<>();
-        this.next = new HashSet<>();
+        this.previous = new ArrayList<>();
+        this.next = new ArrayList<>();
     }
     public Track setSplitRegions(SplitAndMerge sm) {
         splitRegions = objects.stream().map(sm::computeSplitCost).collect(Collectors.toList());
@@ -58,7 +58,7 @@ public class Track {
         else res = getPrevious().stream().filter(t -> other.getPrevious().contains(t)).findAny().orElse(null);
 
         if (res==null && searchInLinkedTracks) {
-            Function<Track, Set<Track>> followingCandidates = next ? Track::getNext : Track::getPrevious;
+            Function<Track, List<Track>> followingCandidates = next ? Track::getNext : Track::getPrevious;
             for (Track tt : followingCandidates.apply(this)) {
                 res = other.getCommonTrack(tt, next, false);
                 if (res!=null) return res;
@@ -73,10 +73,10 @@ public class Track {
     public List<Triplet<Region,Region,Double>> getSplitRegions() {
         return splitRegions;
     }
-    protected Set<Track> getPrevious() {
+    protected List<Track> getPrevious() {
         return previous;
     }
-    protected Set<Track> getNext() {
+    protected List<Track> getNext() {
         return next;
     }
     public SegmentedObject getObject(int frame) {return objects.stream().filter(o -> o.getFrame()==frame).findAny().orElse(null);}
@@ -107,13 +107,22 @@ public class Track {
     public Track simplifyTrack(TrackLinkEditor editor, Consumer<Track> removeTrack) {
         Track res = this;
         if (getPrevious().size()==1) {
-            res = Track.appendTrack(getPrevious().iterator().next(), this, editor, removeTrack);
+            Track prev = getPrevious().iterator().next();
+            if (prev.getNext().size()==1) {
+                //logger.debug("SimplifyTrack (p): {} + {}", prev, this);
+                res = Track.appendTrack(prev, this, editor, removeTrack);
+            }
         }
         if (getNext().size()==1) {
-            res = Track.appendTrack(res, res.getNext().iterator().next(), editor, removeTrack);
+            Track next = res.getNext().iterator().next();
+            if (next.getPrevious().size() == 1) {
+                //logger.debug("SimplifyTrack (n): {} + {}", res, next);
+                res = Track.appendTrack(res, next, editor, removeTrack);
+            }
         }
         return res;
     }
+
     public boolean belongTo(TrackTree tree) {
         if (tree.containsKey(head())) return true;
         for (Track t : previous) if (tree.containsKey(t.head())) return true;
@@ -123,14 +132,14 @@ public class Track {
     public Track addNext(Track next) {
         if (next==null) return this;
         if (next.getFirstFrame()<=getLastFrame()) throw new IllegalArgumentException("Error adding next track: "+head()+" -> "+getLastFrame()+" <= "+next.head() );
-        this.next.add(next);
+        if (!this.next.contains(next)) this.next.add(next);
         if (this.next.size()>1) if (!Utils.objectsAllHaveSameProperty(this.next, Track::getFirstFrame)) throw new RuntimeException("Error adding next all first frames should be equal");
         return this;
     }
     public Track addPrevious(Track prev) {
         if (prev==null) return this;
         if (prev.getLastFrame()>=getFirstFrame()) throw new IllegalArgumentException("Error adding previous track: "+prev.head()+"->"+prev.getLastFrame()+" >= "+head() );
-        this.previous.add(prev);
+        if (!this.previous.contains(prev)) this.previous.add(prev);
         if (previous.size()>1) if (! Utils.objectsAllHaveSameProperty(previous, Track::getLastFrame)) throw new IllegalArgumentException("Error adding prev all last frames should be equal");
         return this;
     }
@@ -175,6 +184,13 @@ public class Track {
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+        for (List<SegmentedObject> t: allTracks.values()) {
+            t.sort(SegmentedObject.frameComparator());
+            if (!t.get(0).isTrackHead()) {
+                SegmentedObject th = t.get(0).getTrackHead();
+                logger.error("missing th: {}, parent in list: {}, parent contains: {}", th, parent.contains(th.getParent()), th.getParent().getChildren(segmentedObjectClass).anyMatch(o->o==th));
+            }
+        }
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));
         for (Track t : tracks.values()) {
             Set<SegmentedObject> nexts = additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(p -> p.value).collect(Collectors.toSet());
@@ -186,7 +202,7 @@ public class Track {
                     try {
                         t.addNext(nextT);
                         nextT.addPrevious(t);
-                    } catch (java.lang.IllegalArgumentException e) {
+                    } catch (java.lang.IllegalArgumentException e) { // debugging
                         logger.debug("next trackhead is equal: {}", t.head().equals(next.getTrackHead()));
                         Set<SegmentedObject> allObjects = parent.stream().filter(p -> p.getFrame()==next.getFrame()).flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.toSet());
                         List<SegmentedObject> nextL = allObjects.stream().filter(o -> o.getIdx()==next.getIdx()).collect(Collectors.toList());
@@ -269,13 +285,28 @@ public class Track {
     }
 
     public static Track mergeTracks(Track track1, Track track2, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
-        if (track1.getFirstFrame()>track2.getLastFrame() || track2.getFirstFrame()>track1.getLastFrame()) return null;
+        if (track1.getFirstFrame()>track2.getLastFrame() || track2.getFirstFrame()>track1.getLastFrame()) {
+            logger.error("cannot merge tracks: incompatible first/last frames {} + {}", track1, track2);
+            return null;
+        }
 
         // if track are not overlapping in time and they have previous/next merging is impossible. // TODO : remove links instead ?
-        if (track1.getFirstFrame() < track2.getFirstFrame() && !track2.getPrevious().isEmpty()) return null;
-        if (track1.getFirstFrame() > track2.getFirstFrame() && !track1.getPrevious().isEmpty()) return null;
-        if (track1.getLastFrame() < track2.getLastFrame() && !track1.getNext().isEmpty()) return null;
-        if (track1.getLastFrame() > track2.getLastFrame() && !track2.getNext().isEmpty()) return null;
+        if (track1.getFirstFrame() < track2.getFirstFrame() && !track2.getPrevious().isEmpty()) {
+            logger.error("cannot merge tracks:  {} + {}, track 2 previous not empty: {}", track1, track2, track2.getPrevious());
+            return null;
+        }
+        if (track1.getFirstFrame() > track2.getFirstFrame() && !track1.getPrevious().isEmpty()) {
+            logger.error("cannot merge tracks:  {} + {}, track 1 previous not empty: {}", track1, track2, track1.getPrevious());
+            return null;
+        }
+        if (track1.getLastFrame() < track2.getLastFrame() && !track1.getNext().isEmpty()) {
+            logger.error("cannot merge tracks:  {} + {}, track 1 next not empty: {}", track1, track2, track1.getNext());
+            return null;
+        }
+        if (track1.getLastFrame() > track2.getLastFrame() && !track2.getNext().isEmpty()) {
+            logger.error("cannot merge tracks:  {} + {}, track 2 next not empty: {}", track1, track2, track2.getNext());
+            return null;
+        }
 
         // merge regions
         for (int i = 0; i<track1.length(); ++i) {
@@ -292,9 +323,11 @@ public class Track {
             }
         }
         removeTrack.accept(track2); // do this before next step because trackHead can be track2.head()
+        track2.getNext().forEach(n -> n.getPrevious().remove(track2));
+        track2.getPrevious().forEach(p -> p.getNext().remove(track2));
         // append non merged object before
         if (track2.getFirstFrame()<track1.getFirstFrame()) { // this step modifies trackHead of track 1
-            removeTrack.accept(track1);
+            removeTrack.accept(track1); // remove and then add because hash will change
             List<SegmentedObject> toAdd = track2.getSubset(track2.getFirstFrame(), track1.getFirstFrame());
             editor.setTrackLinks(toAdd.get(toAdd.size()-1), track1.head(), true, true, true);
             track1.getObjects().addAll(0, toAdd);
@@ -308,12 +341,10 @@ public class Track {
         }
         // replace track2 by track1 @ prev & next
         track2.getNext().forEach(n -> {
-            n.getPrevious().remove(track2);
             n.addPrevious(track1);
             track1.addNext(n);
         });
         track2.getPrevious().forEach(p -> {
-            p.getNext().remove(track2);
             p.addNext(track1);
             track1.addPrevious(p);
         });

@@ -72,34 +72,48 @@ public class TrackTreePopulation {
         for (TrackTree tt : trackTrees) {
             if (tt.size()==1) continue;
             Consumer<Track> remove = t -> tt.remove(t.head());
+            Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
             Track t = tt.getFirstMerge();
+            int lastFrame = -1;
+            Set<Track> seen = new HashSet<>();
             while (t!=null) {
-                Track merged = mergeTracks(t, true, forbidFusion, factory, editor, remove, toAdd -> tt.put(toAdd.head(), toAdd));
+                if (t.getFirstFrame()>lastFrame) seen.clear();
+                lastFrame = t.getFirstFrame();
+                Track merged = mergeTracks(t, true, forbidFusion, factory, editor, remove, add);
                 boolean stayOnSameTrack = false;
                 if (merged!=null) {
                     t = merged.simplifyTrack(editor, remove);
                     stayOnSameTrack = t.getPrevious().size()>1;
                 }
-                if (!stayOnSameTrack) t = tt.getNextMerge(t);
+                seen.add(t);
+                if (!stayOnSameTrack) t = tt.getNextMerge(t, seen);
             }
         }
     }
+
     public void solveSplitEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         for (TrackTree tt : trackTrees) {
             if (tt.size()==1) continue;
             Consumer<Track> remove = t -> tt.remove(t.head());
+            Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
             Track t = tt.getFirstSplit();
+            int lastFrame = -1;
+            Set<Track> seen = new HashSet<>();
             while (t!=null) {
-                Track merged = mergeTracks(t, false, forbidFusion, factory, editor, remove, toAdd -> tt.put(toAdd.head(), toAdd));
+                if (t.getFirstFrame() > lastFrame) seen.clear();
+                lastFrame = t.getFirstFrame();
+                Track merged = mergeTracks(t, false, forbidFusion, factory, editor, remove, add);
                 boolean stayOnSameTrack = false;
                 if (merged!=null) {
                     t = merged.simplifyTrack(editor, remove);
                     stayOnSameTrack = t.getNext().size()>1;
                 }
-                if (!stayOnSameTrack) t = tt.getNextSplit(t);
+                seen.add(t);
+                if (!stayOnSameTrack) t = tt.getNextSplit(t, seen);
             }
         }
     }
+
     private static Track mergeTracks(Track m, boolean previous, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
         List<Track> toMerge = previous? new ArrayList<>(m.getPrevious()) : new ArrayList<>(m.getNext());
         for (int i = 0; i<toMerge.size()-1; ++i) {
@@ -108,8 +122,8 @@ public class TrackTreePopulation {
                     logger.debug("trying to merge tracks: {} + {} -> {}", toMerge.get(i), toMerge.get(j), m);
                     Track merged = Track.mergeTracks(toMerge.get(i), toMerge.get(j), factory, editor, removeTrack, addTrack);
                     if (merged!=null) return merged;
-                    else logger.debug("cannot merge tracks: {}+{} -> {}", toMerge.get(i), toMerge.get(j), m);
-                } else logger.debug("cannot merge tracks: {}+{} -> {}", toMerge.get(i), toMerge.get(j), m);
+                    else logger.debug("cannot merge tracks: {} + {} -> {}", toMerge.get(i), toMerge.get(j), m);
+                } else logger.debug("cannot merge tracks: {} + {} -> {} : forbidden fusion", toMerge.get(i), toMerge.get(j), m);
             }
         }
         return null;

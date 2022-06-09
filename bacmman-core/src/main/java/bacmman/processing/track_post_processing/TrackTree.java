@@ -18,16 +18,16 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
         return values().stream().filter(Track::merge).findFirst().orElse(null);
     }
 
-    public Track getNextMerge(Track from) {
-        return values().stream().filter(Track::merge).filter(t -> t.getFirstFrame() > from.getFirstFrame()).findFirst().orElse(null);
+    public Track getNextMerge(Track from, Set<Track> seen) {
+        return values().stream().filter(Track::merge).filter(t -> t.getFirstFrame() >= from.getFirstFrame() && !t.equals(from) && !seen.contains(t)).findFirst().orElse(null);
     }
 
     public Track getFirstSplit() {
         return values().stream().filter(Track::split).findFirst().orElse(null);
     }
 
-    public Track getNextSplit(Track from) {
-        return values().stream().filter(Track::split).filter(t -> t.getFirstFrame() > from.getFirstFrame()).findFirst().orElse(null);
+    public Track getNextSplit(Track from, Set<Track> seen) {
+        return values().stream().filter(Track::split).filter(t -> t.getFirstFrame() >= from.getFirstFrame() && !t.equals(from) && !seen.contains(t)).findFirst().orElse(null);
     }
 
     public Collection<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {

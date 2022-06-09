@@ -79,7 +79,7 @@ public interface TestableProcessingPlugin extends ImageProcessingPlugin {
         public void addIntermediateImage(String imageName, Image image) {
             if (image==null) return;
             images.put(imageName, image);
-            nameOrder.put(imageName, nameOrder.size());
+            if (!nameOrder.containsKey(imageName)) nameOrder.put(imageName, nameOrder.size());
         }
         /**
          * Adds misc data that will be displayed by running the run method of {@param misc}
