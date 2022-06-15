@@ -356,7 +356,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(interactiveImageType, defaultInteractiveImageMenu);
 
         // extracted dataset compression factor
-        PropertyUtils.setPersistent(extractDSCompression, "hyperstack_mode");
+        PropertyUtils.setPersistent(extractDSCompression, "extract_DS_compression");
         ConfigurationTreeGenerator.addToMenu(extractDSCompression.getName(), ParameterUIBinder.getUI(extractDSCompression).getDisplayComponent(), extractDSCompressionMenu);
         // hyperstack mode
         // interactive image type
