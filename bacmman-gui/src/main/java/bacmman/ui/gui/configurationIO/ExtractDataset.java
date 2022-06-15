@@ -94,8 +94,8 @@ public class ExtractDataset extends JDialog {
                 .setName("Output Dimensions").setHint("Extracted images will be resampled to these dimensions. Set [0, 0] to keep original image size");
         container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours);
         container.setParent(mDAO.getExperiment());
-        outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v -> {
-        }, (s, l) -> {
+        outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v ->
+        setEnableOk(), (s, l) -> {
         }, s -> {
         }, null, null).showRootHandle(false);
         this.featureListJSP.setViewportView(outputConfigTree.getTree());

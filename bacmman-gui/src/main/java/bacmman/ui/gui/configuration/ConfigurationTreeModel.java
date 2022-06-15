@@ -242,6 +242,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             compareTree.updateUI();
             if (tree!=null) tree.updateUI();
         }
+        update.run();
     }
 
     @Override
@@ -261,6 +262,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
             compareTree.updateUI();
             if (tree!=null) tree.updateUI();
         }
+        update.run();
     }
 
     @Override
