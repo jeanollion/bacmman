@@ -151,6 +151,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
     private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory");
 
+    private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
+
     private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
             "  1 means to allocate all of the GPU memory, 0.5 means the process\n" +
             "  allocates up to ~50% of the available GPU memory.\n" +
@@ -352,6 +354,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setDefInteractiveType.accept(interactiveImageType);
         interactiveImageType.addListener(setDefInteractiveType);
         ConfigurationTreeGenerator.addToMenu(interactiveImageType, defaultInteractiveImageMenu);
+
+        // extracted dataset compression factor
+        PropertyUtils.setPersistent(extractDSCompression, "hyperstack_mode");
+        ConfigurationTreeGenerator.addToMenu(extractDSCompression.getName(), ParameterUIBinder.getUI(extractDSCompression).getDisplayComponent(), extractDSCompressionMenu);
         // hyperstack mode
         // interactive image type
         PropertyUtils.setPersistent(hyperstackMode, "hyperstack_mode");
@@ -939,6 +945,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         return this.localZoomScale.getValue().doubleValue();
     }
     public double getPreProcessingMemoryThreshold() {return this.memoryThreshold.getValue().doubleValue();}
+    public int getExtractedDSCompressionFactor() {return this.extractDSCompression.getIntValue();}
     //public StructureObjectTreeGenerator getObjectTree() {return this.objectTreeGenerator;}
     public TrackTreeController getTrackTrees() {return this.trackTreeController;}
     
@@ -1619,6 +1626,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         memoryMenu = new javax.swing.JMenu();
         defaultInteractiveImageMenu = new javax.swing.JMenu();
         hyperstackModeImageMenu = new javax.swing.JMenu();
+        extractDSCompressionMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         pyGatewayMenu = new javax.swing.JMenu();
         logMenu = new javax.swing.JMenu();
@@ -2780,6 +2788,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         hyperstackModeImageMenu.setText("Default Hyperstack Type");
         miscMenu.add(hyperstackModeImageMenu);
 
+        extractDSCompressionMenu.setText("Extracted Dataset");
+        miscMenu.add(extractDSCompressionMenu);
 
         kymographMenu.setText("Kymograph");
         miscMenu.add(kymographMenu);
@@ -4971,6 +4981,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JPopupMenu.Separator jSeparator1;
     private javax.swing.JMenu defaultInteractiveImageMenu;
     private javax.swing.JMenu hyperstackModeImageMenu;
+    private javax.swing.JMenu extractDSCompressionMenu;
     private javax.swing.JMenu kymographMenu;
     private javax.swing.JMenu pyGatewayMenu;
     private javax.swing.JButton linkObjectsButton;

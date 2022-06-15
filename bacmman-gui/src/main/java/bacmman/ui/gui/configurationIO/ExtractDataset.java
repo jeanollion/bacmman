@@ -36,6 +36,7 @@ public class ExtractDataset extends JDialog {
     private final ConfigurationTreeGenerator outputConfigTree;
     private final SimpleListParameter<GroupParameter> outputFeatureList;
     SimpleListParameter<ObjectClassParameter> eraseTouchingContours;
+
     private final ArrayNumberParameter outputShape;
     private final GroupParameter container;
     private final FileChooser outputFile;
@@ -64,8 +65,9 @@ public class ExtractDataset extends JDialog {
                     SimpleListParameter<GroupParameter> list = (SimpleListParameter<GroupParameter>) parent.getParent();
                     return list.getActivatedChildren().stream().filter(g -> !g.equals(parent)).map(g -> (TextParameter) g.getChildAt(0)).noneMatch(tx -> tx.getValue().equals(t.getValue()));
                 });
-        ObjectClassParameter defOC = new ObjectClassParameter("Object class").setHint("Object class of the extracted features");
+        ObjectClassParameter defOC = new ObjectClassParameter("Object class").setHint("Object class of the extracted features. Must be an (indirect) children class of the selected selections");
         PluginParameter<FeatureExtractor> defFeature = new PluginParameter<>("Feature", FeatureExtractor.class, false).setHint("Choose a feature to extract");
+        SelectionParameter selectionParameter = new SelectionParameter("Subset", true).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
         defFeature.addListener(type -> {
             GroupParameter parent = (GroupParameter) type.getParent();
             TextParameter name = (TextParameter) parent.getChildAt(0);
@@ -73,10 +75,15 @@ public class ExtractDataset extends JDialog {
                 name.setValue(type.instantiatePlugin().defaultName());
             }
         });
-        defOC.addListener(t -> setEnableOk());
+        defOC.addListener(t -> {
+            SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter)t.getParent(), SelectionParameter.class).get(0);
+            sel.setSelectionObjectClass(t.getSelectedClassIdx());
+        }).addListener(t -> setEnableOk());
+        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getStructureIdx).allMatch(s -> s<p.getSelectedClassIdx()));
         defName.addListener(t -> setEnableOk());
         defFeature.addListener(t -> setEnableOk());
-        GroupParameter defOutput = new GroupParameter("Output", defName, defOC, defFeature);
+        selectionParameter.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream());
+        GroupParameter defOutput = new GroupParameter("Output", defName, defOC, defFeature, selectionParameter);
         eraseTouchingContours = new SimpleListParameter<>("Erase touching contours", ObjectClassParameter.class)
                 .setHint("List here all object class that should have touching contours erased.")
                 .setNewInstanceNameFunction((p, i) -> "Object class");
@@ -95,7 +102,7 @@ public class ExtractDataset extends JDialog {
 
         // disable ok button if not valid
         selectionList.addListSelectionListener(e -> setEnableOk());
-
+        selectionList.addListSelectionListener(e -> outputConfigTree.getTree().updateUI());
         outputFeatureList.addListener(t -> setEnableOk());
         outputShape.addListener(t -> setEnableOk());
         outputShape.getChildren().forEach(n -> n.addListener(t -> setEnableOk()));
@@ -132,7 +139,7 @@ public class ExtractDataset extends JDialog {
         buttonOK.setEnabled(true);
     }
 
-    private void setDefaultValues(String outputFile, List<String> selections, List<Triplet<String, FeatureExtractor, Integer>> features, int[] dimensions, int[] eraseContoursOC) {
+    private void setDefaultValues(String outputFile, List<String> selections, List<FeatureExtractor.Feature> features, int[] dimensions, int[] eraseContoursOC) {
         if (outputFile != null) this.outputFile.setSelectedFilePath(outputFile);
         List<String> allSel = Collections.list(selectionModel.elements()).stream().map(s -> s.getName()).collect(Collectors.toList());
         if (selections != null && !selections.isEmpty()) {
@@ -143,11 +150,13 @@ public class ExtractDataset extends JDialog {
             this.outputFeatureList.setChildrenNumber(features.size());
             for (int i = 0; i < features.size(); ++i) {
                 GroupParameter g = outputFeatureList.getChildAt(i);
-                Triplet<String, FeatureExtractor, Integer> f = features.get(i);
-                ((TextParameter) g.getChildAt(0)).setValue(f.v1);
-                ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).setPlugin(f.v2);
+                FeatureExtractor.Feature f = features.get(i);
+                ((TextParameter) g.getChildAt(0)).setValue(f.getName());
+                ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).setPlugin(f.getFeatureExtractor());
                 ObjectClassParameter ocp = ((ObjectClassParameter) g.getChildAt(1));
-                if (f.v3 < ocp.getChoiceList().length) ocp.setSelectedClassIdx(f.v3);
+                if (f.getObjectClass() < ocp.getChoiceList().length) ocp.setSelectedClassIdx(f.getObjectClass());
+                SelectionParameter sel = ((SelectionParameter) g.getChildAt(3));
+                if (f.getSelectionFilter() != null) sel.setSelectedItem(f.getSelectionFilter());
             }
         }
         if (dimensions != null) {
@@ -166,15 +175,16 @@ public class ExtractDataset extends JDialog {
         resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
         List<String> sels = this.selectionList.getSelectedValuesList()
                 .stream()
-                .map(s -> s.getName())
+                .map(Selection::getName)
                 .collect(Collectors.toList());
-        List<Triplet<String, FeatureExtractor, Integer>> features = outputFeatureList.getActivatedChildren().stream().map(g -> new Triplet<>(
+        List<FeatureExtractor.Feature> features = outputFeatureList.getActivatedChildren().stream().map(g -> new FeatureExtractor.Feature(
                 ((TextParameter) g.getChildAt(0)).getValue(),
                 ((PluginParameter<FeatureExtractor>) g.getChildAt(2)).instantiatePlugin(),
-                ((ObjectClassParameter) g.getChildAt(1)).getSelectedClassIdx()
+                ((ObjectClassParameter) g.getChildAt(1)).getSelectedClassIdx(),
+                ((SelectionParameter) g.getChildAt(3)).getSelectedItem()
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
-        int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(o -> o.getSelectedClassIdx()).toArray();
+        int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
         resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC);
 
         dispose();

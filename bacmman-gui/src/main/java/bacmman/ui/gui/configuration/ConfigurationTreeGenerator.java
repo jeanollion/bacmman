@@ -371,6 +371,8 @@ public class ConfigurationTreeGenerator {
                 return true;
             };
             experiment.getPositionParameter().addNewInstanceConfiguration(p -> p.setDeletePositionCallBack(erasePosition));
+            // selections
+            experiment.setSelectionSupplier(mDAO==null ? null : () -> mDAO.getSelectionDAO().getSelections().stream());
         }
     }
 

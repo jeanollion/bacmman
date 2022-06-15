@@ -24,6 +24,7 @@ import bacmman.core.GithubGateway;
 import bacmman.core.OmeroGateway;
 import bacmman.data_structure.DLengineProvider;
 import bacmman.data_structure.ExperimentStructure;
+import bacmman.data_structure.Selection;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
@@ -52,6 +53,7 @@ import bacmman.utils.Pair;
 import com.google.common.collect.Sets;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -114,6 +116,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     protected OmeroGateway omeroGateway;
     protected GithubGateway githubGateway;
 
+    protected Supplier<Stream<Selection>> selectionSupplier;
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -247,7 +250,13 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
         return dLengineProvider;
     }
 
+    public void setSelectionSupplier(Supplier<Stream<Selection>> selectionSupplier) {
+        this.selectionSupplier = selectionSupplier;
+    }
 
+    public Supplier<Stream<Selection>> getSelectionSupplier() {
+        return selectionSupplier;
+    }
     /**
      * 
      * @param positionName name of the MicroscopyField

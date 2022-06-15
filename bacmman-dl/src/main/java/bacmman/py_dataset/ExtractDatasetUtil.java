@@ -9,6 +9,8 @@ import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.plugins.feature_extractor.ColocalizationData;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
+import bacmman.ui.GUI;
+import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Triplet;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
@@ -37,7 +39,7 @@ public class ExtractDatasetUtil {
         String outputFile = t.getExtractDSFile();
         Path outputPath = Paths.get(outputFile);
         int[] dimensions = t.getExtractDSDimensions();
-        List<Triplet<String, FeatureExtractor, Integer>> features = t.getExtractDSFeatures();
+        List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
         List<String> selectionNames = t.getExtractDSSelections();
         int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
@@ -64,31 +66,46 @@ public class ExtractDatasetUtil {
                 }));
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
                 boolean saveLabels = true;
-                for (Triplet<String, FeatureExtractor, Integer> feature : features) {
-                    logger.debug("feature: {}", feature);
-                    boolean featureOCIsSelectionOC = feature.v3 == sel.getStructureIdx();
+                for (FeatureExtractor.Feature feature : features) {
+                    boolean colocData = feature.getFeatureExtractor() instanceof ColocalizationData;
+                    logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilter());
                     Function<SegmentedObject, Image> extractFunction;
                     Selection parentSelection;
                     Map<SegmentedObject, RegionPopulation> resampledPop;
-                    if (featureOCIsSelectionOC) {
-                        Set<SegmentedObject> allElements = sel.getElements(position);
+                    Selection selFilter = feature.getSelectionFilter()==null?null:mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilter(), false);
+                    if (selFilter != null) {
+                        Set<SegmentedObject> allElements = selFilter.getElements(position);
                         resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                             List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).equals(parent)).map(SegmentedObject::getRegion).collect(Collectors.toList());
+                            logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel()-1).toArray());
                             RegionPopulation p = new RegionPopulation(childrenFiltered, parent.getMaskProperties());
-                            return resamplePopulation(p, dimensions, eraseTouchingContours.test(feature.v3));
+                            return resamplePopulation(p, dimensions, eraseTouchingContours.test(feature.getObjectClass()));
                         });
-                        List<SegmentedObject> allParents = allElements.stream().map(SegmentedObject::getParent).distinct().collect(Collectors.toList());
-                        parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1){{put(position, allParents);}});
-                        parentSelection.setMasterDAO(mDAO);
+                        if (colocData) {
+                            parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
+                                put(position, new ArrayList<>(selFilter.getElements(position)));
+                            }});
+                        } else {
+                            int parentOC = sel.getStructureIdx();
+                            List<SegmentedObject> allParents = allElements.stream().map(o -> o.getParent(parentOC)).distinct().collect(Collectors.toList());
+
+                            parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
+                                put(position, allParents);
+                            }});
+                            //for (String p : parentSelection.getAllPositions()) logger.debug("parent selection before intersect @{}: {}", p, parentSelection.getElementStrings(p));
+                            SelectionUtils.intersection(sel.getName(), parentSelection, sel);
+                            parentSelection.setMasterDAO(mDAO);
+                            //for (String p : parentSelection.getAllPositions()) logger.debug("parent selection @{}: {}", p, parentSelection.getElementStrings(p));
+                        }
                     }
                     else {
-                        resampledPop = resampledPops.get(feature.v3);
+                        resampledPop = resampledPops.get(feature.getObjectClass());
                         parentSelection = sel;
                     }
                     if (!parentSelection.isEmpty()) {
-                        extractFunction = e -> feature.v2.extractFeature(e, feature.v3, resampledPop, dimensions);
-                        boolean ZtoBatch = feature.v2.getExtractZDim() == Task.ExtractZAxis.BATCH;
-                        extractFeature(outputPath, outputName + feature.v1, parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.v2.interpolation(), null, feature.v2 instanceof ColocalizationData, saveLabels, saveLabels, dimensions);
+                        extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), resampledPop, dimensions);
+                        boolean ZtoBatch = feature.getFeatureExtractor().getExtractZDim() == Task.ExtractZAxis.BATCH;
+                        extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, colocData, saveLabels, saveLabels, dimensions);
                         saveLabels = false;
                     }
                     t.incrementProgress();
@@ -97,7 +114,7 @@ public class ExtractDatasetUtil {
             }
         }
         // write histogram for raw features
-        features.stream().filter(f->f.v2 instanceof RawImage).map(f->f.v1).forEach(channelName -> {
+        features.stream().filter(f->f.getFeatureExtractor() instanceof RawImage).map(FeatureExtractor.Feature::getName).forEach(channelName -> {
             write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions);
         });
     }
@@ -300,7 +317,7 @@ public class ExtractDatasetUtil {
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
-        int compression = 0;
+        int compression = GUI.getInstance()==null? 4 : GUI.getInstance().getExtractedDSCompressionFactor();
         if (oneEntryPerImage && images.size()>1) {
             for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), compression, saveLabels, new int[][]{originalDimensions[i]}, metadata );
         } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels, originalDimensions, metadata ); // TODO : compression level as option

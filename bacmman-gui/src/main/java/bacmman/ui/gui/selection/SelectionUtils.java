@@ -103,6 +103,9 @@ public class SelectionUtils {
         for (Entry<String, Set<String>> e : elByPos.entrySet()) res.addElements(e.getKey(), e.getValue());
         return res;
     }
+    public static Selection intersection(String name, Selection... selections) {
+        return intersection(name, Arrays.asList(selections));
+    }
     public static Selection intersection(String name, Collection<Selection> selections) {
         if (selections.isEmpty()) return new Selection();
         Selection model = selections.iterator().next();

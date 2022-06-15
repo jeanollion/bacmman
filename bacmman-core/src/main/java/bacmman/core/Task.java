@@ -81,7 +81,7 @@ public class Task implements ProgressCallback{
         String selectionName;
 
         String extractDSFile, extractRawDSFile;
-        List<Triplet<String, FeatureExtractor, Integer>> extractDSFeatures;
+        List<FeatureExtractor.Feature> extractDSFeatures;
         List<String> extractDSSelections;
         int[] extractDSDimensions;
         int[] extractDSEraseTouchingContoursOC;
@@ -128,12 +128,14 @@ public class Task implements ProgressCallback{
                 extractDS.put("selections", extractDSSels);
                 extractDS.put("dimensions", JSONUtils.toJSONArray(extractDSDimensions));
                 JSONArray extractDSFeats = new JSONArray();
-                for (Triplet<String, FeatureExtractor, Integer> feature: extractDSFeatures) {
+                for (FeatureExtractor.Feature feature: extractDSFeatures) {
                     JSONObject feat = new JSONObject();
-                    feat.put("name", feature.v1);
-                    feat.put("oc", feature.v3);
-                    PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, feature.v2, false);
+                    feat.put("name", feature.getName());
+                    feat.put("oc", feature.getObjectClass());
+                    PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, feature.getFeatureExtractor(), false);
                     feat.put("feature", pp.toJSONEntry());
+                    String selFilter = feature.getSelectionFilter();
+                    if (selFilter!=null) feat.put("selectionFilter", selFilter);
                     extractDSFeats.add(feat);
                 }
                 extractDS.put("features", extractDSFeats);
@@ -201,10 +203,11 @@ public class Task implements ProgressCallback{
                     JSONObject feat = (JSONObject)f;
                     PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, false);
                     pp.initFromJSONEntry(feat.get("feature"));
-                    extractDSFeatures.add(new Triplet<>(
+                    extractDSFeatures.add(new FeatureExtractor.Feature(
                             (String)feat.get("name"),
                             pp.instantiatePlugin(),
-                            ((Number)feat.get("oc")).intValue()));
+                            ((Number)feat.get("oc")).intValue(),
+                            feat.containsKey("selectionFilter")?(String)feat.get("selectionFilter"):null));
                 }
                 extractDSDimensions = JSONUtils.fromIntArray((JSONArray)extractDS.get("dimensions"));
                 if (extractDS.containsKey("eraseTouchingContoursOC")) extractDSEraseTouchingContoursOC = JSONUtils.fromIntArray((JSONArray)extractDS.get("eraseTouchingContoursOC"));
@@ -374,7 +377,7 @@ public class Task implements ProgressCallback{
         return extractRawDSFile;
     }
 
-    public List<Triplet<String, FeatureExtractor, Integer>> getExtractDSFeatures() {
+    public List<FeatureExtractor.Feature> getExtractDSFeatures() {
         return extractDSFeatures;
     }
 
@@ -438,7 +441,7 @@ public class Task implements ProgressCallback{
         this.generateTrackImages=generateTrackImages;
         return this;
     }
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<Triplet<String, FeatureExtractor, Integer>> extractDS, int[] dimensions, int[] eraseTouchingContoursOC) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
@@ -593,10 +596,10 @@ public class Task implements ProgressCallback{
                 errors.addExceptions(new Pair(dbName, new Exception("Invalid extract dimensions:"+ Utils.toStringArray(extractDSDimensions))));
             }
             if (extractDSFeatures==null || extractDSFeatures.isEmpty()) errors.addExceptions(new Pair(dbName, "No features to extract"));
-            if (extractDSFeatures.stream().anyMatch(f->f.v1==null || f.v1.length()==0)) errors.addExceptions(new Pair(dbName, "Invalid features names"));
-            if (extractDSFeatures.stream().anyMatch(f->f.v3<0)) errors.addExceptions(new Pair(dbName, "Invalid features object class"));
-            if (extractDSFeatures.stream().anyMatch(f->f.v2==null)) errors.addExceptions(new Pair(dbName, "Invalid features type"));
-            if (extractDSFeatures.stream().map(f->f.v1).count()<extractDSFeatures.size()) errors.addExceptions(new Pair(dbName, "Duplicate feature name"));
+            if (extractDSFeatures.stream().anyMatch(f->f.getName()==null || f.getName().length()==0)) errors.addExceptions(new Pair(dbName, "Invalid features names"));
+            if (extractDSFeatures.stream().anyMatch(f->f.getObjectClass()<0)) errors.addExceptions(new Pair(dbName, "Invalid features object class"));
+            if (extractDSFeatures.stream().anyMatch(f->f.getFeatureExtractor()==null)) errors.addExceptions(new Pair(dbName, "Invalid features type"));
+            if (extractDSFeatures.stream().map(FeatureExtractor.Feature::getName).count()<extractDSFeatures.size()) errors.addExceptions(new Pair(dbName, "Duplicate feature name"));
             if (extractDSSelections==null || extractDSSelections.isEmpty()) errors.addExceptions(new Pair(dbName, "No selection to extract from"));
             if (extractDSSelections.stream().anyMatch(s->db.getSelectionDAO().getOrCreate(s, false).isEmpty())) errors.addExceptions(new Pair(dbName, "One or several selection is empty or absent"));
         }
@@ -974,8 +977,8 @@ public class Task implements ProgressCallback{
         if (extractDSFeatures!=null) {
             addSep.run();
             sb.append("ExtractDSFeatures:").append(Utils.toStringList(extractDSFeatures, feat->{
-                PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, feat.v2, false);
-                return feat.v1+":oc="+feat.v3+"("+pp.toJSONEntry().toJSONString()+")";
+                PluginParameter<FeatureExtractor> pp = new PluginParameter<>("FE", FeatureExtractor.class, feat.getFeatureExtractor(), false);
+                return feat.getName()+":oc="+feat.getObjectClass()+"("+pp.toJSONEntry().toJSONString()+")"+(feat.getSelectionFilter()!=null?"selectionFilter:"+feat.getSelectionFilter() : "");
             }));
         }
         if (extractDSDimensions!=null) {

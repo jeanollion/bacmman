@@ -28,7 +28,7 @@ public class ColocalizationData implements FeatureExtractor, Hint {
             .addValidationFunction(l -> l.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).distinct().count() == l.getActivatedChildren().size());
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
-        assert objectClassIdx == parent.getStructureIdx(): "invalid object class: should correspond to selection: "+parent.getStructureIdx();
+        if (objectClassIdx != parent.getStructureIdx()) throw new IllegalArgumentException("invalid object class: should correspond to parent selection that has object class==: "+parent.getStructureIdx());
         List<Image> images = channels.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx)
                 .mapToObj(parent::getRawImage).collect(Collectors.toList());
         int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
