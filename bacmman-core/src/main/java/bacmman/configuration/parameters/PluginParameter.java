@@ -262,7 +262,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
 
     @Override
     public PluginParameter<T> duplicate() {
-        PluginParameter res = new PluginParameter(name, getPluginType(), allowNoSelection);
+        PluginParameter<T> res = new PluginParameter<>(name, getPluginType(), allowNoSelection);
         if (additionalParameters!=null) res.setAdditionalParameters(ParameterUtils.duplicateList(additionalParameters));
         res.setContentFrom(this);
         transferStateArguments(this, res);

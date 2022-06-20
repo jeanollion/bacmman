@@ -82,10 +82,12 @@ public class SelectionParameter extends ParameterImpl<SelectionParameter> implem
 
     @Override
     public void setSelectedItem(String item) {
-        this.selectionName = item;
+        if (getNoSelectionString().equals(item)) this.selectionName = null;
+        else this.selectionName = item;
     }
 
     public String getSelectedItem() {
+        if (getNoSelectionString().equals(selectionName)) return null;
         return selectionName;
     }
 

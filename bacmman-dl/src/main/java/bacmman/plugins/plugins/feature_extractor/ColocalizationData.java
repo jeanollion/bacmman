@@ -14,6 +14,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.image.SimpleImageProperties;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.Hint;
 import net.imglib2.interpolation.InterpolatorFactory;
 
@@ -21,7 +22,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class ColocalizationData implements FeatureExtractor, Hint {
+public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, Hint {
     SimpleListParameter<ObjectClassParameter> channels = new SimpleListParameter<>("Channels to Extract", 0, new ObjectClassParameter("Object Class"))
             .setChildrenNumber(2)
             .setHint("Choose object classes associated to the channels to be extracted. Note that each object class can only be selected once")

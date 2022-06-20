@@ -5,6 +5,7 @@ import bacmman.core.Task;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.selection.SelectionRenderer;
 import bacmman.utils.Triplet;
@@ -20,6 +21,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ExtractDataset extends JDialog {
@@ -79,7 +81,13 @@ public class ExtractDataset extends JDialog {
             SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter)t.getParent(), SelectionParameter.class).get(0);
             sel.setSelectionObjectClass(t.getSelectedClassIdx());
         }).addListener(t -> setEnableOk());
-        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getStructureIdx).allMatch(s -> s<p.getSelectedClassIdx()));
+        Predicate<ObjectClassParameter> isOneEntryPerInstanceFeature = p -> {
+            GroupParameter g = (GroupParameter) p.getParent();
+            PluginParameter<FeatureExtractor> f = (PluginParameter<FeatureExtractor>) g.getChildAt(2);
+            if (!f.isOnePluginSet()) return false;
+            return FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass());
+        };
+        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getStructureIdx).allMatch(s -> (s<p.getSelectedClassIdx()) || (s==p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
         defName.addListener(t -> setEnableOk());
         defFeature.addListener(t -> setEnableOk());
         selectionParameter.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream());
@@ -141,9 +149,9 @@ public class ExtractDataset extends JDialog {
 
     private void setDefaultValues(String outputFile, List<String> selections, List<FeatureExtractor.Feature> features, int[] dimensions, int[] eraseContoursOC) {
         if (outputFile != null) this.outputFile.setSelectedFilePath(outputFile);
-        List<String> allSel = Collections.list(selectionModel.elements()).stream().map(s -> s.getName()).collect(Collectors.toList());
+        List<String> allSel = Collections.list(selectionModel.elements()).stream().map(Selection::getName).collect(Collectors.toList());
         if (selections != null && !selections.isEmpty()) {
-            int[] sel = selections.stream().map(s -> allSel.indexOf(s)).filter(i -> i >= 0).mapToInt(i -> i).toArray();
+            int[] sel = selections.stream().map(allSel::indexOf).filter(i -> i >= 0).mapToInt(i -> i).toArray();
             selectionList.setSelectedIndices(sel);
         }
         if (features != null && !features.isEmpty()) {

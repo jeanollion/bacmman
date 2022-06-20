@@ -7,6 +7,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.plugins.feature_extractor.ColocalizationData;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.ui.GUI;
@@ -67,23 +68,25 @@ public class ExtractDatasetUtil {
                 String outputName = (selName.length() > 0 ? selName + "/" : "") + ds + "/" + position + "/";
                 boolean saveLabels = true;
                 for (FeatureExtractor.Feature feature : features) {
-                    boolean colocData = feature.getFeatureExtractor() instanceof ColocalizationData;
+                    boolean oneEntryPerInstance = feature.getFeatureExtractor() instanceof FeatureExtractorOneEntryPerInstance;
                     logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilter());
                     Function<SegmentedObject, Image> extractFunction;
                     Selection parentSelection;
                     Map<SegmentedObject, RegionPopulation> resampledPop;
                     Selection selFilter = feature.getSelectionFilter()==null?null:mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilter(), false);
                     if (selFilter != null) {
-                        Set<SegmentedObject> allElements = selFilter.getElements(position);
+                        Set<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptySet();
                         resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                             List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).equals(parent)).map(SegmentedObject::getRegion).collect(Collectors.toList());
                             logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel()-1).toArray());
                             RegionPopulation p = new RegionPopulation(childrenFiltered, parent.getMaskProperties());
                             return resamplePopulation(p, dimensions, eraseTouchingContours.test(feature.getObjectClass()));
                         });
-                        if (colocData) {
+                        if (oneEntryPerInstance) {
+                            Set<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptySet();
+                            int parentSO = sel.getStructureIdx();
                             parentSelection = Selection.generateSelection(sel.getName(), mDAO, new HashMap<String, List<SegmentedObject>>(1) {{
-                                put(position, new ArrayList<>(selFilter.getElements(position)));
+                                put(position, allElements.stream().filter(o -> allParents.contains(o.getParent(parentSO))).collect(Collectors.toList()));
                             }});
                         } else {
                             int parentOC = sel.getStructureIdx();
@@ -105,7 +108,7 @@ public class ExtractDatasetUtil {
                     if (!parentSelection.isEmpty()) {
                         extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), resampledPop, dimensions);
                         boolean ZtoBatch = feature.getFeatureExtractor().getExtractZDim() == Task.ExtractZAxis.BATCH;
-                        extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, colocData, saveLabels, saveLabels, dimensions);
+                        extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, saveLabels, saveLabels, dimensions);
                         saveLabels = false;
                     }
                     t.incrementProgress();
@@ -204,7 +207,7 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerImage, boolean saveLabels, boolean saveDimensions, int... dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElements().stream().parallel() : () -> parentSel.getElements(position).stream().parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -230,9 +233,9 @@ public class ExtractDatasetUtil {
         }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
 
-        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerImage);
+        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance);
     }
-    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerImage) {
+    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance) {
         if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
             int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
             if (images.stream().anyMatch(i->i.getBitDepth()!=maxBD)) {
@@ -318,7 +321,7 @@ public class ExtractDatasetUtil {
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
         int compression = GUI.getInstance()==null? 4 : GUI.getInstance().getExtractedDSCompressionFactor();
-        if (oneEntryPerImage && images.size()>1) {
+        if (oneEntryPerInstance) {
             for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), compression, saveLabels, new int[][]{originalDimensions[i]}, metadata );
         } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels, originalDimensions, metadata ); // TODO : compression level as option
     }
