@@ -90,7 +90,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction);
+            PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction); // actually appends to prevPrediction
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode())
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
             logger.debug("Segmentation window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
@@ -101,18 +101,23 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
             List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, factory, i==0);
-            // clear images to free-memory and leave the last item for next prediction. leave EDM as it is used for post-processing
+            // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
             int maxF = subParentTrack.get(0).getFrame();
+            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), maxF);
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
-                prediction.contours.remove(p);
+                if (!useContours.getSelected()) prediction.contours.remove(p);
                 prediction.division.remove(p);
                 prediction.dx.remove(p);
                 prediction.dy.remove(p);
                 prediction.noPrev.remove(p);
                 if (p.getFrame()>maxF) maxF = p.getFrame();
+                p.getChildren(objectClassIdx).forEach(o -> { // save memory
+                    if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
+                    o.getRegion().clearVoxels();
+                    o.getRegion().clearMask();
+                });
             }
-            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), maxF);
 
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
@@ -127,7 +132,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores != null);
-
         if (stores != null) prediction.edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
         if (stores != null && prediction.contours != null)
             prediction.contours.forEach((o, im) -> stores.get(o).addIntermediateImage("contours", im));
@@ -148,7 +152,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             p.getChildren(objectClassIdx).forEach(o -> { // save memory
                 if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
                 o.getRegion().clearVoxels();
-                o.getRegion().clearMask();
             });
         });
     }
@@ -678,7 +681,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     @Override
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
-        throw new RuntimeException("Operation not supported"); // images need to be scaled to be able to predict
+        throw new RuntimeException("Operation not supported");
     }
 
     @Override
@@ -911,6 +914,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
         if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), sm, factory, editor);
         if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), sm, factory, editor);
+        parentTrack.stream().forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
+            if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
+            o.getRegion().clearVoxels();
+            o.getRegion().clearMask();
+        }));
     }
 
     /// DL prediction
