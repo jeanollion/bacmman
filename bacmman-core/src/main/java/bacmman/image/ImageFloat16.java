@@ -19,43 +19,58 @@
 package bacmman.image;
 
 import bacmman.utils.ArrayUtil;
+
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class ImageFloat extends Image<ImageFloat> {
+public class ImageFloat16 extends Image<ImageFloat16> {
 
-    final private float[][] pixels;
+    final private short[][] pixels;
+    final private double scale;
 
     /**
      * Builds a new blank image with same properties as {@param properties}
      * @param name name of the new image
      * @param properties properties of the new image
      */
-    public ImageFloat(String name, ImageProperties properties) {
+    public ImageFloat16(String name, ImageProperties properties, double scale) {
         super(name, properties);
-        this.pixels=new float[sizeZ][sizeXY];
+        this.pixels=new short[sizeZ][sizeXY];
+        this.scale = scale;
     }
-    public ImageFloat(String name, int sizeX, int sizeY, int sizeZ) {
+    public ImageFloat16(String name, int sizeX, int sizeY, int sizeZ, float scale) {
         super(name, sizeX, sizeY, sizeZ);
-        if (sizeZ>0 && sizeX>0 && sizeY>0) this.pixels=new float[sizeZ][sizeX*sizeY];
+        if (sizeZ>0 && sizeX>0 && sizeY>0) this.pixels=new short[sizeZ][sizeX*sizeY];
         else pixels = null;
+        this.scale = scale;
     }
-    
-    public ImageFloat(String name, int sizeX, float[][] pixels) {
+
+    public ImageFloat16(String name, int sizeX, short[][] pixels, double scale) {
         super(name, sizeX, sizeX>0?pixels[0].length/sizeX:0, pixels.length);
         this.pixels=pixels;
+        this.scale = scale;
     }
-    
-    public ImageFloat(String name, int sizeX, float[] pixels) {
+
+    public ImageFloat16(String name, int sizeX, short[] pixels, double scale) {
         super(name, sizeX, sizeX>0?pixels.length/sizeX:0, 1);
-        this.pixels=new float[][]{pixels};
+        this.pixels=new short[][]{pixels};
+        this.scale = scale;
     }
-    
+    public double getScale() {return scale;}
+    public static double getOptimalScale(double... minAndMax) {
+        double min = minAndMax[0];
+        double max = minAndMax.length>1 ? minAndMax[1] : min;
+        if (Math.abs(max)>=Math.abs(min)) {
+            return Short.MAX_VALUE / max;
+        } else { // min<0
+            return Short.MIN_VALUE / min;
+        }
+    }
     @Override
-    public ImageFloat getZPlane(int idxZ) {
+    public ImageFloat16 getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
         else {
-            ImageFloat res = new ImageFloat(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ]);
+            ImageFloat16 res = new ImageFloat16(name+"_z"+String.format("%05d", idxZ), sizeX, pixels[idxZ], scale);
             res.setCalibration(this);
             res.translate(xMin, yMin, zMin+idxZ);
             return res;
@@ -106,104 +121,100 @@ public class ImageFloat extends Image<ImageFloat> {
     }
     @Override
     public float getPixel(int x, int y, int z) {
-        return pixels[z][x+y*sizeX];
+        return (float)(pixels[z][x+y*sizeX]/scale);
     }
-    
-    
+
     @Override
     public float getPixelLinInterX(int x, int y, int z, float dx) {
-        if (dx==0) return (float) (pixels[z][x + y * sizeX]);
-        return (float) ((pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX]));
+        if (dx==0) return (float)(pixels[z][x + y * sizeX]/scale);
+        return  (float)((pixels[z][x + y * sizeX]) * (1-dx) + dx * (pixels[z][x + 1 + y * sizeX])/scale);
     }
 
     @Override
     public float getPixel(int xy, int z) {
-        return pixels[z][xy];
+        return (float)(pixels[z][xy] / scale);
     }
     
     @Override
     public void setPixel(int x, int y, int z, double value) {
-        pixels[z][x+y*sizeX]=(float)value;
+        pixels[z][x+y*sizeX]=(short)Math.round(value*scale);
     }
 
     @Override
     public void addPixel(int x, int y, int z, double value) {
-        pixels[z][x+y*sizeX]+=(float)value;
+        pixels[z][x+y*sizeX]+=(short) Math.round(value * scale);
     }
 
     @Override
     public void setPixel(int xy, int z, double value) {
-        pixels[z][xy]=(float)value;
+        pixels[z][xy]=(short)Math.round(value*scale);
     }
     
     public void setPixel(int x, int y, int z, float value) {
-        pixels[z][x+y*sizeX]=value;
+        pixels[z][x+y*sizeX]=(short)Math.round(value*scale);
     }
 
     public void setPixelWithOffset(int x, int y, int z, float value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = value;
+        pixels[z-zMin][x-offsetXY + y * sizeX] = (short)Math.round(value*scale);
     }
     
     @Override
     public void setPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = (float)value;
+        pixels[z-zMin][x-offsetXY + y * sizeX] = (short)Math.round(value*scale);
     }
     @Override
     public void addPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] += (float)value;
-    }
-    public void addPixelWithOffset(int x, int y, int z, float value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] += value;
+        pixels[z-zMin][x-offsetXY + y * sizeX] += (short)Math.round(value*scale);
     }
 
     public void setPixel(int xy, int z, float value) {
-        pixels[z][xy]=value;
+        pixels[z][xy]=(short)Math.round(value*scale);
     }
     
     @Override
     public float getPixelWithOffset(int x, int y, int z) {
-        return pixels[z-zMin][x-offsetXY + y * sizeX];
+        return (float)(pixels[z-zMin][x-offsetXY + y * sizeX] / scale);
     }
 
     @Override
     public float getPixelWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ];
+        return (float)(pixels[z-zMin][xy - offsetXY ]/scale);
     }
 
     @Override
     public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = (float)value;
+        pixels[z-zMin][xy - offsetXY] = (short)Math.round(value*scale);
     }
 
     @Override
-    public ImageFloat duplicate(String name) {
-        float[][] newPixels = new float[sizeZ][sizeXY];
+    public ImageFloat16 duplicate(String name) {
+        short[][] newPixels = new short[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
-        return (ImageFloat)new ImageFloat(name, sizeX, newPixels).setCalibration(this).translate(this);
+        return (ImageFloat16)new ImageFloat16(name, sizeX, newPixels, scale).setCalibration(this).translate(this);
     }
     
     @Override
-    public float[][] getPixelArray() {
+    public short[][] getPixelArray() {
         return pixels;
     }
 
     @Override
-    public ImageFloat newImage(String name, ImageProperties properties) {
-        return new ImageFloat(name, properties);
+    public ImageFloat16 newImage(String name, ImageProperties properties) {
+        return new ImageFloat16(name, properties, scale);
     }
     
     @Override
     public void invert() {
         double[] minAndMax = this.getMinAndMax(null);
-        float off = (float)minAndMax[1];
+        short off = (short) (minAndMax[1] / scale);
         for (int z = 0; z < sizeZ; z++) {
             for (int xy = 0; xy<sizeXY; ++xy) {
-                pixels[z][xy] = off - pixels[z][xy];
+                pixels[z][xy] = (short) (off - pixels[z][xy]);
             }
         }
     }
 
-    @Override public int getBitDepth() {return 32;}
+    @Override public int getBitDepth() {return 32;} // return 32 so that it is considered as float. TODO improve this
 
     // image mask implementation
     

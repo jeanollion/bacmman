@@ -49,6 +49,26 @@ public class TypeConverter {
         }
         return output;
     }
+    public static ImageFloat16 toFloat16(Image image, ImageFloat16 output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloat16(image.getName(), image, output==null ? ImageFloat16.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+        if (image instanceof ImageFloat16) Image.pasteImage(image, output, null);
+        for (int z = 0; z<image.sizeZ(); ++z) {
+            for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                output.setPixel(xy, z, image.getPixel(xy, z));
+            }
+        }
+        return output;
+    }
+    public static ImageFloat8 toFloat8(Image image, ImageFloat8 output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloat8(image.getName(), image, output==null ? ImageFloat8.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+        if (image instanceof ImageFloat8) Image.pasteImage(image, output, null);
+        for (int z = 0; z<image.sizeZ(); ++z) {
+            for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                output.setPixel(xy, z, image.getPixel(xy, z));
+            }
+        }
+        return output;
+    }
     public static ImageInt toShort(Image image, ImageInt output, boolean copyIfInt) {
         if (copyIfInt || !(image instanceof ImageInt)) return toInt(image, output);
         else return (ImageInt)image;
@@ -210,7 +230,7 @@ public class TypeConverter {
         return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat);
     }
     public static boolean isNumeric(ImageProperties image) {
-        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat || image instanceof ImageInt);
+        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat || image instanceof ImageInt || image instanceof ImageFloat8 || image instanceof ImageFloat16);
     }
     /**
      * 
@@ -238,7 +258,13 @@ public class TypeConverter {
         } else if (output instanceof ImageFloat) {
             if (source instanceof ImageFloat) return (T)source;
             return (T)toFloat(source, (ImageFloat)output);
-        } else throw new IllegalArgumentException("Output should be of type byte, short, or float, but is: {}"+ output.getClass().getSimpleName());
+        } else if (output instanceof ImageFloat16) {
+            if (source instanceof ImageFloat16) return (T)source;
+            return (T)toFloat16(source, (ImageFloat16)output);
+        } else if (output instanceof ImageFloat8) {
+            if (source instanceof ImageFloat8) return (T)source;
+            return (T)toFloat8(source, (ImageFloat8)output);
+        }else throw new IllegalArgumentException("Output should be of type byte, short, or float, but is: {}"+ output.getClass().getSimpleName());
     }
 
     public static void homogenizeBitDepth(Image[][] images) {

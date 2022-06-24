@@ -291,7 +291,7 @@ public class ImageInt extends ImageInteger<ImageInt> {
     @Override
     public void invert() {
         double[] minAndMax = this.getMinAndMax(null);
-        int off = (int) (minAndMax[1] + minAndMax[0]);
+        int off = (int) minAndMax[1];
         for (int z = 0; z < sizeZ; z++) {
             for (int xy = 0; xy<sizeXY; ++xy) {
                 pixels[z][xy] = off - pixels[z][xy];
