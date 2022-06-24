@@ -78,7 +78,7 @@ public class ExtractDataset extends JDialog {
             }
         });
         defOC.addListener(t -> {
-            SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter)t.getParent(), SelectionParameter.class).get(0);
+            SelectionParameter sel = ParameterUtils.getParameterByClass((Parameter) t.getParent(), SelectionParameter.class).get(0);
             sel.setSelectionObjectClass(t.getSelectedClassIdx());
         }).addListener(t -> setEnableOk());
         Predicate<ObjectClassParameter> isOneEntryPerInstanceFeature = p -> {
@@ -87,7 +87,7 @@ public class ExtractDataset extends JDialog {
             if (!f.isOnePluginSet()) return false;
             return FeatureExtractorOneEntryPerInstance.class.isAssignableFrom(f.getSelectedPluginClass());
         };
-        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getStructureIdx).allMatch(s -> (s<p.getSelectedClassIdx()) || (s==p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
+        defOC.addValidationFunction(p -> selectionList.getSelectedValuesList().stream().mapToInt(Selection::getStructureIdx).allMatch(s -> (s < p.getSelectedClassIdx()) || (s == p.getSelectedClassIdx() && isOneEntryPerInstanceFeature.test(p))));
         defName.addListener(t -> setEnableOk());
         defFeature.addListener(t -> setEnableOk());
         selectionParameter.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream());
@@ -103,7 +103,7 @@ public class ExtractDataset extends JDialog {
         container = new GroupParameter("", outputFile, outputShape, outputFeatureList, eraseTouchingContours);
         container.setParent(mDAO.getExperiment());
         outputConfigTree = new ConfigurationTreeGenerator(mDAO.getExperiment(), container, v ->
-        setEnableOk(), (s, l) -> {
+                setEnableOk(), (s, l) -> {
         }, s -> {
         }, null, null).showRootHandle(false);
         this.featureListJSP.setViewportView(outputConfigTree.getTree());
