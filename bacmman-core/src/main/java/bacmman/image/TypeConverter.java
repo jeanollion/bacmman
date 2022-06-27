@@ -69,6 +69,16 @@ public class TypeConverter {
         }
         return output;
     }
+    public static ImageFloatU8 toFloatU8(Image image, ImageFloatU8 output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloatU8(image.getName(), image, output==null ? ImageFloatU8.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+        if (image instanceof ImageFloatU8) Image.pasteImage(image, output, null);
+        for (int z = 0; z<image.sizeZ(); ++z) {
+            for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                output.setPixel(xy, z, image.getPixel(xy, z));
+            }
+        }
+        return output;
+    }
     public static ImageInt toShort(Image image, ImageInt output, boolean copyIfInt) {
         if (copyIfInt || !(image instanceof ImageInt)) return toInt(image, output);
         else return (ImageInt)image;
@@ -264,7 +274,10 @@ public class TypeConverter {
         } else if (output instanceof ImageFloat8) {
             if (source instanceof ImageFloat8) return (T)source;
             return (T)toFloat8(source, (ImageFloat8)output);
-        }else throw new IllegalArgumentException("Output should be of type byte, short, or float, but is: {}"+ output.getClass().getSimpleName());
+        } else if (output instanceof ImageFloatU8) {
+            if (source instanceof ImageFloatU8) return (T)source;
+            return (T)toFloatU8(source, (ImageFloatU8)output);
+        } else throw new IllegalArgumentException("Output should be of type byte, short, or float, but is: {}"+ output.getClass().getSimpleName());
     }
 
     public static void homogenizeBitDepth(Image[][] images) {
