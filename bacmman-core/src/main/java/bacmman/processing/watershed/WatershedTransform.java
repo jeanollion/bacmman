@@ -31,6 +31,7 @@ import java.util.*;
 
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -139,7 +140,7 @@ public class WatershedTransform {
         spotNumber=regionalExtrema.size();
         segmentedMap = ImageInteger.createEmptyLabelImage("segmentationMap", spots.length, watershedMap);
         for (int i = 0; i<regionalExtrema.size(); ++i) spots[i+1] = new Spot(i+1, regionalExtrema.get(i).getVoxels()); // do modify seed objects
-        logger.trace("watershed transform: number of seeds: {} segmented map type: {}", regionalExtrema.size(), segmentedMap.getClass().getSimpleName());
+        //logger.debug("watershed transform: number of seeds: {} Segmented map type: {}", regionalExtrema.size(), segmentedMap.getClass().getSimpleName());
         is3D=watershedMap.sizeZ()>1;   
         if (config.propagationCriterion==null) setPropagationCriterion(new DefaultPropagationCriterion());
         else setPropagationCriterion(config.propagationCriterion);
@@ -180,7 +181,7 @@ public class WatershedTransform {
     public void runNormal() {
         double rad = lowConnectivity ? 1 : 1.5;
         EllipsoidalNeighborhood neigh = watershedMap.sizeZ()>1?new EllipsoidalNeighborhood(rad, rad, true) : new EllipsoidalNeighborhood(rad, true);
-        for (Spot s : spots) {
+        for (Spot s : spots) { // initialize with direct neighbors of spots
             if (s!=null) {
                 for (Voxel v : s.voxels) {
                     if (!mask.insideMask(v.x, v.y, v.z)) continue;
@@ -201,6 +202,10 @@ public class WatershedTransform {
         while (!heap.isEmpty()) {
             //Voxel v = heap.poll();
             Voxel v = heap.pollFirst();
+            /*if (!segmentedMap.contains(v.x, v.y, v.z)) {
+                logger.error("OOB voxel in heap: {}, bounds: {}", v, segmentedMap.getBoundingBox().resetOffset());
+                throw new RuntimeException("OOB voxel in heap");
+            }*/
             if (segmentedMap.getPixelInt(v.x, v.y, v.z)>0) continue; //already segmented
             score.setUp(v);
             for (int i = 0; i<neigh.getSize(); ++i) { // check all neighbors
@@ -208,7 +213,7 @@ public class WatershedTransform {
                 if (segmentedMap.contains(n.x, n.y, n.z) && mask.insideMask(n.x, n.y, n.z)) {
                     int nextLabel = segmentedMap.getPixelInt(n.x, n.y, n.z);
                     if (nextLabel>0) { // if already segmented
-                        if (surroundingLabels!=null) surroundingLabels.add(nextLabel); // add to surrounding labels for fusion cirterion
+                        if (surroundingLabels!=null) surroundingLabels.add(nextLabel); // add to surrounding labels for fusion criterion
                         score.add(n, nextLabel); // add candidate spot for segmentation
                     } else { // else -> add to propagation heap
                         n.value = watershedMap.getPixel(n.x, n.y, n.z);
@@ -218,7 +223,8 @@ public class WatershedTransform {
             }
             int currentLabel = score.getLabel();
             if (spots[currentLabel]==null) {
-                Processor.logger.error("WS error no spot for label: {} voxel: {}", currentLabel, v);
+                logger.error("WS error no spot for label: {} voxel: {}. low connectivity: {} Labels: row up: {} {} {} row center: {} {} {} row down: {} {} {}", currentLabel, v, lowConnectivity, v.y>0 && v.x>0?segmentedMap.getPixelInt(v.x-1, v.y-1, v.z):"OOB", v.y>0?segmentedMap.getPixelInt(v.x, v.y-1, v.z):"OOB", v.y>0 && v.x<segmentedMap.sizeX()-1 ? segmentedMap.getPixelInt(v.x+1, v.y-1, v.z) : "OOB", v.x>0?segmentedMap.getPixelInt(v.x-1, v.y, v.z):"00B", segmentedMap.getPixelInt(v.x, v.y, v.z), v.x<segmentedMap.sizeX()?segmentedMap.getPixelInt(v.x+1, v.y, v.z):"OOB", v.x>0&&v.y<segmentedMap.sizeY()-1?segmentedMap.getPixelInt(v.x-1, v.y+1, v.z):"OOB", v.y<segmentedMap.sizeY()-1?segmentedMap.getPixelInt(v.x, v.y+1, v.z):"OOB", v.y<segmentedMap.sizeY()-1 && v.x<segmentedMap.sizeX()-1 ? segmentedMap.getPixelInt(v.x+1, v.y+1, v.z) : "OOB");
+                throw new RuntimeException("WS error no spot for label");
             }
             spots[currentLabel].addVox(v);
             // check propagation criterion
@@ -252,7 +258,7 @@ public class WatershedTransform {
             //Voxel v = heap.poll();
             Voxel v = heap.pollFirst();
             Spot currentSpot = spots[segmentedMap.getPixelInt(v.x, v.y, v.z)];
-            if (currentSpot ==null) Processor.logger.error("spot null @ v={} label: {}", v, segmentedMap.getPixelInt(v.x, v.y, v.z));
+            if (currentSpot ==null) logger.error("spot null @ v={} label: {}", v, segmentedMap.getPixelInt(v.x, v.y, v.z));
             for (int i = 0; i<neigh.getSize(); ++i) {
                 Voxel n = new Voxel(v.x+neigh.dx[i], v.y+neigh.dy[i], v.z+neigh.dz[i]) ;
                 if (segmentedMap.contains(n.x, n.y, n.z) && mask.insideMask(n.x, n.y, n.z)) {
@@ -280,13 +286,47 @@ public class WatershedTransform {
             //return new MaxPriority();
             //return new MaxSeedPriority();
         } 
-        return new MaxDiffWsMap(); // for WS map = EDGE map
+        //return new MaxDiffWsMap(); // for WS map = EDGE map
         //return new MinDiffWsMap();
+        return new CountMinDiffWsMap();
     }
     private interface Score {
         public abstract void setUp(Voxel center);
         public abstract void add(Voxel v, int label);
         public abstract int getLabel();
+    }
+    private class CountMinDiffWsMap implements Score {
+        double centerV = 0;
+        Map<Integer, Integer> countMap = new HashMap<>(8);
+        Map<Integer, Double> diffMap = new HashMap<>(8);
+        @Override
+        public void add(Voxel v, int label) {
+            countMap.put(label, countMap.getOrDefault(label, 0)+1);
+            double diff = Math.abs(centerV - watershedMap.getPixel(v.x, v.y, v.z));
+            if (diff<diffMap.getOrDefault(label, Double.POSITIVE_INFINITY)) {
+                diffMap.put(label, diff);
+            }
+        }
+        @Override
+        public int getLabel() {
+            // max of counts
+            if (countMap.isEmpty()) return 0;
+            else if (countMap.size()==1) return countMap.entrySet().iterator().next().getKey();
+            Map.Entry<Integer, Integer> maxLabel = null;
+            for (Map.Entry<Integer, Integer> e : Utils.entriesSortedByValues(countMap, true)) {
+                if (maxLabel==null) maxLabel = e;
+                else if (maxLabel.getValue().equals(e.getValue())) { // same number of neighbors -> minimize diff
+                    if (diffMap.get(e.getKey())<diffMap.get(maxLabel.getKey())) maxLabel = e;
+                } else break; // no equal
+            }
+            return maxLabel.getKey();
+        }
+        @Override
+        public void setUp(Voxel center) {
+            centerV = center.value;
+            countMap.clear();
+            diffMap.clear();
+        }
     }
     private class MinDiffWsMap implements Score {
         double centerV = 0;
@@ -295,7 +335,7 @@ public class WatershedTransform {
         @Override
         public void add(Voxel v, int label) {
             //double diff=!decreasingPropagation ? watershedMap.getPixel(v.x, v.y, v.z) : -watershedMap.getPixel(v.x, v.y, v.z);
-            double diff = Math.abs(centerV - watershedMap.getPixel(v.x, v.y, v.z)-centerV);
+            double diff = Math.abs(centerV - watershedMap.getPixel(v.x, v.y, v.z));
             if (diff<curDiff) {
                 curDiff=diff;
                 curLabel = label;
@@ -468,7 +508,7 @@ public class WatershedTransform {
                 center[0]/=voxels.size();
                 center[1]/=voxels.size();
                 center[2]/=voxels.size();
-                Processor.logger.debug("spot: {} center: {}", this.label, center);
+                logger.debug("spot: {} center: {}", this.label, center);
             }
             
         }

@@ -106,7 +106,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), maxF);
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
+                prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
                 if (!useContours.getSelected()) prediction.contours.remove(p);
+                else prediction.contours.put(p, TypeConverter.toFloatU8(prediction.contours.get(p), null));
                 prediction.division.remove(p);
                 prediction.dx.remove(p);
                 prediction.dy.remove(p);
@@ -136,6 +138,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (stores != null && prediction.contours != null)
             prediction.contours.forEach((o, im) -> stores.get(o).addIntermediateImage("contours", im));
         TrackConfigurable.TrackConfigurer applyToSegmenter = TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, getSegmenter(prediction));
+        if (new HashSet<>(parentTrack).size()<parentTrack.size()) throw new IllegalArgumentException("Duplicate Objects in parent track");
         parentTrack.parallelStream().forEach(p -> {
             Image edmI = prediction.edm.get(p);
             Segmenter segmenter = getSegmenter(prediction);
@@ -589,6 +592,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         RegionPopulation pop = ((ObjectSplitter) seg).splitObject(pred.edm.get(parent), parent, structureIdx, object);
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(null);
+                        pop.getRegions().forEach(Region::clearVoxels);
                         return pop;
                     }
                 }
@@ -628,6 +632,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(pred.edm.get(parent), parent, segmentationMask, objectClassIdx, seedsXYZ);
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(null);
+                        pop.getRegions().forEach(Region::clearVoxels);
                         return pop;
                     }
                 }
@@ -667,6 +672,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         cost = seg.computeMergeCost(prediction.edm.get(parent), parent, toSplit.getStructureIdx(), res);
                 }
                 if (res.size() <= 1) return new Triplet<>(null, null, Double.POSITIVE_INFINITY);
+                res.forEach(Region::clearVoxels);
                 // TODO what if more than 2 objects ?
                 return new Triplet<>(res.get(0), res.get(1), cost);
             }
@@ -999,6 +1005,24 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
 
+        void decreaseBitDepth() {
+            if (edmC==null) return;
+            for (int i = 0; i<this.edmC.length; ++i) {
+                edmC[i] = TypeConverter.toFloatU8(edmC[i], null);
+                if (edmP!=null) edmP[i] = TypeConverter.toFloatU8(edmP[i], null);
+                if (edmN!=null) edmN[i] = TypeConverter.toFloatU8(edmN[i], null);
+                if (contourC!=null) contourC[i] = TypeConverter.toFloatU8(contourC[i], null);
+                if (contourN!=null) contourN[i] = TypeConverter.toFloatU8(contourN[i], null);
+                if (contourP!=null) contourP[i] = TypeConverter.toFloatU8(contourP[i], null);
+                if (dxC!=null) dxC[i] = TypeConverter.toFloat8(dxC[i], null);
+                if (dxN!=null) dxN[i] = TypeConverter.toFloat8(dxN[i], null);
+                if (dyC!=null) dyC[i] = TypeConverter.toFloat8(dyC[i], null);
+                if (dyN!=null) dyN[i] = TypeConverter.toFloat8(dyN[i], null);
+                if (divMap!=null) divMap[i] = TypeConverter.toFloatU8(divMap[i], null);
+                if (noPrevMap!=null) noPrevMap[i] = TypeConverter.toFloatU8(noPrevMap[i], null);
+            }
+        }
+
         void averagePredictions(boolean[] noPrevParent, Image previousEDM, Image previousContour, Image previousDY, Image previousDX) {
             if (avg) {
                 if (next) {
@@ -1109,6 +1133,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         long t4 = System.currentTimeMillis();
         logger.info("averaging: {}ms", t4 - t3);
 
+
         // average with prediction with user-defined frame intervals
 
         if (frameSubsampling.getChildCount() > 0) {
@@ -1146,6 +1171,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             }
         }
+        /*long t5 = System.currentTimeMillis();
+        pred.decreaseBitDepth();
+        long t6 = System.currentTimeMillis();
+        logger.info("decrease bitDepth: {}ms", t6 - t5);*/
 
         // offset & calibration
         for (int idx = 0; idx < parentTrack.size(); ++idx) {

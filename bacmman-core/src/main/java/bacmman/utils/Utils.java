@@ -69,6 +69,26 @@ import java.util.stream.Stream;
  * @author Jean Ollion
  */
 public class Utils {
+    public static <K extends Comparable<? super K>,V extends Comparable<? super V>> SortedSet<Map.Entry<K,V>> entriesSortedByValues(Map<K,V> map, boolean descending) {
+        SortedSet<Map.Entry<K,V>> sortedEntries;
+        if (descending) {
+            sortedEntries= new TreeSet<>(
+                    (e1, e2) -> {
+                        int res= e2.getValue().compareTo(e1.getValue());
+                        return res != 0 ? res : e1.getKey().compareTo(e2.getKey()); // Special fix to preserve items with equal values + preserve key order (ascending
+                    }
+            );
+        } else {
+            sortedEntries= new TreeSet<>(
+                    (e1, e2) -> {
+                        int res = e1.getValue().compareTo(e2.getValue());
+                        return res != 0 ? res : e1.getKey().compareTo(e2.getKey()); // Special fix to preserve items with equal values + preserve key order (ascending
+                    }
+            );
+        }
+        sortedEntries.addAll(map.entrySet());
+        return sortedEntries;
+    }
     public static <T, K, U> Map<K, U> toMapWithNullValues(Stream<T> stream, Function<? super T, ? extends K> keyMapper, Function<? super T, ? extends U> valueMapper, boolean allowNullValues) {
         return toMapWithNullValues(stream, keyMapper, valueMapper, allowNullValues, null);
     }

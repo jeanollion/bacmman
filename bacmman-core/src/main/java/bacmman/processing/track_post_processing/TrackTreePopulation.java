@@ -69,8 +69,7 @@ public class TrackTreePopulation {
     }
 
     public void solveMergeEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        for (TrackTree tt : trackTrees) {
-            if (tt.size()==1) continue;
+        trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
             Consumer<Track> remove = t -> tt.remove(t.head());
             Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
             Track t = tt.getFirstMerge();
@@ -79,7 +78,7 @@ public class TrackTreePopulation {
             while (t!=null) {
                 if (t.getFirstFrame()>lastFrame) seen.clear();
                 lastFrame = t.getFirstFrame();
-                Track merged = mergeTracks(t, true, forbidFusion, factory, editor, remove, add);
+                Track merged = mergeTracks(t, true, forbidFusion, factory, editor, remove, add); // TODO : multithread here ?
                 boolean stayOnSameTrack = false;
                 if (merged!=null) {
                     t = merged.simplifyTrack(editor, remove);
@@ -88,12 +87,11 @@ public class TrackTreePopulation {
                 seen.add(t);
                 if (!stayOnSameTrack) t = tt.getNextMerge(t, seen);
             }
-        }
+        });
     }
 
     public void solveSplitEventsByMerging(Collection<TrackTree> trackTrees, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        for (TrackTree tt : trackTrees) {
-            if (tt.size()==1) continue;
+        trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
             Consumer<Track> remove = t -> tt.remove(t.head());
             Consumer<Track> add = toAdd -> tt.put(toAdd.head(), toAdd);
             Track t = tt.getFirstSplit();
@@ -102,7 +100,7 @@ public class TrackTreePopulation {
             while (t!=null) {
                 if (t.getFirstFrame() > lastFrame) seen.clear();
                 lastFrame = t.getFirstFrame();
-                Track merged = mergeTracks(t, false, forbidFusion, factory, editor, remove, add);
+                Track merged = mergeTracks(t, false, forbidFusion, factory, editor, remove, add); // TODO : multithread here ?
                 boolean stayOnSameTrack = false;
                 if (merged!=null) {
                     t = merged.simplifyTrack(editor, remove);
@@ -111,7 +109,7 @@ public class TrackTreePopulation {
                 seen.add(t);
                 if (!stayOnSameTrack) t = tt.getNextSplit(t, seen);
             }
-        }
+        });
     }
 
     private static Track mergeTracks(Track m, boolean previous, BiPredicate<Track, Track> forbidFusion, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
@@ -131,31 +129,35 @@ public class TrackTreePopulation {
 
     public static Collection<TrackTree> solveMergeEventsBySplitting(Collection<TrackTree> trackTrees, Collection<TrackTree> toRemove, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Set<TrackTree> correctedTracks = new HashSet<>();
-        for (TrackTree tt : trackTrees) {
+        trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
             Track t = tt.getFirstMerge();
             if (t!=null) {
-                Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, factory, editor);
+                Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, factory, editor); // TODO : multithread here ?
                 if (corr!=null) {
-                    correctedTracks.addAll(corr);
-                    toRemove.add(tt);
+                    synchronized (correctedTracks) {
+                        correctedTracks.addAll(corr);
+                        toRemove.add(tt);
+                    }
                 }
             }
-        }
+        });
         return correctedTracks;
     }
 
     public static Collection<TrackTree> solveSplitEventsBySplitting(Collection<TrackTree> trackTrees, Collection<TrackTree> toRemove, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Set<TrackTree> correctedTracks = new HashSet<>();
-        for (TrackTree tt : trackTrees) {
+        trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
             Track t = tt.getFirstSplit();
             if (t!=null) {
                 Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, factory, editor);
                 if (corr!=null) {
-                    correctedTracks.addAll(corr);
-                    toRemove.add(tt);
+                    synchronized (correctedTracks) {
+                        correctedTracks.addAll(corr);
+                        toRemove.add(tt);
+                    }
                 }
             }
-        }
+        });
         return correctedTracks;
     }
 
