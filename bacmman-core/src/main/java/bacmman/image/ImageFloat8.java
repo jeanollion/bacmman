@@ -164,7 +164,7 @@ public class ImageFloat8 extends Image<ImageFloat8> {
     }
     @Override
     public void addPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] += (short)Math.round(value*scale);
+        pixels[z-zMin][x-offsetXY + y * sizeX] += Math.round(value*scale);
     }
 
     public void setPixel(int xy, int z, float value) {

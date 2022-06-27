@@ -134,38 +134,38 @@ public class ImageFloatU8 extends Image<ImageFloatU8> {
     
     @Override
     public void setPixel(int x, int y, int z, double value) {
-        pixels[z][x+y*sizeX]=(byte)(value*scale+0.5);
+        pixels[z][x+y*sizeX]=(byte)(value<=0?0:value*scale+0.5);
     }
 
     @Override
     public void addPixel(int x, int y, int z, double value) {
-        pixels[z][x+y*sizeX]+=(byte)(value * scale+0.5);
+        pixels[z][x+y*sizeX]+=(byte)(value<=0?0:value * scale+0.5);
     }
 
     @Override
     public void setPixel(int xy, int z, double value) {
-        pixels[z][xy]=(byte)(value*scale+0.5);
+        pixels[z][xy]=(byte)(value<=0?0:value*scale+0.5);
     }
     
     public void setPixel(int x, int y, int z, float value) {
-        pixels[z][x+y*sizeX]=(byte)(value*scale+0.5);
+        pixels[z][x+y*sizeX]=(byte)(value<=0?0:value*scale+0.5);
     }
 
     public void setPixelWithOffset(int x, int y, int z, float value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)(value*scale+0.5);
+        pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)(value<=0?0:value*scale+0.5);
     }
     
     @Override
     public void setPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)(value*scale+0.5);
+        pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)(value<=0?0:value*scale+0.5);
     }
     @Override
     public void addPixelWithOffset(int x, int y, int z, double value) {
-        pixels[z-zMin][x-offsetXY + y * sizeX] += (short)(value*scale+0.5);
+        pixels[z-zMin][x-offsetXY + y * sizeX] += (value<=0?0:value*scale+0.5);
     }
 
     public void setPixel(int xy, int z, float value) {
-        pixels[z][xy]=(byte)(value*scale+0.5);
+        pixels[z][xy]=(byte)(value<=0?0:value*scale+0.5);
     }
     
     @Override
@@ -180,7 +180,7 @@ public class ImageFloatU8 extends Image<ImageFloatU8> {
 
     @Override
     public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = (byte)(value*scale+0.5);
+        pixels[z-zMin][xy - offsetXY] = (byte)(value<=0?0:value*scale+0.5);
     }
 
     @Override
