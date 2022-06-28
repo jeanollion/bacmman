@@ -176,7 +176,7 @@ public class DatasetTree {
     private void addDir(DatasetTreeNode parent, File dir, Set<String> datasetNames, ProgressCallback pcb) {
         DatasetTreeNode node = parent == null ? new DatasetTreeNode(dir, dir.getName(), "", true) : new DatasetTreeNode(dir, dir.getName(), true);
         Map<String, File> children = ExperimentSearchUtils.listExperiments(dir.getPath(), true, pcb);
-        File[] subDirs = dir.listFiles(d -> d.isDirectory() && !d.getName().equals("Output"));
+        File[] subDirs = dir.listFiles(d -> d.isDirectory() && !d.getName().equals("Output") && !children.containsValue(d)); // a dataset cannot contain other datasets -> no need to search in its dir
         if (parent==null) {
             tree.removeAll();
             treeModel.setRoot(node);
