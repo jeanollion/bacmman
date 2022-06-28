@@ -174,7 +174,7 @@ public class DatasetTree {
         tree.updateUI();
     }
     private void addDir(DatasetTreeNode parent, File dir, Set<String> datasetNames, ProgressCallback pcb) {
-        DatasetTreeNode node = new DatasetTreeNode(dir, dir.getName(), true);
+        DatasetTreeNode node = parent == null ? new DatasetTreeNode(dir, dir.getName(), "", true) : new DatasetTreeNode(dir, dir.getName(), true);
         Map<String, File> children = ExperimentSearchUtils.listExperiments(dir.getPath(), true, pcb);
         File[] subDirs = dir.listFiles(d -> d.isDirectory() && !d.getName().equals("Output"));
         if (parent==null) {
@@ -260,7 +260,12 @@ public class DatasetTree {
         if (getRoot()==null) return name;
         Path root = Paths.get(getRoot().file.getAbsolutePath());
         Path p = Paths.get(dir.getAbsolutePath(), name);
-        return root.relativize(p).toString();
+        try {
+            return root.relativize(p).toString();
+        } catch (Throwable t) {
+            logger.error("Error rel path: root: {}, p : {}", root, p);
+            throw t;
+        }
     }
 
     public class DatasetTreeNode extends DefaultMutableTreeNode {
@@ -269,9 +274,12 @@ public class DatasetTree {
         final String relPath;
         final boolean isFolder;
         DatasetTreeNode(File file, String name, boolean isFolder) {
+            this(file, name, getRelativePath(file, name), isFolder);
+        }
+        DatasetTreeNode(File file, String name, String relPath, boolean isFolder) {
             this.file = file;
             this.name = name;
-            this.relPath = getRelativePath(file, name);
+            this.relPath = relPath;
             this.isFolder = isFolder;
         }
 
