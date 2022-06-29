@@ -29,8 +29,8 @@ import bacmman.processing.clustering.ClusterCollection;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
-import bacmman.processing.watershed.WatershedTransform;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.processing.watershed.WatershedTransformCoordSet;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -199,9 +199,10 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
     public RegionPopulation split(ImageMask segmentationMask, int minSizePropagation) {
         ImageByte seeds = Double.isNaN(seedThreshold) ? Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap())) :
                 Filters.localExtrema(getSeedCreationMap(), null, !localMinOnSeedMap, seedThreshold, segmentationMask, Filters.getNeighborhood(1.5, 1.5, getSeedCreationMap()));
-        WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!increasingPropagation);
-        if (minSizePropagation>1) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
-        RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);
+        WatershedTransformCoordSet.WatershedConfiguration config = new WatershedTransformCoordSet.WatershedConfiguration().decreasingPropagation(!increasingPropagation);
+        if (minSizePropagation>1) config.fusionCriterion(new WatershedTransformCoordSet.SizeFusionCriterion(minSizePropagation));
+        //RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);
+        RegionPopulation popWS = WatershedTransformCoordSet.watershed(getWatershedMap(), segmentationMask, seeds, config);
         if (addTestImage!=null) popWS.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
         return popWS;
     }
