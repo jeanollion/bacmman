@@ -35,7 +35,7 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -98,7 +98,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
             Map<Region, Double> locValueMap = pop.getRegions().stream().collect(Collectors.toMap(o->o, o-> f.performMeasurement(o)));
             valueMap.putAll(locValueMap);
         };
-        ThreadRunner.executeAndThrowErrors(Utils.parallele(parentTrack.stream(), true), exe);
+        ThreadRunner.executeAndThrowErrors(Utils.parallel(parentTrack.stream(), true), exe);
         // resume in one value per track
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx, true, true);
         List<SegmentedObject> objectsToRemove = new ArrayList<>();

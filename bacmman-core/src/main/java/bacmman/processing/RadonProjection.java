@@ -20,8 +20,9 @@ package bacmman.processing;
 
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
+import bacmman.utils.Utils;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import java.util.stream.IntStream;
 
 /**
@@ -45,7 +46,7 @@ public class RadonProjection {
         double a = -costab / sintab;
         double aa = 1 / a;
         if (Math.abs(sintab) > sang) {
-            parallele(IntStream.range(0, proj.length), parallel).forEach(projIdx -> {
+            Utils.parallel(IntStream.range(0, proj.length), parallel).forEach(projIdx -> {
                 int N = projIdx - proj.length / 2;
                 double b = (N - costab - sintab) / sintab;
                 b *= scale;
@@ -70,7 +71,7 @@ public class RadonProjection {
             });
         }
         if (Math.abs(sintab) <= sang) {
-            parallele(IntStream.range(0, proj.length), parallel).forEach(projIdx -> {
+            Utils.parallel(IntStream.range(0, proj.length), parallel).forEach(projIdx -> {
                 int N = projIdx - proj.length / 2;
                 double bb = (N - costab - sintab) / costab;
                 bb = bb * scale;

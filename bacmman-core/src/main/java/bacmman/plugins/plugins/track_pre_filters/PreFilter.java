@@ -29,7 +29,7 @@ import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPreFilter;
 import bacmman.utils.Utils;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Consumer;
@@ -66,7 +66,7 @@ public class PreFilter implements TrackPreFilter, Hint, TestableProcessingPlugin
             if (instance instanceof TestableProcessingPlugin) ((TestableProcessingPlugin)instance).setTestDataStore(stores);
             e.setValue(instance.runPreFilter(e.getValue(), e.getKey().getMask(), canModifyImages));
         };
-        Utils.parallele(preFilteredImages.entrySet().stream(), true).forEach(c);
+        Utils.parallel(preFilteredImages.entrySet().stream(), true).forEach(c);
     }
 
     @Override

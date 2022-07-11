@@ -18,7 +18,7 @@
  */
 package bacmman.utils;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import com.google.common.collect.Sets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -51,7 +51,7 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
      * @return the same map for convinience
      */
     public synchronized HashMapGetCreate<K, V> enshure(Set<K> keys, boolean parallele) {
-        putAll(Utils.parallele(Sets.difference(keys, this.keySet()).stream(), parallele).collect(Collectors.toMap(Function.identity(), k->factory.apply(k))));
+        putAll(Utils.parallel(Sets.difference(keys, this.keySet()).stream(), parallele).collect(Collectors.toMap(Function.identity(), k->factory.apply(k))));
         return this;
     }
     public V getAndCreateIfNecessary(Object key) {

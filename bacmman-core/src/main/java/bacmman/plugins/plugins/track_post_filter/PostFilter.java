@@ -35,7 +35,7 @@ import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
 import static bacmman.data_structure.Processor.applyFilterToSegmentedObjects;
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
@@ -128,7 +128,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
             
         };
         try {
-            ThreadRunner.executeAndThrowErrors(Utils.parallele(parentTrack.stream(), true), exe);
+            ThreadRunner.executeAndThrowErrors(Utils.parallel(parentTrack.stream(), true), exe);
         } catch (MultipleException me) {
             throw me;
             //for (Pair<String, Throwable> p : me.getExceptions()) logger.debug(p.key, p.value);

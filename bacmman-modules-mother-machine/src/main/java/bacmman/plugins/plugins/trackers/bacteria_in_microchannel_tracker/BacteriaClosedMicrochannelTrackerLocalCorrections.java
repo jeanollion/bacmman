@@ -45,7 +45,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.stream.Collectors;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import java.util.stream.IntStream;
 
 import bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker.FrameRangeLock.Unlocker;
@@ -290,7 +290,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
                 if (correctionStepLimit<=1) return;
             }
             FrameRange wholeRange = new FrameRange(minF+1, maxFExcluded-1);
-            Utils.parallele(subLowErrorRanges.stream(), performSeveralIntervalsInParallel).forEach(range -> {
+            Utils.parallel(subLowErrorRanges.stream(), performSeveralIntervalsInParallel).forEach(range -> {
                 List<FrameRange> corrRanges = new ArrayList<>();
                 List<FrameRange> subCorrRanges = new ArrayList<>(1);
                 int idxMax=0;

@@ -38,7 +38,7 @@ import java.util.Map;
 
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -116,12 +116,12 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         parentTrack.forEach(ofMap::getAndCreateIfNecessary);
         long t1 = System.currentTimeMillis();
         logger.trace("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);
-        Map<SegmentedObject, Double> logLengthMap = Utils.parallele(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));
+        Map<SegmentedObject, Double> logLengthMap = Utils.parallel(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), bIdx), true).collect(Collectors.toMap(b->b, b->Math.log(ofMap.get(b.getParent()).performMeasurement(b.getRegion()))));
         long t2 = System.currentTimeMillis();
         Map<SegmentedObject, List<SegmentedObject>> bacteriaTracks = SegmentedObjectUtils.getAllTracks(parentTrack, bIdx);
         long t3 = System.currentTimeMillis();
         int minCells = this.minCells.getValue().intValue();
-        Utils.parallele(bacteriaTracks.values().stream(), true).forEach(l-> {
+        Utils.parallel(bacteriaTracks.values().stream(), true).forEach(l-> {
             if (l.size()>=minCells) {
                 double[] frame = new double[l.size()];
                 double[] length = new double[frame.length];

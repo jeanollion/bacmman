@@ -20,7 +20,7 @@ package bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker;
 
 import bacmman.utils.Utils;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import java.util.List;
 
 /**
@@ -44,7 +44,7 @@ public class MultipleScenario extends CorrectionScenario {
 
         @Override
         protected void applyScenario() {
-            Utils.parallele(scenarios.stream(), !BacteriaClosedMicrochannelTrackerLocalCorrections.performSeveralIntervalsInParallel).forEach(s -> s.applyScenario());
+            Utils.parallel(scenarios.stream(), !BacteriaClosedMicrochannelTrackerLocalCorrections.performSeveralIntervalsInParallel).forEach(s -> s.applyScenario());
         }
         @Override 
         public String toString() {

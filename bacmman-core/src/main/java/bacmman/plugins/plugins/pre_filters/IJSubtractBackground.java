@@ -35,7 +35,7 @@ import bacmman.utils.Utils;
 import ij.ImageStack;
 
 import static bacmman.plugins.plugins.pre_filters.IJSubtractBackground.FILTER_DIRECTION.DIAGONAL_2B;
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import java.util.stream.IntStream;
@@ -231,7 +231,7 @@ public class IJSubtractBackground implements PreFilter, Filter, Hint {
                 pointInc = width - 1;
             break;
         }
-        Utils.parallele(IntStream.range(startLine, nLines), parallel).forEach(i -> {
+        Utils.parallel(IntStream.range(startLine, nLines), parallel).forEach(i -> {
             int startPixel = i*lineInc;
             if (direction == DIAGONAL_2B) startPixel += width-1;
             int length; // length of the line

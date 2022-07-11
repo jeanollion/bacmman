@@ -18,9 +18,10 @@
  */
 package bacmman.image;
 
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -189,7 +190,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         }
         int sXY = bb.sizeX() * bb.sizeY();
         int sX = bb.sizeX();
-        parallele(IntStream.range(0, sXY*bb.sizeZ()), parallele).forEach(i-> {
+        Utils.parallel(IntStream.range(0, sXY*bb.sizeZ()), parallele).forEach(i-> {
             int xy = i%sXY;
             function.loop(xy%sX, xy/sX, i/sXY);
         });

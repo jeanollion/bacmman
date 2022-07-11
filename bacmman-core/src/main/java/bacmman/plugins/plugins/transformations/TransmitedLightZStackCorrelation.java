@@ -11,6 +11,7 @@ import bacmman.plugins.TestableOperation;
 import bacmman.plugins.Transformation;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Utils;
 import org.apache.commons.math3.linear.MatrixUtils;
 import org.apache.commons.math3.linear.RealMatrix;
 import org.slf4j.Logger;
@@ -19,7 +20,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.stream.IntStream;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 
 public class TransmitedLightZStackCorrelation implements Transformation, TestableOperation, DevPlugin {
     public final static Logger logger = LoggerFactory.getLogger(TransmitedLightZStackCorrelation.class);
@@ -183,7 +184,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
         res.setCalibration(in);
         res.translate(in);
         int sX = in.sizeX();
-        parallele(IntStream.range(0, in.sizeXY()), true).forEach(xy-> {
+        Utils.parallel(IntStream.range(0, in.sizeXY()), true).forEach(xy-> {
             int x = xy%sX;
             int y = xy/sX;
             res.setPixel(xy, 0, convolveZ(in, xy, z.getZ(x, y), c1, c2, zMin, zMax));

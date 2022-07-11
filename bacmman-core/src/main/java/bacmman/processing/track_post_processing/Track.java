@@ -46,7 +46,7 @@ public class Track {
         this.next = new ArrayList<>();
     }
     public Track setSplitRegions(SplitAndMerge sm) {
-        splitRegions = Utils.parallele(objects.stream(), parallel).map(sm::computeSplitCost).collect(Collectors.toList());
+        splitRegions = Utils.parallel(objects.stream(), parallel).map(sm::computeSplitCost).collect(Collectors.toList());
         return this;
     }
     public Track eraseSplitRegions() {
@@ -310,7 +310,7 @@ public class Track {
         }
 
         // merge regions
-        Utils.parallele(track1.objects.stream(), parallel).forEach(o1 -> {
+        Utils.parallel(track1.objects.stream(), parallel).forEach(o1 -> {
             SegmentedObject o2 =  track2.getObject(o1.getFrame());
             if (o2!=null) {
                 Set<Voxel> contour2 = o2.getRegion().getContour();

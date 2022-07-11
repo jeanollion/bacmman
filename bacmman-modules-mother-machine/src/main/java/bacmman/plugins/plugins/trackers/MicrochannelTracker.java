@@ -44,7 +44,7 @@ import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
@@ -190,7 +190,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
             //parent.setPreFilteredImage(null, structureIdx); // save memory
             // TODO perform post-filters at this step and remove the use of boundingBoxes array.. or update the bounding box array by matching each object ...
         };
-        ThreadRunner.executeAndThrowErrors(Utils.parallele(IntStream.range(0, parentTrack.size()).mapToObj(i->i), true), exe);
+        ThreadRunner.executeAndThrowErrors(Utils.parallel(IntStream.range(0, parentTrack.size()).mapToObj(i->i), true), exe);
         Map<SegmentedObject, MicrochannelSegmenter.Result> parentBBMap = new HashMap<>(boundingBoxes.length);
         for (int i = 0; i<boundingBoxes.length; ++i) parentBBMap.put(parentTrack.get(i), boundingBoxes[i]);
         

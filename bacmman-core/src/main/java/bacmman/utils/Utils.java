@@ -111,15 +111,15 @@ public class Utils {
         }, HashMap::putAll);
     }
     
-    public static <T> Stream<T> parallele(Stream<T> stream, boolean parallele) {
+    public static <T> Stream<T> parallel(Stream<T> stream, boolean parallele) {
         if (parallele) return stream.parallel();
         else return stream.sequential();
     }
-    public static DoubleStream parallele(DoubleStream stream, boolean parallele) {
+    public static DoubleStream parallel(DoubleStream stream, boolean parallele) {
         if (parallele) return stream.parallel();
         else return stream.sequential();
     }
-    public static IntStream parallele(IntStream stream, boolean parallele) {
+    public static IntStream parallel(IntStream stream, boolean parallele) {
         if (parallele) return stream.parallel();
         else return stream.sequential();
     }
@@ -1099,7 +1099,7 @@ public class Utils {
     public static <T, K> List<K> transform(Collection<T> list, Function<T, K> func, boolean parallel) {
         if (list==null) return null;
         if (list.isEmpty()) return Collections.EMPTY_LIST;
-        return Utils.parallele(list.stream(), parallel).map(func).collect(Collectors.toList());
+        return Utils.parallel(list.stream(), parallel).map(func).collect(Collectors.toList());
         /*List<K> res = new ArrayList<>(list.size());
         for (T t : list)  res.add(func.apply(t));
         return res;*/

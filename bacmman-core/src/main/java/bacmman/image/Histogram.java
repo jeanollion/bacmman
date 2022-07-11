@@ -18,7 +18,7 @@
  */
 package bacmman.image;
 
-import static bacmman.utils.Utils.parallele;
+import static bacmman.utils.Utils.parallel;
 
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;

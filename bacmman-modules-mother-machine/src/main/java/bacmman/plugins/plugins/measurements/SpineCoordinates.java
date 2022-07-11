@@ -102,7 +102,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
             if (sMb!=null) spotMapBacteria.putAll(sMb);
         });
         Map<SegmentedObject, BacteriaSpineLocalizer> bacteriaMapLocalizer = new HashSet<>(spotMapBacteria.values()).parallelStream().collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()) ));
-        Utils.parallele(spotMapBacteria.entrySet().stream(), parallel).forEach(e-> {
+        Utils.parallel(spotMapBacteria.entrySet().stream(), parallel).forEach(e-> {
             Point center = e.getKey().getRegion().getCenter();
             if (center==null) center = e.getKey().getRegion().getGeomCenter(false);
             BacteriaSpineCoord coord = e.getValue()==null? null : bacteriaMapLocalizer.get(e.getValue()).getSpineCoord(center);

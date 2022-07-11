@@ -209,7 +209,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         });
         //Map<SegmentedObject, BacteriaSpineLocalizer> lMap = parallele(parentWithSpine.stream(), true).collect(Collectors.toMap(b->b, b->new BacteriaSpineLocalizer(b.getRegion()))); // spine are long to compute: better performance when computed all at once
         MultipleException me = new MultipleException();
-        Map<SegmentedObject, BacteriaSpineLocalizer> lMap = Utils.toMapWithNullValues(Utils.parallele(parentWithSpine.stream(), true), b->b, b->new BacteriaSpineLocalizer(b.getRegion()), true, me);  // spine are long to compute: better performances when computed all at once
+        Map<SegmentedObject, BacteriaSpineLocalizer> lMap = Utils.toMapWithNullValues(Utils.parallel(parentWithSpine.stream(), true), b->b, b->new BacteriaSpineLocalizer(b.getRegion()), true, me);  // spine are long to compute: better performances when computed all at once
         final HashMapGetCreate<SegmentedObject, BacteriaSpineLocalizer> localizerMap = HashMapGetCreate.getRedirectedMap((SegmentedObject s) -> {
             try {
                 return new BacteriaSpineLocalizer(s.getRegion());
