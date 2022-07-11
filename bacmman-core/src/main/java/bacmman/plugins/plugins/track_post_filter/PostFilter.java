@@ -138,16 +138,16 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
             BiPredicate<SegmentedObject, SegmentedObject> mergePredicate = mergePolicy.getSelectedEnum().mergePredicate;
             switch (DELETE_METHOD.getMethod(deleteMethod.getSelectedItem())) {
                 case SINGLE_OBJECTS:
-                    SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor); // only delete
+                    SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true); // only delete
                     break;
                 case PRUNE_TRACK:
-                    SegmentedObjectEditor.prune(null, objectsToRemove, mergePredicate, factory, editor); // prune tracks
+                    SegmentedObjectEditor.prune(null, objectsToRemove, mergePredicate, factory, editor, true); // prune tracks
                     break;
                 case DELETE_TRACK:
-                    Set<SegmentedObject> trackHeads = new HashSet<>(Utils.transform(objectsToRemove, o->o.getTrackHead()));
+                    Set<SegmentedObject> trackHeads = new HashSet<>(Utils.transform(objectsToRemove, SegmentedObject::getTrackHead));
                     objectsToRemove.clear();
                     for (SegmentedObject th : trackHeads) objectsToRemove.addAll(SegmentedObjectUtils.getTrack(th, false));
-                    SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor);
+                    SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true);
                     break;
                 default:
                     break;

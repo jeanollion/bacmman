@@ -660,34 +660,39 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         return error;
     }
 
-    void merge(SegmentedObject other) {
+    void merge(SegmentedObject other, boolean attributes, boolean region) {
         // update object
         if (other==null) logger.debug("merge: {}, other==null", this);
         if (getRegion()==null) logger.debug("merge: {}+{}, object==null", this, other);
         if (other.getRegion()==null) logger.debug("merge: {}+{}, other object==null", this, other);
-        getRegion().merge(other.getRegion());
-        flushImages();
-        regionContainer = null;
-        // update links
-        SegmentedObject prev = other.getPrevious();
-        if (prev !=null && prev.getNext()!=null && prev.next==other) prev.setNext(this);
-        SegmentedObject next = other.getNext();
-        if (next==null) next = getNext();
-        if (next!=null) getSiblings(next).filter(o->o.getPrevious()==other).forEachOrdered(o->o.setPrevious(this));
+        if (region) {
+            getRegion().merge(other.getRegion());
+            flushImages();
+            regionContainer = null;
+        }
+        if (attributes) {
+            // update links
+            SegmentedObject prev = other.getPrevious();
+            if (prev != null && prev.getNext() != null && prev.next == other) prev.setNext(this);
+            SegmentedObject next = other.getNext();
+            if (next == null) next = getNext();
+            if (next != null)
+                getSiblings(next).filter(o -> o.getPrevious() == other).forEachOrdered(o -> o.setPrevious(this));
 
-        this.getParent().getDirectChildren(structureIdx).remove(other); // concurent modification..
-        // set flags
-        setAttribute(EDITED_SEGMENTATION, true);
-        other.isTrackHead=false; // so that it won't be detected in the correction
-        // update children
-        int[] chilIndicies = getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
-        for (int cIdx : chilIndicies) {
-            List<SegmentedObject> otherChildren = other.getDirectChildren(cIdx);
-            if (otherChildren!=null) {
-                for (SegmentedObject o : otherChildren) o.setParent(this);
-                //xp.getObjectDAO().updateParent(otherChildren);
-                List<SegmentedObject> ch = this.getDirectChildren(cIdx);
-                if (ch!=null) ch.addAll(otherChildren);
+            this.getParent().getDirectChildren(structureIdx).remove(other); // concurrent modification..
+            // set flags
+            setAttribute(EDITED_SEGMENTATION, true);
+            other.isTrackHead = false; // so that it won't be detected in the correction
+            // update children
+            int[] chilIndicies = getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
+            for (int cIdx : chilIndicies) {
+                List<SegmentedObject> otherChildren = other.getDirectChildren(cIdx);
+                if (otherChildren != null) {
+                    for (SegmentedObject o : otherChildren) o.setParent(this);
+                    //xp.getObjectDAO().updateParent(otherChildren);
+                    List<SegmentedObject> ch = this.getDirectChildren(cIdx);
+                    if (ch != null) ch.addAll(otherChildren);
+                }
             }
         }
     }
@@ -1076,6 +1081,11 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             }
         }
         return measurements;
+    }
+
+    public void resetMeasurements() {
+        this.measurements = new Measurements(this);
+        this.measurements.modifications = true;
     }
     
     public boolean hasMeasurements() {

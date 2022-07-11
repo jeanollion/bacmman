@@ -401,7 +401,12 @@ public class ConfigurationTreeGenerator {
             else if (o instanceof Component) addToMenu(label, (Component)o, menu);
         }
     }
-    public static void addToMenu(ChoiceParameter choice, JMenu menu) {
+    public static void addToMenuAsSubMenu(ChoosableParameter choice, JMenu menu) {
+        JMenu subMenu = new JMenu(choice.getName());
+        menu.add(subMenu);
+        addToMenu(choice, subMenu);
+    }
+    public static void addToMenu(ChoosableParameter choice, JMenu menu) {
         ChoiceParameterUI choiceUI = new ChoiceParameterUI(choice, null);
         menu.addMenuListener(new MenuListener() {
             @Override

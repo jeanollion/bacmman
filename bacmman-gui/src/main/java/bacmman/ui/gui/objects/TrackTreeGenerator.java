@@ -233,7 +233,7 @@ public class TrackTreeGenerator {
             toDelete.addAll(SegmentedObjectUtils.getTrack(trackHead));
             removeTrackFromTree(trackHead);
         }
-        ManualEdition.deleteObjects(db, toDelete, SegmentedObjectEditor.ALWAYS_MERGE, true);
+        ManualEdition.deleteObjects(db, toDelete, SegmentedObjectEditor.ALWAYS_MERGE, true, true);
     }
     private void removeTrackFromTree(SegmentedObject trackHead) {
         TreePath  p = getTreePath(trackHead);

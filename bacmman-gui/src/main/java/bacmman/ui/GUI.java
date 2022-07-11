@@ -146,6 +146,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("incase of HiDPI screen, a zoom factor is applied to the display, set here this factor");
     private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
+    private BooleanParameter relabel = new BooleanParameter("Relabel objects", true);
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
@@ -277,6 +278,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         localZoomMenu.setToolTipText(formatHint("Local zoom is activated/deactivated with TAB"));
         localZoomMenu.setToolTipText(formatHint("Tensorflow Option"));
         roiMenu.setToolTipText(formatHint("Controls on displayed annotations"));
+        manualCuration.setToolTipText(formatHint("Controls on manual curation (edition) of segmented objects"));
         this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite pre-processing template"));
         this.selectionPanel.setToolTipText(formatHint("Selections are lists of segmented objects.<br />" +
                 "In the selection list, the object class and the number of objects in the selection is displayed in brackets" +
@@ -392,6 +394,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue()));
         ConfigurationTreeGenerator.addToMenu(roiStrokeWidth.getName(), ParameterUIBinder.getUI(roiStrokeWidth).getDisplayComponent(), roiMenu);
 
+        // manual edition
+        PropertyUtils.setPersistent(relabel, "manual_curation_relabel");
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(relabel, manualCuration);
+
+        // memory
         ConfigurationTreeGenerator.addToMenu(memoryThreshold.getName(), ParameterUIBinder.getUI(memoryThreshold).getDisplayComponent(), memoryMenu);
         PropertyUtils.setPersistent(memoryThreshold, "memory_threshold");
 
@@ -938,6 +945,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public int getLocalZoomArea() {
         return this.localZoomArea.getValue().intValue();
     }
+
+    public boolean getManualEditionRelabel() {return this.relabel.getSelected();}
+
     public double getLocalZoomLevel() {
         return this.localZoomFactor.getValue().doubleValue();
     }
@@ -1623,6 +1633,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         localZoomMenu = new javax.swing.JMenu();
         tensorflowMenu = new javax.swing.JMenu();
         roiMenu = new javax.swing.JMenu();
+        manualCuration = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
         defaultInteractiveImageMenu = new javax.swing.JMenu();
         hyperstackModeImageMenu = new javax.swing.JMenu();
@@ -2782,6 +2793,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         roiMenu.setText("Annotations");
         miscMenu.add(roiMenu);
 
+        manualCuration.setText("Manual Curation");
+        miscMenu.add(manualCuration);
+
         defaultInteractiveImageMenu.setText("Default Interactive Image Type");
         miscMenu.add(defaultInteractiveImageMenu);
 
@@ -3658,7 +3672,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (!checkConnection()) return;
         if (db.isConfigurationReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        ManualEdition.prune(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, true);
+        ManualEdition.prune(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, relabel.getSelected(), true);
         logger.debug("prune: {}", Utils.toStringList(sel));
     }
     
@@ -4338,7 +4352,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (!checkConnection()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
-        else ManualEdition.splitObjects(db, selList, false, true);
+        else ManualEdition.splitObjects(db, selList, false,  true, false);
     }//GEN-LAST:event_testSplitButtonActionPerformed
 
     private void resetLinksButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_resetLinksButtonActionPerformed
@@ -4404,7 +4418,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.info("delete: evt source {}, evt: {}, ac: {}, param: {}", evt.getSource(), evt, evt.getActionCommand(), evt.paramString());
         //if (db.isReadOnly()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
-        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, true);
+        if (sel.size()<=10 || Utils.promptBoolean("Delete "+sel.size()+ " Objects ? ", null)) ManualEdition.deleteObjects(db, sel, SegmentedObjectEditor.ALWAYS_MERGE, relabel.getSelected(), true);
     }//GEN-LAST:event_deleteObjectsButtonActionPerformed
 
     private void deleteObjectsButtonMousePressed(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_deleteObjectsButtonMousePressed
@@ -4454,7 +4468,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         //if (db.isReadOnly()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least two objects to Merge first!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects ? ", null))  ManualEdition.mergeObjects(db, selList, true);
+        else if (selList.size()<=10 || Utils.promptBoolean("Merge "+selList.size()+ " Objects ? ", null))  ManualEdition.mergeObjects(db, selList, relabel.getSelected(), true);
     }//GEN-LAST:event_mergeObjectsButtonActionPerformed
 
     private void splitObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_splitObjectsButtonActionPerformed
@@ -4462,14 +4476,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         //if (db.isReadOnly()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to Split first!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) ManualEdition.splitObjects(db, selList, true, false);
+        else if (selList.size()<=10 || Utils.promptBoolean("Split "+selList.size()+ " Objects ? ", null)) ManualEdition.splitObjects(db, selList, relabel.getSelected(), false, true);
     }//GEN-LAST:event_splitObjectsButtonActionPerformed
 
     private void postFilterActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_postFilterActionPerformed
         if (!checkConnection()) return;
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         if (selList.isEmpty()) logger.warn("Select at least one object to apply post-filters on!");
-        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, true);
+        else if (selList.size()<=10 || Utils.promptBoolean("Apply post-filter on "+selList.size()+ " Objects ? ", null)) ManualEdition.applyPostFilters(db, selList, relabel.getSelected(), true);
     }//GEN-LAST:event_postFilterActionPerformed
 
     private void nextTrackErrorButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_nextTrackErrorButtonActionPerformed
@@ -4990,6 +5004,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu localZoomMenu;
     private javax.swing.JMenu tensorflowMenu;
     private javax.swing.JMenu roiMenu;
+    private javax.swing.JMenu manualCuration;
     private javax.swing.JMenu logMenu;
     private javax.swing.JMenuBar mainMenu;
     private javax.swing.JButton manualSegmentButton;

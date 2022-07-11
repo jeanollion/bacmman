@@ -119,7 +119,7 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
             List<SegmentedObject> oc2 = dupOC2byParent.get(p);
             performOperation(oc1, oc2, toRemove, factory);
         });
-        if (!toRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor);
+        if (!toRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor, true);
         getTrackPreFilters(true).filter(structureIdx, parentTrack);
     }
     private List<SegmentedObject> performOperation(List<SegmentedObject> oc1, List<SegmentedObject> oc2, List<SegmentedObject> toRemove, SegmentedObjectFactory factory) {

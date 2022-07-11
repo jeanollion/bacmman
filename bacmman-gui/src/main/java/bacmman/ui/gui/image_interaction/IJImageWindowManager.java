@@ -241,7 +241,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     // get line & split
                     FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                     ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
-                    ManualEdition.splitObjects(GUI.getDBConnection(), objects, true, false, splitter);
+                    ManualEdition.splitObjects(GUI.getDBConnection(), objects, GUI.hasInstance()?GUI.getInstance().getManualEditionRelabel():true,false, splitter, true);
                 } else if (freeHandDraw && r!=null) {
                     //logger.debug("freehand draw object class: {}, ", i.getChildStructureIdx());
                     //if (selectedObjects.size()>1) return;
@@ -266,7 +266,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         hideLabileObjects(image);
                         if (freeHandDrawMerge && !selectedObjects.isEmpty()) {
                             seg.addAll(Pair.unpairKeys(selectedObjects));
-                            ManualEdition.mergeObjects(GUI.getDBConnection(), seg, true);
+                            ManualEdition.mergeObjects(GUI.getDBConnection(), seg, !GUI.hasInstance() || GUI.getInstance().getManualEditionRelabel(), true);
                         } else {
                             displayObjects(image, i.pairWithOffset(seg), Color.orange , true, false);
                             displayObjects(image, selectedObjects, ImageWindowManager.defaultRoiColor , true, false);

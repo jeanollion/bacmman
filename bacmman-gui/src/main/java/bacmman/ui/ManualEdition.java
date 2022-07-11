@@ -68,9 +68,9 @@ public class ManualEdition {
     public static final Logger logger = LoggerFactory.getLogger(ManualEdition.class);
 
 
-    public static void prune(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean updateDisplay) {
+    public static void prune(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean relabel, boolean updateDisplay) {
         int objectClassIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
-        SegmentedObjectEditor.prune(db, objects, mergeTracks, getFactory(objectClassIdx), getEditor(objectClassIdx, new HashSet<>()));
+        SegmentedObjectEditor.prune(db, objects, mergeTracks, getFactory(objectClassIdx), getEditor(objectClassIdx, new HashSet<>()), relabel);
         // update display
 
         //Update all open images & objectImageInteraction
@@ -476,9 +476,7 @@ public class ManualEdition {
             }
         }
     }
-    public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay, boolean test) {
-        splitObjects(db, objects, updateDisplay, test, null);
-    }
+
     public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, Experiment xp , ObjectDAO dao) {
         Processor.ensureScalerConfiguration(dao, structureIdx);
         ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
@@ -524,18 +522,22 @@ public class ManualEdition {
             Core.userLog("Track pre-filters computed!");
         }
     }
-    public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay, boolean test, ObjectSplitter defaultSplitter) {
+    public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean test, boolean updateDisplay) {
+        splitObjects(db, objects, relabel, test, null, updateDisplay);
+    }
+    public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean test, ObjectSplitter defaultSplitter, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (objects.isEmpty()) return;
-        if (db==null) test = true;
+        boolean test_ = db==null ? true : test;
         if (!canEdit(objects.stream(), db)) return;
         Experiment xp = db!=null ? db.getExperiment() : getAccessor().getExperiment(objects.iterator().next());
         ObjectSplitter splitter = defaultSplitter==null ? xp.getStructure(structureIdx).getObjectSplitter() : defaultSplitter;
         if (splitter==null) {
-            Utils.displayTemporaryMessage("No splitter found for interactif object class", 10000);
+            Utils.displayTemporaryMessage("No splitter found for interactive object class", 10000);
             logger.warn("No splitter configured");
             return;
         }
+        splitter.setSplitVerboseMode(test_);
         boolean merge = db.getExperiment().getStructure(structureIdx).allowMerge();
         boolean split = db.getExperiment().getStructure(structureIdx).allowSplit();
         SegmentedObjectFactory factory = getFactory(structureIdx);
@@ -551,24 +553,27 @@ public class ManualEdition {
             //if (split && !merge) Collections.sort(objectsToSplit, Comparator.comparingInt(o->-o.getFrame()));
             //else if (merge && !split) Collections.sort(objectsToSplit);
             Map<SegmentedObject, List<SegmentedObject>> tracks = SegmentedObjectUtils.splitByTrackHead(objectsToSplit);
+
             for (List<SegmentedObject> track: tracks.values()) {
                 track.sort(Comparator.comparingInt(SegmentedObject::getFrame));
-                Map<SegmentedObject, SegmentedObject> objectMapNew = new HashMap<>();
-                for (SegmentedObject objectToSplit : track) { // create split object
-                    if (defaultSplitter == null) splitter = xp.getStructure(structureIdx).getObjectSplitter();
-                    splitter.setSplitVerboseMode(test);
-                    if (test)
-                        splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
+                Map<SegmentedObject, SegmentedObject> objectMapNew = Collections.synchronizedMap(new HashMap<>());
+                List<SegmentedObject> newObjects_ = Collections.synchronizedList(new ArrayList<>());
+                Set<SegmentedObject> objectsToStore_ = Collections.synchronizedSet(new HashSet<>());
+                track.parallelStream().forEach( objectToSplit -> { // create split object
+                    if (test_) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                     else {
                         SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
                         if (newObject == null) logger.warn("Object could not be split!");
                         else {
                             objectMapNew.put(objectToSplit, newObject);
-                            newObjects.add(newObject);
-                            factory.relabelChildren(objectToSplit.getParent(), objectsToStore);
+                            newObjects_.add(newObject);
+                            if (relabel) factory.relabelChildren(objectToSplit.getParent(), objectsToStore_);
+                            objectToSplit.resetMeasurements();
                         }
                     }
-                }
+                });
+                newObjects.addAll(newObjects_);
+                objectsToStore.addAll(objectsToStore_);
                 for (SegmentedObject objectToSplit : track) { // set links
                     List<SegmentedObject> prevs = getPrevious(objectToSplit);
                     for (SegmentedObject p : prevs) unlinkObjects(p, objectToSplit, ALWAYS_MERGE, editor);
@@ -593,7 +598,7 @@ public class ManualEdition {
             }
             if (!test && dao!=null) {
                 dao.store(objectsToStore);
-                logger.debug("storing modified objects after split: {}", objectsToStore);
+                //logger.debug("storing modified objects after split: {}", objectsToStore);
             }
             if (updateDisplay && !test) {
                 // unselect
@@ -623,40 +628,44 @@ public class ManualEdition {
         }
     }
 
-    public static void mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay) {
+    public static void mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         if (!canEdit(objects.stream(), db)) return;
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         SegmentedObjectFactory factory = getFactory(structureIdx);
-        List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor);
+        List<SegmentedObject> newObjects = SegmentedObjectEditor.mergeObjects(db, objects, factory, editor, relabel);
         if (updateDisplay) updateDisplayAndSelectObjects(newObjects);
     }
 
-    public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean updateDisplay) {
+    public static void applyPostFilters(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
         String position = SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(objects);
         if (!canEdit(objects.stream(), db)) return;
         SegmentedObjectFactory factory = getFactory(structureIdx);
         TrackLinkEditor editor = getEditor(structureIdx, new HashSet<>());
         PostFilterSequence postFilters = db.getExperiment().getStructure(structureIdx).getManualPostFilters();
-        List<SegmentedObject> modifiedObjectAll = new ArrayList<>();
-        SegmentedObjectUtils.splitByParent(objects).forEach((parent, children) -> {
-            BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> f = (p, pop) -> postFilters.filter(pop, structureIdx, parent);;
+        List<SegmentedObject> modifiedObjectAll = Collections.synchronizedList(new ArrayList<>());
+        List<SegmentedObject> toRemoveAll = Collections.synchronizedList(new ArrayList<>());
+        SegmentedObjectUtils.splitByParent(objects).entrySet().parallelStream().forEach(e -> {
+            BiFunction<SegmentedObject, RegionPopulation, RegionPopulation> f = (p, pop) -> postFilters.filter(pop, structureIdx, e.getKey());
             Set<SegmentedObject> modifiedObjects = new HashSet<>();
-            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(parent, children, f, true, factory, modifiedObjects);
-            SegmentedObjectEditor.deleteObjects(db, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor);
+            List<SegmentedObject> toRemove = applyFilterToSegmentedObjects(e.getKey(), e.getValue(), f, true, factory, modifiedObjects);
+            toRemoveAll.addAll(toRemove);
             modifiedObjectAll.addAll(modifiedObjects);
         });
+        SegmentedObjectEditor.deleteObjects(db, toRemoveAll, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor, relabel);
         db.getDao(position).store(modifiedObjectAll);
         if (updateDisplay) updateDisplayAndSelectObjects(modifiedObjectAll);
     }
 
     public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects) {
+        logger.debug("hide labile objects...");
         ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
+        logger.debug("remove tracks...");
         ImageWindowManagerFactory.getImageManager().removeObjects(objects, true);
         Map<Integer, List<SegmentedObject>> oBySidx = SegmentedObjectUtils.splitByStructureIdx(objects);
         for (Entry<Integer, List<SegmentedObject>> e : oBySidx.entrySet()) {
-            
+            logger.debug("update display for oc: {}", e.getKey());
             /*for (StructureObject newObject: newObjects) {
                 //Update object tree
                 ObjectNode node = GUI.getInstance().objectTreeGenerator.getObjectNode(newObject);
@@ -678,11 +687,11 @@ public class ManualEdition {
         // update trackTree
         if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
     }
-    public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean updateDisplay) {
+    public static void deleteObjects(MasterDAO db, Collection<SegmentedObject> objects, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, boolean relabel, boolean updateDisplay) {
         if (!canEdit(objects.stream(), db)) return;
         Map<Integer, List<SegmentedObject>> objectsByStructureIdx = SegmentedObjectUtils.splitByStructureIdx(objects);
         for (int structureIdx : objectsByStructureIdx.keySet()) {
-            SegmentedObjectEditor.deleteObjects(db, objects, mergeTracks, getFactory(structureIdx), getEditor(structureIdx, new HashSet<>()));
+            SegmentedObjectEditor.deleteObjects(db, objects, mergeTracks, getFactory(structureIdx), getEditor(structureIdx, new HashSet<>()), relabel);
             if (updateDisplay) {
                 //Update selection on open image
                 //ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
@@ -777,7 +786,7 @@ public class ManualEdition {
             List<SegmentedObject> toDelete = Pair.unpairKeys(ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface().getObjects());
             if (after) toDelete.removeIf(o -> o.getFrame()<first.getFrame());
             else toDelete.removeIf(o -> o.getFrame()>first.getFrame());
-            deleteObjects(db, toDelete, ALWAYS_MERGE, true);
+            deleteObjects(db, toDelete, ALWAYS_MERGE, true, true);
         }
     }
     private static TrackLinkEditor getEditor(int objectClassIdx, Set<SegmentedObject> modifiedObjects) {
