@@ -1137,6 +1137,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     private void closeExperiment() {
         promptSaveUnsavedChanges();
+        ImageWindowManagerFactory.getImageManager().stopAllRunningWorkers();
         this.trackSubPanel.removeAll(); // this must be called before releasing locks because this methods somehow calls db.getExperiment() and thus re-lock(toString method)
         String xp = db!=null ? db.getDBName() : null;
         if (db!=null) {

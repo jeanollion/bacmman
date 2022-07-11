@@ -54,6 +54,10 @@ public class SimpleInteractiveImage extends InteractiveImage {
         this.additionalOffset = new MutableBoundingBox(0, 0, 0);
     }
 
+    public void setLock(Object lock) {
+        this.lock = lock;
+    }
+
     public SimpleInteractiveImage(SegmentedObject parent, int childStructureIdx, BoundingBox additionalOffset) {
         super(new ArrayList<SegmentedObject>(1){{add(parent);}}, childStructureIdx);
         this.parent= parent;
