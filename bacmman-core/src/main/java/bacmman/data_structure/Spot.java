@@ -68,7 +68,7 @@ public class Spot extends Region implements Analytical {
         if (bounds.xMin()!=bounds.xMax() || bounds.yMin()!=bounds.yMax()) { // avoid degenerated spots
             BoundingBox.loop(bounds,
                     (x, y, z) -> voxels_.add(new Voxel(x, y, z)),
-                    (x, y, z) -> (Math.pow(center.get(0) - x, 2) + Math.pow(center.get(1) - y, 2) + (is2D ? 0 : Math.pow((scaleZ / scaleXY) * (center.get(2) - z), 2)) <= radiusSq));
+                    (x, y, z) -> equation(x, y, z)<=1);
         } else {
             logger.error("DEGENERATED SPOT: {}", this);
         }
@@ -81,10 +81,10 @@ public class Spot extends Region implements Analytical {
         BoundingBox bds = getBounds();
         int sizeX = bds.sizeX();
         mask = new PredicateMask(new SimpleImageProperties(bds, scaleXY, scaleZ),
-                (x, y, z) -> equation(x, y, z)<=1,
+                (x, y, z) -> equation(x+bds.xMin(), y+bds.yMin(), z+bds.zMin())<=1,
                 (xy, z) -> {
                     int y = xy/sizeX;
-                    return equation(xy - y * sizeX, y, z)<=1;
+                    return equation(xy - y * sizeX + bds.xMin(), y + bds.yMin(), z+bds.zMin())<=1;
                 },
                 is2D);
     }
@@ -159,7 +159,7 @@ public class Spot extends Region implements Analytical {
 
     @Override
     public double size() {
-        return is2D() ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3);
+        return is2D() ? Math.PI * radiusSq : (4d/3d) * Math.PI * Math.pow(radius, 3) * zAspectRatio ;
     }
 
     @Override

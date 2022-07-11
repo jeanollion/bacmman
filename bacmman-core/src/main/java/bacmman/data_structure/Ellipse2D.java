@@ -107,10 +107,10 @@ public class Ellipse2D extends Region implements Analytical {
         BoundingBox bds = getBounds();
         int sizeX = bds.sizeX();
         mask = new PredicateMask(new SimpleImageProperties(bds, scaleXY, scaleZ),
-                (x, y, z) -> equation(x, y, z)<=1,
+                (x, y, z) -> equation(x+bds.xMin(), y+bds.yMin(), 0)<=1,
                 (xy, z) -> {
                     int y = xy/sizeX;
-                    return equation(xy - y * sizeX, y, z)<=1;
+                    return equation(xy - y * sizeX + bds.xMin(), y + bds.yMin(), 0)<=1;
                 },
                 is2D);
     }
