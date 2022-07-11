@@ -29,7 +29,7 @@ import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
@@ -44,7 +44,6 @@ import bacmman.processing.split_merge.SplitAndMergeRegionCriterion;
 import bacmman.plugins.TrackPostFilter;
 import bacmman.plugins.plugins.pre_filters.StandardDeviation;
 
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
@@ -191,17 +190,16 @@ public class FitMicrochannelsToEdges implements TrackPostFilter, Hint {
         
         if (seedsInMaskAreForeground) {
             Voxel foreVox = foregroundVox.stream().findAny().get();
-            Region fore = partition.getRegions().stream().filter(r->r.getVoxels().contains(foreVox)).findAny().get();
+            Region fore = partition.getRegions().stream().filter(r->r.contains(foreVox)).findAny().get();
             partition.getRegions().removeIf(o->o!=fore);
         } else { // merge regions either to foreground either to background
-            Region bck1 = partition.getRegions().stream().filter(r->r.getVoxels().contains(cornerL)).findAny().get();
-            Region bck2 = partition.getRegions().stream().filter(r->r.getVoxels().contains(cornerR)).findAny().orElseThrow(()->new RuntimeException("No background 2 object found for region: "+object.getLabel()));
+            Region bck1 = partition.getRegions().stream().filter(r->r.contains(cornerL)).findAny().get();
+            Region bck2 = partition.getRegions().stream().filter(r->r.contains(cornerR)).findAny().orElseThrow(()->new RuntimeException("No background 2 object found for region: "+object.getLabel()));
             if ((bck1!=bck2 && partition.getRegions().size()>3) || (bck1==bck2 && partition.getRegions().size()>2)) { // some seeds were not merge either with bck or foreground -> decide with merge sort algorithm on edge value
                 if (verbose && object.getLabel()==debugLabel) Core.showImage(partition.getLabelMap().duplicate("beofre merge"));
                 SplitAndMergeRegionCriterion sm  = new SplitAndMergeRegionCriterion(edgeMapLocal, inputLocal, Double.POSITIVE_INFINITY, SplitAndMergeRegionCriterion.InterfaceValue.DIFF_MEDIAN_BTWN_REGIONS);
-                //sm.setTestMode(verbose && object.getLabel()==debugLabel); // TODO ADD A MISC TEST VALUE THAT CHECKS IF OBJECTS OVERLAY
-                sm.addForbidFusionForegroundBackground(r->r==bck1||r==bck2, r->!Collections.disjoint(r.getVoxels(), foregroundVox));
-                if (bck1!=bck2) sm.addForbidFusion(i->(i.getE1()==bck1&&i.getE2()==bck2) || (i.getE1()==bck1&&i.getE2()==bck2)); // to be able to know how many region we want in the end. somtimes bck1 & bck2 can't merge
+                sm.addForbidFusionForegroundBackground(r->r==bck1||r==bck2, r->foregroundVox.stream().anyMatch(r::contains));
+                if (bck1!=bck2) sm.addForbidFusion(i->(i.getE1()==bck1&&i.getE2()==bck2) || (i.getE1()==bck2&&i.getE2()==bck1)); // to be able to know how many region we want in the end. sometimes bck1 & bck2 can't merge
                 partition = sm.merge(partition, sm.objectNumberLimitCondition(bck1==bck2 ? 2 :3)); // keep 3 regions = background on both sides & foreground
             }
             if (verbose && object.getLabel()==debugLabel) Core.showImage(partition.getLabelMap().duplicate("after ws transf"));

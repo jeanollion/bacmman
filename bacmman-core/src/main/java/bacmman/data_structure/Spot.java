@@ -5,20 +5,14 @@ import bacmman.data_structure.region_container.RegionContainerSpot;
 import bacmman.image.*;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.MathUtils;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
-import com.google.common.collect.Sets;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.DoubleStream;
-
-import static bacmman.image.BoundingBox.*;
-import static bacmman.image.BoundingBox.getIntersection2D;
 
 public class Spot extends Region implements Analytical {
     double radius, radiusSq, intensity, zAspectRatio;
@@ -81,14 +75,29 @@ public class Spot extends Region implements Analytical {
         if (voxels_.isEmpty()) voxels_.add(center.asVoxel());
         voxels = voxels_;
     }
+
+    @Override
+    protected void createMask() {
+        BoundingBox bds = getBounds();
+        int sizeX = bds.sizeX();
+        mask = new PredicateMask(new SimpleImageProperties(bds, scaleXY, scaleZ),
+                (x, y, z) -> equation(x, y, z)<=1,
+                (xy, z) -> {
+                    int y = xy/sizeX;
+                    return equation(xy - y * sizeX, y, z)<=1;
+                },
+                is2D);
+    }
     @Override
     public ImageMask<? extends ImageMask> getMask() {
-        if (voxels ==null && mask==null) {
-            synchronized (this) {
-                if (voxels==null && mask==null) createVoxels();
+        if (mask==null) {
+            synchronized(this) {
+                if (mask==null) {
+                    createMask();
+                }
             }
         }
-        return super.getMask();
+        return mask;
     }
     @Override
     public RegionContainer createRegionContainer(SegmentedObject structureObject) {
@@ -203,10 +212,8 @@ public class Spot extends Region implements Analytical {
         mask = null;
     }
 
-    public DoubleStream getValues(Image image) {
-        getVoxels();
-        return super.getValues(image);
-        // TODO create a new type of mask
+    public DoubleStream streamValues(Image image) {
+        return super.streamValues(image);
     }
 
     public boolean voxelsCreated() {
@@ -217,7 +224,6 @@ public class Spot extends Region implements Analytical {
      * @return subset of object's voxels that are in contact with background, edge or other object
      */
     public Set<Voxel> getContour() {
-        getVoxels();
         return super.getContour();
     }
     @Override
@@ -307,7 +313,6 @@ public class Spot extends Region implements Analytical {
     }
     @Override
     public void draw(Image image, double value) {
-        getVoxels();
         super.draw(image, value);
     }
     /**
@@ -318,7 +323,6 @@ public class Spot extends Region implements Analytical {
      */
     @Override
     public void draw(Image image, double value, Offset offset) {
-        getVoxels();
         super.draw(image, value, offset);
     }
 
@@ -329,7 +333,6 @@ public class Spot extends Region implements Analytical {
      */
     @Override
     public void drawWithoutObjectOffset(Image image, double value, Offset offset) {
-        getVoxels();
         super.drawWithoutObjectOffset(image, value, offset);
     }
 

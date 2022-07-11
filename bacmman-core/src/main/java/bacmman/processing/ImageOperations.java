@@ -172,7 +172,7 @@ public class ImageOperations {
             if (mm1[1]<mm2[1]) mm1[1] = mm2[1];
             return mm1;
         };
-        return parallele(images.stream(), parallele).map(im->im.getMinAndMax(null)).reduce(combiner).get();
+        return Utils.parallele(images.stream(), parallele).map(im->im.getMinAndMax(null)).reduce(combiner).get();
     }
     public static double[] getMinAndMax(Map<Image, ImageMask> images, boolean parallele) {
         if (images.isEmpty()) {
@@ -183,7 +183,7 @@ public class ImageOperations {
             if (mm1[1]<mm2[1]) mm1[1] = mm2[1];
             return mm1;
         };
-        return parallele(images.entrySet().stream(), parallele).map(e->e.getKey().getMinAndMax(e.getValue())).reduce(combiner).get();
+        return Utils.parallele(images.entrySet().stream(), parallele).map(e->e.getKey().getMinAndMax(e.getValue())).reduce(combiner).get();
     }
     
     public static enum Axis {X, Y, Z;
@@ -937,7 +937,7 @@ public class ImageOperations {
     }
     
     public static double[] getMeanAndSigma(Image image, ImageMask mask, DoublePredicate useValue, boolean parallele) {
-        DoubleStream stream = parallele(image.stream(mask, false), parallele);
+        DoubleStream stream = Utils.parallele(image.stream(mask, false), parallele);
         if (useValue!=null) stream = stream.filter(useValue);
         DoubleStatistics stats = DoubleStatistics.getStats(stream);
         return new double[]{stats.getAverage(), stats.getStandardDeviation()};
@@ -963,7 +963,7 @@ public class ImageOperations {
     }
     
     public static double[] getMeanAndSigmaWithOffset(Image image, ImageMask mask, DoublePredicate useValue, boolean parallele) {
-        DoubleStream stream = parallele(image.stream(mask, true), parallele);
+        DoubleStream stream = Utils.parallele(image.stream(mask, true), parallele);
         if (useValue!=null) stream = stream.filter(useValue);
         DoubleStatistics stats = DoubleStatistics.getStats(stream);
         return new double[]{stats.getAverage(), stats.getStandardDeviation()};

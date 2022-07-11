@@ -21,6 +21,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class Track {
+    static boolean parallel = true;
     public final static Logger logger = LoggerFactory.getLogger(Track.class);
     final List<Track> previous, next; // no hashset because hash of Tracks can change with merge
     final List<SegmentedObject> objects;
@@ -45,7 +46,7 @@ public class Track {
         this.next = new ArrayList<>();
     }
     public Track setSplitRegions(SplitAndMerge sm) {
-        splitRegions = objects.stream().map(sm::computeSplitCost).collect(Collectors.toList());
+        splitRegions = Utils.parallele(objects.stream(), parallel).map(sm::computeSplitCost).collect(Collectors.toList());
         return this;
     }
     public Track eraseSplitRegions() {
@@ -309,8 +310,7 @@ public class Track {
         }
 
         // merge regions
-        for (int i = 0; i<track1.length(); ++i) {
-            SegmentedObject o1 = track1.getObjects().get(i);
+        Utils.parallele(track1.objects.stream(), parallel).forEach(o1 -> {
             SegmentedObject o2 =  track2.getObject(o1.getFrame());
             if (o2!=null) {
                 Set<Voxel> contour2 = o2.getRegion().getContour();
@@ -321,7 +321,7 @@ public class Track {
                 }
                 factory.removeFromParent(o2);
             }
-        }
+        });
         removeTrack.accept(track2); // do this before next step because trackHead can be track2.head()
         track2.getNext().forEach(n -> n.getPrevious().remove(track2));
         track2.getPrevious().forEach(p -> p.getNext().remove(track2));

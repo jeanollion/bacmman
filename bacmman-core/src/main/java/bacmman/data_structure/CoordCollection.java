@@ -39,6 +39,7 @@ public interface CoordCollection {
 
     abstract class AbstractCoordCollection2D implements CoordCollection {
         final int sizeX, sizeY, z, sizeXY;
+
         public AbstractCoordCollection2D(int sizeX, int sizeY, int z) {
             this.sizeX = sizeX;
             this.sizeY = sizeY;

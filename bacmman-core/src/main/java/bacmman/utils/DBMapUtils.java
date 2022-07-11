@@ -27,6 +27,7 @@ import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
+import org.mapdb.serializer.SerializerCompressionWrapper;
 
 /**
  *
@@ -35,13 +36,24 @@ import org.mapdb.Serializer;
 public class DBMapUtils {
     public static DB createFileDB(String path, boolean readOnly) {
         //logger.debug("creating file db: {}, is dir: {}, exists: {}", path, new File(path).isDirectory(),new File(path).exists());
-        if (readOnly) return DBMaker.fileDB(path).transactionEnable().fileLockDisable().readOnly().closeOnJvmShutdown().make();
-        return DBMaker.fileDB(path).transactionEnable().closeOnJvmShutdown().make(); //  https://jankotek.gitbooks.io/mapdb/performance/
-        
+        DBMaker.Maker m = DBMaker.fileDB(path)
+                //.transactionEnable() // crash protection
+                .fileMmapEnableIfSupported() // Only enable mmap on supported platforms
+                .fileMmapPreclearDisable()   // Make mmap file faster
+                .cleanerHackEnable() // Unmap (release resources) file when its closed. //That can cause JVM crash if file is accessed after it was unmapped
+                .concurrencyScale(8) // TODO as option ?
+                .allocateStartSize( 128 * 1024*1024)
+                .allocateIncrement(128 * 1024*1024)
+                .closeOnJvmShutdown();
+        //   https://mapdb.org/book/performance/
+        if (readOnly) m=m.fileLockDisable().readOnly();
+        DB db = m.make();
+        //db.getStore().fileLoad(); //optionally preload file content into disk cache
+        return db;
     }
     public static HTreeMap<String, String> createHTreeMap(DB db, String key) {
         try {
-            return db.hashMap(key, Serializer.STRING, Serializer.STRING).createOrOpen(); 
+            return db.hashMap(key, Serializer.STRING, new SerializerCompressionWrapper<>(Serializer.STRING)).createOrOpen();
         } catch (UnsupportedOperationException e) { // read-only case
             return null;
         }

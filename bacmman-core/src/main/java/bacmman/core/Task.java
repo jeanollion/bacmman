@@ -671,7 +671,7 @@ public class Task implements ProgressCallback{
         int count=0;
         // preProcess:
         if (preProcess) count += positionsToProcess;
-        if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length;
+        if (this.segmentAndTrack || this.trackOnly) count += positionsToProcess * structures.length + 1; // +1 for storing objects
         if (this.measurements) {
             int nCallOC = db.getExperiment().getMeasurementsByCallStructureIdx().size();
             count += positionsToProcess * (nCallOC+1); // +1 for upsert

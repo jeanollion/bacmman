@@ -45,17 +45,20 @@ public class SubPixelLocalizator {
     public static List<Point> getPeaks(Image img, List<Region> objects) {
         List<Point> peaks = new ArrayList<>(objects.size());
         for (Region o : objects) { // get max value within map
-            double max = Double.NEGATIVE_INFINITY;
-            Voxel maxV= null;
-            for (Voxel v : o.getVoxels()) {
-                double value = img.getPixel(v.x, v.y, v.z);
-                if (value>max) {
-                    max = value;
-                    maxV = v;
+            final double[] max = new double[]{Double.NEGATIVE_INFINITY};
+            final int[] maxV= new int[3];
+            o.loop((x, y, z) -> {
+                double value = img.getPixel(x, y, z);
+                if (value>max[0]) {
+                    max[0] = value;
+                    maxV[0] = x;
+                    maxV[1] = y;
+                    maxV[2] = z;
+
                 }
-            }
-            if (img.sizeZ()>1) peaks.add(new Point(maxV.x, maxV.y, maxV.z));
-            else peaks.add(new Point(maxV.x, maxV.y));
+            });
+            if (img.sizeZ()>1) peaks.add(new Point(maxV[0], maxV[1], maxV[2]));
+            else peaks.add(new Point(maxV[0], maxV[1]));
         }
         return peaks;
     }

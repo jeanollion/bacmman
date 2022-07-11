@@ -183,7 +183,7 @@ public class TransmitedLightZStackCorrelation implements Transformation, Testabl
         res.setCalibration(in);
         res.translate(in);
         int sX = in.sizeX();
-        parallele(IntStream.range(0, in.sizeXY()), true).forEach( xy-> {
+        parallele(IntStream.range(0, in.sizeXY()), true).forEach(xy-> {
             int x = xy%sX;
             int y = xy/sX;
             res.setPixel(xy, 0, convolveZ(in, xy, z.getZ(x, y), c1, c2, zMin, zMax));

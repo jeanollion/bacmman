@@ -67,7 +67,7 @@ public abstract class InterfaceVoxelSet<T extends InterfaceVoxelSet<T>> extends 
 
     @Override
     public void performFusion() {
-        getE1().addVoxels(getE2().getVoxels());
+        getE1().merge(getE2());
     }
 
     @Override 

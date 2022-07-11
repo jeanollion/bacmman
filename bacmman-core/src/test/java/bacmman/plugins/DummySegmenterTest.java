@@ -23,7 +23,7 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import static org.junit.Assert.assertEquals;
 import org.junit.Test;
 import bacmman.dummy_plugins.DummySegmenter;

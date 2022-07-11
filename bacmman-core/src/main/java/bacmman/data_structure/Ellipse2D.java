@@ -2,14 +2,11 @@ package bacmman.data_structure;
 
 import bacmman.data_structure.region_container.RegionContainer;
 import bacmman.data_structure.region_container.RegionContainerEllipse2D;
-import bacmman.data_structure.region_container.RegionContainerSpot;
 import bacmman.image.*;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.MathUtils;
-import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
-import com.google.common.collect.Sets;
 
 import java.util.*;
 import java.util.function.Predicate;
@@ -104,20 +101,37 @@ public class Ellipse2D extends Region implements Analytical {
         if (voxels_.isEmpty()) voxels_.add(center.asVoxel());
         voxels = voxels_;
     }
+
+    @Override
+    protected void createMask() {
+        BoundingBox bds = getBounds();
+        int sizeX = bds.sizeX();
+        mask = new PredicateMask(new SimpleImageProperties(bds, scaleXY, scaleZ),
+                (x, y, z) -> equation(x, y, z)<=1,
+                (xy, z) -> {
+                    int y = xy/sizeX;
+                    return equation(xy - y * sizeX, y, z)<=1;
+                },
+                is2D);
+    }
+    @Override
+    public ImageMask<? extends ImageMask> getMask() {
+        if (mask==null) {
+            synchronized(this) {
+                if (mask==null) {
+                    createMask();
+                }
+            }
+        }
+        return mask;
+    }
+
     public double equation(double x, double y, double z) {
         double dx = x - center.get(0);
         double dy = y - center.get(1);
         return Math.pow( (dx * cosTheta + dy * sinTheta) / (major/2), 2) + Math.pow( (dx * sinTheta - dy * cosTheta) / (minor/2), 2);
     }
-    @Override
-    public ImageMask<? extends ImageMask> getMask() {
-        if (voxels ==null && mask==null) {
-            synchronized (this) {
-                if (voxels==null && mask==null) createVoxels();
-            }
-        }
-        return super.getMask();
-    }
+
     @Override
     public RegionContainer createRegionContainer(SegmentedObject structureObject) {
         return new RegionContainerEllipse2D(structureObject);
@@ -224,10 +238,8 @@ public class Ellipse2D extends Region implements Analytical {
         mask = null;
     }
 
-    public DoubleStream getValues(Image image) {
-        getVoxels();
-        return super.getValues(image);
-        // TODO create a new type of mask
+    public DoubleStream streamValues(Image image) {
+        return super.streamValues(image);
     }
 
     public boolean voxelsCreated() {
@@ -238,7 +250,6 @@ public class Ellipse2D extends Region implements Analytical {
      * @return subset of object's voxels that are in contact with background, edge or other object
      */
     public Set<Voxel> getContour() {
-        getVoxels();
         return super.getContour();
     }
     @Override
@@ -313,7 +324,6 @@ public class Ellipse2D extends Region implements Analytical {
     }
     @Override
     public void draw(Image image, double value) {
-        getVoxels();
         super.draw(image, value);
     }
     /**
@@ -324,7 +334,6 @@ public class Ellipse2D extends Region implements Analytical {
      */
     @Override
     public void draw(Image image, double value, Offset offset) {
-        getVoxels();
         super.draw(image, value, offset);
     }
 
@@ -335,7 +344,6 @@ public class Ellipse2D extends Region implements Analytical {
      */
     @Override
     public void drawWithoutObjectOffset(Image image, double value, Offset offset) {
-        getVoxels();
         super.drawWithoutObjectOffset(image, value, offset);
     }
 

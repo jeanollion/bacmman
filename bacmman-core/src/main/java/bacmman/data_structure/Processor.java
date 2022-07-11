@@ -303,7 +303,9 @@ public class Processor {
         } finally {
             xp.getDLengineProvider().closeAllEngines();
         }
-        
+        if (pcb!=null) {
+            pcb.log("Storing objects...");
+        }
         // store in DAO
         List<SegmentedObject> children = new ArrayList<>();
         parentTrack.stream().flatMap(p->{
@@ -313,7 +315,9 @@ public class Processor {
         }).forEachOrdered(children::add);
         dao.store(children);
         logger.debug("total objects: {}, dao type: {}", children.size(), dao.getClass().getSimpleName());
-        
+        if (pcb!=null) {
+            pcb.incrementSubTask();
+        }
         // create error selection
         /*
         if (dao.getMasterDAO().getSelectionDAO()!=null) {

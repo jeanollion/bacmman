@@ -103,7 +103,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         long t0 = System.currentTimeMillis();
         List<RegionPopulation> pops;
         try {
-            pops = safeMap(Utils.parallele(allParents.stream(), parallel),subParent -> {
+            pops = safeMap(Utils.parallele(allParents.stream(), parallel), subParent -> {
                 SegmentedObject globalParent = subParent.getParent(parentStructureIdx);
                 Segmenter seg = segmenter.instantiatePlugin();
                 if (applyToSegmenter != null) applyToSegmenter.apply(globalParent, seg);

@@ -50,6 +50,7 @@ import bacmman.utils.Utils;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.channels.OverlappingFileLockException;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -637,17 +638,23 @@ public class DBMapObjectDAO implements ObjectDAO {
             Map<String, SegmentedObject> cacheMap = cache.getAndCreateIfNecessary(key);
             HTreeMap<String, String> dbMap = getDBMap(key);
             long t0 = System.currentTimeMillis();
-            Map<String, String> toStoreMap = toStore.parallelStream().map(o->{accessor.updateRegionContainer(o); return o;}).collect(Collectors.toMap(o->o.getId(), o->JSONUtils.serialize(o)));
-            long t1 = System.currentTimeMillis();
-            dbMap.putAll(toStoreMap);
+            boolean parallel=true;
+            Utils.parallele(IntStream.rangeClosed(0, toStore.size()/FRAME_INDEX_LIMIT).map(i -> i*FRAME_INDEX_LIMIT), parallel).forEach(i -> {
+            //for (int i = 0; i<toStore.size(); i+=FRAME_INDEX_LIMIT) {
+                int idxMax = Math.min(toStore.size(), i+FRAME_INDEX_LIMIT);
+                logger.debug("storing: #{}/{} ( [{};{}) ) objects of OC: {} to: {}",idxMax-i, toStore.size(), i, idxMax, key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead());
+                Map<String, String> toStoreMap = Utils.parallele(toStore.subList(i, idxMax).stream(), !parallel).peek(accessor::updateRegionContainer).collect(Collectors.toMap(SegmentedObject::getId, JSONUtils::serialize));
+                dbMap.putAll(toStoreMap);
+            });
             long t2 = System.currentTimeMillis();
-            logger.debug("storing: #{} objects of structure: {} to: {} in {}ms ({}ms+{}ms)",toStoreMap.size(), key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead(), t2-t0, t1-t0, t2-t1);
-            toStore.stream().map((object) -> {
+            logger.debug("stored: #{} objects of OC: {} to: {} in {}ms",toStore.size(), key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead(), t2-t0);
+            toStore.stream().peek((object) -> {
                 if (object.hasMeasurementModifications()) upserMeas.add(object);
-                return object;
             }).forEachOrdered((object) -> {
                 cacheMap.put(object.getId(), object);
             });
+            long t3 = System.currentTimeMillis();
+            logger.debug("Updated measurements in {}ms", t3-t2);
             if (hasFrameIndex(key)) {
                 Map<Integer, Set<String>> fi = frameIndex.get(key);
                 toStore.forEach(o -> fi.get(o.getFrame()).add(o.getId()));
@@ -658,6 +665,8 @@ public class DBMapObjectDAO implements ObjectDAO {
                 Map<Integer, Set<String>> fi = toStore.stream().collect(Collectors.groupingBy(SegmentedObject::getFrame, downstream));
                 storeFrameIndex(key, fi, false);
             }
+            long t4 = System.currentTimeMillis();
+            logger.debug("Updated frameIndex in {}ms", t4-t3);
             if (trackHeads.containsKey(key)) {
                 trackHeads.get(key).removeIf(o -> !o.isTrackHead());
                 trackHeads.get(key).addAll(toStore.stream().filter(SegmentedObject::isTrackHead).collect(Collectors.toSet()));
@@ -665,7 +674,13 @@ public class DBMapObjectDAO implements ObjectDAO {
             }
         }
         if (commit) {
-            splitByPTH.keySet().stream().mapToInt(p -> p.value).distinct().forEach(ocIdx -> getDB(ocIdx).commit());
+            logger.debug("Committing...");
+            splitByPTH.keySet().stream().mapToInt(p -> p.value).distinct().forEach(ocIdx -> {
+                long t0 = System.currentTimeMillis();
+                getDB(ocIdx).commit();
+                long t1 = System.currentTimeMillis();
+                logger.debug("Committed DB of OC {} in {}ms", ocIdx, t1-t0);
+            });
         }
         upsertMeasurements(upserMeas);
     }
@@ -917,7 +932,7 @@ public class DBMapObjectDAO implements ObjectDAO {
         }
     }
     protected void storeFrameIndex(Pair<String, Integer> key, Map<Integer, Set<String>> indices, boolean commit, int... frames) {
-        //logger.debug("storing frame index for {} frames", frames==null || frames.length==0 ? indices.size() : frames.length);
+        logger.debug("storing frame index for {} frames", frames==null || frames.length==0 ? indices.size() : frames.length);
         HTreeMap<Integer, Object > dbmap = getFrameIndexDBMap(key);
         Map<Integer, Object> toStore;
         if (frames!=null && frames.length>0) toStore = Arrays.stream(frames).boxed().collect(Collectors.toMap(i -> i, i -> indices.get(i).toArray()));

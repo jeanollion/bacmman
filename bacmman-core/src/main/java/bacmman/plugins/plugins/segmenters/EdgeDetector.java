@@ -30,13 +30,12 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.utils.Utils;
 import bacmman.configuration.parameters.ConditionalParameter;
 import ij.process.AutoThresholder;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageProperties;
 import java.util.Arrays;
@@ -216,7 +215,7 @@ public class EdgeDetector implements DevPlugin, Segmenter, Hint, TestableProcess
     public static Image generateRegionValueMap(ImageProperties image, Map<Region, Double> objectValues) {
         Image valueMap = new ImageFloat("Value per region", image);
         for (Map.Entry<Region, Double> e : objectValues.entrySet()) {
-            for (Voxel v : e.getKey().getVoxels()) valueMap.setPixel(v.x, v.y, v.z, e.getValue());
+            e.getKey().loop((x, y, z)->valueMap.setPixel(x, y, z, e.getValue()));
         }
         return valueMap;
     }

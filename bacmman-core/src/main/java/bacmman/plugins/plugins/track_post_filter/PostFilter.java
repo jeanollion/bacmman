@@ -23,8 +23,6 @@ import bacmman.configuration.parameters.EnumChoiceParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
-import bacmman.image.Offset;
-import bacmman.image.SimpleBoundingBox;
 import bacmman.plugins.Hint;
 
 import java.util.*;
@@ -32,17 +30,13 @@ import java.util.*;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.TrackPostFilter;
-import bacmman.processing.matching.MaxOverlapMatcher;
 import bacmman.utils.MultipleException;
-import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
-import net.imglib2.loops.LoopBuilder;
 
 import static bacmman.data_structure.Processor.applyFilterToSegmentedObjects;
 import static bacmman.utils.Utils.parallele;
 
-import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
@@ -134,7 +128,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
             
         };
         try {
-            ThreadRunner.executeAndThrowErrors(parallele(parentTrack.stream(), true), exe);
+            ThreadRunner.executeAndThrowErrors(Utils.parallele(parentTrack.stream(), true), exe);
         } catch (MultipleException me) {
             throw me;
             //for (Pair<String, Throwable> p : me.getExceptions()) logger.debug(p.key, p.value);

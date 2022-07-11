@@ -26,14 +26,12 @@ import bacmman.core.Core;
 import bacmman.data_structure.*;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import bacmman.plugins.ObjectSplitter;
 import bacmman.processing.Filters;
@@ -114,58 +112,6 @@ public class WatershedObjectSplitter implements ObjectSplitter {
             return pop;
         }
     }
-
-    public static RegionPopulation splitInTwo(Image watershedMap, ImageMask mask, final boolean decreasingPropagation, int minSize, boolean verbose) {
-        
-        ImageByte localMax = Filters.localExtrema(watershedMap, null, decreasingPropagation, mask, Filters.getNeighborhood(1, 1, watershedMap)).setName("Split seeds");
-        List<Region> seeds = ImageLabeller.labelImageList(localMax);
-        if (seeds.size()<2) {
-            //logger.warn("Object splitter : less than 2 seeds found");
-            //new IJImageDisplayer().showImage(smoothed.setName("smoothed"));
-            //new IJImageDisplayer().showImage(localMax.setName("localMax"));
-            return null;
-        } else {
-            WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(decreasingPropagation).fusionCriterion(new WatershedTransform.NumberFusionCriterion(2));
-            RegionPopulation pop =  WatershedTransform.watershed(watershedMap, mask, WatershedTransform.duplicateSeeds(seeds), config);
-            List<Region> remove = new ArrayList<Region>();
-            pop.filter(new RegionPopulation.Size().setMin(minSize), remove);
-            if (verbose) logger.debug("seeds: {}, objects: {}, removed: {}", seeds.size(), pop.getRegions().size()+remove.size(), remove.size());
-            while (!remove.isEmpty() && seeds.size()>=2) {
-                remove.clear();
-                boolean oneSeedRemoved = false;
-                Iterator<Region> it = seeds.iterator();
-                while (it.hasNext()) {
-                    if (hasVoxelsOutsideMask(it.next(), pop.getLabelMap())) {
-                        it.remove();
-                        oneSeedRemoved=true;
-                    }
-                }
-                if (!oneSeedRemoved) {
-                    logger.error("Split spot error: no seed removed");
-                    break;
-                }
-                pop =  WatershedTransform.watershed(watershedMap, mask, WatershedTransform.duplicateSeeds(seeds), config);
-                pop.filter(new RegionPopulation.Size().setMin(minSize), remove);
-                if (verbose) logger.debug("seeds: {}, objects: {}, removed: {}", seeds.size(), pop.getRegions().size()+remove.size(), remove.size());
-            }
-            if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size())); // split only in 2
-            
-            if (verbose) {
-                Core.showImage(localMax);
-                Core.showImage(watershedMap.setName("watershedMap"));
-                Core.showImage(pop.getLabelMap());
-            }
-            return pop;
-        }
-    }
-    
-    private static boolean hasVoxelsOutsideMask(Region o, ImageMask mask) {
-        for (Voxel v : o.getVoxels()) {
-            if (!mask.insideMask(v.x, v.y, v.z)) return true;
-        }
-        return false;
-    }
-    
     public static double getMeanVoxelValue(Region r) {
         if (r.getVoxels().isEmpty()) return Double.NaN;
         else if (r.getVoxels().size()==1) return r.getVoxels().iterator().next().value;

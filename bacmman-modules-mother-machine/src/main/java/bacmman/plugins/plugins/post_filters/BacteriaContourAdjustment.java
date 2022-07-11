@@ -49,7 +49,7 @@ public class BacteriaContourAdjustment implements PostFilter {
     protected RegionPopulation localThresholdMeanSD(Image erodeMap, RegionPopulation pop) {
         double sigmaFactor = localThresholdFactor.getValue().doubleValue();
         Function<Region, Double> thldFct = o -> {
-            double[] values = Utils.transform(o.getVoxels(), (Voxel v) -> (double) erodeMap.getPixel(v.x, v.y, v.z)).stream().mapToDouble(d->d).toArray();
+            double[] values = o.streamValues(erodeMap).toArray();
             double[] meanSigma = ArrayUtil.getMeanAndSigma(values);
             double thld = meanSigma[0] - sigmaFactor * meanSigma[1];
             return thld;

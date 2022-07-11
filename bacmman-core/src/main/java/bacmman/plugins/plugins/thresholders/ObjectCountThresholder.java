@@ -81,7 +81,7 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
                 this.instance=instance;
             }
             @Override
-            public boolean checkFusionCriteria(WatershedTransform.Spot s1, WatershedTransform.Spot s2, Voxel currentVoxel) {
+            public boolean checkFusionCriteria(WatershedTransform.Spot s1, WatershedTransform.Spot s2, long currentVoxel) {
                 return true;
             }
         };
@@ -92,8 +92,8 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
                 this.instance=instance;
             }
             @Override
-            public boolean continuePropagation(Voxel currentVox, Voxel nextVox) {
-                double v = bright ? Math.max(currentVox.value, nextVox.value) : Math.min(currentVox.value, nextVox.value);
+            public boolean continuePropagation(long currentVox, long nextVox) {
+                double v = bright ? Math.max(instance.getHeap().getPixel(input, currentVox), instance.getHeap().getPixel(input, nextVox)) : Math.min(instance.getHeap().getPixel(input, currentVox), instance.getHeap().getPixel(input, nextVox));
                 int idx = (int)objectCountHisto.getIdxFromValue(v);
                 if (objectCountHisto.getData()[idx]==0) objectCountHisto.getData()[idx] = getSpotNumber(instance, v, bright);
                 if (objectCountHisto.getData()[idx]>=max) { // stop propagation
@@ -117,17 +117,13 @@ public class ObjectCountThresholder implements Thresholder, DevPlugin {
 
     private static int getSpotNumber(WatershedTransform instance, double value, boolean bright) {
         int count = 0;
-        for (Spot s : instance.getSpotArray()) {
-            if (s!=null) {
-                if (s.voxels.size()>1) count++;
-                else if (!s.voxels.isEmpty() && s.voxels.iterator().next().value>value==bright) ++count; 
-            }
+        for (Spot s : instance.getSpots().values()) {
+            if (s.voxels.size()>1) count++;
+            else if (!s.voxels.isEmpty() && instance.getHeap().getPixel(instance.getWatershedMap(), s.voxels.stream().findAny().getAsLong())>value==bright) ++count;
         }
         return count;
     }
-    /*private static double getMeanSpatialMoment(WatershedTransform instance) {
-        
-    }*/
+
     @Override
     public Parameter[] getParameters() {
         return parameters;

@@ -8,6 +8,7 @@ import bacmman.plugins.Segmenter;
 import bacmman.plugins.Thresholder;
 import bacmman.plugins.plugins.thresholders.ConstantValue;
 import bacmman.processing.Filters;
+import bacmman.processing.ImageLabeller;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.gaussian_fit.GaussianFit;
 import bacmman.processing.neighborhood.CylindricalNeighborhood;
@@ -125,7 +126,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
                 ToDoubleFunction<Point> minDistFun = p -> lmMax.stream().min(Comparator.comparingDouble(pp -> pp.distSq(p))).get().dist(p);
                 lmClose = allLMPerSlice.get(slice).stream().filter(p -> minDistFun.applyAsDouble(p)<=minDist).collect(Collectors.toList());
             } else lmClose = new ArrayList<>();
-            logger.debug("slice: {}, run max: {} with close spots: {}", slice, lmMax, lmClose);
+            logger.debug("slice: {}, run max: {} with close spots: {}", slice, lmMax.size(), lmClose.size());
             Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
             if (fitCenterAndAxesOnFilteredImage.getSelected()) { // fit only intensity on raw image
                 fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps);

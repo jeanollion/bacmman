@@ -28,6 +28,7 @@ import bacmman.image.*;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.Thresholder;
 import bacmman.plugins.plugins.thresholders.ConstantValue;
+import bacmman.processing.ImageLabeller;
 
 import java.util.ArrayList;
 import java.util.Arrays;

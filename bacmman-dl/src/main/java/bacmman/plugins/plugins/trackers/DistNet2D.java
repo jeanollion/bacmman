@@ -103,7 +103,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, factory, i==0);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
             int maxF = subParentTrack.get(0).getFrame();
-            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), maxF);
+            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.size() - (last ? 0 : 1));
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
@@ -139,7 +139,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             prediction.contours.forEach((o, im) -> stores.get(o).addIntermediateImage("contours", im));
         TrackConfigurable.TrackConfigurer applyToSegmenter = TrackConfigurable.getTrackConfigurer(objectClassIdx, parentTrack, getSegmenter(prediction));
         if (new HashSet<>(parentTrack).size()<parentTrack.size()) throw new IllegalArgumentException("Duplicate Objects in parent track");
-        parentTrack.parallelStream().forEach(p -> {
+
+        ThreadRunner.ThreadAction<SegmentedObject> ta = (p,idx) -> {
             Image edmI = prediction.edm.get(p);
             Segmenter segmenter = getSegmenter(prediction);
             if (stores != null && segmenter instanceof TestableProcessingPlugin) {
@@ -156,7 +157,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
                 o.getRegion().clearVoxels();
             });
-        });
+        };
+        ThreadRunner.execute(parentTrack, false, ta);
+        //parentTrack.forEach(p -> ta.run(p, 0));
     }
 
     @Override
@@ -920,7 +923,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
         if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), sm, factory, editor);
         if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), sm, factory, editor);
-        parentTrack.stream().forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
+        parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
             if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
             o.getRegion().clearVoxels();
             o.getRegion().clearMask();
@@ -968,7 +971,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             double interval = idxLimMax - idxLimMin;
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = idxLimMin; i < idxLimMax; i += increment ) {
-                int idxMax = Math.min(i + batchSize.getIntValue(), idxLimMax);
+                int idxMax = Math.min(i + increment, idxLimMax);
                 Image[][] input = getInputs(images, i == 0 ? prev : images[i - 1], noPrevParent, next, i, idxMax, frameInterval);
                 logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
                 Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)

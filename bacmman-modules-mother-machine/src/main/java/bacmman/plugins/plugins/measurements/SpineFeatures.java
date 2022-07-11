@@ -23,28 +23,18 @@ import bacmman.configuration.parameters.ObjectClassParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
-import bacmman.measurement.GeometricalMeasurements;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.MultiThreaded;
-import bacmman.processing.bacteria_spine.BacteriaSpineCoord;
 import bacmman.processing.bacteria_spine.BacteriaSpineFactory;
-import bacmman.processing.bacteria_spine.BacteriaSpineLocalizer;
 import bacmman.utils.Utils;
-import bacmman.utils.geom.Point;
 
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
-import static bacmman.data_structure.SegmentedObjectUtils.getContainer;
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Size.SCALED_TT;
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineLength.SPINE_DEF;
 import static bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SpineLength.spineLengthAlgo;

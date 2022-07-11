@@ -40,7 +40,7 @@ import bacmman.image.Image;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 
 import java.util.*;
 
@@ -205,7 +205,7 @@ public class MicrochannelFluo2D implements MicrochannelSegmenter, TrackConfigura
                 while (it.hasNext()) {
                     Region next = it.next();
                     if (prev.getBounds().xMax() + 1 > next.getBounds().xMin()) {
-                        prev.addVoxels(next.getVoxels());
+                        prev.merge(next);
                         it.remove();
                     } else {
                         prev = next;

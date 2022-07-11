@@ -31,6 +31,7 @@ import bacmman.data_structure.RegionPopulation;
 import static bacmman.image.BoundingBox.intersect2D;
 
 import bacmman.processing.ImageFeatures;
+import bacmman.processing.ImageLabeller;
 import bacmman.processing.ImageOperations;
 
 import java.util.*;

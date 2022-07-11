@@ -18,6 +18,7 @@ import bacmman.processing.split_merge.SplitAndMergeHessian;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseContrastHessian> implements Hint, DevPlugin {
@@ -59,7 +60,7 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
             else {
                 Image hessian = sam.getHessian();
                 double val  =  voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).average().getAsDouble();
-                double mean = Stream.concat(i.getE1().getVoxels().stream(), i.getE2().getVoxels().stream()).mapToDouble(v->(double)input.getPixel(v.x, v.y, v.z)).average().getAsDouble();
+                double mean = DoubleStream.concat(i.getE1().streamValues(input), i.getE2().streamValues(input)).average().getAsDouble();
                 val/=mean;
                 return val;
             }

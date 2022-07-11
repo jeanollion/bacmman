@@ -51,6 +51,7 @@ import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 
@@ -162,7 +163,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
                     if (voxels.isEmpty()) return Double.NaN;
                     else {
                         // normalize using mean value
-                        double mean = Stream.concat(i.getE1().getVoxels().stream(), i.getE2().getVoxels().stream()).mapToDouble(v->(double)input.getPixel(v.x, v.y, v.z)).average().getAsDouble()-globalBackgroundLevel;
+                        double mean = DoubleStream.concat(i.getE1().streamValues(input), i.getE2().streamValues(input)).average().getAsDouble()-globalBackgroundLevel;
                         if (mean<=0) return Double.NaN;
                         Image hessian = sam.getHessian();
                         double val  =  voxels.stream().mapToDouble(v->hessian.getPixel(v.x, v.y, v.z)).average().getAsDouble();
@@ -352,8 +353,8 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
             int cUp = contactUp.getContact(r); // consider only objects in contact with the top of the parent mask
             if (cUp<=2) return 1;
             cUp = contactUpLR.getContact(r);
-            if (verbose) logger.debug("R: {} upper artifact: contact: {}/{}", r.getLabel(), cUp, r.getVoxels().size());
-            if (cUp<r.getVoxels().size()/12) return 1;
+            if (verbose) logger.debug("R: {} upper artifact: contact: {}/{}", r.getLabel(), cUp, r.size());
+            if (cUp<r.size()/12) return 1;
             double thickness = GeometricalMeasurements.getThickness(r);
             if (verbose) logger.debug("R: {} upper artifact: thickness: {}/{}", r.getLabel(), thickness, thicknessLimitRemove);
             if (thickness<thicknessLimitRemove) return -1;

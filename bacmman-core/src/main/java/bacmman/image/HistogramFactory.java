@@ -207,7 +207,7 @@ public class HistogramFactory {
         }
         double[] mm = minAndMax;
         int nBins = getNBins(mm[0], mm[1], binSize); 
-        return parallele(images.stream(), parallele).map((Image im) -> HistogramFactory.getHistogram(im.stream(), binSize, nBins, mm[0])).collect(Collectors.toList());
+        return Utils.parallele(images.stream(), parallele).map((Image im) -> HistogramFactory.getHistogram(im.stream(), binSize, nBins, mm[0])).collect(Collectors.toList());
     }
 
     public static Map<Image, Histogram> getHistograms(Map<Image, ImageMask> images, double binSize, double[] minAndMax, boolean parallele) {
@@ -221,6 +221,6 @@ public class HistogramFactory {
         }
         final double[] mm = minAndMax;
         int nBins = getNBins(mm[0], mm[1], binSize); 
-        return parallele(images.entrySet().stream(), parallele).collect(Collectors.toMap((Map.Entry<Image, ImageMask> e) -> e.getKey(), (Map.Entry<Image, ImageMask> e) -> HistogramFactory.getHistogram(e.getKey().stream(e.getValue(), true),  binSize, nBins, mm[0])));
+        return Utils.parallele(images.entrySet().stream(), parallele).collect(Collectors.toMap((Map.Entry<Image, ImageMask> e) -> e.getKey(), (Map.Entry<Image, ImageMask> e) -> HistogramFactory.getHistogram(e.getKey().stream(e.getValue(), true),  binSize, nBins, mm[0])));
     }
 }

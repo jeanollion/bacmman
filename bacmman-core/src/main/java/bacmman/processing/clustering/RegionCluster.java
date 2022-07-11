@@ -25,7 +25,7 @@ import bacmman.image.*;
 import bacmman.image.BlankMask;
 import bacmman.image.ImageFloat;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageShort;
 
@@ -74,44 +74,45 @@ public class RegionCluster<I extends InterfaceRegion<I>> extends ClusterCollecti
         }
         ImageInteger inputLabels = population.getLabelMap();
         Voxel n = new Voxel(0, 0,0);
-        int otherLabel;
+
         int[][] neigh = inputLabels.sizeZ()>1 ? (lowConnectivity ? ImageLabeller.neigh3DLowHalf : ImageLabeller.neigh3DHalf) : (lowConnectivity ? ImageLabeller.neigh2D4Half : ImageLabeller.neigh2D8Half);
         for (Region o : population.getRegions()) {
-            for (Voxel vox : o.getVoxels()) {
+            o.loop((x, y, z) -> {
+                int otherLabel;
                 for (int i = 0; i<neigh.length; ++i) { // only forward for interaction with other spots & background
-                    n.x = vox.x+neigh[i][0];
-                    n.y=vox.y+neigh[i][1];
-                    n.z=vox.z+neigh[i][2]; 
+                    n.x = x+neigh[i][0];
+                    n.y=y+neigh[i][1];
+                    n.z=z+neigh[i][2];
                     if (inputLabels.contains(n.x, n.y, n.z) && foregroundMask.insideMask(n.x, n.y, n.z)) { 
                         otherLabel = inputLabels.getPixelInt(n.x, n.y, n.z);   
                         if (otherLabel!=o.getLabel()) {
                             if (background || otherLabel!=0) {  // to avoid having the same instance of voxel as in the region, because voxel can overlap & voxel can be used to store values interface-wise
                                 InterfaceRegion inter = getInterface(o, objects.get(otherLabel), true);
-                                if (otherLabel>o.getLabel()) inter.addPair(vox.duplicate(), n.duplicate());
-                                else inter.addPair(n.duplicate(), vox.duplicate());
+                                if (otherLabel>o.getLabel()) inter.addPair(new Voxel(x, y, z), n.duplicate());
+                                else inter.addPair(n.duplicate(), new Voxel(x, y, z));
                             }
                         }
                     } else if (background) {
                         InterfaceRegion inter = getInterface(o, objects.get(0), true); 
-                        inter.addPair(n.duplicate(), vox.duplicate());
+                        inter.addPair(n.duplicate(), new Voxel(x, y, z));
                     }
                     if (background) { // backward for background only
-                        n.x = vox.x-neigh[i][0];
-                        n.y=vox.y-neigh[i][1];
-                        n.z=vox.z-neigh[i][2];
+                        n.x = x-neigh[i][0];
+                        n.y=y-neigh[i][1];
+                        n.z=z-neigh[i][2];
                         if (inputLabels.contains(n.x, n.y, n.z)) {
                             otherLabel = inputLabels.getPixelInt(n.x, n.y, n.z);  
                             if (background && otherLabel==0) {
                                 InterfaceRegion inter = getInterface(o, objects.get(otherLabel), true); 
-                                inter.addPair(n.duplicate(), vox.duplicate());
+                                inter.addPair(n.duplicate(), new Voxel(x, y, z));
                             }
                         } else {
                             InterfaceRegion inter = getInterface(o, objects.get(0), true); 
-                            inter.addPair(n.duplicate(), vox.duplicate());
+                            inter.addPair(n.duplicate(), new Voxel(x, y, z));
                         }
                     }
                 }
-            } 
+            });
         }
         if (verbose) logger.debug("Interface collection: nb of interfaces:"+interfaces.size());
     }
@@ -121,22 +122,21 @@ public class RegionCluster<I extends InterfaceRegion<I>> extends ClusterCollecti
         Region min;
         int otherLabel;
         I inter =  interfaceFactory.create(o1, o2);
-        if (o1.getVoxels().size()<=o2.getVoxels().size()) {
+        if (o1.size()<=o2.size()) {
             min=o1;
             otherLabel = o2.getLabel();
         } else {
             min = o2;
             otherLabel = o1.getLabel();
         }
-        int xx, yy, zz;
-        for (Voxel v : min.getVoxels()) {
+        min.loop((x, y, z) -> {
             for (int i = 0; i<neigh.dx.length; ++i) {
-                xx=v.x+neigh.dx[i];
-                yy=v.y+neigh.dy[i];
-                zz=v.z+neigh.dz[i];
-                if (labelImage.contains(xx, yy, zz) && labelImage.getPixelInt(xx, yy, zz)==otherLabel) inter.addPair(v, new Voxel(xx, yy, zz));
+                int xx=x+neigh.dx[i];
+                int yy=y+neigh.dy[i];
+                int zz=z+neigh.dz[i];
+                if (labelImage.contains(xx, yy, zz) && labelImage.getPixelInt(xx, yy, zz)==otherLabel) inter.addPair(new Voxel(x, y, z), new Voxel(xx, yy, zz));
             }
-        }
+        });
         return inter;
     }
     

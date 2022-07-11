@@ -165,7 +165,7 @@ public class BasicMeasurements {
         }
     }
     public static double[] getQuantileValue(Region object, Image image, double... quantiles) {
-        if (quantiles.length==0 || object.getVoxels().isEmpty()) return new double[0];
+        if (quantiles.length==0) return new double[0];
         if (quantiles.length==1 && quantiles[0]<=0) return new double[]{getMinValue(object, image)};
         if (quantiles.length==1 && quantiles[0]>=1) return new double[]{getMaxValue(object, image)};
         DoubleStream stream;

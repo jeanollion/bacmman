@@ -1,23 +1,19 @@
 package bacmman.processing.gaussian_fit;
 
-import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.image.*;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
-import bacmman.processing.ImageOperations;
+import bacmman.processing.ImageLabeller;
 import bacmman.utils.geom.Point;
-import ij.ImageJ;
 import net.imglib2.algorithm.localization.FitFunction;
-import net.imglib2.algorithm.localization.Gaussian;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class TestGaussianFit {

@@ -19,6 +19,7 @@
 package bacmman.data_structure;
 
 import bacmman.data_structure.region_container.roi.Roi3D;
+import bacmman.measurement.BasicMeasurements;
 import bacmman.processing.EDT;
 import com.google.common.collect.Sets;
 import bacmman.data_structure.region_container.RegionContainer;
@@ -37,7 +38,7 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageMask2D;
 import bacmman.image.ImageProperties;
@@ -64,6 +65,7 @@ import bacmman.utils.geom.Vector;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
+import java.util.stream.Stream;
 
 /**
  * 
@@ -233,13 +235,13 @@ public class Region {
     }
     
     public Point getGeomCenter(boolean scaled) {
-        float[] center = new float[3];
+        double[] center = new double[3];
         if (mask instanceof BlankMask) {
             center[0] = (float)(mask).xMean();
             center[1] = (float)(mask).yMean();
             center[2] = (float)(mask).zMean();
         } else if (voxels!=null) {
-            for (Voxel v : getVoxels()) {
+            for (Voxel v : voxels) {
                 center[0] += v.x;
                 center[1] += v.y;
                 center[2] += v.z;
@@ -268,15 +270,14 @@ public class Region {
         }
         return new Point(center);
     }
-    public Point getMassCenter(Image image, boolean scaled) { // TODO also perform from mask
-        getVoxels();
+    public Point getMassCenter(Image image, boolean scaled) {
+        double[] center = new double[3];
         if (voxels!=null) {
-            synchronized(voxels) {
+            synchronized(voxels) { // sync because voxel value is modified
                 if (voxels.size()==1) {
                     Voxel v = voxels.iterator().next();
                     return new Point(v.x, v.y, v.z);
                 }
-                float[] center = new float[3];
                 double count = 0;
                 if (absoluteLandmark) {
                     for (Voxel v : voxels) {
@@ -292,7 +293,7 @@ public class Region {
                     } 
                 }
                 Voxel minValue = Collections.min(voxels, Comparator.comparingDouble(v -> v.value));
-                for (Voxel v : getVoxels()) {
+                for (Voxel v : voxels) {
                     if (!Float.isNaN(v.value)) {
                         v.value-=minValue.value;
                         center[0] += v.x * v.value;
@@ -301,17 +302,28 @@ public class Region {
                         count+=v.value;
                     }
                 }
-                center[0]/=count;
-                center[1]/=count;
-                center[2]/=count;
-                if (scaled) {
-                    center[0] *=this.getScaleXY();
-                    center[1] *=this.getScaleXY();
-                    center[2] *=this.getScaleZ();
-                }
-                return new Point(center);
             }
-        } else throw new RuntimeException("NOT SUPPORTED YET");
+        } else {
+            getMask();
+            int[] count = new int[1];
+            double minValue = BasicMeasurements.getMinValue(this, image);
+            ImageMask.loopWithOffset(mask, (x, y, z)->{
+                double value = image.getPixel(x, y, z) - minValue;
+                center[0] += x * value;
+                center[1] += y * value;
+                center[2] += z * value;
+                count[0] += value;
+            });
+            center[0]/=count[0];
+            center[1]/=count[0];
+            center[2]/=count[0];
+        }
+        if (scaled) {
+            center[0] *=this.getScaleXY();
+            center[1] *=this.getScaleXY();
+            center[2] *=this.getScaleZ();
+        }
+        return new Point(center);
     }
     
     public synchronized void addVoxels(Collection<Voxel> voxelsToAdd) {
@@ -464,7 +476,7 @@ public class Region {
         if (!this.getBounds().isValid()) throw new RuntimeException("Invalid bounds: cannot create mask");
         if (voxels!=null) {
             ImageByte mask_ = new ImageByte("", new SimpleImageProperties(getBounds(), scaleXY, scaleZ));
-            for (Voxel v : getVoxels()) {
+            for (Voxel v : voxels) {
                 if (!mask_.containsWithOffset(v.x, v.y, v.z)) {
                     logger.error("voxel out of bounds: {}, bounds: {}, vox{}", v, mask_.getBoundingBox(), voxels); // can happen if bounds were not updated before the object was saved
                     this.createBoundsFromVoxels();
@@ -537,17 +549,35 @@ public class Region {
         return voxels;
     }
 
+    public CoordCollection getCoords() {
+        getBounds();
+        CoordCollection coll = CoordCollection.create(bounds.sizeX(), bounds.sizeY(), bounds.sizeZ());
+        loop((x, y, z) -> coll.add(coll.toCoord(x, y, z)));
+        return coll;
+    }
+
     public void loop(LoopFunction fun) {
         if (voxelsCreated()) {
-            for (Voxel v : getVoxels()) fun.loop(v.x, v.y, v.z);
+            for (Voxel v : voxels) fun.loop(v.x, v.y, v.z);
         } else ImageMask.loopWithOffset(getMask(), fun);
     }
 
-    public DoubleStream getValues(Image image) {
+    public DoubleStream streamValues(Image image, boolean checkInsideImage) {
         if (voxelsCreated()) {
-            if (isAbsoluteLandMark()) return getVoxels().stream().mapToDouble(v->image.getPixelWithOffset(v.x, v.y, v.z));
-            else return getVoxels().stream().mapToDouble(v->image.getPixel(v.x, v.y, v.z));
-        } else return image.stream(getMask(), isAbsoluteLandMark()).sorted();
+            Stream<Voxel> stream = voxels.stream();
+            if (isAbsoluteLandMark()) {
+                if (checkInsideImage) stream = stream.filter(v -> image.containsWithOffset(v.x, v.y, v.z));
+                return stream.mapToDouble(v->image.getPixelWithOffset(v.x, v.y, v.z));
+            }
+            else {
+                if (checkInsideImage) stream = stream.filter(v -> image.contains(v.x, v.y, v.z));
+                return stream.mapToDouble(v->image.getPixel(v.x, v.y, v.z));
+            }
+        } else return image.stream(getMask(), isAbsoluteLandMark());
+    }
+
+    public DoubleStream streamValues(Image image) {
+        return streamValues(image, false);
     }
 
     public boolean voxelsCreated() {
@@ -561,14 +591,7 @@ public class Region {
         EllipsoidalNeighborhood neigh = !is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true); // 1 and not 1.5 -> diagonal
         Set<Voxel> res = new HashSet<>();
         if (voxels!=null) {
-            /*for (int i = 0; i<neigh.dx.length; ++i) {
-                neigh.dx[i]-=mask.xMin();
-                neigh.dy[i]-=mask.yMin();
-                if (!is2D()) neigh.dz[i]-=mask.zMin();
-            }
-            for (Voxel v: getVoxels()) if (touchBorder(v.x, v.y, v.z, neigh, mask)) res.add(v);
-            */
-            for (Voxel v: getVoxels()) if (touchBorderVox(v, neigh)) res.add(v);
+            for (Voxel v: voxels) if (touchBorderVox(v, neigh)) res.add(v);
         } else if ( false && roi!=null && is2D()) { // contour do not correspond: it is shifted 1 pixel towards high y & x values.
             return roi.getContour(getBounds());
         } else {
@@ -577,26 +600,7 @@ public class Region {
         }
         return res;
     }
-    public Set<Voxel> getOutterContour() {
-        ImageMask mask = getMask();
-        EllipsoidalNeighborhood neigh = !is2D() ? new EllipsoidalNeighborhood(1, 1, true) : new EllipsoidalNeighborhood(1, true); // 1 and not 1.5 -> diagonal
-        for (int i = 0; i<neigh.dx.length; ++i) {
-            neigh.dx[i]-=mask.xMin();
-            neigh.dy[i]-=mask.yMin();
-            if (!is2D()) neigh.dz[i]-=mask.zMin();
-        }
-        Set<Voxel> res = new HashSet<>();
-        Voxel n = new Voxel(0, 0, 0);
-        for (Voxel v: getVoxels()) {
-            for (int i = 0; i<neigh.dx.length; ++i) {
-                n.x=v.x+neigh.dx[i];
-                n.y=v.y+neigh.dy[i];
-                n.z=v.z+neigh.dz[i];
-                if (!mask.contains(n.x, n.y, n.z) || !mask.insideMask(n.x, n.y, n.z)) res.add(n.duplicate());
-            }
-        }
-        return res;
-    }
+
     /**
      * 
      * @param x
@@ -724,29 +728,7 @@ public class Region {
         }
         return changes;
     }
-    /*public void fitToEdges(Image edgeMap, double seedDistanceFactorFore, double seedDistanceFactorBck) {
-        if (seedDistanceFactorFore<0||seedDistanceFactorFore>1) throw new IllegalArgumentException("distance factor should be between 0 and 1");
-        if (seedDistanceFactorBck<0||seedDistanceFactorBck>1) throw new IllegalArgumentException("distance factor should be between 0 and 1");
-        if (seedDistanceFactorBck>=seedDistanceFactorFore) throw new IllegalArgumentException("bck distance factor should be inferior");
-        if (!edgeMap.sameBounds(getMask())) edgeMap.cropWithOffset(getMask());
 
-        ImageInteger seedMap = Filters.localExtrema(edgeMap, null, false, getMask(), Filters.getNeighborhood(1.5, 1.5, edgeMap));
-        List<Region> seeds = ImageLabeller.labelImageList(seedMap);
-        Image distanceMap = EDT.transform(getMask(), true, scaleXY, scaleZ, false);
-        // separate background and foreground seed by distance to border
-        seeds.forEach(s -> s.getVoxels().forEach(v->v.value = distanceMap.getPixel(v.x, v.y, v.z)));
-        double maxDistance = seeds.stream().mapToDouble(s->s.getVoxels().iterator().next().value).max().getAsDouble();
-        double foreDistThld = maxDistance * seedDistanceFactorFore;
-        double backDistThld = Math.max(scaleXY, maxDistance * seedDistanceFactorBck);
-        List<Region> back = seeds.stream().filter(s->s.getVoxels().iterator().next().value==scaleXY).collect(Collectors.toList());
-        List<Region> fore = seeds.stream().filter(s->s.getVoxels().iterator().next().value>=foreDistThld).collect(Collectors.toList());
-
-        ArrayList<Region> seeds = new ArrayList<>(Arrays.asList(RegionFactory.getObjectsImage(seedMap, false)));
-        RegionPopulation pop = WatershedTransform.watershed(edgeMap, mask, seeds, new WatershedTransform.WatershedConfiguration().lowConectivity(lowConnectivity));
-        this.objects = pop.getRegions();
-        objects.remove(0); // remove background object
-        relabel(true);
-    }*/
     public void dilateContours(Image image, double threshold, boolean addIfHigherThanThreshold, Collection<Voxel> contour, ImageInteger labelMap) {
         //if (labelMap==null) labelMap = Collections.EMPTY_SET;
         TreeSet<Voxel> heap = new TreeSet<>(Voxel.getComparator());
@@ -806,12 +788,12 @@ public class Region {
         }
     }
     
-    public Set<Voxel> getIntersection(Region other) {
+    public Set<Voxel> getIntersection(Region other) { // TODO: version without voxels
         if (other instanceof Analytical) return other.getIntersection(this); // spot version is more efficient
         if (!boundsIntersect(other)) return Collections.emptySet();
-        if (other.is2D()!=is2D()) { // should not take into acount z for intersection -> cast to voxel2D (even for the 2D object to enshure voxel2D), and return voxels from the 3D objects
-            Set s1 = Sets.newHashSet(Utils.transform(getVoxels(), v->v.toVoxel2D()));
-            Set s2 = Sets.newHashSet(Utils.transform(other.getVoxels(), v->v.toVoxel2D()));
+        if (other.is2D()!=is2D()) { // should not take into account z for intersection -> cast to voxel2D (even for the 2D object to enshure voxel2D), and return voxels from the 3D objects
+            Set s1 = Sets.newHashSet(Utils.transform(getVoxels(), Voxel::toVoxel2D));
+            Set s2 = Sets.newHashSet(Utils.transform(other.getVoxels(), Voxel::toVoxel2D));
             if (is2D()) {
                 s2.retainAll(s1);
                 return Sets.newHashSet(Utils.transform(s2, v->((Voxel2D)v).toVoxel()));
@@ -819,7 +801,17 @@ public class Region {
                 s1.retainAll(s2);
                 return Sets.newHashSet(Utils.transform(s1, v->((Voxel2D)v).toVoxel()));
             }
-        } else return Sets.intersection(Sets.newHashSet(getVoxels()), Sets.newHashSet(other.getVoxels()));
+        } else {
+            if (voxelsCreated() && other.voxelsCreated()) return Sets.intersection(Sets.newHashSet(voxels), Sets.newHashSet(other.voxels));
+            else {
+                BoundingBox inter = BoundingBox.getIntersection(getBounds(), other.getBounds());
+                Set<Voxel> res = new HashSet<>();
+                getMask();
+                other.getMask();
+                BoundingBox.loop(inter, (x, y, z)-> res.add(new Voxel(x, y, z)), (x, y, z) -> mask.containsWithOffset(x, y, z) && other.mask.containsWithOffset(x, y, z));
+                return res;
+            }
+        }
     }
 
     public boolean boundsIntersect(Region other) {
@@ -908,14 +900,17 @@ public class Region {
         return currentParent;
     }
     
-    public void merge(Region other) { //TODO do with masks only
-        /*if ((voxels==null||other.voxels==null)) {
-            if (other.getBounds().isIncluded(getBounds()))
-        }*/
-        this.getVoxels().addAll(other.getVoxels()); 
-        //logger.debug("merge:  {} + {}, nb voxel avant: {}, nb voxels après: {}", this.getLabel(), other.getLabel(), nb,getVoxels().size() );
-        this.mask=null; // reset mask
-        this.bounds=null; // reset bounds
+    public void merge(Region other) {
+        if (voxelsCreated() && other.voxelsCreated()) {
+            this.getVoxels().addAll(other.getVoxels());
+            this.mask=null; // reset mask
+            this.bounds=null; // reset bounds
+        } else {
+            Region res = merge(this, other);
+            this.mask = res.mask;
+            this.voxels = null;
+            this.bounds = res.bounds;
+        }
         this.roi = null;
         this.center = null;
         regionModified=true;
@@ -933,7 +928,8 @@ public class Region {
         while (it.hasNext()) bounds.union(it.next().getBounds());
         ImageByte mask = new ImageByte("", new SimpleImageProperties(bounds, ref.getScaleXY(), ref.getScaleZ()));
         for (Region r : regions) {
-            ImageMask.loopWithOffset(r.getMask(), (x, y, z)-> mask.setPixelWithOffset(x, y, z, 1));
+            if (r.voxelsCreated()) for (Voxel v:r.voxels) mask.setPixelWithOffset(v.x, v.y, v.z, 1);
+            else ImageMask.loopWithOffset(r.getMask(), (x, y, z)-> mask.setPixelWithOffset(x, y, z, 1));
         }
         return new Region(mask, 1, ref.is2D).setIsAbsoluteLandmark(ref.isAbsoluteLandMark());
     }
@@ -962,12 +958,12 @@ public class Region {
         if (voxels !=null) {
             //logger.trace("drawing from VOXELS of object: {} with label: {} on image: {} ", this, label, image);
             if (isAbsoluteLandMark()) {
-                if (included) for (Voxel v : getVoxels()) image.setPixelWithOffset(v.x, v.y, v.z, value);
-                else for (Voxel v : getVoxels()) if (image.containsWithOffset(v.x, v.y, v.z)) image.setPixelWithOffset(v.x, v.y, v.z, value);
+                if (included) for (Voxel v : voxels) image.setPixelWithOffset(v.x, v.y, v.z, value);
+                else for (Voxel v : voxels) if (image.containsWithOffset(v.x, v.y, v.z)) image.setPixelWithOffset(v.x, v.y, v.z, value);
             }
             else {
-                if (included) for (Voxel v : getVoxels()) image.setPixel(v.x, v.y, v.z, value);
-                else for (Voxel v : getVoxels()) if (image.contains(v.x, v.y, v.z)) image.setPixel(v.x, v.y, v.z, value);
+                if (included) for (Voxel v : voxels) image.setPixel(v.x, v.y, v.z, value);
+                else for (Voxel v : voxels) if (image.contains(v.x, v.y, v.z)) image.setPixel(v.x, v.y, v.z, value);
             }
         }
         else {
@@ -997,7 +993,7 @@ public class Region {
             int offX = offset.xMin()-image.xMin();
             int offY = offset.yMin()-image.yMin();
             int offZ = offset.zMin()-image.zMin();
-            for (Voxel v : getVoxels()) if (image.contains(v.x+offX, v.y+offY, v.z+offZ)) image.setPixel(v.x+offX, v.y+offY, v.z+offZ, value);
+            for (Voxel v : voxels) if (image.contains(v.x+offX, v.y+offY, v.z+offZ)) image.setPixel(v.x+offX, v.y+offY, v.z+offZ, value);
         }
         else {
             getMask();
@@ -1032,7 +1028,7 @@ public class Region {
             int offX = -getBounds().xMin()+offset.xMin();
             int offY = -getBounds().yMin()+offset.yMin();
             int offZ = -getBounds().zMin()+offset.zMin();
-            for (Voxel v : getVoxels()) image.setPixel(v.x+offX, v.y+offY, v.z+offZ, value);
+            for (Voxel v : voxels) image.setPixel(v.x+offX, v.y+offY, v.z+offZ, value);
         }
         else {
             getMask();

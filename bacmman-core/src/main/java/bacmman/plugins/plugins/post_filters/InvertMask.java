@@ -4,12 +4,11 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.PredicateMask;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PostFilter;
-import bacmman.processing.ImageOperations;
 
 import java.util.List;
 

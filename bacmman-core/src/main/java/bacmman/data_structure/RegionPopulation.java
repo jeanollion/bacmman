@@ -21,9 +21,8 @@ package bacmman.data_structure;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.GeometricalMeasurements;
-import bacmman.processing.EDT;
-import bacmman.processing.ImageOperations;
-import bacmman.processing.RegionFactory;
+import bacmman.processing.*;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -38,7 +37,6 @@ import java.util.Set;
 
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.plugins.trackers.ObjectIdxTracker.IndexingOrder;
-import bacmman.processing.Filters;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
@@ -289,13 +287,6 @@ public class RegionPopulation {
         }
     }
 
-    public void setVoxelIntensities(Image intensityMap) {
-        for (Region o : getRegions()) {
-            for (Voxel v : o.getVoxels()) v.value = intensityMap.getPixel(v.x, v.y, v.z);
-        }
-    }
-
-
     public boolean isInContactWithOtherObject(Region o) {
         DisplacementNeighborhood n = (DisplacementNeighborhood) Filters.getNeighborhood(1.5, 1, properties);
         getLabelMap();
@@ -347,7 +338,8 @@ public class RegionPopulation {
      */
     public RegionPopulation localThreshold(Image erodeMap, double iqrFactor, boolean darkBackground, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
         Function<Region, Double> thldFct = o -> {
-            List < Double > values = Utils.transform(o.getVoxels(), (Voxel v) -> (double) erodeMap.getPixel(v.x, v.y, v.z));
+            List<Double> values = new ArrayList<>();
+            o.loop((x, y, z) -> values.add((double)erodeMap.getPixel(x, y, z)));
             double q1 = ArrayUtil.quantile(values, 0.25);
             double q2 = ArrayUtil.quantile(values, 0.5);
             double q3 = ArrayUtil.quantile(values, 0.75);
@@ -468,47 +460,7 @@ public class RegionPopulation {
         constructObjects(); // updates bounds of objects
         return this;
     }
-    
-    public RegionPopulation erodToEdges(Image erodeMap, Image intensityMap, boolean keepOnlyBiggestObject, double dilateRegionRadius, ImageMask mask) {
-        //if (debug) ImageWindowManagerFactory.showImage(erodeMap);
-        List<Region> addedObjects = new ArrayList<>();
-        if (dilateRegionRadius>0) {
-            labelImage =  (ImageInteger)Filters.applyFilter(getLabelMap(), null, new Filters.BinaryMaxLabelWise().setMask(mask), Filters.getNeighborhood(dilateRegionRadius, mask));
-            constructObjects();
-        }
-        for (Region r : getRegions()) {
-            boolean change = r.erodeContoursEdge(erodeMap, intensityMap, keepOnlyBiggestObject);
-            if (change && !keepOnlyBiggestObject) {
-                List<Region> subRegions = ImageLabeller.labelImageListLowConnectivity(r.mask);
-                if (subRegions.size()>1) {
-                    subRegions.remove(0);
-                    r.ensureMaskIsImageInteger();
-                    ImageInteger regionMask = r.getMaskAsImageInteger();
-                    for (Region toErase: subRegions) {
-                        toErase.draw(regionMask, 0);
-                        toErase.translate(r.getBounds());
-                    }
-                    addedObjects.addAll(subRegions);
-                }
-            }
-        }
-        objects.addAll(addedObjects);
-        relabel(true);
-        getLabelMap();
-        constructObjects(); // updates bounds of objects
-        return this;
-    }
-    
-    protected void localThreshold(Region o, Image intensity, double threshold) {
-        Iterator<Voxel> it = o.getVoxels().iterator();
-        while (it.hasNext()) {
-            Voxel v = it.next();
-            if (intensity.getPixel(v.x, v.y, v.z) < threshold) {
-                it.remove();
-                if (hasImage()) labelImage.setPixel(v.x, v.y, v.z, 0);
-            }
-        }
-    }
+
     public Region getBackground(ImageMask mask) {
         if (mask!=null && !mask.sameDimensions(getLabelMap())) throw new RuntimeException("Mask should have same size as label map");
         int bckLabel = getRegions().isEmpty() ? 1 : Collections.max(getRegions(), Comparator.comparingInt(Region::getLabel)).getLabel()+1;
@@ -517,13 +469,12 @@ public class RegionPopulation {
         else ImageOperations.not(getLabelMap(), bckMask);
         return new Region(bckMask, bckLabel, bckMask.sizeZ()==1);
     }
-    public void smoothRegions(double radius, boolean eraseVoxelsIfConnectedToBackground, ImageMask mask) {
+    public void smoothRegions(double radius, boolean eraseVoxelsIfConnectedToBackground, ImageMask mask) { // TODO use region's loop method
         if (mask!=null && !mask.sameDimensions(getLabelMap())) throw new RuntimeException("Mask should have same size as label map");
         Neighborhood n = Filters.getNeighborhood(radius, getImageProperties());
         HashMapGetCreate<Integer, int[]> count = new HashMapGetCreate<>(9, i->new int[1]);
         
         Region bck = getBackground(mask);
-        bck.getVoxels();
         getRegions().add(bck);
         this.redrawLabelMap(true);
         Map<Integer, Region> regionByLabel = getRegions().stream().collect(Collectors.toMap(Region::getLabel, r->r));
@@ -533,34 +484,35 @@ public class RegionPopulation {
             modified.clear();
             Region r = rIt.next();
             if (!eraseVoxelsIfConnectedToBackground && r==bck) continue;
-            Iterator<Voxel> it = r.getVoxels().iterator();
-            while(it.hasNext()) {
-                Voxel v = it.next();
-                n.setPixels(v, getLabelMap(), mask);
+            Set<Voxel> toErase = new HashSet<>();
+            r.loop( (x, y, z) -> {
+                n.setPixels(x, y, z, getLabelMap(), mask);
                 for (int i = 0; i<n.getValueCount(); ++i) count.getAndCreateIfNecessary((int)n.getPixelValues()[i])[0]++;
                 if (!eraseVoxelsIfConnectedToBackground) count.remove(bck.getLabel());
                 
                 if (!count.containsKey(r.getLabel())) {
-                    logger.error("smooth interface: {} not present @Voxel: {}/ bck: {}, counts: {}", r.getLabel(), v, bck.getLabel(), Utils.toStringList(count.entrySet(), e->e.getKey()+"->"+e.getValue()[0]));
-                    continue; // TODO solve
-                }
-                int maxLabel = Collections.max(count.entrySet(), Comparator.comparingInt(e -> e.getValue()[0])).getKey();
-                if (maxLabel!=r.getLabel() &&  count.get(maxLabel)[0]> count.get(r.getLabel())[0]) {
-                    it.remove();
-                    modified.add(r);
-                    //if (maxLabel>0) {
-                        regionByLabel.get(maxLabel).getVoxels().add(v);
+                    logger.error("smooth interface: {} not present @Voxel: {};{};{}/ bck: {}, counts: {}", r.getLabel(), x, y, z, bck.getLabel(), Utils.toStringList(count.entrySet(), e->e.getKey()+"->"+e.getValue()[0]));
+                    //continue; // TODO solve
+                } else {
+                    int maxLabel = Collections.max(count.entrySet(), Comparator.comparingInt(e -> e.getValue()[0])).getKey();
+                    if (maxLabel != r.getLabel() && count.get(maxLabel)[0] > count.get(r.getLabel())[0]) {
+                        Voxel v = new Voxel(x, y, z);
+                        toErase.add(v);
+                        modified.add(r);
+                        //if (maxLabel>0) {
+                        regionByLabel.get(maxLabel).addVoxels(Arrays.asList(v));
                         modified.add(regionByLabel.get(maxLabel));
-                    //}
-                    getLabelMap().setPixel(v.x, v.y, v.z, maxLabel);
+                        //}
+                        getLabelMap().setPixel(x, y, z, maxLabel);
+                    }
                 }
                 count.clear();
-            }
-            if (r.getVoxels().isEmpty()) {
+            });
+            r.removeVoxels(toErase);
+            if (r.size()==0) {
                 rIt.remove();
                 modified.remove(r);
             }
-            for (Region mod : modified) mod.clearMask();
         }
         bck.draw(labelImage, 0);
         getRegions().remove(bck);
@@ -1225,35 +1177,7 @@ public class RegionPopulation {
         }
     }
 
-    public static class Overlap implements Filter {
 
-        ImageInteger labelMap;
-        Neighborhood n;
-
-        public Overlap(ImageInteger labelMap, double... radius) {
-            this.labelMap = labelMap;
-            double rad, radZ;
-            if (radius.length == 0) {
-                rad = radZ = 1.5;
-            } else {
-                rad = radius[0];
-                if (radius.length >= 2) {
-                    radZ = radius[1];
-                } else {
-                    radZ = rad;
-                }
-            }            
-            n = labelMap.sizeZ() > 1 ? new EllipsoidalNeighborhood(rad, radZ, false) : new EllipsoidalNeighborhood(rad, false);
-        }
-        @Override public void init(RegionPopulation population) {}
-        @Override
-        public boolean keepObject(Region object) {
-            for (Voxel v : object.getVoxels()) {
-                if (n.hasNonNullValue(v.x, v.y, v.z, labelMap, true)) return true;
-            }
-            return false;
-        }
-    }
     /**
      * 
      */

@@ -24,9 +24,6 @@ import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
  *
  * @author Jean Ollion
@@ -39,20 +36,19 @@ public abstract class InterfaceRegionImpl<T extends Interface<Region, T>> extend
 
     @Override
     public void performFusion() {
-        e1.addVoxels(e2.getVoxels());
+        e1.merge(e2);
     }
 
     public static HashMapGetCreate<Region, Double> getMedianValueMap(Image image) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
-            if (r.getLabel() == 0)
-                return ArrayUtil.quantile(r.getVoxels().stream().filter(v -> image.contains(v.x, v.y, v.z)).mapToDouble(v -> image.getPixel(v.x, v.y, v.z)).toArray(), 0.5);
+            if (r.getLabel() == 0) return ArrayUtil.quantile(r.streamValues(image, true).toArray(), 0.5);
             else return BasicMeasurements.getQuantileValue(r, image, 0.5)[0];
         });
     }
     public static HashMapGetCreate<Region, Double> getMeanValueMap(Image image) {
         return new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(r -> {
             if (r.getLabel() == 0)
-                return r.getVoxels().stream().filter(v->image.contains(v.x, v.y, v.z)).mapToDouble(v->image.getPixel(v.x, v.y, v.z)).average().getAsDouble();
+                return r.streamValues(image, true).average().getAsDouble();
             else return BasicMeasurements.getMeanValue(r, image);
         });
     }

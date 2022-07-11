@@ -290,7 +290,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
                 if (correctionStepLimit<=1) return;
             }
             FrameRange wholeRange = new FrameRange(minF+1, maxFExcluded-1);
-            parallele(subLowErrorRanges.stream(), performSeveralIntervalsInParallel).forEach(range -> { 
+            Utils.parallele(subLowErrorRanges.stream(), performSeveralIntervalsInParallel).forEach(range -> {
                 List<FrameRange> corrRanges = new ArrayList<>();
                 List<FrameRange> subCorrRanges = new ArrayList<>(1);
                 int idxMax=0;
@@ -704,7 +704,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
             return objectSize;
         }
         private double getWidth() { // unscaled
-            return (double)o.getVoxels().size() / getLength(); // do not use getSize() if getSize() return area !!
+            return o.size() / getLength(); // do not use getSize() if getSize() return area !!
         }
         private List<Double> getLineageSizeRatioList() {
             if (prev==null) return Collections.EMPTY_LIST;

@@ -65,20 +65,15 @@ public class MergeScenario extends CorrectionScenario {
         }
         @Override
         protected void applyScenario() {
-            Set<Voxel> vox = new HashSet<>();
-            for (Region rem : listO) {
-                vox.addAll(rem.getVoxels());
-                tracker.objectAttributeMap.remove(rem);
-            }
+            Region merged = Region.merge(listO);
+            for (Region rem : listO) tracker.objectAttributeMap.remove(rem);
             int idxMin = getIdxMin();
-            
-            Region o = listO.get(0);
             boolean ok = tracker.populations.get(frameMin).removeAll(listO);
             if (idxMin<0 || !ok) {
                 Plugin.logger.error("could not apply merge scenario: objects absent from population{}", this);
                 throw new RuntimeException("Merge scenario cannot be applied -> object absent from population");
             }
-            Region merged = new Region(vox, idxMin+1, o.is2D(), o.getScaleXY(), o.getScaleZ()); // new hashcode generated
+            merged.setLabel(idxMin+1);
             tracker.populations.get(frameMin).add(idxMin, merged);
             tracker.objectAttributeMap.put(merged, tracker.new TrackAttribute(merged, idxMin, frameMin));
             tracker.resetIndices(frameMin);

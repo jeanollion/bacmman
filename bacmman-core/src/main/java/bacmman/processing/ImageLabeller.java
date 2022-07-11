@@ -16,23 +16,21 @@
  * You should have received a copy of the GNU General Public License
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
-package bacmman.image;
+package bacmman.processing;
 
+import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.Voxel;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-
-import bacmman.processing.neighborhood.CylindricalNeighborhood;
+import bacmman.image.BlankMask;
+import bacmman.image.Image;
+import bacmman.image.ImageInt;
+import bacmman.image.ImageMask;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.processing.watershed.WatershedTransform.WatershedConfiguration;
-import java.util.Set;
+
+import java.util.*;
 
 /**
  *
@@ -40,8 +38,6 @@ import java.util.Set;
  */
 public class ImageLabeller {
     public final ImageInt imLabels;
-    public final int[][] labels;
-    public final int sizeX;
     public final HashMap<Integer, Spot> spots;
     public final ImageMask mask;
     public static final int[][] neigh3DHalf = new int[][]{
@@ -52,13 +48,11 @@ public class ImageLabeller {
     public static final int[][] neigh2D8Half = new int[][]{ {1, -1, 0}, {0, -1, 0}, {-1, -1, 0}, {-1, 0, 0} };
     public static final int[][] neigh2D4Half = new int[][]{ {0, -1, 0}, {-1, 0, 0} };
     int[][] neigh;
-    
+
     public ImageLabeller(ImageMask mask) {
         this.mask=mask;
         imLabels = new ImageInt("labels", mask);
-        labels = imLabels.getPixelArray();
-        sizeX = mask.sizeX();
-        spots = new HashMap<Integer, Spot>();
+        spots = new HashMap<>();
     }
     public static Region[] labelImage(ImageMask mask, Neighborhood n) {
         if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
@@ -73,8 +67,8 @@ public class ImageLabeller {
         if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
         else {
             ImageLabeller il = new ImageLabeller(mask);
-            if (mask.sizeZ()>1) il.neigh=ImageLabeller.neigh3DHalf;
-            else il.neigh=ImageLabeller.neigh2D8Half;
+            if (mask.sizeZ()>1) il.neigh= ImageLabeller.neigh3DHalf;
+            else il.neigh= ImageLabeller.neigh2D8Half;
             il.labelSpots();
             return il.getObjects();
         }
@@ -84,8 +78,8 @@ public class ImageLabeller {
         if (mask instanceof BlankMask) return new Region[]{new Region((BlankMask)mask, 1, mask.sizeZ()==1)};
         else {
             ImageLabeller il = new ImageLabeller(mask);
-            if (mask.sizeZ()>1) il.neigh=ImageLabeller.neigh3DLowHalf;
-            else il.neigh=ImageLabeller.neigh2D4Half;
+            if (mask.sizeZ()>1) il.neigh= ImageLabeller.neigh3DLowHalf;
+            else il.neigh= ImageLabeller.neigh2D4Half;
             il.labelSpots();
             return il.getObjects();
         }
@@ -106,24 +100,26 @@ public class ImageLabeller {
      */
     public static RegionPopulation labelImage(List<Voxel> seeds, Image mask, boolean lowConnectivity) {
         WatershedTransform.PropagationCriterion prop = new WatershedTransform.PropagationCriterion() {
+            WatershedTransform instance;
             @Override
-            public void setUp(WatershedTransform instance) {}
+            public void setUp(WatershedTransform instance) {this.instance=instance;}
 
             @Override
-            public boolean continuePropagation(Voxel currentVox, Voxel nextVox) {
-                return mask.getPixel(nextVox.x, nextVox.y, nextVox.z) == mask.getPixel(currentVox.x, currentVox.y, currentVox.z);
+            public boolean continuePropagation(long currentVox, long nextVox) {
+                return instance.getHeap().getPixel(mask, nextVox) == instance.getHeap().getPixel(mask, currentVox);
             }
         };
         WatershedTransform.FusionCriterion fus = new WatershedTransform.FusionCriterion() {
+            WatershedTransform instance;
+            @Override
+            public void setUp(WatershedTransform instance) {this.instance = instance;}
 
             @Override
-            public void setUp(WatershedTransform instance) {}
-
-            @Override
-            public boolean checkFusionCriteria(WatershedTransform.Spot s1, WatershedTransform.Spot s2, Voxel currentVoxel) {
-                Voxel v1 = s1.voxels.iterator().next();
-                Voxel v2 = s2.voxels.iterator().next();
-                return mask.getPixel(v1.x, v1.y, v1.z)==mask.getPixel(v2.x, v2.y, v2.z) && mask.getPixel(v1.x, v1.y, v1.z)==mask.getPixel(currentVoxel.x, currentVoxel.y, currentVoxel.z);
+            public boolean checkFusionCriteria(WatershedTransform.Spot s1, WatershedTransform.Spot s2, long currentVoxel) {
+                long c1 = s1.voxels.stream().findAny().getAsLong();
+                long c2 = s2.voxels.stream().findAny().getAsLong();
+                double l1 = instance.getHeap().getPixel(mask, c1);
+                return l1==instance.getHeap().getPixel(mask, c2) && l1==instance.getHeap().getPixel(mask, currentVoxel);
             }
         };
         WatershedConfiguration config = new WatershedConfiguration().lowConectivity(lowConnectivity).fusionCriterion(fus).propagationCriterion(prop);
@@ -133,39 +129,36 @@ public class ImageLabeller {
     protected Region[] getObjects() {
         Region[] res = new Region[spots.size()];
         int label = 0;
-        for (Spot s : spots.values()) res[label++]= new Region(s.voxels, label, mask.sizeZ()==1, mask.getScaleXY(), mask.getScaleZ());
+        for (Spot s : spots.values()) res[label++]= s.toRegion(label);
         return res;
     }
     
     private void labelSpots() {
         int currentLabel = 1;
-        Spot currentSpot;
-        Voxel v;
-        int nextLabel;
-        int xy;
+        CoordCollection cc = CoordCollection.create(mask.sizeX(), mask.sizeY(), mask.sizeZ());
         for (int z = 0; z < mask.sizeZ(); ++z) {
             for (int y = 0; y < mask.sizeY(); ++y) {
-                for (int x = 0; x < sizeX; ++x) {
-                    xy = x + y * sizeX;
-                    if (mask.insideMask(xy, z)) {
-                        currentSpot = null;
-                        v = new Voxel(x, y, z);
+                for (int x = 0; x < mask.sizeX(); ++x) {
+                    long coord = cc.toCoord(x, y, z);
+                    if (cc.insideMask(mask, coord)) {
+                        Spot currentSpot = null;
                         for (int[] t : neigh) {
-                            if (mask.contains(x + t[0], y + t[1], z + t[2])) {
-                                nextLabel = labels[z + t[2]][xy + t[0] + t[1] * sizeX];
+                            if (cc.insideBounds(coord, t[0], t[1], t[2])) {
+                                long next = cc.translate(coord, t[0], t[1], t[2]);
+                                int nextLabel = cc.getPixelInt(imLabels, next);
                                 if (nextLabel != 0) {
                                     if (currentSpot == null) {
                                         currentSpot = spots.get(nextLabel);
-                                        currentSpot.addVox(v);
+                                        currentSpot.addVox(coord);
                                     } else if (nextLabel != currentSpot.label) {
                                         currentSpot = currentSpot.fusion(spots.get(nextLabel));
-                                        currentSpot.addVox(v);
+                                        currentSpot.addVox(coord);
                                     }
                                 }
                             }
                         }
                         if (currentSpot == null) {
-                            spots.put(currentLabel, new Spot(currentLabel++, v));
+                            spots.put(currentLabel, new Spot(currentLabel++, coord));
                         }
                     }
                 }
@@ -173,60 +166,57 @@ public class ImageLabeller {
         }
     }
 
-    public void labelSpots(Neighborhood n) {
+    private void labelSpots(Neighborhood n) {
         int currentLabel = 1;
-        Spot currentSpot;
-        for (int z = 0; z<mask.sizeZ(); ++z) {
-            for (int y = 0; y<mask.sizeY(); ++y) {
-                for (int x=0; x<sizeX; ++x) {
-                    if (mask.insideMask(x, y, z)) {
-                        currentSpot = null;
-                        Voxel v = new Voxel(x, y, z);
-                        n.setPixels(x, y, z, imLabels, mask);
+        CoordCollection cc = CoordCollection.create(mask.sizeX(), mask.sizeY(), mask.sizeZ());
+        for (int z = 0; z < mask.sizeZ(); ++z) {
+            for (int y = 0; y < mask.sizeY(); ++y) {
+                for (int x = 0; x < mask.sizeX(); ++x) {
+                    long coord = cc.toCoord(x, y, z);
+                    n.setPixels(x, y, z, imLabels, mask);
+                    if (cc.insideMask(mask, coord)) {
+                        Spot currentSpot = null;
                         for (int i = 0; i<n.getValueCount(); ++i) {
                             int nextLabel = (int)n.getPixelValues()[i]; // double values might not be enough...
                             if (nextLabel != 0) {
-                                if (currentSpot== null) {
-                                    currentSpot= spots.get(nextLabel);
-                                    currentSpot.addVox(v);
+                                if (currentSpot == null) {
+                                    currentSpot = spots.get(nextLabel);
+                                    currentSpot.addVox(coord);
                                 } else if (nextLabel != currentSpot.label) {
                                     currentSpot = currentSpot.fusion(spots.get(nextLabel));
-                                    currentSpot.addVox(v);
+                                    currentSpot.addVox(coord);
                                 }
                             }
-
                         }
                         if (currentSpot == null) {
-                            spots.put(currentLabel, new Spot(currentLabel++, v));
+                            spots.put(currentLabel, new Spot(currentLabel++, coord));
                         }
                     }
                 }
             }
         }
     }
-    
+
     public class Spot {
 
-        Set<Voxel> voxels;
+        CoordCollection voxels;
         public int label;
 
-        public Spot(int label, Voxel v) {
+        public Spot(int label, long coord) {
             this.label = label;
-            this.voxels = new HashSet<>();
-            voxels.add(v);
-            labels[v.z][v.x+v.y*sizeX] = label;
+            this.voxels = CoordCollection.create(mask.sizeX(), mask.sizeY(), mask.sizeZ());
+            voxels.add(coord);
+            voxels.setPixel(imLabels, coord, label);
         }
 
-        public void addVox(Voxel v) {
-            voxels.add(v);
-            labels[v.z][v.x+v.y*sizeX] = label;
+        public void addVox(long c) {
+            voxels.add(c);
+            voxels.setPixel(imLabels, c, label);
         }
 
         public void setLabel(int label) {
             this.label = label;
-            for (Voxel v : voxels) {
-                labels[v.z][v.x+v.y*sizeX] = label;
-            }
+            voxels.stream().forEach(c -> voxels.setPixel(imLabels, c, label));
         }
 
         public Spot fusion(Spot other) {
@@ -241,6 +231,10 @@ public class ImageLabeller {
 
         public int getSize() {
             return voxels.size();
+        }
+
+        public Region toRegion(int label) {
+            return new Region(voxels.getMask(mask.getScaleXY(), mask.getScaleZ()), label, mask.sizeZ()==1);
         }
     }
 }

@@ -32,6 +32,7 @@ import static bacmman.plugins.Plugin.logger;
 
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
+import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
 
 /**
@@ -54,16 +55,14 @@ public class SplitAndMergeRegionCriterion extends SplitAndMerge<SplitAndMergeReg
             case MEAN_INTENSITY_IN_REGIONS:
             default:
                 interfaceValue = i-> {
-                    Predicate<Voxel> filter = i.getE1().getLabel()==0 ? (v-> intensityMap.contains(v.x, v.y, v.z)) : (v->true);
-                    return - Stream.concat(i.getE1().getVoxels().stream().filter(filter), i.getE2().getVoxels().stream()).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).average().orElse(Double.NEGATIVE_INFINITY); // maximal intensity first
+                    return - DoubleStream.concat(i.getE1().streamValues(intensityMap, i.getE1().getLabel()==0), i.getE2().streamValues(intensityMap)).average().orElse(Double.NEGATIVE_INFINITY); // maximal intensity first
                 };
                 break;
             case DIFF_INTENSITY_BTWN_REGIONS:
                 interfaceValue = i -> {
-                    Predicate<Voxel> filter = i.getE1().getLabel()==0 ? (v-> intensityMap.contains(v.x, v.y, v.z)) : (v->true);
-                    double m1 = i.getE1().getVoxels().stream().filter(filter).mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).average().orElse(Double.NaN);
+                    double m1 = i.getE1().streamValues(intensityMap, i.getE1().getLabel()==0).average().orElse(Double.NaN);
                     if (Double.isNaN(m1)) return Double.NEGATIVE_INFINITY;
-                    double m2 = i.getE2().getVoxels().stream().mapToDouble(v->intensityMap.getPixel(v.x, v.y, v.z)).average().getAsDouble();
+                    double m2 = i.getE2().streamValues(intensityMap).average().orElse(Double.NaN);
                     return Math.abs(m1-m2); // minimal difference first
                 };
                 break;

@@ -155,12 +155,12 @@ public class PredicateMask extends SimpleImageProperties<PredicateMask> implemen
 
     @Override
     public boolean insideMaskWithOffset(int x, int y, int z) {
-        return insideMask.insideMask(x-xMin(), y-yMin(), z-zMin());
+        return insideMask.insideMask(x-xMin, y-yMin, z-zMin());
     }
 
     @Override
     public boolean insideMaskWithOffset(int xy, int z) {
-        return insideMaskXY.insideMask(xy-(xMin()+sizeY()*yMin()), z-zMin());
+        return insideMaskXY.insideMask(xy-offsetXY, z-zMin);
     }
 
     @Override

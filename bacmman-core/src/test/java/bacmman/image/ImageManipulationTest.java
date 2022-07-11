@@ -22,6 +22,8 @@ import bacmman.data_structure.Region;
 
 import static junit.framework.Assert.assertEquals;
 import static org.junit.Assert.assertArrayEquals;
+
+import bacmman.processing.ImageLabeller;
 import org.junit.Test;
 
 /**

@@ -288,7 +288,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian> extends Segment
         RegionPopulation pop = seg.run(input, segmentationMask);
         if (verboseManualSeg) Core.showImage(pop.getLabelMap().setName("Partition"));
         if (verboseManualSeg) logger.debug("before filter seeds: {} objects", pop.getRegions().size());
-        pop.filter(o-> seedObjects.stream().map(so->so.getVoxels().iterator().next()).anyMatch(v -> o.contains(v))); // keep only objects that contain seeds
+        pop.filter(o-> seedObjects.stream().map(so->so.getVoxels().iterator().next()).anyMatch(o::contains)); // keep only objects that contain seeds
         if (verboseManualSeg) logger.debug("after filter seeds: {} objects", pop.getRegions().size());
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
 

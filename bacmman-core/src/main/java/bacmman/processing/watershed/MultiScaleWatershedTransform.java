@@ -25,7 +25,7 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.image.ImageMask;
 import bacmman.image.ImageProperties;
 import java.util.ArrayList;
@@ -40,7 +40,7 @@ import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
  *
  * @author Jean Ollion
  */
-public class MultiScaleWatershedTransform {
+public class MultiScaleWatershedTransform { // TODO USE COORDSET
     final protected TreeSet<Voxel> heap;
     final protected Spot[] spots; // map label -> spot (spots[0]==null)
     protected int spotNumber;

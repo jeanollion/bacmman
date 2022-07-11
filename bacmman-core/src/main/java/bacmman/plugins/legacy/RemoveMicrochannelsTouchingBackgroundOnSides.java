@@ -26,7 +26,7 @@ import bacmman.data_structure.*;
 import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
-import bacmman.image.ImageLabeller;
+import bacmman.processing.ImageLabeller;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 

@@ -41,7 +41,7 @@ import java.util.stream.DoubleStream;
 public class GeometricalMeasurements {
     
     public static double getVolumeUnit(Region o) {
-        int count = o.getVoxels().size();
+        double count = o.size();
         if (!o.is2D()) return count * o.getScaleXY() * o.getScaleXY() * o.getScaleZ();
         else  return count * o.getScaleXY() * o.getScaleXY();
     }

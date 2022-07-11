@@ -27,6 +27,7 @@ import bacmman.image.*;
 import java.util.*;
 
 import bacmman.plugins.ObjectSplitter;
+import bacmman.processing.ImageLabeller;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.Pair;
