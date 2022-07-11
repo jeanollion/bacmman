@@ -23,28 +23,37 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import bacmman.data_structure.dao.DBMapObjectDAO;
 import org.mapdb.DB;
 import org.mapdb.DBMaker;
 import org.mapdb.HTreeMap;
 import org.mapdb.Serializer;
 import org.mapdb.serializer.SerializerCompressionWrapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class DBMapUtils {
+    public static final Logger logger = LoggerFactory.getLogger(DBMapUtils.class);
     public static DB createFileDB(String path, boolean readOnly) {
         //logger.debug("creating file db: {}, is dir: {}, exists: {}", path, new File(path).isDirectory(),new File(path).exists());
         DBMaker.Maker m = DBMaker.fileDB(path)
                 //.transactionEnable() // crash protection
-                .fileMmapEnableIfSupported() // Only enable mmap on supported platforms
-                .fileMmapPreclearDisable()   // Make mmap file faster
-                .cleanerHackEnable() // Unmap (release resources) file when its closed. //That can cause JVM crash if file is accessed after it was unmapped
-                .concurrencyScale(8) // TODO as option ?
                 .allocateStartSize( 128 * 1024*1024)
                 .allocateIncrement(128 * 1024*1024)
                 .closeOnJvmShutdown();
+        if (!Utils.isWindows()) {
+            m = m.fileMmapEnableIfSupported() // Only enable mmap on supported platforms
+                .fileMmapPreclearDisable()   // Make mmap file faster
+                .cleanerHackEnable() // Unmap (release resources) file when its closed. //That can cause JVM crash if file is accessed after it was unmapped
+                .concurrencyScale(8); // TODO as option ?
+        } else {
+            m = m.fileChannelEnable();
+        }
         //   https://mapdb.org/book/performance/
         if (readOnly) m=m.fileLockDisable().readOnly();
         DB db = m.make();

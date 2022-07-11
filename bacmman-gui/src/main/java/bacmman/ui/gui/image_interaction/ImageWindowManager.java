@@ -41,6 +41,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.concurrent.CancellationException;
 import java.util.function.Function;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
@@ -190,8 +191,12 @@ public abstract class ImageWindowManager<I, U, V> {
         return runningWorkers;
     }
     public void stopAllRunningWorkers() {
-        runningWorkers.values().stream().flatMap(l->l.stream()).forEach(w -> w.cancel(true));
-        runningWorkers.clear();
+        try {
+            for (DefaultWorker w : runningWorkers.values().stream().flatMap(Collection::stream).collect(Collectors.toList())) {
+                w.cancel(true);
+            }
+            runningWorkers.clear();
+        } catch (CancellationException e) {}
     }
     public void flush() {
         if (!runningWorkers.isEmpty()) logger.debug("flush: will stop {} running workers", runningWorkers.size());

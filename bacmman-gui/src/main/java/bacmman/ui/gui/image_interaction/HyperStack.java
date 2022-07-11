@@ -25,6 +25,7 @@ import bacmman.image.io.KymographFactory;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
 import bacmman.utils.Pair;
+import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,6 +46,7 @@ public class HyperStack extends Kymograph {
     public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
     protected IntConsumer changeIdxCallback;
     DefaultWorker loadObjectsWorker;
+    Object lock = new Object();
     public HyperStack(KymographFactory.KymographData data, int childStructureIdx, boolean loadObjects) {
         super(data, childStructureIdx, false);
         maxParentSizeX = data.maxParentSizeX;
@@ -55,11 +57,12 @@ public class HyperStack extends Kymograph {
         frameMapIdx = parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, parents::indexOf));
         idxMapFrame = parents.stream().collect(Collectors.toMap(parents::indexOf, SegmentedObject::getFrame));
         if (!KymographFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
+        for (SimpleInteractiveImage i : trackObjects) i.setLock(lock); // shared lock
         trackObjects[0].reloadObjects();
-        loadObjectsWorker = new DefaultWorker(i-> {
-            trackObjects[i+1].getObjects();
+        loadObjectsWorker = new DefaultWorker(i -> {
+            trackObjects[i + 1].getObjects();
             return "";
-        }, super.getParents().size()-1, null);
+        }, super.getParents().size() - 1, null);
         if (loadObjects) loadObjectsWorker.execute();
     }
     public boolean setFrame(int frame) {

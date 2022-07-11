@@ -638,7 +638,7 @@ public class DBMapObjectDAO implements ObjectDAO {
             Map<String, SegmentedObject> cacheMap = cache.getAndCreateIfNecessary(key);
             HTreeMap<String, String> dbMap = getDBMap(key);
             long t0 = System.currentTimeMillis();
-            boolean parallel=true;
+            boolean parallel=false;
             Utils.parallel(IntStream.rangeClosed(0, toStore.size()/FRAME_INDEX_LIMIT).map(i -> i*FRAME_INDEX_LIMIT), parallel).forEach(i -> {
                 int idxMax = Math.min(toStore.size(), i+FRAME_INDEX_LIMIT);
                 logger.debug("storing: #{}/{} ( [{};{}) ) objects of OC: {} to: {}",idxMax-i, toStore.size(), i, idxMax, key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead());
