@@ -640,7 +640,6 @@ public class DBMapObjectDAO implements ObjectDAO {
             long t0 = System.currentTimeMillis();
             boolean parallel=true;
             Utils.parallel(IntStream.rangeClosed(0, toStore.size()/FRAME_INDEX_LIMIT).map(i -> i*FRAME_INDEX_LIMIT), parallel).forEach(i -> {
-            //for (int i = 0; i<toStore.size(); i+=FRAME_INDEX_LIMIT) {
                 int idxMax = Math.min(toStore.size(), i+FRAME_INDEX_LIMIT);
                 logger.debug("storing: #{}/{} ( [{};{}) ) objects of OC: {} to: {}",idxMax-i, toStore.size(), i, idxMax, key.value, objects.iterator().next().getParent()==null ? "" : objects.iterator().next().getParent().getTrackHead());
                 Map<String, String> toStoreMap = Utils.parallel(toStore.subList(i, idxMax).stream(), !parallel).peek(accessor::updateRegionContainer).collect(Collectors.toMap(SegmentedObject::getId, JSONUtils::serialize));
