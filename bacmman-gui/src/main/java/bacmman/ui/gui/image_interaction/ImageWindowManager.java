@@ -610,7 +610,7 @@ public abstract class ImageWindowManager<I, U, V> {
      * @param image
      * @return list of coordinates (x, y, z starting from 0) within the image, in voxel unit
      */
-    protected abstract List<Point> getSelectedPointsOnImage(I image);
+    protected abstract Map<Integer, List<Point>> getSelectedPointsOnImage(I image);
     /**
      * 
      * @param image
@@ -626,18 +626,21 @@ public abstract class ImageWindowManager<I, U, V> {
         if (dispImage==null) return null;
         InteractiveImage i = this.getImageObjectInterface(image, parentStructureIdx);
         if (i==null) return null;
-        
-        List<Point> rawCoordinates = getSelectedPointsOnImage(dispImage);
+
+        Map<Integer, List<Point>> rawCoordinatesByFrame = getSelectedPointsOnImage(dispImage);
         HashMapGetCreate<SegmentedObject, List<Point>> map = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
-        for (Point c : rawCoordinates) {
-            Pair<SegmentedObject, BoundingBox> parent = i.getClickedObject(c.getIntPosition(0), c.getIntPosition(1), c.getIntPosition(2));
-            if (parent!=null) {
-                c.translateRev(parent.value);
-                List<Point> children = map.getAndCreateIfNecessary(parent.key);
-                children.add(c);
-                GUI.logger.debug("adding point: {} to parent: {} located: {}", c, parent.key, parent.value);
-            }
-        }
+        rawCoordinatesByFrame.forEach((f, rawCoordinates) ->  {
+            if (i instanceof HyperStack) ((HyperStack)i).setIdx(f);
+            rawCoordinates.forEach(c -> {
+                Pair<SegmentedObject, BoundingBox> parent = i.getClickedObject(c.getIntPosition(0), c.getIntPosition(1), c.getIntPosition(2));
+                if (parent!=null) {
+                    c.translateRev(parent.value);
+                    List<Point> children = map.getAndCreateIfNecessary(parent.key);
+                    children.add(c);
+                    logger.debug("adding point: {} to parent: {} located: {}, frame: {}", c, parent.key, parent.value, f);
+                }
+            });
+        });
         return map;
         
     }

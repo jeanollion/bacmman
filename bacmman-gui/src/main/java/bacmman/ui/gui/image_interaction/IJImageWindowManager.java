@@ -25,6 +25,7 @@ import bacmman.data_structure.region_container.roi.TrackRoi;
 import bacmman.image.*;
 import bacmman.ui.GUI;
 import bacmman.ui.ManualEdition;
+import bacmman.utils.HashMapGetCreate;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
@@ -353,19 +354,20 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     }
     
     @Override
-    protected List<Point> getSelectedPointsOnImage(ImagePlus image) {
+    protected Map<Integer, List<Point>> getSelectedPointsOnImage(ImagePlus image) {
         Roi r = image.getRoi();
         if (r instanceof PointRoi) {
             PointRoi pRoi = (PointRoi)r;
             Polygon p = r.getPolygon();
-            List<Point> res = new ArrayList<>(p.npoints);
+            Map<Integer, List<Point>> res = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.ListFactory<>());
             for (int i = 0; i<p.npoints; ++i) {
                 int n = pRoi.getPointPosition(i);
                 int z = n>=1 ? image.convertIndexToPosition(n)[1]-1 : 0;
-                res.add(new Point(p.xpoints[i], p.ypoints[i], Math.max(0, z)));
+                int f = n>=1 ? image.convertIndexToPosition(n)[2]-1 : 0;
+                res.get(f).add(new Point(p.xpoints[i], p.ypoints[i], Math.max(0, z)));
             }
             return res;
-        } else return Collections.emptyList();
+        } else return Collections.emptyMap();
     }
     
     @Override
