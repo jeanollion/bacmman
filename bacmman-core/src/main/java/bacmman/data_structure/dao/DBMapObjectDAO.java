@@ -71,6 +71,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     final Map<Integer, DB> dbS = new HashMap<>();
     final Map<Integer, Pair<DB, HTreeMap<String, String>>> measurementdbS = new HashMap<>();
     public final boolean readOnly;
+    protected boolean safeMode;
     private java.nio.channels.FileLock lock;
     private FileChannel lockChannel;
     public DBMapObjectDAO(DBMapMasterDAO mDAO, String positionName, String dir, boolean readOnly) {
@@ -168,7 +169,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                 if (!dbS.containsKey(structureIdx)) {
                     //logger.debug("creating db: {} (From DAO: {}), readOnly: {}", getDBFile(structureIdx), this.hashCode(), readOnly);
                     try {
-                        res = createFileDB(getDBFile(structureIdx), readOnly);
+                        res = createFileDB(getDBFile(structureIdx), readOnly, safeMode);
                         dbS.put(structureIdx, res);
                     } catch (org.mapdb.DBException ex) {
                         logger.error("Could not create DB readOnly: "+readOnly, ex);
@@ -493,8 +494,6 @@ public class DBMapObjectDAO implements ObjectDAO {
         }
         dbS.clear();
         dbMaps.clear();
-        //cache.clear();
-        //allObjectsRetrieved.clear();
     }
     public void closeAllFiles(boolean commit) {
         closeAllObjectFiles(commit);
@@ -544,7 +543,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     }
     @Override
     public void delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings) {
-        delete(list, deleteChildren, deleteFromParent, relabelSiblings, true);
+        delete(list, deleteChildren, deleteFromParent, relabelSiblings, !safeMode);
     }
     
     private Set<Integer> delete(Collection<SegmentedObject> list, boolean deleteChildren, boolean deleteFromParent, boolean relabelSiblings, boolean commit) {
@@ -560,7 +559,6 @@ public class DBMapObjectDAO implements ObjectDAO {
                     allModifiedStructureIdx.addAll(deleteChildren(toRemove, sChild, false)); // will call this method recursively
                 }
             }
-            
             HTreeMap<String, String> dbMap = getDBMap(key);
             toRemove.forEach((o) -> dbMap.remove(o.getId())); //.stream().sorted(Comparator.comparingInt(o->-o.getFrame())).
             // also remove measurements
@@ -685,7 +683,7 @@ public class DBMapObjectDAO implements ObjectDAO {
     }
     @Override
     public void store(Collection<SegmentedObject> objects) {
-        store(objects, true);
+        store(objects, !safeMode);
     }
 
     @Override
@@ -778,7 +776,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                 if (!measurementdbS.containsKey(structureIdx)) {
                     try {
                         //logger.debug("opening measurement DB for structure: {}: file {} readONly: {}",structureIdx, getMeasurementDBFile(structureIdx), readOnly);
-                        DB db = DBMapUtils.createFileDB(getMeasurementDBFile(structureIdx), readOnly);
+                        DB db = DBMapUtils.createFileDB(getMeasurementDBFile(structureIdx), readOnly, false);
                         //logger.debug("opening measurement DB for structure: {}: file {} readONly: {}: {}",structureIdx, getMeasurementDBFile(structureIdx), readOnly, db);
                         HTreeMap<String, String> dbMap = DBMapUtils.createHTreeMap(db, "measurements");
                         res = new Pair(db, dbMap);
@@ -953,4 +951,32 @@ public class DBMapObjectDAO implements ObjectDAO {
         return null;
     }
 
+    // safe mode
+    @Override
+    public DBMapObjectDAO setSafeMode(boolean safeMode) {
+        if (this.safeMode != safeMode) {
+            this.closeAllObjectFiles(true);
+            this.safeMode = safeMode;
+        }
+        return this;
+    }
+    @Override
+    public void rollback(int objectClassIdx) {
+        if (!safeMode) throw new IllegalArgumentException("Cannot Rollback if safe mode is not activated");
+        if (this.dbS.containsKey(objectClassIdx)) {
+            this.dbS.get(objectClassIdx).rollback();
+        }
+        cache.clear();
+        allObjectsRetrievedInCache.clear();
+        trackHeads.clear();
+        frameIndex.clear();
+        dbMaps.clear();
+    }
+    @Override
+    public void commit(int objectClassIdx) {
+        if (this.dbS.containsKey(objectClassIdx)) {
+            this.dbS.get(objectClassIdx).commit();
+            for (int coc : this.mDAO.getExperiment().experimentStructure.getAllDirectChildStructures(objectClassIdx)) commit(coc); // also commit in case children were modified
+        }
+    }
 }

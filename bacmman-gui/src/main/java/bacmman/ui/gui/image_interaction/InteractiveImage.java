@@ -19,6 +19,7 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;

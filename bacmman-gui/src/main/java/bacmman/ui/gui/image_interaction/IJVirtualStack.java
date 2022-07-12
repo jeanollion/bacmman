@@ -83,6 +83,9 @@ public class IJVirtualStack extends VirtualStack {
         if (this.setFrameCallback==null) this.setFrameCallback=otherSetFrameCallback;
         else this.setFrameCallback = setFrameCallback.andThen(otherSetFrameCallback);
     }
+    public void resetSetFrameCallback() {
+        this.setFrameCallback=null;
+    }
     @Override
     public boolean isVirtual() {
         return virtual;
@@ -93,6 +96,7 @@ public class IJVirtualStack extends VirtualStack {
     }
     @Override
     public ImageProcessor getProcessor(int n) {
+        //logger.debug("get processor: {} cb null ? {}", n, setFrameCallback==null);
         int[] fcz = getFCZ.apply(n);
         if (fcz[2]>= sizeZC[fcz[1]]) {
             if (sizeZC[fcz[1]]==1) fcz[2]=0; // case of reference images -> only one Z -> open first Z

@@ -109,7 +109,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private static GUI INSTANCE;
     // db-related attributes
     private MasterDAO db;
-    
+
     // xp tree-related attributes
     ConfigurationTreeGenerator configurationTreeGenerator;
     final Consumer<Boolean> setConfigurationTabValid;
@@ -147,6 +147,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("incase of HiDPI screen, a zoom factor is applied to the display, set here this factor");
     private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
     private BooleanParameter relabel = new BooleanParameter("Relabel objects", true);
+    private BooleanParameter safeMode = new BooleanParameter("Safe Mode (undo)", false);
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
@@ -397,7 +398,30 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // manual edition
         PropertyUtils.setPersistent(relabel, "manual_curation_relabel");
         ConfigurationTreeGenerator.addToMenuAsSubMenu(relabel, manualCuration);
-
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(safeMode, manualCuration);
+        JMenuItem commit = new javax.swing.JMenuItem();
+        commit.setText("Commit Changes");
+        commit.addActionListener(evt -> {
+            if (db!=null) {
+                db.getOpenObjectDAOs().forEach(dao->dao.commit(ImageWindowManagerFactory.getImageManager().getInteractiveStructure()));
+            }
+        });
+        manualCuration.add(commit);
+        rollback = new javax.swing.JMenuItem();
+        rollback.setText("Revert Changes");
+        rollback.addActionListener(evt -> {
+            if (db!=null) {
+                ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+                iwm.stopAllRunningWorkers();
+                int oc= iwm.getInteractiveStructure();
+                db.getOpenObjectDAOs().forEach(dao->dao.rollback(oc));
+                iwm.revertObjectClass(oc, db);
+                trackTreeController.updateTrackTree();
+            }
+        });
+        manualCuration.add(rollback);
+        safeMode.addListener(b -> setSafeMode(b.getSelected()));
+        rollback.setEnabled(safeMode.getSelected());
         // memory
         ConfigurationTreeGenerator.addToMenu(memoryThreshold.getName(), ParameterUIBinder.getUI(memoryThreshold).getDisplayComponent(), memoryMenu);
         PropertyUtils.setPersistent(memoryThreshold, "memory_threshold");
@@ -701,6 +725,20 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 toggleDisplaySelection(1);
             }
         });
+        actionMap.put(Shortcuts.ACTION.TOGGLE_SAFE_MODE, new AbstractAction(Shortcuts.ACTION.TOGGLE_SAFE_MODE.description) {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                safeMode.setSelected(!safeMode.getSelected());
+                Utils.displayTemporaryMessage("Safe Mode (UNDO) is : " + (safeMode.getSelected()?"ON":"OFF"), 15000);
+            }
+        });
+        actionMap.put(Shortcuts.ACTION.DELETE, new AbstractAction("Delete") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
+                deleteObjectsButtonActionPerformed(e);
+            }
+        });
         EnumChoiceParameter<Shortcuts.PRESET> shortcutPreset = new EnumChoiceParameter<>("Shortcut preset", Shortcuts.PRESET.values(), Shortcuts.PRESET.AZERTY);
         PropertyUtils.setPersistent(shortcutPreset, "shortcut_preset");
         
@@ -860,6 +898,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         targetMenu.add(sample);
+    }
+    public void setSafeMode(boolean safeMode) {
+        rollback.setEnabled(safeMode);
+        if (db!=null) db.setSafeMode(safeMode);
     }
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
@@ -1065,6 +1107,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             logger.debug("Config file could be locked");
            setMessage("Dataset: "+db.getDBName()+" open");
         }
+        if (safeMode.getSelected()) db.setSafeMode(true);
         updateConfigurationTree();
         populateActionStructureList();
         populateActionPositionList();
@@ -5006,6 +5049,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu tensorflowMenu;
     private javax.swing.JMenu roiMenu;
     private javax.swing.JMenu manualCuration;
+    private JMenuItem rollback;
     private javax.swing.JMenu logMenu;
     private javax.swing.JMenuBar mainMenu;
     private javax.swing.JButton manualSegmentButton;

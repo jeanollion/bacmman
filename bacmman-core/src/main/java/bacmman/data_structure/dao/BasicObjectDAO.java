@@ -294,6 +294,19 @@ public class BasicObjectDAO implements ObjectDAO {
     }
 
     @Override
+    public ObjectDAO setSafeMode(boolean safeMode) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+
+    @Override
+    public void rollback(int objectClassIdx) {
+        throw new UnsupportedOperationException("Not supported");
+    }
+    @Override
+    public void commit(int objectClassIdx) {
+    }
+
+    @Override
     public MasterDAO getMasterDAO() {
         return this.masterDAO;
     }

@@ -49,6 +49,7 @@ public interface MasterDAO {
     public boolean setConfigurationReadOnly(boolean readOnly);
     public void unlockConfiguration();
 
+    public List<ObjectDAO> getOpenObjectDAOs();
     /**
      * tries to lock all positions contained in {@param positionNames}. if the array is empty or null, all positions are locked
      * @param positionNames
@@ -73,7 +74,7 @@ public interface MasterDAO {
     public boolean experimentChangedFromFile();
     // selections
     public SelectionDAO getSelectionDAO();
-    
+    void setSafeMode(boolean safeMode);
     // static methods
     public static ObjectDAO getDao(MasterDAO db, int positionIdx) {
         String p = db.getExperiment().getPosition(positionIdx).getName();

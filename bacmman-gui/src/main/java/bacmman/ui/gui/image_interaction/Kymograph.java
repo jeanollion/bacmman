@@ -20,6 +20,7 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.io.KymographFactory;
 import bacmman.ui.GUI;
 import bacmman.core.DefaultWorker;

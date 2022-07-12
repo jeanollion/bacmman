@@ -22,7 +22,9 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.SegmentedObjectAccessor;
 
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 
 /**
  *
@@ -97,6 +99,11 @@ public class BasicMasterDAO implements MasterDAO {
     }
 
     @Override
+    public void setSafeMode(boolean safeMode) {
+        throw new UnsupportedOperationException("Safe Mode not supported");
+    }
+
+    @Override
     public void clearCache(String position) {
         this.DAOs.remove(position);
         getExperiment().getPosition(position).flushImages(true, true);
@@ -135,5 +142,9 @@ public class BasicMasterDAO implements MasterDAO {
     @Override
     public void unlockPositions(String... positionNames) {
         
+    }
+    @Override
+    public List<ObjectDAO> getOpenObjectDAOs() {
+        return new ArrayList<>(this.DAOs.values());
     }
 }

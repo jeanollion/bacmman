@@ -88,6 +88,10 @@ public interface ObjectDAO {
     public Measurements getMeasurements(SegmentedObject o);
     public List<Measurements> getMeasurements(int structureIdx, String... measurements);
     public void deleteAllMeasurements();
+
+    ObjectDAO setSafeMode(boolean safeMode);
+    void rollback(int objectClassIdx);
+    void commit(int objectClassIdx);
     
     public static boolean sameContent(ObjectDAO dao1, ObjectDAO dao2, ProgressCallback pcb) {
         List<SegmentedObject> roots1 = dao1.getRoots();

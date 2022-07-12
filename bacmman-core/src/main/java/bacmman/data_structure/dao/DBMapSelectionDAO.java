@@ -55,7 +55,7 @@ public class DBMapSelectionDAO implements SelectionDAO {
         makeDB();
     }
     private synchronized void makeDB() {
-        db = DBMapUtils.createFileDB(getSelectionFile(), readOnly);
+        db = DBMapUtils.createFileDB(getSelectionFile(), readOnly, false);
         dbMap = DBMapUtils.createHTreeMap(db, "selections");
     }
     

@@ -18,10 +18,8 @@
  */
 package bacmman.ui.gui.image_interaction;
 
-import bacmman.data_structure.Measurements;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectAccessor;
-import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.*;
+import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.*;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.ui.GUI;
@@ -42,7 +40,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.CancellationException;
-import java.util.function.Function;
+import java.util.function.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenuItem;
 import javax.swing.JPopupMenu;
@@ -57,9 +55,6 @@ import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.function.IntConsumer;
-import java.util.function.Predicate;
-import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -221,6 +216,54 @@ public abstract class ImageWindowManager<I, U, V> {
         displayedInteractiveImages.clear();
         testData.clear();
         trackColor.clear();
+    }
+    public void revertObjectClass(int objectClassIdx, MasterDAO db) {
+        // TODO: bug with hyperstacks
+        /*Consumer<InteractiveImageKey> flushIOI = k -> {
+            imageObjectInterfaces.remove(k);
+            Utils.getKeys(imageObjectInterfaceMap, k).forEach(displayer::close);
+        };
+        // reset hyperstack callback
+        imageObjectInterfaceMap.entrySet().stream()
+                .filter(e -> e.getValue().imageType.equals(InteractiveImageKey.TYPE.HYPERSTACK))
+                .forEach(e -> registerInteractiveHyperStackFrameCallback(e.getKey(), null, true));
+        // reset image object interface
+        new ArrayList<>(imageObjectInterfaces.keySet()).forEach(k -> {
+            InteractiveImage i = imageObjectInterfaces.get(k);
+            ExperimentStructure xp = i.getParent().getExperimentStructure();
+            if (db==null || !(i instanceof Kymograph) || objectClassIdx == i.getParent().getStructureIdx() || xp.isChildOf(objectClassIdx, i.getParent().getStructureIdx())) { // close image and remove IOI
+                flushIOI.accept(k);
+            } else {
+                SegmentedObject trackHead = i.parents.get(0).getTrackHead();
+                trackHead = db.getDao(trackHead.getPositionName()).getById(trackHead.getParentTrackHeadId(), trackHead.getStructureIdx(), trackHead.getFrame(), trackHead.getId()); // replace object
+                List<SegmentedObject> track = db.getDao(trackHead.getPositionName()).getTrack(trackHead);
+                if (track.size() == i.parents.size()) {
+                    Kymograph newI = Kymograph.generateKymograph(track, i.childStructureIdx, i instanceof HyperStack);
+                    i.setGUIMode(GUI.hasInstance());
+                    if (newI instanceof HyperStack) {
+                        Utils.getKeys(imageObjectInterfaceMap, k).forEach(im -> {
+                            registerHyperStack(im, (HyperStack)newI);
+                            GUI.updateRoiDisplayForSelections(im, newI);
+                        });
+                    } else imageObjectInterfaces.put(k, newI);
+                } else flushIOI.accept(k);
+            }
+        });
+        //imageObjectInterfaces.clear();
+        imageObjectInterfaceMap.forEach((i,k) -> {
+            if (k.interactiveObjectClass == objectClassIdx) hideAllRois(displayer.getImage(i));
+        });
+        trackHeadTrackMap.clear();
+        objectRoiMap.clear();
+        labileObjectRoiMap.clear();
+        parentTrackHeadKymographTrackRoiMap.clear();
+        parentTrackHeadTrackRoiMap.clear();
+        labileParentTrackHeadTrackRoiMap.clear();
+        labileParentTrackHeadKymographTrackRoiMap.clear();
+        trackColor.clear();
+        displayedLabileObjectRois.clear();
+        displayedLabileTrackRois.clear();*/
+        flush();
     }
     public void closeNonInteractiveWindows() {
         closeLastInputImages(0);

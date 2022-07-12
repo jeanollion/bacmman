@@ -30,8 +30,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
-import java.util.HashMap;
+import java.util.*;
 
 import bacmman.data_structure.SegmentedObjectAccessor;
 import org.slf4j.Logger;
@@ -39,8 +38,6 @@ import org.slf4j.LoggerFactory;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
-import java.util.HashSet;
-import java.util.Set;
 
 import static bacmman.core.Core.*;
 
@@ -61,8 +58,12 @@ public class DBMapMasterDAO implements MasterDAO {
     RandomAccessFile cfg;
     DBMapSelectionDAO selectionDAO;
     boolean readOnly = true; // default is read only
+    boolean safeMode;
     private final SegmentedObjectAccessor accessor;
 
+    public List<ObjectDAO> getOpenObjectDAOs() {
+        return new ArrayList<>(this.DAOs.values());
+    }
     public DBMapMasterDAO(String dir, String dbName, SegmentedObjectAccessor accessor) {
         if (dir==null) throw new IllegalArgumentException("Invalid directory: "+ dir);
         if (dbName==null) throw new IllegalArgumentException("Invalid DbName: "+ dbName);
@@ -162,7 +163,7 @@ public class DBMapMasterDAO implements MasterDAO {
         if (res==null) {
             String op = getOutputPath();
             if (op==null) throw new RuntimeException("No output path set, cannot create DAO");
-            res = new DBMapObjectDAO(this, positionName, op, positionLock.contains(positionName)?false:readOnly);
+            res = new DBMapObjectDAO(this, positionName, op, positionLock.contains(positionName)?false:readOnly).setSafeMode(safeMode);
             //logger.debug("creating DAO: {} position lock: {}, read only: {}", positionName, positionLock.contains(positionName), res.isReadOnly());
             DAOs.put(positionName, res);
         }
@@ -457,5 +458,11 @@ public class DBMapMasterDAO implements MasterDAO {
         }
         return selectionDAO;
     }
-    
+    @Override
+    public void setSafeMode(boolean safeMode) {
+        if (this.safeMode!=safeMode) {
+            this.safeMode = safeMode;
+            for (ObjectDAO dao : getOpenObjectDAOs()) dao.setSafeMode(safeMode);
+        }
+    }
 }

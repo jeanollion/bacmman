@@ -62,6 +62,7 @@ public class Shortcuts {
         NAV_NEXT("Navigate to next objects of the selection enabled for navigation"), NAV_PREV("Navigate to previous objects of the selection enabled for navigation"), OPEN_NEXT("Display next image"), OPEN_PREV("Display previous image"),
         ADD_TO_SEL0("Add selected object(s) to active selection group 0"), REM_FROM_SEL0("Remove selected object(s) from active selection group 0"), REM_ALL_FROM_SEL0("Remove all objects contained in active image from active selection group 0"), TOGGLE_DISPLAY_SEL0("Toggle Display Objects for active selection group 0"),
         ADD_TO_SEL1("Add selected object(s) to active selection group 1"), REM_FROM_SEL1("Remove selected object(s) from active selection group 1"), REM_ALL_FROM_SEL1("Remove all objects contained in active image from active selection group 1"), TOGGLE_DISPLAY_SEL1("Toggle Display Objects for active selection group 1"),
+        TOGGLE_SAFE_MODE("Toggle Safe Mode (undo: menu Misc > Manual Curation > Revert Changes)"),
         SHORTCUT_TABLE("Display shortcut table");
         public final String description, shortcut;
         ACTION(String description) {
@@ -129,6 +130,7 @@ public class Shortcuts {
         switch(preset) {
             case AZERTY:
             default:
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, 0), TOGGLE_SAFE_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.CTRL_DOWN_MASK), ACTION.LINK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.SHIFT_DOWN_MASK), ACTION.APPEND_LINK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, KeyEvent.CTRL_DOWN_MASK), ACTION.UNLINK);
@@ -164,6 +166,7 @@ public class Shortcuts {
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_E, KeyEvent.CTRL_DOWN_MASK), ACTION.TOGGLE_DISPLAY_SEL1);
                 break;
             case QWERTY:
+                keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, 0), TOGGLE_SAFE_MODE);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.CTRL_DOWN_MASK), ACTION.LINK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_L, KeyEvent.SHIFT_DOWN_MASK), ACTION.APPEND_LINK);
                 keyMapAction.put(KeyStroke.getKeyStroke(KeyEvent.VK_U, KeyEvent.CTRL_DOWN_MASK), ACTION.UNLINK);
@@ -301,9 +304,10 @@ public class Shortcuts {
             "<em>Active selections are set through right-click menu on selections</em>",
             TOGGLE_DISPLAY_SEL0, ADD_TO_SEL0, REM_FROM_SEL0, REM_ALL_FROM_SEL0,
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
-            "<b>Object Edition: all action are performed on active image</b>",
+            "<b>Manual Curation: all action are performed on active image</b>", TOGGLE_SAFE_MODE,
+            "<b>Object Edition:</b>",
             DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_SPLIT, MERGE, SPLIT, POST_FILTER,
-            "<b>Lineage Edition: all action are performed on active image</b>",
+            "<b>Lineage Edition:</b>",
             RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK
         };
         int shortcutWidth = 195;

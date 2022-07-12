@@ -39,10 +39,9 @@ import org.slf4j.LoggerFactory;
  */
 public class DBMapUtils {
     public static final Logger logger = LoggerFactory.getLogger(DBMapUtils.class);
-    public static DB createFileDB(String path, boolean readOnly) {
+    public static DB createFileDB(String path, boolean readOnly, boolean safeMode) { //   https://mapdb.org/book/performance/
         //logger.debug("creating file db: {}, is dir: {}, exists: {}", path, new File(path).isDirectory(),new File(path).exists());
         DBMaker.Maker m = DBMaker.fileDB(path)
-                //.transactionEnable() // crash protection
                 .allocateStartSize( 128 * 1024*1024)
                 .allocateIncrement(128 * 1024*1024)
                 .closeOnJvmShutdown();
@@ -54,8 +53,9 @@ public class DBMapUtils {
         } else {
             m = m.fileChannelEnable();
         }
-        //   https://mapdb.org/book/performance/
+
         if (readOnly) m=m.fileLockDisable().readOnly();
+        else if (safeMode) m=m.transactionEnable();
         DB db = m.make();
         //db.getStore().fileLoad(); //optionally preload file content into disk cache
         return db;
