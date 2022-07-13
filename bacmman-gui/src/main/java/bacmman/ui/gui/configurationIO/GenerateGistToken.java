@@ -123,12 +123,12 @@ public class GenerateGistToken extends JDialog {
             text = text.replace("code:", "code: " + userCode + " (copied to your clipboard)");
             stepEditorPane.setText(text);
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(userCode), null);
-            logger.debug("code copies to clipboard: {}", userCode);
+            logger.debug("code copied to clipboard: {}", userCode);
             updateEnableButtons();
 
         } catch (Exception ex) {
-            if (bacmmanLogger != null)
-                bacmmanLogger.setMessage("An error occurred while trying to authorize app: " + ex.getMessage());
+            if (bacmmanLogger != null) bacmmanLogger.setMessage("An error occurred while trying to authorize app: " + ex.getMessage());
+            logger.error("Error @ github auth step 1", ex);
         }
     }
 
