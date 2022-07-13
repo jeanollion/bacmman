@@ -54,8 +54,20 @@ import org.slf4j.LoggerFactory;
 public class Shortcuts {
     public static final Logger logger = LoggerFactory.getLogger(Shortcuts.class);
     public enum PRESET {QWERTY, AZERTY}
-    public enum ACTION {LINK("Link selected objects"), APPEND_LINK("Link selected objects (keep existing links if 1 object per frame is selected)"), UNLINK("Remove link between selected objects"), RESET_LINKS("Remove links associated with selected object(s)"), CREATE_TRACK("Create track starting from selected object(s)"),
-        DELETE("Delete selected object(s) / track(s)"), DELETE_AFTER_FRAME("Delete all object(s) after first selected object"), PRUNE("Prune track starting from selected object(s)"), MERGE("Merge selected objects / track(s)"), SPLIT("Split selected object(s) / track(s)"), MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "ctrl + line"), MANUAL_CREATE("Creates an object manually drawn (use freehand-line/oval/ellipse tool)", "ctrl + shift + Line/Oval"), MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse tool)", "shift + Line/Oval"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
+    public enum ACTION {
+        LINK("Link selected objects"),
+        APPEND_LINK("Link selected objects (keep existing links if 1 object per frame is selected)"),
+        UNLINK("Remove link between selected objects"),
+        RESET_LINKS("Remove links associated with selected object(s)"),
+        CREATE_TRACK("Create track starting from selected object(s)"),
+        DELETE("Delete selected object(s) / track(s)"),
+        DELETE_AFTER_FRAME("Delete all object(s) after first selected object"),
+        PRUNE("Prune track starting from selected object(s)"),
+        MERGE("Merge selected objects / track(s)"),
+        SPLIT("Split selected object(s) / track(s)"),
+        MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "ctrl + line"),
+        MANUAL_CREATE("Creates an object manually drawn (use freehand-line/oval/ellipse tool)", "ctrl + shift + Line/Oval/Ellipse"),
+        MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse tool)", "shift + alt + Line/Oval/Ellipse"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
         SELECT_ALL_OBJECTS("Display all objects on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + mouse wheel"),

@@ -125,12 +125,14 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (IJ.getToolName().equals("zoom") || IJ.getToolName().equals("hand") || IJ.getToolName().equals("multipoint") || IJ.getToolName().equals("point")) return;            
                 boolean ctrl = e.isControlDown();
                 boolean shift = e.isShiftDown();
+                boolean alt = e.isAltDown();
                 //boolean ctrl = (IJ.isMacOSX() || IJ.isMacintosh()) ? e.isAltDown() : e.isControlDown(); // for mac: ctrl + click = right click -> alt instead of ctrl
                 boolean freeHandSplit = ( IJ.getToolName().equals("freeline")) && ctrl && !shift; //IJ.getToolName().equals("polyline")
-                boolean freeHandDraw = (IJ.getToolName().equals("freeline") || IJ.getToolName().equals("oval") || IJ.getToolName().equals("ellipse")) && shift;
-                boolean freeHandDrawMerge = freeHandDraw && !ctrl;
+                boolean freeHandTool = (IJ.getToolName().equals("freeline") || IJ.getToolName().equals("oval") || IJ.getToolName().equals("ellipse"));
+                boolean freeHandDraw = freeHandTool && shift && ctrl;
+                boolean freeHandDrawMerge = freeHandTool && shift && alt;
                 boolean strechObjects = (IJ.getToolName().equals("line")) && ctrl;
-                boolean addToSelection = shift && (!freeHandSplit || !strechObjects || !freeHandDraw);
+                boolean addToSelection = shift && (!freeHandSplit || !strechObjects || !freeHandDraw || !freeHandDrawMerge);
                 //logger.debug("ctrl: {}, tool : {}, freeHandSplit: {}, freehand draw: {}, addToSelection: {}", ctrl, IJ.getToolName(), freeHandSplit, freeHandDraw, addToSelection);
                 boolean displayTrack = displayTrackMode;
                 //logger.debug("button ctrl: {}, shift: {}, alt: {}, meta: {}, altGraph: {}, alt: {}", e.isControlDown(), e.isShiftDown(), e.isAltDown(), e.isMetaDown(), e.isAltGraphDown(), displayTrackMode);
@@ -179,7 +181,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
                             selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, is2D ? -1 : ip.getSlice()-1));
                         }
-                        if (!freeHandSplit || !strechObjects || !freeHandDraw) ip.deleteRoi();
+                        if (!freeHandSplit || !strechObjects || !freeHandDraw || !freeHandDrawMerge) ip.deleteRoi();
                     }
                 }
                 // simple click : get clicked object // TODO not used anymore ?
@@ -243,7 +245,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     FloatPolygon p = r.getInterpolatedPolygon(-1, true);
                     ObjectSplitter splitter = new FreeLineSplitter(selectedObjects, ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints));
                     ManualEdition.splitObjects(GUI.getDBConnection(), objects, GUI.hasInstance()?GUI.getInstance().getManualEditionRelabel():true,false, splitter, true);
-                } else if (freeHandDraw && r!=null) {
+                } else if ((freeHandDraw||freeHandDrawMerge) && r!=null) {
                     //logger.debug("freehand draw object class: {}, ", i.getChildStructureIdx());
                     //if (selectedObjects.size()>1) return;
                     int parentStructure = i.getParent().getStructureIdx();
