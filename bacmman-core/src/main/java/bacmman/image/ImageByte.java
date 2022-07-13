@@ -235,16 +235,6 @@ public class ImageByte extends ImageInteger<ImageByte> {
     }
 
     @Override
-    public float getPixelWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ]& 0xff;
-    }
-
-    @Override
-    public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = value<=0?0:(value>=255?(byte)255:(byte)value);
-    }
-
-    @Override
     public ImageByte duplicate(String name) {
         byte[][] newPixels = new byte[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
@@ -275,10 +265,6 @@ public class ImageByte extends ImageInteger<ImageByte> {
         return pixels[z-zMin][x+y*sizeX-offsetXY]!=0;
     }
 
-    @Override public boolean insideMaskWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy-offsetXY]!=0;
-    }
-    
     @Override
     public byte[][] getPixelArray() {
         return pixels;

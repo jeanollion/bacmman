@@ -234,16 +234,6 @@ public class ImageInt extends ImageInteger<ImageInt> {
     public float getPixelWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX];
     }
-
-    @Override
-    public float getPixelWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ];
-    }
-
-    @Override
-    public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = (int) value;
-    }
     
     @Override
     public ImageInt duplicate(String name) {

@@ -236,16 +236,6 @@ public class ImageShort extends ImageInteger<ImageShort> {
     }
 
     @Override
-    public float getPixelWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ] & 0xffff;
-    }
-
-    @Override
-    public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = value<0?0:(value>65535?(short)65535:(short)value);
-    }
-
-    @Override
     public ImageShort duplicate(String name) {
         short[][] newPixels = new short[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);

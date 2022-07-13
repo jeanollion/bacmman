@@ -25,10 +25,6 @@ public class BoundingBoxMask extends BlankMask {
     public boolean insideMaskWithOffset(int x, int y, int z) {
         return insideMask(x-xMin, y-yMin, z-zMin);
     }
-    @Override
-    public boolean insideMaskWithOffset(int xy, int z) {
-        return insideMask(xy%sizeX-xMin, xy/sizeX-yMin, z-zMin);
-    }
 
     @Override
     public BoundingBoxMask duplicateMask() {

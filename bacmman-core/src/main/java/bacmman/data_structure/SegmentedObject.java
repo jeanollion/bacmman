@@ -790,7 +790,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         return getRegion().getImageProperties();
     }
     public ImageMask getMask() {return getRegion().getMask();}
-    public BoundingBox getBounds() {
+    public BoundingBox<? extends BoundingBox<?>> getBounds() {
         if (region==null && regionContainer!=null) return regionContainer.getBounds();
         return getRegion().getBounds();
     }

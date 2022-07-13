@@ -25,11 +25,6 @@ public class SubtractedMask extends SimpleImageProperties<SubtractedMask> implem
     }
 
     @Override
-    public boolean insideMaskWithOffset(int xy, int z) {
-        return refMask.insideMaskWithOffset(xy, z) && !maskToSubtract.insideMaskWithOffset(xy, z);
-    }
-
-    @Override
     public int count() {
         int count = 0;
         for (int z = 0; z< sizeZ(); ++z) {

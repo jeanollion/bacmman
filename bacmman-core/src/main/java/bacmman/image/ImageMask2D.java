@@ -61,11 +61,6 @@ public class ImageMask2D extends SimpleImageProperties<ImageMask2D> implements I
     }
 
     @Override
-    public boolean insideMaskWithOffset(int xy, int z) {
-        return mask.insideMaskWithOffset(xy, this.z+mask.zMin());
-    }
-
-    @Override
     public int count() {
         int count = 0;
         for (int xy=0; xy<sizeXY(); ++xy) {

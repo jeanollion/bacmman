@@ -281,13 +281,11 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         return sizeZ>1 ? new int[]{sizeX, sizeY, sizeZ}:new int[]{sizeX, sizeY};
     }
     public abstract float getPixel(int xz, int z);
-    public abstract float getPixelWithOffset(int xy, int z);
     public abstract void setPixel(int x, int y, int z, double value);
     public abstract void setPixelWithOffset(int x, int y, int z, double value);
     public abstract void addPixel(int x, int y, int z, double value);
     public abstract void addPixelWithOffset(int x, int y, int z, double value);
     public abstract void setPixel(int xy, int z, double value);
-    public abstract void setPixelWithOffset(int xy, int z, double value);
     public abstract Object[] getPixelArray();
     public abstract I duplicate(String name);
     public I duplicate() {return duplicate(name);}

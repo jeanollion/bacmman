@@ -39,6 +39,8 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     int sizeX();
     int sizeY();
     int sizeZ();
+    int size(int dim);
+    int volume();
     double xMean();
     double yMean();
     double zMean();

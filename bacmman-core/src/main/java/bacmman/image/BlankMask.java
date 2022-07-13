@@ -58,12 +58,6 @@ public class BlankMask extends SimpleImageProperties<BlankMask> implements Image
         //x-=offsetX; y-=offsetY; z-=offsetZ;
         //return (x >= 0 && x < sizeX && y >= 0 && y < sizeY && z >= 0 && z < sizeZ);
     }
-    @Override
-    public boolean insideMaskWithOffset(int xy, int z) {
-        return true; // contains should already be checked
-        //xy-=offsetXY;  z-=offsetZ;
-        //return (xy >= 0 && xy < sizeXY &&  z >= 0 && z < sizeZ);
-    }
 
 
     @Override

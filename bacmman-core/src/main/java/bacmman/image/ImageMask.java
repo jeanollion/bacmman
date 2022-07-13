@@ -26,7 +26,6 @@ public interface ImageMask<I extends ImageMask<I>> extends ImageProperties<I> {
     public boolean insideMask(int x, int y, int z);
     public boolean insideMask(int xy, int z);
     public boolean insideMaskWithOffset(int x, int y, int z);
-    public boolean insideMaskWithOffset(int xy, int z);
     public int count();
     public static void loop(ImageMask mask, LoopFunction function) {
         BoundingBox.loop(new SimpleBoundingBox(mask).resetOffset(), (x, y, z)-> {if (mask.insideMask(x, y, z)) function.loop(x, y, z);});

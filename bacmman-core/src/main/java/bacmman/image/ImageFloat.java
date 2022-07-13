@@ -166,16 +166,6 @@ public class ImageFloat extends Image<ImageFloat> {
     }
 
     @Override
-    public float getPixelWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ];
-    }
-
-    @Override
-    public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = (float)value;
-    }
-
-    @Override
     public ImageFloat duplicate(String name) {
         float[][] newPixels = new float[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
@@ -220,11 +210,6 @@ public class ImageFloat extends Image<ImageFloat> {
     @Override
     public boolean insideMaskWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX]!=0;
-    }
-
-    @Override
-    public boolean insideMaskWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ]!=0;
     }
 
     @Override

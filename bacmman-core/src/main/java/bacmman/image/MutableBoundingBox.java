@@ -19,6 +19,11 @@
 package bacmman.image;
 
 import bacmman.data_structure.Voxel;
+import bacmman.plugins.Plugin;
+import bacmman.utils.geom.Point;
+import net.imglib2.RealLocalizable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -76,8 +81,75 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
         this.zMax = zMax;
         return this;
     }
-    
-    
+    public enum DIRECTION {START, CENTER, END}
+    public MutableBoundingBox setSize(int size, DIRECTION dir, int dim) {
+        switch (dim) {
+            case 0: return setSizeX(size, dir);
+            case 1: return setSizeY(size, dir);
+            case 2: return setSizeZ(size, dir);
+            default: throw new IllegalArgumentException("invalid dimension. must be in range [0;2]");
+        }
+    }
+    public MutableBoundingBox setSizeX(int size, DIRECTION dir) {
+        if (sizeX()==size) return this;
+        switch (dir) {
+            case START: {
+                xMin = xMax - size + 1 ;
+                return this;
+            } case END: {
+                xMax = size + xMin - 1;
+                return this;
+            } case CENTER: default: {
+                int diffS = (size - sizeX())/2;
+                xMin -= diffS;
+                xMax = size + xMin - 1;
+                return this;
+            }
+        }
+    }
+    public MutableBoundingBox setSizeY(int size, DIRECTION dir) {
+        if (sizeY()==size) return this;
+        switch (dir) {
+            case START: {
+                yMin = yMax - size + 1 ;
+                return this;
+            } case END: {
+                yMax = size + yMin - 1;
+                return this;
+            } case CENTER: default: {
+                int diffS = (size - sizeY())/2;
+                yMin -= diffS;
+                yMax = size + yMin - 1;
+                return this;
+            }
+        }
+    }
+    public MutableBoundingBox setSizeZ(int size, DIRECTION dir) {
+        if (sizeZ()==size) return this;
+        switch (dir) {
+            case START: {
+                zMin = zMax - size + 1 ;
+                return this;
+            } case END: {
+                zMax = size + zMin - 1;
+                return this;
+            } case CENTER: default: {
+                int diffS = (size - sizeZ())/2;
+                zMin -= diffS;
+                zMax = size + zMin - 1;
+                return this;
+            }
+        }
+    }
+    public final static Logger logger = LoggerFactory.getLogger(MutableBoundingBox.class);
+    public MutableBoundingBox includeInto(BoundingBox other) {
+        logger.debug("before include: {} other {}", other);
+        translate(Math.max(other.xMin()-xMin, 0), Math.max(other.yMin()-yMin, 0), Math.max(other.zMin()-zMin, 0));
+        logger.debug("min translate: {}", this);
+        translate(Math.min(other.xMax()-xMax, 0), Math.min(other.yMax()-yMax, 0), Math.min(other.zMax()-zMax, 0));
+        logger.debug("max translate: {}", this);
+        return this;
+    }
     /**
      * Modify the bounds so that is contains the {@param x} coordinate
      * @param x coordinate in the X-Axis
@@ -161,7 +233,12 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
         unionZ(z);
         return this;
     }
-    
+    public MutableBoundingBox union(Point p) {
+        unionX(p.getIntPosition(0));
+        unionY(p.getIntPosition(1));
+        if (p.numDimensions()>2) unionZ(p.getIntPosition(2));
+        return this;
+    }
     public MutableBoundingBox union(Voxel v) {
         unionX(v.x);
         unionY(v.y);

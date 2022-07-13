@@ -174,16 +174,6 @@ public class ImageFloatU8 extends Image<ImageFloatU8> {
     }
 
     @Override
-    public float getPixelWithOffset(int xy, int z) {
-        return (float)((pixels[z-zMin][xy - offsetXY ]& 0xff)/scale);
-    }
-
-    @Override
-    public void setPixelWithOffset(int xy, int z, double value) {
-        pixels[z-zMin][xy - offsetXY] = (byte)(value<=0?0:value*scale+0.5);
-    }
-
-    @Override
     public ImageFloatU8 duplicate(String name) {
         byte[][] newPixels = new byte[sizeZ][sizeXY];
         for (int z = 0; z< sizeZ; ++z) System.arraycopy(pixels[z], 0, newPixels[z], 0, sizeXY);
@@ -228,11 +218,6 @@ public class ImageFloatU8 extends Image<ImageFloatU8> {
     @Override
     public boolean insideMaskWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX]!=0;
-    }
-
-    @Override
-    public boolean insideMaskWithOffset(int xy, int z) {
-        return pixels[z-zMin][xy - offsetXY ]!=0;
     }
 
     @Override
