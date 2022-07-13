@@ -54,7 +54,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter gapMaxDist = new BoundedNumberParameter("Max. Distance", 5, 2.5, 0, null).setEmphasized(true).setHint("If the distance between 2 regions is higher than this value, they are not merged");
     BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 4.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
     BoundedNumberParameter eccentricityThld = new BoundedNumberParameter("Eccentricity Threshold", 5, 0.87, 0, 1).setEmphasized(true).setHint("If eccentricity of the fitted ellipse is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on over-segmented objects that may be circular<br/>Ellipse is fitted using the normalized second central moments");
-
+    BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 15, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     ConditionalParameter<GAP_CRITERION> gapCriterionCond = new ConditionalParameter<>(gapCriterion).setEmphasized(true)
             .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
             .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize, eccentricityThld);
@@ -76,7 +76,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");
 
     ConditionalParameter<Boolean> correctDivisionsCond = new ConditionalParameter<>(correctDivisions).setActionParameters(true, divThld, divisionCost);
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, frameWindow, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, correctDivisionsCond, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling};
+    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, frameWindow, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, correctDivisionsCond, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling, manualCurationMargin};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -90,7 +90,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction); // actually appends to prevPrediction
+            PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction, null); // actually appends to prevPrediction
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode())
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
             logger.debug("Segmentation window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
@@ -563,20 +563,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return seg;
     }
 
-    public PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx) {
-        List<SegmentedObject> parentTrack = new ArrayList<>(3);
-        boolean next = this.next.getSelected();
-        if (next && parent.getNext() == null && parent.getPrevious() != null && parent.getPrevious().getPrevious() != null)
-            parentTrack.add(parent.getPrevious().getPrevious());
-        if (parent.getPrevious() != null) parentTrack.add(parent.getPrevious());
-        parentTrack.add(parent);
-        if (parent.getNext() != null) parentTrack.add(parent.getNext());
-        if (next && parent.getPrevious() == null && parent.getNext() != null && parent.getNext() != null)
-            parentTrack.add(parent.getNext().getNext());
-        if (next && parentTrack.size() < 3) throw new RuntimeException("Parent Track Must contain at least 3 frames");
-        else if (!next && parentTrack.size() < 2)
-            throw new RuntimeException("Parent Track Must contain at least 2 frames");
-        return predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""), null);
+    public PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
+        List<SegmentedObject> parentTrack = Arrays.asList(parent);
+        return predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""), null, minimalBounds);
     }
 
     @Override
@@ -584,11 +573,24 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Segmenter seg = getSegmenter(null);
         if (seg instanceof ObjectSplitter) { // Predict EDM and delegate method to segmenter
             ObjectSplitter splitter = new ObjectSplitter() {
-                final Map<Pair<SegmentedObject, Integer>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.key, k.value));
-
+                final Map<Triplet<SegmentedObject, Integer, BoundingBox>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.v1, k.v2, k.v3));
                 @Override
                 public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-                    PredictionResults pred = predictions.get(new Pair<>(parent, structureIdx));
+                    MutableBoundingBox minimalBounds = new MutableBoundingBox(object.getBounds());
+                    int margin = manualCurationMargin.getIntValue();
+                    if (margin>0) {
+                        BoundingBox expand = new SimpleBoundingBox(-margin, margin, -margin, margin, 0, 0);
+                        minimalBounds.extend(expand);
+                    }
+                    if (object.isAbsoluteLandMark()) minimalBounds.translate(parent.getBounds().duplicate().reverseOffset());
+                    Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(structureIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
+                    PredictionResults pred;
+                    if (key == null) {
+                        BoundingBox optimalBB = dlResizeAndScale.getOptimalPredictionBoundingBox(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
+                        logger.debug("Semi automatic split : minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
+                        pred = predictions.get(new Triplet<>(parent, structureIdx, optimalBB));
+                    } else pred = predictions.get(key);
+
                     synchronized (seg) {
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(pred.contours);
@@ -596,6 +598,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(null);
                         pop.getRegions().forEach(Region::clearVoxels);
+                        if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
                         return pop;
                     }
                 }
@@ -619,7 +622,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         Segmenter seg = getSegmenter(null);
         if (seg instanceof ManualSegmenter) {
             ManualSegmenter ms = new ManualSegmenter() {
-                final Map<Pair<SegmentedObject, Integer>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.key, k.value));
+                final Map<Triplet<SegmentedObject, Integer, BoundingBox>, PredictionResults> predictions = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(k -> predictEDM(k.v1, k.v2, k.v3));
 
                 @Override
                 public void setManualSegmentationVerboseMode(boolean verbose) {
@@ -628,14 +631,31 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
                 @Override
                 public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-                    PredictionResults pred = predictions.get(new Pair<>(parent, objectClassIdx));
+                    MutableBoundingBox minimalBounds = new MutableBoundingBox();
+                    seedsXYZ.forEach(s -> minimalBounds.union(s));
+                    int margin = manualCurationMargin.getIntValue();
+                    if (margin>0) {
+                        BoundingBox expand = new SimpleBoundingBox(-margin, margin, -margin, margin, 0, 0);
+                        minimalBounds.extend(expand);
+                    }
+                    Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(objectClassIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
+                    PredictionResults pred;
+                    if (key == null) {
+                        BoundingBox optimalBB = dlResizeAndScale.getOptimalPredictionBoundingBox(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
+                        logger.debug("Semi automatic segmentaion: minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
+                        key = new Triplet<>(parent, objectClassIdx, optimalBB);
+                    }
+                    pred = predictions.get(key);
+                    Offset off = key.v3.duplicate().reverseOffset();
+                    seedsXYZ = seedsXYZ.stream().map(p -> p.translate(off)).collect(Collectors.toList());
                     synchronized (seg) {
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(pred.contours);
-                        RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(pred.edm.get(parent), parent, segmentationMask, objectClassIdx, seedsXYZ);
+                        RegionPopulation pop = ((ManualSegmenter) seg).manualSegment(pred.edm.get(parent), parent, new MaskView(segmentationMask, key.v3), objectClassIdx, seedsXYZ);
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(null);
                         pop.getRegions().forEach(Region::clearVoxels);
+                        if (!pop.isAbsoluteLandmark()) pop.translate(key.v3, true);
                         return pop;
                     }
                 }
@@ -706,14 +726,15 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         this.stores = stores;
     }
 
-    protected static Image[][] getInputs(Image[] images, Image prev, boolean[] noPrevParent, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
+    protected static Image[][] getInputs(Image[] images, Image prev, Image next, boolean[] noPrevParent, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
         BiFunction<Integer, Integer, Image> getImage[] = new BiFunction[1];
         getImage[0] = (cur, i) -> {
             if (i < 0) {
                 if (prev != null) return prev;
                 else return images[0];
             } else if (i >= images.length) {
-                return images[images.length - 1];
+                if (next!=null) return next;
+                else return images[images.length - 1];
             }
             if (i < cur) {
                 if (noPrevParent[i + 1]) return getImage[0].apply(cur, i+1);
@@ -964,7 +985,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
 
-        void predict(DLengine engine, Image[] images, Image prev, boolean[] noPrevParent, int frameInterval) {
+        void predict(DLengine engine, Image[] images, Image prevImage, Image nextImage, boolean[] noPrevParent, int frameInterval) {
             int idxLimMin = frameInterval > 1 ? frameInterval : 0;
             int idxLimMax = frameInterval > 1 ? next ? images.length - frameInterval : images.length : images.length;
             init(idxLimMax - idxLimMin);
@@ -972,7 +993,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = idxLimMin; i < idxLimMax; i += increment ) {
                 int idxMax = Math.min(i + increment, idxLimMax);
-                Image[][] input = getInputs(images, i == 0 ? prev : images[i - 1], noPrevParent, next, i, idxMax, frameInterval);
+                Image[][] input = getInputs(images, i == 0 ? prevImage : images[i - 1], nextImage, noPrevParent, next, i, idxMax, frameInterval);
                 logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
                 Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
                 appendPrediction(predictions, i - idxLimMin);
@@ -1106,30 +1127,37 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PredictionResults previousPredictions) {
+    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PredictionResults previousPredictions, BoundingBox cropBB) {
         boolean next = this.next.getSelected();
         long t0 = System.currentTimeMillis();
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1 = System.currentTimeMillis();
         logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
-        trackPreFilters.filter(objectClassIdx, parentTrack);
+        SegmentedObject previousParent = parentTrack.get(0).getPrevious();
+        SegmentedObject nextParent = next? parentTrack.get(parentTrack.size()-1).getNext() : null;
+        List<SegmentedObject> extendedParentTrack = new ArrayList<>(parentTrack);
+        if (previousParent!=null) extendedParentTrack.add(0, previousParent);
+        if (nextParent!=null) extendedParentTrack.add(nextParent);
+        trackPreFilters.filter(objectClassIdx, extendedParentTrack);
         if (stores != null && !trackPreFilters.isEmpty())
             parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
         long t2 = System.currentTimeMillis();
-        logger.debug("track prefilters run in {}ms", t2 - t1);
-        Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).toArray(Image[]::new);
+        logger.debug("track prefilters run for {} objects in {}ms", parentTrack.size(), t2 - t1);
+        UnaryOperator<Image> crop = cropBB==null?i->i:i->i.crop(cropBB);
+        Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).map(crop).toArray(Image[]::new);
         boolean[] noPrevParent = new boolean[parentTrack.size()]; // in case parent track contains gaps
         noPrevParent[0] = true;
         for (int i = 1; i < noPrevParent.length; ++i)
             if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
         PredictedChannels pred = new PredictedChannels(this.averagePredictions.getSelected(), this.next.getSelected());
-        SegmentedObject previousParent = parentTrack.get(0).getPrevious();
-        pred.predict(engine, images, previousParent != null ? previousParent.getPreFilteredImage(objectClassIdx) : null, noPrevParent, 1);
+        pred.predict(engine, images,
+                previousParent != null ? crop.apply(previousParent.getPreFilteredImage(objectClassIdx)) : null,
+                nextParent != null ? crop.apply(nextParent.getPreFilteredImage(objectClassIdx)) : null,
+                noPrevParent, 1);
         long t3 = System.currentTimeMillis();
 
         logger.info("{} predictions made in {}ms", parentTrack.size(), t3 - t2);
-
 
         boolean prevPred = previousPredictions!=null && previousPredictions!=null;
         pred.averagePredictions(noPrevParent, prevPred?previousPredictions.edm.get(previousParent):null, prevPred?previousPredictions.contours.get(previousParent):null, prevPred?previousPredictions.dy.get(previousParent):null, prevPred?previousPredictions.dx.get(previousParent):null);
@@ -1139,8 +1167,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         // average with prediction with user-defined frame intervals
 
-        if (frameSubsampling.getChildCount() > 0) {
-            int channelEdmCur = 1;
+        if (frameSubsampling.getChildCount() > 0 && parentTrack.size()>3) {
             System.gc();
             int size = parentTrack.size();
             IntPredicate filter = next ? frameInterval -> 2 * frameInterval < size : frameInterval -> frameInterval < size;
@@ -1157,7 +1184,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 for (int frameInterval : frameSubsampling) {
                     logger.debug("averaging with frame subsampled: {}", frameInterval);
                     PredictedChannels pred2 = new PredictedChannels(false, this.next.getSelected());
-                    pred2.predict(engine, images, parentTrack.get(0).getPrevious() != null ? parentTrack.get(0).getPrevious().getPreFilteredImage(objectClassIdx) : null, noPrevParent, frameInterval);
+                    pred2.predict(engine, images,
+                            previousParent != null ? crop.apply(previousParent.getPreFilteredImage(objectClassIdx)) : null,
+                            nextParent != null ? crop.apply(nextParent.getPreFilteredImage(objectClassIdx)) : null,
+                            noPrevParent, frameInterval);
                     Image[] edm2 = pred2.edmC;
                     for (int frame = frameInterval; frame < edm2.length + frameInterval; ++frame) { // rest of half of the value is edm with frame subsampling
                         double n = getNSubSampling.applyAsInt(frame);
@@ -1180,22 +1210,23 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         logger.info("decrease bitDepth: {}ms", t6 - t5);*/
 
         // offset & calibration
+        Offset off = cropBB==null ? new SimpleOffset(0, 0, 0) : cropBB;
         for (int idx = 0; idx < parentTrack.size(); ++idx) {
             pred.edmC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            pred.edmC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            pred.edmC[idx].translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             if (pred.predictContours) {
                 pred.contourC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-                pred.contourC[idx].translate(parentTrack.get(idx).getMaskProperties());
+                pred.contourC[idx].translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             }
             pred.dyC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            pred.dyC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            pred.dyC[idx].translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             pred.dxC[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-            pred.dxC[idx].translate(parentTrack.get(idx).getMaskProperties());
+            pred.dxC[idx].translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             if (pred.predictCategories) {
                 pred.divMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-                pred.divMap[idx].translate(parentTrack.get(idx).getMaskProperties());
+                pred.divMap[idx].translate(parentTrack.get(idx).getMaskProperties()).translate(off);
                 pred.noPrevMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties());
-                pred.noPrevMap[idx].translate(parentTrack.get(idx).getMaskProperties());
+                pred.noPrevMap[idx].translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             }
         }
         Map<SegmentedObject, Image> edmM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> pred.edmC[i]));

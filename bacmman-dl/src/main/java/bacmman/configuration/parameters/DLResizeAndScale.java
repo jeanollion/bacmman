@@ -550,4 +550,38 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         transferStateArguments(this, res);
         return res;
     }
+    public BoundingBox getOptimalPredictionBoundingBox(BoundingBox minimalBouningBox, BoundingBox globalBoundingBox) {
+        MutableBoundingBox res = new MutableBoundingBox(minimalBouningBox);
+        switch(getMode()) {
+            case TILE:
+                int[] tileShape = ArrayUtil.reverse(this.targetShape.getArrayInt(), true);
+                if (res.sizeX()<tileShape[0]) res.setSizeX(tileShape[0], MutableBoundingBox.DIRECTION.CENTER);
+                if (res.sizeY()<tileShape[1]) res.setSizeY(tileShape[1], MutableBoundingBox.DIRECTION.CENTER);
+                if (tileShape.length==3 && res.sizeZ()<tileShape[2]) res.setSizeZ(tileShape[2], MutableBoundingBox.DIRECTION.CENTER);
+                res.translateInto(globalBoundingBox);
+                return res;
+            case PAD: {
+                int[] targetShape = ArrayUtil.reverse(this.targetShape.getArrayInt(), true);
+                int[] contraction = ArrayUtil.reverse(this.contraction.getArrayInt(), true);
+                int[] padding = ArrayUtil.reverse(this.minPad.getArrayInt(), true);
+                for (int i = 0; i<targetShape.length; ++i) {
+                    if (targetShape[i] == 0) targetShape[i] = closestNumber(minimalBouningBox.size(i), contraction[i], true) - padding[i]*2;
+                    if (targetShape[i]>minimalBouningBox.size(i)) res.setSize(targetShape[i], MutableBoundingBox.DIRECTION.CENTER, i );
+                }
+            }
+            case RESAMPLE: {
+                // either honor contraction or target shape
+                int[] targetShape = ArrayUtil.reverse(this.targetShape.getArrayInt(), true);
+                int[] contraction = ArrayUtil.reverse(this.contraction.getArrayInt(), true);
+                for (int i = 0; i<targetShape.length; ++i) {
+                    if (targetShape[i] == 0) targetShape[i] = closestNumber(minimalBouningBox.size(i), contraction[i], true);
+                    if (targetShape[i]>minimalBouningBox.size(i)) res.setSize(targetShape[i], MutableBoundingBox.DIRECTION.CENTER, i );
+                }
+
+            }
+            default: {
+                return minimalBouningBox;
+            }
+        }
+    }
 }
