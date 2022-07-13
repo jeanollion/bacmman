@@ -50,6 +50,7 @@ import bacmman.utils.*;
 import bacmman.utils.HashMapGetCreate.SetFactory;
 
 import static bacmman.utils.Pair.unpairValues;
+import static bacmman.utils.Palette.setTransparency;
 
 import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
@@ -75,9 +76,9 @@ public abstract class ImageWindowManager<I, U, V> {
     protected final static Color trackErrorColor = new Color(255, 0, 0);
     protected final static Color trackCorrectionColor = new Color(0, 0, 255);
     public static Color getColor() {
-        return Palette.getColor(150, trackErrorColor, trackCorrectionColor);
+        return Palette.getColor(150, trackErrorColor, trackCorrectionColor, defaultRoiColor);
     }
-    protected final Map<SegmentedObject, Color> trackColor = new HashMapGetCreate.HashMapGetCreateRedirected<>(t -> getColor());
+    protected final Map<SegmentedObject, Color> trackColor = new HashMapGetCreate.HashMapGetCreateRedirected<>(t -> setTransparency(getColor(), 200));
     public Color getColor(SegmentedObject trackHead) {
         return trackColor.get(trackHead.getTrackHead());
         //return Palette.getColor(0, SegmentedObjectUtils.getIndexTree(trackHead.getTrackHead()));
@@ -683,6 +684,7 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     
     public void displayAllTracks(Image image) {
+        trackColor.clear(); //randomize track colors:
         if (image==null) {
             image = getDisplayer().getCurrentImage2();
             if (image==null) return;
@@ -699,13 +701,7 @@ public abstract class ImageWindowManager<I, U, V> {
                 // a sub-track @ current frame is considered
                 List<List<SegmentedObject>> selTracks = k.getObjects().stream().map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
                 hideAllRois(im, true, false);
-                // set palette
-                Set<SegmentedObject> th = selTracks.stream().map(l -> l.get(0).getTrackHead()).collect(Collectors.toSet());
-                th.removeAll(trackColor.keySet());
-                List<SegmentedObject> thList = new ArrayList<>(th);
-                double start = new Random().nextDouble()*Palette.increment;
-                double inc = (1d - start)/thList.size();
-                IntStream.range(0, th.size()).forEach(j -> trackColor.put(thList.get(j), Palette.getColorFromDouble(start + j * inc)));
+                Collections.shuffle(selTracks); // shuffle to randomize colors
                 if (!selTracks.isEmpty()) displayTracks(im, k, selTracks, true);
             };
             k.setChangeIdxCallback(callback);
