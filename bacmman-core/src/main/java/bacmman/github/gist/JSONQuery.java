@@ -252,6 +252,8 @@ public class JSONQuery {
         }
         return true;
     }
+
+    //https://docs.github.com/en/developers/apps/building-oauth-apps/authorizing-oauth-apps#device-flow
     public static JSONObject authorizeAppStep1() throws IOException, ParseException{
         List<Pair<String, String>> params = new ArrayList<>(2);
         params.add(new Pair<>("client_id", "3c8f978d2a0423b4b003"));
