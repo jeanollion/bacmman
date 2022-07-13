@@ -731,6 +731,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         actionMap.put(Shortcuts.ACTION.TOGGLE_SAFE_MODE, new AbstractAction(Shortcuts.ACTION.TOGGLE_SAFE_MODE.description) {
             @Override
             public void actionPerformed(ActionEvent e) {
+                // do not perform the action is and image is not focused
+                if (!ImageWindowManagerFactory.getImageManager().isCurrentFocusOwnerAnImage()) return;
                 safeMode.setSelected(!safeMode.getSelected());
                 Utils.displayTemporaryMessage("Safe Mode (UNDO) is : " + (safeMode.getSelected()?"ON":"OFF"), 10000);
             }
