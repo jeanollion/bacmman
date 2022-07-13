@@ -1055,12 +1055,14 @@ public abstract class ImageWindowManager<I, U, V> {
         Set<V> rois = this.displayedLabileTrackRois.get(image);
         if (rois!=null) {
             InteractiveImage i = getImageObjectInterface(image);
-            if (i instanceof HyperStack) { // tracks are not stored
 
-            }
             List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof HyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
+
             List<SegmentedObject> res = unpairValues(pairs);
             Utils.removeDuplicates(res, false);
+            if (i instanceof HyperStack) { // tracks are not stored
+                logger.debug("selected tracks: {}", res);
+            }
             return res;
         } else return Collections.emptyList();
     }

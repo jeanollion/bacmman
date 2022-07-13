@@ -216,7 +216,7 @@ public class SegmentedObjectEditor {
             objectsByParent.keySet().stream().forEach( parent -> {
                 List<SegmentedObject> objectsToMerge = new ArrayList<>(objectsByParent.get(parent));
                 //logger.debug("merge @ {} : {} objects", parent, objectsToMerge.size());
-                if (objectsToMerge.size() <= 1) logger.warn("Merge Objects: select several objects from same parent!");
+                if (objectsToMerge.size() <= 1) {}//logger.warn("Merge Objects: select several objects from same parent!");}
                 else {
                     List<SegmentedObject> prevs = getPreviousObjects(objectsToMerge, true); // previous objects
                     List<SegmentedObject> nexts = getNextObjects(objectsToMerge, true); // next objects
