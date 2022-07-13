@@ -121,11 +121,11 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
     }
 
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMerge sm) {
-        ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
+        ImageMask mask = new MaskView(object.getMask(), object.isAbsoluteLandMark() ? input.getBoundingBox() : input.getBoundingBox().resetOffset());
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
         res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
-        if (object.isAbsoluteLandMark()) res.translate(parent.getBounds(), true);
+        if (object.isAbsoluteLandMark()) res.translate(input, true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain
         return res;
     }

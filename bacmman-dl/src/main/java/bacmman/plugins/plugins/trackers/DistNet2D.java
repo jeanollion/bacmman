@@ -584,13 +584,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     }
                     if (object.isAbsoluteLandMark()) minimalBounds.translate(parent.getBounds().duplicate().reverseOffset());
                     Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(structureIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
-                    PredictionResults pred;
                     if (key == null) {
                         BoundingBox optimalBB = dlResizeAndScale.getOptimalPredictionBoundingBox(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
                         logger.debug("Semi automatic split : minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
-                        pred = predictions.get(new Triplet<>(parent, structureIdx, optimalBB));
-                    } else pred = predictions.get(key);
-
+                        key = new Triplet<>(parent, structureIdx, optimalBB);
+                    }
+                    PredictionResults pred = predictions.get(key);
                     synchronized (seg) {
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(pred.contours);
