@@ -465,4 +465,8 @@ public class DBMapMasterDAO implements MasterDAO {
             for (ObjectDAO dao : getOpenObjectDAOs()) dao.setSafeMode(safeMode);
         }
     }
+    @Override
+    public boolean getSafeMode() {
+        return safeMode;
+    }
 }

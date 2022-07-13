@@ -867,7 +867,7 @@ public class Utils {
         frame.add(l, java.awt.BorderLayout.NORTH);
         l.setFont(new java.awt.Font(l.getFont().getName(), java.awt.Font.BOLD, l.getFont().getSize() *2 ));
         frame.setUndecorated(true);
-        frame.setBackground(new Color(0, 0, 0, 0));
+        frame.setBackground(new Color(50, 50, 50, 255));
         frame.pack();
         Timer timer = new Timer(delayInMS, e->{frame.setVisible(false);});
         timer.setRepeats(false);

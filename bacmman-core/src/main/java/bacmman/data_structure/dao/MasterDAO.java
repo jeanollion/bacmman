@@ -75,6 +75,7 @@ public interface MasterDAO {
     // selections
     public SelectionDAO getSelectionDAO();
     void setSafeMode(boolean safeMode);
+    boolean getSafeMode();
     // static methods
     public static ObjectDAO getDao(MasterDAO db, int positionIdx) {
         String p = db.getExperiment().getPosition(positionIdx).getName();

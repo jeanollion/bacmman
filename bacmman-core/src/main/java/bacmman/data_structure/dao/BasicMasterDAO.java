@@ -104,6 +104,10 @@ public class BasicMasterDAO implements MasterDAO {
     }
 
     @Override
+    public boolean getSafeMode() {
+        return false;
+    }
+    @Override
     public void clearCache(String position) {
         this.DAOs.remove(position);
         getExperiment().getPosition(position).flushImages(true, true);

@@ -420,7 +420,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         manualCuration.add(rollback);
-        safeMode.addListener(b -> setSafeMode(b.getSelected()));
+        safeMode.addListener(b -> {
+            rollback.setEnabled(b.getSelected());
+            if (db!=null) db.setSafeMode(b.getSelected());
+        });
         rollback.setEnabled(safeMode.getSelected());
         // memory
         ConfigurationTreeGenerator.addToMenu(memoryThreshold.getName(), ParameterUIBinder.getUI(memoryThreshold).getDisplayComponent(), memoryMenu);
@@ -729,7 +732,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             @Override
             public void actionPerformed(ActionEvent e) {
                 safeMode.setSelected(!safeMode.getSelected());
-                Utils.displayTemporaryMessage("Safe Mode (UNDO) is : " + (safeMode.getSelected()?"ON":"OFF"), 15000);
+                Utils.displayTemporaryMessage("Safe Mode (UNDO) is : " + (safeMode.getSelected()?"ON":"OFF"), 10000);
             }
         });
         actionMap.put(Shortcuts.ACTION.DELETE, new AbstractAction("Delete") {
@@ -899,10 +902,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         targetMenu.add(sample);
     }
-    public void setSafeMode(boolean safeMode) {
-        rollback.setEnabled(safeMode);
-        if (db!=null) db.setSafeMode(safeMode);
-    }
+
     private void setDataBrowsingButtonsTitles() {
         this.selectAllObjectsButton.setText("Select All Objects ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_OBJECTS)+")");
         this.selectAllTracksButton.setText("Select All Tracks ("+shortcuts.getShortcutFor(Shortcuts.ACTION.SELECT_ALL_TRACKS)+")");
@@ -1171,6 +1171,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     private void promptSaveUnsavedChanges() {
         if (db==null) return;
+        if (db.getSafeMode()) {
+            boolean save = Utils.promptBoolean("Safe mode is ON. Unsaved manual edition may exist. Keep them ?", this);
+            if (save) {
+                IntStream.range(0, db.getExperiment().getStructureCount()).forEach(oc -> db.getOpenObjectDAOs().forEach(o -> o.commit(oc)));
+            } else {
+                IntStream.range(0, db.getExperiment().getStructureCount()).forEach(oc -> db.getOpenObjectDAOs().forEach(o -> o.rollback(oc)));
+            }
+            safeMode.setSelected(false);
+        }
         if (configurationTreeGenerator!=null && configurationTreeGenerator.getTree()!=null  
                 && configurationTreeGenerator.getTree().getModel()!=null 
                 && configurationTreeGenerator.getTree().getModel().getRoot() != null
