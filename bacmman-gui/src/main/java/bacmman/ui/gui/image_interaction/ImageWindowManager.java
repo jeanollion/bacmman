@@ -336,7 +336,11 @@ public abstract class ImageWindowManager<I, U, V> {
             List<DefaultWorker> l = runningWorkers.get(image);
             if (!l.isEmpty()) {
                 logger.debug("interrupting {} object lazy loading for image: {}", l.size(), image.getName());
-                l.forEach(w -> w.cancel(true));
+                l.forEach(w -> {
+                    try {
+                        w.cancel(true);
+                    } catch (CancellationException ex) {}
+                });
             }
             runningWorkers.remove(image);
             displayedInteractiveImages.remove(image);
@@ -637,7 +641,6 @@ public abstract class ImageWindowManager<I, U, V> {
                     c.translateRev(parent.value);
                     List<Point> children = map.getAndCreateIfNecessary(parent.key);
                     children.add(c);
-                    logger.debug("adding point: {} to parent: {} located: {}, frame: {}", c, parent.key, parent.value, f);
                 }
             });
         });

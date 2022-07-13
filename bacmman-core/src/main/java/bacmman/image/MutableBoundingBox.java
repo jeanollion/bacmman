@@ -19,11 +19,7 @@
 package bacmman.image;
 
 import bacmman.data_structure.Voxel;
-import bacmman.plugins.Plugin;
 import bacmman.utils.geom.Point;
-import net.imglib2.RealLocalizable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -100,8 +96,8 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
                 xMax = size + xMin - 1;
                 return this;
             } case CENTER: default: {
-                int diffS = (size - sizeX())/2;
-                xMin -= diffS;
+                int diff = (size - sizeX())/2;
+                xMin -= diff;
                 xMax = size + xMin - 1;
                 return this;
             }
@@ -141,13 +137,10 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
             }
         }
     }
-    public final static Logger logger = LoggerFactory.getLogger(MutableBoundingBox.class);
-    public MutableBoundingBox includeInto(BoundingBox other) {
-        logger.debug("before include: {} other {}", other);
+
+    public MutableBoundingBox translateInto(BoundingBox other) {
         translate(Math.max(other.xMin()-xMin, 0), Math.max(other.yMin()-yMin, 0), Math.max(other.zMin()-zMin, 0));
-        logger.debug("min translate: {}", this);
-        translate(Math.min(other.xMax()-xMax, 0), Math.min(other.yMax()-yMax, 0), Math.min(other.zMax()-zMax, 0));
-        logger.debug("max translate: {}", this);
+        translate(Math.min(other.xMax()-xMax+1, 0), Math.min(other.yMax()-yMax+1, 0), Math.min(other.zMax()-zMax+1, 0));
         return this;
     }
     /**
