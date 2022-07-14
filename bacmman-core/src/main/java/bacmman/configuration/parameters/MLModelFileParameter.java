@@ -80,7 +80,14 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     }
     public void configureFromMetadata(String modelID, DLModelMetadata metadata) {
         lf = null;
+        String oldID = id.getValue();
         id.setValue(modelID);
+        // special case: when valid model was set before: file needs to be changed
+        if ( (oldID==null || !oldID.equals(modelID))) {
+            String path = modelFile.getFirstSelectedFilePath();
+            File f = new File(path);
+            if (f.exists() && validDirectory!=null && validDirectory.test(path)) modelFile.setSelectedFilePath(f.getParent());
+        }
         if (metadataConsumer!=null) metadataConsumer.accept(metadata);
         if (getParent()!=null) {
             ContainerParameter parent = getParent();
@@ -117,7 +124,9 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
                     throw new RuntimeException("Could not create directory: " + parent.getAbsolutePath());
             }
         } else {
-            if (validDirectory!=null && validDirectory.test(destFile.getAbsolutePath())) destFile = destFile.getParentFile(); // special case : path already contains a model -> new model will be downloaded into the parent directory
+            if (validDirectory!=null && validDirectory.test(destFile.getAbsolutePath())) {
+                destFile = destFile.getParentFile(); // special case : path already contains a model -> new model will be downloaded into the parent directory
+            }
         }
         try {
             getLargeFileGist();

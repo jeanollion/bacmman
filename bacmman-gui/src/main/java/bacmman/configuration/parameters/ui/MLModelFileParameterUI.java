@@ -13,10 +13,10 @@ import java.awt.event.ActionEvent;
 import java.io.File;
 import java.util.function.Consumer;
 
-public class DLModelFileParameterUI implements ParameterUI {
+public class MLModelFileParameterUI implements ParameterUI {
     JMenuItem openDLModelLibrary;
     JMenuItem downloadModel;
-    public DLModelFileParameterUI(MLModelFileParameter parameter, ConfigurationTreeModel model) {
+    public MLModelFileParameterUI(MLModelFileParameter parameter, ConfigurationTreeModel model) {
         openDLModelLibrary = new JMenuItem("Configure From Library");
         openDLModelLibrary.setAction(
                 new AbstractAction("Configure From Library") {
