@@ -6,6 +6,7 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.FitEllipseShape;
+import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
@@ -13,6 +14,7 @@ import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
+import bacmman.processing.matching.TrackMateInterface;
 import bacmman.processing.track_post_processing.SplitAndMerge;
 import bacmman.processing.track_post_processing.Track;
 import bacmman.processing.track_post_processing.TrackTreePopulation;
@@ -27,40 +29,14 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.MASS_CENTER_DISTANCE;
+import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.OVERLAP;
+
 public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DistNet2D.class);
     private InterpolationParameter defInterpolation = new InterpolationParameter("Interpolation", InterpolationParameter.INTERPOLATION.NEAREAST);
-    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new EDMCellSegmenter(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
+    // prediction
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(3)).setHint("Deep learning engine used to run the DNN.");
-    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
-    BoundedNumberParameter correctionMaxCost = new BoundedNumberParameter("Max correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and the <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified and the predicted division probability is lower than 0.7 for all cells, they are merged.");
-    BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 1, null).setHint("Defines how many frames are predicted at the same time within the frame window");
-    BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Defines how many frames are processed (prediction + segmentation + tracking + post-processing) at the same time. O means all frames");
-
-    BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5, 0.6, 0.01, 1);
-    BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
-    BooleanParameter perWindow = new BooleanParameter("Per Window", false).setHint("If false: performs post-processing after all frame windows have been processed. Otherwise: performs post-processing after each frame window is processed");
-
-    BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
-    BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
-    enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
-    EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setLegacyInitializationValue(ALTERNATIVE_SPLIT.DARK_OBJECT).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
-    BooleanParameter useContours = new BooleanParameter("Use Contours", false).setLegacyInitializationValue(true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
-
-    enum GAP_CRITERION {MIN_BORDER_DISTANCE, BACTERIA_POLE_DISTANCE}
-
-    EnumChoiceParameter<GAP_CRITERION> gapCriterion = new EnumChoiceParameter<>("Gap Criterion", GAP_CRITERION.values(), GAP_CRITERION.MIN_BORDER_DISTANCE);
-    BoundedNumberParameter gapMaxDist = new BoundedNumberParameter("Max. Distance", 5, 2.5, 0, null).setEmphasized(true).setHint("If the distance between 2 regions is higher than this value, they are not merged");
-    BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 4.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
-    BoundedNumberParameter eccentricityThld = new BoundedNumberParameter("Eccentricity Threshold", 5, 0.87, 0, 1).setEmphasized(true).setHint("If eccentricity of the fitted ellipse is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on over-segmented objects that may be circular<br/>Ellipse is fitted using the normalized second central moments");
-    BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 15, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
-    ConditionalParameter<GAP_CRITERION> gapCriterionCond = new ConditionalParameter<>(gapCriterion).setEmphasized(true)
-            .setActionParameters(GAP_CRITERION.MIN_BORDER_DISTANCE, gapMaxDist)
-            .setActionParameters(GAP_CRITERION.BACTERIA_POLE_DISTANCE, gapMaxDist, poleSize, eccentricityThld);
-    ConditionalParameter<Boolean> solveSplitAndMergeCond = new ConditionalParameter<>(solveSplitAndMerge).setEmphasized(true)
-            .setActionParameters(true, solveMerge, solveSplit, gapCriterionCond, altSPlit, perWindow);
-
     DLResizeAndScale dlResizeAndScale = new DLResizeAndScale("Input Size And Intensity Scaling", false, true)
             .setMaxInputNumber(1).setMinInputNumber(1).setMaxOutputNumber(6).setMinOutputNumber(4).setOutputNumber(5)
             .setMode(DLResizeAndScale.MODE.TILE).setDefaultContraction(16, 16).setDefaultTargetShape(192, 192)
@@ -68,15 +44,49 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             .setEmphasized(true);
     BooleanParameter next = new BooleanParameter("Predict Next", true).addListener(b -> dlResizeAndScale.setOutputNumber(b.getSelected() ? 5 : 4))
             .setHint("Whether the network accept previous, current and next frames as input and predicts dY, dX & category for current and next frame as well as EDM for previous current and next frame. The network has then 5 outputs (edm, dy, dx, category for current frame, category for next frame) that should be configured in the DLEngine. A network that also use the next frame is recommended for more complex problems.");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 64, 1, null).setHint("Defines how many frames are predicted at the same time within the frame window");
+    BoundedNumberParameter frameWindow = new BoundedNumberParameter("Frame Window", 0, 200, 0, null).setHint("Defines how many frames are processed (prediction + segmentation + tracking + post-processing) at the same time. O means all frames");
     BooleanParameter averagePredictions = new BooleanParameter("Average Predictions", true).setHint("If true, predictions from previous (and next) frames are averaged");
     ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue() > 1);
 
-    BooleanParameter correctDivisions = new BooleanParameter("Correct Divisions", false).setEmphasized(false).setHint("Reduce false division by using the predicted division image -> it allows to determine if a cell is divided (a division occurred at the previous frame) or non-divided. Two rules among cells that have a common previous cell: <ol><li>When several cells are link to a single previous cell and at least one of them is in a divided state: remove links to previous cell of non-divided cells</li><li>If all cells are non-divided : try to merge all connected cells if the cost is lower than the maxCorrectionCost threshold</li><li>If two cells are linked to the same cell, tries to merge them using the divisonCost criterion</li></ol>");
-    BoundedNumberParameter divThld = new BoundedNumberParameter("Division Threshold", 5, 0.75, 0, 1).setHint("A cell is considered as divided (result of a division) if the median value of the predicted division image is over this threshold");
-    BoundedNumberParameter divisionCost = new BoundedNumberParameter("Division correction cost", 5, 0, 0, null).setEmphasized(false).setHint("Increase this parameter to reduce over-segmentation. The value corresponds to the maximum difference between interface value and <em>Split Threshold</em> (defined in the segmenter) for over-segmented interface of cells belonging to the same line. <br />If the criterion defined above is verified, cells are merged regardless of the predicted probability of division.");
+    // segmentation
+    PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new EDMCellSegmenter(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
+    BooleanParameter useContours = new BooleanParameter("Use Contours", false).setLegacyInitializationValue(true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
+    BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
 
-    ConditionalParameter<Boolean> correctDivisionsCond = new ConditionalParameter<>(correctDivisions).setActionParameters(true, divThld, divisionCost);
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResizeAndScale, batchSize, frameWindow, next, edmSegmenter, useContours, minOverlap, displacementThreshold, divisionCost, correctionMaxCost, correctDivisionsCond, growthRateRange, solveSplitAndMergeCond, averagePredictions, frameSubsampling, manualCurationMargin};
+    // tracking
+    EnumChoiceParameter<LAPTracker.DISTANCE> distanceType = new EnumChoiceParameter<>("Distance", LAPTracker.DISTANCE.values(), LAPTracker.DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li></ul>");
+
+    BoundedNumberParameter distanceThreshold = new BoundedNumberParameter("Distance Threshold", 5, 10, 1, null).setEmphasized(true).setHint("If distance between two objects is over this threshold they cannot be linked. For center-to-center distance the value is in pixels, for overlap distance value an overlap proportion ( distance is  1 - overlap ) ");
+    BoundedNumberParameter noPrevPenalty = new BoundedNumberParameter("No Previous Distance Penalty", 5, 5, 0, null).setHint("Distance penalty added to the actual distance when neural network predicts that object has no previous object");
+    IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
+    BoundedNumberParameter sizePenaltyFactor = new BoundedNumberParameter("Size Penalty", 5, 0, 0, null).setHint("Size Penalty applied for tracking. Allows to force linking between objects of similar size (taking into account growth rate) Increase the value to increase the penalty when size differ.");
+
+    enum OBJECT_TYPE {BACTERIA, EUKARYOTIC_CELL}
+    EnumChoiceParameter<OBJECT_TYPE> objectType = new EnumChoiceParameter<>("Object Type", OBJECT_TYPE.values(), OBJECT_TYPE.BACTERIA);
+    BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 4.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
+    BoundedNumberParameter eccentricityThld = new BoundedNumberParameter("Eccentricity Threshold", 5, 0.87, 0, 1).setEmphasized(true).setHint("If eccentricity of the fitted ellipse is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on over-segmented objects that may be circular<br/>Ellipse is fitted using the normalized second central moments");
+    ConditionalParameter<OBJECT_TYPE> objectTypeCond = new ConditionalParameter<>(objectType).setEmphasized(true)
+            .setActionParameters(OBJECT_TYPE.BACTERIA, poleSize, eccentricityThld);
+    BoundedNumberParameter mergeDistThld = new BoundedNumberParameter("Merge Distance Threshold", 5, 3, 0, null).setEmphasized(true).setHint("If the distance edge-edge between 2 regions is higher than this value, they cannot be linked to the same cell during tracking or they cannot be not merged during post-processing. Note that if object type is BACTERIA : pole-pole distance is considered.");
+
+    // track post-processing
+    BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
+    BooleanParameter perWindow = new BooleanParameter("Per Window", false).setHint("If false: performs post-processing after all frame windows have been processed. Otherwise: performs post-processing after each frame window is processed");
+    BooleanParameter solveSplit = new BooleanParameter("Solve Split events", false).setEmphasized(true).setHint("If true: tries to remove all split events either by merging downstream objects (if no gap between objects are detected) or by splitting upstream objects");
+    BooleanParameter solveMerge = new BooleanParameter("Solve Merge events", true).setEmphasized(true).setHint("If true: tries to remove all merge events either by merging (if no gap between objects are detected) upstream objects or splitting downstream objects");
+    enum ALTERNATIVE_SPLIT {DISABLED, BRIGHT_OBJECTS, DARK_OBJECT}
+    EnumChoiceParameter<ALTERNATIVE_SPLIT> altSPlit = new EnumChoiceParameter<>("Alternative Split Mode", ALTERNATIVE_SPLIT.values(), ALTERNATIVE_SPLIT.DISABLED).setLegacyInitializationValue(ALTERNATIVE_SPLIT.DARK_OBJECT).setEmphasized(true).setHint("During correction: when split on EDM fails, tries to split on intensity image. <ul><li>DISABLED: no alternative split</li><li>BRIGHT_OBJECTS: bright objects on dark background (e.g. fluorescence)</li><li>DARK_OBJECTS: dark objects on bright background (e.g. phase contrast)</li></ul>");
+    ConditionalParameter<Boolean> solveSplitAndMergeCond = new ConditionalParameter<>(solveSplitAndMerge).setEmphasized(true)
+            .setActionParameters(true, solveMerge, solveSplit, altSPlit, perWindow);
+
+    // misc
+    BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 15, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
+
+    GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, frameWindow, next, averagePredictions, frameSubsampling).setEmphasized(true);
+    GroupParameter segmentation = new GroupParameter("Segmentation", edmSegmenter, useContours, displacementThreshold, manualCurationMargin).setEmphasized(true);
+    GroupParameter tracking = new GroupParameter("Tracking", distanceThreshold, noPrevPenalty, objectTypeCond, mergeDistThld, growthRateRange, sizePenaltyFactor, solveSplitAndMergeCond).setEmphasized(true);
+    Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     @Override
     public void segmentAndTrack(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PostFilterSequence postFilters, SegmentedObjectFactory factory, TrackLinkEditor editor) {
@@ -128,9 +138,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             prevPrediction = prediction;
         }
         if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, editor, factory);
+        setTrackingAttributes(objectClassIdx, parentTrack);
     }
-
-
 
     public void segment(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, PostFilterSequence postFilters, SegmentedObjectFactory factory) {
         logger.debug("segmenting : test mode: {}", stores != null);
@@ -185,8 +194,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         return res;
     }
-    //TODO faire le tracking via trackMate interface ...
-    // returns links that could not be encoded in the segmented objects
+
     public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory, boolean firstWindow) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
@@ -195,6 +203,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             prediction.dx.forEach((o, im) -> stores.get(o).addIntermediateImage("dx", im));
         if (stores != null && prediction.noPrev != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
+        Map<Region, SegmentedObject> regionMapObjects = parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).collect(Collectors.toMap(SegmentedObject::getRegion, o -> o));
         Map<SegmentedObject, Double> dyMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
                 o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dy.get(o.getParent()), 0.5)[0],
@@ -205,351 +214,316 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dx.get(o.getParent()), 0.5)[0],
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
-        Map<SegmentedObject, TrackingObject> objectSpotMap = HashMapGetCreate.getRedirectedMap(parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(), o -> new TrackingObject(o.getRegion(), o.getParent().getBounds(), o.getFrame(), dyMap.get(o), dxMap.get(o)), HashMapGetCreate.Syncronization.NO_SYNC);
+        double divThld = 0.9;
+        Map<Region, Boolean> divMap = HashMapGetCreate.getRedirectedMap(
+                parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+                SegmentedObject::getRegion,
+                regionMapObjects::get,
+                o -> prediction.division != null && BasicMeasurements.getQuantileValue(o.getRegion(), prediction.division.get(o.getParent()), 0.5)[0] >= divThld,
+                HashMapGetCreate.Syncronization.NO_SYNC
+        );
+        double noPrevThld = 0.9;
+        Map<SegmentedObject, Boolean> noPrevMap = HashMapGetCreate.getRedirectedMap(
+                parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
+                o -> prediction.noPrev != null && BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noPrev.get(o.getParent()), 0.5)[0] >= noPrevThld,
+                HashMapGetCreate.Syncronization.NO_SYNC
+        );
+
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
+        Map<SegmentedObject, Point> previousCenters = new HashMap<>();
+        if (MASS_CENTER_DISTANCE.equals(distanceType.getSelectedEnum())) { // pre-compute all mass centers
+            parentTrack.parallelStream().forEach( p -> {
+                Image im = p.getRawImage(objectClassIdx);
+                p.getChildren(objectClassIdx).forEach( c -> {
+                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
+                    c.getRegion().setCenter(c.getRegion().getMassCenter(im, false));
+                });
+            });
+        }
+        double noPrevPenalty = this.noPrevPenalty.getDoubleValue();
+        Map<Integer, Map<SymetricalPair<Region>, LAPTracker.Overlap>> overlapMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(HashMap::new);
+        TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>((r, f) -> {
+            SegmentedObject o = regionMapObjects.get(r);
+            return new TrackingObject(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), noPrevMap.get(o)?noPrevPenalty:0, distanceType.getSelectedEnum(), OVERLAP.equals(distanceType.getSelectedEnum())?overlapMap.get(f):null);
+        });
+        tmi.setNumThreads(ThreadRunner.getMaxCPUs());
+        tmi.addObjects(regionMapObjects.values().stream());
+        Map<Region, Set<Voxel>>[] contourMap = new Map[1];
+        BiPredicate<Region, Region> contactFun = contact(mergeDistThld.getDoubleValue(), contourMap);
+        Map<Integer, Map<Region, Set<Region>>> contactMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(HashMap::new);
+        regionMapObjects.entrySet().parallelStream().forEach(e -> {
+            Set<Region> inContact = objectsF.get(e.getValue().getFrame())
+                    .stream().map(SegmentedObject::getRegion)
+                    .filter(r2->r2.getLabel()>e.getKey().getLabel())
+                    .filter(r2 -> contactFun.test(e.getKey(), r2))
+                    .collect(Collectors.toSet());
+            Map<Region, Set<Region>> map = contactMap.get(e.getValue().getFrame());
+            synchronized (map) {map.put(e.getKey(), inContact);}
+        });
+        Utils.TriPredicate<Integer, Region, Region> contactFunction = (f, r1, r2) -> r1.getLabel()<r2.getLabel() ? contactMap.get(f).get(r1).contains(r2) : contactMap.get(f).get(r2).contains(r1);
+        ToDoubleBiFunction<Region, Region> contact = contact(mergeDistThld.getDoubleValue());
+        ToDoubleBiFunction<Region, Region> radiusFunction = (r1, r2) -> GeometricalMeasurements.getFeretMax(new ArrayList<Voxel>(){{addAll(contourMap[0].get(r1)); addAll(r2==null?Collections.emptyList():contourMap[0].get(r2));}}, r1.getScaleXY(), r1.getScaleZ())/2;
+        boolean isOverlapMode = distanceType.getSelectedEnum().equals(OVERLAP);
 
-        // link each object to the closest previous object
-        int minFrame = objectsF.keySet().stream().mapToInt(i -> i).min().getAsInt();
-        int maxFrame = objectsF.keySet().stream().mapToInt(i -> i).max().getAsInt();
-        double maxCorrectionCost = this.correctionMaxCost.getValue().doubleValue();
-        SplitAndMerge sm = getSplitAndMerge(prediction);
-        BiConsumer<List<SegmentedObject>, Collection<SegmentedObject>> mergeFunNoPrev = (noPrevObjects, allObjects) -> {
-            for (int i = 0; i < noPrevObjects.size() - 1; ++i) {
-                SegmentedObject oi = noPrevObjects.get(i);
-                for (int j = i + 1; j < noPrevObjects.size(); ++j) {
-                    SegmentedObject oj = noPrevObjects.get(j);
-                    if (BoundingBox.intersect2D(oi.getBounds(), oj.getBounds(), 1)) {
-                        double cost = sm.computeMergeCost(Arrays.asList(oi, oj));
-                        if (cost <= maxCorrectionCost) {
-                            SegmentedObject rem = noPrevObjects.remove(j);
-                            allObjects.remove(rem);
-                            oi.getRegion().merge(rem.getRegion());
-                            dyMap.remove(rem);
-                            dxMap.remove(rem);
-                            factory.removeFromParent(rem);
-                            editor.resetTrackLinks(rem, true, true, true);
-                            objectSpotMap.remove(rem);
-                            factory.relabelChildren(oi.getParent());
-                            dyMap.remove(oi);
-                            dxMap.remove(oi);
-                            objectSpotMap.remove(oi);
-                            objectSpotMap.get(oi);
-                            --j;
-                        }
-                    }
-                }
+        double[] gr = this.growthRateRange.getValuesAsDouble();
+        double sizePenaltyFactor = this.sizePenaltyFactor.getDoubleValue();
+        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenaltyFun = (prev, next) -> {
+            if (sizePenaltyFactor<=0 || prev.touchEdges || next.touchEdges) return 0;
+            double expectedSizeMin = gr[0] * prev.size;
+            double expectedSizeMax = gr[1] * prev.size;
+            double penalty = 0;
+            if (next.size>=expectedSizeMin && next.size<=expectedSizeMax) return penalty;
+            else if (next.size<expectedSizeMin) {
+                penalty = Math.abs(expectedSizeMin - next.size) / ((expectedSizeMin + next.size)/2);
+            } else {
+                penalty = Math.abs(expectedSizeMax - next.size) / ((expectedSizeMax + next.size)/2);
             }
+            return penalty * sizePenaltyFactor;
         };
+        tmi.objectSpotMap.values().forEach(o -> o.setSizePenalty(sizePenaltyFun));
+        double distanceThld = distanceThreshold.getDoubleValue();
+        boolean allowSplit = true;
+        boolean allowMerge = true;
 
-        double minOverlap = this.minOverlap.getDoubleValue();
-        Map<Integer, Map<SegmentedObject, List<SegmentedObject>>> nextToPrevMapByFrame = new HashMap<>();
-        Map<SegmentedObject, Set<SegmentedObject>> divisionMap = new HashMap<>();
-        List<SymetricalPair<SegmentedObject>> additionalLinks = new ArrayList<>();
-        for (int frame = minFrame + 1; frame <= maxFrame; ++frame) {
-            List<SegmentedObject> objects = objectsF.get(frame);
-            if (objects == null || objects.isEmpty()) continue;
-            List<SegmentedObject> objectsPrev = objectsF.get(frame - 1);
-            if (objectsPrev == null || objectsPrev.isEmpty()) continue;
-            // actual tracking
-            Map<SegmentedObject, List<SegmentedObject>> nextToAllPrevMap = Utils.toMapWithNullValues(objects.stream(), o -> o, o -> getClosest(o, objectsPrev, objectSpotMap, minOverlap), true);
-            nextToPrevMapByFrame.put(frame, nextToAllPrevMap);
-            BiConsumer<SegmentedObject, SegmentedObject> removePrev = (prev, next) -> {
-                List<SegmentedObject> prevs = nextToAllPrevMap.get(next);
-                if (prevs != null) {
-                    prevs.remove(prev);
-                    if (prevs.isEmpty()) nextToAllPrevMap.put(next, null);
-                }
-            };
-            BiConsumer<SegmentedObject, SegmentedObject> addPrev = (prev, next) -> {
-                List<SegmentedObject> prevs = nextToAllPrevMap.get(next);
-                if (prevs == null) {
-                    prevs = new ArrayList<>();
-                    prevs.add(prev);
-                    nextToAllPrevMap.put(next, prevs);
-                } else {
-                    if (prevs.contains(prev)) prevs.add(prev);
-                }
-            };
-            // CORRECTION 1 merge regions @minFrame if they are merged at minFrame+1
-            if (firstWindow && frame == minFrame + 1) {
-                objects.stream().filter(o -> nextToAllPrevMap.get(o) != null && nextToAllPrevMap.get(o).size() > 1).forEach(o -> {
-                    mergeFunNoPrev.accept(nextToAllPrevMap.get(o), objects);
-                });
-            }
+        // add all clusters of unlinked (non-dividing) regions that are in contact
+        Predicate<Region> nonDividing = r -> !divMap.get(r);
+        contactMap.forEach((f, value) -> value.entrySet().stream()
+                .filter(ee -> nonDividing.test(ee.getKey()))
+                .forEach(ee -> {
+                    ee.getValue().stream()
+                            .filter(nonDividing)
+                            .map(c -> new TrackingObject(tmi.objectSpotMap.get(ee.getKey()), tmi.objectSpotMap.get(c)))
+                            .forEach(o -> tmi.getSpotCollection().add(o, f));
+                }));
+        long t0 = System.currentTimeMillis();
+        boolean ok = tmi.processFTF(distanceThld);
+        long t1 = System.currentTimeMillis();
+        if (!ok) throw new RuntimeException("Error FTF: "+tmi.errorMessage);
+        tmi.logGraphStatus("FTF", t1-t0);
 
-            // CORRECTION 2: take into account noPrev  predicted state: remove link with previous cell if object is detected as noPrev and there is another cell linked to the previous cell
-            if (prediction.noPrev != null) {
-                Image np = prediction.noPrev.get(objects.get(0).getParent());
-                Map<SegmentedObject, Double> noPrevO = objects.stream()
-                        .filter(o -> nextToAllPrevMap.get(o) != null)
-                        .filter(o -> Math.abs(objectSpotMap.get(o).dy) < 1) // only when null displacement is predicted
-                        .filter(o -> Math.abs(objectSpotMap.get(o).dx) < 1) // only when null displacement is predicted
-                        .collect(Collectors.toMap(o -> o, o -> BasicMeasurements.getMeanValue(o.getRegion(), np)));
-                noPrevO.entrySet().removeIf(e -> e.getValue() < 0.5);
-                noPrevO.forEach((o, npV) -> {
-                    List<SegmentedObject> prev = nextToAllPrevMap.get(o);
-                    if (prev != null) {
-                        for (Map.Entry<SegmentedObject, Double> e : noPrevO.entrySet()) { // check if other objects that have no previous objects are connected
-                            if (e.getKey().equals(o)) continue;
-                            List<SegmentedObject> otherPrev = nextToAllPrevMap.get(e.getKey());
-                            Set<SegmentedObject> inter = intersection(prev, otherPrev);
-                            if (inter.isEmpty()) continue;
-                            if (npV > e.getValue()) {
-                                prev.removeAll(inter);
-                                if (prev.isEmpty()) nextToAllPrevMap.put(o, null);
-                                logger.debug("object: {} has no prev: (was: {}) p={}", o, prev, npV);
-                                break;
-                            } else {
-                                otherPrev.removeAll(inter);
-                                if (otherPrev.isEmpty()) nextToAllPrevMap.put(e.getKey(), null);
-                                logger.debug("object: {} has no prev: (was: {}) p={}", e.getKey(), prev, e.getValue());
-                            }
-                        }
-                        if (nextToAllPrevMap.get(o) != null) {
-                            Iterator<SegmentedObject> it = prev.iterator();
-                            while (it.hasNext()) {
-                                SegmentedObject p = it.next();
-                                List<SegmentedObject> nexts = Utils.getKeysMultiple(nextToAllPrevMap, p);
-                                if (nexts.size() > 1) {
-                                    it.remove();
-                                    logger.debug("object: {} has no prev: (was: {}) p={} (total nexts: {})", o, prev, npV, nexts.size());
-                                }
-                            }
-                            if (prev.isEmpty()) nextToAllPrevMap.put(o, null);
-                        }
-                    }
-                });
-            }
+        // solve conflicting links between clusters and elements of cluster
+        solveConflictingLinks(tmi, contactMap.keySet());
 
-            // get division events
-            Map<SegmentedObject, Integer> nextCount = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> 0);
-            nextToAllPrevMap.values().forEach(prevs -> {
-                if (prevs != null) for (SegmentedObject p : prevs) nextCount.replace(p, nextCount.get(p) + 1);
-            });
-            Map<SegmentedObject, Set<SegmentedObject>> divMapPrevMapNext = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new HashSet<>());
-            nextToAllPrevMap.forEach((next, prevs) -> {
-                if (prevs != null) {
-                    for (SegmentedObject prev : prevs) {
-                        if (nextCount.get(prev) > 1) divMapPrevMapNext.get(prev).add(next);
-                    }
-                }
-            });
-            logger.debug("{} divisions @ frame {}: {}", divMapPrevMapNext.size(), frame, Utils.toStringMap(divMapPrevMapNext, o -> o.getIdx() + "", s -> Utils.toStringList(s.stream().map(SegmentedObject::getIdx).collect(Collectors.toList()))));
+        if (allowSplit) {
+            // first try to link over-segmented regions: look for couples of regions in contact that are non dividing and have no previous object
+            //linkOverSegmentedRegions(tmi, contactMap, objectsF, true, divMap);
+            // second round for links that are missed in the FTF process as distance can depend on link_mode
+            // for real divisions that are missed in the FTF step
+            tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LAPTracker.LINK_MODE.SPLIT));
+            ok = tmi.processSegments(distanceThld, 0, true, false); // division
+            if (!ok) throw new RuntimeException("Error Split: "+tmi.errorMessage);
+            tmi.logGraphStatus("Split", -1);
+        }
+        /*if (allowMerge) {
+            tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LAPTracker.LINK_MODE.NORMAL));
+            // first try to link over-segmented regions: look for couples of regions in contact no previous next object
+            linkOverSegmentedRegions(tmi, contactMap, objectsF, false, divMap);
+            // second round for links that are missed in the FTF process as distance can depend on link_mode
+            tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LAPTracker.LINK_MODE.MERGE));
+            ok = tmi.processSegments(distanceThld, 0, false, true); // merging
+            if (!ok) throw new RuntimeException("Error Merge: "+tmi.errorMessage);
+            tmi.logGraphStatus("Merge", -1);
+        }*/
 
-            // CORRECTION 3 : use division state to remove wrong divisions:
-            ToDoubleFunction<SegmentedObject> getDivScore = o -> BasicMeasurements.getMeanValue(o.getRegion(), prediction.division.get(o.getParent()));
-            Map<SegmentedObject, Double> divScoreMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(getDivScore::applyAsDouble);
-            if (correctDivisions.getSelected() && divThld.getDoubleValue()>0 && prediction.division != null) {
-                double divThld = this.divThld.getDoubleValue();
-                Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMapPrevMapNext.entrySet().iterator();
-                while(it.hasNext()) {
-                    Map.Entry<SegmentedObject, Set<SegmentedObject>> e = it.next();
-                    Iterator<SegmentedObject> nextIt = e.getValue().iterator();
-                    if (e.getValue().stream().mapToDouble(divScoreMap::get).anyMatch(d -> d >= divThld)) { // if all objects have low division -> handled by CORRECTION #5
-                        while (nextIt.hasNext()) {
-                            SegmentedObject nextO = nextIt.next();
-                            if (divScoreMap.get(nextO) < divThld) { // remove link
-                                nextIt.remove();
-                                nextToAllPrevMap.get(nextO).remove(e.getKey());
-                            }
-                        }
-                        if (e.getValue().size() <= 1) it.remove();
-                    }
-                }
-            }
+        List<SymetricalPair<SegmentedObject>> additionalLinks = tmi.setTrackLinks(objectsF, editor);
 
-            TriConsumer<SegmentedObject, SegmentedObject, Collection<SegmentedObject>> mergeNextFun = (prev, result, toMergeL) -> {
-                List<SegmentedObject> prevs = nextToAllPrevMap.get(result);
-                if (prevs == null) prevs = new ArrayList<>();
-                for (SegmentedObject toRemove : toMergeL) {
-                    removePrev.accept(prev, toRemove);
-                    objects.remove(toRemove);
-                    result.getRegion().merge(toRemove.getRegion());
-                    dyMap.remove(toRemove);
-                    objectSpotMap.remove(toRemove);
-                    List<SegmentedObject> p = nextToAllPrevMap.remove(toRemove);
-                    if (p != null) prevs.addAll(p);
-                }
-                if (!prevs.isEmpty())
-                    nextToAllPrevMap.put(result, Utils.removeDuplicates(prevs, false)); // transfer links
-                nextCount.put(prev, nextCount.get(prev) - toMergeL.size());
-                // also erase segmented objects
-                factory.removeFromParent(toMergeL.toArray(new SegmentedObject[0]));
-                //toMergeL.forEach(rem -> editor.resetTrackLinks(rem, true, true, true));
-                factory.relabelChildren(result.getParent());
-                dyMap.remove(result);
-                objectSpotMap.remove(result);
-                objectSpotMap.get(result);
-            };
-
-            // CORRECTION 4: REDUCE OVER-SEGMENTATION ON OBJECTS WITH NO PREV
-            if (maxCorrectionCost > 0) {
-                List<SegmentedObject> noPrevO = objects.stream().filter(o -> nextToAllPrevMap.get(o) == null).collect(Collectors.toList());
-                if (noPrevO.size() > 1) {
-                    mergeFunNoPrev.accept(noPrevO, objects);
-                }
-            }
-
-            // CORRECTION 5: USE OF PREDICTION OF DIVISION STATE AND DISPLACEMENT TO REDUCE OVER-SEGMENTATION: WHEN ALL OBJECT WITH SAME PREV AND ARE NOT DIVIDING -> TRY TO MERGE THEM
-            double divisionCost = this.divisionCost.getDoubleValue();
-            if (correctDivisions.getSelected()) { // Take into account div map: when 2 objects have same previous cell
-                Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMapPrevMapNext.entrySet().iterator();
-                while (it.hasNext()) {
-                    boolean corr = false;
-                    Map.Entry<SegmentedObject, Set<SegmentedObject>> div = it.next();
-                    if (div.getValue().size() >= 2) {
-                        if (divisionCost > 0 && div.getValue().size() == 2) {
-                            List<SegmentedObject> divL = new ArrayList<>(div.getValue());
-                            double cost = sm.computeMergeCost(divL);
-                            logger.debug("Merging division ... frame: {} cost: {}", frame, cost);
-                            if (cost <= divisionCost) { // merge all regions
-                                SegmentedObject merged = divL.remove(0);
-                                mergeNextFun.accept(div.getKey(), merged, divL);
-                                it.remove();
-                                corr = true;
-                            }
-                        }
-                        if (!corr && maxCorrectionCost>0 && divThld.getDoubleValue()>0 && prediction.division != null && div.getValue().stream().mapToDouble(divScoreMap::get).allMatch(d -> d < divThld.getDoubleValue())) {
-                            // try to merge all objects if they are in contact...
-                            List<SegmentedObject> divL = new ArrayList<>(div.getValue());
-                            double cost = sm.computeMergeCost(divL);
-                            logger.debug("Repairing division ... frame: {} cost: {}", frame, cost);
-                            if (cost <= maxCorrectionCost) { // merge all regions
-                                SegmentedObject merged = divL.remove(0);
-                                mergeNextFun.accept(div.getKey(), merged, divL);
-                                it.remove();
-                                corr = true;
-                            }
-                        }
-                        /*if (!corr && div.getValue().size()==3) { // CASE OF OVER-SEGMENTED DIVIDING CELLS : try to keep only 2 cells
-                            List<SegmentedObject> divL = new ArrayList<>(div.getValue());
-                            double cost01  = computeMergeCost.applyAsDouble(Arrays.asList(divL.get(0), divL.get(1)));
-                            double cost02  = computeMergeCost.applyAsDouble(Arrays.asList(divL.get(0), divL.get(2)));
-                            double cost12  = computeMergeCost.applyAsDouble(Arrays.asList(divL.get(1), divL.get(2)));
-                            // criterion: displacement that matches most
-                            double crit01=Double.POSITIVE_INFINITY, crit12=Double.POSITIVE_INFINITY;
-                            double[] predDY = divL.stream().mapToDouble(o -> dyMap.get(o)).toArray();
-
-
-                            logger.debug("merge div3: crit 0+1={}, crit 1+2={} cost {} vs {}", crit01, crit12, cost1, cost2);
-                            if (cost1<maxCorrectionCost) {
-                                crit01 = Math.abs(predDY[0] - predDY[1]);
-                            }
-                            if (cost2<maxCorrectionCost) {
-                                crit12 = Math.abs(predDY[2] - predDY[1]);
-                            }
-
-                            if (Double.isFinite(Math.min(crit01, crit12))) {
-                                if (crit01<crit12) {
-                                    mergeFun.consume(div.getKey(), divL.get(0), new ArrayList<SegmentedObject>(){{add(divL.get(1));}});
-                                    div.getValue().remove(divL.get(1));
-                                } else {
-                                    mergeFun.consume(div.getKey(), divL.get(1), new ArrayList<SegmentedObject>(){{add(divL.get(2));}});
-                                    div.getValue().remove(divL.get(2));
-                                }
-                            }
-                        }*/
-                    }
-                }
-            }
-
-            // limit of the method: when the network detects the same division at F & F-1 -> the cells @ F can be mis-linked to a daughter cell.
-            // when a division is detected: check if the mother cell divided at previous frame.
-            /*
-            List<Pair<Set<SegmentedObject>, Set<SegmentedObject>>> toReMatch = new ArrayList<>();
-            Function<SegmentedObject, Pair<Set<SegmentedObject>, Set<SegmentedObject>>> alreadyInReMatch = prev -> {
-                for (Pair<Set<SegmentedObject>, Set<SegmentedObject>> p : toReMatch) {
-                    if (p.key.contains(prev)) return p;
-                }
-                return null;
-            };
-            Iterator<Map.Entry<SegmentedObject, Set<SegmentedObject>>> it = divMap.entrySet().iterator();
-            while(it.hasNext()) {
-                Map.Entry<SegmentedObject, Set<SegmentedObject>> e = it.next();
-                Pair<Set<SegmentedObject>, Set<SegmentedObject>> reM = alreadyInReMatch.apply(e.getKey());
-                if (reM!=null) {
-                    it.remove();
-                    reM.value.addAll(e.getValue());
-                } else if (divisionMap.containsKey(e.getKey().getPrevious())) {
-                    Set<SegmentedObject> prevDaughters = divisionMap.get(e.getKey().getPrevious());
-                    if (prevDaughters.stream().anyMatch(d->d.getNext()==null && !divisionMap.containsKey(d))) { // at least one of previous daughters is not linked to a next object
-                        toReMatch.add(new Pair<>(prevDaughters, e.getValue()));
-                    }
-                }
-            }
-            if (!toReMatch.isEmpty()) {
-                nextToPrevMap.forEach((n, p) -> { // also add single links in which prev object is implicated
-                    Pair<Set<SegmentedObject>, Set<SegmentedObject>> reM = alreadyInReMatch.apply(p);
-                    if (reM!=null) {
-                        reM.key.add(p);
-                        reM.value.add(n);
-                    }
-                });
-                toReMatch.forEach(p -> {
-                    // match prev daughters and current daughters
-                    // min distance when both groups are centered at same y coordinate
-                    Map<SegmentedObject, Set<SegmentedObject>> match = rematch(new ArrayList<>(p.key), new ArrayList<>(p.value));
-                    logger.debug("double division detected @ frame: {}, {}->{} : new match: {}", p.value.iterator().next().getFrame(), p.key, p.value, match.entrySet());
-                    // update prevMap, divMap and prevCount
-                    match.forEach((prev, ns) -> {
-                        ns.forEach(n -> nextToPrevMap.put(n, prev));
-                        nextCount.put(prev, ns.size());
-                        if (ns.size() > 1) divMap.put(prev, ns);
-                        else divMap.remove(prev);
-                    });
-                });
-            }
-            */
-
-            // SET TRACK LINKS
-            nextToAllPrevMap.entrySet().stream().filter(e -> e.getValue() != null).forEach(e -> {
-                if (e.getValue().size() == 1) {
-                    editor.setTrackLinks(e.getValue().get(0), e.getKey(), true, nextCount.get(e.getValue().get(0)) <= 1, true);
-                    //if (nextCount.get(e.getValue().get(0))>1) logger.debug("set prev and not next: {} <- {}, next counts: {}", e.getValue().get(0), e.getKey(), nextCount.get(e.getValue().get(0)));
-                } else {
-                    e.getValue().stream().filter(p -> nextCount.get(p) <= 1).forEach(p -> editor.setTrackLinks(p, e.getKey(), false, true, true));
-                    e.getValue().stream().filter(p -> nextCount.get(p) > 1).forEach(p -> additionalLinks.add(new SymetricalPair<>(p, e.getKey()))); // this links cannot be encoded in the SegmentedObject
-                }
-            });
-            divisionMap.putAll(divMapPrevMapNext);
-
-            // FLAG ERROR for division that yield more than 3 cells
-            divisionMap.entrySet().stream().filter(e -> e.getValue().size() > 2).forEach(e -> {
-                e.getKey().setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
-                e.getValue().forEach(n -> n.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
-            });
-
-            // FLAG ERROR for growth outside of user-defined range // except for end-of-channel divisions
-            Map<SegmentedObject, Double> sizeMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().size());
-            final Predicate<SegmentedObject> touchBorder = o -> o.getBounds().yMin() == o.getParent().getBounds().yMin() || o.getBounds().yMax() == o.getParent().getBounds().yMax() || o.getBounds().xMin() == o.getParent().getBounds().xMin() || o.getBounds().xMax() == o.getParent().getBounds().xMax();
-            double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
-            nextToAllPrevMap.forEach((next, prevs) -> {
-                if (prevs != null) {
-                    double growthrate;
-                    if (prevs.size() == 1) {
-                        SegmentedObject prev = prevs.get(0);
-                        if (divMapPrevMapNext.containsKey(prev)) { // compute size of all next objects
-                            growthrate = divMapPrevMapNext.get(prev).stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
-                        } else if (touchBorder.test(prev) || touchBorder.test(next)) {
-                            growthrate = Double.NaN; // growth rate cannot be computed bacteria are partly out of the image
-                        } else {
-                            growthrate = sizeMap.get(next) / sizeMap.get(prev);
-                        }
-                    } else {
-                        growthrate = sizeMap.get(next) / prevs.stream().mapToDouble(sizeMap::get).sum();
-                    }
-                    if (!Double.isNaN(growthrate) && (growthrate < growthRateRange[0] || growthrate > growthRateRange[1])) {
-                        next.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
-                        prevs.forEach(p -> p.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
-                        prevs.forEach(p -> p.setAttribute("GrowthRateNext", growthrate));
-                        next.setAttribute("GrowthRatePrev", growthrate);
-                    }
-                }
-            });
+        // restore centers
+        if (MASS_CENTER_DISTANCE.equals(distanceType.getSelectedEnum()) && !previousCenters.isEmpty()) {
+            parentTrack.parallelStream().forEach( p -> p.getChildren(objectClassIdx).forEach(c -> {
+                Point center = previousCenters.get(c);
+                if (c!=null) c.getRegion().setCenter(center);
+            }));
         }
         return additionalLinks;
     }
+    protected void solveConflictingLinks(TrackMateInterface<TrackingObject> tmi, Collection<Integer> frames) {
+        if (!(frames instanceof List)) frames = new ArrayList<>(frames);
+        Collections.sort((List)frames);
+        frames.forEach(f -> {
+            solveConflictingLinks(tmi, f, true, false);
+            solveConflictingLinks(tmi, f, false, true);
+        });
 
+    }
+    protected void solveConflictingLinks(TrackMateInterface<TrackingObject> tmi, int frame, boolean linkWithPrev, boolean removeClusters) {
+        UnaryOperator<TrackingObject> getNeigh = linkWithPrev ? tmi::getPrevious : tmi::getNext;
+        Iterator<TrackingObject> it = tmi.getSpotCollection().iterator(frame, false);
+        while (it.hasNext()) {
+            TrackingObject o = it.next();
+            if (o.parentObjects!=null) { // this is a cluster
+                TrackingObject neigh = getNeigh.apply(o);
+                if (neigh!=null) { // count be null if linked to several objects -> at this step SPLIT/MERGE links should not exist
+                    // check that there is no conflict or solve them
+                    double clusterDist = Math.sqrt(o.squareDistanceTo(neigh));
+                    double avgItemDist = o.parentObjects.stream().mapToDouble(i -> {
+                        TrackingObject p = getNeigh.apply(i);
+                        if (p==null) return Double.NaN;
+                        else return Math.sqrt(p.squareDistanceTo(i));
+                    }).filter(d->!Double.isNaN(d)).average().orElse(Double.POSITIVE_INFINITY); // TODO weighted avg by size ?
+                    if (clusterDist<=avgItemDist) { // keep cluster links
+                        // remove item links by cluster link
+                        for (TrackingObject i : o.parentObjects) tmi.removeAllEdges(i, linkWithPrev, !linkWithPrev);
+                        if (neigh.parentObjects!=null) { // neigh is a cluster itself -> optimisation to link objects of each cluster
+                            logger.debug("link cluster-cluster ({}): {} -> {} ", linkWithPrev?"prev":"next", o, neigh);
+                            tmi.linkObjects(o.parentObjects, neigh.parentObjects, true, true);
+                        } else { // simply add links from cluster
+                            logger.debug("link cluster-object ({}) {} to {}", linkWithPrev?"prev":"next", o, neigh);
+                            for (TrackingObject i : o.parentObjects) tmi.addEdge(neigh, i);
+                        }
+                    }
+                    tmi.removeAllEdges(o, linkWithPrev, !linkWithPrev);
+                }
+                if (removeClusters) it.remove();
+            }
+        }
+    }
+
+    static class TrackingObject extends LAPTracker.AbstractLAPObject<TrackingObject> {
+        final Offset offset;
+        final Offset offsetToPrev;
+        final double dy, dx, size;
+        final boolean touchEdges;
+        final double noPrevPenalty;
+        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty;
+        List<TrackingObject> parentObjects;
+        public TrackingObject(Region r, BoundingBox parentBounds, int frame, double dy, double dx, double noPrevPenalty, LAPTracker.DISTANCE distanceType, Map<SymetricalPair<Region>, LAPTracker.Overlap> overlapMap) {
+            super(r, frame, distanceType, overlapMap); // if distance is mass center -> mass center should be set before
+            this.offset = new SimpleOffset(parentBounds).reverseOffset();
+            BoundingBox bds = r.isAbsoluteLandMark() ? parentBounds : (BoundingBox)parentBounds.duplicate().resetOffset();
+            touchEdges = BoundingBox.touchEdges2D(bds, r.getBounds());
+            this.offsetToPrev = offset.duplicate().translate(new SimpleOffset(-(int) Math.round(dx), -(int) Math.round(dy), 0));
+            this.dy = dy;
+            this.dx = dx;
+            this.noPrevPenalty=noPrevPenalty;
+            this.size = r.size();
+        }
+        public TrackingObject(TrackingObject o1, TrackingObject o2) {
+            super(Region.getGeomCenter(false, o1.r, o2.r),
+                    OVERLAP.equals(o1.distanceType)? Region.merge(o1.r, o2.r) : o1.r,
+                    o1.frame(), o1.distanceType, o1.overlapMap); // if distance is mass center -> mass center should be set before
+            if (o1.frame()!=o2.frame()) throw new IllegalArgumentException("Average Tracking object must be build with objets of same frame");
+            this.touchEdges = o1.touchEdges || o2.touchEdges;
+            this.offset = o1.offset;
+            this.size = o1.size + o2.size;
+            this.dy = (o1.dy * o1.size + o2.dy * o2.size)/size;
+            this.dx = (o1.dx * o1.size + o2.dx * o2.size)/size;
+            this.offsetToPrev = offset.duplicate().translate(new SimpleOffset(-(int) Math.round(dx), -(int) Math.round(dy), 0));
+            this.noPrevPenalty=(o1.noPrevPenalty*o1.size+o2.noPrevPenalty*o2.size)/size;
+            parentObjects = Arrays.asList(o1, o2);
+            this.sizePenalty = o1.sizePenalty;
+            //logger.debug("merged TO: {}-{}+{} size: {} & {}, center: {} & {} = {} , dx: {}, dy: {}", o1.frame(), o1.r.getLabel()-1, o2.r.getLabel()-1, o1.size, o2.size, new Point(o1.getDoublePosition(0), o1.getDoublePosition(1)), new Point(o2.getDoublePosition(0), o2.getDoublePosition(1)), new Point(getDoublePosition(0), getDoublePosition(1)), dx, dy );
+        }
+
+        public void setSizePenalty(final ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty) {
+            this.sizePenalty = sizePenalty;
+        }
+
+        @Override
+        public double squareDistanceTo(TrackingObject nextTO) {
+            if (nextTO.frame() < frame()) return nextTO.squareDistanceTo(this);
+
+            switch (distanceType) {
+                case GEOM_CENTER_DISTANCE:
+                case MASS_CENTER_DISTANCE:
+                default: {
+                    double distSq = Math.pow( getDoublePosition(0) + offset.xMin() - ( nextTO.getDoublePosition(0) + nextTO.offset.xMin() - nextTO.dx ) , 2 )
+                            + Math.pow( getDoublePosition(1) + offset.yMin() - ( nextTO.getDoublePosition(1) + nextTO.offset.yMin() - nextTO.dy), 2 );
+                    // compute size penalty
+                    double sizePenalty = this.sizePenalty==null?0 : this.sizePenalty.applyAsDouble(this, nextTO);
+                    distSq *= (1 + sizePenalty);
+                    if (nextTO.noPrevPenalty!=0) {
+                        double dist = Math.sqrt(distSq) + noPrevPenalty;
+                        return dist * dist;
+                    } else return distSq;
+                }
+                case OVERLAP: {
+                    SymetricalPair<Region> key = new SymetricalPair<>(r, nextTO.r);
+                    if (!overlapMap.containsKey(key)) {
+                        double overlap = overlap(nextTO);
+                        if (overlap==0) {
+                            overlapMap.put(key, null); // put null value instead of Overlap object to save memory
+                            return Double.POSITIVE_INFINITY;
+                        } else {
+                            LAPTracker.Overlap o = new LAPTracker.Overlap(this.r, nextTO.r, overlap);
+                            overlapMap.put(key, o);
+                            return Math.pow(1 - o.normalizedOverlap(mode), 2) + nextTO.noPrevPenalty;
+                        }
+                    } else {
+                        LAPTracker.Overlap o = overlapMap.get(key);
+                        if (o==null) return Double.POSITIVE_INFINITY;
+                        else return Math.pow(1 - o.normalizedOverlap(mode), 2) + nextTO.noPrevPenalty;
+                    }
+                }
+            }
+        }
+
+        public double overlap(TrackingObject next) {
+            if (next != null) {
+                if (frame() == next.frame() + 1) return next.overlap(this);
+                if (frame() != next.frame() - 1) return 0;
+                double overlap = r.getOverlapArea(next.r, offset, next.offsetToPrev);
+                return overlap;
+            } else return 0;
+        }
+
+        public boolean intersect(TrackingObject next) {
+            if (next != null) {
+                if (frame() == next.frame() + 1) return next.intersect(this);
+                if (frame() != next.frame() - 1) return false;
+                return BoundingBox.intersect2D(r.getBounds(), next.r.getBounds().duplicate().translate(next.offsetToPrev));
+            } else return false;
+        }
+
+        @Override
+        public String toString() {
+            if (parentObjects==null) return super.toString();
+            return frame() + "-" + Arrays.toString(parentObjects.stream().mapToInt(oo -> oo.r.getLabel() - 1).toArray());
+        }
+    }
+    public void setTrackingAttributes(int objectClassIdx, List<SegmentedObject> parentTrack) {
+        boolean allowMerge = parentTrack.get(0).getExperimentStructure().allowMerge(objectClassIdx);
+        boolean allowSplit = parentTrack.get(0).getExperimentStructure().allowSplit(objectClassIdx);
+        Map<SegmentedObject, Double> sizeMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().size());
+        final Predicate<SegmentedObject> touchBorder = o -> o.getBounds().yMin() == o.getParent().getBounds().yMin() || o.getBounds().yMax() == o.getParent().getBounds().yMax() || o.getBounds().xMin() == o.getParent().getBounds().xMin() || o.getBounds().xMax() == o.getParent().getBounds().xMax();
+        double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
+
+        parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).forEach(o -> {
+            List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o);
+            if (!allowMerge) {
+                if (prevs.size()>1) {
+                    o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
+                    prevs.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
+                }
+            }
+            List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o);
+            if ( (!allowSplit && nexts.size()>1) || (allowSplit && nexts.size()>2)) {
+                o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
+                nexts.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
+            }
+            if (!prevs.isEmpty()) {
+                double growthrate;
+                if (prevs.size() == 1) {
+                    SegmentedObject prev = prevs.get(0);
+                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prevs.get(0));
+                    if (prevsNext.size()>1) { // compute size of all next objects
+                        growthrate = prevsNext.stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
+                    } else if (touchBorder.test(prev) || touchBorder.test(o)) {
+                        growthrate = Double.NaN; // growth rate cannot be computed bacteria are partly out of the image
+                    } else {
+                        growthrate = sizeMap.get(o) / sizeMap.get(prev);
+                    }
+                } else {
+                    growthrate = sizeMap.get(o) / prevs.stream().mapToDouble(sizeMap::get).sum();
+                }
+                if (!Double.isNaN(growthrate) && (growthrate < growthRateRange[0] || growthrate > growthRateRange[1])) {
+                    o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
+                    prevs.forEach(p -> p.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
+                    prevs.forEach(p -> p.setAttribute("GrowthRateNext", growthrate));
+                    o.setAttribute("GrowthRatePrev", growthrate);
+                }
+            }
+        });
+    }
     public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, List<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         SplitAndMerge sm = getSplitAndMerge(prediction);
         solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, sm, factory, editor);
@@ -749,91 +723,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    /*static SegmentedObject getClosest(SegmentedObject source, List<SegmentedObject> previousObjects, Map<SegmentedObject, TrackingObject> objectSpotMap) {
-        TrackingObject sourceTo = objectSpotMap.get(source);
-        double max = 0;
-        SegmentedObject closest = null;
-        for (SegmentedObject target : previousObjects) {
-            double overlap =  objectSpotMap.get(target).overlap(sourceTo);
-            if (overlap > max) {
-                max = overlap;
-                closest = target;
-            }
-        }
-        if (max>0) return closest;
-        else {
-            previousObjects.stream().filter(t -> objectSpotMap.get(t).intersect(sourceTo)).forEach( t -> {
-                logger.debug("{} intersect with {}, overlap: {}, overlap dis: {}, overlap no dis: {}, bds: {}, other bds: {}, offset to prev:{}", source.getIdx(), t.getIdx(), objectSpotMap.get(t).overlap(sourceTo), source.getRegion().getOverlapArea(t.getRegion(), sourceTo.offsetToPrev, null), source.getRegion().getOverlapArea(t.getRegion()), source.getBounds(), t.getBounds(), sourceTo.offsetToPrev);
-            });
-            return null;
-        }
-    }*/
-
-    static List<SegmentedObject> getClosest(SegmentedObject source, List<SegmentedObject> previousObjects, Map<SegmentedObject, TrackingObject> objectSpotMap, double minOverlapProportion) {
-        TrackingObject sourceTo = objectSpotMap.get(source);
-        List<Pair<SegmentedObject, Double>> prevOverlap = previousObjects.stream().map(target -> {
-            double overlap = objectSpotMap.get(target).overlap(sourceTo);
-            if (overlap == 0) return null;
-            target.getMeasurements().setValue("Overlap_"+source.getIdx(), overlap);
-            target.getMeasurements().setValue("Overlap_prop_"+source.getIdx(), overlap / Math.min(source.getRegion().size(), target.getRegion().size()));
-            target.getMeasurements().setValue("Size", target.getRegion().size());
-            return new Pair<>(target, overlap);
-        }).filter(Objects::nonNull).sorted(Comparator.comparingDouble(p -> -p.value)).collect(Collectors.toList());
-        if (prevOverlap.size() > 1) {
-            double sourceSize = source.getRegion().size();
-            List<SegmentedObject> res = prevOverlap.stream().filter(p -> p.value / Math.min(sourceSize, p.key.getRegion().size()) > minOverlapProportion).map(p -> p.key).collect(Collectors.toList());
-            //if (res.isEmpty()) res.add(prevOverlap.get(0).key);
-            if (res.isEmpty()) return null;
-            return res;
-        } else if (prevOverlap.isEmpty()) return null;
-        else {
-            List<SegmentedObject> res = new ArrayList<>(1);
-            res.add(prevOverlap.get(0).key);
-            return res;
-        }
-    }
-
     @Override
     public String getHintText() {
         return "DistNet2D is a method for Segmentation and Tracking of bacteria, extending DiSTNet to 2D geometries. <br/> This module is under active development, do not use in production <br/ >The main parameter to adapt in this method is the split threshold of the BacteriaEDM segmenter module.<br />If you use this method please cite: <a href='https://arxiv.org/abs/2003.07790'>https://arxiv.org/abs/2003.07790</a>.";
-    }
-
-    static class TrackingObject {
-        final Region r;
-        final Offset offset;
-        final Offset offsetToPrev;
-        final int frame;
-        final double dy, dx;
-
-        public TrackingObject(Region r, Offset parentOffset, int frame, double dy, double dx) {
-            this.r = r;
-            this.offset = new SimpleOffset(parentOffset).reverseOffset();
-            this.offsetToPrev = offset.duplicate().translate(new SimpleOffset(-(int) (dx + 0.5), -(int) (dy + 0.5), 0));
-            this.frame = frame;
-            this.dy = dy;
-            this.dx = dx;
-        }
-
-        public int frame() {
-            return frame;
-        }
-
-        public double overlap(TrackingObject next) {
-            if (next != null) {
-                if (frame() == next.frame() + 1) return next.overlap(this);
-                if (frame() != next.frame() - 1) return 0;
-                double overlap = r.getOverlapArea(next.r, offset, next.offsetToPrev);
-                return overlap;
-            } else return 0;
-        }
-
-        public boolean intersect(TrackingObject next) {
-            if (next != null) {
-                if (frame() == next.frame() + 1) return next.intersect(this);
-                if (frame() != next.frame() - 1) return false;
-                return BoundingBox.intersect2D(r.getBounds(), next.r.getBounds().duplicate().translate(next.offsetToPrev));
-            } else return false;
-        }
     }
 
     public static class DisplacementFusionCriterion<I extends InterfaceRegionImpl<I>> implements FusionCriterion<Region, I> {
@@ -866,32 +758,37 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    protected BiPredicate<Region, Region> contact() {
-        double gaxMaxDist = gapMaxDist.getDoubleValue();
-        switch (gapCriterion.getSelectedEnum()) {
-            case MIN_BORDER_DISTANCE:
-            default:
+    protected BiPredicate<Region, Region> contact(double gaxMaxDist, Map<Region, Set<Voxel>>[] contourMap) {
+        double d2Thld = Math.pow(gaxMaxDist, 2);
+        switch (objectType.getSelectedEnum()) {
+            case EUKARYOTIC_CELL:
+            default: {
+                if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(Region::getContour);
+                Function<Region, Set<Voxel>> getContour = contourMap==null ? Region::getContour : r->contourMap[0].get(r);
                 return (r1, r2) -> {
                     if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gaxMaxDist))) return false;
-                    double d2Thld = Math.pow(gaxMaxDist, 2); // 1 pixel gap diagonal
-                    Set<Voxel> contour2 = r2.getContour();
-                    for (Voxel v1 : r1.getContour()) {
+                    Set<Voxel> contour2 = getContour.apply(r2);
+                    for (Voxel v1 : getContour.apply(r1)) {
                         for (Voxel v2 : contour2) {
                             if (v1.getDistanceSquare(v2) <= d2Thld) return true;
                         }
                     }
                     return false;
                 };
-            case BACTERIA_POLE_DISTANCE:
+            }
+            case BACTERIA: {
                 double poleDist = poleSize.getDoubleValue();
+                double eccentricityThld = this.eccentricityThld.getDoubleValue();
+                Function<Region, Set<Voxel>> getPole = r -> {
+                    FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r);
+                    return e1.getEccentricity() < eccentricityThld ? r.getContour() : getPoles(r.getContour(), poleDist);
+                };
+                if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirected<>(getPole);
+                Function<Region, Set<Voxel>> getContour = contourMap == null ? getPole : r->contourMap[0].get(r);
                 return (r1, r2) -> {
-                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gaxMaxDist))) return false;
-                    double d2Thld = Math.pow(gaxMaxDist, 2); // 1 pixel gap diagonal
-                    FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r1);
-                    FitEllipseShape.Ellipse e2 = FitEllipseShape.fitShape(r2);
-                    double eccentricityThld = this.eccentricityThld.getDoubleValue();
-                    Set<Voxel> contour1 = e1.getEccentricity()<eccentricityThld ? r1.getContour() : getPoles(r1.getContour(), poleDist);
-                    Set<Voxel> contour2 = e2.getEccentricity()<eccentricityThld ? r2.getContour() : getPoles(r2.getContour(), poleDist);
+                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int) Math.ceil(gaxMaxDist))) return false;
+                    Set<Voxel> contour1 = getContour.apply(r1);
+                    Set<Voxel> contour2 = getContour.apply(r2);
                     for (Voxel v1 : contour1) {
                         for (Voxel v2 : contour2) {
                             if (v1.getDistanceSquare(v2) <= d2Thld) return true;
@@ -899,6 +796,48 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     }
                     return false;
                 };
+            }
+        }
+    }
+    protected ToDoubleBiFunction<Region, Region> contact(double gaxMaxDist) {
+        double d2Thld = Math.pow(gaxMaxDist, 2);
+        switch (objectType.getSelectedEnum()) {
+            case EUKARYOTIC_CELL:
+            default: {
+                Function<Region, Set<Voxel>> getContour = Region::getContour ;
+                return (r1, r2) -> {
+                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gaxMaxDist))) return Double.POSITIVE_INFINITY;
+                    Set<Voxel> contour2 = getContour.apply(r2);
+                    double min = Double.POSITIVE_INFINITY;
+                    for (Voxel v1 : getContour.apply(r1)) {
+                        for (Voxel v2 : contour2) {
+                            if (v1.getDistanceSquare(v2) <= min) min = v1.getDistanceSquare(v2);
+                        }
+                    }
+                    return Math.sqrt(min);
+                };
+            }
+            case BACTERIA: {
+                double poleDist = poleSize.getDoubleValue();
+                double eccentricityThld = this.eccentricityThld.getDoubleValue();
+                Function<Region, Set<Voxel>> getPole = r -> {
+                    FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r);
+                    return e1.getEccentricity() < eccentricityThld ? r.getContour() : getPoles(r.getContour(), poleDist);
+                };
+                Function<Region, Set<Voxel>> getContour = getPole;
+                return (r1, r2) -> {
+                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int) Math.ceil(gaxMaxDist))) return Double.POSITIVE_INFINITY;
+                    Set<Voxel> contour1 = getContour.apply(r1);
+                    Set<Voxel> contour2 = getContour.apply(r2);
+                    double min = Double.POSITIVE_INFINITY;
+                    for (Voxel v1 : contour1) {
+                        for (Voxel v2 : contour2) {
+                            if (v1.getDistanceSquare(v2) <= d2Thld) min = v1.getDistanceSquare(v2);
+                        }
+                    }
+                    return Math.sqrt(min);
+                };
+            }
         }
     }
     protected static Set<Voxel> getPoles(Set<Voxel> contour, double poleSize) {
@@ -925,7 +864,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     }
 
     protected BiPredicate<Track, Track> gapBetweenTracks() {
-        BiPredicate<Region, Region> contact = contact();
+        BiPredicate<Region, Region> contact = contact(mergeDistThld.getDoubleValue(), null);
         return (t1, t2) -> {
             for (int i = 0; i < t1.length(); ++i) {
                 SegmentedObject o2 = t2.getObject(t1.getObjects().get(i).getFrame());
