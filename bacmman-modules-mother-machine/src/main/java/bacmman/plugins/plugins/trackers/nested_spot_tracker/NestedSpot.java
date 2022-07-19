@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class NestedSpot extends SpotWithQuality {
+public class NestedSpot extends SpotWithQuality<NestedSpot> {
     private final static Logger logger = LoggerFactory.getLogger(NestedSpot.class);
     final protected SegmentedObject parent;
     final protected Region region;
@@ -58,10 +58,6 @@ public class NestedSpot extends SpotWithQuality {
     public boolean isLowQuality() {
         return getFeatures().get(Spot.QUALITY)<distanceParameters.qualityThreshold;
     }
-    @Override
-    public int frame() {
-        return parent.getFrame();
-    }
     @Override 
     public SegmentedObject parent() {
         return this.parent;
@@ -70,8 +66,8 @@ public class NestedSpot extends SpotWithQuality {
         return region;
     }
     @Override
-    public double squareDistanceTo( final Spot s ) {
-        if (s instanceof NestedSpot) {
+    public double squareDistanceTo( final NestedSpot s ) {
+        if (s != null) {
             NestedSpot ss= (NestedSpot)s;
             if (this.frame()>ss.frame()) return ss.squareDistanceTo(this);
             if (!distanceParameters.includeLQ && (isLowQuality() || ss.isLowQuality())) return Double.POSITIVE_INFINITY;

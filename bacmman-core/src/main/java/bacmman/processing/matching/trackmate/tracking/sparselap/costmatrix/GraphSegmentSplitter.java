@@ -10,19 +10,19 @@ import java.util.*;
 /**
  * SOURCE CODE TAKEN FROM TRACKMATE: https://github.com/fiji/TrackMate
  */
-public class GraphSegmentSplitter
+public class GraphSegmentSplitter<S extends Spot>
 {
-	private final List< Spot > segmentStarts;
+	private final List< S > segmentStarts;
 
-	private final List< Spot > segmentEnds;
+	private final List< S > segmentEnds;
 
-	private final List< List< Spot >> segmentMiddles;
+	private final List< List< S >> segmentMiddles;
 
-	public GraphSegmentSplitter( final Graph< Spot, DefaultWeightedEdge > graph, final boolean findMiddlePoints )
+	public GraphSegmentSplitter( final Graph< S, DefaultWeightedEdge > graph, final boolean findMiddlePoints )
 	{
-		final ConnectivityInspector< Spot, DefaultWeightedEdge > connectivity = new ConnectivityInspector< >( graph );
-		final List< Set< Spot >> connectedSets = connectivity.connectedSets();
-		final Comparator< Spot > framecomparator = Spot.frameComparator;
+		final ConnectivityInspector< S, DefaultWeightedEdge > connectivity = new ConnectivityInspector< >( graph );
+		final List< Set< S >> connectedSets = connectivity.connectedSets();
+		final Comparator< S > framecomparator = Spot.frameComparator();
 
 		segmentStarts = new ArrayList< >( connectedSets.size() );
 		segmentEnds = new ArrayList< >( connectedSets.size() );
@@ -35,15 +35,15 @@ public class GraphSegmentSplitter
 			segmentMiddles = Collections.emptyList();
 		}
 
-		for ( final Set< Spot > set : connectedSets )
+		for ( final Set< S > set : connectedSets )
 		{
 			if ( set.size() < 2 )
 			{
 				continue;
 			}
 
-			final List< Spot > list = new ArrayList< >( set );
-			Collections.sort( list, framecomparator );
+			final List< S > list = new ArrayList< >( set );
+			list.sort(framecomparator);
 
 			segmentEnds.add( list.remove( list.size() - 1 ) );
 			segmentStarts.add( list.remove( 0 ) );
@@ -54,17 +54,17 @@ public class GraphSegmentSplitter
 		}
 	}
 
-	public List< Spot > getSegmentEnds()
+	public List< S > getSegmentEnds()
 	{
 		return segmentEnds;
 	}
 
-	public List< List< Spot >> getSegmentMiddles()
+	public List< List< S >> getSegmentMiddles()
 	{
 		return segmentMiddles;
 	}
 
-	public List< Spot > getSegmentStarts()
+	public List< S > getSegmentStarts()
 	{
 		return segmentStarts;
 	}

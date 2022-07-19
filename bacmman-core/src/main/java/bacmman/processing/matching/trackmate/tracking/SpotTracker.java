@@ -32,7 +32,7 @@ import org.jgrapht.graph.SimpleWeightedGraph;
  * implementations are not multithreaded, they can safely ignore the associated
  * methods.
  */
-public interface SpotTracker extends OutputAlgorithm< SimpleWeightedGraph< Spot, DefaultWeightedEdge > >, MultiThreaded
+public interface SpotTracker<S> extends OutputAlgorithm< SimpleWeightedGraph< S, DefaultWeightedEdge > >, MultiThreaded
 {
 	/**
 	 * Sets the {@link Logger} instance that will receive messages from this

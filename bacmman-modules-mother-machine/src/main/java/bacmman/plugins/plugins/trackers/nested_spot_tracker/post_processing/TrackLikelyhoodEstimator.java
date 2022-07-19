@@ -23,6 +23,8 @@ import bacmman.plugins.plugins.trackers.nested_spot_tracker.SpotWithQuality;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
+import bacmman.processing.matching.trackmate.Spot;
 import org.apache.commons.math3.distribution.RealDistribution;
 
 /**
@@ -251,7 +253,7 @@ public class TrackLikelyhoodEstimator {
             return "Split Indices: "+Arrays.toString(splitIndices)+ " score: "+score;
         }
     }
-    public static class Track {
+    public static class Track<S extends SpotWithQuality<S>> {
         int[] frames;
         double[] distances;
         /**
@@ -263,7 +265,7 @@ public class TrackLikelyhoodEstimator {
             this.frames=frames;
             this.distances=squareDistances;
         }
-        public Track(List<SpotWithQuality> track) {
+        public Track(List<S> track) {
             frames = new int[track.size()];
             if (track.size()>1) { 
                 distances = new double[frames.length-1];

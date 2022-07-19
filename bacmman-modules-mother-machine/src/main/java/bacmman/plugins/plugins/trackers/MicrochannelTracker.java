@@ -127,16 +127,13 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
      */
     @Override public  void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
-        TrackMateInterface<Spot> tmi = new TrackMateInterface(new TrackMateInterface.SpotFactory() {
-            @Override
-            public Spot toSpot(Region o, int frame) {
-                Point center = o.getCenter();
-                if (center==null) center = o.getGeomCenter(true);
-                Spot s = new Spot(center.get(0), 0, 0, 1, 1); // tracking only using X position
-                s.getFeatures().put(Spot.FRAME, (double)frame);
-                //if (frame<2) logger.debug("Frame={} x={}, y={} ([{};{}]), scale: {}", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax(), o.getScaleXY());
-                return s;
-            }
+        TrackMateInterface<TrackMateInterface.SpotImpl> tmi = new TrackMateInterface<>((o, frame) -> {
+            Point center = o.getCenter();
+            if (center==null) center = o.getGeomCenter(true);
+            TrackMateInterface.SpotImpl s = new TrackMateInterface.SpotImpl(center.get(0), 0, 0, 1, 1); // tracking only using X position
+            s.getFeatures().put(Spot.FRAME, (double)frame);
+            //if (frame<2) logger.debug("Frame={} x={}, y={} ([{};{}]), scale: {}", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax(), o.getScaleXY());
+            return s;
         });
         //tmi.setNumThreads(ThreadRunner.getMaxCPUs());
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);

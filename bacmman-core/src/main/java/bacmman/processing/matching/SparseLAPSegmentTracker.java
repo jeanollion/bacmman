@@ -43,12 +43,12 @@ import org.jgrapht.graph.SimpleWeightedGraph;
  *
  * @author fromTrackMate
  */
-public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
+public class SparseLAPSegmentTracker<S extends Spot<S>> implements SpotTracker<S>, Benchmark
 { // VERSION WITH CONSTANT ALTERNATIVE COST INSTEAD OF PERCENTILE-BASED
 
 	private static final String BASE_ERROR_MESSAGE = "[SparseLAPSegmentTracker] ";
 
-	private final SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph;
+	private final SimpleWeightedGraph< S, DefaultWeightedEdge > graph;
 
 	private final Map< String, Object > settings;
 
@@ -60,8 +60,8 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 
 	private int numThreads;
     private final double alternativeDistance;
-	Set<Spot> unlinkedSpots;
-	public SparseLAPSegmentTracker(final SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph, Set<Spot> unlinkedSpots, final Map< String, Object > settings, final double alternativeDistance)
+	Set<S> unlinkedSpots;
+	public SparseLAPSegmentTracker(final SimpleWeightedGraph< S, DefaultWeightedEdge > graph, Set<S> unlinkedSpots, final Map< String, Object > settings, final double alternativeDistance)
 	{
 		this.graph = graph;
 		this.unlinkedSpots=unlinkedSpots;
@@ -71,7 +71,7 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 	}
 
 	@Override
-	public SimpleWeightedGraph< Spot, DefaultWeightedEdge > getResult()
+	public SimpleWeightedGraph< S, DefaultWeightedEdge > getResult()
 	{
 		return graph;
 	}
@@ -116,10 +116,10 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 
 		logger.setProgress( 0d );
 		logger.setStatus( "Creating the segment linking cost matrix..." );
-		final JaqamanSegmentCostMatrixCreator costMatrixCreator = new JaqamanSegmentCostMatrixCreator( graph, unlinkedSpots, settings, alternativeDistance * alternativeDistance );
+		final JaqamanSegmentCostMatrixCreator<S> costMatrixCreator = new JaqamanSegmentCostMatrixCreator<S>( graph, unlinkedSpots, settings, alternativeDistance * alternativeDistance );
 		costMatrixCreator.setNumThreads(numThreads);
 		final Logger.SlaveLogger jlLogger = new Logger.SlaveLogger( logger, 0, 0.9 );
-		final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker< Spot, Spot >( costMatrixCreator, jlLogger );
+		final JaqamanLinker< S, S > linker = new JaqamanLinker<>( costMatrixCreator, jlLogger );
 		if ( !linker.checkInput() || !linker.process() )
 		{
 			errorMessage = linker.getErrorMessage();
@@ -134,12 +134,12 @@ public class SparseLAPSegmentTracker implements SpotTracker, Benchmark
 		logger.setProgress( 0.9d );
 		logger.setStatus( "Creating links..." );
 
-		final Map< Spot, Spot > assignment = linker.getResult();
-		final Map< Spot, Double > costs = linker.getAssignmentCosts();
+		final Map< S, S > assignment = linker.getResult();
+		final Map< S, Double > costs = linker.getAssignmentCosts();
 
-		for ( final Spot source : assignment.keySet() )
+		for ( final S source : assignment.keySet() )
 		{
-			final Spot target = assignment.get( source );
+			final S target = assignment.get( source );
 			final DefaultWeightedEdge edge = graph.addEdge( source, target );
 
 			final double cost = costs.get( source );

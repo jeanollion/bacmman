@@ -40,9 +40,11 @@ import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_MER
 import static bacmman.processing.matching.trackmate.tracking.TrackerKeys.KEY_SPLITTING_MAX_DISTANCE;
 
 import java.util.*;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import net.imglib2.RealLocalizable;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 import org.slf4j.LoggerFactory;
@@ -51,19 +53,22 @@ import org.slf4j.LoggerFactory;
  *
  * @author Jean Ollion
  */
-public class TrackMateInterface<S extends Spot> {
+public class TrackMateInterface<S extends Spot<S>> {
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(TrackMateInterface.class);
     public final HashMap<Region, S>  objectSpotMap = new HashMap<>();
     public final HashMap<S, Region>  spotObjectMap = new HashMap<>();
-    private final SpotCollection collection = new SpotCollection();
+    private final SpotCollection<S> collection = new SpotCollection<S>();
     private Logger internalLogger = Logger.VOID_LOGGER;
     int numThreads=1;
     public String errorMessage;
-    private SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph;
+    private SimpleWeightedGraph< S, DefaultWeightedEdge > graph;
     public final SpotFactory<S> factory;
 
     public TrackMateInterface(SpotFactory<S> factory) {
         this.factory = factory;
+    }
+    public SpotCollection<S> getSpotCollection() {
+        return collection;
     }
     public void resetEdges() {
         graph=null;
@@ -110,13 +115,13 @@ public class TrackMateInterface<S extends Spot> {
 
     public boolean processFTF(double distanceThreshold) {
         long t0 = System.currentTimeMillis();
-        logger.trace("FTF distance: {} objects {}", distanceThreshold, Utils.toStringMap(this.collection.keySet().stream().collect(Collectors.toMap(f->f, f -> collection.getNSpots(f, false))), i->i+"", i->i+"" ) );
+        //logger.debug("FTF distance: {} objects {}", distanceThreshold, Utils.toStringMap(this.collection.keySet().stream().collect(Collectors.toMap(f->f, f -> collection.getNSpots(f, false))), i->i+"", i->i+"" ) );
         // Prepare settings object
         final Map< String, Object > ftfSettings = new HashMap<>();
         ftfSettings.put( KEY_LINKING_MAX_DISTANCE, distanceThreshold );
         ftfSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
 
-        final SparseLAPFrameToFrameTrackerFromExistingGraph frameToFrameLinker = new SparseLAPFrameToFrameTrackerFromExistingGraph(collection, ftfSettings, graph );
+        final SparseLAPFrameToFrameTrackerFromExistingGraph<S> frameToFrameLinker = new SparseLAPFrameToFrameTrackerFromExistingGraph<>(collection, ftfSettings, graph );
         frameToFrameLinker.setConstantAlternativeDistance(distanceThreshold * 1.05);
         frameToFrameLinker.setNumThreads( numThreads );
         final Logger.SlaveLogger ftfLogger = new Logger.SlaveLogger( internalLogger, 0, 0.5 );
@@ -129,22 +134,22 @@ public class TrackMateInterface<S extends Spot> {
         }
         graph = frameToFrameLinker.getResult();
         long t1 = System.currentTimeMillis();
-        logger.trace("number of edges after FTF step: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
+        //logger.debug("number of edges after FTF step: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
         return true;
     }
 
     public boolean processSegments(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) { // maxFrameGap changed -> now 1= 1 frame gap 4/09/19
         long t0 = System.currentTimeMillis();
-        Set<Spot> unlinkedSpots;
+        Set<S> unlinkedSpots;
         if (graph == null) {
             graph = new SimpleWeightedGraph<>( DefaultWeightedEdge.class );
             unlinkedSpots = new HashSet<>(spotObjectMap.keySet());
         } else {
-            Set<Spot> linkedSpots = Stream.concat(graph.edgeSet().stream().map(e -> graph.getEdgeSource(e)), graph.edgeSet().stream().map(e -> graph.getEdgeTarget(e))).collect(Collectors.toSet());
+            Set<S> linkedSpots = Stream.concat(graph.edgeSet().stream().map(e -> graph.getEdgeSource(e)), graph.edgeSet().stream().map(e -> graph.getEdgeTarget(e))).collect(Collectors.toSet());
             //Set<Spot> linkedSpots = graph.vertexSet();
             unlinkedSpots = new HashSet<>(Sets.difference(spotObjectMap.keySet(), linkedSpots));
         }
-        for (Spot s : unlinkedSpots) graph.addVertex(s);
+        for (S s : unlinkedSpots) graph.addVertex(s);
         // Prepare settings object
         final Map< String, Object > slSettings = new HashMap<>();
 
@@ -164,7 +169,7 @@ public class TrackMateInterface<S extends Spot> {
         slSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
         slSettings.put( KEY_CUTOFF_PERCENTILE, 1.0 );
         // Solve.
-        final SparseLAPSegmentTracker segmentLinker = new SparseLAPSegmentTracker( graph, unlinkedSpots, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
+        final SparseLAPSegmentTracker<S> segmentLinker = new SparseLAPSegmentTracker<S>( graph, unlinkedSpots, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
         //final bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker segmentLinker = new bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker( graph, slSettings);
         segmentLinker.setNumThreads(numThreads);
         final Logger.SlaveLogger slLogger = new Logger.SlaveLogger( internalLogger, 0.5, 0.5 );
@@ -179,15 +184,51 @@ public class TrackMateInterface<S extends Spot> {
         return true;
     }
 
+    public void linkObjects(Collection<S> prev, Collection<S> next, boolean allowSplitting, boolean allowMerging) {
+        if (prev==null || prev.isEmpty() || next == null || next.isEmpty()) return;
+        TrackMateInterface<S> localTmi = new TrackMateInterface<>(null);
+        int prevFrame = prev.iterator().next().frame();
+        int nextFrame = next.iterator().next().frame();
+        if (!Utils.objectsAllHaveSameProperty(prev, s -> s.frame() == prevFrame)) throw new IllegalArgumentException("All prev should have same frame");
+        if (!Utils.objectsAllHaveSameProperty(next, s -> s.frame() == nextFrame)) throw new IllegalArgumentException("All prev should have same frame");
+        if (nextFrame<prevFrame) linkObjects(next, prev, allowSplitting, allowMerging);
+        else {
+            for (S i : prev) localTmi.getSpotCollection().add(i, prevFrame);
+            for (S i : next) localTmi.getSpotCollection().add(i, nextFrame);
+            double dMax = Math.sqrt(Double.MAX_VALUE) / 2;
+            localTmi.processFTF(dMax);
+            if (allowSplitting || allowMerging) localTmi.processSegments(dMax, 0, allowSplitting, allowMerging);
+            for (S p : prev) { // transfer links
+                localTmi.getAllNexts(p).forEach(n -> addEdge(p, n));
+            }
+        }
+    }
+
     public void logGraphStatus(String step, long processingTime) {
         if (processingTime>0) logger.debug("number of edges after {}: {}, nb of vertices: {}, processing time: {}", step, graph.edgeSet().size(), graph.vertexSet().size(),processingTime);
         else logger.debug("number of edges after {}: {}, nb of vertices: {}", step, graph.edgeSet().size(), graph.vertexSet().size());
     }
-
-    private void transferLinks(Spot from, Spot to) {
+    public void removeAllEdges(S s, boolean previous, boolean next) {
+        if (!graph.containsVertex(s)) return;
+        List<DefaultWeightedEdge> edgeList = new ArrayList<>(graph.edgesOf(s));
+        for (DefaultWeightedEdge e : edgeList) {
+            S target = graph.getEdgeTarget(e);
+            S source = graph.getEdgeSource(e);
+            if (next && s.equals(source)) {
+                graph.removeEdge(e);
+                if (graph.edgesOf(target).isEmpty()) graph.removeVertex(target);
+            }
+            else if (previous && s.equals(target)) {
+                graph.removeEdge(e);
+                if (graph.edgesOf(source).isEmpty()) graph.removeVertex(source);
+            }
+        }
+        if (graph.edgesOf(s).isEmpty()) graph.removeVertex(s);
+    }
+    private void transferLinks(S from, S to) {
         List<DefaultWeightedEdge> edgeList = new ArrayList<>(graph.edgesOf(from));
         for (DefaultWeightedEdge e : edgeList) {
-            Spot target = graph.getEdgeTarget(e);
+            S target = graph.getEdgeTarget(e);
             boolean isSource = true;
             if (target==from) {
                 target = graph.getEdgeSource(e);
@@ -226,27 +267,30 @@ public class TrackMateInterface<S extends Spot> {
      */
     public void removeFromGraph(Collection<DefaultWeightedEdge> edges, Collection<S> spots, boolean removeUnlinkedVextices) {
         if (spots==null) {
-            spots = new HashSet<S>();
+            spots = new HashSet<>();
             for (DefaultWeightedEdge e : edges) {
-                spots.add((S)graph.getEdgeSource(e));
-                spots.add((S)graph.getEdgeTarget(e));
+                spots.add(graph.getEdgeSource(e));
+                spots.add(graph.getEdgeTarget(e));
             }
         }
         //logger.debug("edges to remove :{}", Utils.toStringList(edges, e->graph.getEdgeSource(e)+"->"+graph.getEdgeTarget(e)));
         graph.removeAllEdges(edges);
         //logger.debug("spots to remove candidates :{}", spots);
         if (removeUnlinkedVextices) {
-            for (Spot s : spots) { // also remove vertex that are not linked anymore
-                if (graph.edgesOf(s).isEmpty()) removeObject(spotObjectMap.get((S)s), (int)(double)s.getFeature(Spot.FRAME));
+            for (S s : spots) { // also remove vertex that are not linked anymore
+                if (graph.edgesOf(s).isEmpty()) removeObject(spotObjectMap.get(s), s.frame());
             }
         }
     }
     public void addEdge(S s, S t) {
-        graph.addEdge(s, t);
+        graph.addVertex(s);
+        graph.addVertex(t);
+        if (s.frame()>t.frame()) graph.addEdge(t, s);
+        else graph.addEdge(s, t);
     }
     public void removeFromGraph(DefaultWeightedEdge edge) {
-        Spot v1 = graph.getEdgeSource(edge);
-        Spot v2 = graph.getEdgeTarget(edge);
+        S v1 = graph.getEdgeSource(edge);
+        S v2 = graph.getEdgeTarget(edge);
         graph.removeEdge(edge);
         try {
             if (v1!=null && graph.edgesOf(v1).isEmpty()) graph.removeVertex(v1);
@@ -272,13 +316,13 @@ public class TrackMateInterface<S extends Spot> {
 
     private boolean intersect(DefaultWeightedEdge e1, DefaultWeightedEdge e2, double spatialTolerence, Set<S> toRemSpot) {
         if (e1.equals(e2)) return false;
-        S s1 = (S)graph.getEdgeSource(e1);
-        S s2 = (S)graph.getEdgeSource(e2);
-        S t1 = (S)graph.getEdgeTarget(e1);
-        S t2 = (S)graph.getEdgeTarget(e2);
-        //if (s1.getFeature(Spot.FRAME)>=t1.getFeature(Spot.FRAME)) logger.debug("error source after target {}->{}", s1, t1);
+        S s1 = graph.getEdgeSource(e1);
+        S s2 = graph.getEdgeSource(e2);
+        S t1 = graph.getEdgeTarget(e1);
+        S t2 = graph.getEdgeTarget(e2);
+        //if (s1.frame()>=t1.frame()) logger.debug("error source after target {}->{}", s1, t1);
         if (s1.equals(t1) || s2.equals(t2) || s1.equals(s2) || t1.equals(t2)) return false;
-        if (!overlapTime(s1.getFeature(Spot.FRAME), t1.getFeature(Spot.FRAME), s2.getFeature(Spot.FRAME), t2.getFeature(Spot.FRAME))) return false;
+        if (!overlapTime(s1.frame(), t1.frame(), s2.frame(), t2.frame())) return false;
         for (String f : Spot.POSITION_FEATURES) {
             if (!intersect(s1.getFeature(f), t1.getFeature(f), s2.getFeature(f), t2.getFeature(f), spatialTolerence)) return false;
         }
@@ -295,7 +339,7 @@ public class TrackMateInterface<S extends Spot> {
         double d2 = aNext - bNext;
         return d1*d2<=0 || Math.abs(d1)<=tolerance || Math.abs(d2)<=tolerance;
     }
-    private static boolean overlapTime(double aPrev, double aNext, double bPrev, double bNext) {
+    private static boolean overlapTime(int aPrev, int aNext, int bPrev, int bNext) {
         /*if (aPrev>aNext) {
             double t = aNext;
             aNext=aPrev;
@@ -306,25 +350,25 @@ public class TrackMateInterface<S extends Spot> {
             bNext=bPrev;
             bPrev=t;
         }*/
-        double min = Math.max(aPrev, bPrev);
-        double max = Math.min(aNext, bNext);
+        int min = Math.max(aPrev, bPrev);
+        int max = Math.min(aNext, bNext);
         return max>min;
     }
     public void printLinks() {
         logger.debug("number of objects: {}", graph.vertexSet().size());
-        List<Spot> sList = new ArrayList<>(graph.vertexSet());
+        List<S> sList = new ArrayList<>(graph.vertexSet());
         Collections.sort(sList);
-        for (Spot s : sList) logger.debug("{}", s);
+        for (S s : sList) logger.debug("{}", s);
         logger.debug("number of links: {}", graph.edgeSet().size());
         List<DefaultWeightedEdge> eList = new ArrayList<>(graph.edgeSet());
-        Collections.sort(eList, (e1, e2)->{
+        eList.sort((e1, e2) -> {
             int c1 = graph.getEdgeSource(e1).compareTo(graph.getEdgeSource(e2));
-            if (c1!=0) return c1;
+            if (c1 != 0) return c1;
             return graph.getEdgeTarget(e1).compareTo(graph.getEdgeTarget(e2));
         });
         for (DefaultWeightedEdge e : eList) {
-            Spot s = graph.getEdgeSource(e);
-            Spot t = graph.getEdgeTarget(e);
+            S s = graph.getEdgeSource(e);
+            S t = graph.getEdgeTarget(e);
             logger.debug("{}->{} sourceEdges: {}, targetEdges: {}", s, t, graph.edgesOf(s), graph.edgesOf(t));
         }
     }
@@ -335,53 +379,81 @@ public class TrackMateInterface<S extends Spot> {
         logger.debug("reset track links between {} & {}", minF, maxF);
         for (SegmentedObject o : objects) editor.resetTrackLinks(o,o.getFrame()>minF, o.getFrame()<maxF, true);
     }
-    public void setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
-        setTrackLinks(objectsF, editor, true);
+    public List<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
+        return setTrackLinks(objectsF, editor, true);
     }
-    public void setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean propagateTrackHead) {
-        if (objectsF==null || objectsF.isEmpty()) return;
+    public Comparator<DefaultWeightedEdge> edgeComparator() {
+        return (e1, e2) -> {
+            int c = Double.compare(graph.getEdgeWeight(e1), graph.getEdgeWeight(e2));
+            if (c==0) {
+                return graph.getEdgeSource(e1).compareTo(graph.getEdgeTarget(e2));
+            } else return c;
+        };
+    }
+    public List<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean propagateTrackHead) {
+        if (objectsF==null || objectsF.isEmpty()) return Collections.emptyList();
         List<SegmentedObject> objects = Utils.flattenMap(objectsF);
         int minF = objectsF.keySet().stream().min(Comparator.comparingInt(i -> i)).get();
         int maxF = objectsF.keySet().stream().max(Comparator.comparingInt(i -> i)).get();
         for (SegmentedObject o : objects) editor.resetTrackLinks(o, o.getFrame()>minF, o.getFrame()<maxF, propagateTrackHead);
         if (graph==null) {
             logger.error("Graph not initialized!");
-            return;
+            return Collections.emptyList();
         }
+        List<SymetricalPair<SegmentedObject>> additionalLinks = new ArrayList<>(); // links that cannot be encoded in segmentedObjects
         // set links
-        TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(Comparator.comparingDouble(arg0 -> graph.getEdgeWeight(arg0)));
-        setEdges(objects, objectsF, false, edgeBucket, editor);
-        setEdges(objects, objectsF, true, edgeBucket, editor);
+
+        TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(edgeComparator());
+        setEdges(objects, objectsF, false, edgeBucket, editor, additionalLinks);
+        setEdges(objects, objectsF, true, edgeBucket, editor, additionalLinks);
         Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
         for (SegmentedObject so : objects) {
             if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
                 editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, propagateTrackHead);
             else editor.setTrackHead(so, so, false, propagateTrackHead);
         }
+        return additionalLinks;
     }
-    private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor) {
-        for (SegmentedObject child : objects) {
+    private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor, List<SymetricalPair<SegmentedObject>> additionalLinks) {
+        for (SegmentedObject o : objects) {
             edgesBucket.clear();
             //logger.debug("settings links for: {}", child);
-            S s = objectSpotMap.get(child.getRegion());
+            S s = objectSpotMap.get(o.getRegion());
             getSortedEdgesOf(s, prev, edgesBucket);
-            //logger.debug("set {} edge for: {}: links: {}: {}", prev?"prev":"next", s, edgesBucket.size(), edgesBucket);
+            //logger.debug("set {} edge for: {}: links: {}: {}", prev?"prev":"next", o, edgesBucket.size(), edgesBucket);
             if (edgesBucket.size()==1) {
                 DefaultWeightedEdge e = edgesBucket.first();
                 S otherSpot = getOtherSpot(e, s);
-                SegmentedObject other = getStructureObject(objectsByF.get(otherSpot.getFeature(Spot.FRAME).intValue()), otherSpot);
+                SegmentedObject other = getSegmentedObject(objectsByF.get(otherSpot.frame()), otherSpot);
                 if (other!=null) {
                     if (prev) {
-                        if (child.getPrevious()!=null && !child.getPrevious().equals(other)) {
-                            logger.warn("warning: {} has already a previous assigned: {}, cannot assign: {}", child, child.getPrevious(), other);
-                        } else editor.setTrackLinks(other, child, true, false, false);
+                        if (o.getPrevious()!=null && !o.getPrevious().equals(other)) {
+                            logger.error("warning: {} has already a previous assigned: {}, cannot assign: {}", o, o.getPrevious(), other);
+                        } else editor.setTrackLinks(other, o, true, false, false);
                     } else {
-                        if (child.getNext()!=null && !child.getNext().equals(other)) {
-                            logger.warn("warning: {} has already a next assigned: {}, cannot assign: {}", child, child.getNext(), other);
-                        } else editor.setTrackLinks(child, other, false, true, false);
+                        if (o.getNext()!=null && !o.getNext().equals(other)) {
+                            logger.error("warning: {} has already a next assigned: {}, cannot assign: {}", o, o.getNext(), other);
+                        } else editor.setTrackLinks(o, other, false, true, false);
                     }
                 }
                 //else logger.warn("SpotWrapper: next: {}, next of {}, has already a previous assigned: {}", nextSo, child, nextSo.getPrevious());
+            } else if (additionalLinks!=null) { // store links that cannot be encoded in SegmentedObject
+                edgesBucket.stream()
+                        .map(e -> {
+                            S other = getOtherSpot(e, s);
+                            if (prev) {
+                                S otherNext = getNext(other);
+                                if (s.equals(otherNext)) return null; // link will be encoded as prev -> next
+                            } else {
+                                S otherPrev = getPrevious(other);
+                                if (s.equals(otherPrev)) return null; // link will be encoded as prev <- next
+                            }
+                            return other;
+                        })
+                        .filter(Objects::nonNull)
+                        .map(otherSpot -> getSegmentedObject(objectsByF.get(otherSpot.frame()), otherSpot))
+                        .filter(Objects::nonNull)
+                        .forEach(other -> additionalLinks.add(prev?new SymetricalPair<>(other, o):new SymetricalPair<>(o, other)));
             }
         }
     }
@@ -389,29 +461,30 @@ public class TrackMateInterface<S extends Spot> {
         if (!graph.containsVertex(spot)) return;
         Set<DefaultWeightedEdge> set = graph.edgesOf(spot);
         if (set.isEmpty()) return;
-        // remove backward or foreward links
-        double tp = spot.getFeature(Spot.FRAME);
+        // remove backward or forward links
+        //logger.debug("edges of : {} -> {}", spot, set);
+        double tp = spot.frame();
         if (backward) {
             for (DefaultWeightedEdge e : set) {
-                if (getOtherSpot(e, spot).getFeature(Spot.FRAME)<tp) res.add(e);
+                if (getOtherSpot(e, spot).frame()<tp) res.add(e);
             }
         } else {
             for (DefaultWeightedEdge e : set) {
-                if (getOtherSpot(e, spot).getFeature(Spot.FRAME)>tp) res.add(e);
+                if (getOtherSpot(e, spot).frame()>tp) res.add(e);
             }
         }
     }
 
     private S getOtherSpot(DefaultWeightedEdge e, S spot) {
-        S s = (S)graph.getEdgeTarget(e);
-        if (spot.equals(s)) return (S)graph.getEdgeSource(e);
+        S s = graph.getEdgeTarget(e);
+        if (spot.equals(s)) return graph.getEdgeSource(e);
         else return s;
     }
     public void switchLinks(DefaultWeightedEdge e1, DefaultWeightedEdge e2) {
-        S s1 = (S)graph.getEdgeSource(e1);
-        S t1 = (S)graph.getEdgeTarget(e1);
-        S s2 = (S)graph.getEdgeSource(e2);
-        S t2 = (S)graph.getEdgeTarget(e2);
+        S s1 = graph.getEdgeSource(e1);
+        S t1 = graph.getEdgeTarget(e1);
+        S s2 = graph.getEdgeSource(e2);
+        S t2 = graph.getEdgeTarget(e2);
         graph.removeEdge(e1);
         graph.removeEdge(e2);
         graph.addEdge(s1, t2);
@@ -442,32 +515,32 @@ public class TrackMateInterface<S extends Spot> {
                 p = getPrevious(p);
             }
         }
-        Collections.sort(track, Comparator.comparingDouble(s -> s.getFeature(Spot.FRAME)));
+        Collections.sort(track, Comparator.comparingInt(Spot::frame));
         return track;
     }
     public S getPrevious(S t) {
-        if (!graph.containsVertex(t)) return null;
-        for (DefaultWeightedEdge e : graph.edgesOf(t)) {
-            Spot s = graph.getEdgeSource(e);
-            if (s.equals(t)) continue;
-            else return (S)s;
-        }
-        return null;
+        List<S> prevs = getAllPrevious(t);
+        if (prevs.size()==1) return prevs.get(0);
+        else return null;
+    }
+    public List<S> getAllPrevious(S t) {
+        if (!graph.containsVertex(t)) return Collections.emptyList();
+        return graph.edgesOf(t).stream().map(e->graph.getEdgeSource(e)).filter(e->!e.equals(t)).map(e -> (S)e).collect(Collectors.toList());
+    }
+    public List<S> getAllNexts(S t) {
+        if (!graph.containsVertex(t)) return Collections.emptyList();
+        return graph.edgesOf(t).stream().map(e->graph.getEdgeTarget(e)).filter(e->!e.equals(t)).map(e -> (S)e).collect(Collectors.toList());
     }
     public S getNext(S s) {
-        if (!graph.containsVertex(s)) return null;
-        for (DefaultWeightedEdge e : graph.edgesOf(s)) {
-            Spot t = graph.getEdgeTarget(e);
-            if (s.equals(t)) continue;
-            else return (S)t;
-        }
-        return null;
+        List<S> nexts = getAllNexts(s);
+        if (nexts.size()==1) return nexts.get(0);
+        else return null;
     }
     public S getObject(DefaultWeightedEdge e, boolean source) {
-        return source ? (S)graph.getEdgeSource(e) : (S)graph.getEdgeTarget(e);
+        return source ? graph.getEdgeSource(e) : graph.getEdgeTarget(e);
     }
 
-    private SegmentedObject getStructureObject(List<SegmentedObject> candidates, S s) {
+    private SegmentedObject getSegmentedObject(List<SegmentedObject> candidates, S s) {
         if (candidates==null || candidates.isEmpty()) return null;
         Region o = spotObjectMap.get(s);
         for (SegmentedObject c : candidates) if (c.getRegion() == o) return c;
@@ -481,14 +554,39 @@ public class TrackMateInterface<S extends Spot> {
         public S toSpot(Region o, int frame);
     }
 
-    public static class DefaultRegionSpotFactory implements SpotFactory<Spot> {
+    public static class DefaultRegionSpotFactory implements SpotFactory<SpotImpl> {
         @Override
-        public Spot toSpot(Region o, int frame) {
+        public SpotImpl toSpot(Region o, int frame) {
             Point center = o.getCenter();
             if (center==null) center = o.getGeomCenter(true);
-            Spot s = new Spot(center.get(0), center.get(1), center.getWithDimCheck(2), 1, 1);
+            SpotImpl s = new SpotImpl(center.get(0), center.get(1), center.getWithDimCheck(2), 1, 1);
             s.getFeatures().put(Spot.FRAME, (double)frame);
             return s;
+        }
+    }
+    public static class SpotImpl extends Spot<SpotImpl> {
+        public SpotImpl(double x, double y, double z, double radius, double quality, String name) {
+            super(x, y, z, radius, quality, name);
+        }
+
+        public SpotImpl(double x, double y, double z, double radius, double quality) {
+            super(x, y, z, radius, quality);
+        }
+
+        public SpotImpl(RealLocalizable location, double radius, double quality, String name) {
+            super(location, radius, quality, name);
+        }
+
+        public SpotImpl(RealLocalizable location, double radius, double quality) {
+            super(location, radius, quality);
+        }
+
+        public SpotImpl(Spot spot) {
+            super(spot);
+        }
+
+        public SpotImpl(int ID) {
+            super(ID);
         }
     }
 }

@@ -33,7 +33,7 @@ import static bacmman.processing.matching.trackmate.SpotCollection.VISIBLITY;
  * @author Jean-Yves Tinevez &lt;jeanyves.tinevez@gmail.com&gt; 2010, 2013
  *
  */
-public class Spot extends AbstractEuclideanSpace implements RealLocalizable, Comparable<Spot>
+public class Spot<S extends Spot<S>> extends AbstractEuclideanSpace implements RealLocalizable, Comparable<S>
 {
 
 	/*
@@ -125,7 +125,7 @@ public class Spot extends AbstractEuclideanSpace implements RealLocalizable, Com
 	 */
 	public Spot(final RealLocalizable location, final double radius, final double quality, final String name )
 	{
-		this( location.getDoublePosition( 0 ), location.getDoublePosition( 1 ), location.getDoublePosition( 2 ), radius, quality, name );
+		this( location.getDoublePosition( 0 ), location.getDoublePosition( 1 ), location.numDimensions()>2?location.getDoublePosition( 2 ):0, radius, quality, name );
 	}
 
 	/**
@@ -315,6 +315,10 @@ public class Spot extends AbstractEuclideanSpace implements RealLocalizable, Com
 		return features.get( feature );
 	}
 
+	public final int frame() {
+		return getFeature(Spot.FRAME).intValue();
+	}
+
 	/**
 	 * Stores the specified feature value for this spot.
 	 *
@@ -371,10 +375,10 @@ public class Spot extends AbstractEuclideanSpace implements RealLocalizable, Com
 	 *            the name of the feature to use for calculation.
 	 * @return the absolute normalized difference feature value.
 	 */
-	public double normalizeDiffTo(final Spot s, final String feature )
+	public double normalizeDiffTo(final S s, final String feature )
 	{
-		final double a = features.get( feature ).doubleValue();
-		final double b = s.getFeature( feature ).doubleValue();
+		final double a = features.get(feature);
+		final double b = s.getFeature(feature);
 		if ( a == -b )
 			return 0d;
 		
@@ -388,7 +392,7 @@ public class Spot extends AbstractEuclideanSpace implements RealLocalizable, Com
 	 *            the spot to compute the square distance to.
 	 * @return the square distance as a <code>double</code>.
 	 */
-	public double squareDistanceTo( final Spot s )
+	public double squareDistanceTo( final S s )
 	{
 		double sumSquared = 0d;
 		double thisVal, otherVal;
@@ -543,43 +547,39 @@ public class Spot extends AbstractEuclideanSpace implements RealLocalizable, Com
 	 *            feature.
 	 * @return a new {@link Comparator}.
 	 */
-	public final static Comparator<Spot> featureComparator(final String feature )
+	public final static <S extends Spot> Comparator<S> featureComparator(final String feature )
 	{
-		final Comparator<Spot> comparator = new Comparator<Spot>()
-		{
-			@Override
-			public int compare(final Spot o1, final Spot o2 )
-			{
-				final double diff = o2.diffTo( o1, feature );
-				if ( diff == 0 )
-					return 0;
-				else if ( diff < 0 )
-					return 1;
-				else
-					return -1;
-			}
+		final Comparator<S> comparator = (o1, o2) -> {
+			final double diff = o2.diffTo( o1, feature );
+			if ( diff == 0 )
+				return 0;
+			else if ( diff < 0 )
+				return 1;
+			else
+				return -1;
 		};
 		return comparator;
 	}
 
 	/** A comparator used to sort spots by ascending time feature. */
-	public final static Comparator<Spot> timeComparator = featureComparator( POSITION_T );
+	public final static <S extends Spot> Comparator<S> timeComparator() {return featureComparator( POSITION_T );}
 
 	/** A comparator used to sort spots by ascending frame. */
-	public final static Comparator<Spot> frameComparator = featureComparator( FRAME );
+	public final static <S extends Spot> Comparator<S> frameComparator() {return featureComparator( FRAME );}
 
 	/**
 	 * A comparator used to sort spots by name. The comparison uses numerical
 	 * natural sorting, So that "Spot_4" comes before "Spot_122".
 	 */
-	public final static Comparator<Spot> nameComparator = new Comparator<Spot>()
-	{
-		private final AlphanumComparator comparator = AlphanumComparator.instance;
+	public final static <S extends Spot> Comparator<S> nameComparator() {
+		return new Comparator<S>() {
+			private final AlphanumComparator comparator = AlphanumComparator.instance;
 
-		@Override
-		public int compare(final Spot o1, final Spot o2 )
-		{
-			return comparator.compare( o1.getName(), o2.getName() );
-		}
-	};
+			@Override
+			public int compare(final S o1, final S o2 )
+			{
+				return comparator.compare( o1.getName(), o2.getName() );
+			}
+		};
+	}
 }

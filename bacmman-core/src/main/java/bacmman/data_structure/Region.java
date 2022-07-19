@@ -233,42 +233,44 @@ public class Region {
     public Point getCenter() {
         return center;
     }
-    
-    public Point getGeomCenter(boolean scaled) {
+    public static Point getGeomCenter(boolean scaled, Region... regions) {
         double[] center = new double[3];
-        if (mask instanceof BlankMask) {
-            center[0] = (float)(mask).xMean();
-            center[1] = (float)(mask).yMean();
-            center[2] = (float)(mask).zMean();
-        } else if (voxels!=null) {
-            for (Voxel v : voxels) {
-                center[0] += v.x;
-                center[1] += v.y;
-                center[2] += v.z;
+        long[] size = new long[1];
+        for (Region r : regions) {
+            if (r.mask instanceof BlankMask) {
+                int s = r.mask.sizeXYZ();
+                size[0]+=s;
+                center[0] += (r.mask).xMean() * s;
+                center[1] += (r.mask).yMean() * s;
+                center[2] += (r.mask).zMean() * s;
+            } else if (r.voxels != null) {
+                for (Voxel v : r.voxels) {
+                    center[0] += v.x;
+                    center[1] += v.y;
+                    center[2] += v.z;
+                }
+                size[0] += r.voxels.size();
+            } else {
+                ImageMask.loopWithOffset(r.getMask(), (x, y, z) -> {
+                    center[0] += x;
+                    center[1] += y;
+                    center[2] += z;
+                    ++size[0];
+                });
             }
-            double count = voxels.size();
-            center[0]/=count;
-            center[1]/=count;
-            center[2]/=count;
-        } else {
-            getMask();
-            int[] count = new int[1];
-            ImageMask.loopWithOffset(mask, (x, y, z)->{
-                center[0] += x;
-                center[1] += y;
-                center[2] += z;
-                ++count[0];
-            });
-            center[0]/=count[0];
-            center[1]/=count[0];
-            center[2]/=count[0];
         }
+        center[0] /= size[0];
+        center[1] /= size[0];
+        center[2] /= size[0];
         if (scaled) {
-            center[0] *=this.getScaleXY();
-            center[1] *=this.getScaleXY();
-            center[2] *=this.getScaleZ();
+            center[0] *=regions[0].getScaleXY();
+            center[1] *=regions[0].getScaleXY();
+            center[2] *=regions[0].getScaleZ();
         }
         return new Point(center);
+    }
+    public Point getGeomCenter(boolean scaled) {
+        return getGeomCenter(scaled, this);
     }
     public Point getMassCenter(Image image, boolean scaled) {
         double[] center = new double[3];
@@ -753,7 +755,7 @@ public class Region {
                 }
             }
         }
-        bounds = null; // reset boudns
+        bounds = null; // reset bounds
         this.mask=null; // reset voxels
         this.roi=null;
         regionModified=true;

@@ -156,6 +156,14 @@ public class HashMapGetCreate<K, V> extends HashMap<K, V> {
         return res;
     }
 
+    public static <O, K, V> HashMapGetCreate<K, V> getRedirectedMap(Stream<O> keys, Function<O, K> keyMapper, Function<K, O> keyMapperRev,  Function<O, V> factory, Syncronization sync) {
+        Map<K, V> map = keys.collect(Collectors.toMap(keyMapper, factory));
+        Function<K, V> factory2 = k->factory.apply(keyMapperRev.apply(k));
+        HashMapGetCreate<K, V> res = getRedirectedMap(map.size(), factory2, sync);
+        res.putAll(map);
+        return res;
+    }
+
     public static class HashMapGetCreateRedirected<K, V> extends HashMapGetCreate<K, V> {
         public HashMapGetCreateRedirected(Function<K, V> factory) {
             super(factory);

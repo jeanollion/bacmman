@@ -28,6 +28,7 @@ import bacmman.processing.EDT;
 import bacmman.processing.Filters;
 import bacmman.processing.localthickness.LocalThickness;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.geom.Point;
@@ -46,11 +47,12 @@ public class GeometricalMeasurements {
         else  return count * o.getScaleXY() * o.getScaleXY();
     }
     public static double getFeretMax(Region o) {
+        return getFeretMax(o.getContour(), o.getScaleXY(), o.getScaleZ());
+    }
+    public static double getFeretMax(Collection<Voxel> contour, double scaleXY, double scaleZ) {
+        List<Voxel> list = (contour instanceof List)?(List<Voxel>)(contour) : new ArrayList<>(contour);
         double d2Max = 0;
-        List<Voxel> list = new ArrayList<>(o.getContour());
         int voxCount = list.size();
-        double scaleXY = o.getScaleXY();
-        double scaleZ = o.getScaleZ();
         for (int i = 0; i<voxCount-1; ++i) {
             for (int j = i+1; j<voxCount; ++j) {
                 double d2Temp = list.get(i).getDistanceSquare(list.get(j), scaleXY, scaleZ);

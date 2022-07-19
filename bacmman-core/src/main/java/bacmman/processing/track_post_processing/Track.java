@@ -4,7 +4,6 @@ import bacmman.data_structure.*;
 import bacmman.image.ImageInteger;
 import bacmman.processing.Filters;
 import bacmman.processing.matching.TrackMateInterface;
-import bacmman.processing.matching.trackmate.Spot;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.Pair;
@@ -434,7 +433,7 @@ public class Track {
             Map<Integer, List<SegmentedObject>> map = new HashMap<>();
             map.put(prevFrame, prev.stream().map(Track::tail).collect(Collectors.toList()));
             map.put(nextFrame, next.stream().map(Track::head).collect(Collectors.toList()));
-            TrackMateInterface<Spot> tmi = new TrackMateInterface<>(TrackMateInterface.defaultFactory());
+            TrackMateInterface<TrackMateInterface.SpotImpl> tmi = new TrackMateInterface<>(TrackMateInterface.defaultFactory());
             tmi.addObjects(map);
             double dMax = Math.sqrt(Double.MAX_VALUE) / 100; // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
             if (tmi.processFTF(dMax)) {

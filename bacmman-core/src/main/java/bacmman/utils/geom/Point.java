@@ -107,6 +107,9 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     public static Point middle2D(RealLocalizable start, RealLocalizable end) {
         return new Vector((float)((end.getDoublePosition(0)+start.getDoublePosition(0))/2d), (float)((end.getDoublePosition(1)+start.getDoublePosition(1))/2d));
     }
+    public static Point weightedMiddle2D(RealLocalizable start, RealLocalizable end, double w1, double w2) {
+        return new Vector((float)((end.getDoublePosition(0)*w1+start.getDoublePosition(0)*w2)/(w1+w2)), (float)((end.getDoublePosition(1)*w1+start.getDoublePosition(1)*w2)/(w1+w2)));
+    }
     public T weightedSum(Point other, double weight, double weightOther) {
         for (int i = 0; i<coords.length; ++i) coords[i] = (float)(coords[i] * weight + other.coords[i]*weightOther);
         return (T) this;

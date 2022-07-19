@@ -21,18 +21,38 @@ package bacmman.plugins.plugins.trackers.nested_spot_tracker;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.utils.geom.Point;
 import bacmman.processing.matching.trackmate.Spot;
+import net.imglib2.RealLocalizable;
 
 /**
  *
  * @author Jean Ollion
  */
-public abstract class SpotWithQuality extends Spot {
+public abstract class SpotWithQuality<S extends SpotWithQuality<S>> extends Spot<S> {
 
-    public SpotWithQuality(Point location, double radius, double quality) {
-        super(location.numDimensions()<3 ? location.duplicate(3) : location, radius, quality);
+    public SpotWithQuality(double x, double y, double z, double radius, double quality, String name) {
+        super(x, y, z, radius, quality, name);
     }
-    
+
+    public SpotWithQuality(double x, double y, double z, double radius, double quality) {
+        super(x, y, z, radius, quality);
+    }
+
+    public SpotWithQuality(RealLocalizable location, double radius, double quality, String name) {
+        super(location, radius, quality, name);
+    }
+
+    public SpotWithQuality(RealLocalizable location, double radius, double quality) {
+        super(location, radius, quality);
+    }
+
+    public SpotWithQuality(Spot spot) {
+        super(spot);
+    }
+
+    public SpotWithQuality(int ID) {
+        super(ID);
+    }
+
     public abstract boolean isLowQuality();
-    public abstract int frame(); 
     public abstract SegmentedObject parent();
 }

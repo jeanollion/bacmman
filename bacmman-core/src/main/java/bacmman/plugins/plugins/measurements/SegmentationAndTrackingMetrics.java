@@ -373,7 +373,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
             }
         });
     }
-    static class RegionDistOverlap extends Spot {
+    static class RegionDistOverlap extends Spot<RegionDistOverlap> {
         final Region r;
         final Map<Pair<Region, Region>, Overlap> overlapMap;
         public RegionDistOverlap(Region r, int frame, Map<Pair<Region, Region>, Overlap> overlapMap) {
@@ -382,12 +382,9 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
             this.overlapMap=overlapMap;
             this.getFeatures().put(Spot.FRAME, (double)frame);
         }
-        public int frame() {
-            return getFeature(Spot.FRAME).intValue();
-        }
+
         @Override
-        public double squareDistanceTo(Spot other) {
-            RegionDistOverlap otherR = (RegionDistOverlap)other;
+        public double squareDistanceTo(RegionDistOverlap otherR) {
             if (otherR.frame() < frame()) return otherR.squareDistanceTo(this);
             Overlap o = overlapMap.get(new Pair<>(r, otherR.r));
             if (o==null || o.overlap == 0) return Double.POSITIVE_INFINITY;

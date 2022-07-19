@@ -701,7 +701,7 @@ public class RegionPopulation {
         for (Region r : getRegions()) {
             EDT edt = new EDT();
             if (correctionForObjectsTouchingBorder) {
-                boolean[] touchingBorders = BoundingBox.getTouchingBorders(this.properties, r.getBounds());
+                boolean[] touchingBorders = BoundingBox.getTouchingEdges(this.properties, r.getBounds());
                 edt.outOfBoundPolicy().setX(!touchingBorders[0], !touchingBorders[1]);
                 edt.outOfBoundPolicy().setY(!touchingBorders[2], !touchingBorders[3]);
                 edt.outOfBoundPolicy().setZ(!touchingBorders[4], !touchingBorders[5]);

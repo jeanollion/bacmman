@@ -222,7 +222,7 @@ public class ManualEdition {
         }
         if (!map.isEmpty() && !unlink) {
             List<SegmentedObject> allObjects = Utils.flattenMap(map);
-            TrackMateInterface<Spot> tmi = new TrackMateInterface(TrackMateInterface.defaultFactory());
+            TrackMateInterface<TrackMateInterface.SpotImpl> tmi = new TrackMateInterface<>(TrackMateInterface.defaultFactory());
             tmi.addObjects(map);
             //double meanLength = allObjects.stream().mapToDouble( s->GeometricalMeasurements.getFeretMax(s.getRegion())).average().getAsDouble();
             //logger.debug("Mean size: {}", meanLength);

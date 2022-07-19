@@ -50,15 +50,15 @@ import org.jgrapht.graph.SimpleWeightedGraph;
  *
  * @author from TrackMate
  */
-public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreadedBenchmarkAlgorithm implements SpotTracker
+public class SparseLAPFrameToFrameTrackerFromExistingGraph<S extends Spot<S>> extends MultiThreadedBenchmarkAlgorithm implements SpotTracker<S>
 {
 	private final static String BASE_ERROR_MESSAGE = "[SparseLAPFrameToFrameTracker] ";
 
-	private SimpleWeightedGraph<Spot, DefaultWeightedEdge > graph;
+	private SimpleWeightedGraph<S, DefaultWeightedEdge > graph;
 
 	private Logger logger = Logger.VOID_LOGGER;
 
-	private final SpotCollection spots;
+	private final SpotCollection<S> spots;
 
 	private final Map< String, Object > settings;
 
@@ -68,13 +68,13 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 	 * CONSTRUCTOR
 	 */
 
-	public SparseLAPFrameToFrameTrackerFromExistingGraph( final SpotCollection spots, final Map< String, Object > settings )
+	public SparseLAPFrameToFrameTrackerFromExistingGraph( final SpotCollection<S> spots, final Map< String, Object > settings )
 	{
 		this.spots = spots;
 		this.settings = settings;
 	}
         
-        public SparseLAPFrameToFrameTrackerFromExistingGraph( final SpotCollection spots, final Map< String, Object > settings, SimpleWeightedGraph< Spot, DefaultWeightedEdge > graph )
+        public SparseLAPFrameToFrameTrackerFromExistingGraph( final SpotCollection<S> spots, final Map< String, Object > settings, SimpleWeightedGraph< S, DefaultWeightedEdge > graph )
 	{
 		this(spots, settings);
                 this.graph=graph;
@@ -84,13 +84,13 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 	 * METHODS
 	 */
 
-	public SparseLAPFrameToFrameTrackerFromExistingGraph setConstantAlternativeDistance(double alternativeDistance) {
+	public SparseLAPFrameToFrameTrackerFromExistingGraph<S> setConstantAlternativeDistance(double alternativeDistance) {
 		this.alternativeCost=alternativeDistance * alternativeDistance;
 		return this;
 	}
 
 	@Override
-	public SimpleWeightedGraph< Spot, DefaultWeightedEdge > getResult()
+	public SimpleWeightedGraph< S, DefaultWeightedEdge > getResult()
 	{
 		return graph;
 	}
@@ -165,29 +165,29 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 		// Prepare cost function
 		@SuppressWarnings( "unchecked" )
 		final Map< String, Double > featurePenalties = ( Map< String, Double > ) settings.get( KEY_LINKING_FEATURE_PENALTIES );
-		final CostFunction< Spot, Spot > costFunction;
+		final CostFunction< S, S > costFunction;
 		if ( null == featurePenalties || featurePenalties.isEmpty() )
 		{
-			costFunction = new SquareDistCostFunction();
+			costFunction = new SquareDistCostFunction<S>();
 		}
 		else
 		{
-			costFunction = new FeaturePenaltyCostFunction( featurePenalties );
+			costFunction = new FeaturePenaltyCostFunction<S>( featurePenalties );
 		}
 		final Double maxDist = ( Double ) settings.get( KEY_LINKING_MAX_DISTANCE );
 		final double costThreshold = maxDist * maxDist;
 		final double alternativeCostFactor = ( Double ) settings.get( KEY_ALTERNATIVE_LINKING_COST_FACTOR );
 		// Instantiate graph
                 final boolean graphWasNull;
-                final HashMapGetCreate<Integer, List<Spot>> spotsFromGraph;
+                final HashMapGetCreate<Integer, List<S>> spotsFromGraph;
 		if (graph==null) {
-                    graph = new SimpleWeightedGraph< Spot, DefaultWeightedEdge >( DefaultWeightedEdge.class );
+                    graph = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
                     graphWasNull=true;
                     spotsFromGraph = null;
                 } else {
                     graphWasNull = false;
-                    spotsFromGraph = new HashMapGetCreate<Integer, List<Spot>>(new HashMapGetCreate.ListFactory< Integer, Spot >());
-                    for (Spot s : graph.vertexSet()) spotsFromGraph.getAndCreateIfNecessary(s.getFeature(Spot.FRAME).intValue()).add(s);
+                    spotsFromGraph = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
+                    for (S s : graph.vertexSet()) spotsFromGraph.getAndCreateIfNecessary(s.getFeature(Spot.FRAME).intValue()).add(s);
                 }
 
 		// Prepare threads
@@ -217,14 +217,14 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 
 						// Get spots - we have to create a list from each
 						// content.
-						final List< Spot > sources = new ArrayList< Spot >( spots.getNSpots( frame0, true ) );
-						for ( final Iterator< Spot > iterator = spots.iterator( frame0, true ); iterator.hasNext(); )
+						final List< S > sources = new ArrayList<>( spots.getNSpots( frame0, true ) );
+						for ( final Iterator< S > iterator = spots.iterator( frame0, true ); iterator.hasNext(); )
 						{
 							sources.add( iterator.next() );
 						}
                                                 
-						final List< Spot > targets = new ArrayList< Spot >( spots.getNSpots( frame1, true ) );
-						for ( final Iterator< Spot > iterator = spots.iterator( frame1, true ); iterator.hasNext(); )
+						final List<S> targets = new ArrayList<>( spots.getNSpots( frame1, true ) );
+						for ( final Iterator< S > iterator = spots.iterator( frame1, true ); iterator.hasNext(); )
 						{
 							targets.add( iterator.next() );
 						}
@@ -247,9 +247,9 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 						 * Run the linker.
 						 */
 
-						final JaqamanLinkingCostMatrixCreator< Spot, Spot > creator = new JaqamanLinkingCostMatrixCreator<>( sources, targets, costFunction, costThreshold, alternativeCost );
+						final JaqamanLinkingCostMatrixCreator< S, S > creator = new JaqamanLinkingCostMatrixCreator<S, S>( sources, targets, costFunction, costThreshold, alternativeCost );
 
-						final JaqamanLinker< Spot, Spot > linker = new JaqamanLinker< Spot, Spot >( creator );
+						final JaqamanLinker< S, S > linker = new JaqamanLinker< S, S >( creator );
 						if ( !linker.checkInput() || !linker.process() )
 						{
 							errorMessage = "At frame " + frame0 + " to " + frame1 + ": " + linker.getErrorMessage();
@@ -263,12 +263,12 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 
 						synchronized ( graph )
 						{
-							final Map< Spot, Double > costs = linker.getAssignmentCosts();
-							final Map< Spot, Spot > assignment = linker.getResult();
-							for ( final Spot source : assignment.keySet() )
+							final Map< S, Double > costs = linker.getAssignmentCosts();
+							final Map< S, S > assignment = linker.getResult();
+							for ( final S source : assignment.keySet() )
 							{
 								final double cost = costs.get( source );
-								final Spot target = assignment.get( source );
+								final S target = assignment.get( source );
 								graph.addVertex( source );
 								graph.addVertex( target );
 								final DefaultWeightedEdge edge = graph.addEdge( source, target );
@@ -276,7 +276,7 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 							}
 						}
 
-						logger.setProgress( progress.incrementAndGet() / framePairs.size() );
+						logger.setProgress( (double)progress.incrementAndGet() / framePairs.size() );
 
 					}
 				}
@@ -294,14 +294,14 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
 		return ok.get();
 	}
         
-        protected void removeLinkedSpots(List<Spot> sources, List<Spot> targets, int targetFrame) {
-            Iterator<Spot> it = sources.iterator();
+        protected void removeLinkedSpots(List<S> sources, List<S> targets, int targetFrame) {
+            Iterator<S> it = sources.iterator();
             while(it.hasNext()) { // forward links on sources + links between sources & target
-                Spot source = it.next();
+                S source = it.next();
                 if (!graph.containsVertex(source)) continue;
                 int ts = source.getFeature(Spot.FRAME).intValue();
                 for (DefaultWeightedEdge e : graph.edgesOf(source)) {
-                    Spot target = graph.getEdgeTarget(e);
+                    S target = graph.getEdgeTarget(e);
                     if (target==source) target = graph.getEdgeSource(e);
                     int tt = target.getFeature(Spot.FRAME).intValue();
                     int dt = tt - ts;
@@ -315,11 +315,11 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph extends MultiThreaded
             }
             it = targets.iterator();
             while(it.hasNext()) { // backwards links on targets (in cas of gaps)
-                Spot source = it.next();
+                S source = it.next();
                 if (!graph.containsVertex(source)) continue;
                 int ts = source.getFeature(Spot.FRAME).intValue();
                 for (DefaultWeightedEdge e : graph.edgesOf(source)) {
-                    Spot target = graph.getEdgeTarget(e);
+                    S target = graph.getEdgeTarget(e);
                     if (target==source) target = graph.getEdgeSource(e);
                     int tt = target.getFeature(Spot.FRAME).intValue();
                     int dt = tt - ts;

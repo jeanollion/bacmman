@@ -10,11 +10,11 @@ import bacmman.processing.matching.trackmate.Spot;
  * @author Jean-Yves Tinevez - 2014
  *
  */
-public class SquareDistCostFunction implements CostFunction< Spot, Spot >
+public class  SquareDistCostFunction<S extends Spot> implements CostFunction< S, S >
 {
 
 	@Override
-	public double linkingCost( final Spot source, final Spot target )
+	public double linkingCost( final S source, final S target )
 	{
 		final double d2 = source.squareDistanceTo( target );
 		return ( d2 == 0 ) ? Double.MIN_NORMAL : d2;

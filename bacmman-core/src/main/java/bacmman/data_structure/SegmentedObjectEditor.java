@@ -19,15 +19,15 @@ public class SegmentedObjectEditor {
 
     public static  List<SegmentedObject> getNext(SegmentedObject o) { // TODO FLOW : if track accepts gaps next can be later.. look also in next parents ?
         if (o.getNext()!=null) return new ArrayList<SegmentedObject>(){{add(o.getNext());}};
-        SegmentedObject nextParent = o.getNext()==null ? o.getParent().getNext() : o.getNext().getParent();
+        SegmentedObject nextParent = o.getParent().getNext();
         if (nextParent==null) return Collections.EMPTY_LIST;
         return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getPrevious())).collect(Collectors.toList());
     }
     public static List<SegmentedObject> getPrevious(SegmentedObject o) { // TODO FLOW : if track accepts gaps previous can be before.. look also in previous parents ?
         if (o.getPrevious()!=null) return new ArrayList<SegmentedObject>(){{add(o.getPrevious());}};
-        SegmentedObject nextParent = o.getPrevious()==null ? o.getParent().getPrevious() : o.getPrevious().getParent();
-        if (nextParent==null) return Collections.EMPTY_LIST;
-        return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getNext())).collect(Collectors.toList());
+        SegmentedObject prevParent = o.getParent().getPrevious();
+        if (prevParent==null) return Collections.EMPTY_LIST;
+        return prevParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getNext())).collect(Collectors.toList());
     }
     public static void unlinkObject(SegmentedObject o, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, TrackLinkEditor editor) {
         if (o==null) return;

@@ -219,13 +219,7 @@ public class Spot extends Region implements Analytical {
     public boolean voxelsCreated() {
         return voxels!=null;
     }
-    /**
-     *
-     * @return subset of object's voxels that are in contact with background, edge or other object
-     */
-    public Set<Voxel> getContour() {
-        return super.getContour();
-    }
+
     @Override
     public void erode(Neighborhood neigh) {
         throw new RuntimeException("Cannot perform operation on spot");

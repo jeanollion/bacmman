@@ -32,7 +32,7 @@ import java.util.Map;
  * @author Jean-Yves Tinevez - 2014
  *
  */
-public class FeaturePenaltyCostFunction implements CostFunction< Spot, Spot >
+public class FeaturePenaltyCostFunction<S extends Spot<S>> implements CostFunction< S, S >
 {
 
 	private final Map< String, Double > featurePenalties;
@@ -43,7 +43,7 @@ public class FeaturePenaltyCostFunction implements CostFunction< Spot, Spot >
 	}
 
 	@Override
-	public double linkingCost( final Spot source, final Spot target )
+	public double linkingCost( final S source, final S target )
 	{
 		final double d1 = source.squareDistanceTo( target );
 		final double d2 = ( d1 == 0 ) ? Double.MIN_NORMAL : d1;

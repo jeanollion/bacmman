@@ -155,7 +155,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         return bounds.reduce(new MutableBoundingBox(), MutableBoundingBox::union, MutableBoundingBox::union);
     }
 
-    public static boolean[] getTouchingBorders(BoundingBox container, BoundingBox other) {
+    static boolean[] getTouchingEdges(BoundingBox container, BoundingBox other) {
         boolean[] res = new boolean[6];
         res[0] = other.xMin()<=container.xMin();
         res[1] = other.xMax()>=container.xMax();
@@ -164,6 +164,24 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         res[4] = other.zMin()<=container.zMin();
         res[5] = other.zMax()>=container.zMax();
         return res;
+    }
+
+    static boolean[] getTouchingEdges2D(BoundingBox container, BoundingBox other) {
+        boolean[] res = new boolean[4];
+        res[0] = other.xMin()<=container.xMin();
+        res[1] = other.xMax()>=container.xMax();
+        res[2] = other.yMin()<=container.yMin();
+        res[3] = other.yMax()>=container.yMax();
+        return res;
+    }
+    static boolean touchEdges2D(BoundingBox container, BoundingBox other) {
+        for (boolean b: getTouchingEdges2D(container, other)) if (b) return true;
+        return false;
+    }
+
+    static boolean touchEdges(BoundingBox container, BoundingBox other) {
+        for (boolean b: getTouchingEdges(container, other)) if (b) return true;
+        return false;
     }
 
     public static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate, boolean parallele) {

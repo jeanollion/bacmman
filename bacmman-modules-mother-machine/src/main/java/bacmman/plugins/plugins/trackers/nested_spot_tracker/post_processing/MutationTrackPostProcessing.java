@@ -42,16 +42,16 @@ import bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing.Trac
  *
  * @author Jean Ollion
  */
-public class MutationTrackPostProcessing {
+public class MutationTrackPostProcessing<S extends SpotWithQuality<S>> {
     final TreeMap<SegmentedObject, List<SegmentedObject>> trackHeadTrackMap; // sorted by timePoint
-    final Map<Region, ? extends SpotWithQuality>  objectSpotMap;
-    final Map<SegmentedObject, List<SpotWithQuality>> trackHeadSpotTrackMap;
-    final HashMapGetCreate<List<SpotWithQuality>, Track> spotTrackMap;
+    final Map<Region, S>  objectSpotMap;
+    final Map<SegmentedObject, List<S>> trackHeadSpotTrackMap;
+    final HashMapGetCreate<List<S>, Track> spotTrackMap;
     final RemoveObjectCallBact removeObject;
     final int spotStructureIdx;
     final TrackLinkEditor editor;
     final SegmentedObjectFactory factory;
-    public MutationTrackPostProcessing(int structureIdx, List<SegmentedObject> parentTrack, Map<Region, ? extends SpotWithQuality> objectSpotMap, RemoveObjectCallBact removeObject, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public MutationTrackPostProcessing(int structureIdx, List<SegmentedObject> parentTrack, Map<Region, S> objectSpotMap, RemoveObjectCallBact removeObject, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         this.removeObject=removeObject;
         this.spotStructureIdx=structureIdx;
         trackHeadTrackMap = new TreeMap<>(SegmentedObjectUtils.getStructureObjectComparator());
@@ -59,11 +59,11 @@ public class MutationTrackPostProcessing {
         this.objectSpotMap = objectSpotMap;
         trackHeadSpotTrackMap = new HashMap<>(trackHeadTrackMap.size());
         for (Entry<SegmentedObject, List<SegmentedObject>> e : trackHeadTrackMap.entrySet()) {
-            List<SpotWithQuality> l = new ArrayList<>(e.getValue().size());
+            List<S> l = new ArrayList<>(e.getValue().size());
             trackHeadSpotTrackMap.put(e.getKey(), l);
             for (SegmentedObject o : e.getValue()) l.add(objectSpotMap.get(o.getRegion()));
         }
-        spotTrackMap = new HashMapGetCreate<>((List<SpotWithQuality> key) -> new TrackLikelyhoodEstimator.Track(key));
+        spotTrackMap = new HashMapGetCreate<>(Track::new);
         this.editor=editor;
         this.factory=factory;
     }
@@ -137,8 +137,8 @@ public class MutationTrackPostProcessing {
                 it.remove();
                 SegmentedObject prevTrackTH = bestPrevTrackEnd.getTrackHead();
                 List<SegmentedObject> prevTrack = this.trackHeadTrackMap.get(prevTrackTH);
-                List<SpotWithQuality> spotPrevTrack = trackHeadSpotTrackMap.get(prevTrackTH);
-                List<SpotWithQuality> spotNextTrack = trackHeadSpotTrackMap.remove(nextTrackTH);
+                List<S> spotPrevTrack = trackHeadSpotTrackMap.get(prevTrackTH);
+                List<S> spotNextTrack = trackHeadSpotTrackMap.remove(nextTrackTH);
                 spotTrackMap.remove(spotPrevTrack);
                 spotTrackMap.remove(spotNextTrack);
                 if (deleteNextTrackTH) {
@@ -170,12 +170,12 @@ public class MutationTrackPostProcessing {
         TrackLikelyhoodEstimator estimator = new TrackLikelyhoodEstimator(sf, minimalTrackLength, maximalSplitNumber);
         Plugin.logger.debug("distance function: 0={} 0.3={}, 0.4={}, 0.5={}, 0.6={}, 0.7={}, 1={}", sf.getDistanceFunction().y(0), sf.getDistanceFunction().y(0.3), sf.getDistanceFunction().y(0.4), sf.getDistanceFunction().y(0.5), sf.getDistanceFunction().y(0.6), sf.getDistanceFunction().y(0.7), sf.getDistanceFunction().y(1));
         
-        Map<SegmentedObject, List<SpotWithQuality>> trackHeadSpotMapTemp = new HashMap<>();
-        for (Entry<SegmentedObject, List<SpotWithQuality>> e : trackHeadSpotTrackMap.entrySet()) {
+        Map<SegmentedObject, List<S>> trackHeadSpotMapTemp = new HashMap<>();
+        for (Entry<SegmentedObject, List<S>> e : trackHeadSpotTrackMap.entrySet()) {
             List<SegmentedObject> track = trackHeadTrackMap.get(e.getKey());
             TrackLikelyhoodEstimator.SplitScenario s = estimator.splitTrack(spotTrackMap.getAndCreateIfNecessary(e.getValue()));
             List<List<SegmentedObject>> tracks = s.splitTrack(track);
-            List<List<SpotWithQuality>> spotTracks = s.splitTrack(e.getValue());
+            List<List<S>> spotTracks = s.splitTrack(e.getValue());
             boolean modif = tracks.size()>1;
             for (int i = 0; i<tracks.size(); ++i) {
                 List<SegmentedObject> subTrack = tracks.get(i);
