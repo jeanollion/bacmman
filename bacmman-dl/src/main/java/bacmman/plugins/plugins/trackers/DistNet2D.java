@@ -241,10 +241,25 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             });
         }
         double noPrevPenalty = this.noPrevPenalty.getDoubleValue();
+        double[] gr = this.growthRateRange.getValuesAsDouble();
+        double sizePenaltyFactor = this.sizePenaltyFactor.getDoubleValue();
+        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenaltyFun = (prev, next) -> {
+            if (sizePenaltyFactor<=0 || prev.touchEdges || next.touchEdges) return 0;
+            double expectedSizeMin = gr[0] * prev.size;
+            double expectedSizeMax = gr[1] * prev.size;
+            double penalty = 0;
+            if (next.size>=expectedSizeMin && next.size<=expectedSizeMax) return penalty;
+            else if (next.size<expectedSizeMin) {
+                penalty = Math.abs(expectedSizeMin - next.size) / ((expectedSizeMin + next.size)/2);
+            } else {
+                penalty = Math.abs(expectedSizeMax - next.size) / ((expectedSizeMax + next.size)/2);
+            }
+            return penalty * sizePenaltyFactor * 1.5;
+        };
         Map<Integer, Map<SymetricalPair<Region>, LAPTracker.Overlap>> overlapMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(HashMap::new);
         TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>((r, f) -> {
             SegmentedObject o = regionMapObjects.get(r);
-            return new TrackingObject(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), noPrevMap.get(o)?noPrevPenalty:0, distanceType.getSelectedEnum(), OVERLAP.equals(distanceType.getSelectedEnum())?overlapMap.get(f):null);
+            return new TrackingObject(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), noPrevMap.get(o)?noPrevPenalty:0, distanceType.getSelectedEnum(), OVERLAP.equals(distanceType.getSelectedEnum())?overlapMap.get(f):null, sizePenaltyFun);
         });
         tmi.setNumThreads(ThreadRunner.getMaxCPUs());
         tmi.addObjects(regionMapObjects.values().stream());
@@ -260,32 +275,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             Map<Region, Set<Region>> map = contactMap.get(e.getValue().getFrame());
             synchronized (map) {map.put(e.getKey(), inContact);}
         });
-        Utils.TriPredicate<Integer, Region, Region> contactFunction = (f, r1, r2) -> r1.getLabel()<r2.getLabel() ? contactMap.get(f).get(r1).contains(r2) : contactMap.get(f).get(r2).contains(r1);
-        ToDoubleBiFunction<Region, Region> contact = contact(mergeDistThld.getDoubleValue());
-        ToDoubleBiFunction<Region, Region> radiusFunction = (r1, r2) -> GeometricalMeasurements.getFeretMax(new ArrayList<Voxel>(){{addAll(contourMap[0].get(r1)); addAll(r2==null?Collections.emptyList():contourMap[0].get(r2));}}, r1.getScaleXY(), r1.getScaleZ())/2;
-        boolean isOverlapMode = distanceType.getSelectedEnum().equals(OVERLAP);
 
-        double[] gr = this.growthRateRange.getValuesAsDouble();
-        double sizePenaltyFactor = this.sizePenaltyFactor.getDoubleValue();
-        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenaltyFun = (prev, next) -> {
-            if (sizePenaltyFactor<=0 || prev.touchEdges || next.touchEdges) return 0;
-            double expectedSizeMin = gr[0] * prev.size;
-            double expectedSizeMax = gr[1] * prev.size;
-            double penalty = 0;
-            if (next.size>=expectedSizeMin && next.size<=expectedSizeMax) return penalty;
-            else if (next.size<expectedSizeMin) {
-                penalty = Math.abs(expectedSizeMin - next.size) / ((expectedSizeMin + next.size)/2);
-            } else {
-                penalty = Math.abs(expectedSizeMax - next.size) / ((expectedSizeMax + next.size)/2);
-            }
-            return penalty * sizePenaltyFactor;
-        };
-        tmi.objectSpotMap.values().forEach(o -> o.setSizePenalty(sizePenaltyFun));
         double distanceThld = distanceThreshold.getDoubleValue();
         boolean allowSplit = true;
         boolean allowMerge = true;
 
         // add all clusters of unlinked (non-dividing) regions that are in contact
+        // TODO add cluster with more than 2 objects !! modify solve conflict method -> compare score with other clusters
         Predicate<Region> nonDividing = r -> !divMap.get(r);
         contactMap.forEach((f, value) -> value.entrySet().stream()
                 .filter(ee -> nonDividing.test(ee.getKey()))
@@ -305,9 +301,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         solveConflictingLinks(tmi, contactMap.keySet());
 
         if (allowSplit) {
-            // first try to link over-segmented regions: look for couples of regions in contact that are non dividing and have no previous object
-            //linkOverSegmentedRegions(tmi, contactMap, objectsF, true, divMap);
-            // second round for links that are missed in the FTF process as distance can depend on link_mode
             // for real divisions that are missed in the FTF step
             tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LAPTracker.LINK_MODE.SPLIT));
             ok = tmi.processSegments(distanceThld, 0, true, false); // division
@@ -315,9 +308,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             tmi.logGraphStatus("Split", -1);
         }
         /*if (allowMerge) {
-            tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LAPTracker.LINK_MODE.NORMAL));
-            // first try to link over-segmented regions: look for couples of regions in contact no previous next object
-            linkOverSegmentedRegions(tmi, contactMap, objectsF, false, divMap);
             // second round for links that are missed in the FTF process as distance can depend on link_mode
             tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LAPTracker.LINK_MODE.MERGE));
             ok = tmi.processSegments(distanceThld, 0, false, true); // merging
@@ -384,9 +374,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         final double dy, dx, size;
         final boolean touchEdges;
         final double noPrevPenalty;
-        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty;
+        final ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty;
         List<TrackingObject> parentObjects;
-        public TrackingObject(Region r, BoundingBox parentBounds, int frame, double dy, double dx, double noPrevPenalty, LAPTracker.DISTANCE distanceType, Map<SymetricalPair<Region>, LAPTracker.Overlap> overlapMap) {
+        public TrackingObject(Region r, BoundingBox parentBounds, int frame, double dy, double dx, double noPrevPenalty, LAPTracker.DISTANCE distanceType, Map<SymetricalPair<Region>, LAPTracker.Overlap> overlapMap, ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty) {
             super(r, frame, distanceType, overlapMap); // if distance is mass center -> mass center should be set before
             this.offset = new SimpleOffset(parentBounds).reverseOffset();
             BoundingBox bds = r.isAbsoluteLandMark() ? parentBounds : (BoundingBox)parentBounds.duplicate().resetOffset();
@@ -396,6 +386,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.dx = dx;
             this.noPrevPenalty=noPrevPenalty;
             this.size = r.size();
+            this.sizePenalty = sizePenalty;
         }
         public TrackingObject(TrackingObject o1, TrackingObject o2) {
             super(Region.getGeomCenter(false, o1.r, o2.r),
@@ -414,10 +405,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             //logger.debug("merged TO: {}-{}+{} size: {} & {}, center: {} & {} = {} , dx: {}, dy: {}", o1.frame(), o1.r.getLabel()-1, o2.r.getLabel()-1, o1.size, o2.size, new Point(o1.getDoublePosition(0), o1.getDoublePosition(1)), new Point(o2.getDoublePosition(0), o2.getDoublePosition(1)), new Point(getDoublePosition(0), getDoublePosition(1)), dx, dy );
         }
 
-        public void setSizePenalty(final ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty) {
-            this.sizePenalty = sizePenalty;
-        }
-
         @Override
         public double squareDistanceTo(TrackingObject nextTO) {
             if (nextTO.frame() < frame()) return nextTO.squareDistanceTo(this);
@@ -430,7 +417,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             + Math.pow( getDoublePosition(1) + offset.yMin() - ( nextTO.getDoublePosition(1) + nextTO.offset.yMin() - nextTO.dy), 2 );
                     // compute size penalty
                     double sizePenalty = this.sizePenalty==null?0 : this.sizePenalty.applyAsDouble(this, nextTO);
-                    distSq *= (1 + sizePenalty);
+                    distSq *= Math.pow(1 + sizePenalty, 2);
                     if (nextTO.noPrevPenalty!=0) {
                         double dist = Math.sqrt(distSq) + noPrevPenalty;
                         return dist * dist;
