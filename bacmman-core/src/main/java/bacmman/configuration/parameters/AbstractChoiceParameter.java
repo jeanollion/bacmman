@@ -158,7 +158,10 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     public void initFromJSONEntry(Object json) {
         if (json instanceof String) {
             setSelectedItem((String)json);
-            if (getSelectedIndex()==-1) legacyInit();
+            if (getSelectedIndex()==-1) {
+                if (legacyParameter!=null) legacyParameter.initFromJSONEntry(json);
+                legacyInit();
+            }
         } else throw new IllegalArgumentException("JSON Entry is not String");
     }
 
