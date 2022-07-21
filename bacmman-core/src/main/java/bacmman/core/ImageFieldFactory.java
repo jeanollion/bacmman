@@ -113,9 +113,12 @@ public class ImageFieldFactory {
         String sep = xp.getImportImagePositionSeparator();
         ImageReaderFile reader=null;
         long t0 = System.currentTimeMillis();
+        Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
         try {
             reader = new ImageReaderFile(image.getAbsolutePath());
-            if (xp.isImportImageInvertTZ()) reader.setInvertTZ(true);
+            if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) {
+                reader.setInvertTZ(true);
+            }
         } catch(Exception e) {
             if (pcb!=null) pcb.log("WARNING: Image: "+image.getAbsolutePath()+" could not be read");
             logger.warn("Image : {} could not be read", image.getAbsolutePath());
@@ -127,12 +130,22 @@ public class ImageFieldFactory {
         int s = 0;
         String end = "";
         int digits=(int)(Math.log10(stc.length)+1);
-        for (int[] tc:stc) {
+        for (int[] tc : stc) {
             if (stc.length>1) end = sep+Utils.formatInteger(digits, s);
             else end = Utils.removeExtension(image.getName());
             if (tc[1]==xp.getChannelImageCount(false)) {
                 double[] scaleXYZ = reader.getScaleXYZ(1);
-                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], xp.isImportImageInvertTZ());
+                boolean invertTZ;
+                if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && tc[4]>1 && tc[0]==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && tc[4]==1 && tc[0]>1) ) {
+                    invertTZ = true;
+                    int t = tc[0];
+                    tc[0] = tc[4];
+                    tc[4] = t;
+                } else {
+                    invertTZ = axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ();
+                    // no need to swap as it was already done when reader was invertTZ was set to reader
+                }
+                MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(end, image.getAbsolutePath(),s, tc[0], tc[1], tc[4], scaleXYZ[0], scaleXYZ[2], invertTZ);
                 containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
                 Map<String, Object> metadata = reader.getSeriesMetadata(s);
                 writeMetadata(xp.getPath(), c.getName(), metadata);
@@ -337,6 +350,7 @@ public class ImageFieldFactory {
                 if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) {
                     invertZTbyC[c] = true;
                     reader.setInvertTZ(true);
+                    logger.debug("invert TZ (forced) for channel: {} @ position {}", c, fieldName);
                 }
             } catch (Exception e) {
                 logger.warn("Image {} could not be read: ", imageC[c], e);
@@ -354,6 +368,7 @@ public class ImageFieldFactory {
                     invertZTbyC[c] = true;
                     reader.setInvertTZ(true);
                     stc = reader.getSTCXYZNumbers();
+                    logger.debug("invert TZ (axis interpretation) for channel: {} @ position {}", c, fieldName);
                 }
                 logger.debug("channel : {} stc: {}, invert: {}", c, stc[0], invertZTbyC[c]);
                 if (channelCount.get(imageC[c])>1 && stc[0][1]==1) {

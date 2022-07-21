@@ -101,7 +101,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     ConditionalParameter<String> importCond = new ConditionalParameter<>(importMethod)
             .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION.getMethod(), positionSeparator, frameSeparator)
             .setActionParameters(IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod(), invertTZ, axesInterpretation)
-            .setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ)
+            .setActionParameters(IMPORT_METHOD.SINGLE_FILE.getMethod(), invertTZ, axesInterpretation)
             .setHint("<b>Define here the organization of input images</b><ol>"
                     + "<li>"+IMPORT_METHOD.SINGLE_FILE.getMethod()+": A single file contains all frames, detection channels and positions</li>"
                     + "<li>"+IMPORT_METHOD.ONE_FILE_PER_CHANNEL_POSITION.getMethod()+": For each position, there is one file per detection channel, which contains all frames<br /> File names must contain the user-defined channel keywords (defined in <em>Detection Channel</em>). For a given position, the file names should differ only by their channel keyword. In case one file contains several channels, several <em>Detection Channels</em> with the same channel keyword can be set. They will point to each channel in the corresponding file (in the same order)</li>"

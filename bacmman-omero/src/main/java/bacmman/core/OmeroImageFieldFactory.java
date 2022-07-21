@@ -86,7 +86,9 @@ public class OmeroImageFieldFactory {
 
     protected static void addContainerSingleFile(OmeroImageMetadata image, Experiment xp, ArrayList<MultipleImageContainer> containersTC, ProgressCallback pcb) {
         if (image.getSizeC()==xp.getChannelImageCount(false)) {
-            MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(Utils.removeExtension(image.getFileName()), image.getFileId(), image.getSizeT(), image.getSizeC(), image.getSizeZ(), image.getScaleXY(), image.getScaleZ(), xp.isImportImageInvertTZ());
+            Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
+            boolean invertTZ = (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && image.getSizeZ() > 1 && image.getSizeT() == 1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && image.getSizeZ() == 1 && image.getSizeT() > 1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ());
+            MultipleImageContainerSingleFile c = new MultipleImageContainerSingleFile(Utils.removeExtension(image.getFileName()), image.getFileId(), invertTZ?image.getSizeT():image.getSizeZ(), image.getSizeC(), invertTZ?image.getSizeZ():image.getSizeT(), image.getScaleXY(), image.getScaleZ(), invertTZ);
             if (image.getTimepoints()!=null && image.getTimepoints().size()==c.getFrameNumber()) c.setTimePoints(image.getTimepoints());
             containersTC.add(c); //Utils.removeExtension(image.getName())+"_"+
             logger.info("image {} imported successfully", image.getFileNameAndId());
@@ -228,7 +230,7 @@ public class OmeroImageFieldFactory {
             OmeroImageMetadata cur = imageC[c];
             int sizeT = cur.getSizeT();
             int sizeZ = cur.getSizeZ();
-            if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && cur.getSizeZ()>1 && cur.getSizeT()==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && imageC[c].getSizeZ()==1 && imageC[c].getSizeT()>1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ())) {
+            if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && cur.getSizeZ()>1 && cur.getSizeT()==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && cur.getSizeZ()==1 && cur.getSizeT()>1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ())) {
                 invertZTbyC[c] = true;
                 sizeT = cur.getSizeZ();
                 sizeZ = cur.getSizeT();
