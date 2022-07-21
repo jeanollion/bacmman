@@ -1090,6 +1090,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return;
         }
         db.setConfigurationReadOnly(readOnly);
+        db.setLogger(this);
         if (db.getExperiment()==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
             logger.warn("no xp found in dataset {} @ {}", dbName, hostnameOrDir);

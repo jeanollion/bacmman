@@ -20,6 +20,7 @@ package bacmman.data_structure.dao;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.ui.logger.ProgressLogger;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -150,5 +151,17 @@ public class BasicMasterDAO implements MasterDAO {
     @Override
     public List<ObjectDAO> getOpenObjectDAOs() {
         return new ArrayList<>(this.DAOs.values());
+    }
+
+    ProgressLogger bacmmanLogger;
+    @Override
+    public BasicMasterDAO setLogger(ProgressLogger logger) {
+        bacmmanLogger = logger;
+        return this;
+    }
+
+    @Override
+    public ProgressLogger getLogger() {
+        return bacmmanLogger;
     }
 }

@@ -32,7 +32,9 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.*;
 
+import bacmman.core.ProgressCallback;
 import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.ui.logger.ProgressLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.utils.FileIO;
@@ -468,5 +470,17 @@ public class DBMapMasterDAO implements MasterDAO {
     @Override
     public boolean getSafeMode() {
         return safeMode;
+    }
+
+    ProgressLogger bacmmanLogger;
+    @Override
+    public DBMapMasterDAO setLogger(ProgressLogger logger) {
+        bacmmanLogger = logger;
+        return this;
+    }
+
+    @Override
+    public ProgressLogger getLogger() {
+        return bacmmanLogger;
     }
 }

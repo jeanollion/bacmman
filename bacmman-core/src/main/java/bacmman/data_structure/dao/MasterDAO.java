@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.List;
 
 import bacmman.data_structure.SegmentedObjectAccessor;
+import bacmman.ui.logger.ProgressLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.utils.Utils;
@@ -81,6 +82,8 @@ public interface MasterDAO {
         String p = db.getExperiment().getPosition(positionIdx).getName();
         return db.getDao(p);
     }
+    MasterDAO setLogger(ProgressLogger logger);
+    ProgressLogger getLogger();
     
     public static boolean compareDAOContent(MasterDAO dao1, MasterDAO dao2, boolean config, boolean positions, boolean selections, ProgressCallback pcb) {
         boolean sameContent = true;

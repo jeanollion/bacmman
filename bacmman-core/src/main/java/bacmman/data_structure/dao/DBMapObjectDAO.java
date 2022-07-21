@@ -173,6 +173,7 @@ public class DBMapObjectDAO implements ObjectDAO {
                         dbS.put(structureIdx, res);
                     } catch (org.mapdb.DBException ex) {
                         logger.error("Could not create DB readOnly: "+readOnly, ex);
+                        if (mDAO.getLogger()!=null) mDAO.getLogger().setMessage("Could not create DB in write mode for position: "+positionName+ " object class: "+structureIdx);
                         return null;
                     }
                 } else {
