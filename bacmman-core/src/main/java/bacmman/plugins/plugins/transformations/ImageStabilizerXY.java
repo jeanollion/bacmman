@@ -170,8 +170,8 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         stab.computeConfigurationData(0, ii);
         Image[] res = IntStream.range(0, images.length).parallel().mapToObj(t -> stab.applyTransformation(0, t, images[t])).toArray(Image[]::new);
         if (allowInterpolation) {
-            int maxBitDepth = Arrays.stream(res).mapToInt(i -> i.getBitDepth()).max().getAsInt();
-            if (maxBitDepth==32) for (int t=0;t<res.length; ++t) res[t] = TypeConverter.toFloat(res[t], null, false);
+            int maxBitDepth = Arrays.stream(res).mapToInt(Image::getBitDepth).max().getAsInt();
+            if (maxBitDepth==32) for (int t=0;t<res.length; ++t) res[t] = TypeConverter.toFloatingPoint(res[t], false, false);
         }
         if (crop) {
             double dXmin = -stab.translationTXY.stream().mapToDouble(d->d.get(0)).min().getAsDouble();

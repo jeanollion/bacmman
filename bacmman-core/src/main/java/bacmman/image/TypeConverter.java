@@ -49,8 +49,18 @@ public class TypeConverter {
         }
         return output;
     }
-    public static ImageFloat16 toFloat16(Image image, ImageFloat16 output) {
-        if (output==null || !output.sameDimensions(image)) output = new ImageFloat16(image.getName(), image, output==null ? ImageFloat16.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+    public static ImageFloat16Scale toFloat16(Image image, ImageFloat16Scale output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloat16Scale(image.getName(), image, output==null ? ImageFloat16Scale.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+        if (image instanceof ImageFloat16Scale) Image.pasteImage(image, output, null);
+        for (int z = 0; z<image.sizeZ(); ++z) {
+            for (int xy = 0; xy<image.sizeXY(); ++xy) {
+                output.setPixel(xy, z, image.getPixel(xy, z));
+            }
+        }
+        return output;
+    }
+    public static ImageFloat16 toHalfFloat(Image image, ImageFloat16 output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloat16(image.getName(), image);
         if (image instanceof ImageFloat16) Image.pasteImage(image, output, null);
         for (int z = 0; z<image.sizeZ(); ++z) {
             for (int xy = 0; xy<image.sizeXY(); ++xy) {
@@ -59,9 +69,9 @@ public class TypeConverter {
         }
         return output;
     }
-    public static ImageFloat8 toFloat8(Image image, ImageFloat8 output) {
-        if (output==null || !output.sameDimensions(image)) output = new ImageFloat8(image.getName(), image, output==null ? ImageFloat8.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
-        if (image instanceof ImageFloat8) Image.pasteImage(image, output, null);
+    public static ImageFloat8Scale toFloat8(Image image, ImageFloat8Scale output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloat8Scale(image.getName(), image, output==null ? ImageFloat8Scale.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+        if (image instanceof ImageFloat8Scale) Image.pasteImage(image, output, null);
         for (int z = 0; z<image.sizeZ(); ++z) {
             for (int xy = 0; xy<image.sizeXY(); ++xy) {
                 output.setPixel(xy, z, image.getPixel(xy, z));
@@ -69,9 +79,9 @@ public class TypeConverter {
         }
         return output;
     }
-    public static ImageFloatU8 toFloatU8(Image image, ImageFloatU8 output) {
-        if (output==null || !output.sameDimensions(image)) output = new ImageFloatU8(image.getName(), image, output==null ? ImageFloatU8.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
-        if (image instanceof ImageFloatU8) Image.pasteImage(image, output, null);
+    public static ImageFloatU8Scale toFloatU8(Image image, ImageFloatU8Scale output) {
+        if (output==null || !output.sameDimensions(image)) output = new ImageFloatU8Scale(image.getName(), image, output==null ? ImageFloatU8Scale.getOptimalScale(image.getMinAndMax(null)) : output.getScale());
+        if (image instanceof ImageFloatU8Scale) Image.pasteImage(image, output, null);
         for (int z = 0; z<image.sizeZ(); ++z) {
             for (int xy = 0; xy<image.sizeXY(); ++xy) {
                 output.setPixel(xy, z, image.getPixel(xy, z));
@@ -79,23 +89,36 @@ public class TypeConverter {
         }
         return output;
     }
-    public static ImageInt toShort(Image image, ImageInt output, boolean copyIfInt) {
-        if (copyIfInt || !(image instanceof ImageInt)) return toInt(image, output);
+    public static ImageInt toShort(Image image, ImageInt output, boolean forceCopy) {
+        if (forceCopy || !(image instanceof ImageInt)) return toInt(image, output);
         else return (ImageInt)image;
     }
-    public static ImageShort toShort(Image image, ImageShort output, boolean copyIfShort) {
-        if (copyIfShort || !(image instanceof ImageShort)) return toShort(image, output);
+    public static ImageShort toShort(Image image, ImageShort output, boolean forceCopy) {
+        if (forceCopy || !(image instanceof ImageShort)) return toShort(image, output);
         else return (ImageShort)image;
     }
 
-    public static ImageByte toByte(Image image, ImageByte output, boolean copyIfByte) {
-        if (copyIfByte || !(image instanceof ImageByte)) return toByte(image, output);
+    public static ImageByte toByte(Image image, ImageByte output, boolean forceCopy) {
+        if (forceCopy || !(image instanceof ImageByte)) return toByte(image, output);
         else return (ImageByte)image;
     }
 
-    public static ImageFloat toFloat(Image image, ImageFloat output, boolean copyIfFloat) {
-        if (copyIfFloat || !(image instanceof ImageFloat)) return toFloat(image, output);
+    public static ImageFloat toFloat(Image image, ImageFloat output, boolean forceCopy) {
+        if (forceCopy || !(image instanceof ImageFloat)) return toFloat(image, output);
         else return (ImageFloat)image;
+    }
+
+    public static ImageFloat16 toHalfFloat(Image image, ImageFloat16 output, boolean forceCopy) {
+        if (forceCopy || !(image instanceof ImageFloat16)) return toHalfFloat(image, output);
+        else return (ImageFloat16)image;
+    }
+
+    public static ImageFloatingPoint toFloatingPoint(Image image, boolean forceCopy, boolean halfPrecision) {
+        if (!forceCopy) {
+            if (image instanceof ImageFloatingPoint) return (ImageFloatingPoint)image;
+        }
+        if (halfPrecision) return toHalfFloat(image, null);
+        else return toFloat(image, null);
     }
 
     public static Image convert(Image image, int targetBitdepth) {
@@ -240,7 +263,7 @@ public class TypeConverter {
         return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat);
     }
     public static boolean isNumeric(ImageProperties image) {
-        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat || image instanceof ImageInt || image instanceof ImageFloat8 || image instanceof ImageFloat16);
+        return (image instanceof ImageByte || image instanceof ImageShort || image instanceof ImageFloat || image instanceof ImageInt || image instanceof ImageFloat8Scale || image instanceof ImageFloat16Scale);
     }
     /**
      * 
@@ -270,13 +293,16 @@ public class TypeConverter {
             return (T)toFloat(source, (ImageFloat)output);
         } else if (output instanceof ImageFloat16) {
             if (source instanceof ImageFloat16) return (T)source;
-            return (T)toFloat16(source, (ImageFloat16)output);
-        } else if (output instanceof ImageFloat8) {
-            if (source instanceof ImageFloat8) return (T)source;
-            return (T)toFloat8(source, (ImageFloat8)output);
-        } else if (output instanceof ImageFloatU8) {
-            if (source instanceof ImageFloatU8) return (T)source;
-            return (T)toFloatU8(source, (ImageFloatU8)output);
+            return (T)toHalfFloat(source, (ImageFloat16)output);
+        } else if (output instanceof ImageFloat16Scale) {
+            if (source instanceof ImageFloat16Scale) return (T)source;
+            return (T)toFloat16(source, (ImageFloat16Scale)output);
+        } else if (output instanceof ImageFloat8Scale) {
+            if (source instanceof ImageFloat8Scale) return (T)source;
+            return (T)toFloat8(source, (ImageFloat8Scale)output);
+        } else if (output instanceof ImageFloatU8Scale) {
+            if (source instanceof ImageFloatU8Scale) return (T)source;
+            return (T)toFloatU8(source, (ImageFloatU8Scale)output);
         } else throw new IllegalArgumentException("Output should be of type byte, short, or float, but is: {}"+ output.getClass().getSimpleName());
     }
 

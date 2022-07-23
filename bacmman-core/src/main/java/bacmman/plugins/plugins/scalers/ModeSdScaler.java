@@ -31,16 +31,16 @@ public class ModeSdScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, 1 / sd, -mode);
+        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1 / sd, -mode);
         else { // perform on single image
             double[] modeSd = ImageOperations.getMeanAndSigma(image, null, null, false);
-            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloat(image, null, false):null, 1/modeSd[1], -modeSd[0]);
+            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1/modeSd[1], -modeSd[0]);
         }
     }
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloat(image, null, false):null, sd, mode);
+        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, sd, mode);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

@@ -20,12 +20,12 @@ public class ConstantScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
+        return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
     }
 
     @Override
     public Image reverseScale(Image image) {
-        return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, scale.getValue().doubleValue(), center.getValue().doubleValue());
+        return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale.getValue().doubleValue(), center.getValue().doubleValue());
     }
 
     @Override

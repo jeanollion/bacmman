@@ -26,13 +26,13 @@ public class MinMaxScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, scale, offset);
-        else return ImageOperations.normalize(image, null, transformInputImage? TypeConverter.toFloat(image, null, false):null);
+        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
+        else return ImageOperations.normalize(image, null, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null);
     }
 
     @Override
     public Image reverseScale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloat(image, null, false):null, 1/scale, -offset);
+        if (isConfigured()) return ImageOperations.affineOperation(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1/scale, -offset);
         else throw new RuntimeException("Cannot Reverse Scale if scaler is not configured");
     }
 

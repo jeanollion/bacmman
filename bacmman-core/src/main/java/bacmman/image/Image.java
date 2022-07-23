@@ -153,6 +153,10 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         else if (imageType instanceof ImageShort) return (T)new ImageShort(name, properties);
         else if (imageType instanceof ImageInt) return (T)new ImageInt(name, properties);
         else if (imageType instanceof ImageFloat) return (T)new ImageFloat(name, properties);
+        else if (imageType instanceof ImageFloat16) return (T)new ImageFloat16(name, properties);
+        else if (imageType instanceof ImageFloat16Scale) return (T)new ImageFloat16Scale(name, properties, ((ImageFloat16Scale)imageType).getScale());
+        else if (imageType instanceof ImageFloat8Scale) return (T)new ImageFloat8Scale(name, properties, ((ImageFloat8Scale)imageType).getScale());
+        else if (imageType instanceof ImageFloatU8Scale) return (T)new ImageFloatU8Scale(name, properties, ((ImageFloatU8Scale)imageType).getScale());
         else throw new IllegalArgumentException("unsupported image type");
     }
     

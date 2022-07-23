@@ -77,7 +77,7 @@ public class SubtractGaussSignalExclusion implements ConfigurableTransformation,
     }
     public static Image getBackgroundImage(Image input, ImageMask mask, double scale, double scaleZ) {
         RegionPopulation pop = new RegionPopulation(mask);
-        Image toBlur = TypeConverter.toFloat(input, null, true);
+        Image toBlur = TypeConverter.toFloatingPoint(input, true, false);
         pop.getRegions().forEach(r -> {
             double[] values = r.getContour().stream().mapToDouble(v -> input.getPixel(v.x, v.y, v.z)).toArray();
             double median = ArrayUtil.median(values);

@@ -798,15 +798,15 @@ public class ImageOperations {
         return output;
     }
     
-    public static ImageFloat normalize(Image input, ImageMask mask, ImageFloat output) {
+    public static ImageFloatingPoint normalize(Image input, ImageMask mask, ImageFloatingPoint output) {
         double[] mm = input.getMinAndMax(mask);
         if (output==null || !output.sameDimensions(input)) output = new ImageFloat(input.getName()+" normalized", input);
         if (mm[0]==mm[1]) return output;
         double scale = 1 / (mm[1] - mm[0]);
         double offset = -mm[0] * scale;
-        return (ImageFloat)affineOperation(input, output, scale, offset);
+        return (ImageFloatingPoint)affineOperation(input, output, scale, offset);
     }
-    public static ImageFloat normalize(Image input, ImageMask mask, ImageFloat output, double pMin, double pMax, boolean saturate) {
+    public static ImageFloatingPoint normalize(Image input, ImageMask mask, ImageFloatingPoint output, double pMin, double pMax, boolean saturate) {
         if (pMin>=pMax) throw new IllegalArgumentException("pMin should be < pMax");
         if (output==null || !output.sameDimensions(input)) output = new ImageFloat(input.getName()+" normalized", input);
         double[] minAndMax = new double[2];
@@ -829,20 +829,19 @@ public class ImageOperations {
         double scale = 1 / (minAndMax[1] - minAndMax[0]);
         double offset = -minAndMax[0] * scale;
         //logger.debug("normalize: min ({}) = {}, max ({}) = {}, scale: {}, offset: {}", pMin, minAndMax[0], pMax, minAndMax[1], scale, offset);
-        float[][] pixels = output.getPixelArray();
         if (saturate) {
             for (int z = 0; z < input.sizeZ(); z++) {
                 for (int xy = 0; xy < input.sizeXY(); xy++) {
                     float res = (float) (input.getPixel(xy, z) * scale + offset);
                     if (res<0) res = 0;
                     if (res>1) res = 1;
-                    pixels[z][xy] = res;
+                    output.setPixel(xy, z, res);
                 }
             }
         } else {
             for (int z = 0; z < input.sizeZ(); z++) {
                 for (int xy = 0; xy < input.sizeXY(); xy++) {
-                    pixels[z][xy] = (float) (input.getPixel(xy, z) * scale + offset);
+                    output.setPixel( xy, z, (float) (input.getPixel(xy, z) * scale + offset) );
                 }
             }
         }
