@@ -443,7 +443,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Pair<Image[][], int[][]> scaleAndResampleInput(Image[][] inNC, InterpolatorFactory interpolation, HistogramScaler scaler, int[] targetImageShape, boolean scaleFrameByFrame) {
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloat(inNC[i][j], null, false) ));
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
         if (scaler!=null) { // scale
             if (!scaleFrameByFrame) {
                 List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
@@ -474,7 +474,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Pair<Image[][], int[][]> scaleAndPadInput(Image[][] inNC, Resize.EXPAND_MODE mode, HistogramScaler scaler, int[] targetImageShape, boolean scaleFrameByFrame) {
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloat(inNC[i][j], null, false) ));
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
         if (scaler!=null) { // scale
             if (!scaleFrameByFrame) {
                 List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
@@ -504,7 +504,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     }
     public static Pair<Image[][], int[][]> scaleAndTileInput(Image[][] inNC, Resize.EXPAND_MODE padding, HistogramScaler scaler, int[] targetTileShape, int[] minOverlap, boolean scaleFrameByFrame) {
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
-        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloat(inNC[i][j], null, false) ));
+        IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
         if (scaler!=null) { // scale
             if (!scaleFrameByFrame) {
                 List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
@@ -523,11 +523,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
 
     /**
      *
-     * @param targetShape images of same type as tiles, tiles will be copied on them
+     * @param targetShape shape of destination tiles
      * @param predNtC
      * @param scaler
      * @param minOverlap
-     * @return {@param targetNC} for convinience
+     * @return scaled tiles
      */
     public static Image[][] scaleAndTileReverse(int[][] targetShape, Image[][] predNtC, HistogramScaler scaler, int[] minOverlap, boolean padding) {
         if (scaler!=null){

@@ -1,7 +1,6 @@
 package bacmman.tf2;
 
-import bacmman.image.Image;
-import bacmman.image.ImageFloat;
+import bacmman.image.*;
 import bacmman.processing.ResizeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,6 +8,7 @@ import org.tensorflow.ndarray.FloatNdArray;
 import org.tensorflow.ndarray.Shape;
 import org.tensorflow.ndarray.buffer.DataBuffers;
 import org.tensorflow.ndarray.buffer.FloatDataBuffer;
+import org.tensorflow.types.TFloat16;
 import org.tensorflow.types.TFloat32;
 
 import java.util.Arrays;
@@ -47,7 +47,7 @@ public class TensorWrapper {
         newShape[hasZ ? 4 : 3] = cSize;
         return TFloat32.tensorOf(Shape.of(newShape), buffer);
     }
-    public static Image[][] getImagesNC(TFloat32 tensor, boolean... flipXYZ) {
+    public static Image[][] getImagesNC(FloatNdArray tensor, boolean forceHalfPrecision, boolean... flipXYZ) {
         long[] shape = tensor.shape().asArray(); // N (Z) Y X C
         boolean hasZ = shape.length==5;
         int nSize = (int)shape[0];
@@ -59,7 +59,7 @@ public class TensorWrapper {
 
         for (int n = 0; n<nSize; ++n){
             for (int c = 0; c<cSize; ++c) {
-                res[n][c] = new ImageFloat("", xSize, ySize, zSize);
+                res[n][c] = (forceHalfPrecision || tensor instanceof TFloat16) ? new ImageFloat16("", xSize, ySize, zSize) : new ImageFloat("", xSize, ySize, zSize);
             }
         }
         DataTransfer trans =  (flipXYZ!=null && flipXYZ.length>0) ? new DataTransferFlip(zSize, ySize, xSize, cSize, flipXYZ.length>=3 && flipXYZ[2], flipXYZ.length>=2 && flipXYZ[1], flipXYZ[0], false)
@@ -68,7 +68,7 @@ public class TensorWrapper {
         return res;
     }
 
-    public static void addToImagesNC(Image[][] targetNC, TFloat32 tensor, boolean... flipXYZ) {
+    public static void addToImagesNC(Image[][] targetNC, FloatNdArray tensor, boolean... flipXYZ) {
         long[] shape = tensor.shape().asArray(); // N (Z) Y X C
         boolean hasZ = shape.length==5;
         int nSize = (int)shape[0];
@@ -80,6 +80,41 @@ public class TensorWrapper {
         DataTransfer trans =  (flipXYZ!=null && flipXYZ.length>0) ? new DataTransferFlip(zSize, ySize, xSize, cSize, flipXYZ.length>=3 && flipXYZ[2], flipXYZ.length>=2 && flipXYZ[1], flipXYZ[0], true)
                 : new DataTransferSimple(zSize, ySize, xSize, cSize, true);
         for (int n = 0; n<nSize; ++n) trans.fromArray(tensor.get(n), targetNC[n]);
+    }
+
+    @FunctionalInterface
+    public interface LoopFunction {
+        void loop(float value);
+    }
+    public static double[] getMinAndMax(FloatNdArray array) {
+        double[] mm = new double[]{Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY};
+        loop(array, v -> {
+            if (mm[0]>v) mm[0]=v;
+            if (mm[1]<v) mm[1]=v;
+        });
+        return mm;
+    }
+    public static void loop(FloatNdArray array, LoopFunction function) {
+        long[] shape = array.shape().asArray();
+        if (array.rank()==4) {
+            for (int z = 0; z < shape[0]; ++z) {
+                for (int y = 0; y < shape[1]; ++y) {
+                    for (int x = 0; x < shape[2]; ++x) {
+                        for (int c = 0; c < shape[3]; ++c) {
+                            function.loop(array.getFloat(z, y, x, c));
+                        }
+                    }
+                }
+            }
+        } else if (array.rank()==3) {
+            for (int y = 0; y < shape[0]; ++y) {
+                for (int x = 0; x < shape[1]; ++x) {
+                    for (int c = 0; c < shape[2]; ++c) {
+                        function.loop(array.getFloat(y, x, c));
+                    }
+                }
+            }
+        } else throw new IllegalArgumentException("Rank not supported, should be in [3, 4]");
     }
 
     static abstract class DataTransfer {

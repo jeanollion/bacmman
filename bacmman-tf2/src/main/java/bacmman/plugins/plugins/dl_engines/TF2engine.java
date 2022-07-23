@@ -44,9 +44,11 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
     ConditionalParameter<Z_AXIS> zAxisCond = new ConditionalParameter<>(zAxis)
             .setActionParameters(Z_AXIS.CHANNEL, channelIdx)
             .setLegacyParameter(new BooleanParameter("Z as Channel", false), p -> ((BooleanParameter)p).getSelected() ? Z_AXIS.CHANNEL : Z_AXIS.Z );
+
+    BooleanParameter halfPrecision = new BooleanParameter("Half Precision", false).setEmphasized(true).setHint("Prediction are performed in float 16 precision to lower memory usage");
     String[] inputNames, outputNames;
     SavedModelBundle model;
-
+    public boolean halfPrecision() {return halfPrecision.getSelected();}
     @Override
     public synchronized void init() {
         if (model==null) {
@@ -217,7 +219,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         TFloat32[] output = predict(input);
         if (flipXYZ==null || flipXYZ.length==0) {
             for (int io = 0; io < outputNames.length; ++io) {
-                Image[][] resIm = TensorWrapper.getImagesNC(output[io]);
+                Image[][] resIm = TensorWrapper.getImagesNC(output[io], halfPrecision.getSelected() );
                 output[io].close();
                 for (int i = idx; i < idxMax; ++i) outputONC[io][i] = resIm[i - idx];
             }
@@ -242,7 +244,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{modelFile, batchSize, flip, zAxisCond};
+        return new Parameter[]{modelFile, batchSize, flip, zAxisCond, halfPrecision};
     }
 
     @Override
