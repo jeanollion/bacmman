@@ -129,8 +129,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     o.getRegion().clearVoxels();
                     o.getRegion().clearMask();
                 });
+                p.flushImages(true, trackPreFilters.isEmpty());
             }
-
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
             if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, editor, factory);
@@ -354,10 +354,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         // remove item links by cluster link
                         for (TrackingObject i : o.parentObjects) tmi.removeAllEdges(i, linkWithPrev, !linkWithPrev);
                         if (neigh.parentObjects!=null) { // neigh is a cluster itself -> optimisation to link objects of each cluster
-                            logger.debug("link cluster-cluster ({}): {} -> {} ", linkWithPrev?"prev":"next", o, neigh);
+                            //logger.debug("link cluster-cluster ({}): {} -> {} ", linkWithPrev?"prev":"next", o, neigh);
                             tmi.linkObjects(o.parentObjects, neigh.parentObjects, true, true);
                         } else { // simply add links from cluster
-                            logger.debug("link cluster-object ({}) {} to {}", linkWithPrev?"prev":"next", o, neigh);
+                            //logger.debug("link cluster-object ({}) {} to {}", linkWithPrev?"prev":"next", o, neigh);
                             for (TrackingObject i : o.parentObjects) tmi.addEdge(neigh, i);
                         }
                     }
@@ -648,7 +648,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 Region r = toSplit.getRegion();
                 double cost = seg.split(prediction.edm.get(parent), parent, toSplit.getStructureIdx(), r, res);
                 if (res.size() <= 1 && ws!=null) { // split failed -> try to split using input image
-                    RegionPopulation pop = ws.splitObject(parent.getPreFilteredImage(toSplit.getStructureIdx()), parent, toSplit.getStructureIdx(), r);
+                    Image input = parent.getPreFilteredImage(toSplit.getStructureIdx());
+                    if (input==null) input = parent.getRawImage(toSplit.getStructureIdx()); // pf was flushed means that no prefilters are set
+                    RegionPopulation pop = ws.splitObject(input, parent, toSplit.getStructureIdx(), r);
                     res.clear();
                     if (pop != null) res.addAll(pop.getRegions());
                     if (res.size() > 1)

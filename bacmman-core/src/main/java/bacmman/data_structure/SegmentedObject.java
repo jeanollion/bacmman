@@ -986,13 +986,19 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             else return null;
         }
         return null;
-    } 
-    
+    }
     void flushImages() {
-        for (int i = 0; i<rawImagesC.getBucketSize(); ++i) rawImagesC.setQuick(null, i);
-        for (int i = 0; i<trackImagesC.getBucketSize(); ++i) trackImagesC.setQuick(null, i);
-        for (int i = 0; i<preFilteredImagesS.getBucketSize(); ++i) preFilteredImagesS.setQuick(null, i);
-        this.offsetInTrackImage=null;
+        flushImages(true, true);
+    }
+    public void flushImages(boolean raw, boolean prefiltered) {
+        if (raw) {
+            for (int i = 0; i<rawImagesC.getBucketSize(); ++i) rawImagesC.setQuick(null, i);
+            for (int i = 0; i<trackImagesC.getBucketSize(); ++i) trackImagesC.setQuick(null, i);
+            this.offsetInTrackImage=null;
+        }
+        if (prefiltered) {
+            for (int i = 0; i<preFilteredImagesS.getBucketSize(); ++i) preFilteredImagesS.setQuick(null, i);
+        }
     }
     public RegionPopulation getChildRegionPopulation(int structureIdx, boolean strictInclusion) {
         Stream<SegmentedObject> children = this.getChildren(structureIdx, strictInclusion);
