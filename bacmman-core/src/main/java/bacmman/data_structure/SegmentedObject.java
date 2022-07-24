@@ -988,7 +988,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         return null;
     } 
     
-    void flushImages() {
+    public void flushImages() {
         for (int i = 0; i<rawImagesC.getBucketSize(); ++i) rawImagesC.setQuick(null, i);
         for (int i = 0; i<trackImagesC.getBucketSize(); ++i) trackImagesC.setQuick(null, i);
         for (int i = 0; i<preFilteredImagesS.getBucketSize(); ++i) preFilteredImagesS.setQuick(null, i);

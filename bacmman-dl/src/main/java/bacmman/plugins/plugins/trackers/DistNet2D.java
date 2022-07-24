@@ -129,8 +129,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     o.getRegion().clearVoxels();
                     o.getRegion().clearMask();
                 });
+                p.flushImages();
             }
-
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
             if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, editor, factory);
@@ -354,10 +354,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         // remove item links by cluster link
                         for (TrackingObject i : o.parentObjects) tmi.removeAllEdges(i, linkWithPrev, !linkWithPrev);
                         if (neigh.parentObjects!=null) { // neigh is a cluster itself -> optimisation to link objects of each cluster
-                            logger.debug("link cluster-cluster ({}): {} -> {} ", linkWithPrev?"prev":"next", o, neigh);
+                            //logger.debug("link cluster-cluster ({}): {} -> {} ", linkWithPrev?"prev":"next", o, neigh);
                             tmi.linkObjects(o.parentObjects, neigh.parentObjects, true, true);
                         } else { // simply add links from cluster
-                            logger.debug("link cluster-object ({}) {} to {}", linkWithPrev?"prev":"next", o, neigh);
+                            //logger.debug("link cluster-object ({}) {} to {}", linkWithPrev?"prev":"next", o, neigh);
                             for (TrackingObject i : o.parentObjects) tmi.addEdge(neigh, i);
                         }
                     }
