@@ -554,7 +554,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         MutableBoundingBox res = new MutableBoundingBox(minimalBouningBox);
         switch(getMode()) {
             case TILE:
-                int[] tileShape = ArrayUtil.reverse(this.targetShape.getArrayInt(), true);
+                int[] tileShape = ArrayUtil.reverse(this.tileShape.getArrayInt(), true);
                 if (res.sizeX()<tileShape[0]) res.setSizeX(tileShape[0], MutableBoundingBox.DIRECTION.CENTER);
                 if (res.sizeY()<tileShape[1]) res.setSizeY(tileShape[1], MutableBoundingBox.DIRECTION.CENTER);
                 if (tileShape.length==3 && res.sizeZ()<tileShape[2]) res.setSizeZ(tileShape[2], MutableBoundingBox.DIRECTION.CENTER);

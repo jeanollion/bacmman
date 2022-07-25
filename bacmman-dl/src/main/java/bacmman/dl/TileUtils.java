@@ -4,6 +4,7 @@ import bacmman.image.*;
 import bacmman.processing.Resize;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
+import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,7 +54,7 @@ public class TileUtils {
         }
         long[][] sizes = new long[][]{ArrayUtil.toLong(tileShapeXYZ)};
         long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, padding);
-        //for (int i = 0; i<coords.length; ++i) logger.debug("tile {}/{} coords: {}, shape XYZ: {}/{}", i, coords.length, Utils.toStringArray(coords[i]), Utils.toStringArray(tileShapeXYZ), size);
+        for (int i = 0; i<coords.length; ++i) logger.debug("tile {}/{} coords: {}, shape XYZ: {}/{}", i, coords.length, Utils.toStringArray(coords[i]), Utils.toStringArray(tileShapeXYZ), size);
         Image[][] res = new Image[coords.length * inputNC.length][inputNC[0].length];
         for (int i = 0; i<inputNC.length; ++i) {
             Image[][] CN = Arrays.stream(inputNC[i]).map(input -> Resize.crop(input, coords, sizes, paddingMode)).toArray(Image[][]::new);
@@ -129,6 +130,7 @@ public class TileUtils {
                 }
             }
         }
+        overlaps.removeIf(o -> o.area.sizeX()==0 || o.area.sizeY()==0 || o.area.sizeZ()==0); // TODO why can this happen ?
         //overlaps.parallelStream().forEach(o -> o.copyToImage(target));
         for (Overlap o : overlaps) o.copyToImage(target);
     }
@@ -170,11 +172,17 @@ public class TileUtils {
             if (this.tiles.length==1) { // simple paste
                 Image.pasteImageView(tiles[0], target, area.duplicate().translate(target.getOffset().reverseOffset()), area.duplicate().translate(tiles[0].getBoundingBox().reverseOffset()) );
             } else { // average
-                double norm = tiles.length;
+                Point[] centers = Arrays.stream(tiles).map(SimpleBoundingBox::getCenter).toArray(Point[]::new);
                 BoundingBox.loop(area, (x ,y, z)-> {
                     double res = 0;
-                    for (Image tile: tiles) res+=tile.getPixelWithOffset(x, y, z);
-                    target.setPixelWithOffset(x, y, z, res / norm);
+                    double norm = 0;
+                    for (int i = 0; i<tiles.length; ++i) {
+                        double d2 = 1 / centers[i].distSq(new Point(x, y, z));
+                        if (Double.isFinite(d2)) res+=tiles[i].getPixelWithOffset(x, y, z) * d2;
+                        else target.setPixelWithOffset(x, y, z, res);
+                        norm += d2;
+                    }
+                    if (Double.isFinite(norm)) target.setPixelWithOffset(x, y, z, res / norm);
                 });
             }
         }

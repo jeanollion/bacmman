@@ -140,7 +140,7 @@ public class MutableBoundingBox extends SimpleBoundingBox<MutableBoundingBox>  {
 
     public MutableBoundingBox translateInto(BoundingBox other) {
         translate(Math.max(other.xMin()-xMin, 0), Math.max(other.yMin()-yMin, 0), Math.max(other.zMin()-zMin, 0));
-        translate(Math.min(other.xMax()-xMax+1, 0), Math.min(other.yMax()-yMax+1, 0), Math.min(other.zMax()-zMax+1, 0));
+        translate(Math.min(other.xMax()-xMax, 0), Math.min(other.yMax()-yMax, 0), Math.min(other.zMax()-zMax, 0));
         return this;
     }
     /**

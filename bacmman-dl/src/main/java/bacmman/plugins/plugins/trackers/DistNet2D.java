@@ -117,7 +117,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
-                if (!useContours.getSelected()) prediction.contours.remove(p);
+                if (!useContours.getSelected()) {if (prediction.contours!=null)prediction.contours.remove(p);}
                 else prediction.contours.put(p, TypeConverter.toFloatU8(prediction.contours.get(p), null));
                 prediction.division.remove(p);
                 prediction.dx.remove(p);
