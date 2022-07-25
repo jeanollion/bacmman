@@ -38,7 +38,7 @@ import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.Simple
  */
 public abstract class IntensityMeasurement extends SimpleObjectFeature implements ObjectFeatureWithCore {
     protected IntensityMeasurementCore core;
-    protected ObjectClassParameter intensity = new ObjectClassParameter("Intensity").setAutoConfiguration(ObjectClassParameter.defaultAutoConfiguration()).setHint("The channel image associated to the selected object class will be used for the intensity measurement");
+    protected ObjectClassParameter intensity = new ObjectClassParameter("Intensity").setEmphasized(true).setAutoConfiguration(ObjectClassParameter.defaultAutoConfiguration()).setHint("The channel image associated to the selected object class will be used for the intensity measurement");
     protected Image intensityMap;
     protected boolean usePreFilteredImage = false;
     public IntensityMeasurement setIntensityStructure(int structureIdx) {

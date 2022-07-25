@@ -26,17 +26,22 @@ import java.util.List;
 import java.util.Map;
 
 import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.image.Image;
+import bacmman.image.ImageMask;
 import bacmman.plugins.Hint;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.ProcessingPipeline;
 import bacmman.plugins.TrackPostFilter;
 import static bacmman.plugins.plugins.track_post_filter.PostFilter.MERGE_POLICY_TT;
+
+import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.MultipleException;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import static bacmman.utils.Utils.parallel;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -48,6 +53,8 @@ import java.util.stream.Collectors;
 public class RemoveTrackByFeature implements TrackPostFilter, Hint {
     public enum STAT {Mean, Median, Quantile}
     PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setEmphasized(true).setHint("Feature computed on each object of the track");
+    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All features computed on image intensity will be computed on the image filtered by the operation defined in this parameter.");
+
     EnumChoiceParameter<STAT> statistics = new EnumChoiceParameter("Statistics", STAT.values(), STAT.Mean);
     NumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);
     ConditionalParameter<STAT> statCond = new ConditionalParameter<>(statistics).setActionParameters(STAT.Quantile, quantile).setHint("Statistics to summarize the distribution of computed features");
@@ -90,12 +97,14 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
     public void filter(int structureIdx, List<SegmentedObject> parentTrack, SegmentedObjectFactory factory, TrackLinkEditor editor) throws MultipleException {
         if (!feature.isOnePluginSet()) return;
         Map<Region, Double> valueMap = new ConcurrentHashMap<>();
+        BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
         // compute feature for each object, by parent
         Consumer<SegmentedObject> exe = parent -> {
             RegionPopulation pop = parent.getChildRegionPopulation(structureIdx);
             ObjectFeature f = feature.instantiatePlugin();
             f.setUp(parent, structureIdx, pop);
-            Map<Region, Double> locValueMap = pop.getRegions().stream().collect(Collectors.toMap(o->o, o-> f.performMeasurement(o)));
+            if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(null, pf);
+            Map<Region, Double> locValueMap = pop.getRegions().stream().collect(Collectors.toMap(o->o, f::performMeasurement));
             valueMap.putAll(locValueMap);
         };
         ThreadRunner.executeAndThrowErrors(Utils.parallel(parentTrack.stream(), true), exe);
@@ -128,7 +137,7 @@ public class RemoveTrackByFeature implements TrackPostFilter, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{feature, statCond, threshold, keepOverThreshold, mergePolicy};
+        return new Parameter[]{feature, preFilters, statCond, threshold, keepOverThreshold, mergePolicy};
     }
 
     

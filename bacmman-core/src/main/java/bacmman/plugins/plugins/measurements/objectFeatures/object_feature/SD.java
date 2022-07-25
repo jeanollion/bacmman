@@ -35,6 +35,8 @@ import bacmman.utils.DoubleStatistics;
  */
 public class SD extends IntensityMeasurement implements Hint {
     BooleanParameter removePrefiltered = new BooleanParameter("Remove Pre-filtered Image", false).setHint("If false, standard deviation is computed on the pre-filtered image, within the object. If true, standard deviation is computed on I = raw - pre-filtered. When the pre-filter is a mean / gaussian transform, this allows to estimate the noise of a signal without its variations");
+    BooleanParameter normalize = new BooleanParameter("Normalize", false).setHint("If true, standard deviation is divided by mean value");
+
     @Override public double performMeasurement(Region object) {
         if (removePrefiltered.getSelected()) {
             Image raw = core.getIntensityMap(false);
@@ -53,8 +55,13 @@ public class SD extends IntensityMeasurement implements Hint {
             };
             object.loop(fun);
             if (sumSumSQCount[2]==0) return Double.NaN;
-            return Math.sqrt(sumSumSQCount[1]/sumSumSQCount[2] - Math.pow(sumSumSQCount[0]/sumSumSQCount[2], 2));
-        } else return core.getIntensityMeasurements(object).sd;
+            double sd = Math.sqrt(sumSumSQCount[1]/sumSumSQCount[2] - Math.pow(sumSumSQCount[0]/sumSumSQCount[2], 2));
+            if (normalize.getSelected()) return sd / (sumSumSQCount[0]/sumSumSQCount[2]);
+            else return sd;
+        } else {
+            if (normalize.getSelected()) return core.getIntensityMeasurements(object).sd / core.getIntensityMeasurements(object).mean;
+            else return core.getIntensityMeasurements(object).sd;
+        }
     }
 
     @Override public String getDefaultName() {
@@ -66,6 +73,6 @@ public class SD extends IntensityMeasurement implements Hint {
         return "Computed the standard deviation of pixel values within the segmented object";
     }
     @Override public Parameter[] getParameters() {
-        return new Parameter[]{intensity, removePrefiltered};
+        return new Parameter[]{intensity, removePrefiltered, normalize};
     }
 }

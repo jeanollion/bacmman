@@ -18,7 +18,7 @@
  */
 package bacmman.plugins.plugins.transformations;
 
-import bacmman.plugins.Hint;
+import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
@@ -30,12 +30,11 @@ import bacmman.image.ImageMask;
 import bacmman.processing.ImageOperations;
 import java.util.ArrayList;
 import java.util.Arrays;
-import bacmman.plugins.SimpleThresholder;
+
 import bacmman.processing.ImageFeatures;
 import bacmman.image.PredicateMask;
 import java.util.List;
-import bacmman.plugins.Autofocus;
-import bacmman.plugins.ConfigurableTransformation;
+
 import bacmman.utils.ThreadRunner;
 
 import java.util.function.Consumer;
@@ -44,7 +43,7 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class SelectBestFocusPlane implements ConfigurableTransformation, Autofocus, Hint {
+public class SelectBestFocusPlane implements ConfigurableTransformation, MultichannelTransformation, Autofocus, Hint {
     ArrayList<Integer> bestFocusPlaneIdxT = new ArrayList<Integer>();
     NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 0, 3, 1, 10);
     PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(2.5, 3, 3), true).setHint("Gradient magnitude maximization is performed among pixels with value over this threshold"); //new ConstantValue(150)    Parameter[] parameters = new Parameter[]{gradientScale};
@@ -135,5 +134,10 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Autofoc
     @Override
     public String getHintText() {
         return "Selects the plane of best focus in a 3D stack, which is defined as the plane with the maximal gradient magnitude";
+    }
+
+    @Override
+    public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
+        return OUTPUT_SELECTION_MODE.MULTIPLE;
     }
 }
