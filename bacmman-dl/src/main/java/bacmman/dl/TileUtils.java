@@ -54,7 +54,7 @@ public class TileUtils {
         }
         long[][] sizes = new long[][]{ArrayUtil.toLong(tileShapeXYZ)};
         long[][] coords = getTilesCoords(size, tileShapeXYZ, minOverlapXYZ, padding);
-        for (int i = 0; i<coords.length; ++i) logger.debug("tile {}/{} coords: {}, shape XYZ: {}/{}", i, coords.length, Utils.toStringArray(coords[i]), Utils.toStringArray(tileShapeXYZ), size);
+        //for (int i = 0; i<coords.length; ++i) logger.debug("tile {}/{} coords: {}, shape XYZ: {}/{}", i, coords.length, Utils.toStringArray(coords[i]), Utils.toStringArray(tileShapeXYZ), size);
         Image[][] res = new Image[coords.length * inputNC.length][inputNC[0].length];
         for (int i = 0; i<inputNC.length; ++i) {
             Image[][] CN = Arrays.stream(inputNC[i]).map(input -> Resize.crop(input, coords, sizes, paddingMode)).toArray(Image[][]::new);
