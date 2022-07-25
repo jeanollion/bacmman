@@ -547,13 +547,15 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     Triplet<SegmentedObject, Integer, BoundingBox> key = predictions.keySet().stream().filter(k->k.v1.equals(parent) && k.v2.equals(structureIdx) && BoundingBox.isIncluded2D(minimalBounds, k.v3)).max(Comparator.comparing(b->b.v3.volume())).orElse(null);
                     if (key == null) {
                         BoundingBox optimalBB = dlResizeAndScale.getOptimalPredictionBoundingBox(minimalBounds, input.getBoundingBox().duplicate().resetOffset());
-                        logger.debug("Semi automatic split : minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
+                        //logger.debug("Semi automatic split : minimal bounds  {} after optimize: {}", minimalBounds, optimalBB);
                         key = new Triplet<>(parent, structureIdx, optimalBB);
                     }
                     PredictionResults pred = predictions.get(key);
                     synchronized (seg) {
-                        if (pred.contours != null && seg instanceof EDMCellSegmenter)
-                            ((EDMCellSegmenter) seg).setContourImage(pred.contours);
+                        if (seg instanceof EDMCellSegmenter) {
+                            if (pred.contours != null) ((EDMCellSegmenter) seg).setContourImage(pred.contours);
+                            if (objectType.getSelectedEnum().equals(OBJECT_TYPE.EUKARYOTIC_CELL)) ((EDMCellSegmenter)seg).setThresholdSeeds(true);
+                        }
                         RegionPopulation pop = ((ObjectSplitter) seg).splitObject(pred.edm.get(parent), parent, structureIdx, object);
                         if (pred.contours != null && seg instanceof EDMCellSegmenter)
                             ((EDMCellSegmenter) seg).setContourImage(null);

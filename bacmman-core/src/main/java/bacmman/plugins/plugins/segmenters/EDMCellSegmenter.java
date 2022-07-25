@@ -35,7 +35,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
     BooleanParameter invert = new BooleanParameter("Invert", true).setHint("If false, interface value is EDM/Norm or EDM, otherwise it is Norm/EDM or 1/EDM");
 
     Map<SegmentedObject, Image> contourImages;
-
+    boolean thresholdSeeds;
     public EDMCellSegmenter setInterfaceParameters(SplitAndMergeEDM.INTERFACE_VALUE mode, boolean normalize) {
         normalizeInterfaceValue.setValue(normalize);
         interfaceValue.setValue(mode);
@@ -65,11 +65,16 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         this.contourImages=contourImages;
         return this;
     }
+    public EDMCellSegmenter setThresholdSeeds(boolean thresholdSeeds) {
+        this.thresholdSeeds=thresholdSeeds;
+        return this;
+    }
     protected SplitAndMerge<I> initSplitAndMerge(Image edm, Image contour) {
         SplitAndMerge<I> sm;
         if (contour==null) {
             SplitAndMergeEDM smEDM = new SplitAndMergeEDM(edm, edm, splitThreshold.getValue().doubleValue(), interfaceValue.getSelectedEnum(), normalizeInterfaceValue.getSelected(), lmRadius.getDoubleValue(), lmThreshold.getDoubleValue(), invert.getSelected());
             smEDM.setMapsProperties(false, false);
+            if (thresholdSeeds) smEDM.setSeedThrehsold(this.minMaxEDMValue.getDoubleValue());
             sm = (SplitAndMerge<I>)smEDM;
 
         } else {
