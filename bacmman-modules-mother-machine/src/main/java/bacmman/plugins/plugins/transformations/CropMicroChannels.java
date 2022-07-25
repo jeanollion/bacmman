@@ -208,7 +208,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         BoundingBox bds = bounds!=null ? bounds : cropBounds.get(timePoint);
-        if (image.sizeZ()>1 && ref2D) bds = new MutableBoundingBox(bds).setzMin(0).setzMax(image.sizeZ()-1);
+        bds = new MutableBoundingBox(bds).setzMin(0).setzMax(image.sizeZ()-1);
         return image.crop(bds);
     }
     TestableOperation.TEST_MODE testMode= TestableOperation.TEST_MODE.NO_TEST;
