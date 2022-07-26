@@ -18,6 +18,7 @@
  */
 package bacmman.processing;
 
+import bacmman.core.Core;
 import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
@@ -26,9 +27,12 @@ import bacmman.image.BlankMask;
 import bacmman.image.Image;
 import bacmman.image.ImageInt;
 import bacmman.image.ImageMask;
+import bacmman.plugins.Plugin;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.processing.watershed.WatershedTransform.WatershedConfiguration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -37,6 +41,7 @@ import java.util.*;
  * @author Jean Ollion
  */
 public class ImageLabeller {
+    public final static Logger logger = LoggerFactory.getLogger(ImageLabeller.class);
     public final ImageInt imLabels;
     public final HashMap<Integer, Spot> spots;
     public final ImageMask mask;
@@ -173,18 +178,21 @@ public class ImageLabeller {
             for (int y = 0; y < mask.sizeY(); ++y) {
                 for (int x = 0; x < mask.sizeX(); ++x) {
                     long coord = cc.toCoord(x, y, z);
-                    n.setPixels(x, y, z, imLabels, mask);
+                    n.setPixelsInt(x, y, z, imLabels, mask);
                     if (cc.insideMask(mask, coord)) {
                         Spot currentSpot = null;
                         for (int i = 0; i<n.getValueCount(); ++i) {
-                            int nextLabel = (int)n.getPixelValues()[i]; // double values might not be enough...
+                            int nextLabel = n.getPixelValuesInt()[i]; // double values might not be enough...
                             if (nextLabel != 0) {
                                 if (currentSpot == null) {
                                     currentSpot = spots.get(nextLabel);
                                     currentSpot.addVox(coord);
                                 } else if (nextLabel != currentSpot.label) {
+                                    int l = currentSpot.label;
                                     currentSpot = currentSpot.fusion(spots.get(nextLabel));
                                     currentSpot.addVox(coord);
+                                    if (currentSpot.label!=nextLabel) l = nextLabel;
+                                    for (int j = i+1; j<n.getValueCount(); ++j) if (n.getPixelValuesInt()[j]==l) n.getPixelValuesInt()[j] = currentSpot.label;
                                 }
                             }
                         }

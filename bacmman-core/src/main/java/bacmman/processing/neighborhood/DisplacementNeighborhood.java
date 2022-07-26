@@ -20,6 +20,7 @@ package bacmman.processing.neighborhood;
 
 import bacmman.data_structure.Voxel;
 import bacmman.image.Image;
+import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 
 import java.util.stream.DoubleStream;
@@ -34,6 +35,7 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
     public int[] dx, dy, dz;
     boolean is3D;        
     double[] values;
+    int[] valuesInt;
     float[] distances;
     int valueCount=0;
     
@@ -57,6 +59,29 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
                 if (image.contains(xx, yy, z) 
                         && (mask==null||mask.insideMask(xx, yy, z))) {
                     values[valueCount++]=image.getPixel(xx, yy, z);
+                }
+            }
+        }
+    }
+    @Override public void setPixelsInt(int x, int y, int z, ImageInteger image, ImageMask mask) {
+        valueCount=0;
+        int xx, yy;
+        if (is3D) {
+            int zz;
+            for (int i = 0; i<dx.length; ++i) {
+                xx=x+dx[i];
+                yy=y+dy[i];
+                zz=z+dz[i];
+                if (image.contains(xx, yy, zz) && (mask==null||mask.insideMask(xx, yy, zz))) {
+                    valuesInt[valueCount++]=image.getPixelInt(xx, yy, zz);
+                }
+            }
+        } else {
+            for (int i = 0; i<dx.length; ++i) {
+                xx=x+dx[i];
+                yy=y+dy[i];
+                if (image.contains(xx, yy, z) && (mask==null||mask.insideMask(xx, yy, z))) {
+                    valuesInt[valueCount++]=image.getPixelInt(xx, yy, z);
                 }
             }
         }
@@ -99,6 +124,9 @@ public abstract class DisplacementNeighborhood implements Neighborhood {
 
     @Override public double[] getPixelValues() {
         return values;
+    }
+    @Override public int[] getPixelValuesInt() {
+        return valuesInt;
     }
     @Override public DoubleStream getPixelValuesAsStream() {
         if (valueCount == values.length) return DoubleStream.of(values);

@@ -20,6 +20,7 @@ package bacmman.processing.neighborhood;
 
 import bacmman.data_structure.Voxel;
 import bacmman.image.Image;
+import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.image.MutableBoundingBox;
 
@@ -38,6 +39,7 @@ public interface Neighborhood {
      * @param image image to copy pixels values from
      */
     public void setPixels(int x, int y, int z, Image image, ImageMask mask);
+    void setPixelsInt(int x, int y, int z, ImageInteger image, ImageMask mask);
     public void setPixels(Voxel v, Image image, ImageMask mask);
     public int getSize();
     /**
@@ -46,6 +48,7 @@ public interface Neighborhood {
      */
     public MutableBoundingBox getBoundingBox();
     public double[] getPixelValues();
+    int[] getPixelValuesInt();
     public DoubleStream getPixelValuesAsStream();
     public double getMin(int x, int y, int z, Image image, double... outOfBoundValue);
     public double getMax(int x, int y, int z, Image image);

@@ -20,6 +20,7 @@ package bacmman.processing.neighborhood;
 
 import bacmman.data_structure.Voxel;
 import bacmman.image.Image;
+import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
 import bacmman.image.MutableBoundingBox;
 
@@ -58,6 +59,11 @@ public class ConditionalNeighborhoodZ implements Neighborhood {
         currentNeighborhood = getNeighborhood(z);
         currentNeighborhood.setPixels(x, y, z, image, mask);
     }
+
+    @Override public void setPixelsInt(int x, int y, int z, ImageInteger image, ImageMask mask) {
+        currentNeighborhood = getNeighborhood(z);
+        currentNeighborhood.setPixelsInt(x, y, z, image, mask);
+    }
     
     @Override public MutableBoundingBox getBoundingBox() {
         MutableBoundingBox res=null;
@@ -78,6 +84,9 @@ public class ConditionalNeighborhoodZ implements Neighborhood {
 
     @Override public double[] getPixelValues() {
         return currentNeighborhood.getPixelValues();
+    }
+    @Override public int[] getPixelValuesInt() {
+        return currentNeighborhood.getPixelValuesInt();
     }
     @Override public DoubleStream getPixelValuesAsStream() {
         return currentNeighborhood.getPixelValuesAsStream();
