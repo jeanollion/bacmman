@@ -62,8 +62,8 @@ public class XZSlope implements Measurement, DevPlugin {
         Collections.sort(mcs, Comparator.comparingInt(o -> o.getBounds().xMin()));
         SegmentedObject oLeft = mcs.get(0);
         SegmentedObject oRight = mcs.get(mcs.size()-1);
-        int left = SelectBestFocusPlane.getBestFocusPlane(oLeft.getRawImage(oLeft.getStructureIdx()).splitZPlanes(), 3, null, null);
-        int right = SelectBestFocusPlane.getBestFocusPlane(oRight.getRawImage(oLeft.getStructureIdx()).splitZPlanes(), 3, null, null);
+        int left = SelectBestFocusPlane.getBestFocusPlane(oLeft.getRawImage(oLeft.getStructureIdx()).splitZPlanes(), 3, null, true, null);
+        int right = SelectBestFocusPlane.getBestFocusPlane(oRight.getRawImage(oLeft.getStructureIdx()).splitZPlanes(), 3, null, true, null);
         double value = (right-left) * object.getScaleZ() / ((oRight.getBounds().xMean()-oLeft.getBounds().xMean()) * object.getScaleXY());
         logger.debug("focus plane left: {} right: {} value: {} (scale XY: {}, Z: {})", left, right, value, object.getScaleXY(), object.getScaleZ());
         oLeft.getMeasurements().setValue("XZSlope", value);

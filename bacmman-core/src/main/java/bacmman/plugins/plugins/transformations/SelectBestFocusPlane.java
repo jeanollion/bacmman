@@ -18,12 +18,9 @@
  */
 package bacmman.plugins.plugins.transformations;
 
+import bacmman.configuration.parameters.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
-import bacmman.configuration.parameters.BoundedNumberParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
@@ -47,7 +44,8 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
     ArrayList<Integer> bestFocusPlaneIdxT = new ArrayList<Integer>();
     NumberParameter gradientScale = new BoundedNumberParameter("Gradient Scale", 0, 3, 1, 10);
     PluginParameter<SimpleThresholder> signalExclusionThreshold = new PluginParameter<>("Signal Exclusion Threshold", SimpleThresholder.class, new BackgroundThresholder(2.5, 3, 3), true).setHint("Gradient magnitude maximization is performed among pixels with value over this threshold"); //new ConstantValue(150)    Parameter[] parameters = new Parameter[]{gradientScale};
-    Parameter[] parameters = new Parameter[]{gradientScale, signalExclusionThreshold};
+    BooleanParameter excludeUnderThld = new BooleanParameter("Exclude under Threshold", true);
+    Parameter[] parameters = new Parameter[]{gradientScale, signalExclusionThreshold, excludeUnderThld};
     public SelectBestFocusPlane() {}
     public SelectBestFocusPlane(double gradientScale) {
         this.gradientScale.setValue(gradientScale);
@@ -63,7 +61,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                 if (image.sizeZ()>1) {
                     List<Image> planes = image.splitZPlanes();
                     SimpleThresholder thlder = signalExclusionThreshold.instantiatePlugin();
-                    conf[t] = getBestFocusPlane(planes, scale, thlder, null);
+                    conf[t] = getBestFocusPlane(planes, scale, thlder, excludeUnderThld.getSelected(), null);
                     logger.debug("select best focus plane: time:{}, plane: {}", t, conf[t]);
                 }
             };
@@ -75,16 +73,16 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
     @Override
     public int getBestFocusPlane(Image image, ImageMask mask) {
         if (image.sizeZ()<=1) return 0;
-        return getBestFocusPlane(image.splitZPlanes(), this.gradientScale.getValue().doubleValue(), this.signalExclusionThreshold.instantiatePlugin(), mask);
+        return getBestFocusPlane(image.splitZPlanes(), this.gradientScale.getValue().doubleValue(), this.signalExclusionThreshold.instantiatePlugin(), this.excludeUnderThld.getSelected(), mask);
     }
     
-    public static int getBestFocusPlane(List<Image> planes, double scale, SimpleThresholder thlder, ImageMask globalMask) {
+    public static int getBestFocusPlane(List<Image> planes, double scale, SimpleThresholder thlder, boolean excludeUnder, ImageMask globalMask) {
         double maxValues = -Double.MAX_VALUE;
         ImageMask mask = null;
         int max=-1;
         for (int zz = 0; zz<planes.size(); ++zz) {
             if (thlder!=null) {
-                final ImageMask maskThld = new PredicateMask(planes.get(zz), thlder.runSimpleThresholder(planes.get(zz), globalMask), true, false);
+                final ImageMask maskThld = new PredicateMask(planes.get(zz), thlder.runSimpleThresholder(planes.get(zz), globalMask), excludeUnder, false);
                 final int zzz = zz;
                 if (globalMask!=null) mask = new PredicateMask(planes.get(zz), (x, y, z)->globalMask.insideMask(x, y, zzz)&&maskThld.insideMask(x, y, z), (xy, z)->globalMask.insideMask(xy, zzz)&&maskThld.insideMask(xy, z), true);
                 else mask = maskThld;
