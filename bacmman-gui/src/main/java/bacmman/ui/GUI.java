@@ -2651,7 +2651,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
         localDBMenu.add(compactLocalDBMenuItem);
 
-        optionMenu.add(localDBMenu);
+        //optionMenu.add(localDBMenu);
 
         mainMenu.add(optionMenu);
 
