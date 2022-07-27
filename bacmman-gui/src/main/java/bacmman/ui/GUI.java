@@ -153,6 +153,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
     private NumberParameter memoryThreshold = new BoundedNumberParameter("Pre-processing memory threshold", 2, 0.4, 0, 1).setHint("During pre-processing, when used memory is above this threshold, intermediate images are saved to disk to try free memory");
+    private NumberParameter dbStartSize = new BoundedNumberParameter("Database Start Size (Mb)", 0, 2, 1, null);
+    private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
 
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
 
@@ -326,7 +328,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         measurementMode.add(measurementModeOverwriteRadioButton);
         measurementMode.add(measurementModeOnlyNewRadioButton);
         PropertyUtils.setPersistent(measurementMode, "measurement_mode", 0);
-        
+
+        // db
+        PropertyUtils.setPersistent(dbStartSize, "db_size_start");
+        Consumer<NumberParameter> setDBStartSize = n -> DBMapUtils.startSize = n.getIntValue();
+        setDBStartSize.accept(dbStartSize);
+        dbStartSize.addListener(setDBStartSize);
+        ConfigurationTreeGenerator.addToMenu(dbStartSize, dataBaseMenu);
+        PropertyUtils.setPersistent(dbIncrementSize, "db_size_inc");
+        Consumer<NumberParameter> setDBIncSize = n -> DBMapUtils.incrementSize = n.getIntValue();
+        setDBIncSize.accept(dbIncrementSize);
+        dbIncrementSize.addListener(setDBIncSize);
+        ConfigurationTreeGenerator.addToMenu(dbIncrementSize, dataBaseMenu);
+
         // import / export options
         PropertyUtils.setPersistent(importConfigMenuItem, "import_config", true);
         PropertyUtils.setPersistent(importSelectionsMenuItem, "import_selections", true);
@@ -2614,7 +2628,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         optionMenu.add(jMenu2);
 
-        dataBaseMenu.setText("Database Type");
+        dataBaseMenu.setText("Database");
 
         localFileSystemDatabaseRadioButton.setSelected(true);
         localFileSystemDatabaseRadioButton.setText("Local file system");
@@ -2623,7 +2637,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 localFileSystemDatabaseRadioButtonActionPerformed(evt);
             }
         });
-        dataBaseMenu.add(localFileSystemDatabaseRadioButton);
+        //dataBaseMenu.add(localFileSystemDatabaseRadioButton);
 
         optionMenu.add(dataBaseMenu);
 
@@ -2867,7 +2881,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         miscMenu.add(hyperstackModeImageMenu);
 
         extractDSCompressionMenu.setText("Extracted Dataset");
-        miscMenu.add(extractDSCompressionMenu);
+        optionMenu.add(extractDSCompressionMenu);
 
         kymographMenu.setText("Kymograph");
         miscMenu.add(kymographMenu);
@@ -2876,7 +2890,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         miscMenu.add(pyGatewayMenu);
 
         tensorflowMenu.setText("Tensorflow Options");
-        miscMenu.add(tensorflowMenu);
+        optionMenu.add(tensorflowMenu);
 
         logMenu.setText("Log");
 
@@ -2909,7 +2923,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         miscMenu.add(logMenu);
 
         memoryMenu.setText("Memory");
-        miscMenu.add(memoryMenu);
+        optionMenu.add(memoryMenu);
 
         mainMenu.add(miscMenu);
 

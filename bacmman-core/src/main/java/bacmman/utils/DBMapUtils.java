@@ -38,12 +38,13 @@ import org.slf4j.LoggerFactory;
  * @author Jean Ollion
  */
 public class DBMapUtils {
+    public static int startSize=2, incrementSize=2;
     public static final Logger logger = LoggerFactory.getLogger(DBMapUtils.class);
     public static DB createFileDB(String path, boolean readOnly, boolean safeMode) { //   https://mapdb.org/book/performance/
         //logger.debug("creating file db: {}, is dir: {}, exists: {}", path, new File(path).isDirectory(),new File(path).exists());
         DBMaker.Maker m = DBMaker.fileDB(path)
-                .allocateStartSize( 128 * 1024*1024)
-                .allocateIncrement(128 * 1024*1024)
+                .allocateStartSize( startSize * 1024*1024)
+                .allocateIncrement(incrementSize * 1024*1024)
                 .closeOnJvmShutdown();
         if (!Utils.isWindows()) {
             m = m.fileMmapEnableIfSupported() // Only enable mmap on supported platforms

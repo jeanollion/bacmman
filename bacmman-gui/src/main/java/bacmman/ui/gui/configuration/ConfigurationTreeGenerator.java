@@ -393,6 +393,15 @@ public class ConfigurationTreeGenerator {
             else if (o instanceof Component) menu.add((Component)o);
         }
     }
+    public static void addToMenu(Parameter p, JMenu menu) {
+        Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
+        for (Object o : UIElements) {
+            if (o instanceof Action) menu.add((Action)o);
+            else if (o instanceof JMenuItem) menu.add((JMenuItem)o);
+            else if (o instanceof JSeparator) menu.addSeparator();
+            else if (o instanceof Component) addToMenu(p.getName(), (Component)o, menu);
+        }
+    }
     public static void addToMenu(String label, Object[] UIElements, JMenu menu) {
         for (Object o : UIElements) {
             if (o instanceof Action) menu.add((Action)o);
