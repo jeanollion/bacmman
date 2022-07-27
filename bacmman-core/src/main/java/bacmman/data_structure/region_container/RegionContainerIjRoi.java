@@ -22,18 +22,24 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.image.*;
+import bacmman.image.Image;
 import ij.ImagePlus;
+import ij.gui.ImageRoi;
 import ij.gui.Roi;
 import ij.io.RoiDecoder;
 import ij.io.RoiEncoder;
+import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 import bacmman.image.wrappers.IJImageWrapper;
 
 import static bacmman.image.Image.logger;
 
 import ij.plugin.filter.ThresholdToSelection;
-import java.awt.Rectangle;
+
+import java.awt.*;
+import java.awt.image.IndexColorModel;
 import java.util.*;
+import java.util.List;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;

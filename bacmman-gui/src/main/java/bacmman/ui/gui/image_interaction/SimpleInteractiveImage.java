@@ -97,7 +97,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
             }
             else {
                 objects = str.collect(Collectors.toList());
-                offsets = objects.stream().map(o->o.getRelativeBoundingBox(parent).translate(additionalOffset)).toArray(l->new BoundingBox[l]);
+                offsets = objects.stream().map(o->o.getRelativeBoundingBox(parent).translate(additionalOffset)).toArray(BoundingBox[]::new);
             }
         }
     }
@@ -109,7 +109,6 @@ public class SimpleInteractiveImage extends InteractiveImage {
             }
         }
         if (objects==null) return Collections.EMPTY_LIST;
-        getOffsets();
         return IntStream.range(0, offsets.length).mapToObj(i->new Pair<>(objects.get(i), offsets[i])).collect(Collectors.toList());
     }
 

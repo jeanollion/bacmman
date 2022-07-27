@@ -69,7 +69,7 @@ import java.util.stream.IntStream;
 public abstract class ImageWindowManager<I, U, V> {
     public static final Logger logger = LoggerFactory.getLogger(ImageWindowManager.class);
     public enum RegisteredImageType {KYMOGRAPH, RAW_INPUT, PRE_PROCESSED}
-    public static boolean displayTrackMode;
+    public static boolean displayTrackMode, displayTrackEdges;
     public final static Color[] palette = new Color[]{new Color(166, 206, 227, 150), new Color(31,120,180, 150), new Color(178,223,138, 150), new Color(51,160,44, 150), new Color(251,154,153, 150), new Color(253,191,111, 150), new Color(255,127,0, 150), new Color(255,255,153, 150), new Color(177,89,40, 150)};
     public final static Color defaultRoiColor = new Color(255, 0, 255, 150);
     public static Color getColor(int idx) {return palette[idx%palette.length];}

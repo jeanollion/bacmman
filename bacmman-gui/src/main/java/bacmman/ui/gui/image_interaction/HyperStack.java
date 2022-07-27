@@ -29,6 +29,7 @@ import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
@@ -57,13 +58,19 @@ public class HyperStack extends Kymograph {
         frameMapIdx = parents.stream().collect(Collectors.toMap(SegmentedObject::getFrame, parents::indexOf));
         idxMapFrame = parents.stream().collect(Collectors.toMap(parents::indexOf, SegmentedObject::getFrame));
         if (!KymographFactory.DIRECTION.T.equals(data.direction)) throw new IllegalArgumentException("Invalid direction");
-        for (SimpleInteractiveImage i : trackObjects) i.setLock(lock); // shared lock
         trackObjects[0].reloadObjects();
         loadObjectsWorker = new DefaultWorker(i -> {
             trackObjects[i + 1].getObjects();
             return "";
         }, super.getParents().size() - 1, null);
-        if (loadObjects) loadObjectsWorker.execute();
+        /*loadObjectsWorker = new DefaultWorker(i -> { // TODO why no improvement ?
+            Arrays.stream(trackObjects).parallel().forEach(SimpleInteractiveImage::getObjects);
+            return "";
+        }, 1, null);*/
+        if (loadObjects) {
+            loadObjectsWorker.execute();
+            loadObjectsWorker.setStartTime();
+        }
     }
     public boolean setFrame(int frame) {
         Integer idx = frameMapIdx.get(frame);

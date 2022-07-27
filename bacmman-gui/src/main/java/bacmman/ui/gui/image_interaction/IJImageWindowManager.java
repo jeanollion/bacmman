@@ -23,6 +23,7 @@ import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.data_structure.region_container.roi.TrackRoi;
 import bacmman.image.*;
+import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.ui.GUI;
 import bacmman.ui.ManualEdition;
 import bacmman.utils.HashMapGetCreate;
@@ -39,6 +40,7 @@ import java.awt.Rectangle;
 import java.awt.event.MouseEvent;
 import java.awt.event.MouseListener;
 import java.awt.event.WindowListener;
+import java.awt.image.IndexColorModel;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -51,11 +53,14 @@ import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
+import ij.process.ImageProcessor;
 
 import java.awt.KeyboardFocusManager;
 import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static bacmman.image.Image.logger;
 
 /**
  *
@@ -405,6 +410,12 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         }
     }
 
+    // not to be called directly!!
+    @Override
+    protected void hideAllRois(ImagePlus image) {
+        image.setOverlay(new Overlay());
+    }
+
     @Override
     public Roi3D generateObjectRoi(Pair<SegmentedObject, BoundingBox> object, Color color, int frameIdx) {
         if (object.key.getBounds().sizeZ()<=0 || object.key.getBounds().sizeX()<=0 || object.key.getBounds().sizeY()<=0) GUI.logger.error("wrong object dim: o:{} {}", object.key, object.key.getBounds());
@@ -551,15 +562,22 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         Function<Pair<SegmentedObject, BoundingBox>, Roi3D> getRoi = p -> {
             Integer frame = i.frameMapIdx.get(p.key.getFrame());
             if (frame==null) return null;
-            Roi3D r = labileObjectRoiMap.get(p);
-            if (r==null) r = objectRoiMap.get(p);
-            if (r == null) {
-                r = generateObjectRoi(p, color, frame);
-                objectRoiMap.put(p, r);
-            } else {
+            if (displayTrackEdges && ((p.key.getParent().getPrevious()!=null && p.key.getPrevious()==null) || (p.key.getParent().getNext()!=null && p.key.getNext()==null))) {
+                Roi3D r = createRoiImage(p.key.getMask(), p.value, p.key.is2D(), color, 0.5);
                 setRoiAttributes(r, color, frame);
+                return r;
+            } else {
+                Roi3D r = labileObjectRoiMap.get(p);
+                if (r == null) r = objectRoiMap.get(p);
+                if (r == null) {
+                    r = generateObjectRoi(p, color, frame);
+                    objectRoiMap.put(p, r);
+                } else {
+                    setRoiAttributes(r, color, frame);
+                }
+                return r;
             }
-            return r;
+
         };
 
         track.stream().map(getRoi).filter(Objects::nonNull).flatMap(r -> r.values().stream()).forEach(trackRoi::add);
@@ -594,7 +612,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         track.stream().forEach(addEditedArrow::accept);
         // add arrow to indicate splitting
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
-        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitMergeArrow = (o1, o2, c) -> {
+        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitArrow = (o1, o2, c) -> {
             Integer frame = i.frameMapIdx.get(o1.key.getFrame());
             Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
             Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter();
@@ -619,6 +637,43 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 }
             }
         };
+        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addMergeArrow = (o1, o2, c) -> {
+            Integer frame = i.frameMapIdx.get(o1.key.getFrame());
+            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
+            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter();
+            p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to hyperstack offset
+            p2.translate(o2.value).translateRev(o2.key.getBounds());
+            Point middle = Point.middle2D(p1, p2);
+            Arrow arrow1 = new Arrow(p1.get(0), p1.get(1), middle.get(0), middle.get(1));
+            arrow1.enableSubPixelResolution();
+            arrow1.setDoubleHeaded(false);
+            arrow1.setStrokeColor(c);
+            arrow1.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
+            arrow1.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
+            Arrow arrow2 = new Arrow(p2.get(0), p2.get(1), middle.get(0), middle.get(1));
+            arrow2.enableSubPixelResolution();
+            arrow2.setDoubleHeaded(false);
+            arrow2.setStrokeColor(c);
+            arrow2.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
+            arrow2.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
+            int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
+            int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
+            if (zMin==zMax) {
+                arrow1.setPosition(0, zMin+1, frame+1);
+                trackRoi.add(arrow1);
+                arrow2.setPosition(0, zMin+1, frame+1);
+                trackRoi.add(arrow2);
+            } else {
+                for (int z = zMin; z <= zMax; ++z) {
+                    Arrow a1 = (Arrow) arrow1.clone();
+                    a1.setPosition(0, z+1, frame+1);
+                    trackRoi.add(a1);
+                    Arrow a2 = (Arrow) arrow1.clone();
+                    a2.setPosition(0, z+1, frame+1);
+                    trackRoi.add(a2);
+                }
+            }
+        };
         if (track.size()==1) { // when called from show all tracks : only sub-tracks of 1 frame are given as argument
             SegmentedObject o = track.get(0).key;
             if (o.getPreviousId()!=null) {
@@ -629,7 +684,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (div.size()>1) { // only show
                     List<Pair<SegmentedObject, BoundingBox>> divP = i.pairWithOffset(div);
                     for (Pair<SegmentedObject, BoundingBox> other : divP) {
-                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addSplitMergeArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
+                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addSplitArrow.accept(track.get(0), other, getColor(o.getPrevious().getTrackHead()));
                     }
                 }
             }
@@ -641,7 +696,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (merge.size()>1) { // only show
                     List<Pair<SegmentedObject, BoundingBox>> mergeP = i.pairWithOffset(merge);
                     for (Pair<SegmentedObject, BoundingBox> other : mergeP) {
-                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addSplitMergeArrow.accept(track.get(0), other, getColor(o.getNext().getTrackHead()));
+                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addMergeArrow.accept(track.get(0), other, getColor(o.getNext().getTrackHead()));
                     }
                 }
             }
@@ -651,7 +706,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (next.size() > 1) { // show division by displaying arrows between objects
                     List<Pair<SegmentedObject, BoundingBox>> nextP = i.pairWithOffset(next);
                     for (int idx = 0; idx < next.size() - 1; ++idx)
-                        addSplitMergeArrow.accept(nextP.get(idx), nextP.get(idx + 1), color);
+                        addSplitArrow.accept(nextP.get(idx), nextP.get(idx + 1), color);
                 }
             }
             if (track.get(0).key.getPreviousId() == null) {
@@ -659,7 +714,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (prev.size() > 1) { // show merging by displaying arrows between objects
                     List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
                     for (int idx = 0; idx < prev.size() - 1; ++idx)
-                        addSplitMergeArrow.accept(prevP.get(idx), prevP.get(idx + 1), color);
+                        addMergeArrow.accept(prevP.get(idx), prevP.get(idx + 1), color);
                 }
             }
         }
@@ -778,10 +833,43 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         res.setHeadSize(trackArrowStrokeWidth*1.5);
         return res;*/
     }
-    
-    // not to be called directly!!
-    protected void hideAllRois(ImagePlus image) {
-        image.setOverlay(new Overlay());
+
+    static IndexColorModel getCM(Color color) {
+        byte[] r = new byte[256];
+        byte[] g = new byte[256];
+        byte[] b = new byte[256];
+        for (int i = 1; i<256; ++i) {
+            r[i] = (byte)color.getRed();
+            g[i] = (byte)color.getGreen();
+            b[i] = (byte)color.getBlue();
+        }
+        return new IndexColorModel(8, 256, r, g, b);
+    }
+    public static Roi3D createRoiImage(ImageMask mask, Offset offset, boolean is3D, Color color, double opacity) {
+        if (offset == null) {
+            logger.error("ROI creation : offset null for mask: {}", mask.getName());
+            return null;
+        }
+        Roi3D res = new Roi3D(mask.sizeZ()).setIs2D(!is3D);
+        ImageInteger maskIm = TypeConverter.maskToImageInteger(mask, null); // copy only if necessary
+        ImagePlus maskPlus = IJImageWrapper.getImagePlus(maskIm);
+        for (int z = 0; z < mask.sizeZ(); ++z) {
+            ImageProcessor ip = maskPlus.getStack().getProcessor(z + 1);
+            ip.setColorModel(getCM(color));
+            ImageRoi roi = new ImageRoi(offset.xMin(), offset.yMin(), ip);
+            roi.setZeroTransparent(true);
+            roi.setOpacity(opacity);
+            if (roi != null) {
+                Rectangle bds = roi.getBounds();
+                if (bds == null) {
+                    continue;
+                }
+                roi.setPosition(z + 1 + offset.zMin());
+                res.put(z + offset.zMin(), roi);
+            }
+
+        }
+        return res;
     }
 
     private static SegmentedObjectAccessor getAccessor() {

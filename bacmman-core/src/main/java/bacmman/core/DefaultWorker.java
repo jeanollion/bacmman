@@ -37,6 +37,7 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected Runnable endOfWork;
     protected int[] taskIdx;
     protected ProgressLogger progressor;
+    long tStart;
     public static DefaultWorker executeSingleTask(Runnable task, ProgressLogger gui) {
         return execute(t  -> {
             task.run();
@@ -74,6 +75,9 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             });
         }
     }
+    public void setStartTime() {
+        tStart = System.currentTimeMillis();
+    }
     @Override
     protected Integer doInBackground() throws Exception {
 
@@ -105,7 +109,9 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     public void done() {
         try {
             int count = get();
-            logger.debug("worker task executed: {}/{}", count, taskIdx.length);
+            long tEnd = System.currentTimeMillis();
+            String timeMsg = tStart>0 ? "in "+(tEnd-tStart)+"ms" : "";
+            logger.debug("worker task executed: {}/{} {}", count, taskIdx.length, timeMsg);
         } catch (CancellationException e) {
             logger.debug("Cancelled task", e);
         } catch (Exception e) {
