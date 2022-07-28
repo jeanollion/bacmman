@@ -22,7 +22,7 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
         double[] scale_center = getScaleCenter(histogram);
         this.scale = scale_center[0];
         this.center = scale_center[1];
-        logger.debug("ModePercentile scaler: center: {}, percentile: {} scale{}", center, center+ 1./scale, scale);
+        logger.debug("ModePercentile scaler: center: {}, percentile: {} scale {}", center, center+ 1./scale, 1./scale);
     }
     public double[] getScaleCenter(Histogram histogram) {
         double per = histogram.getQuantiles(this.percentile.getValue().doubleValue())[0];
