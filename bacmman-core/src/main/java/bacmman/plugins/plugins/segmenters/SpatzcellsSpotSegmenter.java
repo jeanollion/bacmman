@@ -91,7 +91,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
         if (rawOC>=0) assert raw.sizeZ() == input.sizeZ() : "Slice number of raw object class do not match with current object class";
         Image fitImage = this.fitCenterAndAxesOnFilteredImage.getSelected() ? input : raw;
         // get 2D local maxima
-        Function<Image, Image> lmFun = im ->  Filters.localExtrema(im, null, true, null, Filters.getNeighborhood(1.5, 1, im)); // no mask is given here so that a given local maxima is not found in two neighboring cells
+        Function<Image, Image> lmFun = im ->  Filters.localExtrema(im, null, true, null, Filters.getNeighborhood(localMaximaRadius.getDoubleValue(), 1, im)); // no mask is given here so that a given local maxima is not found in two neighboring cells
         Image localMaxima = ImageOperations.applyPlaneByPlane(input, lmFun);
         // remove lm under threshold & outside mask
         double threshold = localMaximaThreshold.instantiatePlugin().runThresholder(input, parent);
@@ -127,9 +127,9 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
                 lmClose = allLMPerSlice.get(slice).stream().filter(p -> minDistFun.applyAsDouble(p)<=minDist).collect(Collectors.toList());
             } else lmClose = new ArrayList<>();
             logger.debug("slice: {}, run max: {} with close spots: {}", slice, lmMax.size(), lmClose.size());
-            Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
+            Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue()*2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
             if (fitCenterAndAxesOnFilteredImage.getSelected()) { // fit only intensity on raw image
-                fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps);
+                fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue()*2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps);
             }
             logger.debug("slice: {} resulting fit: {}", slice, Utils.toStringMap(fitSlice, Object::toString, p->new GaussianFit.FitParameter(p, 2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected()).toString()));
             for (Point p : lmMax) {
