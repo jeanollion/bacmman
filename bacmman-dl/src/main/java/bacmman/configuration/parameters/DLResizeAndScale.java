@@ -8,17 +8,16 @@ import bacmman.plugins.HistogramScaler;
 import bacmman.plugins.plugins.scalers.IQRScaler;
 import bacmman.processing.Resize;
 import bacmman.processing.ResizeUtils;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
-import bacmman.utils.Triplet;
-import bacmman.utils.Utils;
+import bacmman.utils.*;
 import net.imglib2.interpolation.InterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -304,65 +303,73 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         return shape;
     }
     public Image[][][] predict(DLengine engine, Image[][]... inputINC) {
-        Triplet<Image[][][], int[][][], HistogramScaler[]> in = getNetworkInput(inputINC);
+        Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> in = getNetworkInput(inputINC);
         Image[][][] out = engine.process(in.v1);
         return processPrediction(out, in);
     }
-    public Triplet<Image[][][], int[][][], HistogramScaler[]> getNetworkInput(Image[][][] inputINC) {
+    public Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> getNetworkInput(Image[][][] inputINC) {
         switch (getMode()) {
             case SCALE_ONLY: {
-                HistogramScaler[] scalers = inputScaling.get().toArray(new HistogramScaler[0]);
+                Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Pair<Image[][], int[][]> res = scaleInput(inputINC[i], scalers[i], scaleFrameByFrame.getSelected());
-                    imINC[i] = res.key;
-                    shapesIN[i] = res.value;
+                    int ii = i;
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], ()->inputScaling.getChildAt(ii).instantiatePlugin(), scaleFrameByFrame.getSelected());
+                    imINC[i] = res.v1;
+                    shapesIN[i] = res.v2;
+                    scalersI[i] = res.v3;
                 }
-                return new Triplet<>(imINC, shapesIN, scalers);
+                return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case RESAMPLE:
             default: {
-                HistogramScaler[] scalers = new HistogramScaler[inputINC.length];
-                InterpolatorFactory[] interpols = new InterpolatorFactory[inputINC.length];
+                Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
+                Supplier<HistogramScaler>[] scalerSuppliersI = new Supplier[inputINC.length];
+                InterpolatorFactory[] interpolsI = new InterpolatorFactory[inputINC.length];
                 for (int i = 0; i < inputINC.length; ++i) {
                     PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> params = inputInterpAndScaling.getChildAt(i);
-                    interpols[i] = params.getParam1().getInterpolation();
-                    scalers[i] = params.getParam2().instantiatePlugin();
+                    interpolsI[i] = params.getParam1().getInterpolation();
+                    scalerSuppliersI[i] = () -> params.getParam2().instantiatePlugin();
                 }
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Pair<Image[][], int[][]> res = scaleAndResampleInput(inputINC[i], interpols[i], scalers[i], getTargetImageShape(inputINC[i], false), scaleFrameByFrame.getSelected());
-                    imINC[i] = res.key;
-                    shapesIN[i] = res.value;
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndResampleInput(inputINC[i], interpolsI[i], scalerSuppliersI[i], getTargetImageShape(inputINC[i], false), scaleFrameByFrame.getSelected());
+                    imINC[i] = res.v1;
+                    shapesIN[i] = res.v2;
+                    scalersI[i] = res.v3;
                 }
-                return new Triplet<>(imINC, shapesIN, scalers);
+                return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case PAD: {
-                HistogramScaler[] scalers = inputScaling.get().toArray(new HistogramScaler[0]);
+                Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Pair<Image[][], int[][]> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), scalers[i], getTargetImageShape(inputINC[i], true), scaleFrameByFrame.getSelected());
-                    imINC[i] = res.key;
-                    shapesIN[i] = res.value;
+                    int ii = i;
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), ()->inputScaling.getChildAt(ii).instantiatePlugin(), getTargetImageShape(inputINC[i], true), scaleFrameByFrame.getSelected());
+                    imINC[i] = res.v1;
+                    shapesIN[i] = res.v2;
+                    scalersI[i] = res.v3;
                 }
-                return new Triplet<>(imINC, shapesIN, scalers);
+                return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case TILE: {
                 Resize.EXPAND_MODE padding = padTiles.getSelected() ? paddingMode.getSelectedEnum() : null;
-                HistogramScaler[] scalers = inputScaling.get().toArray(new HistogramScaler[0]);
+                Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 int[] tileShapeXYZ = ArrayUtil.reverse(tileShape.getArrayInt(), true);
                 int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Pair<Image[][], int[][]> res = scaleAndTileInput(inputINC[i], padding, scalers[i], tileShapeXYZ, minOverlapXYZ, scaleFrameByFrame.getSelected());
-                    imINC[i] = res.key;
-                    shapesIN[i] = res.value;
+                    int ii = i;
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, ()->inputScaling.getChildAt(ii).instantiatePlugin(), tileShapeXYZ, minOverlapXYZ, scaleFrameByFrame.getSelected());
+                    imINC[i] = res.v1;
+                    shapesIN[i] = res.v2;
+                    scalersI[i] = res.v3;
                 }
-                return new Triplet<>(imINC, shapesIN, scalers);
+                return new Triplet<>(imINC, shapesIN, scalersI);
             }
         }
     }
@@ -382,7 +389,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             } else return ((NumberParameter)params.getChildAt(1)).getValue().intValue();
         }
     }
-    public Image[][][] processPrediction(Image[][][] predictionsONC, Triplet<Image[][][], int[][][], HistogramScaler[]> input) {
+    public Image[][][] processPrediction(Image[][][] predictionsONC, Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> input) {
         switch (getMode()) {
             case SCALE_ONLY: {
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
@@ -430,36 +437,46 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 return outputONC;
         }
     }
-    public static Pair<Image[][], int[][]> scaleInput(Image[][] inNC, HistogramScaler scaler, boolean scaleFrameByFrame) {
-        int[][] shapes = ResizeUtils.getShapes(inNC, false);
-        if (scaler==null) return new Pair(inNC, shapes);
-        if (!scaleFrameByFrame) {
+    protected static Map<Integer, HistogramScaler> getScalerMap(Image[][] inNC, Supplier<HistogramScaler> scalerSupplier, boolean frameByFrame, boolean allowTransformInputImages) {
+        if (scalerSupplier==null) return null;
+        Map<Integer, HistogramScaler> scalerMap;
+        if (!frameByFrame) {
             List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
+            HistogramScaler scaler = scalerSupplier.get();
             scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            scaler.transformInputImage(allowTransformInputImages); // input images are not modified
+            scalerMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> scaler);
+        } else {
+            scalerMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> {
+                HistogramScaler scaler = scalerSupplier.get();
+                List<Image> allImages = Arrays.asList(inNC[i]);
+                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+                scaler.transformInputImage(allowTransformInputImages); // input images are not modified
+                return scaler;
+            });
         }
-        scaler.transformInputImage(false); // input images are not modified
-        Image[][] res = IntStream.range(0, inNC.length).parallel().mapToObj(i -> IntStream.range(0, inNC[i].length).mapToObj(j -> scaler.scale(inNC[i][j]) ).toArray(Image[]::new)).toArray(Image[][]::new);
-        return new Pair(res, shapes);
+        return scalerMap;
     }
-    public static Pair<Image[][], int[][]> scaleAndResampleInput(Image[][] inNC, InterpolatorFactory interpolation, HistogramScaler scaler, int[] targetImageShape, boolean scaleFrameByFrame) {
+    public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleInput(Image[][] inNC, Supplier<HistogramScaler> scalerSupplier, boolean scaleFrameByFrame) {
+        int[][] shapes = ResizeUtils.getShapes(inNC, false);
+        if (scalerSupplier==null) return new Triplet(inNC, shapes, null);
+        Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, false);
+        Image[][] res = IntStream.range(0, inNC.length).parallel().mapToObj(i -> IntStream.range(0, inNC[i].length).mapToObj(j -> scalerMap.get(i).scale(inNC[i][j]) ).toArray(Image[]::new)).toArray(Image[][]::new);
+        return new Triplet<>(res, shapes, scalerMap);
+    }
+    public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndResampleInput(Image[][] inNC, InterpolatorFactory interpolation, Supplier<HistogramScaler> scalerSupplier, int[] targetImageShape, boolean scaleFrameByFrame) {
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
         IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
-        if (scaler!=null) { // scale
-            if (!scaleFrameByFrame) {
-                List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
-                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-            }
-            scaler.transformInputImage(true);
-        }
+        Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
         Image[][] inResampledNC = ResizeUtils.resample(inNC, interpolation, new int[][]{targetImageShape});
-        if (scaler!=null) IntStream.range(0, inResampledNC.length).parallel().forEach(i -> IntStream.range(0, inResampledNC[i].length).forEach(j -> inResampledNC[i][j] = scaler.scale(inResampledNC[i][j]) ));
-        return new Pair<>(inResampledNC, shapes);
+        if (scalerMap!=null) IntStream.range(0, inResampledNC.length).parallel().forEach(i -> IntStream.range(0, inResampledNC[i].length).forEach(j -> inResampledNC[i][j] = scalerMap.get(i).scale(inResampledNC[i][j]) ));
+        return new Triplet<>(inResampledNC, shapes, scalerMap);
     }
 
-    public static Image[][] scaleAndResampleReverse(Image[][] inputNC, Image[][] predNC, InterpolatorFactory interpolation, HistogramScaler scaler, int[][] shapes, boolean scaleFrameByFrame) {
-        if (scaler!=null){
-            scaler.transformInputImage(true);
-            IntStream.range(0, predNC.length).parallel().forEach(i -> IntStream.range(0, predNC[i].length).forEach(j -> predNC[i][j] = scaler.reverseScale(predNC[i][j]) ));
+    public static Image[][] scaleAndResampleReverse(Image[][] inputNC, Image[][] predNC, InterpolatorFactory interpolation, Map<Integer, HistogramScaler> scalerN, int[][] shapes, boolean scaleFrameByFrame) {
+        if (scalerN!=null){
+            scalerN.forEach((i,s) -> s.transformInputImage(true));
+            IntStream.range(0, predNC.length).parallel().forEach(i -> IntStream.range(0, predNC[i].length).forEach(j -> predNC[i][j] = scalerN.get(i).reverseScale(predNC[i][j]) ));
         }
         Image[][] predictionResizedNC = interpolation!=null ? ResizeUtils.resample(predNC, interpolation, shapes) : predNC;
         if (inputNC!=null) {
@@ -472,24 +489,18 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
         return predictionResizedNC;
     }
-    public static Pair<Image[][], int[][]> scaleAndPadInput(Image[][] inNC, Resize.EXPAND_MODE mode, HistogramScaler scaler, int[] targetImageShape, boolean scaleFrameByFrame) {
+    public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndPadInput(Image[][] inNC, Resize.EXPAND_MODE mode, Supplier<HistogramScaler> scalerSupplier, int[] targetImageShape, boolean scaleFrameByFrame) {
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
         IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
-        if (scaler!=null) { // scale
-            if (!scaleFrameByFrame) {
-                List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
-                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-            }
-            scaler.transformInputImage(true);
-        }
+        Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
         Image[][] inResizedNC = ResizeUtils.pad(inNC, mode, Resize.EXPAND_POSITION.CENTER, new int[][]{targetImageShape});
-        if (scaler!=null) IntStream.range(0, inResizedNC.length).parallel().forEach(i -> IntStream.range(0, inResizedNC[i].length).forEach(j -> inResizedNC[i][j] = scaler.scale(inResizedNC[i][j]) ));
-        return new Pair<>(inResizedNC, shapes);
+        if (scalerMap!=null) IntStream.range(0, inResizedNC.length).parallel().forEach(i -> IntStream.range(0, inResizedNC[i].length).forEach(j -> inResizedNC[i][j] = scalerMap.get(i).scale(inResizedNC[i][j]) ));
+        return new Triplet<>(inResizedNC, shapes, scalerMap);
     }
-    public static Image[][] scaleAndPadReverse(Image[][] inputNC, Image[][] predNC, HistogramScaler scaler, int[][] shapes) {
-        if (scaler!=null){
-            scaler.transformInputImage(true);
-            IntStream.range(0, predNC.length).parallel().forEach(i -> IntStream.range(0, predNC[i].length).forEach(j -> predNC[i][j] = scaler.reverseScale(predNC[i][j]) ));
+    public static Image[][] scaleAndPadReverse(Image[][] inputNC, Image[][] predNC, Map<Integer, HistogramScaler> scalerN, int[][] shapes) {
+        if (scalerN!=null){
+            scalerN.forEach((i,s) -> s.transformInputImage(true));
+            IntStream.range(0, predNC.length).parallel().forEach(i -> IntStream.range(0, predNC[i].length).forEach(j -> predNC[i][j] = scalerN.get(i).reverseScale(predNC[i][j]) ));
         }
         Image[][] predictionResizedNC = ResizeUtils.pad(predNC, Resize.EXPAND_MODE.MIRROR, Resize.EXPAND_POSITION.CENTER, shapes);
         if (inputNC!=null) {
@@ -502,38 +513,29 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
         return predictionResizedNC;
     }
-    public static Pair<Image[][], int[][]> scaleAndTileInput(Image[][] inNC, Resize.EXPAND_MODE padding, HistogramScaler scaler, int[] targetTileShape, int[] minOverlap, boolean scaleFrameByFrame) {
+    public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndTileInput(Image[][] inNC, Resize.EXPAND_MODE padding, Supplier<HistogramScaler> scalerSupplier, int[] targetTileShape, int[] minOverlap, boolean scaleFrameByFrame) {
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
         IntStream.range(0, inNC.length).parallel().forEach(i -> IntStream.range(0, inNC[i].length).forEach(j -> inNC[i][j] = TypeConverter.toFloatingPoint(inNC[i][j], false, false) ));
-        if (scaler!=null) { // scale
-            if (!scaleFrameByFrame) {
-                List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
-                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-            }
-            scaler.transformInputImage(true);
-        }
+        Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, true);
         Image[][] tilesNtC = TileUtils.splitTiles(inNC, targetTileShape, minOverlap, padding);
         int nTiles = tilesNtC.length / inNC.length;
-        if (scaler!=null) IntStream.range(0, tilesNtC.length).parallel().forEach(n -> IntStream.range(0, tilesNtC[n].length).forEach(c -> {
-            tilesNtC[n][c] = scaler.scale(tilesNtC[n][c]);
-            tilesNtC[n][c].translate(inNC[n/nTiles][c].getBoundingBox().reverseOffset()); // tiles offset are relative to each input image because when merging them we don't have access to input offset
+        if (scalerMap!=null) IntStream.range(0, tilesNtC.length).parallel().forEach(n -> IntStream.range(0, tilesNtC[n].length).forEach(c -> {
+            int i = n/nTiles;
+            tilesNtC[n][c] = scalerMap.get(i).scale(tilesNtC[n][c]);
+            tilesNtC[n][c].translate(inNC[i][c].getBoundingBox().reverseOffset()); // tiles offset are relative to each input image because when merging them we don't have access to input offset
         } ));
-        return new Pair<>(tilesNtC, shapes);
+        return new Triplet<>(tilesNtC, shapes, scalerMap);
     }
 
     /**
      *
      * @param targetShape shape of destination tiles
      * @param predNtC
-     * @param scaler
+     * @param scalerN
      * @param minOverlap
      * @return scaled tiles
      */
-    public static Image[][] scaleAndTileReverse(int[][] targetShape, Image[][] predNtC, HistogramScaler scaler, int[] minOverlap, boolean padding) {
-        if (scaler!=null){
-            scaler.transformInputImage(true);
-            IntStream.range(0, predNtC.length).parallel().forEach(i -> IntStream.range(0, predNtC[i].length).forEach(j -> predNtC[i][j] = scaler.reverseScale(predNtC[i][j]) ));
-        }
+    public static Image[][] scaleAndTileReverse(int[][] targetShape, Image[][] predNtC, Map<Integer, HistogramScaler> scalerN, int[] minOverlap, boolean padding) {
         Boolean[] target2DC = IntStream.range(0, predNtC[0].length).mapToObj(c -> Arrays.stream(predNtC).map(a -> a[c]).filter(i->i.sizeZ()>1).findAny().orElse(null) == null).toArray(Boolean[]::new); // special case: when input is 3D and prediction is 2D.
         Image[][] targetNC = IntStream.range(0, targetShape.length)
                 .mapToObj(i -> IntStream.range(0, predNtC[i].length)
@@ -541,6 +543,10 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                         )).toArray(Image[]::new)
                 ).toArray(Image[][]::new);
         TileUtils.mergeTiles(targetNC, predNtC, minOverlap, padding);
+        if (scalerN!=null){
+            scalerN.forEach((i,s) -> s.transformInputImage(true));
+            IntStream.range(0, targetNC.length).parallel().forEach(i -> IntStream.range(0, targetNC[i].length).forEach(j -> targetNC[i][j] = scalerN.get(i).reverseScale(targetNC[i][j]) ));
+        }
         return targetNC;
     }
     @Override

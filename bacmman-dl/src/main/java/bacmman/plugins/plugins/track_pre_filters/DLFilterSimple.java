@@ -19,7 +19,7 @@ import java.util.stream.IntStream;
 public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformation, Filter, Hint { // TransformationApplyDirectly
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine module");
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
-    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 4, 1, null).setEmphasized(true).setHint("Defines how many frames are processed at the same time");
+    BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setEmphasized(true).setHint("For time-lapse dataset: defines how many frames are processed at the same time (0=all frames)");
     BooleanParameter timelapse = new BooleanParameter("Timelapse", false).setHint("If true, input image are concatenated with previous (and next) frame(s)");
     BooleanParameter next = new BooleanParameter("Next", true).setHint("If true, input image are concatenated with previous and next frame(s)");
     BoundedNumberParameter nFrames = new BoundedNumberParameter("Frame Number", 0, 1, 1, null).setHint("Defines the neighborhood size in time axis: how many previous (and next) frames are concatenated to current frame");
@@ -47,7 +47,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
         if (numOutputs!=1) throw new IllegalArgumentException("Model predicts "+numOutputs+ " while 1 output is expected");
 
         double nImages = inputINC[0].length;
-        int increment = (int)Math.ceil( nImages / Math.ceil( nImages / batchSize.getIntValue()) );
+        int increment = batchSize.getIntValue() == 0 ? inputINC[0].length : (int)Math.ceil( nImages / Math.ceil( nImages / batchSize.getIntValue()) );
         Image[] res = new Image[inputINC[0].length];
         for (int i = 0; i < nImages; i += increment ) {
             int nFrames = (int)Math.min(nImages-i, increment);
