@@ -64,7 +64,7 @@ import java.util.stream.IntStream;
 public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter>, ManualSegmenter, ObjectSplitter, TestableProcessingPlugin, Hint, HintSimple {
     public static boolean debug = false;
     ArrayNumberParameter scale = new ArrayNumberParameter("Scale", 0, new BoundedNumberParameter("Scale", 1, 2, 1, 10)).setSorted(true).setHint("Scale (in pixels) for Laplacian transform. <br />Configuration hint: determines the <em>Laplacian</em> image displayed in test mode");
-    ArrayNumberParameter gaussScale = new ArrayNumberParameter("Smooth Scale", 0, new BoundedNumberParameter("Scale", 1, 1, 0.5, 10)).setSorted(true).setHint("Scale (in pixels) for gaussian smooth <br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
+    ArrayNumberParameter gaussScale = new ArrayNumberParameter("Smooth Scale", 0, new BoundedNumberParameter("Scale", 1, 1, 0, 10)).setSorted(true).setHint("Scale (in pixels) for gaussian smooth (<0.5 -> no gaussian smooth)<br />Configuration hint: determines the <em>Gaussian</em> image displayed in test mode");
     NumberParameter minSpotSize = new BoundedNumberParameter("Min. Spot Size", 0, 5, 1, null).setHint("Spots under this size (in voxel number) will be removed");
     NumberParameter laplacianThld = new NumberParameter<>("Seed Laplacian Threshold", 2, 2.15).setEmphasized(true).setHint("Laplacian threshold for selection of watershed seeds.<br />Higher values tend to increase false negative detections and decrease false positive detection.<br /> Configuration hint: refer to the <em>Laplacian</em> image displayed in test mode"); // was 2.25
     NumberParameter propagationThld = new NumberParameter<>("Propagation Threshold", 2, 1.63).setEmphasized(true).setHint("Lower threshold for watershed propagation: watershed propagation stops at this value. <br />Lower value will yield larger spots.<br />Configuration hint: refer to <em>Laplacian</em> image displayed in test mode (or <em>Gaussian</em> if selected as watershed map)");
@@ -202,7 +202,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
                 for (int i = 0; i<gauss.length; ++i) {
                     if (!gauss[i].sameDimensions(input)) gauss[i] = gauss[i].cropWithOffset(input.getBoundingBox()); // map was computed on parent that differs from segmentation parent
-                    ImageOperations.affineOperation2WithOffset(gauss[i], gauss[i], gaussianScale[i]/ms[1], -ms[0]);
+                    if (gaussianScale[i]>=0.5) ImageOperations.affineOperation2WithOffset(gauss[i], gauss[i], gaussianScale[i]/ms[1], -ms[0]);
                 }
                 gaussScaled=true;
             }
@@ -539,7 +539,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
         for (int i = 0; i<gaussScale.length; ++i) {
             final int ii = i;
-            Function<Image, Image> gaussF = f->ImageFeatures.gaussianSmooth(f, gaussScale[ii], false).setName("gaussian: "+gaussScale[ii]);
+            Function<Image, Image> gaussF = f->gaussScale[ii]<0.5 ? f : ImageFeatures.gaussianSmooth(f, gaussScale[ii], false).setName("gaussian: "+gaussScale[ii]);
             maps[i] = planeByPlane ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource);
         }
         for (int i = 0; i<scale.length; ++i) {
