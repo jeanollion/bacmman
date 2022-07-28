@@ -389,12 +389,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         }
         if (!image.isDisplayedHyperStack()) {
             if (image.getNSlices()>1) roi.setZToPosition();
-            else if (image.getNFrames()>1) {
-                //Roi r = roi.values().iterator().next();
-                //logger.debug(" before hyperstack roi : p={}, z={}, T={}", r.getPosition(), r.getZPosition(), r.getTPosition());
-                roi.setTToPosition();
-                //logger.debug("not hyperstack nT: {}: roi position {}", image.getNFrames(), roi.values().iterator().next().getPosition());
-            }
+            else if (image.getNFrames()>1) roi.setTToPosition();
         }
         for (Roi r : roi.values()) {
             r.setStrokeWidth(ROI_STROKE_WIDTH);
@@ -515,7 +510,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         }
         if (!(i instanceof HyperStack)) {
             for (Roi r : roi) o.add(r);
-            if (roi.is2D() && image.getZ()>1) {
+            if (roi.is2D() && image.getNSlices()>1) {
                 for (int z = 1; z<image.getNSlices(); ++z) {
                     for (Roi r : roi.duplicateForZ(z)) o.add(r);
                 }
@@ -525,8 +520,16 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (image.getNSlices()>1) roi.setZToPosition();
                 else if (image.getNFrames()>1) roi.setTToPosition();
             }
-            for (Roi r : roi) {
-                o.add(r);
+            for (Roi r : roi) o.add(r);
+            if (roi.is2D() && image.getNSlices()>1) {
+                for (int z = 1; z<image.getNSlices(); ++z) {
+                    TrackRoi dup = roi.duplicateForZ(z);
+                    if (!image.isDisplayedHyperStack()) {
+                        if (image.getNSlices() > 1) dup.setZToPosition();
+                        else if (image.getNFrames() > 1) dup.setTToPosition();
+                    }
+                    for (Roi r : dup) o.add(r);
+                }
             }
         }
 

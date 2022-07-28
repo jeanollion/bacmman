@@ -34,7 +34,7 @@ public class TrackRoi extends ArrayList<Roi> {
             TrackRoi res = new TrackRoi();
             for (Roi r : this) {
                 Roi dup = (Roi)r.clone();
-                dup.setPosition(z+1);
+                dup.setPosition(r.getCPosition(), z+1, r.getTPosition());
                 res.add(dup);
             }
             sliceDuplicates.put(z, res);
