@@ -64,14 +64,23 @@ public class ResizeUtils {
         return Arrays.stream(imageNC).map(a -> a[cIdx]).toArray(Image[]::new);
     }
 
-    public static Image[][] setZasChannel(Image[] imageN) {
+    public static Image[][] setZtoChannel(Image[] imageN) {
         return Arrays.stream(imageN).map(im -> im.splitZPlanes().toArray(new Image[0])).toArray(Image[][]::new);
     }
 
-    public static Image[][] setZasChannel(Image[][] imageNC, int channelIdx) {
+    public static Image[][] setZtoChannel(Image[][] imageNC, int channelIdx) {
         Image[] imageN = getChannel(imageNC, channelIdx);
         return Arrays.stream(imageN).map(im -> im.splitZPlanes().toArray(new Image[0])).toArray(Image[][]::new);
     }
+
+    public static Image[][] setChanneltoZ(Image[][] imageNC) {
+        Image[][] res = new Image[imageNC.length][1];
+        for (int n = 0; n<imageNC.length; ++n) {
+            res[n][0] = Image.mergeZPlanes(imageNC[n]);
+        }
+        return res;
+    }
+
     public static int getSizeZ(Image[][] imageNC, int c) {
         int[] sizeZ = Arrays.stream(imageNC).map(imageC -> imageC[c]).mapToInt(SimpleBoundingBox::sizeZ).distinct().toArray();
         assert sizeZ.length==1 : "different sizeZ within channel: "+c;

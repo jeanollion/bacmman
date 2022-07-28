@@ -144,7 +144,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
             }
             case CHANNEL: {
                 for (int i = 0; i <inputNC.length; ++i) {
-                    inputNC[i] = ResizeUtils.setZasChannel(inputNC[i], channelIdx.getValue().intValue());
+                    inputNC[i] = ResizeUtils.setZtoChannel(inputNC[i], channelIdx.getValue().intValue());
                 }
                 break;
             }
@@ -204,13 +204,32 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
             long t1 = System.currentTimeMillis();
             predictTime += t1-t0;
         }
-        if (zAxis.getSelectedEnum()==Z_AXIS.BATCH && sizeZ>1) {
-            for (int o = 0; o<res.length; ++o) {
-                logger.debug("before batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
-                res[o] = ResizeUtils.setBatchToZ(res[o], sizeZ);
-                logger.debug("after batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+        switch (zAxis.getSelectedEnum()) {
+            case Z:
+            default: {
+                break;
+            }
+            case CHANNEL: {
+                for (int i = 0; i <res.length; ++i) {
+                    int nC = res[i][0].length;
+                    if (nC>1) {
+                        res[i] = ResizeUtils.setChanneltoZ(res[i]);
+                    }
+                }
+                break;
+            }
+            case BATCH: {
+                if (sizeZ>1) {
+                    for (int o = 0; o<res.length; ++o) {
+                        logger.debug("before batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                        res[o] = ResizeUtils.setBatchToZ(res[o], sizeZ);
+                        logger.debug("after batch to Z : output: {} N batch: {}, N chan: {}, shape: X={}, Y={}, Z={}", o, res[o].length, res[o][0].length, res[o][0][0].sizeX(), res[o][0][0].sizeY(), res[o][0][0].sizeZ());
+                    }
+                }
+                break;
             }
         }
+
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
     }
