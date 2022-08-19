@@ -1,9 +1,6 @@
 package bacmman.plugins.plugins.feature_extractor;
 
-import bacmman.configuration.parameters.ObjectClassOrChannelParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.SimpleListParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.core.Task;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -18,6 +15,7 @@ import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.Hint;
 import net.imglib2.interpolation.InterpolatorFactory;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -27,11 +25,15 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
             .setChildrenNumber(2)
             .setHint("Choose object classes associated to the channels to be extracted. Note that each object class can only be selected once")
             .addValidationFunction(l -> l.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).distinct().count() == l.getActivatedChildren().size());
+    SimpleListParameter<EVFParameter> evfList = new SimpleListParameter<>("EVF", new EVFParameter("EVF Parameters")).setHint("If items are added to this list, Eroded Volume Fraction (EVF) will be computed for each pixel and returned as an additional channel");
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
         if (objectClassIdx != parent.getStructureIdx()) throw new IllegalArgumentException("invalid object class: should correspond to parent selection that has object class==: "+parent.getStructureIdx());
         List<Image> images = channels.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx)
                 .mapToObj(parent::getRawImage).collect(Collectors.toList());
+        for (EVFParameter p : evfList.getActivatedChildren()) {
+            images.add(p.computeEVF(parent));
+        }
         int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
         int count = (int)parent.getRegion().size();
         Image res = Image.createImage(Selection.indicesToString(SegmentedObjectUtils.getIndexTree(parent)), maxBD, new SimpleImageProperties(count, images.size(), 1, 1, 1));
@@ -58,7 +60,7 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{channels};
+        return new Parameter[]{channels, evfList};
     }
 
     @Override

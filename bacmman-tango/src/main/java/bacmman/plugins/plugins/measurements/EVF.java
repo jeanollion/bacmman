@@ -16,9 +16,7 @@ import java.util.stream.Collectors;
 
 public class EVF implements Measurement, Hint {
     ObjectClassParameter objectClass = new ObjectClassParameter("Object Class", -1, false, false).setHint("Object class to locate. For each object the EVF at its center will be computed. EVF is computed within the volume of the parent object class.");
-    ObjectClassParameter objectClassRef = new ObjectClassParameter("Reference Object class(es)", -1, true, true).setHint("Object class(es) from which the EVF will be computed. The closer to one object of these object classes, the lower the EVF. <br >If no object class is set, the reference object class will be the parent object class");
-    BooleanParameter negativeInside = new BooleanParameter("Compute EVF Inside and Outside Reference Object Class", true).setHint("When reference object class is not the parent object class: lowest EVF is located at the farthest point from the reference object class edges and inside the reference object class, and highest EVF is lowest EVF is located at the farthest point from the reference object class edges and outside the reference object class. <br > if False, all points located within the reference object class have EVF of 0");
-    BoundedNumberParameter erode = new BoundedNumberParameter("Erosion Distance", 3, 0, 0, null).setHint("If >0, the parent object volume will be eroded.");
+    EVFParameter evf = new EVFParameter("EVF Parameters");
     TextParameter key = new TextParameter("Key Name", "EVF", false).setHint("Name of the measurement");
 
     @Override
@@ -46,9 +44,7 @@ public class EVF implements Measurement, Hint {
     public void performMeasurement(SegmentedObject container) {
         List<SegmentedObject> children = container.getChildren(objectClass.getSelectedClassIdx()).collect(Collectors.toList());
         if (children.isEmpty()) return;
-        int[] refClasses = objectClassRef.getSelectedIndices();
-        if (refClasses.length==0) refClasses = new int[]{container.getStructureIdx()};
-        Image EVF = bacmman.processing.EVF.getEVFMap(container, refClasses, negativeInside.getSelected(), erode.getValue().doubleValue());
+        Image EVF = evf.computeEVF(container);
         for (SegmentedObject c : children) {
             Point center = c.getRegion().getCenter();
             if (center==null) center = c.getRegion().getGeomCenter(false);
@@ -64,7 +60,7 @@ public class EVF implements Measurement, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{objectClass, objectClassRef, negativeInside, erode, key};
+        return new Parameter[]{objectClass, evf, key};
     }
 
     @Override
