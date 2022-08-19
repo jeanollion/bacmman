@@ -86,6 +86,10 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         return setActionParameters(actionValue, parameters, false);
     }
 
+    public T setActionParameters(V actionValue, List<Parameter> parameters) {
+        return setActionParameters(actionValue, parameters, false);
+    }
+
     public V getActionValue() {
         return this.currentValue;
     }
@@ -94,16 +98,19 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         else return defaultParameters;
     }
 
-    public T setActionParameters(V actionValue, Parameter[] parameters, boolean setContentFromAlreadyPresent) {
-        List<Parameter> paramToSet = Arrays.asList(parameters);
+    public T setActionParameters(V actionValue, List<Parameter> parameters, boolean setContentFromAlreadyPresent) {
         if (setContentFromAlreadyPresent) {
             List<Parameter> p = this.parameters.get(actionValue);
-            if (p!=null && p.size()==parameters.length) ParameterUtils.setContent(paramToSet, p);
+            if (p!=null && p.size()==parameters.size()) ParameterUtils.setContent(parameters, p);
         }
-        this.parameters.put(actionValue, paramToSet);
+        this.parameters.put(actionValue, parameters);
         if (actionValue.equals(action.getValue())) setActionValue(action.getValue()); // to update parameters
         //logger.debug("setActionValue: {}, class: {}, nParams: {}, allActions: {}", actionValue, actionValue.getClass().getSimpleName(), parameters.length, this.parameters.keySet());
         return (T)this;
+    }
+
+    public T setActionParameters(V actionValue, Parameter[] parameters, boolean setContentFromAlreadyPresent) {
+        return setActionParameters(actionValue, Arrays.asList(parameters), setContentFromAlreadyPresent);
     }
     public void replaceActionParameter(ActionableParameter action) {
         action.setContentFrom(this.action);
