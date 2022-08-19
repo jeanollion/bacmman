@@ -79,7 +79,6 @@ public class WatershedTransform {
     final boolean is3D;
     public final boolean decreasingPropagation;
     protected boolean lowConnectivity = false;
-    protected boolean computeSpotCenter = false;
     PropagationCriterion propagationCriterion;
     FusionCriterion fusionCriterion;
     PropagationType prop;
@@ -174,13 +173,14 @@ public class WatershedTransform {
         double rad = lowConnectivity ? 1 : 1.5;
         EllipsoidalNeighborhood neigh = watershedMap.sizeZ()>1?new EllipsoidalNeighborhood(rad, rad, true) : new EllipsoidalNeighborhood(rad, true);
         for (Spot s : spots.values()) { // initialize with direct neighbors of spots
-            long[] initCoords = s.voxels.stream()
-                    .filter(c->heap.insideMask(mask, c))
-                    .flatMap( c -> IntStream.range(0, neigh.getSize())
-                            .filter(nidx -> heap.insideBounds(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx]))
-                            .mapToLong(nidx -> heap.translate(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx])))
-                    .filter(c -> heap.insideMask(mask, c)).toArray();
-            heap.addAll(initCoords);
+            s.voxels.stream()
+                .filter(c->heap.insideMask(mask, c))
+                .flatMap( c -> IntStream.range(0, neigh.getSize())
+                        .filter(nidx -> heap.insideBounds(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx]))
+                        .mapToLong(nidx -> heap.translate(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx])))
+                .filter(c -> !heap.insideMask(segmentedMap, c))
+                .filter(c -> heap.insideMask(mask, c))
+                .forEach(heap::add);
         }
         Score score = generateScore();
         CoordCollection nextProp = CoordCollection.create(heap.sizeX(), heap.sizeY(), heap.sizeZ());
@@ -326,31 +326,13 @@ public class WatershedTransform {
     public class Spot {
         public CoordCollection voxels;
         int label;
-        double[] center;
         public Spot(int label, Collection<Voxel> voxels) {
             this.label=label;
             this.voxels= CoordCollection.create(heap.sizeX(), heap.sizeY(), heap.sizeZ());
             voxels.stream().mapToLong(v -> heap.toCoord(v.x, v.y, v.z)).forEach(l -> this.voxels.add(l));
-            if (computeSpotCenter) center= new double[3];
             for (Voxel v : voxels) {
-                if (center!=null) {
-                    center[0]+=v.x;
-                    center[1]+=v.y;
-                    center[2]+=v.z;
-                }
                 segmentedMap.setPixel(v.x, v.y, v.z, label);
             }
-            if (center!=null && voxels.size()>1) {
-                center[0]/=voxels.size();
-                center[1]/=voxels.size();
-                center[2]/=voxels.size();
-                logger.debug("spot: {} center: {}", this.label, center);
-            }
-            
-        }
-        
-        public double distSq(Voxel v) {
-            return Math.pow(v.x- center[0], 2)+ Math.pow(v.y-center[1], 2)+Math.pow(v.z-center[2], 2);
         }
         
         public void setLabel(int label) {

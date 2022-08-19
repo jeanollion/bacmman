@@ -24,19 +24,21 @@ public interface SortedCoordSet extends CoordCollection {
             IntComparator comparator = reverseOrder ? (i1, i2) -> {
                 double d1 = getPixel(sortImage, i1);
                 double d2 = getPixel(sortImage, i2);
-                if (d1 > d2) {
+                if (d1==d2) return Integer.compare(i1, i2);
+                else if (d1 > d2) {
                     return -1;
-                } else if (d1 < d2) {
+                } else {
                     return 1;
-                } else return Integer.compare(i1, i2);
+                }
             } : (i1, i2) -> {
                 double d1 = getPixel(sortImage, i1);
                 double d2 = getPixel(sortImage, i2);
-                if (d1 < d2) {
+                if (d1==d2) return Integer.compare(i1, i2);
+                else if (d1 < d2) {
                     return -1;
-                } else if (d1 > d2) {
+                } else {
                     return 1;
-                } else return Integer.compare(i1, i2);
+                }
             };
             coords = new IntRBTreeSet(comparator);
             //coords = new IntAVLTreeSet(comparator);
@@ -56,7 +58,7 @@ public interface SortedCoordSet extends CoordCollection {
         }
         @Override public boolean addAll(long... coord) {
             boolean res = false;
-            for (long c : coord) res = res || coords.add((int)c);
+            for (long c : coord) if (coords.add((int)c)) res = true;
             return res;
         }
         @Override public boolean addAll(CoordCollection coordCollection) {
@@ -143,7 +145,7 @@ public interface SortedCoordSet extends CoordCollection {
         }
         @Override public boolean addAll(long... coord) {
             boolean res = false;
-            for (long c : coord) res = res || coords.add((int)c);
+            for (long c : coord) if (coords.add((int)c)) res = true;
             return res;
         }
         @Override public boolean addAll(CoordCollection coordCollection) {
