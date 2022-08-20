@@ -3,44 +3,70 @@ package bacmman.processing;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.image.ImageFloat;
-import bacmman.image.ImageMask;
-import bacmman.image.SubtractedMask;
-import bacmman.image.PredicateMask;
+import bacmman.image.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class EVF {
-    public static ImageFloat getEVFMap(SegmentedObject container, int[] referenceObjectClasses, boolean negativeInsideRef, double erodeContainer) {
-        double zAspectRatio = container.getScaleZ()/container.getScaleXY();
+    public static final Logger logger = LoggerFactory.getLogger(EVF.class);
+    public static ImageFloat getEVFMap(SegmentedObject container, int[] referenceObjectClasses, boolean negativeInsideRef, double erodeContainer, boolean resampleZ) {
+        final double zAR = container.getScaleZ()/container.getScaleXY();
+        double zAspectRatio = resampleZ ? 1 : zAR;
+
         boolean parentIsPartOfRef = Arrays.stream(referenceObjectClasses).filter(i -> i==container.getStructureIdx()).findAny().isPresent();
         boolean refIsParent = parentIsPartOfRef && referenceObjectClasses.length==1; // only parent
+        UnaryOperator<ImageMask> resampleZFun = m -> {
+            if (zAR==1 || m.sizeZ()==1) return m;
+            ImageInteger im = TypeConverter.maskToImageInteger(m, null);
+            return Resize.resample(im, true, im.sizeX(), im.sizeY(), (int)Math.round(im.sizeZ() * zAR));
+        };
         ImageFloat edt;
         ImageMask mask, erosionMask=null;
         if (refIsParent) {
             mask = container.getMask();
+            if (resampleZ) {
+                mask = resampleZFun.apply(mask);
+            }
             edt = EDT.transform(mask, true, 1, zAspectRatio, false);
             if (erodeContainer>0) {
-                erosionMask = new PredicateMask(edt, erodeContainer, false, true);
+                erosionMask = new PredicateMask(edt, erodeContainer, false, false);
+                erosionMask = TypeConverter.toByteMask(erosionMask, null, 1); // erosion mask must be flattened because it depends on EDT that will be modified
                 mask = new SubtractedMask(mask, erosionMask);
             }
         } else {
             ImageMask inside = getInsideMask(container, referenceObjectClasses);
-            mask = new SubtractedMask(container.getMask(), inside);
+            ImageMask containerMask = container.getMask();
+            if (resampleZ) {
+                containerMask = resampleZFun.apply(containerMask);
+                inside = resampleZFun.apply(inside);
+            }
+            mask = new SubtractedMask(containerMask, inside);
             if (erodeContainer>0) {
-                ImageFloat parentEdt = EDT.transform(container.getMask(), true, 1, zAspectRatio, false);
-                erosionMask = new PredicateMask(parentEdt, 0, true, erodeContainer, true);
+                ImageFloat parentEdt = EDT.transform(containerMask, true, 1, zAspectRatio, false);
+                erosionMask = new PredicateMask(parentEdt, 0, true, erodeContainer, false);
                 mask = new SubtractedMask(mask, erosionMask);
             }
             if (parentIsPartOfRef) edt = EDT.transform(mask, true, 1, zAspectRatio, false);
-            else edt = EDT.transform(inside, false, 1, zAspectRatio, false);
+            else {
+                edt = EDT.transform(inside, false, 1, zAspectRatio, false);
+                for (int z = 0; z<edt.sizeZ(); z++) { // set NaN outside container, as distance will not be transformed to index
+                    for (int xy=0; xy<edt.getSizeXY(); xy++) {
+                        if (!containerMask.insideMask(xy, z)) {
+                            edt.setPixel(xy, z, Double.NaN);
+                        }
+                    }
+                }
+            }
             if (negativeInsideRef) {
                 ImageFloat edtIn = EDT.transform(inside, true, 1, zAspectRatio, false);
                 ImageMask.loop(inside, (x, y, z) -> edt.setPixel(x, y, z, -edtIn.getPixel(x, y, z)));
-                mask = erodeContainer>0 ? new SubtractedMask(container.getMask(), erosionMask) : container.getMask();
+                mask = erodeContainer>0 ? new SubtractedMask(containerMask, erosionMask) : containerMask;
             }
         }
         normalizeDistanceMap(edt, mask, erosionMask, parentIsPartOfRef);
