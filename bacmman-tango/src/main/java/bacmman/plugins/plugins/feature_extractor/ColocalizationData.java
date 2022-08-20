@@ -6,18 +6,17 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.Selection;
-import bacmman.image.BoundingBox;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
-import bacmman.image.SimpleImageProperties;
+import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.Hint;
+import bacmman.processing.Resize;
 import net.imglib2.interpolation.InterpolatorFactory;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, Hint {
@@ -25,20 +24,33 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
             .setChildrenNumber(2)
             .setHint("Choose object classes associated to the channels to be extracted. Note that each object class can only be selected once")
             .addValidationFunction(l -> l.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).distinct().count() == l.getActivatedChildren().size());
-    SimpleListParameter<EVFParameter> evfList = new SimpleListParameter<>("EVF", new EVFParameter("EVF Parameters")).setHint("If items are added to this list, Eroded Volume Fraction (EVF) will be computed for each pixel and returned as an additional channel");
+
+    SimpleListParameter<EVFParameter> evfList = new SimpleListParameter<>("EVF", new EVFParameter("EVF Parameters", false))
+            .addValidationFunction(l -> l.getActivatedChildren().stream().map(EVFParameter::getResampleZ).distinct().count()==1) // resample in Z should be equal
+            .setHint("If items are added to this list, Eroded Volume Fraction (EVF) will be computed for each pixel and returned as an additional channel");
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
         if (objectClassIdx != parent.getStructureIdx()) throw new IllegalArgumentException("invalid object class: should correspond to parent selection that has object class==: "+parent.getStructureIdx());
+        double zAspectRatio = parent.getScaleZ()/parent.getScaleXY();
+        boolean resample = !evfList.isEmpty() && evfList.getChildAt(0).getResampleZ();
+        UnaryOperator<Image> resampleZFun = im -> {
+            if (!resample || zAspectRatio==1 || im.sizeZ()==1) return im;
+            return Resize.resample(im, false, im.sizeX(), im.sizeY(), (int)Math.round(im.sizeZ() * zAspectRatio));
+        };
+        ImageMask parentMask = parent.getMask();
+        if (resample && zAspectRatio!=1) parentMask = Resize.resample(TypeConverter.maskToImageInteger(parent.getMask(), null), true, parentMask.sizeX(), parentMask.sizeY(), (int)Math.round(parentMask.sizeZ() * zAspectRatio));
         List<Image> images = channels.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx)
-                .mapToObj(parent::getRawImage).collect(Collectors.toList());
+                .mapToObj(parent::getRawImage)
+                .map(resampleZFun)
+                .collect(Collectors.toList());
         for (EVFParameter p : evfList.getActivatedChildren()) {
             images.add(p.computeEVF(parent));
         }
         int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
-        int count = (int)parent.getRegion().size();
+        int count = parentMask.count();
         Image res = Image.createImage(Selection.indicesToString(SegmentedObjectUtils.getIndexTree(parent)), maxBD, new SimpleImageProperties(count, images.size(), 1, 1, 1));
         int[] idx = new int[1];
-        ImageMask.loop(parent.getMask(), (x, y, z) -> {
+        ImageMask.loop(parentMask, (x, y, z) -> {
             for (int c = 0; c<images.size(); ++c) res.setPixel(idx[0], c, 0, images.get(c).getPixel(x, y, z));
             ++idx[0];
         });
