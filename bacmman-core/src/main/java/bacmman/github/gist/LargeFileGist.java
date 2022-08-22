@@ -48,11 +48,9 @@ public class LargeFileGist {
                 } catch (ParseException e) {
                     throw new IOException(e);
                 }
-            }
+            } else throw new RuntimeException("Could not retrieve Large File Gist");
         } catch (IOException e) {
-            if (e.getMessage().contains("")) {
-
-            } else throw e;
+            throw e;
         }
 
     }
@@ -88,6 +86,7 @@ public class LargeFileGist {
                         .collect(Collectors.toMap(f -> (String) ((JSONObject) f).get("filename"), f -> (String) ((JSONObject) f).get("raw_url")));
                 chunksURL = new TreeMap(chunksURL); // sorted map
                 valid = n_chunks == chunksURL.size();
+                if (!valid) logger.error("Invalid LF: expected chunk number: {}, actual: {}", n_chunks, chunksURL.size());
                 if (masterFileJSON.get("checksum_md5") != null) {
                     List<?> cs = (JSONArray) masterFileJSON.get("checksum_md5");
                     List<String> sortedChunkNames = new ArrayList<>(chunksURL.keySet());

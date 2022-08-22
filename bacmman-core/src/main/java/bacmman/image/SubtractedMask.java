@@ -5,7 +5,7 @@ public class SubtractedMask extends SimpleImageProperties<SubtractedMask> implem
     public SubtractedMask(ImageMask refMask, ImageMask maskToSubtract) {
         super(refMask);
         this.refMask=refMask;
-        assert BoundingBox.isIncluded(maskToSubtract, refMask) : "mask to subtract should be included in reference mask";
+        if (!BoundingBox.isIncluded(maskToSubtract, refMask)) throw new IllegalArgumentException("mask to subtract should be included in reference mask");
         this.maskToSubtract=maskToSubtract;
     }
 

@@ -65,7 +65,9 @@ public class Resize {
         for (int i = 0; i<scaleFactors.length;++i) scaleFactors[i] = dimensions.length>i && dimensions[i]>0 ? (double)dimensions[i]/input.size(i) : 1; // dim == 0 -> no resampling
         if (Arrays.stream(scaleFactors).allMatch(i->i==1)) return input;
         Img in = ImgLib2ImageWrapper.getImage(input);
-        return (T)ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, interpolation));
+        Image res = ImgLib2ImageWrapper.wrap(resample(in, scaleFactors, interpolation));
+        res.resetOffset().translate(input);
+        return (T)res;
     }
     /**
      *
