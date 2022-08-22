@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONArray;
 import bacmman.utils.Utils;
 
@@ -129,6 +130,10 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
         if (selectedIndex>=0) this.selectedIndices = new int[]{selectedIndex};
         else this.selectedIndices=new int[0];
         fireListeners();
+    }
+    public void selectAll() {
+        if (!multipleSelection) throw new RuntimeException("Multiple selection is disabled");
+        setSelectedIndices(ArrayUtil.generateIntegerArray(getChoiceList().length));
     }
     
     // choosable parameter

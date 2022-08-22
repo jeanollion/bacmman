@@ -23,7 +23,7 @@ package bacmman.plugins;
  * @author Jean Ollion
  */
 public interface MultichannelTransformation extends Transformation {
-    public static enum OUTPUT_SELECTION_MODE{SAME, SINGLE, MULTIPLE, ALL};
+    enum OUTPUT_SELECTION_MODE{SAME, SINGLE, MULTIPLE, MULTIPLE_DEFAULT_ALL, ALL};
     /**
      * Selection mode for channels on which transformation will be applied
      * SINGLE: only one channel that can be configured

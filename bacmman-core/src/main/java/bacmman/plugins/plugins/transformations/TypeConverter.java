@@ -36,7 +36,7 @@ import bacmman.utils.Utils;
 public class TypeConverter implements MultichannelTransformation, Hint {
 
     public enum METHOD {LIMIT_TO_16, LIMIT_TO_8, FLOAT, HALF_FLOAT}
-    ChoiceParameter method = new ChoiceParameter("Method", Utils.toStringArray(METHOD.values()), METHOD.LIMIT_TO_16.toString(), false).setHint("<ul><li><b>"+METHOD.LIMIT_TO_16.toString()+"</b>: Only 32-bit Images are converted to 16-bits</li><</ul>");
+    ChoiceParameter method = new ChoiceParameter("Method", Utils.toStringArray(METHOD.values()), METHOD.LIMIT_TO_16.toString(), false).setEmphasized(true).setHint("<ul><li><b>"+METHOD.LIMIT_TO_16.toString()+"</b>: Only 32-bit Images are converted to 16-bits</li><</ul>");
     NumberParameter constantValue = new BoundedNumberParameter("Add value", 1, 0, 0, Short.MAX_VALUE).setHint("Adds this value to all images (after scaling). This is useful to avoid trimming negative during conversion from 32-bit to 8-bit or 16-bit. No check is done to ensure values will be within 16-bit / 8-bit range");
     NumberParameter scale = new BoundedNumberParameter("Scale", 3, 1, 1, null).setHint("All images are multiplied by this value. This is useful to avoid loosing precision during conversion from 32-bit to 8-bit or 16-bit. No check is done to ensure values will be within 16-bit / 8-bit range");
     ConditionalParameter<String> cond = new ConditionalParameter<>(method).setActionParameters(METHOD.LIMIT_TO_16.toString(), constantValue, scale);
@@ -48,14 +48,10 @@ public class TypeConverter implements MultichannelTransformation, Hint {
     public String getHintText() {
         return "Converts bit-depth of all images. <br />Some transformations such as rotations convert the images in 32-bit floats. This transformation allows for instance lowering the bit-depth in order to save memory. HALF_FLOAT corresponds to float 16bit precision. At the end of the pipeline, do not choose HALF_FLOAT as image can only be stored as byte, short or float.";
     }
-    public TypeConverter setLimitTo16(short addValue) {
-        this.method.setSelectedItem(METHOD.LIMIT_TO_16.toString());
-        constantValue.setValue(addValue);
-        return this;
-    }
+
     @Override
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode() {
-        return OUTPUT_SELECTION_MODE.ALL;
+        return OUTPUT_SELECTION_MODE.MULTIPLE_DEFAULT_ALL;
     }
 
     @Override
@@ -63,7 +59,7 @@ public class TypeConverter implements MultichannelTransformation, Hint {
         switch(METHOD.valueOf(method.getSelectedItem())) {
             case LIMIT_TO_16:
             default: {
-                if (image instanceof ImageFloat) {
+                if (image.getBitDepth()>16) {
                     Image output = new ImageShort(image.getName(), image);
                     ImageOperations.affineOperation(image, output, scale.getValue().doubleValue(), constantValue.getValue().doubleValue());
                     return output;

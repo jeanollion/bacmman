@@ -25,6 +25,8 @@ import bacmman.plugins.MultichannelTransformation;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import bacmman.utils.ArrayUtil;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Transformation;
 
@@ -95,6 +97,11 @@ public class TransformationPluginParameter<T extends Transformation> extends Plu
             switch (((MultichannelTransformation)pluginInstance).getOutputChannelSelectionMode()) {
                 case MULTIPLE:
                     initOutputChannel(true, null);
+                    break;
+                case MULTIPLE_DEFAULT_ALL:
+                    Experiment xp = ParameterUtils.getExperiment(this);
+                    int[] initArray = xp!=null ? ArrayUtil.generateIntegerArray(xp.getChannelImageCount(true)) : null;
+                    initOutputChannel(true, initArray);
                     break;
                 case SINGLE:
                     initOutputChannel(false, -1);
