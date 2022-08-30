@@ -32,7 +32,7 @@ public class PreProcessingChainUI implements ParameterUI {
     @Override
     public Object[] getDisplayComponent() {
         boolean isTemplate = ppc.getParent()==xp;
-        int offset = isTemplate?2:3;
+        int offset = isTemplate?3:4;
         actions = new Object[fieldUI.getDisplayComponent().length + offset];
         for (int i = offset; i < actions.length; i++) {
             actions[i] = fieldUI.getDisplayComponent()[i - offset];
@@ -67,6 +67,25 @@ public class PreProcessingChainUI implements ParameterUI {
                             }
         );
         actions[off++]=overwrite;
+        JMenuItem overwriteAll = new JMenuItem("Overwrite pipeline on"+(isTemplate?"":" template and")+" all positions");
+        overwriteAll.setAction(new AbstractAction(overwriteAll.getActionCommand()) {
+                                @Override
+                                public void actionPerformed(ActionEvent ae) {
+                                    for (int f = 0; f < xp.getPositionCount(); ++f) {
+                                        Position position = xp.getPositions().get(f);
+                                        if (position.getPreProcessingChain()!=ppc) {
+                                            position.setPreProcessingChains(ppc);
+                                            if (model!=null) model.nodeStructureChanged(position);
+                                        }
+                                    }
+                                    if (!isTemplate) {
+                                        xp.getPreProcessingTemplate().setContentFrom(ppc);
+                                        if (model!=null) model.nodeStructureChanged(xp.getPreProcessingTemplate());
+                                    }
+                                }
+                            }
+        );
+        actions[off++]=overwriteAll;
         actions[off]=new JSeparator();
         return actions;
     }
