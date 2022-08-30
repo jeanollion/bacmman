@@ -26,7 +26,7 @@ import bacmman.image.wrappers.ImgLib2ImageWrapper;
 import java.util.ArrayList;
 import java.util.List;
 
-import net.imglib2.Point;
+import bacmman.utils.geom.Point;
 import net.imglib2.algorithm.localextrema.RefinedPeak;
 import net.imglib2.algorithm.localextrema.SubpixelLocalization;
 import net.imglib2.img.Img;
@@ -57,8 +57,9 @@ public class SubPixelLocalizator {
 
                 }
             });
-            if (img.sizeZ()>1) peaks.add(new Point(maxV[0], maxV[1], maxV[2]));
-            else peaks.add(new Point(maxV[0], maxV[1]));
+            Point p = img.sizeZ()>1 ? new Point(maxV[0], maxV[1], maxV[2]) : new Point(maxV[0], maxV[1]);
+            if (o.isAbsoluteLandMark()) p.translate(o.getBounds().duplicate().reverseOffset());
+            peaks.add(p);
         }
         return peaks;
     }
@@ -68,9 +69,11 @@ public class SubPixelLocalizator {
         //logger.debug("source sizeZ: {}, numDim: {}", img.getSizeZ(), source.numDimensions());
         spl.setNumThreads( 1 );
         spl.setReturnInvalidPeaks( true );
-        spl.setCanMoveOutside( true );
+        spl.setCanMoveOutside( false );
         spl.setAllowMaximaTolerance( true );
         spl.setMaxNumMoves( 10 );
+        if (img.sizeZ()>1) spl.setAllowedToMoveInDim(new boolean[]{true, true, false});
+        else spl.setAllowedToMoveInDim(new boolean[]{true, true});
         return spl.process( peaks, source, source );
     }
     
@@ -86,12 +89,20 @@ public class SubPixelLocalizator {
         }
         for (RefinedPeak< Point > r : refined) {
             Region o = objects.get(peaks.indexOf(r.getOriginalPeak()));
+            double value = img.getPixel(r.getFloatPosition(0), r.getFloatPosition(1), img.sizeZ()>1 ? r.getFloatPosition(2):0);
+            double originalValue = img.getPixel(r.getOriginalPeak().getFloatPosition(0), r.getOriginalPeak().getFloatPosition(1), img.sizeZ()>1 ? r.getOriginalPeak().getFloatPosition(2):0);
+            boolean useOriginalPeak = r.getValue()==0
+                    || !o.contains(new Voxel(Math.round(r.getFloatPosition(0)), Math.round(r.getFloatPosition(1)), img.sizeZ()>1?Math.round(r.getFloatPosition(2)) : o.getBounds().zMin()));
+            //logger.debug("use {} peak: original: {}, refined: {}, original value: {} refined: {} (fitted : {})", useOriginalPeak?"original":"refined", r.getOriginalPeak(), new bacmman.utils.geom.Point(r.getFloatPosition(0), r.getFloatPosition(1), img.sizeZ()>1?r.getFloatPosition(2):0), originalValue, value, r.getValue());
             float[] position= new float[img.sizeZ()>1?3 : 2];
-            position[0] = r.getFloatPosition(0);
-            position[1] = r.getFloatPosition(1);
-            if (img.sizeZ()>1) position[2] = r.getFloatPosition(2);
+            position[0] = useOriginalPeak? r.getOriginalPeak().getFloatPosition(0) : r.getFloatPosition(0);
+            position[1] = useOriginalPeak? r.getOriginalPeak().getFloatPosition(1) : r.getFloatPosition(1);
+            if (img.sizeZ()>1) position[2] = useOriginalPeak? r.getOriginalPeak().getFloatPosition(2) : r.getFloatPosition(2);
             o.setCenter(new bacmman.utils.geom.Point(position));
-            if (setQuality) o.setQuality(r.getValue());
+            if (setQuality) {
+                if (useOriginalPeak) o.setQuality(originalValue);
+                else o.setQuality(r.getValue());
+            }
         }
     }
    
