@@ -319,8 +319,8 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         }
         RegionPopulation pop = MultiScaleWatershedTransform.combine(pops, input);
         if (stores!=null) {
-            logger.debug("Parent: {}: Q: {}", parent, Utils.toStringList(pop.getRegions(), o->""+o.getQuality()));
-            logger.debug("Parent: {}: C: {}", parent ,Utils.toStringList(pop.getRegions(), o->""+o.getCenter()));
+            logger.debug("Parent: {}: Quality: {}", parent, Utils.toStringList(pop.getRegions(), o->""+o.getQuality()));
+            logger.debug("Parent: {}: Center: {}", parent ,Utils.toStringList(pop.getRegions(), o->""+o.getCenter()));
         }
         pop.filter(new RegionPopulation.RemoveFlatObjects(false));
         pop.filter(new RegionPopulation.Size().setMin(minSpotSize));
