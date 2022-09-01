@@ -509,7 +509,7 @@ public class SegmentedObjectUtils {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // transform track to root track in order to include indirect children
-        track = track.stream().map(SegmentedObject::getRoot).collect(Collectors.toList());
+        track = track.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
         Experiment xp = track.get(0).getExperiment();
         Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap(xp.experimentStructure::getAllDirectChildStructures, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
@@ -535,23 +535,21 @@ public class SegmentedObjectUtils {
         List<SegmentedObject> rootTrack = dup.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         dao.setRoots(rootTrack);
         
-        // update links
+        // update links with duplicated objects
         for (SegmentedObject o : dupMap.values()) {
-            if (o.getPrevious()!=null) o.previous=dupMap.get(o.getPrevious().getId());
-            if (o.getNext()!=null) o.next=dupMap.get(o.getNext().getId());
-            //o.trackHead=dupMap.get(o.getTrackHead());
+            if (o.previousId!=null) o.setPrevious(dupMap.get(o.previousId));
+            if (o.nextId!=null) o.setNext(dupMap.get(o.nextId));
         }
         // update trackHeads && trackImages
         for (SegmentedObject o : dupMap.values()) {
             if (o.isTrackHead()) {
-                o.trackHead=o;
+                o.setTrackHead(o, false);
                 continue;
             }
             SegmentedObject th = o;
             while(!th.isTrackHead && th.getPrevious()!=null) th=th.getPrevious();
             th.trackImagesC=th.getTrackHead().trackImagesC.duplicate();
             o.setTrackHead(th, false);
-            //th.setTrackHead(th, false);
         }
         // update parent trackHeads
         for (SegmentedObject o : dupMap.values()) {

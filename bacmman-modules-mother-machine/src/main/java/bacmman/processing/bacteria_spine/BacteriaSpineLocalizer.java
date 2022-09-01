@@ -352,7 +352,7 @@ public class BacteriaSpineLocalizer {
     }
     public static double distanceSq(BacteriaSpineCoord sourceCoord, Point otherPoint, SegmentedObject source, SegmentedObject destination, PROJECTION projType, boolean projectOnSameSide, Map<SegmentedObject,BacteriaSpineLocalizer> localizerMap, boolean testMode ) {
         if (sourceCoord==null) return Double.POSITIVE_INFINITY;
-        if (projectOnSameSide) { // also enshure both points are on the same side
+        if (projectOnSameSide) { // also ensure both points are on the same side
             if (Math.abs(sourceCoord.radialCoord(false))>1) { // side is not significative for small distance to spine
                 Point otherPoint2 = getPointOnSameSide(sourceCoord.radialCoord(false), otherPoint, destination, localizerMap);
                 if (otherPoint2!=null) otherPoint = otherPoint2;
@@ -390,16 +390,22 @@ public class BacteriaSpineLocalizer {
         if (source.getFrame()>=destination.getFrame()) throw new IllegalArgumentException("Source should be before destination");
         if (destination.getPrevious()==source && destination.getTrackHead()==source.getTrackHead()) { // simple projection between two successive frames, no division
             BacteriaSpineLocalizer bsl = localizerMap.get(destination);
-            if (bsl ==null) return null;
+            if (bsl ==null) {
+                if (testMode) logger.debug("BacteriaSpineLocalizer null");
+                return null;
+            }
             return bsl.project(sourceCoord, proj);
         }
         List<SegmentedObject> successiveContainers = new ArrayList<>(destination.getFrame()-source.getFrame()+1);
         SegmentedObject cur = destination;
         while (cur!=source) {
             successiveContainers.add(cur);
-            //logger.debug("successive containers: {}", successiveContainers);
+            //if (testMode) logger.debug("successive containers: {}", successiveContainers);
             cur = cur.getPrevious();
-            if (cur==null || cur.getFrame()<source.getFrame()) return null;
+            if (cur==null || cur.getFrame()<source.getFrame()) {
+                if (testMode) logger.error("error getting container cur: {}, source: {}, destination: {}", cur, source, destination);
+                 return null;
+            }
         }
         successiveContainers = Utils.reverseOrder(successiveContainers);
         if (testMode) logger.info("successive containers: {}", successiveContainers);

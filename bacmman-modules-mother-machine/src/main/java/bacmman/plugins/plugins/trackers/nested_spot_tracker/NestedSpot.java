@@ -68,14 +68,13 @@ public class NestedSpot extends SpotWithQuality<NestedSpot> {
     @Override
     public double squareDistanceTo( final NestedSpot s ) {
         if (s != null) {
-            NestedSpot ss= (NestedSpot)s;
-            if (this.frame()>ss.frame()) return ss.squareDistanceTo(this);
-            if (!distanceParameters.includeLQ && (isLowQuality() || ss.isLowQuality())) return Double.POSITIVE_INFINITY;
-            if (ss.frame()-frame()>distanceParameters.maxFrameDiff) return Double.POSITIVE_INFINITY;
+            if (this.frame()>s.frame()) return s.squareDistanceTo(this);
+            if (!distanceParameters.includeLQ && (isLowQuality() || s.isLowQuality())) return Double.POSITIVE_INFINITY;
+            if (s.frame()-frame()>distanceParameters.maxFrameDiff) return Double.POSITIVE_INFINITY;
             //logger.debug("get distance: F{}->{}", frame(), ss.frame());
-            double distSq = BacteriaSpineLocalizer.distanceSq(spineCoord, ss.region.getCenter(), parent, ss.parent, distanceParameters.projectionType, distanceParameters.projectOnSameSides, localizerMap, false);
-            //logger.debug("dist^2 F{}->F{} = {} + penalty = {}", frame(), ss.frame(), distSq, distanceParameters.getSquareDistancePenalty(distSq, this, ss));
-            distSq+=distanceParameters.getSquareDistancePenalty(distSq, this, ss);
+            double distSq = BacteriaSpineLocalizer.distanceSq(spineCoord, s.region.getCenter(), parent, s.parent, distanceParameters.projectionType, distanceParameters.projectOnSameSides, localizerMap, false);
+            //logger.debug("dist F{}-{}->F{}-{} = {} penalty = {}, spine coords: {} & {} centers: {} & {}", frame(), region.getLabel()-1, s.frame(), s.region.getLabel()-1, Math.sqrt(distSq), Math.sqrt(distanceParameters.getSquareDistancePenalty(distSq, this, s)), spineCoord.coords, s.spineCoord.coords, getRegion().getCenter(), s.getRegion().getCenter());
+            distSq+=distanceParameters.getSquareDistancePenalty(distSq, this, s);
             return distSq;
         } else return super.squareDistanceTo(s);
     }
