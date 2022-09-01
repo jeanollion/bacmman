@@ -430,9 +430,19 @@ public class ManualEdition {
                 
                 // generate image mask without old objects
                 ImageByte mask = TypeConverter.toByteMask(e.getKey().getMask(), null, 1); // force creation of a new mask to avoid modification of original mask
-                
                 List<SegmentedObject> oldChildren = e.getKey().getChildren(structureIdx).collect(Collectors.toList());
-                for (SegmentedObject c : oldChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
+                if (!oldChildren.isEmpty()) {
+                    if (ref2D && input.sizeZ()>1) { // force 3D mask
+                        List<ImageByte> planes = new ArrayList<>(input.sizeZ());
+                        for (int i = 0; i<input.sizeZ(); ++i) {
+                            if (i==0) planes.add(mask);
+                            else planes.add(mask.duplicate(""+i));
+                        }
+                        mask = Image.mergeZPlanes(planes).setName("Segmentation Mask");
+                    }
+                    for (SegmentedObject c : oldChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
+                }
+
                 if (test) iwm.getDisplayer().showImage(mask, 0, 1);
                 // remove seeds located out of mask
                 ImageMask refMask =  ref2D ? new ImageMask2D(mask) : mask;
