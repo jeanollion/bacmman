@@ -19,7 +19,6 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
-import bacmman.data_structure.ExperimentStructure;
 import bacmman.plugins.HistogramScaler;
 
 import javax.swing.tree.MutableTreeNode;
@@ -29,7 +28,6 @@ import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.ObjectSplitter;
-import bacmman.plugins.Segmenter;
 import bacmman.plugins.ProcessingPipeline;
 
 import java.util.Arrays;
@@ -54,6 +52,8 @@ public class Structure extends ContainerParameterImpl<Structure> {
     BooleanParameter allowMerge = new BooleanParameter("Allow Merge", "yes", "no", false).setHint("If <em>true</em> is set, several tracks can merge in one single track");
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Global Scaling", HistogramScaler.class, true).setHint("Define here a method to scale raw input images, using the histogram of all images of the parent structure in the same position");
     private Map<String, HistogramScaler> scalerP = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(p->scaler.instantiatePlugin());
+    public enum TRACK_DISPLAY {DEFAULT, CONTOUR}
+    EnumChoiceParameter<TRACK_DISPLAY> trackDisplay = new EnumChoiceParameter<>("Track Display", TRACK_DISPLAY.values(), TRACK_DISPLAY.DEFAULT).setHint("In Kymograph mode, track are displayed as arrows by default. Choose contour to display them as coloured contours");
     @Override
     public JSONObject toJSONEntry() {
         JSONObject res= new JSONObject();
@@ -68,6 +68,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         res.put("allowSplit", allowSplit.toJSONEntry());
         res.put("allowMerge", allowMerge.toJSONEntry());
         res.put("scaler", scaler.toJSONEntry());
+        res.put("trackDisplay", trackDisplay.toJSONEntry());
         return res;
     }
 
@@ -85,6 +86,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
         allowSplit.initFromJSONEntry(jsonO.get("allowSplit"));
         allowMerge.initFromJSONEntry(jsonO.get("allowMerge"));
         if (jsonO.containsKey("scaler")) scaler.initFromJSONEntry(jsonO.get("scaler"));
+        if (jsonO.containsKey("trackDisplay")) trackDisplay.initFromJSONEntry(jsonO.get("trackDisplay"));
         setParentStructure(parentStructure.getSelectedClassIdx()); // to initialize related parameters
     }
     
@@ -134,7 +136,7 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     @Override
     protected void initChildList() {
-        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowMerge, allowSplit); //brightObject
+        initChildren(parentStructure, segmentationParent, channelImage, processingPipeline, scaler, objectSplitter, manualSegmenter, manualPostFilters, allowMerge, allowSplit, trackDisplay); //brightObject
     }
     public boolean allowSplit() {
         return allowSplit.getSelected();
@@ -143,7 +145,11 @@ public class Structure extends ContainerParameterImpl<Structure> {
     public boolean allowMerge() {
         return allowMerge.getSelected();
     }
-    
+
+    public TRACK_DISPLAY getTrackDisplay() {
+        return trackDisplay.getSelectedEnum();
+    }
+
     public Structure setAllowSplit(boolean allowSplit) {
         this.allowSplit.setSelected(allowSplit);
         return this;

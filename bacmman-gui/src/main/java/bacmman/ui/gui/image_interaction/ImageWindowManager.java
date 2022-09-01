@@ -75,6 +75,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public static Color getColor(int idx) {return palette[idx%palette.length];}
     protected final static Color trackErrorColor = new Color(255, 0, 0);
     protected final static Color trackCorrectionColor = new Color(0, 0, 255);
+    public static double trackRoiContourEdgeOpacity = 0.5;
     public static Color getColor() {
         return Palette.getColor(150, trackErrorColor, trackCorrectionColor, defaultRoiColor);
     }

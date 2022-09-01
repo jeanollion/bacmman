@@ -202,4 +202,8 @@ public class ExperimentStructure {
     public boolean allowSplit(int objectClassIdx) {
         return xp.getStructure(objectClassIdx).allowSplit();
     }
+
+    public Structure.TRACK_DISPLAY getTrackDisplay(int objectClassIdx) {
+        return xp.getStructure(objectClassIdx).getTrackDisplay();
+    }
 }
