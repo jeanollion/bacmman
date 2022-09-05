@@ -170,11 +170,13 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
                 Rectangle srcRect = ic.getSrcRect();
                 int xstart = srcRect.x;
                 int ystart = srcRect.y;
-                boolean stack = iw instanceof StackWindow;
+                boolean needScrollZ = imp.getNSlices()>1;
+                boolean needScrollTime = imp.getNFrames()>1;
+                boolean needScrollChannel = imp.getNChannels()>1;
                 boolean needScrollImage = srcRect.height<height || srcRect.width<width;
-                boolean scrollZ = stack && (!needScrollImage || space);
-                boolean scrollTime = stack && !scrollZ && (!needScrollImage || alt);
-                boolean scrollChannels = stack && !scrollZ && !scrollTime && (!needScrollImage || altGr);
+                boolean scrollZ = needScrollZ && (!needScrollImage || space);
+                boolean scrollTime = needScrollTime && !scrollZ && (!needScrollImage || alt);
+                boolean scrollChannels = needScrollChannel && !scrollZ && !scrollTime && (!needScrollImage || altGr);
                 //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
                 if (ctrl && ic!=null) { // zoom
                         Point loc = ic.getCursorLoc();
