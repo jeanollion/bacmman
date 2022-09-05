@@ -173,15 +173,11 @@ public class SegmentedObjectUtils {
         return StreamConcatenation.concat(allChildrenStream);
     }
 
-    public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(Collection<SegmentedObject> objects, boolean extend) {
+    public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(Collection<SegmentedObject> objects) {
         HashMapGetCreate<SegmentedObject, List<SegmentedObject>> allTracks = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
         for (SegmentedObject o : objects) allTracks.getAndCreateIfNecessary(o.getTrackHead()).add(o);
         for (List<SegmentedObject> track : allTracks.values()) {
             Collections.sort(track, Comparator.comparingInt(SegmentedObject::getFrame));
-            if (extend) {
-                if (track.get(0).getPrevious()!=null) track.add(0, track.get(0).getPrevious());
-                if (track.get(track.size()-1).getNext()!=null) track.add(track.get(track.size()-1).getNext());
-            }
         }
         return allTracks;
     }
@@ -252,32 +248,23 @@ public class SegmentedObjectUtils {
         for (SegmentedObject o : l) res.add(o.getPositionName());
         return res;
     }
-    public static List<SegmentedObject> getTrack(SegmentedObject trackHead) {
-        return getTrack(trackHead, false);
-    }
 
-    public static List<SegmentedObject> getTrack(SegmentedObject trackHead, boolean extend) {
+    public static List<SegmentedObject> getTrack(SegmentedObject trackHead) {
         if (trackHead==null) return Collections.EMPTY_LIST;
         trackHead = trackHead.getTrackHead();
         ArrayList<SegmentedObject> track = new ArrayList<>();
-        if (extend && trackHead.getPrevious()!=null) track.add(trackHead.getPrevious());
         SegmentedObject o = trackHead;
         while(o!=null && o.getTrackHead()==trackHead) {
             track.add(o);
             o = o.getNext();
-        } 
-        if (extend && track.get(track.size()-1).getNext()!=null) track.add((track.get(track.size()-1).getNext()));
+        }
         return track;
     }
-    public static List<List<SegmentedObject>> getTracks(Collection<SegmentedObject> trackHeads, boolean extend) {
+    public static List<List<SegmentedObject>> getTracks(Collection<SegmentedObject> trackHeads) {
         List<List<SegmentedObject>> res = new ArrayList<>(trackHeads.size());
-        for (SegmentedObject o : trackHeads) res.add(getTrack(o, extend));
+        for (SegmentedObject o : trackHeads) res.add(getTrack(o));
         return res;
     }
-    /*public static Map<Integer, List<StructureObject>> mapByStructureIdx(List<StructureObject> objects) {
-        Map<Integer, List<StructureObject>> res = new HashMap<Integer, List<StructureObject>>();
-        
-    }*/
     
     /**
      * 

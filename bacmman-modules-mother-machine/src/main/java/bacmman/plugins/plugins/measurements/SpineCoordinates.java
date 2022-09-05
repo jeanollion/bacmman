@@ -94,7 +94,7 @@ public class SpineCoordinates implements Measurement, MultiThreaded, Hint {
     @Override
     public void performMeasurement(SegmentedObject parentTrackHead) {
         double scale = scaled.getSelected() ? parentTrackHead.getScaleXY() : 1d;
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead, false);
+        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<SegmentedObject, SegmentedObject> spotMapBacteria = new ConcurrentHashMap<>();
         parentTrack.parallelStream().forEach(parent -> {
             Stream<SegmentedObject> stream = parent.getChildren(spot.getSelectedClassIdx());

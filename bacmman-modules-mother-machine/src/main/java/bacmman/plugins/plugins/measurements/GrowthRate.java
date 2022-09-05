@@ -112,7 +112,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
             if (of instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)of).setUpOrAddCore(cores, null);
             return of;
         });
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead, false);
+        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         parentTrack.forEach(ofMap::getAndCreateIfNecessary);
         long t1 = System.currentTimeMillis();
         logger.trace("Growth Rate: computing values... ({}) for : {}", featKey, parentTrackHead);

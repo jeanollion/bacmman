@@ -95,7 +95,7 @@ public class PluginConfigurationUtils {
         boolean needToDuplicateWholeParentTrack = ((plugin instanceof Tracker) && !((Tracker)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPostFilter) && !((TrackPostFilter)plugin).parentTrackMode().allowIntervals()) || ((plugin instanceof TrackPreFilter) && !((TrackPreFilter)plugin).parentTrackMode().allowIntervals());
 
         Function<SegmentedObject, SegmentedObject> getParent = c -> (c.getStructureIdx()>parentStrutureIdx) ? c.getParent(parentStrutureIdx) : c.getChildren(parentStrutureIdx).findFirst().get();
-        List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead(), false);
+        List<SegmentedObject> wholeParentTrack = SegmentedObjectUtils.getTrack( getParent.apply(o).getTrackHead());
         if (!needToDuplicateWholeParentTrack) wholeParentTrack = parentSelection.stream().map(getParent).distinct().sorted().collect(Collectors.toList());
         Map<String, SegmentedObject> dupMap = SegmentedObjectUtils.createGraphCut(wholeParentTrack, true, true);  // don't modify object directly.
         List<SegmentedObject> wholeParentTrackDup = wholeParentTrack.stream().map(p->dupMap.get(p.getId())).collect(Collectors.toList());

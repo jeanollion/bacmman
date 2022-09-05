@@ -295,7 +295,7 @@ public class SelectionUtils {
             tracks.removeIf(o->!o.isTrackHead());
             if (tracks.isEmpty()) return;
             for (SegmentedObject trackHead : tracks) {
-                List<SegmentedObject> track = SegmentedObjectUtils.getTrack(trackHead, true);
+                List<SegmentedObject> track = SegmentedObjectUtils.getTrack(trackHead);
                 iwm.displayTrack(null, i, i.pairWithOffset(track), s.getColor(true), false);
             }
         }

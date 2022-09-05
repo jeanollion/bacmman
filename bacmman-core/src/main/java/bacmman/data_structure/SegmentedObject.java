@@ -921,7 +921,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
                         Image im = dao instanceof ImageDAOTrack ? ((ImageDAOTrack)dao).openTrackImage(this, channelIdx) : null;
                         if (im!=null) { // set image && set offsets for all track
                             im.setCalibration(getScaleXY(), getScaleZ());
-                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(this, false);
+                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(this);
                             KymographFactory.KymographData kymo = KymographFactory.generateKymographData(track, false, 0);
                             IntStream.range(0, track.size()).forEach(i->track.get(i).offsetInTrackImage=kymo.trackOffset[i]);
                             //logger.debug("get track image: track:{}(id: {}/trackImageCId: {}) length: {}, chId: {}", this, this.hashCode(), trackImagesC.hashCode(), track.size(), channelIdx);

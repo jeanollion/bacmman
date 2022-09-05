@@ -1047,21 +1047,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // look in track list
         TrackTreeGenerator gen = INSTANCE.trackTreeController.getLastTreeGenerator();
         if (gen!=null) {
-            List<List<SegmentedObject>> tracks = gen.getSelectedTracks(true);
+            List<List<SegmentedObject>> tracks = gen.getSelectedTracks();
             iwm.displayTracks(image, i, tracks, true);
-            /*int idx = 0;
-            for (List<StructureObject> track : tracks) {
-                iwm.displayTrack(image, i, i.pairWithOffset(track), ImageWindowManager.getColor(idx++), true);
-            }*/
         }
-        // look in object list
-        //List<StructureObject> selectedObjects = instance.objectTreeGenerator.getSelectedObjects(true, i.getChildStructureIdx());
-        //iwm.displayObjects(image, i.pairWithOffset(selectedObjects), null, true, false);
-        // unselect objects that cannot be selected ?
-        
-        // labile objects
-        //iwm.displayLabileObjects(image);
-        //iwm.displayLabileTracks(image);
     }
     
     public static void updateRoiDisplayForSelections(Image image, InteractiveImage i) {
@@ -3046,7 +3034,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             } else nextParent = siblings.get(idx);
             logger.debug("open next Image : next parent: {}", nextParent);
             if (nextParent==null) return;
-            List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent, false);
+            List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(nextParent);
             InteractiveImage ii= ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, i.getChildStructureIdx(), i.getKey().imageType);
             Image im = ImageWindowManagerFactory.getImageManager().getImage(ii, currentImageStructure);
             if (im==null) {

@@ -18,6 +18,7 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.*;
@@ -496,7 +497,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public void reloadObjects(SegmentedObject parent, int childStructureIdx, boolean wholeTrack) {
         reloadObjects_(parent, childStructureIdx, true); // reload track images
         if (wholeTrack) { // reload each image of the track
-            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(parent.getTrackHead(), false);
+            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(parent.getTrackHead());
             for (SegmentedObject o : track) reloadObjects_(o, childStructureIdx, false);
         } else reloadObjects_(parent, childStructureIdx, false);
         if (parent.getParent()!=null) reloadObjects(parent.getParent(), childStructureIdx, wholeTrack);
@@ -709,13 +710,12 @@ public abstract class ImageWindowManager<I, U, V> {
             callback.accept(k.getIdx());
         } else {
             Collection<SegmentedObject> objects = Pair.unpairKeys(i.getObjects());
-            Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects, !(i instanceof HyperStack));
-            //for (Entry<StructureObject, List<StructureObject>> e : allTracks.entrySet()) logger.debug("th:{}->{}", e.getKey(), e.getValue());
+            boolean contourMode = i.getParent().getExperimentStructure().getTrackDisplay(i.childStructureIdx).equals(Structure.TRACK_DISPLAY.CONTOUR);
+            Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(objects);
+            if (contourMode) hideAllRois(image, true, false);
             displayTracks(image, i, allTracks.values(), true);
-            //if (listener!=null)
         }
     }
-    
     
     public abstract void displayObject(I image, U roi);
     public abstract void hideObject(I image, U roi);
@@ -923,7 +923,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         InteractiveImageKey.TYPE type = i.getKey().imageType;
         boolean hyperStack = i instanceof HyperStack;
-        SegmentedObject trackHead = track.get(track.size()>1 ? 1 : 0).key.getTrackHead(); // idx = 1 because track might begin with previous object
+        SegmentedObject trackHead = track.get(0).key.getTrackHead();
         boolean canDisplayTrack = i instanceof Kymograph;
         //canDisplayTrack = canDisplayTrack && ((TrackMask)i).parent.getTrackHead().equals(trackHead.getParent().getTrackHead()); // same track head
         //canDisplayTrack = canDisplayTrack && i.getParent().getStructureIdx()<=trackHead.getStructureIdx();

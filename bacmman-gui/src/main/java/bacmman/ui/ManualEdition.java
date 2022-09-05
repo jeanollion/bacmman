@@ -117,7 +117,7 @@ public class ManualEdition {
             Set<SegmentedObject> uniqueTh = new HashSet<>();
             for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
             List<List<SegmentedObject>> trackToDisp = new ArrayList<>();
-            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o, true));
+            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o));
             // update current image
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
             iwm.resetObjectsAndTracksRoi();
@@ -281,7 +281,7 @@ public class ManualEdition {
                 Set<SegmentedObject> uniqueTh = new HashSet<>();
                 for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
                 List<List<SegmentedObject>> trackToDisp = new ArrayList<>();
-                for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o, true));
+                for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o));
                 // update current image
                 ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
                 if (!trackToDisp.isEmpty()) {
@@ -346,7 +346,7 @@ public class ManualEdition {
             Set<SegmentedObject> uniqueTh = new HashSet<SegmentedObject>();
             for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
             List<List<SegmentedObject>> trackToDisp = new ArrayList<List<SegmentedObject>>();
-            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o, true));
+            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o));
             // update current image
             ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
             if (!trackToDisp.isEmpty()) {
@@ -712,7 +712,7 @@ public class ManualEdition {
                 //for (SegmentedObject p : SegmentedObjectUtils.getParentTrackHeads(toDelete))
                 //    ImageWindowManagerFactory.getImageManager().reloadObjects(p, structureIdx, false);
                 ImageWindowManagerFactory.getImageManager().resetObjects(null, structureIdx);
-                ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh, true), true);
+                ImageWindowManagerFactory.getImageManager().displayTracks(null, null, SegmentedObjectUtils.getTracks(selTh), true);
                 GUI.updateRoiDisplayForSelections(null, null);
             }
         }

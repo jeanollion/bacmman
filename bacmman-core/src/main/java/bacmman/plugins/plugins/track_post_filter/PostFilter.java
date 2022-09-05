@@ -146,7 +146,7 @@ public class PostFilter implements TrackPostFilter, Hint, TestableProcessingPlug
                 case DELETE_TRACK:
                     Set<SegmentedObject> trackHeads = new HashSet<>(Utils.transform(objectsToRemove, SegmentedObject::getTrackHead));
                     objectsToRemove.clear();
-                    for (SegmentedObject th : trackHeads) objectsToRemove.addAll(SegmentedObjectUtils.getTrack(th, false));
+                    for (SegmentedObject th : trackHeads) objectsToRemove.addAll(SegmentedObjectUtils.getTrack(th));
                     SegmentedObjectEditor.deleteObjects(null, objectsToRemove, mergePredicate, factory, editor, true);
                     break;
                 default:

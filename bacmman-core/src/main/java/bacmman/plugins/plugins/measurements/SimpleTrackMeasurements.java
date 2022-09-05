@@ -69,7 +69,7 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
     @Override public void performMeasurement(SegmentedObject object) {
         String th = SegmentedObjectUtils.getIndices(object.getTrackHead());
         String pth = object.isRoot() ? Measurements.NA_STRING : SegmentedObjectUtils.getIndices(object.getParent().getTrackHead());
-        List<SegmentedObject> track = SegmentedObjectUtils.getTrack(object, false);
+        List<SegmentedObject> track = SegmentedObjectUtils.getTrack(object);
         int tl = track.get(track.size()-1).getFrame() - object.getFrame()+1;
         for (SegmentedObject o : track) {
             o.getMeasurements().setValue("TrackLength", tl);

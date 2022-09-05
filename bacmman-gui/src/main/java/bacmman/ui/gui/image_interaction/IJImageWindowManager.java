@@ -221,7 +221,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                             trackHeads.add(p.key.getTrackHead());
                         Utils.removeDuplicates(trackHeads, false);
                         for (SegmentedObject th : trackHeads) {
-                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th, !hyperstack);
+                            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th);
                             List<Pair<SegmentedObject, BoundingBox>> disp = i.pairWithOffset(track);
                             Color c = hyperstack ? getColor(track.get(0)) : ImageWindowManager.getColor();
                             displayTrack(image, i, disp, c, true);
@@ -509,6 +509,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             for (int i = 0; i<pixels.length; ++i) {
                 if (pixels[i]!=0) pixels[i] = value;
             }
+            roi.setStrokeColor(color);
         } else {
             roi.setStrokeColor(color);
         }
@@ -555,7 +556,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
         if (!(i instanceof HyperStack)) {
             if (!parents.isEmpty() && parents.get(0).getExperimentStructure().getTrackDisplay(i.childStructureIdx).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(parents, track, color, i);
-            else return createKymographTrackRoi(track, color);
+            else return createKymographTrackRoi(track, color, i);
         }
         else return createContourTrackRoi(parents, track, color, i);
     }
@@ -565,6 +566,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         for (Roi r : roi) if (r.getStrokeColor()!=ImageWindowManager.trackCorrectionColor && r.getStrokeColor()!=ImageWindowManager.trackErrorColor) {
             setRoiColor(r, color);
         }
+        for (TrackRoi dup : roi.getSliceDuplicates().values()) setTrackColor(dup, color);
     }
 
     protected TrackRoi createContourTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
@@ -737,18 +739,15 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         return trackRoi;
     }
 
-    protected static TrackRoi createKymographTrackRoi(List<Pair<SegmentedObject, BoundingBox>> track, Color color) {
+    protected static TrackRoi createKymographTrackRoi(List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
         Predicate<SegmentedObject> editedprev = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false);
         Predicate<SegmentedObject> editedNext = o -> o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
         TrackRoi trackRoi= new TrackRoi();
         trackRoi.setIs2D(track.get(0).key.is2D());
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
-        IntStream.range(track.size()==1 ? 0 : 1, track.size()).forEach( idx -> {
-            Pair<SegmentedObject, BoundingBox> o1 = idx>0 ? track.get(idx-1) : track.get(0);
-            Pair<SegmentedObject, BoundingBox> o2 = track.get(idx);
-            if (o1==null || o2==null) return;
+        BiConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>> appendTrackArrow = (o1, o2) -> {
             Arrow arrow;
-            if (track.size()==1) {
+            if (track.size()==1 && o2==null) {
                 double size = TRACK_ARROW_STROKE_WIDTH*arrowSize;
                 Point p = new Point((float)o1.key.getBounds().xMean(), (float)o1.key.getBounds().yMean());
                 o1.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(-1, -1));
@@ -781,37 +780,27 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 arrow.enableSubPixelResolution();
                 arrow.setDoubleHeaded(true);
             }
-            
-            boolean error = o2.key.hasTrackLinkError(true, false) || (o1.key.hasTrackLinkError(false, true));
-            boolean correction = editedNext.test(o1.key)||editedprev.test(o2.key);
-            //arrow.setStrokeColor( (o2.key.hasTrackLinkError() || (o1.key.hasTrackLinkError()&&o1.key.isTrackHead()) )?ImageWindowManager.trackErrorColor: (o2.key.hasTrackLinkCorrection()||(o1.key.hasTrackLinkCorrection()&&o1.key.isTrackHead())) ?ImageWindowManager.trackCorrectionColor : color);
+
+            boolean error = (o2!=null && o2.key.hasTrackLinkError(true, false)) || (o1.key.hasTrackLinkError(false, true));
+            boolean correction = editedNext.test(o1.key)|| (o2!=null && editedprev.test(o2.key));
             arrow.setStrokeColor(color);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
-            
-            //if (o1.getNext()==o2) arrow.setDoubleHeaded(true);
-            
+
             // 2D only errors -> TODO 3D also
             if (error || correction) {
                 Color c = error ? ImageWindowManager.trackErrorColor : ImageWindowManager.trackCorrectionColor;
                 trackRoi.add(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, color));
-            } 
-            
+            }
+
             if (!trackRoi.is2D()) { // in 3D -> display on all slices between slice min & slice max
-                int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
-                int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
+                int zMin = o2==null? o1.value.zMin() : Math.max(o1.value.zMin(), o2.value.zMin());
+                int zMax = o2==null ? o1.value.zMax() : Math.min(o1.value.zMax(), o2.value.zMax());
                 if (zMin==zMax) {
                     arrow.setPosition(0, zMin+1, 0);
                     trackRoi.add(arrow);
                     //logger.debug("add arrow: {}", arrow);
                 } else {
-                    // TODO debug
-                    //logger.error("Display Track error. objects: {} & {} bounds: {} & {}, image bounds: {} & {}", o1, o2, o1.getBounds(), o2.getBounds(), b1, b2);
-                    //if (true) return;
-                    if (zMin>zMax) {
-
-                        GUI.logger.error("DisplayTrack error: Zmin>Zmax: o1: {}, o2: {}", o1.key, o2.key);
-                    }
                     for (int z = zMin; z <= zMax; ++z) {
                         Arrow dup = (Arrow)arrow.clone();
                         dup.setPosition(0, z+1, 0);
@@ -822,7 +811,23 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             } else {
                 trackRoi.add(arrow);
             }
-        });
+        };
+        if (track.size()==1) appendTrackArrow.accept(track.get(0), null);
+        else {
+            IntStream.range(1, track.size()).forEach(idx -> {
+                Pair<SegmentedObject, BoundingBox> o1 = track.get(idx - 1);
+                Pair<SegmentedObject, BoundingBox> o2 = track.get(idx);
+                appendTrackArrow.accept(o1, o2);
+            });
+        }
+        // append previous arrows
+        for (Pair<SegmentedObject, BoundingBox> p : i.pairWithOffset(SegmentedObjectEditor.getPrevious(track.get(0).key))) {
+            appendTrackArrow.accept(p, track.get(0));
+        }
+        // append next arrows
+        for (Pair<SegmentedObject, BoundingBox> n : i.pairWithOffset(SegmentedObjectEditor.getNext(track.get(track.size()-1).key))) {
+            appendTrackArrow.accept(track.get(track.size()-1), n);
+        }
         return trackRoi;
     }
     private static Arrow getErrorArrow(double x1, double y1, double x2, double y2, Color c, Color fillColor) {

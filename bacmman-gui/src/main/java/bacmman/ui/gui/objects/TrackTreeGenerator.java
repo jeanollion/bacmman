@@ -45,6 +45,7 @@ import javax.swing.tree.*;
 import bacmman.ui.gui.configuration.TrackTreeCellRenderer;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import bacmman.utils.EnumerationUtils;
 import bacmman.utils.HashMapGetCreate;
@@ -355,13 +356,8 @@ public class TrackTreeGenerator {
         return res;
     }
     
-    public List<List<SegmentedObject>> getSelectedTracks(boolean extended) {
+    public List<List<SegmentedObject>> getSelectedTracks() {
         List<TrackNode> nodes = getSelectedTrackNodes();
-        List<List<SegmentedObject>> res = new ArrayList<List<SegmentedObject>>(nodes.size());
-        for (TrackNode n : nodes) {
-            if (extended) res.add(SegmentedObjectUtils.extendTrack(n.getTrack()));
-            else res.add(n.getTrack()); 
-        }
-        return res;
+        return nodes.stream().map(TrackNode::getTrack).collect(Collectors.toList());
     }
 }

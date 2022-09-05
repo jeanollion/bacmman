@@ -90,7 +90,7 @@ public class SpineFeatures implements Measurement, MultiThreaded, Hint, HintSimp
     public void performMeasurement(SegmentedObject parentTrackHead) {
         double scale = scaled.getSelected() ? parentTrackHead.getScaleXY() : 1d;
         int objectClassIdx = bacteria.getSelectedClassIdx();
-        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead, false);
+        List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Utils.parallel(parentTrack.stream().flatMap(p->p.getChildren(objectClassIdx)), parallel).forEach(e-> {
             double[] lengthAndWidth = BacteriaSpineFactory.getSpineLengthAndWidth(e.getRegion());
             e.getMeasurements().setValue("SpineLength", lengthAndWidth[0]*scale);

@@ -91,12 +91,12 @@ public class ParentThresholder implements Thresholder {
         int sIdx = structureIdx.getSelectedIndex();
         if (runThresholderOnWholeTrack.getSelected()) {
             p = p.getTrackHead();
-            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(p, false);
-            String key = JSONUtils.toJSON(Arrays.asList(parameters)).toJSONString()+Utils.toStringList(track, s->Selection.indicesString(s)); // key involves configuration + track
+            List<SegmentedObject> track = SegmentedObjectUtils.getTrack(p);
+            String key = JSONUtils.toJSON(Arrays.asList(parameters)).toJSONString()+Utils.toStringList(track, Selection::indicesString); // key involves configuration + track
             if (!p.getAttributeKeys().contains(key)) { // compute threshold on whole track
                 synchronized(p) {
                     // get track histogram
-                    Map<Image, ImageMask> map = track.stream().collect(Collectors.toMap(o->o.getRawImage(sIdx), o->o.getMask()));
+                    Map<Image, ImageMask> map = track.stream().collect(Collectors.toMap(o->o.getRawImage(sIdx), SegmentedObject::getMask));
                     Histogram  histo = HistogramFactory.getHistogram(()->Image.stream(map, true).parallel(), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
                     double thld = this.thresholderHisto.instantiatePlugin().runThresholderHisto(histo);
                     logger.debug("computing thld : {}, thresholder {} on track: {}, key: {}", thld, this.thresholderHisto.getPluginName(), p, key);
