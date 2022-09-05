@@ -442,10 +442,9 @@ public class ManualEdition {
                     }
                     for (SegmentedObject c : oldChildren) c.getRegion().draw(mask, 0, new MutableBoundingBox(0, 0, 0));
                 }
-
+                ImageMask refMask =  ref2D && mask.sizeZ()==1 ? new ImageMask2D(mask) : mask;
                 if (test) iwm.getDisplayer().showImage(mask, 0, 1);
                 // remove seeds located out of mask
-                ImageMask refMask =  ref2D ? new ImageMask2D(mask) : mask;
                 Iterator<Point> it=e.getValue().iterator();
                 while(it.hasNext()) {
                     Point seed = it.next();
