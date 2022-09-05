@@ -156,10 +156,13 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
                     ic.zoom100Percent();
                     zoomHasBeenFixed[0] = true;
                 }
-                int rotation =   e.getWheelRotation();
-                int amount =   e.getScrollAmount();
+                int rotation = e.getWheelRotation();
+                int amount = e.getScrollAmount();
                 boolean ctrl = e.isControlDown();
-                boolean acceleratedScrolling =   e.isShiftDown(); // accelerated scrolling
+                boolean alt = e.isAltDown();
+                boolean altGr = e.isAltGraphDown();
+                boolean space = IJ.spaceBarDown();
+                boolean acceleratedScrolling = e.isShiftDown(); // accelerated scrolling
                 if (amount<1) amount=1;
                 if (rotation==0) return;
                 int width = imp.getWidth();
@@ -167,8 +170,12 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
                 Rectangle srcRect = ic.getSrcRect();
                 int xstart = srcRect.x;
                 int ystart = srcRect.y;
-                boolean scrollSlices = iw instanceof StackWindow && (width<2000 && height<2000);
-                //logger.debug("scroll : type {}, amount: {}, rotation: {}, would scroll in x: {} in y: {}, ctrl: {} alt {}", e.getScrollType(), amount, rotation, rotation*amount* (acceleratedScrolling ? Math.max(width/30, 1) : srcRect.width/8), rotation*amount* (acceleratedScrolling ? Math.max(height/30, 1) : srcRect.height/8), ctrl, acceleratedScrolling);
+                boolean stack = iw instanceof StackWindow;
+                boolean needScrollImage = srcRect.height<height || srcRect.width<width;
+                boolean scrollZ = stack && (!needScrollImage || space);
+                boolean scrollTime = stack && !scrollZ && (!needScrollImage || alt);
+                boolean scrollChannels = stack && !scrollZ && !scrollTime && (!needScrollImage || altGr);
+                //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
                 if (ctrl && ic!=null) { // zoom
                         Point loc = ic.getCursorLoc();
                         int x = ic.screenX(loc.x);
@@ -177,30 +184,37 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
                         else ic.zoomOut(x, y);
                         return;
                 }
-                if (scrollSlices) {
+                if (scrollZ) {
                     StackWindow sw = (StackWindow)iw;
-                    if (sw.isHyperStack()) {
-                            if (rotation>0)
-                                    IJ.run(imp, "Next Slice [>]", "");
-                            else if (rotation<0)
-                                    IJ.run(imp, "Previous Slice [<]", "");
-                    } else {
-                            int slice = imp.getCurrentSlice() + rotation;
-                            if (slice<1)
-                                    slice = 1;
-                            else if (slice>imp.getStack().getSize())
-                                    slice = imp.getStack().getSize();
-                            imp.setSlice(slice);
-                            imp.updateStatusbarValue();
-                            SyncWindows.setZ(sw, slice);
-                    }
-                } else {
-                    if ((double)srcRect.height/height>(double)srcRect.width/width || (srcRect.height/height<srcRect.width/width && IJ.spaceBarDown())) { // scroll in the most needed direction
-                            srcRect.x += rotation*amount* (acceleratedScrolling ? Math.max(width/60, 1) : srcRect.width/8); 
+                    int slice = imp.getSlice() + rotation;
+                    if (slice<1) slice = 1;
+                    else if (slice>imp.getNSlices()) slice = imp.getNSlices();
+                    imp.setZ(slice);
+                    imp.updateStatusbarValue();
+                    SyncWindows.setZ(sw, slice);
+                } else if (scrollTime) {
+                    StackWindow sw = (StackWindow)iw;
+                    int slice = imp.getFrame() + rotation;
+                    if (slice<1) slice = 1;
+                    else if (slice>imp.getNFrames()) slice = imp.getNFrames();
+                    imp.setT(slice);
+                    imp.updateStatusbarValue();
+                    SyncWindows.setT(sw, slice);
+                } else if (scrollChannels) {
+                    StackWindow sw = (StackWindow)iw;
+                    int slice = imp.getChannel() + rotation;
+                    if (slice<1) slice = 1;
+                    else if (slice>imp.getNChannels()) slice = imp.getNChannels();
+                    imp.setC(slice);
+                    imp.updateStatusbarValue();
+                    SyncWindows.setC(sw, slice);
+                } else { // move image
+                    if ((double)srcRect.height/height>(double)srcRect.width/width || (srcRect.height/height<srcRect.width/width && space)) { // scroll in the most needed direction
+                            srcRect.x += rotation*amount* (acceleratedScrolling ? Math.max(width/60, srcRect.width/12) : srcRect.width/12);
                             if (srcRect.x<0) srcRect.x = 0;
                             if (srcRect.x+srcRect.width>width) srcRect.x = width-srcRect.width;
                     } else { // most needed direction is Y
-                            srcRect.y += rotation*amount*(acceleratedScrolling ?  Math.max(height/60, 1) : srcRect.height/8);  
+                            srcRect.y += rotation*amount*(acceleratedScrolling ?  Math.max(height/60, srcRect.height/12) : srcRect.height/12);
                             if (srcRect.y<0) srcRect.y = 0;
                             if (srcRect.y+srcRect.height>height) srcRect.y = height-srcRect.height;
                     }
@@ -215,7 +229,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
                     else  ic.repaint();
                 }
             }    
-	};
+	    };
         
         if (callBack!=null) { // initial call back
             boolean update = callBack.test(new SimpleBoundingBox(ic.getSrcRect().x, ic.getSrcRect().x+ic.getSrcRect().width-1, ic.getSrcRect().y, ic.getSrcRect().y+ic.getSrcRect().height-1, 0, 0));
