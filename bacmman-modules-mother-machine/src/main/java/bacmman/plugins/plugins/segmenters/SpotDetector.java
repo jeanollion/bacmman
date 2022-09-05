@@ -307,8 +307,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
 
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedObjects) {
-        ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        this.pv.initPV(input, parentMask, smoothScale.getValue().doubleValue()) ;
+        this.pv.initPV(input, segmentationMask, smoothScale.getValue().doubleValue()) ;
         if (pv.smooth==null || pv.radialSymmetry==null) setMaps(computeMaps(parent.getRawImage(objectClassIdx), input), Double.NaN);
         else logger.debug("manual seg: maps already set!");
         Image radialSymmetryMap = pv.getRadialSymmetryMap();
@@ -319,12 +318,9 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
                 .collect(Collectors.toList());
 
         allObjects.addAll(seedObjects);
-
         List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getValue().doubleValue());
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
         pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
-
-
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
             for (Point p : seedObjects) seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1);

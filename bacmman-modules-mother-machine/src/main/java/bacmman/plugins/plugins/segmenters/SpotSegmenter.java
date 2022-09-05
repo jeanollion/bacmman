@@ -442,8 +442,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     
     @Override
     public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-        ImageMask parentMask = parent.getMask().sizeZ()!=input.sizeZ() ? new ImageMask2D(parent.getMask()) : parent.getMask();
-        this.pv.initPV(input, parentMask, getGaussianScale(), this.normMode.getSelectedEnum()) ;
+        this.pv.initPV(input, segmentationMask, getGaussianScale(), this.normMode.getSelectedEnum()) ;
         if (pv.gauss ==null || pv.lap==null) setMaps(computeMaps(input, input));
         else logger.debug("manual seg: maps already set!");
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
@@ -456,17 +455,14 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             if (qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.G)) qFormula = QUALITY_FORMULA.L;
             else if (qualityFormula.getSelectedEnum().equals(QUALITY_FORMULA.L)) qFormula = QUALITY_FORMULA.G;
             else qFormula = QUALITY_FORMULA.GL;
-
         } else {
             lap = pv.getLaplacianMap()[0]; // todo max in scale space for each seed?
             smooth = pv.getGaussianMap(); // todo max in scale space for each seed?
             qFormula = qualityFormula.getSelectedEnum();
         }
-
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true).propagationCriterion(new WatershedTransform.ThresholdPropagationOnWatershedMap(this.propagationThld.getValue().doubleValue())).fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSpotSize.getValue().intValue())).lowConectivity(false);
-        RegionPopulation pop =  WatershedTransform.watershed(lap, parentMask, seedObjects, config);
+        RegionPopulation pop =  WatershedTransform.watershed(lap, segmentationMask, seedObjects, config);
         setCenterAndQuality(lap, smooth, pop, 0, qFormula);
-        
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
             for (Point seed : seedsXYZ) seedMap.setPixel(seed.getIntPosition(0), seed.getIntPosition(1), seed.getIntPosition(2), 1);
