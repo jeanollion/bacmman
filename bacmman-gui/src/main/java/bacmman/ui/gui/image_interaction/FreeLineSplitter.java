@@ -63,13 +63,15 @@ public class FreeLineSplitter implements ObjectSplitter {
         }
         int offX = off.xMin();
         int offY = off.yMin();
-        boolean[] removedPixel = new boolean[xPoints.length];
-        for (int i = 0; i<xPoints.length; ++i) {
-            int x = xPoints[i] - offX;
-            int y = yPoints[i] - offY;
-            if (splitMask.contains(x, y, 0) && splitMask.insideMask(x, y, 0)) {
-                splitMask.setPixel(x, y, 0, 0);
-                removedPixel[i] = true;
+        boolean[][] removedPixel = new boolean[splitMask.sizeZ()][xPoints.length];
+        for (int z = 0; z<splitMask.sizeZ(); ++z) {
+            for (int i = 0; i < xPoints.length; ++i) {
+                int x = xPoints[i] - offX;
+                int y = yPoints[i] - offY;
+                if (splitMask.contains(x, y, z) && splitMask.insideMask(x, y, z)) {
+                    splitMask.setPixel(x, y, z, 0);
+                    removedPixel[z][i] = true;
+                }
             }
         }
         List<Region> objects = ImageLabeller.labelImageListLowConnectivity(splitMask);
@@ -90,17 +92,20 @@ public class FreeLineSplitter implements ObjectSplitter {
         if (objects.size()==2) {
             ImageInteger popMask = res.getLabelMap();
             Neighborhood n = new EllipsoidalNeighborhood(1.5, true);
-            IntStream.range(0, xPoints.length).filter(i->removedPixel[i]).forEach(i -> {
-                int x = xPoints[i] - offX;
-                int y = yPoints[i] - offY;
-                int l1Count = 0, l2Count=0;
-                n.setPixels(x, y, 0, popMask, null);
-                for (double f : n.getPixelValues()) {
-                    if (f==1) ++l1Count;
-                    else if (f==2) ++l2Count;
-                }
-                popMask.setPixel(x, y, 0, l1Count>=l2Count ? 1 : 2);
-            });
+            for (int z = 0; z<splitMask.sizeZ(); ++z) {
+                int zz=z;
+                IntStream.range(0, xPoints.length).filter(i -> removedPixel[zz][i]).forEach(i -> {
+                    int x = xPoints[i] - offX;
+                    int y = yPoints[i] - offY;
+                    int l1Count = 0, l2Count = 0;
+                    n.setPixels(x, y, zz, popMask, null);
+                    for (double f : n.getPixelValues()) {
+                        if (f == 1) ++l1Count;
+                        else if (f == 2) ++l2Count;
+                    }
+                    popMask.setPixel(x, y, zz, l1Count >= l2Count ? 1 : 2);
+                });
+            }
             res = new RegionPopulation(popMask, true);
         }
         if (verbose) {
