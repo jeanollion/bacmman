@@ -55,6 +55,7 @@ import static bacmman.processing.watershed.WatershedTransform.watershed;
 
 import java.util.function.ToDoubleFunction;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
 /**
@@ -477,9 +478,9 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        ImageFloat wsMap = ImageFeatures.getLaplacian(input, 1.5, false, false);
+        ImageFloat wsMap = this.pv!=null && this.pv.lap!=null ? pv.lap[0] : ImageFeatures.getLaplacian(input, DoubleStream.of(scale.getArrayDouble()).min().orElse(1.5), true, false);
         wsMap = object.isAbsoluteLandMark() ? wsMap.cropWithOffset(object.getBounds()) : wsMap.crop(object.getBounds());
-        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, true, manualSplitVerbose);
+        RegionPopulation res =  WatershedObjectSplitter.splitInTwoSeedSelect(wsMap, object.getMask(), true, false, manualSplitVerbose);
         res.translate(object.getBounds(), object.isAbsoluteLandMark());
         return res;
     }
