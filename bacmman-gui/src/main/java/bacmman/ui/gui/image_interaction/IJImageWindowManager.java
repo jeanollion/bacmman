@@ -224,7 +224,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                             List<SegmentedObject> track = SegmentedObjectUtils.getTrack(th);
                             List<Pair<SegmentedObject, BoundingBox>> disp = i.pairWithOffset(track);
                             Color c = hyperstack ? getColor(track.get(0)) : ImageWindowManager.getColor();
-                            displayTrack(image, i, disp, c, true);
+                            displayTrack(image, i, disp, c, true, true, false);
                             displayObjects(image, disp, c, true, false);
                         }
                         if (listener != null) listener.fireTracksSelected(trackHeads, true);
@@ -553,9 +553,9 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     }
 
     @Override
-    public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
+    public TrackRoi generateTrackRoi(List<SegmentedObject> parents, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i, boolean forceDefaultDisplay) {
         if (!(i instanceof HyperStack)) {
-            if (!parents.isEmpty() && parents.get(0).getExperimentStructure().getTrackDisplay(i.childStructureIdx).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(parents, track, color, i);
+            if (!forceDefaultDisplay && !parents.isEmpty() && parents.get(0).getExperimentStructure().getTrackDisplay(i.childStructureIdx).equals(Structure.TRACK_DISPLAY.CONTOUR)) return createContourTrackRoi(parents, track, color, i);
             else return createKymographTrackRoi(track, color, i);
         }
         else return createContourTrackRoi(parents, track, color, i);
@@ -736,7 +736,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 }
             }
         }
-        return trackRoi;
+        return trackRoi.setTrackType(Structure.TRACK_DISPLAY.CONTOUR);
     }
 
     protected static TrackRoi createKymographTrackRoi(List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i) {
@@ -745,6 +745,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         TrackRoi trackRoi= new TrackRoi();
         trackRoi.setIs2D(track.get(0).key.is2D());
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
+        int zMin = track.stream().mapToInt(o-> o.value.zMin()).min().orElse(0);
+        int zMax = track.stream().mapToInt(o-> o.value.zMax()).max().orElse(0);
         BiConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>> appendTrackArrow = (o1, o2) -> {
             Arrow arrow;
             if (track.size()==1 && o2==null) {
@@ -794,8 +796,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             }
 
             if (!trackRoi.is2D()) { // in 3D -> display on all slices between slice min & slice max
-                int zMin = o2==null? o1.value.zMin() : Math.max(o1.value.zMin(), o2.value.zMin());
-                int zMax = o2==null ? o1.value.zMax() : Math.min(o1.value.zMax(), o2.value.zMax());
+
                 if (zMin==zMax) {
                     arrow.setPosition(0, zMin+1, 0);
                     trackRoi.add(arrow);

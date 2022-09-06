@@ -21,6 +21,7 @@ package bacmman.ui.gui.image_interaction;
 import bacmman.configuration.experiment.Structure;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
+import bacmman.data_structure.region_container.roi.TrackRoi;
 import bacmman.image.*;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.ui.GUI;
@@ -874,7 +875,7 @@ public abstract class ImageWindowManager<I, U, V> {
     
     protected abstract void displayTrack(I image, V roi, InteractiveImage i);
     protected abstract void hideTrack(I image, V roi, InteractiveImage i);
-    protected abstract V generateTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i);
+    protected abstract V generateTrackRoi(List<SegmentedObject> parentTrack, List<Pair<SegmentedObject, BoundingBox>> track, Color color, InteractiveImage i, boolean forceDefaultDisplay);
     protected abstract void setTrackColor(V roi, Color color);
 
     public void displayTracks(Image image, InteractiveImage i, Collection<List<SegmentedObject>> tracks, boolean labile) {
@@ -889,7 +890,7 @@ public abstract class ImageWindowManager<I, U, V> {
         //logger.debug("display {} tracks on image: {}, OI: {}", tracks.size(), image.getName(), i.getClass().getSimpleName());
         boolean hyperStack = i instanceof HyperStack;
         for (List<SegmentedObject> track : tracks) {
-            displayTrack(image, i, i.pairWithOffset(track), hyperStack? getColor(track.get(0)) : getColor() , labile, false);
+            displayTrack(image, i, i.pairWithOffset(track), hyperStack? getColor(track.get(0)) : getColor() , labile, false, false);
         }
         if (hyperStack) {
             int minFrame = tracks.stream().filter(track -> !track.isEmpty()).mapToInt(track -> track.stream().filter(SegmentedObject::isTrackHead).findFirst().orElse(track.size()>1 ? track.get(1).getTrackHead() : track.get(0)).getFrame()).min().orElse(-1);
@@ -903,10 +904,10 @@ public abstract class ImageWindowManager<I, U, V> {
         //GUI.updateRoiDisplayForSelections(image, i);
     }
     public void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile) {
-        displayTrack(image, i, track, color, labile, true);
+        displayTrack(image, i, track, color, labile, false, true);
     }
 
-    protected void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile, boolean updateDisplay) {
+    protected void displayTrack(Image image, InteractiveImage i, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile, boolean forceDefaultDisplay, boolean updateDisplay) {
         //logger.debug("display selected track: image: {}, track length: {} color: {}", image, track==null?"null":track.size(), color);
         if (track==null || track.isEmpty()) return;
         I dispImage;
@@ -933,7 +934,7 @@ public abstract class ImageWindowManager<I, U, V> {
             canDisplayTrack = !track.isEmpty();
         }
         Map<Pair<SegmentedObject, SegmentedObject>, V> map = labile ? (hyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap  ) : (hyperStack ? parentTrackHeadTrackRoiMap : parentTrackHeadKymographTrackRoiMap ) ;
-        boolean doNotStore = hyperStack && track.size()==1; // partial tracks: do not store //&& (!trackHead.equals(track.get(0).key) || trackHead.getNextId()!=null)
+        boolean doNotStore = hyperStack && track.size()==1; // partial tracks: do not store
         if (canDisplayTrack) {
             if (i.getKey().interactiveObjectClass != trackHead.getStructureIdx()) { // change current object class
                 i = getImageTrackObjectInterface(i.parents, trackHead.getStructureIdx(), type);
@@ -945,8 +946,10 @@ public abstract class ImageWindowManager<I, U, V> {
             Set<V>  disp = null;
             if (labile) disp = displayedLabileTrackRois.getAndCreateIfNecessary(image);
             V roi = doNotStore ? null:map.get(key);
-            if (roi==null) {
-                roi = generateTrackRoi(i.parents,track, color, i);
+            boolean genKymo = i instanceof Kymograph && forceDefaultDisplay;
+            Structure.TRACK_DISPLAY targetTrackDisplay = genKymo ? Structure.TRACK_DISPLAY.DEFAULT : i.getParent().getExperimentStructure().getTrackDisplay(i.childStructureIdx);
+            if (roi==null || ( roi instanceof TrackRoi && !((TrackRoi)roi).getTrackType().equals(targetTrackDisplay)) ) { // TODO make more generic : interface for TrackRoi
+                roi = generateTrackRoi(i.parents,track, color, i, genKymo);
                 map.put(key, roi);
             } else setTrackColor(roi, color);
             if (disp==null || !disp.contains(roi)) displayTrack(dispImage, roi ,i);

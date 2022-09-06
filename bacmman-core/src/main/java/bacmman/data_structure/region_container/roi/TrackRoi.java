@@ -1,5 +1,6 @@
 package bacmman.data_structure.region_container.roi;
 
+import bacmman.configuration.experiment.Structure;
 import ij.gui.Overlay;
 import ij.gui.Roi;
 
@@ -9,11 +10,19 @@ import java.util.Map;
 
 public class TrackRoi extends ArrayList<Roi> {
     boolean is2D;
+    Structure.TRACK_DISPLAY trackType = Structure.TRACK_DISPLAY.DEFAULT;
     Map<Integer, TrackRoi> sliceDuplicates= new HashMap<>(); // if Roi from 2D ref displayed on 3D image
     Map<Roi, int[]> position = new HashMap<>();
     public boolean contained(Overlay o) {
         for (Roi r : this) if (o.contains(r)) return true;
         return false;
+    }
+    public TrackRoi setTrackType(Structure.TRACK_DISPLAY type) {
+        this.trackType = type;
+        return this;
+    }
+    public Structure.TRACK_DISPLAY getTrackType() {
+        return trackType;
     }
     @Override
     public boolean add(Roi r) {
