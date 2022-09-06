@@ -89,7 +89,6 @@ public class SubPixelLocalizator {
         }
         for (RefinedPeak< Point > r : refined) {
             Region o = objects.get(peaks.indexOf(r.getOriginalPeak()));
-            double value = img.getPixel(r.getFloatPosition(0), r.getFloatPosition(1), img.sizeZ()>1 ? r.getFloatPosition(2):0);
             double originalValue = img.getPixel(r.getOriginalPeak().getFloatPosition(0), r.getOriginalPeak().getFloatPosition(1), img.sizeZ()>1 ? r.getOriginalPeak().getFloatPosition(2):0);
             boolean useOriginalPeak = r.getValue()==0
                     || !o.contains(new Voxel(Math.round(r.getFloatPosition(0)), Math.round(r.getFloatPosition(1)), img.sizeZ()>1?Math.round(r.getFloatPosition(2)) : o.getBounds().zMin()));
@@ -97,7 +96,7 @@ public class SubPixelLocalizator {
             float[] position= new float[img.sizeZ()>1?3 : 2];
             position[0] = useOriginalPeak? r.getOriginalPeak().getFloatPosition(0) : r.getFloatPosition(0);
             position[1] = useOriginalPeak? r.getOriginalPeak().getFloatPosition(1) : r.getFloatPosition(1);
-            if (img.sizeZ()>1) position[2] = useOriginalPeak? r.getOriginalPeak().getFloatPosition(2) : r.getFloatPosition(2);
+            if (img.sizeZ()>1) position[2] =r.getOriginalPeak().getFloatPosition(2);
             o.setCenter(new bacmman.utils.geom.Point(position));
             if (setQuality) {
                 if (useOriginalPeak) o.setQuality(originalValue);
