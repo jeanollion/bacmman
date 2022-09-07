@@ -71,8 +71,6 @@ public class FreeLineSegmenter {
             r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z)).collect(Collectors.toList())); // remove points already segmented
             logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
-            r.translate(parent.getBounds());
-            r.setIsAbsoluteLandmark(true);
             return createSegmentedObject(r, parent, objectClassIdx, saveToDB);
 
         } else {
@@ -91,26 +89,28 @@ public class FreeLineSegmenter {
             logger.debug("region size after overlap with parent {}", r.size());
             r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z) && pop.getLabelMap().getPixelInt(v.x, v.y, v.z)!=modifyObjectLabel).collect(Collectors.toList()));
             logger.debug("region size after erase overlap {}", r.size());
-            r.translate(parent.getBounds());
-            r.setIsAbsoluteLandmark(true);
             r.remove(rOld);
             return createSegmentedObject(r, parent, objectClassIdx, saveToDB);
         }
     }
 
-    private static Collection<SegmentedObject> createSegmentedObject(Region r, SegmentedObject parent, int objectClassIdx, Consumer<Collection<SegmentedObject>> saveToDB) {
+    public static Collection<SegmentedObject> createSegmentedObject(Region r, SegmentedObject parent, int objectClassIdx, Consumer<Collection<SegmentedObject>> saveToDB) {
+        if (!r.isAbsoluteLandMark()) {
+            r.translate(parent.getBounds());
+            r.setIsAbsoluteLandmark(true);
+        }
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         SegmentedObject so = new SegmentedObject(parent.getFrame(), objectClassIdx, r.getLabel() - 1, r, parent);
         List<SegmentedObject> objects = parent.getChildren(objectClassIdx).collect(Collectors.toList());
 
-        // HEURISTIC TO FIND INSERTION POINT // todo ALSO USE IN OBJECT CREATOR
+        // HEURISTIC TO FIND INSERTION POINT // TODO ALSO USE IN OBJECT CREATOR
         Point ref = r.getBounds().getCenter();
-        SegmentedObject[] twoClosest = objects.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(o->o.getIdx())).toArray(SegmentedObject[]::new);
+        SegmentedObject[] twoClosest = objects.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(SegmentedObject::getIdx)).toArray(SegmentedObject[]::new);
         if (twoClosest.length<2) objects.add(so);
         else {
             Vector dir1 = Vector.vector(twoClosest[0].getBounds().getCenter(), twoClosest[1].getBounds().getCenter());
             Vector dir2 = Vector.vector(twoClosest[1].getBounds().getCenter(), ref);
-            int idx = dir1.dotProduct(dir2)>0 ? twoClosest[1].getIdx() : twoClosest[0].getIdx();
+            int idx = dir1.dotProduct(dir2)>0 ? objects.indexOf(twoClosest[1]) : objects.indexOf(twoClosest[0]);
             objects.add(idx+1, so);
         }
 

@@ -66,8 +66,9 @@ public class Shortcuts {
         MERGE("Merge selected objects / track(s)"),
         SPLIT("Split selected object(s) / track(s)"),
         MANUAL_SPLIT("Split objects along a manually drawn line (use freehand line tool)", "ctrl + line"),
-        MANUAL_CREATE("Creates an object manually drawn (use freehand-line/oval/ellipse tool)", "ctrl + shift + Line/Oval/Ellipse"),
-        MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse tool)", "shift + alt + Line/Oval/Ellipse"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
+        MANUAL_CREATE("Creates an object manually drawn (use freehand-line/oval/ellipse/selection-brush tool)", "ctrl + shift + Line/Oval/Ellipse/Brush"),
+        MANUAL_CREATE_MERGE("Creates an object manually drawn and merges it with connected existing objects (use freehand-line/oval/ellipse/selection-brush tool)", "shift + alt + Line/Oval/Ellipse/Brush"), CREATE("Create object(s) from selected point(s)"), TOGGLE_CREATION_TOOL("Switch to object creation tool / rectangle selection tool"),
+        MANUAL_ERASE("Erase part of an existing object using the selection brush tool", "ctrl + Brush"),
         POST_FILTER("Apply post-filters defined in the object class parameter to selected object(s) / track(s)"),
         SELECT_ALL_OBJECTS("Display all objects on active image"), SELECT_ALL_TRACKS("Display all tracks on active image"), TOGGLE_SELECT_MODE("Toggle display object/track"), TOGGLE_LOCAL_ZOOM("Toggle local zoom"), CHANGE_INTERACTIVE_STRUCTURE("Change interactive structure"),
         FAST_SCROLL("Fast scroll through Kymograph time axis", "shift + mouse wheel"),
@@ -322,11 +323,11 @@ public class Shortcuts {
             TOGGLE_DISPLAY_SEL1, ADD_TO_SEL1, REM_FROM_SEL1, REM_ALL_FROM_SEL1,
             "<b>Manual Curation: all action are performed on active image</b>", TOGGLE_SAFE_MODE,
             "<b>Object Edition:</b>",
-            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_SPLIT, MERGE, SPLIT, POST_FILTER,
+            DELETE, DELETE_AFTER_FRAME, PRUNE, TOGGLE_CREATION_TOOL, CREATE, MANUAL_CREATE, MANUAL_CREATE_MERGE, MANUAL_ERASE, MANUAL_SPLIT, MERGE, SPLIT, POST_FILTER,
             "<b>Lineage Edition:</b>",
             RESET_LINKS, LINK, APPEND_LINK, UNLINK, CREATE_TRACK
         };
-        int shortcutWidth = 195;
+        int shortcutWidth = 210;
         int descWidth = 700;
         Stream<Object[]> lines = Arrays.stream(actions).map(o-> new Object[]{formatString.apply(getShortcutString.apply(o)), formatString.apply(getDescription.apply(o))});
         
