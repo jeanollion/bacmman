@@ -55,9 +55,13 @@ public class NucleusEdgeDetector implements Segmenter, Hint, ObjectSplitter, Tes
             stores.get(parent).addMisc("Show local segmentation intermediate images", l -> {
                 if (l.size() != 1) Core.userLog("Select one and only one nucleus");
                 SegmentedObject n = l.get(0);
-                BoundingBox b = n.getBounds().duplicate().translate(parent.getBounds().duplicate().reverseOffset());
+                Offset off = parent.getBounds().duplicate().reverseOffset();
+                BoundingBox b = n.getBounds().duplicate().translate(off);
+                boolean abs = nuclei.isAbsoluteLandmark();
+                if (abs) nuclei.translate(off, false);
                 Region region = nuclei.getRegions().stream().max(Comparator.comparingInt(r -> BoundingBox.intersect(r.getBounds(), b) ? BoundingBox.getIntersection(r.getBounds(), b).getSizeXYZ() : 0)).orElse(null); // max overlapping region
                 if (region!=null) adjustEdges(region, input, extent, nuclei, stores.get(parent).imageDisp);
+                if (abs) nuclei.translate(off.reverseOffset(), true);
             });
         }
         if (stores!=null && stores.get(parent).isExpertMode()) return nuclei; // testing purpose
