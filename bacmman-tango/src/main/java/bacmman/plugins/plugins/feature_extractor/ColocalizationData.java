@@ -29,7 +29,7 @@ public class ColocalizationData implements FeatureExtractorOneEntryPerInstance, 
             .addValidationFunction(l -> l.getActivatedChildren().stream().map(EVFParameter::getResampleZ).distinct().count()==1) // resample in Z should be equal
             .setHint("If items are added to this list, Eroded Volume Fraction (EVF) will be computed for each pixel and returned as an additional channel");
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
         if (objectClassIdx != parent.getStructureIdx()) throw new IllegalArgumentException("invalid object class: should correspond to parent selection that has object class==: "+parent.getStructureIdx());
         double zAspectRatio = parent.getScaleZ()/parent.getScaleXY();
         boolean resample = !evfList.isEmpty() && evfList.getChildAt(0).getResampleZ();

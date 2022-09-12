@@ -37,10 +37,10 @@ public class PreviousLabels implements FeatureExtractor, Hint {
         return this.extractZ.getSelectedEnum();
     }
     @Override
-    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<SegmentedObject, RegionPopulation> resampledPopulation, int[] resampleDimensions) {
-        RegionPopulation curPop = resampledPopulation.get(parent);
+    public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
+        RegionPopulation curPop = resampledPopulations.get(objectClassIdx).get(parent);
         Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().stream().mapToInt(Region::getLabel).max().orElse(0), curPop.getImageProperties());
-        if (parent.getPrevious()!=null && resampledPopulation.get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
+        if (parent.getPrevious()!=null && resampledPopulations.get(objectClassIdx).get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
             parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null).forEach(c -> {
                 Region r = curPop.getRegion(c.getIdx()+1);
                 if (r==null) {

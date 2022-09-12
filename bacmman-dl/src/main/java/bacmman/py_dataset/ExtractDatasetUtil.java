@@ -58,7 +58,7 @@ public class ExtractDatasetUtil {
             }
             for (String position : sel.getAllPositions()) {
                 logger.debug("position: {}", position);
-                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops= new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                     if (parent.getStructureIdx() == oc) return null; // this case is handled separately
                     RegionPopulation pop = parent.getChildRegionPopulation(oc, false);
                     return resamplePopulation(pop, dimensions, eraseTouchingContours.test(oc));
@@ -70,15 +70,19 @@ public class ExtractDatasetUtil {
                     logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilter());
                     Function<SegmentedObject, Image> extractFunction;
                     Selection parentSelection;
-                    Map<SegmentedObject, RegionPopulation> resampledPop;
+                    Map<Integer, Map<SegmentedObject, RegionPopulation>> curResamplePops;
                     Selection selFilter = feature.getSelectionFilter()==null?null:mDAO.getSelectionDAO().getOrCreate(feature.getSelectionFilter(), false);
                     if (selFilter != null) {
                         Set<SegmentedObject> allElements = selFilter.hasElementsAt(position) ? selFilter.getElements(position) : Collections.emptySet();
-                        resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
+                        Map<SegmentedObject, RegionPopulation> resampledPop = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(parent -> {
                             List<Region> childrenFiltered = allElements.stream().filter(o -> o.getParent(parent.getStructureIdx()).equals(parent)).map(SegmentedObject::getRegion).collect(Collectors.toList());
                             logger.debug("extract: parent: {} children: {}", parent, childrenFiltered.stream().mapToInt(r -> r.getLabel()-1).toArray());
                             RegionPopulation p = new RegionPopulation(childrenFiltered, parent.getMaskProperties());
                             return resamplePopulation(p, dimensions, eraseTouchingContours.test(feature.getObjectClass()));
+                        });
+                        curResamplePops = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(oc -> {
+                            if (oc == feature.getObjectClass()) return resampledPop;
+                            else return resampledPops.get(oc);
                         });
                         if (oneEntryPerInstance) {
                             Set<SegmentedObject> allParents = sel.hasElementsAt(position) ? sel.getElements(position) : Collections.emptySet();
@@ -100,11 +104,11 @@ public class ExtractDatasetUtil {
                         }
                     }
                     else {
-                        resampledPop = resampledPops.get(feature.getObjectClass());
+                        curResamplePops = resampledPops;
                         parentSelection = sel;
                     }
                     if (!parentSelection.isEmpty()) {
-                        extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), resampledPop, dimensions);
+                        extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), curResamplePops, dimensions);
                         boolean ZtoBatch = feature.getFeatureExtractor().getExtractZDim() == Task.ExtractZAxis.BATCH;
                         extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, saveLabels, saveLabels, dimensions);
                         saveLabels = false;
