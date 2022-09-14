@@ -30,7 +30,6 @@ import bacmman.ui.GUI;
 import bacmman.ui.gui.Utils;
 import bacmman.utils.ArrayUtil;
 import ij.ImagePlus;
-import ij.ImageStack;
 import ij.VirtualStack;
 import ij.measure.Calibration;
 import ij.process.ImageProcessor;
@@ -39,7 +38,6 @@ import bacmman.image.Image;
 import ij.process.ImageStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sc.fiji.i5d.I5DVirtualStack;
 import sc.fiji.i5d.Image5D;
 import sc.fiji.i5d.cal.ChannelDisplayProperties;
 
@@ -206,7 +204,7 @@ public class IJVirtualStack extends VirtualStack {
         HyperStack interactiveImage = null;
         if (interactive) interactiveImage = (HyperStack)ImageWindowManagerFactory.getImageManager().getImageTrackObjectInterface(parentTrack, interactiveOC, InteractiveImageKey.TYPE.HYPERSTACK);
         if (interactiveImage==null) {
-            KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
+            KymographFactory.KymographData data = KymographFactory.generateHyperstackData(parentTrack, true);
             interactiveImage = new HyperStack(data, interactiveOC, false);
         }
         return openVirtual(parentTrack, interactiveImage, interactive, objectClassIdx, image5D);

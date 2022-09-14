@@ -2,8 +2,6 @@ package bacmman.image.io;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
-import bacmman.processing.Resize;
-import bacmman.processing.ResizeUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +36,7 @@ public class KymographFactory {
 
     }
 
-    public static KymographData generateKymographDataTime(List<SegmentedObject> parentTrack, boolean middle) {
+    public static KymographData generateHyperstackData(List<SegmentedObject> parentTrack, boolean middle) {
         int maxParentSizeZ = parentTrack.stream().mapToInt(p->p.getBounds().sizeZ()).max().getAsInt();
         BoundingBox[] trackOffset =  parentTrack.stream().map(p-> new SimpleBoundingBox(p.getBounds()).resetOffset()).toArray(l -> new BoundingBox[l]);
         int maxParentSizeX = parentTrack.stream().mapToInt(p->p.getBounds().sizeX()).max().getAsInt();

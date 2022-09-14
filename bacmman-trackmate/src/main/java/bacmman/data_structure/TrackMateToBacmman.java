@@ -1,15 +1,10 @@
 package bacmman.data_structure;
 
-import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ObjectDAO;
-import bacmman.data_structure.region_container.RegionContainerIjRoi;
 import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.image.*;
 import bacmman.image.io.KymographFactory;
-import bacmman.image.wrappers.ImgLib2ImageWrapper;
-import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 import fiji.plugin.trackmate.Spot;
@@ -18,11 +13,6 @@ import fiji.plugin.trackmate.SpotRoi;
 import fiji.plugin.trackmate.TrackModel;
 import ij.gui.PolygonRoi;
 import ij.gui.Roi;
-import ij.process.FloatPolygon;
-import net.imagej.ImgPlus;
-import net.imglib2.IterableInterval;
-import net.imglib2.RandomAccessibleInterval;
-import net.imglib2.type.logic.BoolType;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
 import org.slf4j.Logger;
@@ -35,17 +25,15 @@ import java.math.RoundingMode;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
-import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 public class TrackMateToBacmman {
     public static final Logger logger = LoggerFactory.getLogger(TrackMateToBacmman.class);
     public static List<BoundingBox> getDefaultOffset(List<SegmentedObject> parentTrack) {
-        KymographFactory.KymographData data = KymographFactory.generateKymographDataTime(parentTrack, true);
+        KymographFactory.KymographData data = KymographFactory.generateHyperstackData(parentTrack, true);
         return Arrays.asList(data.trackOffset);
     }
     public static void storeTrackMateObjects(SpotCollection tmSpots, TrackModel tracks, List<SegmentedObject> parentTrack, int objectClassIdx, boolean overwrite, boolean trackOnly, boolean matchWithOverlap, double matchThreshold, ProgressCallback progress) {

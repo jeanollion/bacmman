@@ -20,7 +20,6 @@ package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
-import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.io.KymographFactory;
 import bacmman.ui.GUI;
 import bacmman.core.DefaultWorker;
@@ -46,7 +45,7 @@ import java.util.stream.IntStream;
 public abstract class Kymograph extends InteractiveImage {
     public static final Logger logger = LoggerFactory.getLogger(Kymograph.class);
     public static Kymograph generateKymograph(List<SegmentedObject> parentTrack, int childStructureIdx, boolean hyperStack) {
-        if (hyperStack) return new HyperStack(KymographFactory.generateKymographDataTime(parentTrack, true), childStructureIdx, true);
+        if (hyperStack) return new HyperStack(KymographFactory.generateHyperstackData(parentTrack, true), childStructureIdx, true);
         KymographFactory.KymographData data = KymographFactory.generateKymographData(parentTrack, false, INTERVAL_PIX);
         switch (data.direction) {
             case X:

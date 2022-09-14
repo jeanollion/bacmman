@@ -27,9 +27,7 @@ import bacmman.core.Task;
 import bacmman.data_structure.*;
 import bacmman.data_structure.image_container.MemoryImageContainer;
 import bacmman.data_structure.input_image.InputImagesImpl;
-import bacmman.image.BoundingBox;
-import bacmman.image.SimpleBoundingBox;
-import bacmman.image.TypeConverter;
+import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.ProcessingPipelineWithSegmenter;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
@@ -38,7 +36,6 @@ import bacmman.ui.gui.image_interaction.*;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
-import bacmman.image.Image;
 import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
 import bacmman.utils.*;
 
@@ -586,10 +583,8 @@ public class PluginConfigurationUtils {
     }
     public static Pair<InteractiveImage, List<Image>> buildIntermediateImages(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
         if (stores.isEmpty()) return null;
-        //int childStructure = stores.stream().findAny().get().parent.getStructureIdx();
-
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
-        List<SegmentedObject> parents = stores.stream().map(s->(SegmentedObject)(s.parent).getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
+        List<SegmentedObject> parents = stores.stream().map(s->s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.ensureContinuousTrack(parents);
         Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, false);
         List<Image> images = new ArrayList<>();
@@ -598,7 +593,7 @@ public class PluginConfigurationUtils {
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             Image im = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).findAny().get();
             Image image = ioi.generateEmptyImage(name, Image.createEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth), new SimpleBoundingBox(0, 0, 0, 0, 0, maxZ-1).getBlankMask((float)im.getScaleXY(), (float)im.getScaleZ()))).setName(name);
-            stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset((SegmentedObject)s.parent)));
+            stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent)));
             images.add(image);
         });
         // get order for each image (all images are not contained in all stores) & store
@@ -610,16 +605,19 @@ public class PluginConfigurationUtils {
     public static Map<String, HyperStack> buildIntermediateImagesHyperStack(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
         if (stores.isEmpty()) return null;
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
-        List<SegmentedObject> parents = stores.stream().map(s-> (s.parent).getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
+        List<SegmentedObject> parents = stores.stream().map(s-> s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.ensureContinuousTrack(parents);
         return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
-            Kymograph ioi = Kymograph.generateKymograph(parents, childOCIdx, true);
+            HyperStack ioi = (HyperStack) Kymograph.generateKymograph(parents, childOCIdx, true);
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
-            int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
-            ioi.setImageSupplier( (idx, oc, raw) -> stores.stream().filter(s -> s.parent.getFrame() == parents.get(idx).getFrame() && s.images.containsKey(name)).map(s -> TypeConverter.convert(s.images.get(name), maxBitDepth)).findFirst().orElse(null));
+            ioi.setImageSupplier( (idx, oc, raw) -> {
+                Image image = ioi.generateEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth));
+                stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent)));
+                return image;
+            });
             ioi.setIsSingleChannel(true);
             ioi.setName(name);
-            return (HyperStack)ioi;
+            return ioi;
         }));
     }
 

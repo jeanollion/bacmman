@@ -978,13 +978,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     public SegmentedObject getFirstCommonParent(SegmentedObject other) {
         if (other==null) return null;
         SegmentedObject object1 = this;
-        
-        while (object1.getStructureIdx()>=0 && other.getStructureIdx()>=0) {
+        while (object1.getStructureIdx()>=0 || other.getStructureIdx()>=0) {
             if (object1.getStructureIdx()>other.getStructureIdx()) object1 = object1.getParent();
             else if (object1.getStructureIdx()<other.getStructureIdx()) other = other.getParent();
             else if (object1==other) return object1;
             else return null;
         }
+        if (other.equals(object1)) return object1;
         return null;
     }
     void flushImages() {

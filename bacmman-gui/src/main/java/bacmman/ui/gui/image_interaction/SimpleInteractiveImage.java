@@ -152,9 +152,7 @@ public class SimpleInteractiveImage extends InteractiveImage {
         if (i >= 0) {
             return offsets[i];
         } else {
-            SegmentedObject p = object.getFirstCommonParent(parent); // do not display objects that don't have a common parent not root
-            if (p!=null && !p.isRoot()) return object.getRelativeBoundingBox(parent).translate(additionalOffset);
-            else return null;
+            return object.getRelativeBoundingBox(parent).translate(additionalOffset);
         }
     }
 
