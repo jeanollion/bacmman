@@ -54,21 +54,24 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         if (model==null) {
             logger.debug("GPU options: visible device list {}, per process memory fraction: {}, allow growth: {}" ,Core.getCore().tfVisibleDeviceList, Core.getCore().tfPerProcessGpuMemoryFraction, Core.getCore().tfSetAllowGrowth);
             // TO SET THE GPU : https://github.com/tensorflow/java/issues/443
-            GPUOptions gpu = GPUOptions.newBuilder() //
-                    .setVisibleDeviceList(Core.getCore().tfVisibleDeviceList)
-                    .setPerProcessGpuMemoryFraction(Core.getCore().tfPerProcessGpuMemoryFraction) //
-                    .setAllowGrowth(Core.getCore().tfSetAllowGrowth) //
-                    .build(); //
-            ConfigProto configProto = ConfigProto.newBuilder() //
-                    .setAllowSoftPlacement(true) //
-                    .setLogDevicePlacement(true) //
-                    .mergeGpuOptions(gpu) //
-                    .build(); //
-            model = SavedModelBundle
+            ConfigProto configProto = null;
+            if (Core.getCore().tfVisibleDeviceList!=null && Core.getCore().tfVisibleDeviceList.length()>0) {
+                GPUOptions gpu = GPUOptions.newBuilder() //
+                        .setVisibleDeviceList(Core.getCore().tfVisibleDeviceList)
+                        .setPerProcessGpuMemoryFraction(Core.getCore().tfPerProcessGpuMemoryFraction) //
+                        .setAllowGrowth(Core.getCore().tfSetAllowGrowth) //
+                        .build(); //
+                configProto = ConfigProto.newBuilder() //
+                        .setAllowSoftPlacement(true) //
+                        .setLogDevicePlacement(true) //
+                        .mergeGpuOptions(gpu) //
+                        .build(); //
+            }
+            SavedModelBundle.Loader loader = SavedModelBundle
                     .loader(modelFile.getModelFile().getAbsolutePath())
-                    .withTags("serve")
-                    .withConfigProto(configProto)
-                    .load();
+                    .withTags("serve");
+            if (configProto!=null) loader = loader.withConfigProto(configProto);
+            model = loader.load();
             //model = SavedModelBundle.load(modelFile.getModelFile().getAbsolutePath(), "serve");
             Signature s = model.function("serving_default").signature();
             //System.setOut(stdout);
@@ -171,7 +174,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         long wrapTime = 0, predictTime = 0;
         int increment = (int)Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) );
         for (int idx = 0; idx<nSamples; idx+=increment) {
-            int idxMax = Math.min(idx+batchSize, nSamples);
+            int idxMax = Math.min(idx+increment, nSamples);
             logger.debug("batch: [{};{})", idx, idxMax);
             long t0 = System.currentTimeMillis();
             predict(inputNC, idx, idxMax, bufferContainer, res);
