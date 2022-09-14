@@ -27,14 +27,15 @@ import java.util.stream.IntStream;
 public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<UnetSegmenter>, TestableProcessingPlugin, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
-    BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 0.1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
-    BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
+    BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 5, 0.99, 0.00001, 2 ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Decrease to reduce over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if I is lower than this threshold");
+    BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 5, 0.75, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setEmphasized(true).setHint("Region with size (in pixels) inferior to this value will be erased");
-    BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 4, 1, 0, null ).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
+    BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 5, 1, 0, null ).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
 
     BooleanParameter predict = new BooleanParameter("Predict Probability", true).setHint("If true probability map will be computed otherwise prefiltered images will be considered as probability map.");
-    ConditionalParameter<Boolean> predictCond = new ConditionalParameter<>(predict).setEmphasized(true).setActionParameters(true, dlEngine, dlResample);
+    ConditionalParameter<Boolean> predictCond = new ConditionalParameter<>(predict).setEmphasized(true)
+            .setActionParameters(true, dlEngine, dlResample, channel);
 
     Parameter[] parameters = new Parameter[]{predictCond, channel, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
 
@@ -46,7 +47,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new PredicateMask(proba, minimalProba.getValue().doubleValue(), true, false);
         mask = PredicateMask.and(mask, parent.getMask());
-        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
+        SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false, 1.5, minMaxProbaValue.getDoubleValue(), false)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
         if (stores!=null) imageDisp.accept(sm.drawInterfaceValues(popWS).setName("Foreground detection: Interface Values"));
