@@ -25,6 +25,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
     BoundedNumberParameter nFrames = new BoundedNumberParameter("Frame Number", 0, 1, 1, null).setHint("Defines the neighborhood size in time axis: how many previous (and next) frames are concatenated to current frame");
     BooleanParameter averagePredictions = new BooleanParameter("Average Prediction", true).setHint("If true, prediction are averaged with predictions from neighboring frames");
     ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue() > 1);
+    BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
 
     ConditionalParameter<Boolean> timelapseCond = new ConditionalParameter<>(timelapse).setActionParameters(true, next, nFrames, averagePredictions, frameSubsampling);
 
@@ -54,7 +55,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
             Image[][][] inputSub = new Image[1][nFrames][1];
             for (int j = 0; j<nFrames; ++j) inputSub[0][j][0] = inputINC[0][j+i][0];
             Image[][][] predictionONC =dlResample.predict(engine, inputSub);
-            Image[] pred = ResizeUtils.getChannel(predictionONC[0], 0);
+            Image[] pred = ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
             System.arraycopy(pred, 0, res, i, pred.length);
         }
         return res;
@@ -80,7 +81,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{dlEngine, dlResample, batchSize, timelapseCond};
+        return new Parameter[]{dlEngine, dlResample, batchSize, channel, timelapseCond};
     }
 
     @Override

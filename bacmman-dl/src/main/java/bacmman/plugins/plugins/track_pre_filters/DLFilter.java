@@ -20,6 +20,7 @@ public class DLFilter implements TrackPreFilter, Hint {
     GroupParameter grp = new GroupParameter("Input", oc, type);
     SimpleListParameter<GroupParameter> inputs = new SimpleListParameter<>("Additional Inputs", grp).setHint("Total input number must correspond to model inputs");//.addValidationFunction(list -> list.getChildCount()+1 == engineNumIn());
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).addInputNumberValidation(()->1+inputs.getChildCount()).setEmphasized(true);
+    BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
 
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
@@ -39,7 +40,7 @@ public class DLFilter implements TrackPreFilter, Hint {
         if (inputINC.length!=numInputs) throw new IllegalArgumentException("Model expects: "+numInputs+" inputs but were "+inputINC.length+" were given");
 
         Image[][][] predictionONC =dlResample.predict(engine, inputINC);
-        return ResizeUtils.getChannel(predictionONC[0], 0);
+        return ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
     }
 
     @Override
@@ -77,7 +78,7 @@ public class DLFilter implements TrackPreFilter, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{dlEngine, inputs, dlResample};
+        return new Parameter[]{dlEngine, inputs, dlResample, channel};
     }
 
     @Override
