@@ -18,6 +18,7 @@
  */
 package bacmman.configuration.parameters;
 
+import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
 
 import java.util.function.Consumer;
@@ -36,7 +37,11 @@ public class ParentObjectClassParameter extends ObjectClassParameterAbstract<Par
     }
     
     public ParentObjectClassParameter(String name, int selectedStructure, int maxStructure) {
-        super(name, selectedStructure, true, false);
+        this(name, selectedStructure, maxStructure, true, false);
+    }
+
+    public ParentObjectClassParameter(String name, int selectedStructure, int maxStructure, boolean allowNoSelection, boolean multiple) {
+        super(name, selectedStructure, allowNoSelection, multiple);
         this.maxStructure=maxStructure;
     }
 
@@ -74,14 +79,37 @@ public class ParentObjectClassParameter extends ObjectClassParameterAbstract<Par
             return (s!=null) ? s.getIndex(): -1;
         };
     }
+    public static ToIntFunction<ObjectClassOrChannelParameter> firstObjectClassParameterInParents() {
+        return p->{
+            ContainerParameter<? extends Parameter, ?> parent = (ContainerParameter)p.getParent();
+            while(parent.getParent()!=null) {
+                parent = (ContainerParameter)parent.getParent();
+                for (Parameter op : parent.getChildren()) {
+                    if (op instanceof ObjectClassParameter) return ((ObjectClassParameter)op).getSelectedClassIdx();
+                }
+            }
+            return -1;
+        };
+    }
     @Override
     protected void autoConfiguration() {
         if (autoConfiguration!=null) autoConfiguration.accept(this);
-        else maxStructure = structureInParents().applyAsInt(this);
+        else {
+            maxStructure = structureInParents().applyAsInt(this);
+        }
     }
     
     public static Consumer<ParentObjectClassParameter> defaultAutoConfigurationParent() {
         return (p)-> p.setSelectedClassIdx(structureInParents().applyAsInt(p));
     }
-    
+    public static Consumer<ParentObjectClassParameter> autoconfigStructureInParentOtherwiseAll() {
+        return p -> {
+            int max = structureInParents().applyAsInt(p);
+            if (max<0) {
+                Experiment xp = ParameterUtils.getExperiment(p);
+                if (xp!=null) max = xp.getStructureCount();
+            }
+            p.setMaxStructureIdx(max);
+        };
+    }
 }
