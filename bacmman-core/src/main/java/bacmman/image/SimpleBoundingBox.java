@@ -135,10 +135,12 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
     }
     
     public int getSizeXY() {
+        if (xMax<xMin || yMax<yMin) return 0;
         return (xMax-xMin+1) * (yMax-yMin+1);
     }
     
     public int getSizeXYZ() {
+        if (xMax<xMin || yMax<yMin || zMax<zMin) return 0;
         return (xMax-xMin+1) * (yMax-yMin+1) * (zMax-zMin+1);
     }
     

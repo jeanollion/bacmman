@@ -72,7 +72,7 @@ public class FillHoles2D {
         for (Region o : pop.getRegions()) {
             o.ensureMaskIsImageInteger();
             fillHoles(o.getMaskAsImageInteger(), 127);
-            o.clearVoxels(); // no need to reset mask
+            o.setMask(o.getMask()); // set mask to reset contours,voxels, bounds etc...
         }
         pop.relabel(true);
     }
