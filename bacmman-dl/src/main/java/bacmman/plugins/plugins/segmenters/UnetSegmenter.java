@@ -13,8 +13,10 @@ import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
+import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -24,13 +26,17 @@ import java.util.stream.IntStream;
 
 public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<UnetSegmenter>, TestableProcessingPlugin, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
+    BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 0.1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
     BoundedNumberParameter minimalProba = new BoundedNumberParameter("Minimal Probability", 3, 0.5, 0.001, 2 ).setEmphasized(true).setHint("Foreground pixels are defined where predicted probability is greater than this threshold");
     BoundedNumberParameter minimalSize = new BoundedNumberParameter("Minimal Size", 0, 40, 1, null ).setEmphasized(true).setHint("Region with size (in pixels) inferior to this value will be erased");
-    BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 4, 2, 1, null ).setEmphasized(true).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
+    BoundedNumberParameter minMaxProbaValue = new BoundedNumberParameter("Minimal Max Proba value", 4, 1, 0, null ).setHint("Cells with maximal probability value inferior to this parameter will be removed").setEmphasized(true);
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
 
-    Parameter[] parameters = new Parameter[]{dlEngine, dlResample, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
+    BooleanParameter predict = new BooleanParameter("Predict Probability", true).setHint("If true probability map will be computed otherwise prefiltered images will be considered as probability map.");
+    ConditionalParameter<Boolean> predictCond = new ConditionalParameter<>(predict).setEmphasized(true).setActionParameters(true, dlEngine, dlResample);
+
+    Parameter[] parameters = new Parameter[]{predictCond, channel, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
@@ -39,6 +45,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         // perform watershed on probability map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new PredicateMask(proba, minimalProba.getValue().doubleValue(), true, false);
+        mask = PredicateMask.and(mask, parent.getMask());
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
@@ -48,7 +55,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         double minMaxProba = this.minMaxProbaValue.getValue().doubleValue();
         double minProba = this.minimalProba.getValue().doubleValue();
         int minSize = this.minimalSize.getValue().intValue();
-        res.filter(object -> object.size()>minSize && (minMaxProba < minProba || BasicMeasurements.getMaxValue(object, proba)>minMaxProba));
+        res.filter(object -> object.size()>minSize && (minMaxProba < minProba || BasicMeasurements.getMaxValue(object, proba)>=minMaxProba));
         // sort objects along largest dimension (for microchannels)
         if (input.sizeY()>input.sizeX()) {
             res.getRegions().sort(ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
@@ -61,7 +68,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         if (segmentedImageMap!=null) return segmentedImageMap.get(parent);
         // perform prediction on single image
         logger.warn("Segmenter not configured! Prediction will be performed one by one, performance might be reduced.");
-        return predict(input)[0];
+        return predict.getSelected() ? predict(input)[0] : input;
     }
 
     private Image[] predict(Image... inputImages) {
@@ -70,14 +77,19 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         Image[][][] input = new Image[1][inputImages.length][1];
         for (int i = 0; i<inputImages.length; ++i) input[0][i][0] = inputImages[i];
         Image[][][] predictionONC = dlResample.predict(engine, new Image[][][]{{inputImages}});
-        return ResizeUtils.getChannel(predictionONC[0], 0);
+        return ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
     }
 
     Map<SegmentedObject, Image> segmentedImageMap;
     @Override
     public TrackConfigurer<UnetSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
-        Image[] out = predict(in);
+        Image[] out;
+        if (!predict.getSelected()) out = in;
+        else {
+            if (Utils.objectsAllHaveSameProperty(Arrays.asList(in), Image::sameDimensions)) out = predict(in);
+            else out = Arrays.stream(in).map(this::predict).map(i -> i[0]).toArray(Image[]::new);
+        }
         Map<SegmentedObject, Image> segM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> out[i]));
         return (p, unetSegmenter) -> unetSegmenter.segmentedImageMap = segM;
     }
@@ -104,7 +116,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     }
 
     protected SplitAndMergeEDM initSplitAndMerge(Image input) {
-        Image probaMap = predict(input)[0];
+        Image probaMap = predict.getSelected() ? predict(input)[0] : input;
         return (SplitAndMergeEDM)new SplitAndMergeEDM(probaMap, probaMap, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN)
                 .setMapsProperties(false, false);
     }
@@ -117,7 +129,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     }
     @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
         List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
-        Image probaMap = predict(input)[0];
+        Image probaMap = predict.getSelected() ? predict(input)[0] : input;
         PredicateMask mask = new PredicateMask(probaMap, minimalProba.getValue().doubleValue(), true, true);
         mask = PredicateMask.and(mask, segmentationMask);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
@@ -129,7 +141,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
     // Object Splitter implementation
     @Override
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object) {
-        return splitObject(input, parent, structureIdx, object,initSplitAndMerge(input) );
+        return splitObject(input, parent, structureIdx, object, initSplitAndMerge(input) );
     }
 
     public RegionPopulation splitObject(Image input, SegmentedObject parent, int structureIdx, Region object, SplitAndMergeEDM sm) {
