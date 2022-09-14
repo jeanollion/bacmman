@@ -24,6 +24,8 @@ import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.function.*;
 import java.util.stream.Collectors;
@@ -197,21 +199,21 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
     public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory, boolean firstWindow) {
         logger.debug("tracking : test mode: {}", stores != null);
-        if (stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+        if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
-        if (stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+        if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dx.forEach((o, im) -> stores.get(o).addIntermediateImage("dx", im));
-        if (stores != null && prediction.noPrev != null && this.stores.get(parentTrack.get(0)).isExpertMode())
+        if (prediction!=null && stores != null && prediction.noPrev != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.noPrev.forEach((o, im) -> stores.get(o).addIntermediateImage("noPrevMap", im));
         Map<Region, SegmentedObject> regionMapObjects = parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).collect(Collectors.toMap(SegmentedObject::getRegion, o -> o));
         Map<SegmentedObject, Double> dyMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dy.get(o.getParent()), 0.5)[0],
+                prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dy.get(o.getParent()), 0.5)[0],
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
         Map<SegmentedObject, Double> dxMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dx.get(o.getParent()), 0.5)[0],
+                prediction==null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dx.get(o.getParent()), 0.5)[0],
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
         double divThld = 0.9;
@@ -219,13 +221,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
                 SegmentedObject::getRegion,
                 regionMapObjects::get,
-                o -> prediction.division != null && BasicMeasurements.getQuantileValue(o.getRegion(), prediction.division.get(o.getParent()), 0.5)[0] >= divThld,
+                prediction==null ? o->false : o -> prediction.division != null && BasicMeasurements.getQuantileValue(o.getRegion(), prediction.division.get(o.getParent()), 0.5)[0] >= divThld,
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
         double noPrevThld = 0.9;
         Map<SegmentedObject, Boolean> noPrevMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
-                o -> prediction.noPrev != null && BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noPrev.get(o.getParent()), 0.5)[0] >= noPrevThld,
+                prediction==null ? o->false : o -> prediction.noPrev != null && BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noPrev.get(o.getParent()), 0.5)[0] >= noPrevThld,
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
 
@@ -672,9 +674,17 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS; // TODO To implement multiple interval: manage discontinuities in parent track: do not average & do not link @ discontinuities and
     }
 
+    /**
+     *
+     * @param objectClassIdx
+     * @param parentTrack parent track. If all pre-filtered images are non-null, they will be considered as watershed map for post-processing. Otherwise post-processing will not be used.
+     * @param editor
+     */
     @Override
-    public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
-        throw new RuntimeException("Operation not supported");
+    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
+        List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, null, editor, null, true);
+        PredictionResults predictions = new PredictionResults().setEdm(parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getPreFilteredImage(objectClassIdx))));
+        if (predictions.edm.values().stream().allMatch(Objects::nonNull)) postFilterTracking(objectClassIdx, parentTrack, additionalLinks, predictions, editor, getFactory(objectClassIdx));
     }
 
     @Override
@@ -1208,6 +1218,16 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             if (this.noPrev == null) this.noPrev = noPrev;
             else this.noPrev.putAll(noPrev);
             return this;
+        }
+    }
+
+    private static SegmentedObjectFactory getFactory(int objectClassIdx) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
         }
     }
 }
