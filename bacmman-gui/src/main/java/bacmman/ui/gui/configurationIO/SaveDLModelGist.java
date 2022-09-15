@@ -5,6 +5,7 @@ import bacmman.core.DefaultWorker;
 import bacmman.core.GithubGateway;
 import bacmman.core.ProgressCallback;
 import bacmman.github.gist.*;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.Pair;
@@ -187,6 +188,7 @@ public class SaveDLModelGist {
                     try {
                         uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", a, true, id -> {
                             setURL(GIST_BASE_URL + id);
+                            GUI.log("Model stored @ id = " + id);
                             uploader = null;
                         }, pcb);
                     } catch (IOException ex) {
@@ -267,7 +269,9 @@ public class SaveDLModelGist {
     }
 
     public void setEnableButton() {
-        boolean enabled = name.getText().length() > 0 && folder.getText().length() > 0 && url.getText().length() > 0;
+        boolean enabled = Utils.isValid(name.getText(), true)
+                && Utils.isValid(folder.getText(), false) && !folder.getText().contains("_")
+                && url.getText().length() > 0;
         OK.setEnabled(enabled);
     }
 
