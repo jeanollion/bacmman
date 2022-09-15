@@ -563,7 +563,10 @@ public abstract class ImageWindowManager<I, U, V> {
                 return null;
             }
             // create imageObjectInterface
-            if (ref instanceof Kymograph) i = this.getImageTrackObjectInterface((ref).parents, structureIdx, type);
+            if (ref instanceof Kymograph) {
+                i = this.getImageTrackObjectInterface((ref).parents, structureIdx, type);
+                if (ref instanceof HyperStack) ((HyperStack)i).setIdx(((HyperStack)ref).getIdx());
+            }
             else i = this.getImageObjectInterface(ref.parents.get(0), structureIdx, true);
             if (ref.getName().length()>0) {
                 imageObjectInterfaces.remove(i.getKey());

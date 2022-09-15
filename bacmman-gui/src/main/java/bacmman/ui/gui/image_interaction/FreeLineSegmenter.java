@@ -72,7 +72,6 @@ public class FreeLineSegmenter {
             logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
             return createSegmentedObject(r, parent, objectClassIdx, saveToDB);
-
         } else {
             Region rOld = pop.getRegions().stream().filter(rr->rr.getLabel()==modifyObjectLabel).findAny().get();
             Region r = rOld.duplicate();

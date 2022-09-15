@@ -259,7 +259,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     List<Pair<SegmentedObject, BoundingBox>> selectedParentObjects = new ArrayList<>();
                     Rectangle rect = r.getBounds();
                     MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice());
-                    getImageObjectInterface(image, parentStructure).addClickedObjects(selection, selectedParentObjects);
+                    InteractiveImage ioi = getImageObjectInterface(image, parentStructure);
+                    ioi.addClickedObjects(selection, selectedParentObjects);
                     if (selectedParentObjects.size()>1) {
                         logger.debug("selection is over several parents: {}", selectedParentObjects.size());
                         return;
