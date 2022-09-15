@@ -1,6 +1,7 @@
 package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.*;
+import bacmman.data_structure.ExperimentStructure;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -41,7 +42,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        Image proba = getSegmentedImage(input, parent);
+        Image proba = getSegmentedImage(input, objectClassIdx, parent);
         if (stores!=null) stores.get(parent).addIntermediateImage("SegModelOutput", proba);
         // perform watershed on probability map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
@@ -65,8 +66,18 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
         return res;
     }
 
-    private Image getSegmentedImage(Image input, SegmentedObject parent) {
-        if (segmentedImageMap!=null) return segmentedImageMap.get(parent);
+    private Image getSegmentedImage(Image input, int objectClassIdx, SegmentedObject parent) {
+        if (segmentedImageMap!=null) {
+            if (segmentedImageMap.containsKey(parent)) return segmentedImageMap.get(parent);
+            else { // test if segmentation parent differs
+                ExperimentStructure xp = parent.getExperimentStructure();
+                if (xp.getSegmentationParentObjectClassIdx(objectClassIdx) != xp.getParentObjectClassIdx(objectClassIdx)) {
+                    Image res = segmentedImageMap.get(parent.getParent(xp.getParentObjectClassIdx(objectClassIdx)));
+                    res = res.cropWithOffset(parent.is2D() ? new MutableBoundingBox(parent.getBounds()).copyZ(input) : parent.getBounds());
+                    return res;
+                }
+            }
+        }
         // perform prediction on single image
         logger.warn("Segmenter not configured! Prediction will be performed one by one, performance might be reduced.");
         return predict.getSelected() ? predict(input)[0] : input;
