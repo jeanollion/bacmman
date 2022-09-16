@@ -604,6 +604,7 @@ public class PluginConfigurationUtils {
     }
     public static Map<String, HyperStack> buildIntermediateImagesHyperStack(Collection<TestDataStore> stores, int parentOCIdx, int childOCIdx) {
         if (stores.isEmpty()) return null;
+        Map<SegmentedObject, List<TestDataStore>> parentMapStore = stores.stream().collect(Collectors.groupingBy(s->s.parent.getParent(parentOCIdx))); // in case segmentation parent differs from parent object class
         Set<String> allImageNames = stores.stream().map(s->s.images.keySet()).flatMap(Set::stream).collect(Collectors.toSet());
         List<SegmentedObject> parents = stores.stream().map(s-> s.parent.getParent(parentOCIdx)).distinct().sorted().collect(Collectors.toList());
         SegmentedObjectUtils.ensureContinuousTrack(parents);
@@ -612,7 +613,8 @@ public class PluginConfigurationUtils {
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
             ioi.setImageSupplier( (idx, oc, raw) -> {
                 Image image = ioi.generateEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth));
-                stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent)));
+                List<TestDataStore> currentStores = parentMapStore.get(parents.get(idx));
+                if (currentStores!=null) currentStores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent)));
                 return image;
             });
             ioi.setIsSingleChannel(true);
