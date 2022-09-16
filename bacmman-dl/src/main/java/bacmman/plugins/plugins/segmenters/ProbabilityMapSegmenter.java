@@ -25,7 +25,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<UnetSegmenter>, TestableProcessingPlugin, Hint {
+public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 5, 0.99, 0.00001, 2 ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Decrease to reduce over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if I is lower than this threshold");
@@ -94,7 +94,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
 
     Map<SegmentedObject, Image> segmentedImageMap;
     @Override
-    public TrackConfigurer<UnetSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
+    public TrackConfigurer<ProbabilityMapSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
         Image[] out;
         if (!predict.getSelected()) out = in;
@@ -103,7 +103,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
             else out = Arrays.stream(in).map(this::predict).map(i -> i[0]).toArray(Image[]::new);
         }
         Map<SegmentedObject, Image> segM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> out[i]));
-        return (p, unetSegmenter) -> unetSegmenter.segmentedImageMap = segM;
+        return (p, probabilityMapSegmenter) -> probabilityMapSegmenter.segmentedImageMap = segM;
     }
 
     @Override
@@ -124,7 +124,7 @@ public class UnetSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectS
 
     @Override
     public String getHintText() {
-        return "This plugins run a Unet-like segmentation model, and performs a watershed transform on the predicted probability map";
+        return "Performs a watershed transform on a predicted probability map. Can optionally run a deep learning model that predicts the probability map";
     }
 
     protected SplitAndMergeEDM initSplitAndMerge(Image input) {

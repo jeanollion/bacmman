@@ -27,10 +27,10 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static bacmman.plugins.plugins.segmenters.SpotUnetSegmenter.METHOD.GAUSSIAN_FIT_ON_PREDICTION;
-import static bacmman.plugins.plugins.segmenters.SpotUnetSegmenter.METHOD.THRESHOLD_ON_PREDICTION;
+import static bacmman.plugins.plugins.segmenters.SpotProbabilityMapSegmenter.METHOD.GAUSSIAN_FIT_ON_PREDICTION;
+import static bacmman.plugins.plugins.segmenters.SpotProbabilityMapSegmenter.METHOD.THRESHOLD_ON_PREDICTION;
 
-public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetSegmenter>, TestableProcessingPlugin, Hint {
+public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable<SpotProbabilityMapSegmenter>, TestableProcessingPlugin, Hint {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(2).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     ParentObjectClassParameter bacteriaObjectClass = new ParentObjectClassParameter("Bacteria");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 3, 1.34, 1, null ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Increase to limit over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if 1/I is lower than this threshold");
@@ -168,7 +168,7 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
 
     Map<SegmentedObject, Image> segmentedImageMap;
     @Override
-    public TrackConfigurer<SpotUnetSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
+    public TrackConfigurer<SpotProbabilityMapSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
         Image[] bactMask = parentTrack.stream().map(p->getBactMask(p, bacteriaObjectClass.getSelectedClassIdx())).toArray(Image[]::new);
         Image[] out = predict(in, bactMask);
@@ -206,6 +206,6 @@ public class SpotUnetSegmenter implements Segmenter, TrackConfigurable<SpotUnetS
 
     @Override
     public String getHintText() {
-        return "This plugins run a Unet-like segmentation model, and performs a watershed transform on the predicted probability map";
+        return "Performs a watershed transform on a predicted probability map. Can optionally run a deep learning model that predicts the probability map";
     }
 }
