@@ -16,6 +16,10 @@ import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.Utils;
 import bacmman.utils.geom.Point;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -24,8 +28,10 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
-public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint {
+public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerge, ObjectSplitter, ManualSegmenter, TrackConfigurable<ProbabilityMapSegmenter>, TestableProcessingPlugin, Hint, PluginWithLegacyInitialization {
+    public final static Logger logger = LoggerFactory.getLogger(ProbabilityMapSegmenter.class);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("model", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Model for region segmentation. <br />Input: grayscale image with values in range [0;1]. <br />Output: probability map of the segmented regions, with same dimensions as the input image");
     BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
     BoundedNumberParameter splitThreshold = new BoundedNumberParameter("Split Threshold", 5, 0.99, 0.00001, 2 ).setEmphasized(true).setHint("This parameter controls whether touching objects are merged or not. Decrease to reduce over-segmentation. <br />Details: Define I as the mean probability value at the interface between 2 regions. Regions are merged if I is lower than this threshold");
@@ -38,8 +44,19 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
     ConditionalParameter<Boolean> predictCond = new ConditionalParameter<>(predict).setEmphasized(true)
             .setActionParameters(true, dlEngine, dlResample, channel);
 
-    Parameter[] parameters = new Parameter[]{predictCond, channel, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
-
+    Parameter[] parameters = new Parameter[]{predictCond, splitThreshold, minimalProba, minimalSize, minMaxProbaValue};
+    @Override
+    public void legacyInit(JSONArray parameters) {
+        Stream<JSONObject> s = parameters.stream();
+        Map<String, Object> params = s.map(o->(Map.Entry)o.entrySet().iterator().next()).collect(Collectors.toMap(e -> (String) e.getKey(), Map.Entry::getValue));
+        if (params.containsKey("model")) dlEngine.initFromJSONEntry(params.get("model"));
+        if (params.containsKey("ResizeAndScale")) dlResample.initFromJSONEntry(params.get("ResizeAndScale"));
+        if (params.containsKey("model") && params.containsKey("ResizeAndScale") && params.containsKey("Split Threshold")) {
+            splitThreshold.initFromJSONEntry(params.get("Split Threshold"));
+            splitThreshold.setValue(1./splitThreshold.getDoubleValue());
+            logger.debug("legacy initialization : split threshold becomes: {}", splitThreshold.getDoubleValue());
+        }
+    }
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
         Image proba = getSegmentedImage(input, objectClassIdx, parent);

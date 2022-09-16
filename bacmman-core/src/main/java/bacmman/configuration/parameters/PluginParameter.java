@@ -29,6 +29,7 @@ import java.util.function.Supplier;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.DLengineProvider;
 import bacmman.plugins.DLengine;
+import bacmman.plugins.PluginWithLegacyInitialization;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Plugin;
@@ -67,7 +68,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         JSONObject jsonO = (JSONObject)jsonEntry;
-        setPlugin((String)jsonO.get("pluginName"));
+        T instance = setPlugin((String)jsonO.get("pluginName"));
         activated = (Boolean)jsonO.getOrDefault("activated", true);
         if (jsonO.containsKey("addParams") && additionalParameters!=null) {
             Object o = jsonO.get("addParams");
@@ -82,6 +83,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 paramSet=JSONUtils.fromJSONArrayMap(pluginParameters, (JSONArray)o);
             else paramSet=JSONUtils.fromJSON(pluginParameters, (JSONArray)o);
             if (!paramSet) logger.info("Could not initialize plugin-parameter: {} plugin: {} type: {}, #parameters: {}, JSON parameters: {}", name, this.pluginName, this.pluginType, pluginParameters, jsonO.get("params") );
+            if (instance instanceof PluginWithLegacyInitialization) ((PluginWithLegacyInitialization)instance).legacyInit((JSONArray)o);
         }
     }
     public PluginParameter(String name) {this(name, (Class<T>)Plugin.class, false);}
@@ -163,7 +165,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         if (!allowNoSelection && !isOnePluginSet()) return false;
         return super.isValid();
     }
-    public void setPlugin(String pluginName) {
+    public T setPlugin(String pluginName) {
         //System.out.println(toString()+ ": set plugin: "+pluginName+ " currentStatus: pluginSet?"+pluginSet+" plugin name: "+pluginName);
         if (pluginName==null || NO_SELECTION.equals(pluginName)) {
             this.pluginParameters=null;
@@ -175,11 +177,13 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
                 logger.info("Couldn't find plugin: {}", pluginName);
                 this.pluginName=ChoiceParameter.NO_SELECTION;
                 this.pluginParameters=null;
-                return;
+                return null;
             }
             if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             setPlugin(instance);
+            return instance;
         }
+        return null;
     }
 
     public T instantiatePlugin() {
