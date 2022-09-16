@@ -47,7 +47,11 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         // perform watershed on probability map
         Consumer<Image> imageDisp = TestableProcessingPlugin.getAddTestImageConsumer(stores, parent);
         ImageMask mask = new PredicateMask(proba, minimalProba.getValue().doubleValue(), true, false);
-        mask = PredicateMask.and(mask, parent.getMask());
+        ImageMask parentMask = parent.getMask();
+        if (!(parentMask instanceof BlankMask)) {
+            if (parent.is2D() && mask.sizeZ() > 1) parentMask = new ImageMask2D(parentMask);
+            mask = PredicateMask.and(mask, parentMask);
+        }
         SplitAndMergeEDM sm = (SplitAndMergeEDM)new SplitAndMergeEDM(proba, proba, splitThreshold.getValue().doubleValue(), SplitAndMergeEDM.INTERFACE_VALUE.MEDIAN, false, 1.5, minMaxProbaValue.getDoubleValue(), false)
                 .setMapsProperties(false, false);
         RegionPopulation popWS = sm.split(mask, 10);
