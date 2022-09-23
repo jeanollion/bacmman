@@ -20,6 +20,7 @@ import bacmman.processing.track_post_processing.TrackTreePopulation;
 import bacmman.utils.*;
 import bacmman.utils.geom.Point;
 
+import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -297,41 +298,55 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         if (stores!=null) { // set log function
             int lim = 3;
             Comparator<Pair<?, Double>> comp = Comparator.comparingDouble(p -> p.value);
-            Map<TrackingObject, List<Pair<TrackingObject, Double>>> minDist = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new ArrayList<>(lim));
+            Map<TrackingObject, List<Pair<TrackingObject, Double>>> minDistPrevToNext = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new ArrayList<>(lim));
+            Map<TrackingObject, List<Pair<TrackingObject, Double>>> minDistNextToPrev = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> new ArrayList<>(lim));
             TriConsumer<TrackingObject, TrackingObject, Double> log = (cur, next, dist) -> {
-                List<Pair<TrackingObject, Double>> dists = minDist.get(cur);
+                List<Pair<TrackingObject, Double>> dists = minDistPrevToNext.get(cur);
                 Pair<TrackingObject, Double> max = dists.stream().max(comp).orElse(null);
                 if (max==null || dists.size()<lim || dist<max.value) {
                     if (dists.size()>=lim) dists.remove(max);
                     dists.add(new Pair<>(next, dist));
                 }
+                dists = minDistNextToPrev.get(next);
+                max = dists.stream().max(comp).orElse(null);
+                if (max==null || dists.size()<lim || dist<max.value) {
+                    if (dists.size()>=lim) dists.remove(max);
+                    dists.add(new Pair<>(cur, dist));
+                }
             };
             tmi.objectSpotMap.values().forEach(o -> o.logConsumer = log);
             Function<TrackingObject, List<SegmentedObject>> getSO = o -> o.originalObjects==null ? Collections.singletonList(regionMapObjects.get(tmi.spotObjectMap.get(o)))
                     : o.originalObjects.stream().map(oo -> regionMapObjects.get(tmi.spotObjectMap.get(oo))).collect(Collectors.toList());
-            Runnable logDistances = () -> minDist.forEach((o, pl) -> {
-                pl.sort(comp);
-                int count = 0;
-                for (Pair<TrackingObject, Double> p : pl) {
-                    TrackingObject next = p.key;
-                    double d = p.value;
-                    String logString = "";
-                    List<SegmentedObject> source = getSO.apply(o);
-                    List<SegmentedObject> target = getSO.apply(next);
-                    String targetString = target.stream().map(so -> so.getRegion().getLabel()-1+"").collect( Collectors.joining( "," ) );
-
-                    for (SegmentedObject s : source) {
-                        String key_suffix=null;
-                        if (source.size()>1) {
-                            String allsource = source.stream().map(so -> so.getRegion().getLabel()-1+"").collect( Collectors.joining( "," ) );
-                            key_suffix = source.stream().map(so -> so.getRegion().getLabel()-1+"").collect( Collectors.joining( "-" ) );
-                            logString = allsource + " -> "+targetString;
-                        } else logString = "-> "+targetString;
-                        logString+=" = "+Utils.format(d, 3);
-                        s.getMeasurements().setStringValue("TrackingDist"+(key_suffix==null?"":"_"+key_suffix)+"_"+count++, logString);
+            Function<List<SegmentedObject>, String> toStringList = l -> l.stream().map(so -> so.getRegion().getLabel()-1+"").collect( Collectors.joining( "+" ) );
+            BooleanConsumer toMeasurement = prevToNext -> {
+                Map<TrackingObject, List<Pair<TrackingObject, Double>>> map = prevToNext ? minDistPrevToNext : minDistNextToPrev;
+                map.forEach((source, pl) -> {
+                    pl.sort(comp);
+                    int count = 0;
+                    for (Pair<TrackingObject, Double> p : pl) {
+                        TrackingObject target = p.key;
+                        double d = p.value;
+                        String logString = "";
+                        List<SegmentedObject> sourceL = getSO.apply(source);
+                        List<SegmentedObject> targetL = getSO.apply(target);
+                        String targetString = toStringList.apply(targetL);
+                        for (SegmentedObject s : sourceL) {
+                            String key_suffix=null;
+                            if (sourceL.size()>1) {
+                                String allsource = toStringList.apply(sourceL);
+                                key_suffix = allsource;
+                                logString = allsource + " -> "+targetString;
+                            } else logString = "-> "+targetString;
+                            logString+=" = "+Utils.format(d, 3);
+                            s.getMeasurements().setStringValue("TrackingDist"+(prevToNext?"Next":"Prev")+(key_suffix==null?"":"_"+key_suffix)+"_"+count++, logString);
+                        }
                     }
-                }
-            });
+                });
+            };
+            Runnable logDistances = () -> {
+                toMeasurement.accept(true);
+                toMeasurement.accept(false);
+            };
             if (logContainer!=null) logContainer.add(logDistances);
         }
         long t0 = System.currentTimeMillis();
