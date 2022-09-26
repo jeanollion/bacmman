@@ -47,6 +47,7 @@ import java.util.Map.Entry;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -1126,6 +1127,10 @@ public class Utils {
         if (array==null) return null;
         for (int i = 0; i<array.length; ++i) outputArray[i] = func.apply(array[i]);
         return outputArray;
+    }
+    public static <T> T[] transformInPlace(T[] array, UnaryOperator<T> func) {
+        for (int i = 0; i<array.length; ++i) array[i] = func.apply(array[i]);
+        return array;
     }
     public static <T, U> U[] transform(T[] array, Function<Integer,U[]> outputArrayCreator, Function<T, U> func) {
         if (array==null) return null;

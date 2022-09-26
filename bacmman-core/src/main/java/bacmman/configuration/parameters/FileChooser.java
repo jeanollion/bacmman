@@ -198,7 +198,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         selectedFiles = JSONUtils.fromStringArray((JSONArray)jsonEntry);
-        if (selectedFiles==null) selectedFiles=new String[0];
+        Utils.transformInPlace(selectedFiles, FileChooser::fixWindowsPath);
         // check absolute...
         if (selectedFiles.length>0) {
             boolean rel = !currentPathsAreAbsolute();
@@ -222,6 +222,10 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
             throw e;
         }
 
+    }
+    protected static String fixWindowsPath(String path) {
+        if (!Utils.isWindows()) return path.replaceAll("\\\\", File.separator);
+        else return path.replaceAll("/", File.separator);
     }
     protected  static String toAbsolutePath(Path ref, String toConvert) {
         return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
