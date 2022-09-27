@@ -66,6 +66,8 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
                         .setLogDevicePlacement(true) //
                         .mergeGpuOptions(gpu) //
                         .build(); //
+            } else {
+                configProto = ConfigProto.newBuilder().setAllowSoftPlacement(true).putDeviceCount("GPU", 0).build(); // force CPU
             }
             SavedModelBundle.Loader loader = SavedModelBundle
                     .loader(modelFile.getModelFile().getAbsolutePath())
