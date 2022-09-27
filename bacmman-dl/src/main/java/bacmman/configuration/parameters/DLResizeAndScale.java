@@ -310,6 +310,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     public Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> getNetworkInput(Image[][][] inputINC) {
         switch (getMode()) {
             case SCALE_ONLY: {
+                if (inputINC.length != this.inputScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
@@ -324,6 +325,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             }
             case RESAMPLE:
             default: {
+                if (inputINC.length != this.inputInterpAndScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputInterpAndScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Supplier<HistogramScaler>[] scalerSuppliersI = new Supplier[inputINC.length];
                 InterpolatorFactory[] interpolsI = new InterpolatorFactory[inputINC.length];
@@ -343,6 +345,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case PAD: {
+                if (inputINC.length != this.inputScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
@@ -356,6 +359,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case TILE: {
+                if (inputINC.length != this.inputScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Resize.EXPAND_MODE padding = padTiles.getSelected() ? paddingMode.getSelectedEnum() : null;
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
@@ -443,16 +447,20 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         if (!frameByFrame) {
             List<Image> allImages = ArrayUtil.flatmap(inNC).collect(Collectors.toList());
             HistogramScaler scaler = scalerSupplier.get();
-            scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-            scaler.transformInputImage(allowTransformInputImages); // input images are not modified
-            scalerMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> scaler);
+            if (scaler!=null) {
+                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+                scaler.transformInputImage(allowTransformInputImages); // input images are not modified
+            }
+            scalerMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> scaler==null ? HistogramScaler.noScaling() : scaler);
         } else {
             scalerMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(i -> {
                 HistogramScaler scaler = scalerSupplier.get();
                 List<Image> allImages = Arrays.asList(inNC[i]);
-                scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
-                scaler.transformInputImage(allowTransformInputImages); // input images are not modified
-                return scaler;
+                if (scaler!=null) {
+                    scaler.setHistogram(HistogramFactory.getHistogram(() -> Image.stream(allImages), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+                    scaler.transformInputImage(allowTransformInputImages); // input images are not modified
+                }
+                return scaler==null ? HistogramScaler.noScaling() : scaler;
             });
         }
         return scalerMap;
@@ -461,7 +469,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         int[][] shapes = ResizeUtils.getShapes(inNC, false);
         if (scalerSupplier==null) return new Triplet(inNC, shapes, null);
         Map<Integer, HistogramScaler> scalerMap = getScalerMap(inNC, scalerSupplier, scaleFrameByFrame, false);
-        Image[][] res = IntStream.range(0, inNC.length).parallel().mapToObj(i -> IntStream.range(0, inNC[i].length).mapToObj(j -> scalerMap.get(i).scale(inNC[i][j]) ).toArray(Image[]::new)).toArray(Image[][]::new);
+        Image[][] res = IntStream.range(0, inNC.length).parallel().mapToObj(i -> Arrays.stream(inNC[i]).map(image -> scalerMap.get(i).scale(image)).toArray(Image[]::new)).toArray(Image[][]::new);
         return new Triplet<>(res, shapes, scalerMap);
     }
     public static Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> scaleAndResampleInput(Image[][] inNC, InterpolatorFactory interpolation, Supplier<HistogramScaler> scalerSupplier, int[] targetImageShape, boolean scaleFrameByFrame) {

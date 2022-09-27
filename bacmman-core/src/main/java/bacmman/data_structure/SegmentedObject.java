@@ -1003,7 +1003,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
     public RegionPopulation getChildRegionPopulation(int structureIdx, boolean strictInclusion) {
         Stream<SegmentedObject> children = this.getChildren(structureIdx, strictInclusion);
         if (children==null) children = Stream.empty();
-        return new RegionPopulation(children.map(SegmentedObject::getRegion).collect(Collectors.toList()), this.getMaskProperties());
+        List<Region> regions = children.map(SegmentedObject::getRegion).collect(Collectors.toList());
+        ImageProperties ip = this.getMaskProperties();
+        if (!regions.isEmpty()) {
+            if (regions.get(0).is2D() && ip.sizeZ()>1) ip = new SimpleImageProperties(ip.sizeX(), ip.sizeY(), 1, ip.getScaleXY(), ip.getScaleZ());
+        }
+        return new RegionPopulation(regions, ip);
     }
     public RegionPopulation getChildRegionPopulation(int structureIdx) {
         return getChildRegionPopulation(structureIdx, true);
