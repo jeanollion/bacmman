@@ -843,7 +843,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                     FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r);
                     return e1.getEccentricity() < eccentricityThld ? r.getContour() : getPoles(r.getContour(), poleDist);
                 };
-                if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirected<>(getPole);
+                if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(getPole);
                 Function<Region, Set<Voxel>> getContour = contourMap == null ? getPole : r->contourMap[0].get(r);
                 return (r1, r2) -> {
                     if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int) Math.ceil(gaxMaxDist))) return false;
