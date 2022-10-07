@@ -142,6 +142,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private ChoiceParameter interactiveImageType = new ChoiceParameter("Default Interactive Image Type", new String[]{"AUTOMATIC", "KYMOGRAPH", "HYPERSTACK"}, "AUTOMATIC", false).setHint("Default Interactive image type, for testing. Automatic: determines with the aspect ratio of the parent image: for rather square images will be opened as hyperstacks");
     private ChoiceParameter hyperstackMode = new ChoiceParameter("Default Hyperstack Mode", new String[]{"HYPERSTACK", "IMAGE5D"}, "HYPERSTACK", false).setHint("If IMAGE5D is chosen, hyperstack will be open using the image 5D plugin, allowing to display color image. Note that with this mode the whole image needs to be loaded in memory");
     private BooleanParameter displayTrackEdges = new BooleanParameter("Hyperstack: display track edges", true);
+    private BooleanParameter displayCorrections = new BooleanParameter("Display manual corrections", true);
+
     private NumberParameter kymographInterval = new NumberParameter<>("Kymograph Interval", 0, 0).setHint("Interval between images, in pixels");
     private NumberParameter localZoomFactor = new BoundedNumberParameter("Local Zoom Factor", 1, 4, 2, null);
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
@@ -395,6 +397,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setDispTrackEdges.accept(displayTrackEdges);
         displayTrackEdges.addListener(setDispTrackEdges);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(displayTrackEdges, roiMenu);
+        // display manual corrections
+        PropertyUtils.setPersistent(displayCorrections, "disp_manual_corrections");
+        Consumer<BooleanParameter> setDispCorrections = b -> ImageWindowManager.displayCorrections = b.getSelected();
+        setDispTrackEdges.accept(displayCorrections);
+        displayCorrections.addListener(setDispCorrections);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(displayCorrections, roiMenu);
+
 
         // kymograph interval
         PropertyUtils.setPersistent(kymographInterval, "kymograph_interval");

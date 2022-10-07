@@ -504,7 +504,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             r =  RegionContainerIjRoi.createRoi(object.key.getMask(), object.value, !object.key.is2D());
         }
 
-        if (object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
+        if (displayCorrections && object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
             double size = TRACK_ARROW_STROKE_WIDTH*1.5;
             Point p = new Point((float)object.key.getBounds().xMean(), (float)object.key.getBounds().yMean());
             object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
@@ -634,34 +634,36 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
 
         track.stream().map(getRoi).filter(Objects::nonNull).flatMap(r -> r.values().stream()).forEach(trackRoi::add);
         // add flag when track links have been edited
-        Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
-        Consumer<Pair<SegmentedObject, BoundingBox>> addEditedArrow = object -> {
-            if (edited.test(object.key)) { // also display when segmentation is edited
-                Integer frameIdx = getFrame.apply(object.key.getFrame());
-                double size = TRACK_ARROW_STROKE_WIDTH*1.5;
-                Point p = new Point((float)object.key.getBounds().xMean(), (float)object.key.getBounds().yMean());
-                object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
-                p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
-                Arrow arrow = new Arrow(p.get(0)+size, p.get(1)+size, p.get(0), p.get(1));
-                arrow.enableSubPixelResolution();
-                arrow.setStrokeColor(trackCorrectionColor);
-                arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-                arrow.setHeadSize(size);
-                int zMin = object.value.zMin();
-                int zMax = object.value.zMax();
-                if (zMin==zMax) {
-                    arrow.setPosition(0, zMin+1, frameIdx+1);
-                    trackRoi.add(arrow);
-                } else {
-                    for (int z = zMin; z <= zMax; ++z) {
-                        Arrow a = (Arrow) arrow.clone();
-                        a.setPosition(0, z+1, frameIdx+1);
-                        trackRoi.add(a);
+        if (displayCorrections) {
+            Predicate<SegmentedObject> edited = o -> o.getAttribute(SegmentedObject.EDITED_LINK_PREV, false) || o.getAttribute(SegmentedObject.EDITED_LINK_NEXT, false);
+            Consumer<Pair<SegmentedObject, BoundingBox>> addEditedArrow = object -> {
+                if (edited.test(object.key)) { // also display when segmentation is edited
+                    Integer frameIdx = getFrame.apply(object.key.getFrame());
+                    double size = TRACK_ARROW_STROKE_WIDTH * 1.5;
+                    Point p = new Point((float) object.key.getBounds().xMean(), (float) object.key.getBounds().yMean());
+                    object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
+                    p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
+                    Arrow arrow = new Arrow(p.get(0) + size, p.get(1) + size, p.get(0), p.get(1));
+                    arrow.enableSubPixelResolution();
+                    arrow.setStrokeColor(trackCorrectionColor);
+                    arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
+                    arrow.setHeadSize(size);
+                    int zMin = object.value.zMin();
+                    int zMax = object.value.zMax();
+                    if (zMin == zMax) {
+                        arrow.setPosition(0, zMin + 1, frameIdx + 1);
+                        trackRoi.add(arrow);
+                    } else {
+                        for (int z = zMin; z <= zMax; ++z) {
+                            Arrow a = (Arrow) arrow.clone();
+                            a.setPosition(0, z + 1, frameIdx + 1);
+                            trackRoi.add(a);
+                        }
                     }
                 }
-            }
-        };
-        track.stream().forEach(addEditedArrow::accept);
+            };
+            track.stream().forEach(addEditedArrow::accept);
+        }
         // add arrow to indicate splitting
         double arrowSize = track.size()==1 ? 1.5 : 0.65;
         Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitArrow = (o1, o2, c) -> {
@@ -816,19 +818,19 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 arrow.enableSubPixelResolution();
                 arrow.setDoubleHeaded(true);
             }
-
-            boolean error = (o2!=null && o2.key.hasTrackLinkError(true, false)) || (o1.key.hasTrackLinkError(false, true));
-            boolean correction = editedNext.test(o1.key)|| (o2!=null && editedprev.test(o2.key));
-            arrow.setStrokeColor(color);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
 
             // 2D only errors -> TODO 3D also
-            if (error || correction) {
-                Color c = error ? ImageWindowManager.trackErrorColor : ImageWindowManager.trackCorrectionColor;
-                trackRoi.add(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, color));
+            if (displayCorrections) {
+                boolean error = (o2 != null && o2.key.hasTrackLinkError(true, false)) || (o1.key.hasTrackLinkError(false, true));
+                boolean correction = editedNext.test(o1.key) || (o2 != null && editedprev.test(o2.key));
+                arrow.setStrokeColor(color);
+                if (error || correction) {
+                    Color c = error ? ImageWindowManager.trackErrorColor : ImageWindowManager.trackCorrectionColor;
+                    trackRoi.add(getErrorArrow(arrow.x1, arrow.y1, arrow.x2, arrow.y2, c, color));
+                }
             }
-
             if (!trackRoi.is2D()) { // in 3D -> display on all slices between slice min & slice max
 
                 if (zMin==zMax) {
