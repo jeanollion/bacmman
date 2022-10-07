@@ -116,7 +116,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, factory, i==0, logContainers);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
             int maxF = subParentTrack.get(0).getFrame();
-            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.size() - (last ? 0 : 1));
+            logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1));
             for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
