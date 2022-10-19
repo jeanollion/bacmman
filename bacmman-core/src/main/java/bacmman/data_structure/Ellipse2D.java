@@ -316,30 +316,6 @@ public class Ellipse2D extends Region implements Analytical {
     public void merge(Region other) {
         throw new RuntimeException("Cannot perform operation on ellipse");
     }
-    @Override
-    public void draw(Image image, double value) {
-        super.draw(image, value);
-    }
-    /**
-     * Draws with a custom offset
-     * @param image its offset will be taken into account
-     * @param value
-     * @param offset will be added to the object absolute position
-     */
-    @Override
-    public void draw(Image image, double value, Offset offset) {
-        super.draw(image, value, offset);
-    }
-
-    /**
-     * Draws with a custom offset (the offset of the object and the image is not taken into account)
-     * @param image
-     * @param value
-     */
-    @Override
-    public void drawWithoutObjectOffset(Image image, double value, Offset offset) {
-        super.drawWithoutObjectOffset(image, value, offset);
-    }
 
     @Override
     public void translateToFirstPointOutsideRegionInDir(Point start, Vector normedDir) {

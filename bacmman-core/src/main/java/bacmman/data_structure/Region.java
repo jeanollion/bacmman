@@ -956,6 +956,10 @@ public class Region {
      * @param value
      */
     public void draw(Image image, double value) {
+        if (is2D() && image.sizeZ()>1) {
+            List<Image> planes = image.splitZPlanes();
+            for (Image p : planes) draw(p, value);
+        }
         boolean included = isAbsoluteLandMark() ? ( is2D() ? BoundingBox.isIncluded2D(this.getBounds(), image.getBoundingBox()): BoundingBox.isIncluded(this.getBounds(), image.getBoundingBox())) : (is2D() ? BoundingBox.isIncluded2D(this.getBounds(), image.getBoundingBox().resetOffset()) : BoundingBox.isIncluded(this.getBounds(), image.getBoundingBox().resetOffset()));
         if (voxels !=null) {
             //logger.trace("drawing from VOXELS of object: {} with label: {} on image: {} ", this, label, image);
@@ -990,6 +994,14 @@ public class Region {
      */
     public void draw(Image image, double value, Offset offset) {
         if (offset==null) offset = new SimpleOffset(0, 0, 0);
+        if (is2D() && image.sizeZ()>1) {
+            List<Image> planes = image.splitZPlanes();
+            Offset curO = offset.duplicate();
+            for (Image p : planes) {
+                draw(p, value, curO);
+                curO.translate(new SimpleOffset(0, 0, 1));
+            }
+        }
         if (voxels !=null) {
             //logger.trace("drawing from VOXELS of object: {} with value: {} on image: {} ", this, value, image);
             int offX = offset.xMin()-image.xMin();
@@ -1024,6 +1036,14 @@ public class Region {
         if (offset==null) {
             draw(image, value);
             return;
+        }
+        if (is2D() && image.sizeZ()>1) {
+            List<Image> planes = image.splitZPlanes();
+            Offset curO = offset.duplicate();
+            for (Image p : planes) {
+                draw(p, value, curO);
+                curO.translate(new SimpleOffset(0, 0, 1));
+            }
         }
         if (voxels !=null) {
             //logger.trace("drawing from VOXELS of object: {} with value: {} on image: {} ", this, value, image);
