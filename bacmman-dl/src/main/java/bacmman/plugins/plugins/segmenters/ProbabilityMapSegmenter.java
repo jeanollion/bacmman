@@ -161,9 +161,13 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         this.verboseManualSeg=verbose;
     }
     @Override public RegionPopulation manualSegment(Image input, SegmentedObject parent, ImageMask segmentationMask, int objectClassIdx, List<Point> seedsXYZ) {
-        List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
         Image probaMap = predict.getSelected() ? predict(input)[0] : input;
         PredicateMask mask = new PredicateMask(probaMap, minimalProba.getValue().doubleValue(), true, true);
+        if (probaMap.sizeZ()==1 && input.sizeZ()>1) { // handle a special case: 2D objects from a 3D image
+            segmentationMask = new ImageMask2D(segmentationMask);
+            seedsXYZ.forEach(s -> s.set(0, 2));
+        }
+        List<Region> seedObjects = RegionFactory.createSeedObjectsFromSeeds(seedsXYZ, input.sizeZ()==1, input.getScaleXY(), input.getScaleZ());
         mask = PredicateMask.and(mask, segmentationMask);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
         RegionPopulation res = WatershedTransform.watershed(probaMap, mask, seedObjects, config);
