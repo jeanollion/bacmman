@@ -109,7 +109,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         engine.init();
         Image[][][] input = new Image[1][inputImages.length][1];
         for (int i = 0; i<inputImages.length; ++i) input[0][i][0] = inputImages[i];
-        Image[][][] predictionONC = dlResample.predict(engine, new Image[][][]{{inputImages}});
+        Image[][][] predictionONC = dlResample.predict(engine, input);
         return ResizeUtils.getChannel(predictionONC[0], channel.getIntValue());
     }
 
