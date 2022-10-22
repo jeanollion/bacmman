@@ -14,7 +14,7 @@
         <javacpp.platform>linux-x86_64</javacpp.platform>
 
         <!--javacpp.platform.extension></javacpp.platform.extension-->
-        <javacpp.platform.extension></javacpp.platform.extension>
+        <javacpp.platform.extension>-gpu</javacpp.platform.extension>
         <!-->set "-gpu" for gpu support <-->
     </properties>
     <artifactId>bacmman-tf2</artifactId>

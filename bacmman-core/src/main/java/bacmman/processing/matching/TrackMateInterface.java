@@ -138,6 +138,31 @@ public class TrackMateInterface<S extends Spot<S>> {
         return true;
     }
 
+    public boolean processFTF(double distanceThreshold, int frame1, int frame2) {
+        long t0 = System.currentTimeMillis();
+        //logger.debug("FTF distance: {} objects {}", distanceThreshold, Utils.toStringMap(this.collection.keySet().stream().collect(Collectors.toMap(f->f, f -> collection.getNSpots(f, false))), i->i+"", i->i+"" ) );
+        // Prepare settings object
+        final Map< String, Object > ftfSettings = new HashMap<>();
+        ftfSettings.put( KEY_LINKING_MAX_DISTANCE, distanceThreshold );
+        ftfSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
+
+        final SparseLAPFrameToFrameTrackerFromExistingGraph<S> frameToFrameLinker = new SparseLAPFrameToFrameTrackerFromExistingGraph<>(collection, ftfSettings, graph );
+        frameToFrameLinker.setConstantAlternativeDistance(distanceThreshold * 1.05);
+        frameToFrameLinker.setNumThreads( 1 );
+        final Logger.SlaveLogger ftfLogger = new Logger.SlaveLogger( internalLogger, 0, 0.5 );
+        frameToFrameLinker.setLogger( ftfLogger );
+
+        if ( !frameToFrameLinker.checkInput() || !frameToFrameLinker.process(new int[]{frame1, frame2})) {
+            errorMessage = frameToFrameLinker.getErrorMessage();
+            logger.error(errorMessage);
+            return false;
+        }
+        graph = frameToFrameLinker.getResult();
+        long t1 = System.currentTimeMillis();
+        //logger.debug("number of edges after FTF step: {}, nb of vertices: {}, processing time: {}", graph.edgeSet().size(), graph.vertexSet().size(), t1-t0);
+        return true;
+    }
+
     public boolean processSegments(double distanceThreshold, int maxFrameGap, boolean allowSplitting, boolean allowMerging) { // maxFrameGap changed -> now 1= 1 frame gap 4/09/19
         long t0 = System.currentTimeMillis();
         Set<S> unlinkedSpots;
@@ -225,6 +250,7 @@ public class TrackMateInterface<S extends Spot<S>> {
         }
         if (graph.edgesOf(s).isEmpty()) graph.removeVertex(s);
     }
+
     private void transferLinks(S from, S to) {
         List<DefaultWeightedEdge> edgeList = new ArrayList<>(graph.edgesOf(from));
         for (DefaultWeightedEdge e : edgeList) {
@@ -281,6 +307,13 @@ public class TrackMateInterface<S extends Spot<S>> {
                 if (graph.edgesOf(s).isEmpty()) removeObject(spotObjectMap.get(s), s.frame());
             }
         }
+    }
+    public void removeFromGraph(Collection<S> spots) {
+        for (S s : spots) {
+            // remove edges
+            graph.removeVertex(s);
+        }
+
     }
     public void addEdge(S s, S t) {
         graph.addVertex(s);
@@ -473,6 +506,12 @@ public class TrackMateInterface<S extends Spot<S>> {
                 if (getOtherSpot(e, spot).frame()>tp) res.add(e);
             }
         }
+    }
+    public Set<DefaultWeightedEdge> getAllEdges(S s, boolean previous, boolean next) {
+        Set<DefaultWeightedEdge> set = graph.edgesOf(s);
+        if (!previous) set.removeIf(e -> graph.getEdgeTarget(e).equals(s));
+        if (!next) set.removeIf(e -> graph.getEdgeSource(e).equals(s));
+        return set;
     }
 
     private S getOtherSpot(DefaultWeightedEdge e, S spot) {

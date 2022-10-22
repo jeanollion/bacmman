@@ -102,7 +102,10 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph<S extends Spot<S>> ex
 	}
 
 	@Override
-	public boolean process()
+	public boolean process() {
+		return process(null);
+	}
+	public boolean process(int[] framePair)
 	{
 		/*
 		 * Check input now.
@@ -153,15 +156,18 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph<S extends Spot<S>> ex
 
 		// Prepare frame pairs in order, not necessarily separated by 1.
 		final ArrayList< int[] > framePairs = new ArrayList< int[] >( spots.keySet().size() - 1 );
-		final Iterator< Integer > frameIterator = spots.keySet().iterator();
-		int frame0 = frameIterator.next();
-		int frame1;
-		while ( frameIterator.hasNext() ) { // ascending order
-			frame1 = frameIterator.next();
-			if (frame1-frame0==1) framePairs.add( new int[] { frame0, frame1 } ); // limit to adjacent frames
-			frame0 = frame1;
+		if (framePair==null) { // add all frames
+			final Iterator<Integer> frameIterator = spots.keySet().iterator();
+			int frame0 = frameIterator.next();
+			int frame1;
+			while (frameIterator.hasNext()) { // ascending order
+				frame1 = frameIterator.next();
+				if (frame1 - frame0 == 1) framePairs.add(new int[]{frame0, frame1}); // limit to adjacent frames
+				frame0 = frame1;
+			}
+		} else {
+			framePairs.add(framePair);
 		}
-
 		// Prepare cost function
 		@SuppressWarnings( "unchecked" )
 		final Map< String, Double > featurePenalties = ( Map< String, Double > ) settings.get( KEY_LINKING_FEATURE_PENALTIES );
