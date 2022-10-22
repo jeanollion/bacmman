@@ -1,6 +1,9 @@
 package bacmman.measurement;
 
 import bacmman.data_structure.Region;
+import bacmman.utils.SymetricalPair;
+import bacmman.utils.geom.Point;
+import bacmman.utils.geom.Vector;
 
 public class FitEllipseShape {
     public static class Ellipse {
@@ -13,6 +16,13 @@ public class FitEllipseShape {
         }
         public double getEccentricity() {
             return 2*Math.sqrt(Math.pow(majorAxisLength/2,2) - Math.pow(minorAxisLength/2,2)) / majorAxisLength;
+        }
+        public Vector getDirection() {
+            return new Vector(Math.cos(orientation * Math.PI / 180), Math.sin(orientation * Math.PI / 180)).multiply(majorAxisLength);
+        }
+        public SymetricalPair<Point> getPoles(Point center) {
+            Vector dir = getDirection().multiply(0.5);
+            return new SymetricalPair<>(center.duplicate().translate(dir), center.duplicate().translateRev(dir));
         }
     }
 

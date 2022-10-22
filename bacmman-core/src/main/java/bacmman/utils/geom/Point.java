@@ -23,11 +23,15 @@ import bacmman.image.BoundingBox;
 import bacmman.image.Offset;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
+import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
 import net.imglib2.Localizable;
 import net.imglib2.RealLocalizable;
 
@@ -98,6 +102,7 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         System.arraycopy(coords, 0, res, 0, Math.min(untilDimensionIncluded, coords.length));
         return new Point(res);
     }
+
     public static Point middle(Offset o1, Offset o2) {
         return new Point((o1.xMin()+o2.xMin())/2f, (o1.yMin()+o2.yMin())/2f, (o1.zMin()+o2.zMin())/2f);
     }
@@ -351,5 +356,18 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     @Override
     public long getLongPosition(int d) {
         return (long)(coords[d]+0.5);
+    }
+
+    // misc function
+    public static SymetricalPair<Point> getClosest(SymetricalPair<Point> dipole1, SymetricalPair<Point> dipole2) {
+        double d11 = dipole1.key.distSq(dipole2.key);
+        double d12 = dipole1.key.distSq(dipole2.value);
+        double d21 = dipole1.value.distSq(dipole2.key);
+        double d22 = dipole1.value.distSq(dipole2.value);
+        double min = DoubleStream.of(d11, d12, d21, d22).min().getAsDouble();
+        if (d11 == min) return new SymetricalPair<>(dipole1.key, dipole2.key);
+        else if (d12 == min) return new SymetricalPair<>(dipole1.key, dipole2.value);
+        else if (d21 == min) return new SymetricalPair<>(dipole1.value, dipole2.value);
+        else return new SymetricalPair<>(dipole1.value, dipole2.value);
     }
 }

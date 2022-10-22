@@ -50,7 +50,7 @@ import java.util.function.Predicate;
 import java.util.function.UnaryOperator;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
+import java.util.stream.*;
 import javax.swing.*;
 
 import static javax.swing.UIManager.setLookAndFeel;
@@ -61,15 +61,17 @@ import javax.swing.tree.TreeNode;
 import javax.swing.tree.TreePath;
 import java.awt.FileDialog;
 import java.awt.Frame;
-import java.util.stream.DoubleStream;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 /**
  *
  * @author Jean Ollion
  */
 public class Utils {
+
+    public static <T> Stream<T> toStream(Iterator<T> iterator, boolean parallel) {
+        if (iterator instanceof Spliterator) return StreamSupport.stream((Spliterator<T>)iterator, parallel);
+        return StreamSupport.stream( Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), parallel);
+    }
     public static <K extends Comparable<? super K>,V extends Comparable<? super V>> SortedSet<Map.Entry<K,V>> entriesSortedByValues(Map<K,V> map, boolean descending) {
         SortedSet<Map.Entry<K,V>> sortedEntries;
         if (descending) {

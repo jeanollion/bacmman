@@ -33,6 +33,9 @@ public class Vector extends Point<Vector>  {
     public Vector(float... coords) {
         super(coords);
     }
+    public Vector(double... coords) {
+        super(coords);
+    }
     
     public Vector(Voxel start, Voxel end) {
         this(end.x-start.x, end.y-start.y, end.z-start.z);
@@ -78,7 +81,7 @@ public class Vector extends Point<Vector>  {
      * @param v
      * @return angle in radian in [0; pi]
      */
-    public double angle(Vector v) {
+    public double angleXY180(Vector v) {
         double n = norm() * v.norm();
         if (n > 0) return Math.acos(dotProduct(v)/n);
         return Double.NaN;
@@ -88,7 +91,7 @@ public class Vector extends Point<Vector>  {
      * @param v
      * @return angle in radian in [0; pi/2]
      */
-    public double angle90(Vector v) {
+    public double angleXY90(Vector v) {
         double n = norm() * v.norm();
         if (n > 0) return Math.acos(Math.abs(dotProduct(v)/n));
         return Double.NaN;

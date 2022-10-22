@@ -233,6 +233,11 @@ public class Region {
     public Point getCenter() {
         return center;
     }
+    public Point getCenterOrGeomCenter() {
+        Point center = getCenter();
+        if (center!=null) return center;
+        return getGeomCenter(false);
+    }
     public static Point getGeomCenter(boolean scaled, Region... regions) {
         double[] center = new double[3];
         long[] size = new long[1];
