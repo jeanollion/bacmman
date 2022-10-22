@@ -19,7 +19,7 @@ import bacmman.processing.track_post_processing.Track;
 import bacmman.processing.track_post_processing.TrackTreePopulation;
 import bacmman.utils.*;
 import bacmman.utils.geom.Point;
-
+import bacmman.utils.geom.Vector;
 import it.unimi.dsi.fastutil.booleans.BooleanConsumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,8 +68,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     EnumChoiceParameter<OBJECT_TYPE> objectType = new EnumChoiceParameter<>("Object Type", OBJECT_TYPE.values(), OBJECT_TYPE.BACTERIA);
     BoundedNumberParameter poleSize = new BoundedNumberParameter("Pole Size", 5, 4.5, 0, null).setEmphasized(true).setHint("Bacteria pole centers are defined as the two furthest contour points. A pole is defined as the set of contour points that are closer to a pole center than this parameter");
     BoundedNumberParameter eccentricityThld = new BoundedNumberParameter("Eccentricity Threshold", 5, 0.87, 0, 1).setEmphasized(true).setHint("If eccentricity of the fitted ellipse is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on over-segmented objects that may be circular<br/>Ellipse is fitted using the normalized second central moments");
+    BoundedNumberParameter alignmentThld = new BoundedNumberParameter("Alignment Threshold", 5, 45, 0, 180).setEmphasized(true).setHint("Threshold for bacteria alignment. 0 = perfect alignment, X = allowed deviation from perfect alignment in degrees. 180 = no alignment constraint (cells are side by side)");
+
     ConditionalParameter<OBJECT_TYPE> objectTypeCond = new ConditionalParameter<>(objectType).setEmphasized(true)
-            .setActionParameters(OBJECT_TYPE.BACTERIA, poleSize, eccentricityThld);
+            .setActionParameters(OBJECT_TYPE.BACTERIA, poleSize, eccentricityThld, alignmentThld);
     BoundedNumberParameter mergeDistThld = new BoundedNumberParameter("Merge Distance Threshold", 5, 3, 0, null).setEmphasized(true).setHint("If the distance edge-edge between 2 regions is higher than this value, they cannot be linked to the same cell during tracking or they cannot be not merged during post-processing. Note that if object type is BACTERIA : pole-pole distance is considered.");
 
     // track post-processing
@@ -267,7 +269,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         });
         tmi.setNumThreads(ThreadRunner.getMaxCPUs());
         tmi.addObjects(regionMapObjects.values().stream());
-        Map<Region, Set<Voxel>>[] contourMap = new Map[1];
+        Map<Region, Object>[] contourMap = new Map[1];
         BiPredicate<Region, Region> contactFun = contact(mergeDistThld.getDoubleValue(), contourMap);
         Map<Integer, Map<Region, Set<Region>>> contactMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(HashMap::new);
         regionMapObjects.entrySet().parallelStream().forEach(e -> {
@@ -354,7 +356,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         long t1 = System.currentTimeMillis();
         tmi.logGraphStatus("FTF", t1-t0);
         // solve conflicting links between clusters and elements of cluster
-        solveConflictingLinks(tmi, contactMap.keySet());
+        solveClusterLinks(tmi, contactMap.keySet());
 
         if (allowSplit) {
             // for real divisions that are missed in the FTF step
@@ -383,23 +385,82 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         return additionalLinks;
     }
-    protected void solveConflictingLinks(TrackMateInterface<TrackingObject> tmi, Collection<Integer> frames) {
+    protected void solveClusterLinks(TrackMateInterface<TrackingObject> tmi, Collection<Integer> frames) {
         if (!(frames instanceof List)) frames = new ArrayList<>(frames);
         Collections.sort((List)frames);
         frames.forEach(f -> {
-            solveConflictingLinks(tmi, f, true, false);
-            solveConflictingLinks(tmi, f, false, true);
+            solveClusterLinkConflicts(tmi, f, true);
+            solveClusterLinkConflicts(tmi, f, false);
+            removeClusterLinks(tmi, f, true, false);
+            removeClusterLinks(tmi, f, false, true);
         });
-
     }
-    protected void solveConflictingLinks(TrackMateInterface<TrackingObject> tmi, int frame, boolean linkWithPrev, boolean removeClusters) {
+    protected void solveClusterLinkConflicts(TrackMateInterface<TrackingObject> tmi, int frame, boolean linkWithPrev) {
+        UnaryOperator<TrackingObject> getNeigh = linkWithPrev ? tmi::getPrevious : tmi::getNext;
+        Iterator<TrackingObject> it = tmi.getSpotCollection().iterator(frame, false);
+        Set<TrackingObject> conflictingObjects = new HashSet<>();
+        while (it.hasNext()) { // look for conflicting links between clusters and their elements
+            TrackingObject o = it.next();
+            if (o.isCluster()) { // this is a cluster
+                TrackingObject neigh = getNeigh.apply(o);
+                //logger.debug("test cluster: {}, neigh: {}, prev: {}", o, neigh, linkWithPrev);
+                if (neigh!=null) { // cannot be null if linked to several objects because at this step SPLIT/MERGE links should not exist
+                    // check that there is no conflict or solve them
+                    double clusterDist = Math.sqrt(o.squareDistanceTo(neigh));
+                    Set<TrackingObject> neighs = new HashSet<>(o.originalObjects.size());
+                    double avgItemDist = o.originalObjects.stream().mapToDouble(i -> {
+                        TrackingObject p = getNeigh.apply(i);
+                        if (p==null) return Double.NaN;
+                        else {
+                            neighs.add(p);
+                            return Math.sqrt(p.squareDistanceTo(i));
+                        }
+                    }).filter(d->!Double.isNaN(d)).average().orElse(Double.POSITIVE_INFINITY); // TODO weighted avg by size ?
+                    if (clusterDist<avgItemDist) { // keep cluster links -> check if elements are pointing to other objects
+                        if (neigh.originalObjects !=null) { // neigh is a cluster itself
+                            if (neighs.size()!=neigh.originalObjects.size() || !neighs.containsAll(neigh.originalObjects)) {
+                                //logger.debug("cluster kept: {} with conflicting objects: cluster links={} vs element links={}", o, neigh, neighs);
+                                conflictingObjects.addAll(o.originalObjects);
+                            }
+                        } else if (!neighs.isEmpty()) {
+                            if (neighs.size()>1 || !neighs.iterator().next().equals(neigh)) {
+                                //logger.debug("cluster kept: {} with conflicting objects: cluster links={} vs element links={}", o, neigh, neighs);
+                                conflictingObjects.addAll(o.originalObjects);
+                            }
+                        }
+                    } else { // keep element links -> check if cluster points to another object
+                        if (!neighs.contains(neigh)) {
+                            //logger.debug("elements kept: {} with conflicting objects: cluster links={} vs element links={}", o, neigh, neighs);
+                            conflictingObjects.add(o);
+                        }
+                    }
+                }
+            }
+        }
+        if (!conflictingObjects.isEmpty()) { // re-run tracking without conflicting objects
+            double distanceThld = distanceThreshold.getDoubleValue();
+            // keep trace of existing links in the other direction to restore them afterwards
+            Map<TrackingObject, List<TrackingObject>> neighsToKeep = Utils.toStream(tmi.getSpotCollection().iterator(frame, false), false)
+                    .collect(Collectors.toMap(to->to, linkWithPrev ? tmi::getAllNexts : tmi::getAllPrevious));
+            tmi.getSpotCollection().iterator(frame, false).forEachRemaining(to -> tmi.removeAllEdges(to, linkWithPrev, !linkWithPrev)); // remove all links in the direction that will be re-computed
+            // compute links without conflicting objects
+            conflictingObjects.forEach(o -> tmi.getSpotCollection().remove(o, frame));
+            tmi.removeFromGraph(conflictingObjects);
+            tmi.processFTF(distanceThld, linkWithPrev ? frame-1 : frame, linkWithPrev ? frame : frame+1);
+            // restore links in the other direction
+            neighsToKeep.forEach( (source, targets) -> targets.forEach(linkWithPrev ? target ->  tmi.addEdge(source, target) : target ->  tmi.addEdge(target, source)));
+            conflictingObjects.forEach(o -> tmi.getSpotCollection().add(o, frame));
+        }
+    }
+
+    protected void removeClusterLinks(TrackMateInterface<TrackingObject> tmi, int frame, boolean linkWithPrev, boolean removeClusters) {
         UnaryOperator<TrackingObject> getNeigh = linkWithPrev ? tmi::getPrevious : tmi::getNext;
         Iterator<TrackingObject> it = tmi.getSpotCollection().iterator(frame, false);
         while (it.hasNext()) {
             TrackingObject o = it.next();
-            if (o.originalObjects !=null) { // this is a cluster
+            if (o.isCluster()) { // this is a cluster
                 TrackingObject neigh = getNeigh.apply(o);
-                if (neigh!=null) { // count be null if linked to several objects -> at this step SPLIT/MERGE links should not exist
+                if (neigh!=null) { // cannot be null if linked to several objects because at this step SPLIT/MERGE links should not exist
                     // check that there is no conflict or solve them
                     double clusterDist = Math.sqrt(o.squareDistanceTo(neigh));
                     double avgItemDist = o.originalObjects.stream().mapToDouble(i -> {
@@ -407,7 +468,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                         if (p==null) return Double.NaN;
                         else return Math.sqrt(p.squareDistanceTo(i));
                     }).filter(d->!Double.isNaN(d)).average().orElse(Double.POSITIVE_INFINITY); // TODO weighted avg by size ?
-                    if (clusterDist<=avgItemDist) { // keep cluster links
+                    if (clusterDist<avgItemDist) { // keep cluster links
                         // remove item links by cluster link
                         for (TrackingObject i : o.originalObjects) tmi.removeAllEdges(i, linkWithPrev, !linkWithPrev);
                         if (neigh.originalObjects !=null) { // neigh is a cluster itself -> optimisation to link objects of each cluster
@@ -418,7 +479,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             for (TrackingObject i : o.originalObjects) tmi.addEdge(neigh, i);
                         }
                     }
-                    tmi.removeAllEdges(o, linkWithPrev, !linkWithPrev);
+                    tmi.removeAllEdges(o, linkWithPrev, !linkWithPrev); // remove edges cluster -> also removes from graph if no edges
                 }
                 if (removeClusters) it.remove();
             }
@@ -462,9 +523,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.sizePenalty = o1.sizePenalty;
             //logger.debug("merged TO: {}-{}+{} size: {} & {}, center: {} & {} = {} , dx: {}, dy: {}", o1.frame(), o1.r.getLabel()-1, o2.r.getLabel()-1, o1.size, o2.size, new Point(o1.getDoublePosition(0), o1.getDoublePosition(1)), new Point(o2.getDoublePosition(0), o2.getDoublePosition(1)), new Point(getDoublePosition(0), getDoublePosition(1)), dx, dy );
         }
-
+        public boolean isCluster() {
+            return originalObjects!=null;
+        }
         @Override
         public double squareDistanceTo(TrackingObject nextTO) {
+            if (isCluster() && nextTO.isCluster()) return Double.POSITIVE_INFINITY;
             if (nextTO.frame() < frame()) return nextTO.squareDistanceTo(this);
             switch (distanceType) {
                 case GEOM_CENTER_DISTANCE:
@@ -734,14 +798,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     /**
      *
      * @param objectClassIdx
-     * @param parentTrack parent track. If all pre-filtered images are non-null, they will be considered as watershed map for post-processing. Otherwise post-processing will not be used.
+     * @param parentTrack parent track. If all pre-filtered images are non-null, they will be considered as watershed map for post-processing. Otherwise, post-processing will not be used.
      * @param editor
      */
     @Override
-    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
+    public void track(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) { // TODO : perform tracking only using predictions + create create another tracker that performs track only without predictions
         List<Runnable> logContainer = new ArrayList<>();
         List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, null, editor, null, true, logContainer);
-        PredictionResults predictions = new PredictionResults().setEdm(parentTrack.stream().collect(Collectors.toMap(o->o, o->o.getPreFilteredImage(objectClassIdx))));
+        PredictionResults predictions = new PredictionResults().setEdm(Utils.toMapWithNullValues(parentTrack.stream(), o->o, o->o.getPreFilteredImage(objectClassIdx), true ) );
         if (predictions.edm.values().stream().allMatch(Objects::nonNull)) postFilterTracking(objectClassIdx, parentTrack, additionalLinks, predictions, editor, getFactory(objectClassIdx));
         logContainer.forEach(Runnable::run);
     }
@@ -818,15 +882,15 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    protected BiPredicate<Region, Region> contact(double gaxMaxDist, Map<Region, Set<Voxel>>[] contourMap) {
-        double d2Thld = Math.pow(gaxMaxDist, 2);
+    protected BiPredicate<Region, Region> contact(double gapMaxDist, Map<Region, Object>[] contourMap) {
+        double d2Thld = Math.pow(gapMaxDist, 2);
         switch (objectType.getSelectedEnum()) {
             case EUKARYOTIC_CELL:
             default: {
                 if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(Region::getContour);
-                Function<Region, Set<Voxel>> getContour = contourMap==null ? Region::getContour : r->contourMap[0].get(r);
+                Function<Region, Set<Voxel>> getContour = contourMap==null ? Region::getContour : r->(Set<Voxel>)contourMap[0].get(r);
                 return (r1, r2) -> {
-                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gaxMaxDist))) return false;
+                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gapMaxDist))) return false;
                     Set<Voxel> contour2 = getContour.apply(r2);
                     for (Voxel v1 : getContour.apply(r1)) {
                         for (Voxel v2 : contour2) {
@@ -839,18 +903,31 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             case BACTERIA: {
                 double poleDist = poleSize.getDoubleValue();
                 double eccentricityThld = this.eccentricityThld.getDoubleValue();
-                Function<Region, Set<Voxel>> getPole = r -> {
+                double alignmentThld= this.alignmentThld.getDoubleValue();
+                Function<Region, Pair<FitEllipseShape.Ellipse, Set<Voxel>> > getPole = r -> {
                     FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r);
-                    return e1.getEccentricity() < eccentricityThld ? r.getContour() : getPoles(r.getContour(), poleDist);
+                    return e1.getEccentricity() < eccentricityThld ? new Pair<>(null, r.getContour()) : new Pair<>(e1, getPolesContour(r.getContour(), poleDist));
                 };
-                if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(getPole);
-                Function<Region, Set<Voxel>> getContour = contourMap == null ? getPole : r->contourMap[0].get(r);
+                if (contourMap!=null) contourMap[0] = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(getPole::apply);
+                Function<Region, Pair<FitEllipseShape.Ellipse, Set<Voxel>>> getContour = contourMap == null ? getPole : r->(Pair<FitEllipseShape.Ellipse, Set<Voxel>>)contourMap[0].get(r);
                 return (r1, r2) -> {
-                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int) Math.ceil(gaxMaxDist))) return false;
-                    Set<Voxel> contour1 = getContour.apply(r1);
-                    Set<Voxel> contour2 = getContour.apply(r2);
-                    for (Voxel v1 : contour1) {
-                        for (Voxel v2 : contour2) {
+                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int) Math.ceil(gapMaxDist))) return false;
+                    Pair<FitEllipseShape.Ellipse, Set<Voxel>> pole1 = getContour.apply(r1);
+                    Pair<FitEllipseShape.Ellipse, Set<Voxel>> pole2 = getContour.apply(r2);
+                    if (pole1.key!=null && pole2.key!=null) { // test alignment of contact point and 2 other poles
+                        SymetricalPair<Point> poles1 = pole1.key.getPoles(r1.getCenterOrGeomCenter());
+                        SymetricalPair<Point> poles2 = pole2.key.getPoles(r2.getCenterOrGeomCenter());
+                        SymetricalPair<Point> contact = Point.getClosest(poles1, poles2);
+                        Point contactPoint = Point.middle2D(contact.key, contact.value);
+                        Vector v1 = Vector.vector2D(contactPoint, Pair.getOther(poles1, contact.key));
+                        Vector v2 = Vector.vector2D(contactPoint, Pair.getOther(poles2, contact.value));
+                        double angle = 180 - v1.angleXY180(v2) * 180 / Math.PI;
+                        if (Double.isNaN(angle) || angle > alignmentThld) return false;
+                        //logger.debug("aligned cells: {}+{} angle={}", r1.getLabel()-1, r2.getLabel()-1, angle);
+                    }
+                    // criterion on pole contact distance
+                    for (Voxel v1 : pole1.value) {
+                        for (Voxel v2 : pole2.value) {
                             if (v1.getDistanceSquare(v2) <= d2Thld) return true;
                         }
                     }
@@ -859,53 +936,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         }
     }
-    protected ToDoubleBiFunction<Region, Region> contact(double gaxMaxDist) {
-        double d2Thld = Math.pow(gaxMaxDist, 2);
-        switch (objectType.getSelectedEnum()) {
-            case EUKARYOTIC_CELL:
-            default: {
-                Function<Region, Set<Voxel>> getContour = Region::getContour ;
-                return (r1, r2) -> {
-                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int)Math.ceil(gaxMaxDist))) return Double.POSITIVE_INFINITY;
-                    Set<Voxel> contour2 = getContour.apply(r2);
-                    double min = Double.POSITIVE_INFINITY;
-                    for (Voxel v1 : getContour.apply(r1)) {
-                        for (Voxel v2 : contour2) {
-                            if (v1.getDistanceSquare(v2) <= min) min = v1.getDistanceSquare(v2);
-                        }
-                    }
-                    return Math.sqrt(min);
-                };
-            }
-            case BACTERIA: {
-                double poleDist = poleSize.getDoubleValue();
-                double eccentricityThld = this.eccentricityThld.getDoubleValue();
-                Function<Region, Set<Voxel>> getPole = r -> {
-                    FitEllipseShape.Ellipse e1 = FitEllipseShape.fitShape(r);
-                    return e1.getEccentricity() < eccentricityThld ? r.getContour() : getPoles(r.getContour(), poleDist);
-                };
-                Function<Region, Set<Voxel>> getContour = getPole;
-                return (r1, r2) -> {
-                    if (!BoundingBox.intersect2D(r1.getBounds(), r2.getBounds(), (int) Math.ceil(gaxMaxDist))) return Double.POSITIVE_INFINITY;
-                    Set<Voxel> contour1 = getContour.apply(r1);
-                    Set<Voxel> contour2 = getContour.apply(r2);
-                    double min = Double.POSITIVE_INFINITY;
-                    for (Voxel v1 : contour1) {
-                        for (Voxel v2 : contour2) {
-                            if (v1.getDistanceSquare(v2) <= d2Thld) min = v1.getDistanceSquare(v2);
-                        }
-                    }
-                    return Math.sqrt(min);
-                };
-            }
-        }
-    }
-    protected static Set<Voxel> getPoles(Set<Voxel> contour, double poleSize) {
+
+    protected static Set<Voxel> getPolesContour(Set<Voxel> contour, double poleSize) {
         double poleSize2 = Math.pow(poleSize, 2);
         SymetricalPair<Voxel> poles = getPoleCenters(contour);
         return contour.stream().filter(v -> v.getDistanceSquare(poles.key)<=poleSize2 || v.getDistanceSquare(poles.value)<=poleSize2).collect(Collectors.toSet());
     }
-    protected static SymetricalPair<Voxel> getPoleCenters(Set<Voxel> contour) {
+    protected static SymetricalPair<Voxel> getPoleCenters(Set<Voxel> contour) { // two farthest points
         List<Voxel> list = new ArrayList<>(contour);
         int voxCount = contour.size();
         double d2Max = 0;
@@ -919,7 +956,6 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 }
             }
         }
-        // for small objects poles are not well-defined.
         return max;
     }
 
