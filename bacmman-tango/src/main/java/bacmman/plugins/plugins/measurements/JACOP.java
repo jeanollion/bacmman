@@ -87,6 +87,8 @@ public class JACOP implements Measurement, Hint {
         return "JACOP (Just Another Colocalisation Plugin): Computes a set of commonly used co-localization indicators" +
                 "<br>Based on the implementation of Fabrice P. Cordelières: https://github.com/fabricecordelieres/IJ-Plugin_JACoP" +
                 "<br> This implementation computes all coefficients within the mask of the selected object class (parameter: Segmentation Mask)" +
-                "<br>If you use this module please cite: S. Bolte & F. P. Cordelières, A guided tour into subcellular colocalization analysis in light microscopy, Journal of Microscopy, Volume 224, Issue 3: 213-232";
+                "<br>If you use this module please cite: S. Bolte & F. P. Cordelières, A guided tour into subcellular colocalization analysis in light microscopy, Journal of Microscopy, Volume 224, Issue 3: 213-232" +
+                "<br>Note that all coefficient values except ICA depend on thresholds defined in parameters <em>Threshold for Signal 1</em> and <em>Threshold for signal 2</em>" +
+                "<br>Manders coefficient: Manders1 = fraction of Signal 1 overlapping Signal 2 / Manders2 = fraction of Signal 2 overlapping Signal 1.";
     }
 }
