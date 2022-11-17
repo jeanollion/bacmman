@@ -25,6 +25,7 @@ public class Roi3D extends HashMap<Integer, Roi> {
     public static final Logger logger = LoggerFactory.getLogger(Roi3D.class);
     boolean is2D;
     int locdx, locdy; // in case of EllipseRoi -> 0.5 is added to coordinate, this can create inconsistencies in localization as IJ.ROIs use a integer reference. this is a fix when calling set location
+    int frame;
     public Roi3D(int bucketSize) {
         super(bucketSize);
     }
@@ -65,8 +66,13 @@ public class Roi3D extends HashMap<Integer, Roi> {
         return false;
     }
     public Roi3D setFrame(int frame) {
+        this.frame = frame;
         for (Roi r : values()) r.setPosition(r.getCPosition(), r.getZPosition(), frame+1);
         return this;
+    }
+
+    public int getFrame() {
+        return frame;
     }
 
     public Roi3D setZToPosition() {
@@ -74,7 +80,7 @@ public class Roi3D extends HashMap<Integer, Roi> {
         return this;
     }
     public Roi3D setTToPosition() {
-        for (Roi r: values()) r.setPosition(r.getTPosition());
+        for (Roi r: values()) r.setPosition(frame+1);
         return this;
     }
     public boolean is2D() {

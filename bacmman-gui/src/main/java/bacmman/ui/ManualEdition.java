@@ -128,6 +128,52 @@ public class ManualEdition {
 
         }
     }
+    public static void modifyObjectLinksTracks(MasterDAO db, List<SegmentedObject> trackHeads, boolean unlink, boolean forceDoubleLink, boolean updateDisplay) {
+        SegmentedObjectUtils.keepOnlyObjectsFromSamePosition(trackHeads);
+        SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(trackHeads);
+        if (trackHeads.size()<=1) return;
+        if (updateDisplay) ImageWindowManagerFactory.getImageManager().removeTracks(trackHeads);
+        int objectClassIdx = trackHeads.get(0).getStructureIdx();
+        boolean merge = db.getExperiment().getStructure(objectClassIdx).allowMerge();
+        boolean split = db.getExperiment().getStructure(objectClassIdx).allowSplit();
+        Set<SegmentedObject> modifiedObjects = new HashSet<>();
+        if (!canEdit(trackHeads.stream(), db)) return;
+        TrackLinkEditor editor = getEditor(objectClassIdx, modifiedObjects);
+        TreeMap<SegmentedObject, List<SegmentedObject>> trackHeadsByParent = new TreeMap<>(SegmentedObjectUtils.splitByParent(trackHeads)); // sorted by time point
+        for (List<SegmentedObject> ths : trackHeadsByParent.values()) {
+            TreeMap<Integer, List<SegmentedObject>> thByFrame = new TreeMap<>(SegmentedObjectUtils.splitByFrame(ths.stream()));
+            List<SegmentedObject> trackEnds = trackHeads.stream().map(SegmentedObjectUtils::getTrack).map(t -> t.get(t.size()-1)).collect(Collectors.toList());
+            TreeMap<Integer, List<SegmentedObject>> teByFrame = new TreeMap<>(SegmentedObjectUtils.splitByFrame(trackEnds.stream()));
+            for (int f : teByFrame.keySet()) {
+                List<SegmentedObject> nextTh = thByFrame.get(f+1);
+                if (nextTh!=null) {
+                    List<SegmentedObject> curTe = teByFrame.get(f);
+                    modifyObjectLinks(Utils.concat(curTe, nextTh), unlink, forceDoubleLink, merge, split, editor);
+                }
+            }
+        }
+        Utils.removeDuplicates(modifiedObjects, false);
+        if (db!=null) db.getDao(trackHeads.get(0).getPositionName()).store(modifiedObjects);
+        if (updateDisplay) {
+            // reload track-tree and update selection toDelete
+            int parentStructureIdx = trackHeads.get(0).getParent().getStructureIdx();
+            if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateLastParentTracksWithSelection(GUI.getInstance().trackTreeController.getTreeIdx(parentStructureIdx));
+            //List<List<StructureObject>> tracks = this.trackTreeController.getGeneratorS().get(structureIdx).getSelectedTracks(true);
+            // get unique tracks to display
+            Set<SegmentedObject> uniqueTh = new HashSet<>();
+            for (SegmentedObject o : modifiedObjects) uniqueTh.add(o.getTrackHead());
+            List<List<SegmentedObject>> trackToDisp = new ArrayList<>();
+            for (SegmentedObject o : uniqueTh) trackToDisp.add(SegmentedObjectUtils.getTrack(o));
+            // update current image
+            ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+            iwm.resetObjectsAndTracksRoi();
+            if (!trackToDisp.isEmpty()) {
+                iwm.displayTracks(null, null, trackToDisp, true);
+                //GUI.updateRoiDisplayForSelections(null, null);
+            }
+
+        }
+    }
     public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean forceDoubleLink, boolean allowMerge, boolean allowSplit, Set<SegmentedObject> modifiedObjects) {
         if (objects.size()<=1) return;
         int objectClassIdx =objects.get(0).getStructureIdx();
@@ -138,7 +184,7 @@ public class ManualEdition {
     public static void modifyObjectLinks(List<SegmentedObject> objects, boolean unlink, boolean forceDoubleLink, boolean allowMerge, boolean allowSplit, TrackLinkEditor editor) {
         if (objects.size()<=1) return;
         int objectClassIdx =objects.get(0).getStructureIdx();
-        if (objects.stream().anyMatch(o -> o==null)) {
+        if (objects.stream().anyMatch(Objects::isNull)) {
             logger.error("Objects list contain a null: {}", objects);
         }
         if (objects.stream().anyMatch(o->o.getStructureIdx()!=objectClassIdx)) throw new IllegalArgumentException("At least 2 object have different object class");

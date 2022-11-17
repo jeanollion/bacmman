@@ -4443,35 +4443,60 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void unlinkObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_unlinkObjectsButtonActionPerformed
         if (!checkConnection()) return;
-        //if (db.isReadOnly()) return;
-        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        if (sel.isEmpty()) {
-            logger.warn("Select at least one object to modify its links");
-            return;
+        if (ImageWindowManager.displayTrackMode) {
+            List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileTrackHeads(null);
+            if (sel.isEmpty()) {
+                logger.warn("Select at least one track to modify its links");
+                return;
+            }
+            ManualEdition.modifyObjectLinksTracks(db, sel, true, false, true);
+        } else {
+            List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+            if (sel.isEmpty()) {
+                logger.warn("Select at least one object to modify its links");
+                return;
+            }
+            ManualEdition.modifyObjectLinks(db, sel, true, false, true);
         }
-        ManualEdition.modifyObjectLinks(db, sel, true, false, true);
     }//GEN-LAST:event_unlinkObjectsButtonActionPerformed
 
     private void linkObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_linkObjectsButtonActionPerformed
         if (!checkConnection()) return;
-        //if (db.isReadOnly()) return;
-        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        if (sel.isEmpty()) {
-            logger.warn("Select at least one object to modify its links");
-            return;
+        if (ImageWindowManager.displayTrackMode) {
+            List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileTrackHeads(null);
+            if (sel.isEmpty()) {
+                logger.warn("Select at least one track to modify its links");
+                return;
+            }
+            ManualEdition.modifyObjectLinksTracks(db, sel, false, true, true);
+        } else {
+            List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+            if (sel.isEmpty()) {
+                logger.warn("Select at least one object to modify its links");
+                return;
+            }
+            ManualEdition.modifyObjectLinks(db, sel, false, true, true);
         }
-        ManualEdition.modifyObjectLinks(db, sel, false, true, true);
     }//GEN-LAST:event_linkObjectsButtonActionPerformed
 
     private void appendLinkObjectsButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_appendLinkObjectsButtonActionPerformed
         if (!checkConnection()) return;
         //if (db.isReadOnly()) return;
-        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
-        if (sel.isEmpty()) {
-            logger.warn("Select at least one object to modify its links");
-            return;
+        if (ImageWindowManager.displayTrackMode) {
+            List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileTrackHeads(null);
+            if (sel.isEmpty()) {
+                logger.warn("Select at least one track to modify its links");
+                return;
+            }
+            ManualEdition.modifyObjectLinksTracks(db, sel, false, false, true);
+        } else {
+            List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+            if (sel.isEmpty()) {
+                logger.warn("Select at least one object to modify its links");
+                return;
+            }
+            ManualEdition.modifyObjectLinks(db, sel, false, false, true);
         }
-        ManualEdition.modifyObjectLinks(db, sel, false, false, true);
     }//GEN-LAST:event_appendLinkObjectsButtonActionPerformed
 
     private void testManualSegmentationButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testManualSegmentationButtonActionPerformed

@@ -215,8 +215,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         //fire deselected objects
                         listener.fireObjectSelected(Pair.unpairKeys(selectedObjects), true);
                     }
-                    if (hyperstack) ((HyperStack)i).setChangeIdxCallback(null);
-                } else if (!strechObjects) {
+                    if (hyperstack) ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
+                } else if (!strechObjects) { // display tracks
                     if (!hyperstack) {
                         List<SegmentedObject> trackHeads = new ArrayList<>();
                         for (Pair<SegmentedObject, BoundingBox> p : selectedObjects)
@@ -231,17 +231,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         }
                         if (listener != null) listener.fireTracksSelected(trackHeads, true);
                     } else {
-                        // for hyper stack: create callback that displays only tracks at current frame
-                        HyperStack k = ((HyperStack)i);
-                        Set<SegmentedObject> trackHeads = selectedObjects.stream().map(p -> p.key.getTrackHead()).collect(Collectors.toSet());
-                        IntConsumer callback = idx -> {
-                            List<List<SegmentedObject>> selTracks = k.getObjects().stream().filter(p -> trackHeads.contains(p.key.getTrackHead()))
-                                    .map(o -> new ArrayList<SegmentedObject>(1){{add(o.key);}}).collect(Collectors.toList());
-                            if (!selTracks.isEmpty()) displayTracks(image, k, selTracks, true);
-                        };
-                        if (!addToSelection) k.setChangeIdxCallback( idx -> hideAllRois(image, true, false));
-                        k.appendChangeIdxCallback(callback);
-                        callback.accept(k.getIdx());
+                        ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
+                        Set<List<SegmentedObject>> tracks = selectedObjects.stream().map(p -> p.key.getTrackHead()).distinct().map(SegmentedObjectUtils::getTrack).collect(Collectors.toSet());
+                        if (!addToSelection) hideAllRois(image, true, false);
+                        displayTracks(image, i, tracks, true);
                     }
                 }
                 if (freeHandSplit && r!=null && !selectedObjects.isEmpty()) {
@@ -414,6 +407,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     
     @Override
     public void displayObject(ImagePlus image, Roi3D roi) {
+        if (image.getFrame()-1!=roi.getFrame()) return;
         Overlay o = image.getOverlay();
         if (o==null) {
             o=new Overlay();

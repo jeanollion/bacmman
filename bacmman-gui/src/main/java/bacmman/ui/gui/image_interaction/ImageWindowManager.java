@@ -680,12 +680,13 @@ public abstract class ImageWindowManager<I, U, V> {
         if (i instanceof HyperStack) {
             HyperStack k = ((HyperStack)i);
             Image im = image;
-            k.setChangeIdxCallback(idx -> {
+            IntConsumer cb = idx -> {
                 hideAllRois(im, true, false);
                 displayObjects(im, k.getObjects(), defaultRoiColor, true, false);
-            });
-        }
-        displayObjects(image, i.getObjects(), defaultRoiColor, true, false);
+            };
+            k.setChangeIdxCallback(cb);
+            cb.accept(k.getIdx());
+        } else displayObjects(image, i.getObjects(), defaultRoiColor, true, false);
         if (listener!=null) listener.fireObjectSelected(Pair.unpairKeys(i.getObjects()), true);
     }
     
@@ -744,7 +745,7 @@ public abstract class ImageWindowManager<I, U, V> {
         Set<U> labiles = labileObjects ? this.displayedLabileObjectRois.getAndCreateIfNecessary(image) : null;
         Map<Pair<SegmentedObject, BoundingBox>, U> map = labileObjects ? this.labileObjectRoiMap : objectRoiMap;
         long t0 = System.currentTimeMillis();
-        ToIntFunction<SegmentedObject> getFrame = o -> 1;
+        ToIntFunction<SegmentedObject> getFrame = o -> 1; // for Kymographs
         InteractiveImage i =  getImageObjectInterface(image, objectsToDisplay.iterator().next().key.getStructureIdx());
         if (i!=null) {
             if (i instanceof HyperStack) {
@@ -789,7 +790,6 @@ public abstract class ImageWindowManager<I, U, V> {
                     labiles.add(roi);
                 }
             } else {
-
                 setRoiAttributes(roi, color, frame);
                 displayObject(dispImage, roi);
             }
@@ -870,7 +870,6 @@ public abstract class ImageWindowManager<I, U, V> {
     public List<SegmentedObject> getSelectedLabileObjectsOrTracks(Image image) {
         if (displayTrackMode) {
             List<SegmentedObject> th = getSelectedLabileTrackHeads(image);
-            logger.debug("number of labile th: {} -> {}", th.size(), th);
             return th.stream().flatMap(t -> SegmentedObjectUtils.getTrack(t).stream()).collect(Collectors.toList());
         } else return getSelectedLabileObjects(image);
     }
@@ -1060,16 +1059,13 @@ public abstract class ImageWindowManager<I, U, V> {
             if (image==null) return Collections.emptyList();
         }
         Set<V> rois = this.displayedLabileTrackRois.get(image);
+
         if (rois!=null) {
             InteractiveImage i = getImageObjectInterface(image);
-
             List<Pair<SegmentedObject, SegmentedObject>> pairs = Utils.getKeys(i instanceof HyperStack ? labileParentTrackHeadTrackRoiMap : labileParentTrackHeadKymographTrackRoiMap, rois);
-
             List<SegmentedObject> res = unpairValues(pairs);
             Utils.removeDuplicates(res, false);
-            if (i instanceof HyperStack) { // tracks are not stored
-                logger.debug("selected tracks: {}", res);
-            }
+            //if (i instanceof HyperStack) logger.debug("selected tracks: {}", res);
             return res;
         } else return Collections.emptyList();
     }
