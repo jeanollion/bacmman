@@ -13,10 +13,14 @@ import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PluginWithLegacyInitialization;
 import bacmman.plugins.TestableOperation;
+import bacmman.plugins.plugins.pre_filters.ImageFeature;
+import bacmman.processing.ImageOperations;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -24,15 +28,18 @@ import java.util.stream.Stream;
 
 public class BackgroundAndShadingCorrection implements ConfigurableTransformation, Hint, TestableOperation, PluginWithLegacyInitialization {
 
-    FileChooser flatField = new FileChooser("Flat-field image", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
-    FileChooser darkField = new FileChooser("Dark-field image", FileChooser.FileChooserOption.FILE_ONLY, false).setEmphasized(true);
+    FileChooser flatField = new FileChooser("Flat-field image", FileChooser.FileChooserOption.FILES_ONLY, false).setEmphasized(true).setHint("Choose a Flat-Field image (image acquired with no sample, that represents the change in effective illumination across an image) : output images will be divided by the values of this images: I = I / flat-field. <br>If several images are selected, they will be averaged");
+    FileChooser darkField = new FileChooser("Dark-field image", FileChooser.FileChooserOption.FILES_ONLY, false).setEmphasized(true).setHint("Choose a Dark-field image (image acquired with no light, that represents the additive term, which is dominated by thermal noise, camera offset) : dark-field will be subtracted to output images: I = I - dark-field.<br>If several images are selected, they will be averaged");
+    PreFilterSequence flatFieldPF = new PreFilterSequence("Pre-Filters").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(50, 0).set2D(true)).setEmphasized(true).setHint("Pre-Filters applied to flat-field image. If several images are selected, filter will be applied after averaging.");
+    PreFilterSequence darkFieldPF = new PreFilterSequence("Pre-Filters").add(new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setScale(50, 0).set2D(true)).setEmphasized(true).setHint("Pre-Filters applied to dark-field image. If several images are selected, filter will be applied after averaging.");
+
     BooleanParameter correctFlatField = new BooleanParameter("Correct flat-field", false);
-    ConditionalParameter<Boolean> correctFlatFieldCond = new ConditionalParameter<>(correctFlatField).setActionParameters(true, flatField).setEmphasized(true);
+    ConditionalParameter<Boolean> correctFlatFieldCond = new ConditionalParameter<>(correctFlatField).setActionParameters(true, flatField, flatFieldPF).setEmphasized(true);
 
     BooleanParameter correctDarkField = new BooleanParameter("Correct dark-field", false);
-    ConditionalParameter<Boolean> correctDarkFieldCond = new ConditionalParameter<>(correctDarkField).setActionParameters(true, darkField).setEmphasized(true);
+    ConditionalParameter<Boolean> correctDarkFieldCond = new ConditionalParameter<>(correctDarkField).setActionParameters(true, darkField, darkFieldPF).setEmphasized(true);
 
-    BooleanParameter scaleImage = new BooleanParameter("Scale Image", false).setHint("resulting image is ( I - center ) / scale");
+    BooleanParameter scaleImage = new BooleanParameter("Scale Image", false).setHint("Resulting image is ( I - center ) / scale. If flat-field and/or dark field is selected, this scaling is applied in addition to flat/dark field correction: I -> ( I - center - dark-field ) / (scale * flat-field)");
     BoundedNumberParameter center = new BoundedNumberParameter("Center", 5, 0, null, null).setEmphasized(true);
     BoundedNumberParameter scale = new BoundedNumberParameter("Scale", 5, 0, null, null).setEmphasized(true);
     ConditionalParameter<Boolean> scaleImageCond = new ConditionalParameter<>(scaleImage).setActionParameters(true, center, scale).setEmphasized(true);
@@ -64,28 +71,44 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
         return parameters;
     }
 
+    private Image getImage(String[] path, PreFilterSequence prefilters, Image refImage, String imageName) {
+        if (path == null || path.length==0) throw new IllegalArgumentException("No "+imageName+" image found");
+        for (String p : path) {
+            if (!new File(p).isFile()) throw new IllegalArgumentException("Invalid "+imageName+" image:"+p);
+        }
+        List<Image> images = new ArrayList<>(path.length);
+        for (String p : path) {
+            Image i = ImageReaderFile.openImage(p, new ImageIOCoordinates());
+            if (i==null) throw new IllegalArgumentException("Invalid "+imageName+" image:"+p);
+            if (!refImage.sameDimensions(i)) {
+                String err = imageName + " image @ "+p+" dimensions (" + i.getBoundingBox() + ") differ from input image's dimensions: " + refImage.getBoundingBox();
+                throw new IllegalArgumentException(err);
+            }
+            images.add(i);
+        }
+        Image res;
+        if (images.size()>1) {
+            res = ImageOperations.average(null, images.toArray(new Image[0]));
+        } else {
+            res = images.get(0);
+            res = (res instanceof ImageFloat) ? res : TypeConverter.toFloat(res, null);
+        }
+        res.setName(imageName);
+        if (!prefilters.isEmpty()) res = prefilters.filter(res, null);
+        if (testMode.testSimple()) Core.showImage(res);
+        return res;
+    }
     @Override
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
         if (correctFlatField.getSelected()) {
-            String path = flatField.getFirstSelectedFilePath();
+            String[] path = flatField.getSelectedFilePath();
             Image refImage = inputImages.getImage(channelIdx, 0);
-            if (path == null || !new File(path).isFile())
-                throw new IllegalArgumentException("No flat-field image found");
-            flatFieldImage = ImageReaderFile.openImage(path, new ImageIOCoordinates());
-            if (!flatFieldImage.sameDimensions(refImage)) {
-                flatFieldImage = null;
-                throw new IllegalArgumentException("Flat-field image's dimensions (" + flatFieldImage.getBoundingBox() + ") differ from input image's dimensions: " + refImage.getBoundingBox());
-            } else if (testMode.testSimple()) Core.showImage(flatFieldImage.setName("Flat Field"));
+            flatFieldImage = getImage(path, flatFieldPF, refImage, "Flat-Field");
         }
         if (correctDarkField.getSelected()) {
-            String path = darkField.getFirstSelectedFilePath();
+            String[] path = darkField.getSelectedFilePath();
             Image refImage = inputImages.getImage(channelIdx, 0);
-            if (path==null || !new File(path).isFile()) throw new IllegalArgumentException("No dark-field image found");
-            darkFieldImage = ImageReaderFile.openImage(path, new ImageIOCoordinates());
-            if (!darkFieldImage.sameDimensions(refImage)) {
-                darkFieldImage = null;
-                throw new IllegalArgumentException("Dark-field image's dimensions ("+darkFieldImage.getBoundingBox()+") differ from input image's dimensions:"+refImage.getBoundingBox());
-            } else if (testMode.testSimple()) Core.showImage(darkFieldImage.setName("Dark Field"));
+            darkFieldImage = getImage(path, darkFieldPF, refImage, "Dark-Field");
         }
     }
 

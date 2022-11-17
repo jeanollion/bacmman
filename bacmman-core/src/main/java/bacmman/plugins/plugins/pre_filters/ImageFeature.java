@@ -81,6 +81,10 @@ public class ImageFeature implements PreFilter, Filter, Hint {
         this.feature.setValue(f.name);
         return this;
     }
+    public ImageFeature set2D(boolean applySlicebySlice) {
+        this.applySliceBySlice.setSelected(applySlicebySlice);
+        return this;
+    }
     public ImageFeature setScale(double scale) {
         this.scale.setScaleXY(scale);
         this.scale.setUseImageCalibration(true);
