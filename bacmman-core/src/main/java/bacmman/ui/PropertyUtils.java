@@ -184,11 +184,15 @@ public class PropertyUtils {
 
     public static void setPersistent(JMenuItem item, String key, boolean defaultValue) {
         item.setSelected(PropertyUtils.get(key, defaultValue));
-        item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
+        item.addActionListener((java.awt.event.ActionEvent evt) -> { PropertyUtils.set(key, item.isSelected()); });
     }
     public static void setPersistent(JCheckBox item, String key, boolean defaultValue) {
         item.setSelected(PropertyUtils.get(key, defaultValue));
-        item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.isSelected());PropertyUtils.set(key, item.isSelected()); });
+        item.addActionListener((java.awt.event.ActionEvent evt) -> { PropertyUtils.set(key, item.isSelected()); });
+    }
+    public static void setPersistent(JComboBox<String> item, String key, String defaultValue) {
+        item.setSelectedItem(PropertyUtils.get(key, defaultValue));
+        item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} jcb persistSel {}", key, item.getSelectedItem());PropertyUtils.set(key, (String)item.getSelectedItem()); });
     }
     public static void setPersistent(JTextField item, String key, String defaultValue, boolean multiple) {
         item.setText(PropertyUtils.get(key, defaultValue));

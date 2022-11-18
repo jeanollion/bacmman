@@ -330,6 +330,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         measurementMode.add(measurementModeOverwriteRadioButton);
         measurementMode.add(measurementModeOnlyNewRadioButton);
         PropertyUtils.setPersistent(measurementMode, "measurement_mode", 0);
+        PropertyUtils.setPersistent(testModeJCB, "test_mode", "Simplified");
 
         // db
         PropertyUtils.setPersistent(dbStartSize, "db_size_start");
