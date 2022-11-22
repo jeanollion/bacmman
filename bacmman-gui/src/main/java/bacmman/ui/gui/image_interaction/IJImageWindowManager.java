@@ -407,7 +407,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     
     @Override
     public void displayObject(ImagePlus image, Roi3D roi) {
-        if (image.getFrame()-1!=roi.getFrame()) return;
+        if (image.getNFrames()>1 && image.getFrame()-1!=roi.getFrame()) return;
         Overlay o = image.getOverlay();
         if (o==null) {
             o=new Overlay();
