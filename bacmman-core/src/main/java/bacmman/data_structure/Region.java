@@ -227,7 +227,7 @@ public class Region {
         } else {
             ImageMask.loopWithOffset(getMask(), fun);
         }
-        return new double[]{buffer[0] / buffer[3] + 1./12, buffer[1]/buffer[3] + 1./12, buffer[2]/buffer[3]}; // 1/12 is the normalized second central moment of a pixel with unit length.
+        return new double[]{buffer[0] / buffer[3], buffer[1] / buffer[3], buffer[2] / buffer[3]};
     }
 
     public Point getCenter() {

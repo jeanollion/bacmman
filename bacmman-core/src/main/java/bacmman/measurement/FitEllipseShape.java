@@ -4,8 +4,12 @@ import bacmman.data_structure.Region;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class FitEllipseShape {
+    public final static Logger logger = LoggerFactory.getLogger(FitEllipseShape.class);
+
     public static class Ellipse {
         public final double majorAxisLength, minorAxisLength, orientation;
 

@@ -26,8 +26,7 @@ import bacmman.utils.JSONUtils;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
 
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -87,6 +86,10 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     }
     public T averageWith(Point other) {
         for (int i = 0; i<coords.length; ++i) coords[i] = (coords[i]+other.coords[i])/2f;
+        return (T)this;
+    }
+    public T averageWith(RealLocalizable other) {
+        for (int i = 0; i<coords.length; ++i) coords[i] = (coords[i]+other.getFloatPosition(i))/2f;
         return (T)this;
     }
     public T duplicate() {
@@ -367,7 +370,40 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         double min = DoubleStream.of(d11, d12, d21, d22).min().getAsDouble();
         if (d11 == min) return new SymetricalPair<>(dipole1.key, dipole2.key);
         else if (d12 == min) return new SymetricalPair<>(dipole1.key, dipole2.value);
-        else if (d21 == min) return new SymetricalPair<>(dipole1.value, dipole2.value);
+        else if (d21 == min) return new SymetricalPair<>(dipole1.value, dipole2.key);
         else return new SymetricalPair<>(dipole1.value, dipole2.value);
+    }
+    public static Point getClosest(SymetricalPair<Point> dipole, Point reference) {
+        double d1 = dipole.key.distSq(reference);
+        double d2 = dipole.value.distSq(reference);
+        if (d1<=d2) return dipole.key;
+        else return dipole.value;
+    }
+    public static <T extends RealLocalizable> Set<T> getClosests(Point ref, Collection<T> candidates) {
+        Set<T> res = new HashSet<>();
+        double dMin = Double.POSITIVE_INFINITY;
+        for (T p : candidates) {
+            double d = ref.distSq(p);
+            if (d<dMin) {
+                res.clear();
+                res.add(p);
+                dMin = d;
+            } else if (d==dMin) {
+                res.add(p);
+            }
+        }
+        return res;
+    }
+    public static <T extends RealLocalizable> Point getClosest(Point ref, Collection<T> candidates) {
+        Set<T> res = getClosests(ref, candidates);
+        if (res.size() == 1) return new Point(res.iterator().next().positionAsDoubleArray());
+        else {
+            int ndims = ref.numDimensions();
+            Point sum = res.stream().collect(()->new Point(new float[ndims]), (c, other) -> c.averageWith(other).multiply(2), (c1, c2) -> c1.averageWith(c2).multiply(2));
+            return sum.multiply(1./res.size());
+        }
+    }
+    public static double distSq(RealLocalizable r1, RealLocalizable r2) {
+        return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
     }
 }

@@ -70,6 +70,10 @@ public class Vector extends Point<Vector>  {
         for (int i = 0; i<coords.length; ++i) coords[i]/=norm;
         return this;
     }
+    public Vector reverse() {
+        for (int i = 0; i<coords.length; ++i) coords[i]=-coords[i];
+        return this;
+    }
     
     public double dotProduct(Vector v) {
         double sum = 0;
