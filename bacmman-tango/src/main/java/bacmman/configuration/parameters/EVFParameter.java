@@ -9,8 +9,8 @@ public class EVFParameter extends ContainerParameterImpl<EVFParameter> {
     ObjectClassParameter objectClassRef = new ObjectClassParameter("Reference Object class(es)", -1, true, true).setEmphasized(true).setHint("Object class(es) from which the EVF will be computed. The closer to one object of these object classes, the lower the EVF. <br >If no object class is set, the reference object class will be the parent object class");
     BooleanParameter negativeInside = new BooleanParameter("Compute EVF Inside and Outside Reference Object Class", true).setEmphasized(true).setHint("When reference object class is not the parent object class: lowest EVF is located at the farthest point from the reference object class edges and inside the reference object class, and highest EVF is located at the farthest point from the reference object class edges and outside the reference object class. <br > if False, all points located within the reference object class have EVF of 0");
     BoundedNumberParameter erode = new BoundedNumberParameter("Erosion Distance", 3, 0, 0, null).setHint("If >0, the parent object volume will be eroded.");
-    BooleanParameter resampleZ = new BooleanParameter("Resample", true).setEmphasized(true).setHint("If true, images are made isotropic (resampled along Z axis)");
-
+    BooleanParameter resampleZ = new BooleanParameter("Resample", false).setEmphasized(true).setHint("If true, images are made isotropic (resampled along Z axis)");
+    boolean allowResampleZ = true;
     public EVFParameter(String name) {
         super(name);
         initChildList();
@@ -43,7 +43,15 @@ public class EVFParameter extends ContainerParameterImpl<EVFParameter> {
 
     @Override
     protected void initChildList() {
-        super.initChildren(objectClassRef, negativeInside, erode, resampleZ);
+        if (allowResampleZ) super.initChildren(objectClassRef, negativeInside, erode, resampleZ);
+        else super.initChildren(objectClassRef, negativeInside, erode);
+    }
+
+    public EVFParameter setAllowResampleZ(boolean allowResampleZ) {
+        this.allowResampleZ = allowResampleZ;
+        if (!allowResampleZ) resampleZ.setSelected(false);
+        initChildList();
+        return this;
     }
 
     @Override
