@@ -393,27 +393,38 @@ public class ConfigurationTreeGenerator {
             else if (o instanceof Component) menu.add((Component)o);
         }
     }
+    private static void addToMenu(Object[] UIElements, JMenu menu) {
+        for (Object o : UIElements) {
+            if (o instanceof Action) menu.add((Action)o);
+            else if (o instanceof JMenuItem) menu.add((JMenuItem)o);
+            else if (o instanceof JSeparator) menu.addSeparator();
+            else if (o instanceof Component) addToMenu("", (Component)o, menu);
+        }
+    }
     public static void addToMenu(Parameter p, JMenu menu) {
         Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
+        if (p instanceof BoundedNumberParameter && UIElements.length==2) UIElements = new Object[]{UIElements[0]}; // do not insert slider
+        String hint = p.getHintText();
         for (Object o : UIElements) {
             if (o instanceof Action) menu.add((Action)o);
-            else if (o instanceof JMenuItem) menu.add((JMenuItem)o);
+            else if (o instanceof JMenuItem) {
+                menu.add((JMenuItem)o);
+                if (hint!=null && hint.length()>0) ((JMenuItem)o).setToolTipText(formatHint(hint, true));
+            }
             else if (o instanceof JSeparator) menu.addSeparator();
-            else if (o instanceof Component) addToMenu(p.getName(), (Component)o, menu);
+            else if (o instanceof Component) {
+                JPanel jp = addToMenu(p.getName(), (Component)o, menu);
+                if (hint!=null && hint.length()>0) jp.setToolTipText(formatHint(hint, true));
+            }
         }
     }
-    public static void addToMenu(String label, Object[] UIElements, JMenu menu) {
-        for (Object o : UIElements) {
-            if (o instanceof Action) menu.add((Action)o);
-            else if (o instanceof JMenuItem) menu.add((JMenuItem)o);
-            else if (o instanceof JSeparator) menu.addSeparator();
-            else if (o instanceof Component) addToMenu(label, (Component)o, menu);
-        }
-    }
-    public static void addToMenuAsSubMenu(ChoosableParameter choice, JMenu menu) {
+    public static JMenu addToMenuAsSubMenu(ChoosableParameter choice, JMenu menu) {
         JMenu subMenu = new JMenu(choice.getName());
         menu.add(subMenu);
         addToMenu(choice, subMenu);
+        String hint = choice.getHintText();
+        if (hint!=null && hint.length()>0) subMenu.setToolTipText(formatHint(hint, true));
+        return subMenu;
     }
     public static void addToMenu(ChoosableParameter choice, JMenu menu) {
         ChoiceParameterUI choiceUI = new ChoiceParameterUI(choice, null);
@@ -421,7 +432,7 @@ public class ConfigurationTreeGenerator {
             @Override
             public void menuSelected(MenuEvent menuEvent) {
                 choiceUI.refreshArming();
-                addToMenu("", choiceUI.getDisplayComponent(), menu);
+                ConfigurationTreeGenerator.addToMenu(choiceUI.getDisplayComponent(), menu);
             }
             @Override
             public void menuDeselected(MenuEvent menuEvent) {
@@ -432,12 +443,15 @@ public class ConfigurationTreeGenerator {
                 menu.removeAll();
             }
         });
+        String hint = choice.getHintText();
+        if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
     }
-    private static void addToMenu(String label, Component c, JMenu menu) {
+    private static JPanel addToMenu(String label, Component c, JMenu menu) {
         JPanel panel = new JPanel(new FlowLayout());
         panel.add(new JLabel(label));
         panel.add(c);
         menu.add(panel);
+        return panel;
     }
     public void nodeStructureChanged(Parameter node) {
         if (treeModel==null) return;

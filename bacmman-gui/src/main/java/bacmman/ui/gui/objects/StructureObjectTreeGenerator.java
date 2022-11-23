@@ -17,9 +17,6 @@
  * along with BACMMAN.  If not, see <http://www.gnu.org/licenses/>.
  */
 package bacmman.ui.gui.objects;
-
-import static bacmman.ui.gui.configuration.ConfigurationTreeGenerator.addToMenu;
-
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.dao.MasterDAO;
