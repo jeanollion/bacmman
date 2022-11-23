@@ -61,7 +61,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     EnumChoiceParameter<LAPTracker.DISTANCE> distanceType = new EnumChoiceParameter<>("Distance", LAPTracker.DISTANCE.values(), LAPTracker.DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li></ul>");
     BoundedNumberParameter distanceThreshold = new BoundedNumberParameter("Distance Threshold", 5, 10, 1, null).setEmphasized(true).setHint("If distance between two objects (after correction by predicted displacement) is over this threshold they cannot be linked. For center-to-center distance the value is in pixels, for overlap distance value an overlap proportion ( distance is  1 - overlap ) ");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
-    BoundedNumberParameter sizePenaltyFactor = new BoundedNumberParameter("Size Penalty", 5, 0, 0, null).setHint("Size Penalty applied for tracking. Allows to force linking between objects of similar size (taking into account growth rate) Increase the value to increase the penalty when size differ.");
+    BoundedNumberParameter sizePenaltyFactor = new BoundedNumberParameter("Size Penalty", 5, 0, 0, null).setEmphasized(true).setHint("Size Penalty applied for tracking. Allows to force linking between objects of similar size (taking into account growth rate).<br>Increase the value to increase the penalty when size differ.<br>Mathematical details: Expected size range at next frame [SMin; SMax] is defined by the <em>growth rate range</em> parameter, if size at next frame is outside this range, penalty p = 2 * |S - Sb| / (S + Sb) (Sb = SMax if S>SMax else SMin. Square distance becomes: d' = d * (1 + p).<br>If objects are truncated only upper bounds at next or current frame are tested.");
 
     // no previous penalty
     enum NO_PREV_PENALTY {NO_PENALTY, CONSTANT}
@@ -71,7 +71,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     ConditionalParameter<NO_PREV_PENALTY> noPrevPenaltyCond = new ConditionalParameter<>(noPrevPenaltyMode).setActionParameters(NO_PREV_PENALTY.CONSTANT, noPrevPenaltyProbaThld, noPrevPenaltyDist);
         // division
     enum DIVISION_MODE {NO_DIVISION, CONTACT, TWO_STEPS}
-    EnumChoiceParameter<DIVISION_MODE> divisionMode = new EnumChoiceParameter<>("Cell Division", DIVISION_MODE.values(), DIVISION_MODE.CONTACT).setEmphasized(true).setHint("How cell divisions are handled. <ul><li>NO DIVISION: cell cannot divide</li><li>CONTACT: allow division between objects that verify contact criterion in the same optimization step as normal links. If division probability thresholds are >0 : only contacts between one dividing cell and one dividing (or maybe dividing) cell will be considered </li><li>TWO_STEPS: two step algorithm (similar to LAP). First daughter cell is linked in the frame-to-frame step. In a second step, all cells that have no link to a cell in the previous frame, are candidate to be linked to the closest cell</li></ul>");
+    EnumChoiceParameter<DIVISION_MODE> divisionMode = new EnumChoiceParameter<>("Cell Division", DIVISION_MODE.values(), DIVISION_MODE.CONTACT).setEmphasized(true).setHint("How cell divisions are handled. <ul><li>NO DIVISION: cell cannot divide</li><li>CONTACT: allow division between objects that verify contact criterion in the same optimization step as normal links. If division probability thresholds are >0 : only contacts between one dividing cell and one dividing (or maybe dividing) cell will be considered </li><li>TWO_STEPS [UNTESTED]: two step algorithm (similar to LAP). First daughter cell is linked in the frame-to-frame step. In a second step, all cells that have no link to a cell in the previous frame, are candidate to be linked to the closest cell</li></ul>");
     IntervalParameter divProbaThld = new IntervalParameter("Probability Threshold", 5, 0, 1, 0.5, 0.75).setEmphasized(true).setHint("Thresholds applied on the predicted probability that an object is the result of a cell division: Above the higher threshold, cell is dividing, under the lower threshold cell is not. Both threshold at zero means division probability is not used");
     ConditionalParameter<DIVISION_MODE> divisionCond = new ConditionalParameter<>(divisionMode)
             .setActionParameters(DIVISION_MODE.CONTACT, divProbaThld)
@@ -100,7 +100,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 15, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, frameWindow, next, averagePredictions, frameSubsampling).setEmphasized(true);
     GroupParameter segmentation = new GroupParameter("Segmentation", edmSegmenter, useContours, displacementThreshold, manualCurationMargin).setEmphasized(true);
-    GroupParameter tracking = new GroupParameter("Tracking", distanceThreshold, noPrevPenaltyCond, contactCriterionCond, divisionCond, growthRateRange, sizePenaltyFactor, solveSplitAndMergeCond).setEmphasized(true);
+    GroupParameter tracking = new GroupParameter("Tracking", distanceThreshold, contactCriterionCond, divisionCond, growthRateRange, sizePenaltyFactor, noPrevPenaltyCond, solveSplitAndMergeCond).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     @Override
@@ -257,18 +257,29 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
         double[] gr = this.growthRateRange.getValuesAsDouble();
         double sizePenaltyFactor = this.sizePenaltyFactor.getDoubleValue();
-        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenaltyFun = (prev, next) -> { // TODO test if one is partially outside !
-            if (sizePenaltyFactor<=0 || prev.touchEdges || next.touchEdges) return 0; // cannot test if partially outside image
-            double expectedSizeMin = gr[0] * prev.size;
-            double expectedSizeMax = gr[1] * prev.size;
-            double penalty = 0;
-            if (next.size>=expectedSizeMin && next.size<=expectedSizeMax) return penalty;
-            else if (next.size<expectedSizeMin) {
-                penalty = Math.abs(expectedSizeMin - next.size) / ((expectedSizeMin + next.size)/2);
-            } else {
-                penalty = Math.abs(expectedSizeMax - next.size) / ((expectedSizeMax + next.size)/2);
+        ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenaltyFun = (prev, next) -> {
+            if (sizePenaltyFactor<=0) return 0;
+            if (sizePenaltyFactor<=0) return 0;
+            if (!prev.touchEdges && !next.touchEdges) {
+                double expectedSizeMin = gr[0] * prev.size;
+                double expectedSizeMax = gr[1] * prev.size;
+                double penalty = 0;
+                if (next.size >= expectedSizeMin && next.size <= expectedSizeMax) return penalty;
+                else if (next.size < expectedSizeMin) {
+                    penalty = Math.abs(expectedSizeMin - next.size) / ((expectedSizeMin + next.size) / 2);
+                } else {
+                    penalty = Math.abs(expectedSizeMax - next.size) / ((expectedSizeMax + next.size) / 2);
+                }
+                return penalty * sizePenaltyFactor * 1.5;
+            } else if (!prev.touchEdges) { // next is truncated -> can only test its upper bound
+                double expectedSizeMax = gr[1] * prev.size;
+                if (next.size <= expectedSizeMax) return 0;
+                else return (next.size - expectedSizeMax) / ((expectedSizeMax + next.size) / 2);
+            } else { // prev is truncated -> can only test its upper bound
+                double expectedSizeMaxPrev = next.size / gr[0];
+                if (prev.size <= expectedSizeMaxPrev) return 0;
+                else return (prev.size - expectedSizeMaxPrev) / ((expectedSizeMaxPrev + prev.size) / 2);
             }
-            return penalty * sizePenaltyFactor * 1.5;
         };
         Map<Integer, Map<SymetricalPair<Region>, LAPTracker.Overlap>> overlapMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(HashMap::new);
         ToDoubleBiFunction<Double, Double> noPrevPenalty;
