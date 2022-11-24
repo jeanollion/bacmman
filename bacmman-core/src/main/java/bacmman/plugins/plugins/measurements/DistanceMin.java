@@ -3,19 +3,22 @@ package bacmman.plugins.plugins.measurements;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Voxel;
+import bacmman.data_structure.Selection;
 import bacmman.image.Image;
-import bacmman.image.Offset;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
+import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
+import bacmman.utils.geom.Vector;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.ToDoubleBiFunction;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -46,7 +49,12 @@ public class DistanceMin implements Measurement, Hint {
     ConditionalParameter<Boolean> massCenterSourceCond = new ConditionalParameter<>(massCenterSource).setActionParameters(true, intensitySource);
     ConditionalParameter<Boolean> massCenterTargetCond = new ConditionalParameter<>(massCenterTarget).setActionParameters(true, intensityTarget);
     MultipleEnumChoiceParameter<DISTANCE_MODE> distanceMode = new MultipleEnumChoiceParameter<>("Distance Type", DISTANCE_MODE.values(), null, true);
-    Parameter[] parameters = new Parameter[]{ocSource, ocTarget, distanceMode, massCenterSourceCond, massCenterTargetCond};
+    BooleanParameter scaled = new BooleanParameter("Scaled", true).setHint("If false, distance is expressed in pixels");
+    BooleanParameter returnVector = new BooleanParameter("Return Distance Vector", false).setHint("If true, distance vector towards the closest object will be returned. <br>Note that if dZ is returned, and <em>Scaled</em> is set to false and image is anisotropic, dZ is not expressed in plane number but in XY pixels size");
+    BooleanParameter returnDZ = new BooleanParameter("Include Z-axis", true);
+    BooleanParameter returnIndices = new BooleanParameter("Return Indices", true).setHint("If true, returns the indices of the closest object");
+    ConditionalParameter<Boolean> includeVectorCond = new ConditionalParameter<>(returnVector).setActionParameters(true, returnDZ);
+    Parameter[] parameters = new Parameter[]{ocSource, ocTarget, distanceMode, massCenterSourceCond, massCenterTargetCond, scaled, includeVectorCond, returnIndices};
 
     @Override
     public int getCallObjectClassIdx() {
@@ -59,13 +67,21 @@ public class DistanceMin implements Measurement, Hint {
     }
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
-        return distanceMode.getSelectedItems().stream()
+        List<MeasurementKey> keys = distanceMode.getSelectedItems().stream()
                 .map(e -> new MeasurementKeyObject(getKey(e), ocSource.getSelectedClassIdx()))
                 .collect(Collectors.toList());
+        if (returnVector.getSelected()) {
+            distanceMode.getSelectedItems().stream().map(e -> new MeasurementKeyObject(getKey(e)+"_dX", ocSource.getSelectedClassIdx())).forEach(keys::add);
+            distanceMode.getSelectedItems().stream().map(e -> new MeasurementKeyObject(getKey(e)+"_dY", ocSource.getSelectedClassIdx())).forEach(keys::add);
+            if (returnDZ.getSelected()) distanceMode.getSelectedItems().stream().map(e -> new MeasurementKeyObject(getKey(e)+"_dZ", ocSource.getSelectedClassIdx())).forEach(keys::add);
+            if (returnIndices.getSelected()) distanceMode.getSelectedItems().stream().map(e -> new MeasurementKeyObject(getKey(e)+"_Indices", ocSource.getSelectedClassIdx())).forEach(keys::add);
+
+        }
+        return keys;
     }
 
     protected String getKey(DISTANCE_MODE mode) {
-        return mode.name+"_"+ocTarget.getSelectedClassIdx();
+        return mode.name+"_oc"+ocTarget.getSelectedClassIdx();
     }
 
     @Override
@@ -73,53 +89,74 @@ public class DistanceMin implements Measurement, Hint {
         List<SegmentedObject> source = parent.getChildren(ocSource.getSelectedClassIdx()).collect(Collectors.toList());
         List<SegmentedObject> target = parent.getChildren(ocTarget.getSelectedClassIdx()).collect(Collectors.toList());
         List<DISTANCE_MODE> distanceModes = distanceMode.getSelectedItems();
-        List<ToDoubleBiFunction<Region, Region>> distFuns = getDistanceFunctions(distanceModes, parent, source, target);
+        List<BiFunction<Region, Region, Vector>> distFuns = getDistanceFunctions(distanceModes, parent, source, target);
+        boolean sourceIsTarget = ocSource.getSelectedClassIdx() == ocTarget.getSelectedClassIdx();
+
         for (int modeIdx = 0; modeIdx<distanceModes.size(); ++modeIdx) {
             DISTANCE_MODE mode = distanceModes.get(modeIdx);
             String key = getKey(mode);
-            ToDoubleBiFunction<Region, Region> distFun = distFuns.get(modeIdx);
+            BiFunction<Region, Region, Vector> distFun = distFuns.get(modeIdx);
             source.forEach( s -> {
-                double dist = target.stream().mapToDouble(t -> distFun.applyAsDouble(s.getRegion(), t.getRegion())).min().orElse(Double.NaN);
-                if (!Double.isNaN(dist)) dist =Math.sqrt(dist);
-                s.getMeasurements().setValue(key, dist);
+                Predicate<SegmentedObject> excludeSame = sourceIsTarget ? t -> !t.equals(s) : t -> true;
+                Pair<Vector, SegmentedObject> closest = target.stream().filter(excludeSame).map(t -> new Pair<>(distFun.apply(s.getRegion(), t.getRegion()), t)).min(Comparator.comparingDouble(p -> p.key.normSq())).orElse(null);
+                if (closest!=null && closest.key!=null) {
+                    s.getMeasurements().setValue(key, closest.key.norm());
+                    if (returnVector.getSelected()) {
+                        s.getMeasurements().setValue(key+"_dX", closest.key.get(0));
+                        s.getMeasurements().setValue(key+"_dY", closest.key.get(1));
+                        if (returnDZ.getSelected() && closest.key.numDimensions()>2) s.getMeasurements().setValue(key+"_dZ", closest.key.get(2));
+                        if (returnIndices.getSelected()) s.getMeasurements().setStringValue(key+"_Indices", Selection.indicesString(closest.value));
+                    }
+                } else {
+                    s.getMeasurements().setValue(key, null);
+                    if (returnVector.getSelected()) {
+                        s.getMeasurements().setValue(key+"_dX", null);
+                        s.getMeasurements().setValue(key+"_dY", null);
+                        if (returnDZ.getSelected()) s.getMeasurements().setValue(key+"_dZ", null);
+                        if (returnIndices.getSelected()) s.getMeasurements().setStringValue(key+"_Indices", null);
+                    }
+                }
+
             });
         }
     }
 
-    public List<ToDoubleBiFunction<Region, Region>> getDistanceFunctions(List<DISTANCE_MODE> modes, SegmentedObject parent, List<SegmentedObject> source, List<SegmentedObject> target) {
-        double scaleXY = parent.getScaleXY();
-        double scaleZ = parent.getScaleZ();;
+    public List<BiFunction<Region, Region, Vector>> getDistanceFunctions(List<DISTANCE_MODE> modes, SegmentedObject parent, List<SegmentedObject> source, List<SegmentedObject> target) {
+        double scaleXY = scaled.getSelected() ? parent.getScaleXY() : 1;
+        double scaleZ = scaled.getSelected() ? parent.getScaleZ() : parent.getScaleZ()/parent.getScaleXY();
+        double scaleCorr = scaled.getSelected() ? 1 : 1/parent.getScaleXY();
+        Comparator<Vector> comp = Vector.comparator();
         Map<Region, Point> sourceCenters;
         if (modes.contains(DISTANCE_MODE.CENTER_CENTER) || modes.contains(DISTANCE_MODE.CENTER_EDGE)) {
             Image intensity = massCenterSource.getSelected() ? parent.getRawImage(intensitySource.getSelectedClassIdx()) : null;
-            sourceCenters = source.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o -> intensity==null ? o.getRegion().getGeomCenter(true) : o.getRegion().getMassCenter(intensity, true)));
+            sourceCenters = source.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o -> intensity==null ? o.getRegion().getGeomCenter(true).multiply(scaleCorr) : o.getRegion().getMassCenter(intensity, true).multiply(scaleCorr)));
         } else sourceCenters = null;
         Map<Region, Point> targetCenters;
         if (modes.contains(DISTANCE_MODE.CENTER_CENTER) || modes.contains(DISTANCE_MODE.EDGE_CENTER)) {
             Image intensity = massCenterTarget.getSelected() ? parent.getRawImage(intensityTarget.getSelectedClassIdx()) : null;
-            targetCenters = target.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o -> intensity==null ? o.getRegion().getGeomCenter(true) : o.getRegion().getMassCenter(intensity, true)));
+            targetCenters = target.stream().collect(Collectors.toMap(SegmentedObject::getRegion, o -> intensity==null ? o.getRegion().getGeomCenter(true).multiply(scaleCorr) : o.getRegion().getMassCenter(intensity, true).multiply(scaleCorr)));
         } else targetCenters = null;
-        Function<DISTANCE_MODE, ToDoubleBiFunction<Region, Region>> getDistanceFunction = mode -> {
+        Function<DISTANCE_MODE, BiFunction<Region, Region, Vector>> getDistanceFunction = mode -> {
             switch (mode) {
                 case CENTER_CENTER:
                 default:
-                    return (rSource, rTarget) -> sourceCenters.get(rSource).distSq(targetCenters.get(rTarget));
+                    return (rSource, rTarget) -> Vector.vector(sourceCenters.get(rSource), targetCenters.get(rTarget));
                 case CENTER_EDGE:
                     return (rSource, rTarget) -> {
                         Point c = sourceCenters.get(rSource);
-                        return rTarget.getContour().stream().mapToDouble(v -> c.distSq(asPoint(v, scaleXY, scaleZ))).min().orElse(Double.NaN);
+                        return rTarget.getContour().stream().map(v -> Vector.vector(c, asPoint(v, scaleXY, scaleZ))).min(comp).orElse(null);
                     };
                 case EDGE_CENTER:
                     return (rSource, rTarget) -> {
                         Point c = targetCenters.get(rTarget);
-                        return rSource.getContour().stream().mapToDouble(v -> c.distSq(asPoint(v, scaleXY, scaleZ))).min().orElse(Double.NaN);
+                        return rSource.getContour().stream().map(v -> Vector.vector(asPoint(v, scaleXY, scaleZ), c)).min(comp).orElse(null);
                     };
                 case EDGE_EDGE:
                     return (rSource, rTarget) -> {
                         Stream<Point> sContour = rSource.getContour().stream().map(v -> asPoint(v, scaleXY, scaleZ));
                         List<Point> tContour = rTarget.getContour().stream().map(v -> asPoint(v, scaleXY, scaleZ)).collect(Collectors.toList());
-                        if (tContour.isEmpty()) return Double.NaN;
-                        return sContour.mapToDouble(s -> tContour.stream().mapToDouble(t -> t.distSq(s)).min().getAsDouble()).min().orElse(Double.NaN);
+                        if (tContour.isEmpty()) return null;
+                        return sContour.map(s -> tContour.stream().map(t -> Vector.vector(s, t)).min(comp).get()).min(comp).orElse(null);
                     };
             }
         };
