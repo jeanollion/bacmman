@@ -22,14 +22,16 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.Offset;
 
 import java.util.Arrays;
+import java.util.Comparator;
 
 import net.imglib2.RealLocalizable;
+import org.jetbrains.annotations.NotNull;
 
 /**
  *
  * @author Jean Ollion
  */
-public class Vector extends Point<Vector>  {
+public class Vector extends Point<Vector> implements Comparable<Vector> {
     public Vector(float... coords) {
         super(coords);
     }
@@ -65,6 +67,13 @@ public class Vector extends Point<Vector>  {
         for (float c : coords) norm+=c*c;
         return Math.sqrt(norm);
     }
+
+    public double normSq() {
+        double norm = 0;
+        for (float c : coords) norm+=c*c;
+        return norm;
+    }
+
     public Vector normalize() {
         double norm = norm();
         for (int i = 0; i<coords.length; ++i) coords[i]/=norm;
@@ -127,5 +136,12 @@ public class Vector extends Point<Vector>  {
     @Override public Vector duplicate() {
         return new Vector(Arrays.copyOf(coords, coords.length));
     }
-    
+
+    @Override
+    public int compareTo(@NotNull Vector vector) {
+        return Double.compare(normSq(), vector.normSq());
+    }
+    public static Comparator<Vector> comparator() {
+        return Comparator.comparing(Vector::normSq);
+    }
 }
