@@ -18,15 +18,13 @@ import it.unimi.dsi.fastutil.ints.IntArrays;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.ObjDoubleConsumer;
 import java.util.function.ObjIntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
-public class EVSF implements Measurement {
+public class EVSF implements Measurement, Hint {
     ObjectClassParameter container = new ObjectClassParameter("Container", 0, false, false).setHint("Segmented object class used to compute the EVF");
-
     ObjectClassParameter channels = new ObjectClassParameter("Channel", -1, false, true).setHint("Channel(s) to analyze");
     EVFParameter evf = new EVFParameter("EVF Parameters").setAllowResampleZ(false);
     BoundedNumberParameter nBins = new BoundedNumberParameter("nBins", 0, 30, 2, null).setHint("Number of bin for EVSF analysis");
@@ -57,66 +55,72 @@ public class EVSF implements Measurement {
                 for (int c : channels.getSelectedIndices()) {
                     res.add(new MeasurementKeyObject(key.getValue()+"_oc"+c+"_shell"+s, container.getSelectedClassIdx()));
                 }
-                //res.add(new MeasurementKeyObject(key.getValue()+"_nPoints"+"_shell"+s, container.getSelectedClassIdx()));
             }
         }
         return res;
     }
 
     public static List<double[]> getEVSF(Region mask, Image evfIm, Image[] channelIms, int nBins, int nShells, List<double[]> shellContainer) {
-        int n = (int)mask.size();
+        int n = (int)Math.ceil(mask.size());
         float[] evf = new float[n];
-        int[] rank = new int[n]; // holds the index sorted by EVF
+        int[] r = new int[n]; // rank: holds the index sorted by EVF
         float[][] channels = new float[channelIms.length][n];
         int[] idx = new int[1];
         mask.loop((x, y, z) -> {
             evf[idx[0]] = evfIm.getPixelWithOffset(x, y, z);
-            rank[idx[0]] = idx[0];
+            for (int c = 0; c<channelIms.length; ++c) channels[c][idx[0]] = channelIms[c].getPixelWithOffset(x, y, z);
+            r[idx[0]] = idx[0];
             ++idx[0];
         });
-        IntArrays.quickSort(rank, (i1, i2) -> Double.compare(evf[i1], evf[i2]));
-        idx[0] = 0;
-        mask.loop((x, y, z) -> {
-            int i = rank[idx[0]];
-            evf[i] = evfIm.getPixelWithOffset(x, y, z);
-            for (int c = 0; c<channelIms.length; ++c) channels[c][i] = channelIms[c].getPixelWithOffset(x, y, z);
-            ++idx[0];
-        });
-        // TODO : average for equal EVF values (at breaks) ?
-        List<double[]> histograms = IntStream.range(0, channelIms.length).mapToObj(c -> getHistogram(evf, channels[c], nBins)).collect(Collectors.toList());
-        histograms.add(getRefHistogram(evf, nBins));
+        IntArrays.quickSort(r, (i1, i2) -> Double.compare(evf[i1], evf[i2]));
+        BiConsumer<Integer, double[]> increment = (i, a) -> IntStream.range(0, channelIms.length).forEach(c -> a[c]+=channels[c][r[i]]);
+        for (int i = 0; i<evf.length-1; i++) { // average channels for equal EVF values
+            if (evf[r[i]]==evf[r[i+1]]) {
+                double[] mean = new double[channelIms.length];
+                increment.accept(i, mean);
+                increment.accept(i+1, mean);
+                int j = i+2;
+                while (j<evf.length && evf[r[j]]==evf[r[i]]) increment.accept(j++, mean);
+                for (int c = 0; c< channelIms.length; ++c) {
+                    mean[c] /= (j-i);
+                    for (int k = i; k<j; k++) channels[c][r[k]] = (float)mean[c];
+                }
+                i=j;
+            }
+        }
+        List<double[]> histograms = IntStream.range(0, channelIms.length).mapToObj(c -> getHistogram(channels[c], r, nBins)).collect(Collectors.toList());
+        histograms.add(getRefHistogram(r, nBins));
         for (double[] h : histograms) { // normalized cum sum
             double sum = DoubleStream.of(h).sum();
             for (int i = 0; i < h.length; ++i) h[i] = h[i] / sum + (i > 0 ? h[i-1] : 0);
         }
-        for (int c = 0; c < channels.length; ++c) { //correct spatial quantization effect so that a random distribution corresponds to x-axis
+        for (int c = 0; c < channels.length; ++c) { //remove ref distribution so that a random distribution corresponds to x-axis
             double[] h = histograms.get(c);
             double[] ref = histograms.get(channels.length);
             for (int i = 0; i < h.length; ++i) h[i] -= ref[i];
         }
         histograms.remove(channelIms.length);
-        if (nShells > 0) {
-            IntStream.range(0, channelIms.length).mapToObj(c -> getHistogram(evf, channels[c], nShells)).forEach(shellContainer::add);
-            //shellContainer.add(getRefHistogram(evf, nShells));
+        if (nShells > 0) { // shells
+            IntStream.range(0, channelIms.length).mapToObj(c -> getHistogram(channels[c], r, nShells)).forEach(shellContainer::add);
         }
         return histograms;
     }
 
-    public static double[] getHistogram(float[] evf, float[] values, int nBins) {
-        double c = (double)nBins / evf.length;
+    public static double[] getHistogram(float[] values, int[] r, int nBins) {
+        double c = (double)nBins / values.length;
         ObjIntConsumer<double[]> fillHisto = (double[] histo, int i) -> {
             int idx = (int)(i * c);
-            if (idx==nBins) histo[nBins-1]+=values[i];
-            else if (idx>=0 && idx<nBins) histo[idx]+=values[i];
+            if (idx==nBins) histo[nBins-1]+=values[r[i]];
+            else if (idx>=0 && idx<nBins) histo[idx]+=values[r[i]];
         };
         BiConsumer<double[], double[]> combiner = (double[] h1, double[] h2) -> {
             for (int i = 0; i<nBins; ++i) h1[i]+=h2[i];
         };
-        return IntStream.range(0, evf.length).collect(()->new double[nBins], fillHisto, combiner);
+        return IntStream.range(0, values.length).collect(()->new double[nBins], fillHisto, combiner);
     }
 
-    public static double[] getRefHistogram(float[] evf, int nBins) {
-        double c = (double)nBins / evf.length;
+    public static double[] getRefHistogram(int[] r, int nBins) {
+        double c = (double)nBins / r.length;
         ObjIntConsumer<double[]> fillHisto = (double[] histo, int i) -> {
             int idx = (int)(i * c);
             if (idx==nBins) histo[nBins-1]++;
@@ -125,7 +129,7 @@ public class EVSF implements Measurement {
         BiConsumer<double[], double[]> combiner = (double[] h1, double[] h2) -> {
             for (int i = 0; i<nBins; ++i) h1[i]+=h2[i];
         };
-        return IntStream.range(0, evf.length).collect(()->new double[nBins], fillHisto, combiner);
+        return IntStream.range(0, r.length).collect(()->new double[nBins], fillHisto, combiner);
     }
 
     @Override
@@ -162,7 +166,13 @@ public class EVSF implements Measurement {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{container, channels, evf, nBins, key};
+        return new Parameter[]{container, channels, evf, nBins, nShells, key};
     }
 
+    @Override
+    public String getHintText() {
+        return "Radial Analysis of signal. " +
+                "<br>Signal is integrated in equal volume fractions, relatively to one or several reference object classes (typically the nuclear periphery), defined in <em>EVF Parameters</em> (see EVF measurement for more details). " +
+                "<br>Two analysis are performed: <ul><li>Continuous analysis through cumulative histogram (bins are defined with nBins parameters). A signal that is randomly distributed will display a distribution equal to the first diagonal. Metrics compare the observed distribution to the random distribution: <ul><li>area: the algebraic area between the distribution and the first diagonal : for a distribution over/under the diagonal the area is positive/negative (respectively). Note that an area close to zero do not mean that distribution is random as there can be a part over of equal area as a part under</li><li>maxOver: the maximal deviation from the diagonal for the part of the distribution that is over the diagonal. No value is provided if the distribution is totally under the diagonal</li><li>minUnder: the maximal deviation from the diagonal for the part of the distribution that is under the diagonal (as a negative number). No value is provided if the distribution is totally over the diagonal</li></ul></li><li>Discrete: a (small) number of shells of equal volume is defined in the nShells parameter and signal is integrated in each shell</li></ul>";
+    }
 }
