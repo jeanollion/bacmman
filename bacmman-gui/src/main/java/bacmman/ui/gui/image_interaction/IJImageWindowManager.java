@@ -274,7 +274,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         Region region = new Region(roi,1, roi.getBounds(), parent.getScaleXY(), parent.getScaleZ());
                         Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
                         region.translate(revOff);
-                        if (!freeHandErase) seg = FreeLineSegmenter.createSegmentedObject(region, parent, i.getChildStructureIdx(), store);
+                        if (!freeHandErase) seg = FreeLineSegmenter.createSegmentedObject(region, parent, i.getChildStructureIdx(), GUI.getInstance().getManualEditionRelabel(), store);
                         else {
                             region.translate(parent.getBounds());
                             region.setIsAbsoluteLandmark(true);
@@ -286,7 +286,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                                     .peek(modified::add)
                                     .filter(o -> o.getRegion().size()==0)
                                     .collect(Collectors.toList());
-                            GUI.getDBConnection().getDao(parent.getPositionName()).delete(toErase, true, true, true);
+                            GUI.getDBConnection().getDao(parent.getPositionName()).delete(toErase, true, true, GUI.getInstance().getManualEditionRelabel());
                             modified.removeAll(toErase);
                             store.accept(modified);
                             reloadObjects_(i.getParent(), i.getChildStructureIdx(), true);
@@ -295,7 +295,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         }
                     } else {
                         FloatPolygon p = r.getInterpolatedPolygon(-1, true);
-                        seg = FreeLineSegmenter.segment(parent, parentOffset, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx(), store);
+                        seg = FreeLineSegmenter.segment(parent, parentOffset, Pair.unpairKeys(selectedObjects), ArrayUtil.toInt(p.xpoints), ArrayUtil.toInt(p.ypoints), i.getChildStructureIdx(), GUI.getInstance().getManualEditionRelabel(), store);
                     }
                     if (!freeHandErase && !seg.isEmpty()) {
                         reloadObjects_(i.getParent(), i.getChildStructureIdx(), true);

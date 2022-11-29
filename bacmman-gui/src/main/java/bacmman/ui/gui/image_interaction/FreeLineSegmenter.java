@@ -8,6 +8,7 @@ import bacmman.processing.FillHoles2D;
 import bacmman.processing.Filters;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
+import bacmman.ui.ManualEdition;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
@@ -26,7 +27,7 @@ import java.util.stream.Stream;
 
 public class FreeLineSegmenter {
     public final static Logger logger = LoggerFactory.getLogger(FreeLineSegmenter.class);
-    public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, Collection<SegmentedObject> touchedObjects, int[] xContour, int[] yContour, int objectClassIdx, Consumer<Collection<SegmentedObject>> saveToDB) {
+    public static Collection<SegmentedObject> segment(SegmentedObject parent, Offset parentOffset, Collection<SegmentedObject> touchedObjects, int[] xContour, int[] yContour, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (xContour.length!=yContour.length) throw new IllegalArgumentException("xPoints & yPoints should have same length");
         Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
         RegionPopulation pop = parent.getChildRegionPopulation(objectClassIdx);
@@ -71,7 +72,7 @@ public class FreeLineSegmenter {
             r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z)).collect(Collectors.toList())); // remove points already segmented
             logger.debug("region size after overlap with other objects {}", r.size());
             if (r.getVoxels().isEmpty()) return Collections.emptyList();
-            return createSegmentedObject(r, parent, objectClassIdx, saveToDB);
+            return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         } else {
             Region rOld = pop.getRegions().stream().filter(rr->rr.getLabel()==modifyObjectLabel).findAny().get();
             Region r = rOld.duplicate();
@@ -89,11 +90,11 @@ public class FreeLineSegmenter {
             r.removeVoxels(r.getVoxels().stream().filter(v -> pop.getLabelMap().insideMask(v.x, v.y, v.z) && pop.getLabelMap().getPixelInt(v.x, v.y, v.z)!=modifyObjectLabel).collect(Collectors.toList()));
             logger.debug("region size after erase overlap {}", r.size());
             r.remove(rOld);
-            return createSegmentedObject(r, parent, objectClassIdx, saveToDB);
+            return createSegmentedObject(r, parent, objectClassIdx, relabel, saveToDB);
         }
     }
 
-    public static Collection<SegmentedObject> createSegmentedObject(Region r, SegmentedObject parent, int objectClassIdx, Consumer<Collection<SegmentedObject>> saveToDB) {
+    public static Collection<SegmentedObject> createSegmentedObject(Region r, SegmentedObject parent, int objectClassIdx, boolean relabel, Consumer<Collection<SegmentedObject>> saveToDB) {
         if (!r.isAbsoluteLandMark()) {
             r.translate(parent.getBounds());
             r.setIsAbsoluteLandmark(true);
@@ -101,22 +102,28 @@ public class FreeLineSegmenter {
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         SegmentedObject so = new SegmentedObject(parent.getFrame(), objectClassIdx, r.getLabel() - 1, r, parent);
         List<SegmentedObject> objects = parent.getChildren(objectClassIdx).collect(Collectors.toList());
-
-        // HEURISTIC TO FIND INSERTION POINT // TODO ALSO USE IN OBJECT CREATOR
-        Point ref = r.getBounds().getCenter();
-        SegmentedObject[] twoClosest = objects.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(SegmentedObject::getIdx)).toArray(SegmentedObject[]::new);
-        if (twoClosest.length<2) objects.add(so);
-        else {
-            Vector dir1 = Vector.vector(twoClosest[0].getBounds().getCenter(), twoClosest[1].getBounds().getCenter());
-            Vector dir2 = Vector.vector(twoClosest[1].getBounds().getCenter(), ref);
-            int idx = dir1.dotProduct(dir2)>0 ? objects.indexOf(twoClosest[1]) : objects.indexOf(twoClosest[0]);
-            objects.add(idx+1, so);
-        }
-
-        factory.setChildren(parent, objects);
         Set<SegmentedObject> modified = new HashSet<>();
-        factory.relabelChildren(parent, modified);
-        modified.add(so);
+        if (relabel) {
+            // HEURISTIC TO FIND INSERTION POINT // TODO ALSO USE IN OBJECT CREATOR
+            Point ref = r.getBounds().getCenter();
+            SegmentedObject[] twoClosest = objects.stream().sorted(Comparator.comparingDouble(ob -> ob.getBounds().getCenter().distSq(ref))).limit(2).sorted(Comparator.comparingInt(SegmentedObject::getIdx)).toArray(SegmentedObject[]::new);
+            if (twoClosest.length < 2) objects.add(so);
+            else {
+                Vector dir1 = Vector.vector(twoClosest[0].getBounds().getCenter(), twoClosest[1].getBounds().getCenter());
+                Vector dir2 = Vector.vector(twoClosest[1].getBounds().getCenter(), ref);
+                int idx = dir1.dotProduct(dir2) > 0 ? objects.indexOf(twoClosest[1]) : objects.indexOf(twoClosest[0]);
+                objects.add(idx + 1, so);
+            }
+            factory.setChildren(parent, objects);
+            factory.relabelChildren(parent, modified);
+            modified.add(so);
+        } else {
+            modified.add(so);
+            ManualEdition.removeDuplicateIdxs(modified, factory);
+            objects.add(so);
+            Collections.sort(objects);
+            factory.setChildren(parent, objects);
+        }
         saveToDB.accept(modified);
         return new ArrayList<SegmentedObject>() {{
             add(so);

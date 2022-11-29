@@ -54,6 +54,7 @@ import java.util.function.BiPredicate;
 
 import bacmman.ui.gui.image_interaction.FreeLineSplitter;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
+import it.unimi.dsi.fastutil.ints.IntArrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -402,7 +403,7 @@ public class ManualEdition {
         }
     }
     
-    public static void manualSegmentation(MasterDAO db, Image image, boolean test) {
+    public static void manualSegmentation(MasterDAO db, Image image, boolean relabel, boolean test) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         if (image==null) {
             Object im = iwm.getDisplayer().getCurrentImage();
@@ -502,12 +503,21 @@ public class ManualEdition {
                 if (!test && !seg.getRegions().isEmpty()) {
                     SegmentedObject parent = e.getKey().getParent(parentStructureIdx);
                     if (!parent.equals(e.getKey())) seg.translate(e.getKey().getRelativeBoundingBox(parent), false);
-                    oldChildren = parent.getChildren(structureIdx).collect(Collectors.toList());
-                    List<SegmentedObject> newChildren = factory.setChildObjects(parent, seg);
-                    segmentedObjects.addAll(newChildren);
-                    newChildren.addAll(0, oldChildren);
                     ArrayList<SegmentedObject> modified = new ArrayList<>();
-                    factory.relabelChildren(parent, modified);
+                    List<SegmentedObject> newChildren;
+                    oldChildren = parent.getChildren(structureIdx).collect(Collectors.toList());
+                    if (relabel) {
+                        newChildren = factory.setChildObjects(parent, seg);
+                        segmentedObjects.addAll(newChildren);
+                        newChildren.addAll(0, oldChildren);
+                        factory.relabelChildren(parent, modified);
+                    } else {
+                        newChildren = seg.getRegions().stream().map(r -> new SegmentedObject(parent.getFrame(), structureIdx, 0, r, parent)).collect(Collectors.toList());
+                        removeDuplicateIdxs(newChildren, factory);
+                        oldChildren.addAll(newChildren);
+                        Collections.sort(oldChildren);
+                        factory.setChildren(parent, oldChildren);
+                    }
                     modified.addAll(newChildren);
                     Utils.removeDuplicates(modified, false);
                     db.getDao(parent.getPositionName()).store(modified);
@@ -651,6 +661,7 @@ public class ManualEdition {
                     objectsToStore.add(objectToSplit);
                 }
             }
+            if (!relabel) removeDuplicateIdxs(newObjects, factory);
             if (!test && dao!=null) {
                 dao.store(objectsToStore);
                 //logger.debug("storing modified objects after split: {}", objectsToStore);
@@ -681,6 +692,37 @@ public class ManualEdition {
                 if (GUI.getInstance().trackTreeController!=null) GUI.getInstance().trackTreeController.updateTrackTree();
             }
         }
+    }
+
+    public static void removeDuplicateIdxs(Collection<SegmentedObject> createdObject, SegmentedObjectFactory factory) {
+        // suppose createdObjects are not yet added to parent's children
+        SegmentedObjectUtils.splitByParent(createdObject).forEach((p, l) -> {
+            List<Integer> allIdxs = p.getChildren(factory.getEditableObjectClassIdx()).map(SegmentedObject::getIdx).sorted().collect(Collectors.toList());
+            l.forEach(newObject -> {
+                int idx = Collections.binarySearch(allIdxs, newObject.getIdx());
+                if (idx>=0) { // idx is already taken -> get the first unused label
+                    if (allIdxs.get(0)>0) {
+                        //logger.info("Split: relabel object: {} to 0 (first label)", newObject);
+                        factory.setIdx(newObject, 0);
+                        allIdxs.add(0, newObject.getIdx());
+                    } else {
+                        for (int i = 1; i < allIdxs.size(); ++i) {
+                            if (allIdxs.get(i) > allIdxs.get(i - 1) + 1) {
+                                //logger.info("Split: relabel object: {} to {} (unused label)", newObject, allIdxs.get(i - 1) + 1);
+                                factory.setIdx(newObject, allIdxs.get(i - 1) + 1);
+                                allIdxs.add(i, newObject.getIdx());
+                                break;
+                            } else if (i == allIdxs.size() - 1) {
+                                //logger.info("Split: relabel object: {} to {} (last label)", newObject, allIdxs.get(i) + 1);
+                                factory.setIdx(newObject, allIdxs.get(i) + 1);
+                                allIdxs.add(newObject.getIdx());
+                                break;
+                            }
+                        }
+                    }
+                }
+            });
+        });
     }
 
     public static void mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean updateDisplay) {

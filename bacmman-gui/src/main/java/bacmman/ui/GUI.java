@@ -149,7 +149,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("In case of HiDPI screen, a zoom factor is applied to the display, set here this factor");
     private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
-    private BooleanParameter relabel = new BooleanParameter("Relabel objects", true);
+    private BooleanParameter relabel = new BooleanParameter("Relabel objects", true).setHint("Ater manual curation, relabel all objects of the same parent to ensure continuous labels. This operation can be time consuming when many objects are present.");
     private BooleanParameter safeMode = new BooleanParameter("Safe Mode (undo)", false);
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
@@ -4501,13 +4501,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_appendLinkObjectsButtonActionPerformed
 
     private void testManualSegmentationButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_testManualSegmentationButtonActionPerformed
-        ManualEdition.manualSegmentation(db, null, true);
+        ManualEdition.manualSegmentation(db, null, getManualEditionRelabel(), true);
     }//GEN-LAST:event_testManualSegmentationButtonActionPerformed
 
     private void manualSegmentButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_manualSegmentButtonActionPerformed
         if (!checkConnection()) return;
         //if (db.isReadOnly()) return;
-        ManualEdition.manualSegmentation(db, null, false);
+        ManualEdition.manualSegmentation(db, null, getManualEditionRelabel(), false);
     }//GEN-LAST:event_manualSegmentButtonActionPerformed
 
     private void updateRoiDisplayButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_updateRoiDisplayButtonActionPerformed

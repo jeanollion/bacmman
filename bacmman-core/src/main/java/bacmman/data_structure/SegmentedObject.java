@@ -372,7 +372,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
             childrenSM.set(res, structureIdx);
             return res;
         }
-        population.relabel();
+        population.relabel(false);
         if (!population.isAbsoluteLandmark()) {
             population.translate(getBounds(), true); // from parent-relative coordinates to absolute coordinates
         }

@@ -62,6 +62,7 @@ public class PythonGateway {
             logger.info("Python Gateway started : port: {} python port: {} address: {}", port, pythonPort, address);
         } catch(Exception e) {
             logger.error("Error with Python Gateway: binding with python will not be available", e);
+            if (GUI.hasInstance()) GUI.log("Could not start Python Gateway: binding with python will not be available. Error: "+e.getMessage());
         }
     }
 
