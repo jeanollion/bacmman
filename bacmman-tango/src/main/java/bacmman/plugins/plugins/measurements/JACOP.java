@@ -1,11 +1,9 @@
 package bacmman.plugins.plugins.measurements;
 
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.TextParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.Measurements;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.data_structure.Selection;
 import bacmman.image.Image;
 import bacmman.image.TypeConverter;
 import bacmman.image.wrappers.IJImageWrapper;
@@ -14,22 +12,30 @@ import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.Thresholder;
-import bacmman.plugins.plugins.thresholders.ConstantValue;
-import bacmman.plugins.plugins.thresholders.Percentile;
 import bacmman.processing.jacop.ImageColocalizer;
+import bacmman.utils.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
 
 public class JACOP implements Measurement, Hint {
-    ObjectClassParameter mask = new ObjectClassParameter("Segmentation Mask", -1, false, false).setHint("Segmented Object class within which colocalization will be computed");
+    ObjectClassParameter mask = new ObjectClassParameter("Segmentation Mask", 0, false, false).setHint("Segmented Object class within which colocalization will be computed");
     ObjectClassParameter signal1 = new ObjectClassParameter("Signal 1", -1, false, false).setHint("First signal to colocalize");
     ObjectClassParameter signal2 = new ObjectClassParameter("Signal 2", -1, false, false).setHint("Second signal to colocalize");
-    PluginParameter<Thresholder> thld1 = new PluginParameter<>("Threshold for Signal 1", Thresholder.class,true).setHint("Optional. Threshold computed on signal 1. Values above this threshold will be considered in computations");
-    PluginParameter<Thresholder> thld2 = new PluginParameter<>("Threshold for Signal 2", Thresholder.class,true).setHint("Optional. Threshold computed on signal 2. Values above this threshold will be considered in computations");
-    TextParameter key = new TextParameter("Suffix", "", false).setHint("Characters added at the end of the measurement names");
+    PluginParameter<Thresholder> thld1 = new PluginParameter<>("Threshold for Signal 1", Thresholder.class,true).setHint("Threshold computed on signal 1. Values above this threshold will be considered in computations.<br> If no threshold is selected, areas inside segmented objects (if existing) of signal 1 will be considered in computations");
+    PluginParameter<Thresholder> thld2 = new PluginParameter<>("Threshold for Signal 2", Thresholder.class,true).setHint("Threshold computed on signal 2. Values above this threshold will be considered in computations<br> If no threshold is selected, areas inside segmented objects (if existing) of signal 2 will be considered in computations");
+    TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix added to the measurement names");
+    enum Z_SLICES {ALL_SLICES, PER_SLICE_CONSTANT_STEP, PER_SLICE_RELATIVE_STEP}
+    EnumChoiceParameter<Z_SLICES> zPlanes = new EnumChoiceParameter<>("Z Slice Mode", Z_SLICES.values(), Z_SLICES.ALL_SLICES).setHint("In case of 3D images choose how Z slices are handled: " +
+            "<ul><li>ALL_SLICES: Colocalization is performed in 3D on all planes</li>" +
+            "<li>PER_SLICE_CONSTANT_STEP: Colocalization is performed in 2D on slices around the middle slice with a constant step between slices</li>" +
+            "<li>PER_SLICE_RELATIVE_STEP: Colocalization is performed in 2D on slices around the middle slice with a step between slices relative to the total number of slices</li></ul>.<br>In 2D modes, thresholds are computed on the 3D image");
 
-
+    BoundedNumberParameter sliceNumber = new BoundedNumberParameter("nSlices", 0, 2, 0, null).setHint("Number of slices under and over the middle slice. Total number of slice is 2 * nSlices + 1.");
+    BoundedNumberParameter step = new BoundedNumberParameter("Step", 0, 1, 1, null).setHint("Step between slices (in z unit). 2 means: one slice every two slices");
+    ConditionalParameter<Z_SLICES> zPlanesCond = new ConditionalParameter<>(zPlanes)
+            .setActionParameters(Z_SLICES.PER_SLICE_CONSTANT_STEP, sliceNumber, step)
+            .setActionParameters(Z_SLICES.PER_SLICE_RELATIVE_STEP, sliceNumber);
     @Override
     public int getCallObjectClassIdx() {
         return mask.getSelectedClassIdx();
@@ -40,17 +46,55 @@ public class JACOP implements Measurement, Hint {
         return false;
     }
 
+    protected List<Pair<Integer, String>> getZPlanes(int middleZ, int sizeZ) {
+        switch (zPlanes.getSelectedEnum()) {
+            case ALL_SLICES:
+            default: {
+                return null;
+            } case PER_SLICE_CONSTANT_STEP: {
+                List<Pair<Integer, String>> res= new ArrayList<>();
+                res.add(new Pair<>(middleZ, "Mid"));
+                int step = this.step.getIntValue();
+                for (int i = 1; i<=sliceNumber.getIntValue(); ++i) {
+                    res.add(new Pair<>(middleZ + i * step, "Up"+i));
+                    res.add(new Pair<>(middleZ - i * step, "Down"+i));
+                }
+                return res;
+            } case PER_SLICE_RELATIVE_STEP: {
+                List<Pair<Integer, String>> res= new ArrayList<>();
+                res.add(new Pair<>(middleZ, "Mid"));
+                int step = Math.max(1, sizeZ / (sliceNumber.getIntValue() * 2));
+                for (int i = 1; i<=sliceNumber.getIntValue(); ++i) {
+                    res.add(new Pair<>(Math.min(sizeZ - 1, middleZ + i * step), "Up"+i));
+                    res.add(new Pair<>(Math.max(0, middleZ - i * step), "Down"+i));
+                }
+                return res;
+            }
+        }
+    }
+
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
+        List<Pair<Integer, String>> planes=getZPlanes(0, 1);
+        if (planes==null) return getMeasurementKeys(null);
+        else {
+            ArrayList<MeasurementKey> res = new ArrayList<>();
+            for (Pair<Integer, String> z : planes) res.addAll(getMeasurementKeys(z.value));
+            return res;
+        }
+    }
+
+    protected List<MeasurementKey> getMeasurementKeys(String z) {
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        String suffix = key.getValue();
-        res.add(new MeasurementKeyObject("Pearson"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("Overlap"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("K1"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("K2"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("Manders1"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("Manders2"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject("ICA"+suffix, mask.getSelectedClassIdx()));
+        String prefix = this.prefix.getValue();
+        String suffix = z==null ? "" : "_z"+z;
+        res.add(new MeasurementKeyObject(prefix+"Pearson"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"Overlap"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"K1"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"K2"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"Manders1"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"Manders2"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"ICA"+suffix, mask.getSelectedClassIdx()));
         return res;
     }
 
@@ -61,13 +105,30 @@ public class JACOP implements Measurement, Hint {
         Image signal2 = object.getRawImage(this.signal2.getSelectedClassIdx());
         int thld1 = this.thld1.isOnePluginSet() ? (int)this.thld1.instantiatePlugin().runThresholder(signal1, object) : Integer.MIN_VALUE;
         int thld2 = this.thld2.isOnePluginSet() ? (int)this.thld2.instantiatePlugin().runThresholder(signal2, object) : Integer.MIN_VALUE;
-        ImageColocalizer colocalizer = new ImageColocalizer(IJImageWrapper.getImagePlus(signal1), IJImageWrapper.getImagePlus(signal2), IJImageWrapper.getImagePlus(mask));
-        double pearson = colocalizer.pearson(thld1, thld2);
-        double[] overlapK1K2 = colocalizer.overlap(thld1, thld2);
-        double[] M1M2 = colocalizer.MM(thld1, thld2);
-        double ICA = colocalizer.ICA();
+        Image mask1 = !this.thld1.isOnePluginSet() ? object.getChildRegionPopulation(this.signal1.getSelectedClassIdx(), false).getLabelMap():null;
+        Image mask2 = !this.thld2.isOnePluginSet() ? object.getChildRegionPopulation(this.signal2.getSelectedClassIdx(), false).getLabelMap():null;
         Measurements m = object.getMeasurements();
-        List<MeasurementKey> keys = getMeasurementKeys();
+        List<Pair<Integer, String>> planes=getZPlanes((mask.sizeZ()-1)/2, mask.sizeZ());
+        if (planes==null) performMeasurement(m, signal1, signal2, mask, mask1, mask2, thld1, thld2, null);
+        else {
+            logger.debug("container: {} sizeZ: {}, planes: {}", Selection.indicesString(object), mask.sizeZ(), planes);
+            for (Pair<Integer, String> z : planes) {
+                if (z.key>=0 && z.key<mask.sizeZ()) performMeasurement(m, signal1.getZPlane(z.key), signal2.getZPlane(z.key), mask.getZPlane(z.key), mask1==null ? null : mask1.getZPlane(z.key), mask2==null ? null : mask2.getZPlane(z.key), thld1, thld2, z.value);
+            }
+        }
+    }
+
+    protected void performMeasurement(Measurements m, Image signal1, Image signal2, Image mask, Image mask1, Image mask2, int thld1, int thld2, String z) {
+        ImageColocalizer colocalizer = new ImageColocalizer(IJImageWrapper.getImagePlus(signal1), IJImageWrapper.getImagePlus(signal2), IJImageWrapper.getImagePlus(mask));
+        if (mask1!=null) colocalizer.setMaskA(IJImageWrapper.getImagePlus(mask1));
+        else colocalizer.setThresholdA(thld1);
+        if (mask2!=null) colocalizer.setMaskB(IJImageWrapper.getImagePlus(mask2));
+        else colocalizer.setThresholdB(thld2);
+        double pearson = colocalizer.pearson();
+        double[] overlapK1K2 = colocalizer.overlap();
+        double[] M1M2 = colocalizer.MM();
+        double ICA = colocalizer.ICA();
+        List<MeasurementKey> keys = getMeasurementKeys(z);
         m.setValue(keys.get(0).getKey(), pearson);
         m.setValue(keys.get(1).getKey(), overlapK1K2[0]);
         m.setValue(keys.get(2).getKey(), overlapK1K2[1]);
@@ -79,7 +140,7 @@ public class JACOP implements Measurement, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{mask, signal1, signal2, thld1, thld2};
+        return new Parameter[]{mask, signal1, signal2, thld1, thld2, zPlanesCond, prefix};
     }
 
     @Override

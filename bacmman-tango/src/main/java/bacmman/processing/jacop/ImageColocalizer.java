@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.function.IntPredicate;
+
 /**
  *
  * @author Jean Ollion modified from the code of Fabrice Cordelieres: https://github.com/fabricecordelieres/IJ-Plugin_JACoP/blob/master/JACoP_/src/_JACoP/ImageColocalizer.java
@@ -18,7 +20,7 @@ public class ImageColocalizer {
     int width, height, nbSlices, depth, length, widthCostes, heightCostes, nbsliceCostes, lengthCostes;
     String titleA, titleB;
     int[] A, B;
-    boolean[] mask;
+    boolean[] mask, maskA, maskB;
     int Amin, Amax, Bmin, Bmax;
     double Amean, Bmean;
     Calibration cal, micronCal;
@@ -41,6 +43,8 @@ public class ImageColocalizer {
         this.A=new int[this.length];
         this.B=new int[this.length];
         if (mask != null) this.mask = new boolean[this.length];
+        this.maskA = new boolean[this.length];
+        this.maskB = new boolean[this.length];
         this.titleA=ipA.getTitle();
         this.titleB=ipB.getTitle();
         this.cal=cal;
@@ -60,25 +64,56 @@ public class ImageColocalizer {
         this(ipA, ipB, mask, new Calibration());
     }
 
-    public double pearson(int TA, int TB) {
+    public ImageColocalizer setThresholdA(int thld) {
+        for (int i=0; i<this.length; i++) maskA[i] = A[i]>=thld;
+        return this;
+    }
+
+    public ImageColocalizer setThresholdB(int thld) {
+        for (int i=0; i<this.length; i++) maskB[i] = B[i]>=thld;
+        return this;
+    }
+
+    public ImageColocalizer setMaskA(ImagePlus maskA) {
+        setMask(maskA, this.maskA);
+        return this;
+    }
+
+    public ImageColocalizer setMaskB(ImagePlus maskB) {
+        setMask(maskB, this.maskB);
+        return this;
+    }
+
+    protected void setMask(ImagePlus mask, boolean[] a) {
+        int index=0;
+        for (int z=1; z<=this.nbSlices; z++) {
+            mask.setSlice(z);
+            ImageProcessor maskAp = mask.getProcessor();
+            for (int y = 0; y < this.height; y++) {
+                for (int x = 0; x < this.width; x++) {
+                    a[index++] = maskAp.getPixel(x, y) != 0;
+                }
+            }
+        }
+    }
+
+    public double pearson() {
         this.doThat=true;
-        return linreg(A,B, mask,TA,TB)[2];
+        return linreg(A,B, mask, maskA, maskB)[2];
     }
 
     /**
      *
-     * @param thrA
-     * @param thrB
      * @return overlap , k1, k2
      */
-    public double[] overlap(int thrA, int thrB){
+    public double[] overlap(){
         double numThr=0;
         double den1Thr=0;
         double den2Thr=0;
 
         for (int i=0; i<this.length; i++){
             if (mask==null || mask[i]) {
-                if (this.A[i] > thrA && this.B[i] > thrB) {
+                if (this.maskA[i] && this.maskB[i] ) {
                     numThr += this.A[i] * this.B[i];
                     den1Thr += Math.pow(this.A[i], 2);
                     den2Thr += Math.pow(this.B[i], 2);
@@ -92,11 +127,9 @@ public class ImageColocalizer {
 
     /**
      *
-     * @param thrA
-     * @param thrB
      * @return M1, M2
      */
-    public double[] MM(int thrA, int thrB){
+    public double[] MM(){
         double sumAcolocThr=0;
         double sumAThr=0;
         double sumBcolocThr=0;
@@ -104,13 +137,13 @@ public class ImageColocalizer {
 
         for (int i=0; i<this.length; i++){
             if (mask==null || mask[i]) {
-                if (this.B[i] > thrB) {
+                if (this.maskB[i]) {
                     sumBThr += this.B[i];
-                    if (this.A[i] > thrA) sumAcolocThr += this.A[i];
+                    if (this.maskA[i]) sumAcolocThr += this.A[i];
                 }
-                if (this.A[i] > thrA) {
+                if (this.maskA[i] ) {
                     sumAThr += this.A[i];
-                    if (this.B[i] > thrB) sumBcolocThr += this.B[i];
+                    if (this.maskB[i]) sumBcolocThr += this.B[i];
                 }
             }
         }
@@ -752,6 +785,52 @@ public class ImageColocalizer {
         }
     }
 
+    public double[] linreg(int[] Aarray, int[] Barray, boolean[] mask, boolean[] maskA, boolean[] maskB){
+        double num=0;
+        double den1=0;
+        double den2=0;
+        double[] coeff=new double[6];
+        int count=0;
+
+        if (doThat){
+            sumA=0;
+            sumB=0;
+            sumAB=0;
+            sumsqrA=0;
+            Aarraymean=0;
+            Barraymean=0;
+            for (int m=0; m<Aarray.length; m++){
+                if ( (mask==null||mask[m]) && maskA[m] && maskB[m] ){
+                    sumA+=Aarray[m];
+                    sumB+=Barray[m];
+                    sumAB+=Aarray[m]*Barray[m];
+                    sumsqrA+=Math.pow(Aarray[m],2);
+                    count++;
+                }
+            }
+
+            Aarraymean=sumA/count;
+            Barraymean=sumB/count;
+        }
+
+        for (int m=0; m<Aarray.length; m++){
+            if (((mask==null||mask[m])) && maskA[m] && maskB[m] ){
+                num+=(Aarray[m]-Aarraymean)*(Barray[m]-Barraymean);
+                den1+=Math.pow((Aarray[m]-Aarraymean), 2);
+                den2+=Math.pow((Barray[m]-Barraymean), 2);
+            }
+        }
+
+        //0:a, 1:b, 2:corr coeff, 3: num, 4: den1, 5: den2
+        coeff[0]=(count*sumAB-sumA*sumB)/(count*sumsqrA-Math.pow(sumA,2));
+        coeff[1]=(sumsqrA*sumB-sumA*sumAB)/(count*sumsqrA-Math.pow(sumA,2));
+        coeff[2]=num/(Math.sqrt(den1*den2));
+        coeff[3]=num;
+        coeff[4]=den1;
+        coeff[5]=den2;
+        return coeff;
+    }
+
     public double[] linreg(int[] Aarray, int[] Barray, boolean[] mask, int TA, int TB){
         double num=0;
         double den1=0;
@@ -767,7 +846,7 @@ public class ImageColocalizer {
             Aarraymean=0;
             Barraymean=0;
             for (int m=0; m<Aarray.length; m++){
-                if ( (mask==null||mask[m]) && (Aarray[m]>=TA && Barray[m]>=TB)){
+                if ( (mask==null||mask[m]) && Aarray[m]>=TA && Barray[m]>=TB ){
                     sumA+=Aarray[m];
                     sumB+=Barray[m];
                     sumAB+=Aarray[m]*Barray[m];
@@ -781,7 +860,7 @@ public class ImageColocalizer {
         }
 
         for (int m=0; m<Aarray.length; m++){
-            if (((mask==null||mask[m])) && Aarray[m]>=TA && Barray[m]>=TB){
+            if (((mask==null||mask[m])) && Aarray[m]>=TA && Barray[m]>=TB ){
                 num+=(Aarray[m]-Aarraymean)*(Barray[m]-Barraymean);
                 den1+=Math.pow((Aarray[m]-Aarraymean), 2);
                 den2+=Math.pow((Barray[m]-Barraymean), 2);
