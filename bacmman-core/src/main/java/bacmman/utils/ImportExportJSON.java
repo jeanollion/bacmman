@@ -176,7 +176,7 @@ public class ImportExportJSON {
     }
     
     public static <T extends JSONSerializable> List<T> readObjects(String path, Class<T> clazz) {
-        return FileIO.readFromFile(path, s-> parse(clazz, s));
+        return FileIO.readFromFile(path, s-> parse(clazz, s), null);
     }
     
     /*public static void exportPositions(FileIO.ZipWriter w, MasterDAO dao, boolean objects, boolean preProcessedImages, boolean trackImages, ProgressCallback pcb) {exportPositions(w, dao, objects, preProcessedImages, trackImages, null, pcb);}
@@ -210,16 +210,16 @@ public class ImportExportJSON {
     }*/
     public static void exportConfig(FileIO.ZipWriter w, MasterDAO dao) {
         if (!w.isValid()) return;
-        w.write("config.json", new ArrayList<Experiment>(1){{add(dao.getExperiment());}}, o->JSONUtils.serialize(o));
+        w.write("config.json", new ArrayList<Experiment>(1){{add(dao.getExperiment());}}, JSONUtils::serialize);
     }
     
     public static void exportSelections(FileIO.ZipWriter w, MasterDAO dao) {
         if (!w.isValid()) return;
-        if (dao.getSelectionDAO()!=null) w.write("selections.json", dao.getSelectionDAO().getSelections(), o -> JSONUtils.serialize(o));
+        if (dao.getSelectionDAO()!=null) w.write("selections.json", dao.getSelectionDAO().getSelections(), JSONUtils::serialize);
     }
     public static Experiment readConfig(File f) {
         if (f.getName().endsWith(".json")||f.getName().endsWith(".txt")) {
-            List<Experiment> xp = FileIO.readFromFile(f.getAbsolutePath(), o->JSONUtils.parse(Experiment.class, o));
+            List<Experiment> xp = FileIO.readFromFile(f.getAbsolutePath(), o->JSONUtils.parse(Experiment.class, o), null);
             if (xp.size()==1) return xp.get(0);
         } else if (f.getName().endsWith(".zip")) {
             FileIO.ZipReader r = new FileIO.ZipReader(f.getAbsolutePath());

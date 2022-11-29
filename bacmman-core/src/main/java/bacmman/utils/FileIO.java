@@ -31,13 +31,8 @@ import java.io.InputStreamReader;
 import java.io.RandomAccessFile;
 import java.io.Reader;
 import java.nio.channels.OverlappingFileLockException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Enumeration;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.zip.ZipEntry;
@@ -106,7 +101,7 @@ public class FileIO {
         tf.close();
         return converter.apply(line);
     }
-    public static <T> List<T> readFromFile(String path, Function<String, T> converter) {
+    public static <T> List<T> readFromFile(String path, Function<String, T> converter, Consumer<String> runWhenConversionError) {
         FileReader input = null;
         List<String> resS = new ArrayList<>();
         try {
@@ -115,13 +110,23 @@ public class FileIO {
             String myLine = null;
             while ( (myLine = bufRead.readLine()) != null) resS.add(myLine);
         } catch (IOException ex) {
-            logger.debug("an error occured trying read file: {}, {}", path, ex);
+            logger.debug("an error occurred trying read file: {}, {}", path, ex);
         } finally {
             try {
                 if (input!=null) input.close();
             } catch (IOException ex) { }
         }
-        return resS.stream().map(converter).collect(Collectors.toList());
+        if (runWhenConversionError==null) return resS.stream().map(converter).collect(Collectors.toList()); // throws error
+        else {
+            return resS.stream().map(s -> {
+                try {
+                    return converter.apply(s);
+                } catch (Throwable e) {
+                    runWhenConversionError.accept(s);
+                    return null;
+                }
+            }).filter(Objects::nonNull).collect(Collectors.toList());
+        }
     }
     
     public static <T> List<T> readFromZip(ZipFile file, String relativePath, Function<String, T> converter) {

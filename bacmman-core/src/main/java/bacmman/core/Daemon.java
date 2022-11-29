@@ -134,7 +134,7 @@ public class Daemon {
             return;
         }
         for (File f : subF) {
-            List<String> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->s);
+            List<String> jobs = FileIO.readFromFile(f.getAbsolutePath(), s->s, s->ui.setMessage("Error while reading file: "+f));
             boolean error= false;
             for (String s : jobs) {
                 JSONObject o = JSONUtils.parse(s);

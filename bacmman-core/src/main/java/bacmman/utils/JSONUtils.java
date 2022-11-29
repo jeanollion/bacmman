@@ -349,5 +349,10 @@ public class JSONUtils {
         }
         return count==json.size()||count==list.size();
     }
-
+    public static Object get(JSONObject json, String... keys) {
+        for (String k : keys) {
+            if (json.containsKey(k)) return json.get(k);
+        }
+        return null;
+    }
 }

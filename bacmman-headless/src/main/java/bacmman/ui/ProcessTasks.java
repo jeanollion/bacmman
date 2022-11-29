@@ -65,7 +65,7 @@ public class ProcessTasks {
         ui.setRunning(true);
         //ui.setMessage("BACMMAN version: "+Utils.getVersion(ui));
         Function<String, Task> parser = s->new Task().setUI(ui).fromJSON(JSONUtils.parse(s));
-        List<Task> jobs = FileIO.readFromFile(args[0], parser);
+        List<Task> jobs = FileIO.readFromFile(args[0], parser, s->ui.setMessage("Error while parsing task file: "+args[0]));
         ui.setMessage(jobs.size()+" jobs found in file: "+args[0]);
         if (jobs.isEmpty()) return;
         

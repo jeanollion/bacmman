@@ -87,11 +87,11 @@ public class DBMapSelectionDAO implements SelectionDAO {
         // local files
         File dirFile = dir.toFile();
         for (File f : dirFile.listFiles((f, n)-> n.endsWith(".txt")||n.endsWith(".json"))) {
-            List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s));
+            List<Selection> sels = FileIO.readFromFile(f.getAbsolutePath(), s -> JSONUtils.parse(Selection.class, s), s -> logger.error("Error while converting json file content: {} -> content :{}", f, s));
             for (Selection s : sels) {
                 s.setMasterDAO(mDAO);
                 if (idCache.containsKey(s.getName())) {
-                    logger.info("Selection: {} found in file: {} will be overwriten in local database", s.getName(), f.getAbsolutePath());
+                    logger.info("Selection: {} found in file: {} will be overwritten in local database", s.getName(), f.getAbsolutePath());
                     // copy metadata
                     Selection source = idCache.get(s.getName());
                     s.setHighlightingTracks(source.isHighlightingTracks());

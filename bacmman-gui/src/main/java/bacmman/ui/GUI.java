@@ -4151,7 +4151,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             JSONObject o = JSONUtils.parse(s);
                             if (o!=null) return new Task().fromJSON(o);
                             else return null;
-                        });
+                        }, s->setMessage("Error while reading task file: "+f));
                         for (Task j : jobs) actionPoolListModel.addElement(j);
                     }
                 }
