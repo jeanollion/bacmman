@@ -224,8 +224,11 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
 
     }
     protected static String fixWindowsPath(String path) {
-        if (!Utils.isWindows()) return path.replaceAll("\\\\", File.separator);
-        else return path.replaceAll("/", File.separator);
+        if (File.separatorChar=='\\') { // current system is windows convert path from Unix to windows
+            return path.replace('/', File.separatorChar);
+        } else { // current system is Unix: convert path from Windows to Unix
+            return path.replace('\\', File.separatorChar);
+        }
     }
     protected  static String toAbsolutePath(Path ref, String toConvert) {
         return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
