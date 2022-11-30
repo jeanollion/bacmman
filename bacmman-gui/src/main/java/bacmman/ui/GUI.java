@@ -457,6 +457,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (db!=null) db.setSafeMode(b.getSelected());
         });
         rollback.setEnabled(safeMode.getSelected());
+        JMenuItem relabelAll = new javax.swing.JMenuItem();
+        relabelAll.setText("Relabel All Frames");
+        relabelAll.setToolTipText("Ensure continuous labels for all frames of active interactive image");
+        relabelAll.addActionListener(evt -> {
+            if (db!=null) ManualEdition.relabelAll(db, null);
+        });
+        manualCuration.add(relabelAll);
         // memory
         ConfigurationTreeGenerator.addToMenu(memoryThreshold, memoryMenu);
         PropertyUtils.setPersistent(memoryThreshold, "memory_threshold");
@@ -1087,7 +1094,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (s.isDisplayingObjects()) SelectionUtils.displayObjects(s, ioi);
         });
     }
-
 
     public void openExperiment(String dbName, String hostnameOrDir, boolean readOnly) {
         if (db!=null) closeExperiment();

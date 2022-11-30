@@ -755,6 +755,30 @@ public class ManualEdition {
         if (updateDisplay) updateDisplayAndSelectObjects(modifiedObjectAll);
     }
 
+    public static void relabelAll(MasterDAO db, Image image) {
+        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        if (image==null) {
+            Object im = iwm.getDisplayer().getCurrentImage();
+            if (im!=null) image = iwm.getDisplayer().getImage(im);
+            if (image==null) {
+                logger.warn("No image found");
+                return;
+            }
+        }
+        InteractiveImage i = iwm.getImageObjectInterface(image);
+        if (i==null) {
+            logger.warn("Current image is not registered");
+            return;
+        }
+        List<SegmentedObject> modifiedObjects = new ArrayList<>();
+        int objectClass = i.getChildStructureIdx();
+        SegmentedObjectFactory factory = getFactory(objectClass);
+        i.getParents().forEach(p -> {
+            factory.relabelChildren(p, modifiedObjects);
+        });
+        db.getDao(i.getParent().getPositionName()).store(modifiedObjects);
+    }
+
     public static void updateDisplayAndSelectObjects(List<SegmentedObject> objects) {
         logger.debug("hide labile objects...");
         ImageWindowManagerFactory.getImageManager().hideLabileObjects(null);
