@@ -596,7 +596,6 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         JSONObject jo = (JSONObject)jsonEntry;
-        logger.debug("opening selection: {}", jo);
         elements = (Map<String, List<String>>)JSONUtils.get(jo, "objects", "elements");
         name = (String)JSONUtils.get(jo,"name", "_id");
         objectClassIdx = ((Number)JSONUtils.get(jo, "objectClassIdx", "structureIdx", "structure_idx")).intValue();

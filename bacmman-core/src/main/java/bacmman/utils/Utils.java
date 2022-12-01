@@ -44,10 +44,7 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.function.BiPredicate;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
+import java.util.function.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.*;
@@ -67,6 +64,24 @@ import java.awt.Frame;
  * @author Jean Ollion
  */
 public class Utils {
+    public static <T> double getDist(Collection<? extends T> l1, Collection<? extends T> l2, ToDoubleBiFunction<T, T> distance) {
+        double min = Double.POSITIVE_INFINITY;
+        for (T a : l1) {
+            for (T b : l2) {
+                double d=distance.applyAsDouble(a, b);
+                if (d<min) min = d;
+            }
+        }
+        return min;
+    }
+    public static <T> boolean contact(Collection<? extends T> l1, Collection<? extends T> l2, ToDoubleBiFunction<T, T> distance, double thld) {
+        for (T a : l1) {
+            for (T b : l2) {
+                if (distance.applyAsDouble(a, b)<=thld) return true;
+            }
+        }
+        return false;
+    }
     public static <T> List<T> concat(List<T>... lists) {
         List<T> res = new ArrayList<>();
         for (List<T> l : lists) res.addAll(l);

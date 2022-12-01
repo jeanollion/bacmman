@@ -63,6 +63,8 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
         res.add(new MeasurementKeyObject("ParentTrackHeadIndices", structureIdx));
         res.add(new MeasurementKeyObject("TrackErrorNext", structureIdx));
         res.add(new MeasurementKeyObject("TrackErrorPrev", structureIdx));
+        res.add(new MeasurementKeyObject("Prev", structureIdx));
+        res.add(new MeasurementKeyObject("Next", structureIdx));
         return res;
     }
 
@@ -78,6 +80,8 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
             o.getMeasurements().setStringValue("ParentTrackHeadIndices", pth);
             o.getMeasurements().setValue("TrackErrorNext", o.hasTrackLinkError(false, true));
             o.getMeasurements().setValue("TrackErrorPrev", o.hasTrackLinkError(true, false));
+            o.getMeasurements().setStringValue("Prev", o.getPrevious()==null?null:SegmentedObjectUtils.getIndices(o.getPrevious()));
+            o.getMeasurements().setStringValue("Next", o.getNext()==null?null:SegmentedObjectUtils.getIndices(o.getNext()));
         }
     }
 
@@ -87,7 +91,7 @@ public class SimpleTrackMeasurements implements Measurement, Hint {
 
     @Override
     public String getHintText() {
-        return "Collection of measurement on object tracks. <br />Measures: <ul><li>the track length (frame of last object - frame of first object + 1 )</li><li>the number of object in the track (that can differ from track length if there are gaps</li><li>the indices of the track head</li><li>The indices of the parent track head (e.g. first element of track)</li><li>For each object of the track, the tracking errors on link with previous / next elements (according to the tracker)</li></ul>";
+        return "Collection of measurement on object tracks. <br />Measures: <ul><li>the track length (frame of last object - frame of first object + 1 )</li><li>the number of object in the track (that can differ from track length if there are gaps</li><li>the indices of the track head</li><li>The indices of the parent track head (e.g. first element of track)</li><li>For each object of the track, the tracking errors on link with previous / next elements (according to the tracker)</li><li>Next/Prev: Indices of next / previous object if object is linked to a single next/previous object. Note that if the object is linked to several next/previous objects the result is NA</li></ul>";
     }
         
 }

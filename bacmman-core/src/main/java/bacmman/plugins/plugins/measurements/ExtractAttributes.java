@@ -112,6 +112,6 @@ public class ExtractAttributes implements Measurement, Hint {
 
     @Override
     public String getHintText() {
-        return "This module converts object attributes to measurements";
+        return "This module converts object attributes (only attributes contained in the <em>Other Attributes</em> section) to measurements";
     }
 }

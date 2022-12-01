@@ -300,6 +300,13 @@ public class DBMapObjectDAO implements ObjectDAO {
             //logger.debug("getById: sIdx={} f={}, allChilldren: {}", structureIdx, frame, getAllChildren(new Pair(parentTrackHeadId, structureIdx)).size());
             //return ((Map<String, SegmentedObject>) getAllChildren(new Pair(parentTrackHeadId, structureIdx))).get(id);
             Pair<String, Integer> key = new Pair<>(parentTrackHeadId, structureIdx);
+            if (!cache.containsKey(key)) {
+                synchronized (cache) {
+                    if (!cache.containsKey(key)) {
+                        this.cache.getAndCreateIfNecessary(key);
+                    }
+                }
+            }
             Map<String, SegmentedObject> cache = this.cache.getAndCreateIfNecessary(key);
             if (cache.containsKey(id)) return cache.get(id);
             else {
