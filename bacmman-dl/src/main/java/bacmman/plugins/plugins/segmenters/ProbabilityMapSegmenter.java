@@ -116,14 +116,15 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
     Map<SegmentedObject, Image> segmentedImageMap;
     @Override
     public TrackConfigurer<ProbabilityMapSegmenter> run(int structureIdx, List<SegmentedObject> parentTrack) {
-        Image[] in = parentTrack.stream().map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
+        boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx);
+        Image[] in = parentTrack.stream().limit(singleFrame?1:parentTrack.size()).map(p -> p.getPreFilteredImage(structureIdx)).toArray(Image[]::new);
         Image[] out;
         if (!predict.getSelected()) out = in;
         else {
             if (Utils.objectsAllHaveSameProperty(Arrays.asList(in), Image::sameDimensions)) out = predict(in);
             else out = Arrays.stream(in).map(this::predict).map(i -> i[0]).toArray(Image[]::new);
         }
-        Map<SegmentedObject, Image> segM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, i -> out[i]));
+        Map<SegmentedObject, Image> segM = IntStream.range(0, parentTrack.size()).boxed().collect(Collectors.toMap(parentTrack::get, singleFrame? i -> out[0] : i -> out[i]));
         return (p, probabilityMapSegmenter) -> probabilityMapSegmenter.segmentedImageMap = segM;
     }
 

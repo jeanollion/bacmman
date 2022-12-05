@@ -94,10 +94,12 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         int segParentStructureIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         boolean subSegmentation = segParentStructureIdx>parentStructureIdx;
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
+
         boolean parallel = !(segmenter.instantiatePlugin() instanceof DisableParallelExecution); // TODO why this does not work ? !DisableParallelExecution.class.isAssignableFrom(segmenter.getPluginType());
         //logger.debug("PARALLEL EXECUTION: {}, seg type: {}, segName {}, instance of disable: {}", parallel, segmenter.getPluginType(), segmenter.getPluginName(), segmenter.instantiatePlugin() instanceof DisableParallelExecution);
         // segment in direct parents
         List<SegmentedObject> allParents = singleFrame ? SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream().limit(1), segParentStructureIdx).collect(Collectors.toList()) : SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), segParentStructureIdx).collect(Collectors.toList());
+        logger.debug("single frame: {} parent track size: {}", singleFrame, allParents.size());
         if (parallel) Collections.shuffle(allParents); // reduce thread blocking // TODO TEST NOW WITH STREAM
         final boolean ref2D= !allParents.isEmpty() && allParents.get(0).getRegion().is2D() && parentTrack.get(0).getRawImage(structureIdx).sizeZ()>1;
         long t0 = System.currentTimeMillis();
@@ -147,7 +149,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
                 factory.setChildObjects(e.getKey(), pop);
             }
             if (singleFrame) {
-                if (parentObjectMap.size()>1) logger.error("Segmentation of structure: {} from track: {}, single frame but several populations", structureIdx, parentTrack.get(0));
+                if (parentObjectMap.size()>1) logger.error("Segmentation of structure: {} from track: {}, single frame but several populations", structureIdx, parentTrack.get(0));
                 else {
                     for (SegmentedObject parent : parentTrack.subList(1, parentTrack.size())) factory.setChildObjects(parent, pop!=null ? pop.duplicate() : null);
                 }
@@ -158,16 +160,16 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
             }
         } else {
            for (int i = 0; i<pops.size(); ++i) {
-               RegionPopulation pop = postFilters.filter(pops.get(i), structureIdx, allParents.get(i));
-               factory.setChildObjects(allParents.get(i), pop);
+               pops.set(i, postFilters.filter(pops.get(i), structureIdx, allParents.get(i)));
+               factory.setChildObjects(allParents.get(i), pops.get(i));
            }
            if (singleFrame) {
-               if (pops.size()>1) logger.error("Segmentation of structure: {} from track: {}, single frame but several populations", structureIdx, parentTrack.get(0));
+               if (pops.size()>1) logger.error("Segmentation of structure: {} from track: {}, single frame but several populations", structureIdx, parentTrack.get(0));
                else for (SegmentedObject parent : parentTrack.subList(1, parentTrack.size())) factory.setChildObjects(parent, pops.get(0)!=null ? pops.get(0).duplicate(): null);
            }
         }
         long t4 = System.currentTimeMillis();
-        logger.debug("SegmentOnly: {}(trackLength: {}) total time: {}, load images: {}ms, compute maps: {}ms, process: {}ms, set to parents: {}", parentTrack.get(0), parentTrack.size(), t4-t0, "nan", "nan", "nan", t4-t3);
+        logger.debug("SegmentOnly: {} (trackLength: {}) total time: {}, load images: {}ms, compute maps: {}ms, process: {}ms, set to parents: {}", parentTrack.get(0), parentTrack.size(), t4-t0, "nan", "nan", "nan", t4-t3);
         if (!me.isEmpty()) throw me;
     }
     
