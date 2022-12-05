@@ -351,6 +351,17 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         if (m.find()) return m.group(1);
         else return null;
     }
+    public static String getAsStringBeforeMatch(String s, Pattern p) {
+        Matcher m = p.matcher(s);
+        if (m.find()) {
+            int end = s.length();
+            for (int i = 0; i<m.groupCount(); ++i) {
+                if (m.start(i)>0 && m.start(i)<end) end = m.start(i);
+            }
+            return end>0 ? s.substring(0, end) : "";
+        }
+        else return "";
+    }
     public static String getKeyword(String s, String[] keywords, String defaultValue) {
         for (String k : keywords) if (s.contains(k)) return k;
         return defaultValue;

@@ -103,7 +103,7 @@ public class BacteriaPhaseContrastHessian extends BacteriaHessian<BacteriaPhaseC
 
     // track parametrization
     @Override
-    public TrackConfigurer<BacteriaHessian> run(int structureIdx, List<SegmentedObject> parentTrack) {
+    public TrackConfigurer<BacteriaPhaseContrastHessian> run(int structureIdx, List<SegmentedObject> parentTrack) {
         Set<SegmentedObject> voidMC = getVoidMicrochannels(structureIdx, parentTrack);
         double[] thlds = getTrackThresholds(parentTrack, structureIdx, voidMC);
         logger.debug("Threshold: {}", thlds[1]);

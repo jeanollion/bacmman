@@ -54,6 +54,8 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
     EnumChoiceParameter<ImageIOCoordinates.RGB> importRGBChannel = new EnumChoiceParameter<>("RGB Channel", ImageIOCoordinates.RGB.values(), ImageIOCoordinates.RGB.R).setHint("In case input images is a color image, choose which channel to import");
     public enum CHANNEL_COLOR {RED, GREEN, BLUE, CYAN, MAGENTA, YELLOW, ORANGE}
     EnumChoiceParameter<CHANNEL_COLOR> color = new EnumChoiceParameter<>("Color", CHANNEL_COLOR.values(), null).setAllowNoSelection(true).setHint("Display color");
+    EnumChoiceParameter<Experiment.AXIS_INTERPRETATION> axesInterpretation = new EnumChoiceParameter<>("Axes Interpretation", Experiment.AXIS_INTERPRETATION.values(), Experiment.AXIS_INTERPRETATION.AUTOMATIC).setHint("Defines how to interpret the third axis (after X, Y). Automatic: axis as defined in the image file, Z: axis is interpreted as Z if several frames and only one z-slice are detected, Time: axis is interpreted as time, if several z-slices and only one frame are detected.");
+
     public ChannelImage(String name) {
         super(name);
     }
@@ -68,9 +70,10 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
     public ImageIOCoordinates.RGB getRGB() {
         return importRGBChannel.getSelectedEnum();
     }
+    public Experiment.AXIS_INTERPRETATION getAxisInterpretation() {return axesInterpretation.getSelectedEnum();}
     @Override
     protected void initChildList() {
-        super.initChildren(importKeyWord, importRGBChannel, color);
+        super.initChildren(importKeyWord, axesInterpretation, importRGBChannel, color);
     }
     @Override 
     public boolean isEmphasized() {

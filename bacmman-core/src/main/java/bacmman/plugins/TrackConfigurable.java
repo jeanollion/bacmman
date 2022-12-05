@@ -61,15 +61,15 @@ public interface TrackConfigurable<P extends Plugin> {
      * @param parentTrack parent track (elements are parent of structure {@param structureIdx}
      * @return ApplyToSegmenter object that will configure Segmenter instances before call to {@link Segmenter#runSegmenter(Image, int, SegmentedObject) }
      */
-    TrackConfigurer run(int structureIdx, List<SegmentedObject> parentTrack);
+    TrackConfigurer<P> run(int structureIdx, List<SegmentedObject> parentTrack);
     ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode();
     // + static helpers methods
     static <P extends Plugin> TrackConfigurer<P> getTrackConfigurer(int structureIdx, List<SegmentedObject> parentTrack, P plugin) {
         if (plugin instanceof TrackConfigurable) {
-            TrackConfigurable tp = (TrackConfigurable)plugin;
+            TrackConfigurable<P> tp = (TrackConfigurable<P>)plugin;
             List<SegmentedObject> pT = SegmentedObjectUtils.getTrack(parentTrack.get(0).getTrackHead());
-            pT.removeIf(p->p.getPreFilteredImage(structureIdx)==null);
-            if (pT.isEmpty()) throw new RuntimeException("NO prefiltered images set");
+            //pT.removeIf(p->p.getPreFilteredImage(structureIdx)==null);
+            //if (pT.isEmpty()) throw new RuntimeException("NO prefiltered images set");
             return tp.run(structureIdx, pT);
         }
         return null;

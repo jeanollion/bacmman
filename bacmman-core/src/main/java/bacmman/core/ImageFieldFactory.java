@@ -34,6 +34,7 @@ import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
 import java.util.function.ToIntFunction;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -202,13 +203,12 @@ public class ImageFieldFactory {
         // 1 : filter by extension
         Pattern allchanPattern = getAllChannelPattern(channelKeywords);
         Pattern allExtPattern = getAllImageExtension(IMAGE_EXTENSION_CTP);
-        File[] allFiles = input.listFiles((File dir, String name) -> name.charAt(0)!='.' && allExtPattern.matcher(name).find() && allchanPattern.matcher(name).find() && (new File(dir.getAbsolutePath() + File.separator+ name)).isFile());
+        File[] allFiles = input.listFiles((File dir, String name) -> name.charAt(0)!='.' && allExtPattern.matcher(name.toLowerCase()).find() && allchanPattern.matcher(name).find() && (new File(dir.getAbsolutePath() + File.separator+ name)).isFile());
         Map<String, List<File>> filesByExtension = allFiles==null?Collections.emptyMap():Arrays.stream(allFiles).collect(Collectors.groupingBy(f -> Utils.getExtension(f.getName())));
         logger.debug("file by extension: {}, {}", filesByExtension.size(), filesByExtension.entrySet().stream().map(e-> e.getKey()+ " n="+ e.getValue().size()).toArray());
         if (filesByExtension.size()==1 && filesByExtension.entrySet().iterator().next().getValue().size()==1) {
             File f = filesByExtension.entrySet().iterator().next().getValue().get(0);
             logger.debug("only 1 file found: {}, extension matcher: {} channel matcher: {}", f, allExtPattern.matcher(f.getName()).find(), allchanPattern.matcher(f.getName()).find());
-            logger.debug("extension matcher: .tof: {}, .tif: {}", allExtPattern.matcher(".tof").find(), allExtPattern.matcher(".tif").find());
         }
         List<File> files=null;
         String extension = null;
@@ -250,13 +250,23 @@ public class ImageFieldFactory {
         Pattern timePattern = Pattern.compile(".*"+frameSep+"(\\d+).*");
         Map<String, List<File>> filesByPosition=null;
         if (posSep.length()>0) {
-            Pattern posPattern = Pattern.compile(".*("+posSep+"\\d+).*");
-            try {
-                filesByPosition = files.stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getAsString(f.getName(), posPattern)));
-            } catch (Exception e) {
-                if (pcb!=null) pcb.log("No position with keyword: "+posSep+" could be find in dir: "+input);
-                logger.error("no position could be identified for dir: {}", input);
-                return;
+            if (posSep.length()==1 && posSep.charAt(0)=='^') { // position name is at the beginning of the file name
+                try {
+                    filesByPosition = files.stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getAsStringBeforeMatch(f.getName(), allchanPattern)));
+                } catch (Exception e) {
+                    if (pcb != null) pcb.log("No position could be find in dir: " + input);
+                    logger.error("no position could be identified for dir"+input, e);
+                    return;
+                }
+            } else {
+                Pattern posPattern = Pattern.compile(".*(" + posSep + "\\d+).*");
+                try {
+                    filesByPosition = files.stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getAsString(f.getName(), posPattern)));
+                } catch (Exception e) {
+                    if (pcb != null) pcb.log("No position with keyword: " + posSep + " could be find in dir: " + input);
+                    logger.error("no position could be identified for dir: {}", input);
+                    return;
+                }
             }
         } else { // only one position is considered
             filesByPosition = new HashMap<>(1);
@@ -342,12 +352,14 @@ public class ImageFieldFactory {
         Map<String, Integer> channelCount = Arrays.stream(imageC).collect(Collectors.groupingBy(c->c)).entrySet().stream().collect(Collectors.toMap(Entry::getKey, e->e.getValue().size()));
         logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelCount);
         Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
+        List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
         boolean[] invertZTbyC = new boolean[imageC.length];
         for (int c = 0; c< imageC.length; ++c) {
+            Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(c).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(c);
             ImageReaderFile reader = null;
             try {
                 reader = new ImageReaderFile(imageC[c]);
-                if (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) {
+                if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) {
                     invertZTbyC[c] = true;
                     reader.setInvertTZ(true);
                     logger.debug("invert TZ (forced) for channel: {} @ position {}", c, fieldName);
@@ -364,7 +376,7 @@ public class ImageFieldFactory {
                 }
                 if (stc.length==0) return;
 
-                if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && stc[0][4]>1 && stc[0][0]==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && stc[0][4]==1 && stc[0][0]>1) ) {
+                if ((ax.equals(Experiment.AXIS_INTERPRETATION.TIME) && stc[0][4]>1 && stc[0][0]==1) || (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && stc[0][4]==1 && stc[0][0]>1) ) {
                     invertZTbyC[c] = true;
                     reader.setInvertTZ(true);
                     stc = reader.getSTCXYZNumbers();

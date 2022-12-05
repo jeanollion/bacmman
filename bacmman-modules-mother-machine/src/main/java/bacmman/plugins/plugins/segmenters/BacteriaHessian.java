@@ -50,7 +50,7 @@ import static bacmman.plugins.plugins.segmenters.EdgeDetector.valueFunction;
  * Bacteria segmentation within microchannels, for phas images
  * @author Jean Ollion
  */
-public abstract class BacteriaHessian<T extends BacteriaHessian> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter { //implements DevPlugin {
+public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends SegmenterSplitAndMergeHessian implements TrackConfigurable<T>, ManualSegmenter { //implements DevPlugin {
     public enum CONTOUR_ADJUSTMENT_METHOD {NO_ADJUSTMENT, LOCAL_THLD_W_EDGE}
     PluginParameter<ThresholderHisto> foreThresholder = new PluginParameter<>("Threshold", ThresholderHisto.class, new IJAutoThresholder().setMethod(AutoThresholder.Method.Otsu), false).setHint("Threshold for foreground region selection, use depend on the method. Computed on the whole parent-track track.");
 
