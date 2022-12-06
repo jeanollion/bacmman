@@ -611,6 +611,7 @@ public class PluginConfigurationUtils {
         return allImageNames.stream().collect(Collectors.toMap(name -> name, name -> {
             HyperStack ioi = (HyperStack) Kymograph.generateKymograph(parents, childOCIdx, true);
             int maxBitDepth = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).getBitDepth()).max().getAsInt();
+            int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             ioi.setImageSupplier( (idx, oc, raw) -> {
                 Image image = ioi.generateEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth));
                 List<TestDataStore> currentStores = parentMapStore.get(parents.get(idx));
@@ -618,6 +619,7 @@ public class PluginConfigurationUtils {
                 return image;
             });
             ioi.setIsSingleChannel(true);
+            ioi.setMaxZ(maxZ);
             ioi.setName(name);
             return ioi;
         }));

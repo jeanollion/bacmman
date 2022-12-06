@@ -45,7 +45,6 @@ public class KymographFactory {
             if (middle) trackOffset[i].translate(new SimpleOffset((int)((maxParentSizeX)/2.0-(trackOffset[i].sizeX())/2.0), (int)((maxParentSizeY)/2.0-(trackOffset[i].sizeY())/2.0), (int)((maxParentSizeZ)/2.0-(trackOffset[i].sizeZ())/2.0))); // Y & Z middle of parent track
         }
         return new KymographData(DIRECTION.T, maxParentSizeX, maxParentSizeY, maxParentSizeZ, trackOffset, parentTrack);
-
     }
 
     public enum DIRECTION {X, Y, T}

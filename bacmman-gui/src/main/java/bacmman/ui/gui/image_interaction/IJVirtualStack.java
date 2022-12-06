@@ -221,7 +221,7 @@ public class IJVirtualStack extends VirtualStack {
         int maxZIdx = ArrayUtil.max(sizeZC);
         int maxZ = sizeZC[maxZIdx];
         int[] fczSize = new int[]{frames, channels, maxZ};
-        //logger.debug("sizeZ per channel C: {}, frames: {} maxZ: {}", sizeZC, frames, maxZ);
+        //logger.debug("sizeZ per channel C: {}, frames: {} maxZ: {}, isSingleChannel: {}", sizeZC, frames, maxZ, interactiveImage.isSingleChannel());
         Function<int[], Image> imageOpenerCT  = (fcz) -> interactiveImage.getPlane(fcz[2], channelArray[fcz[1]], true, Resize.EXPAND_MODE.BORDER);
         Image[] planes0 = IntStream.range(0, channels).mapToObj(c -> imageOpenerCT.apply(new int[]{0, c, 0})).toArray(Image[]::new);
         int maxBitDepth = IntStream.range(0, channels).map(c -> planes0[c].getBitDepth()).max().getAsInt();

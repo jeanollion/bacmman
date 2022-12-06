@@ -42,8 +42,9 @@ import java.util.stream.Collectors;
 public class HyperStack extends Kymograph {
     public static final Logger logger = LoggerFactory.getLogger(HyperStack.class);
     protected int idx;
-    protected final int maxParentSizeX, maxParentSizeY, maxParentSizeZ;
-    protected final BoundingBox bounds, bounds2D;
+    protected final int maxParentSizeX, maxParentSizeY;
+    protected int maxParentSizeZ;
+    protected BoundingBox bounds, bounds2D;
     public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
     protected IntConsumer changeIdxCallback;
     DefaultWorker loadObjectsWorker;
@@ -71,6 +72,13 @@ public class HyperStack extends Kymograph {
             loadObjectsWorker.execute();
             loadObjectsWorker.setStartTime();
         }
+    }
+    public void setMaxZ(int maxZ) {
+        if (this.maxParentSizeZ!=maxZ) {
+            this.maxParentSizeZ = maxZ;
+            this.bounds = new SimpleBoundingBox(0, maxParentSizeX-1, 0, maxParentSizeY-1, 0, maxParentSizeZ-1);
+        }
+
     }
     public boolean setFrame(int frame) {
         Integer idx = frameMapIdx.get(frame);
