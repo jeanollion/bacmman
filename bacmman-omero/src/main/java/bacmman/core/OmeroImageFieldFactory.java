@@ -226,11 +226,13 @@ public class OmeroImageFieldFactory {
         logger.debug("images: {} , channelIdx: {}, channel number: {}", imageC, channelIdx, channelDuplicatedCount);
         Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
         boolean[] invertZTbyC = new boolean[imageC.length];
+        List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
         for (int c = 0; c< imageC.length; ++c) {
+            Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(c).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(c);
             OmeroImageMetadata cur = imageC[c];
             int sizeT = cur.getSizeT();
             int sizeZ = cur.getSizeZ();
-            if ((axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.TIME) && cur.getSizeZ()>1 && cur.getSizeT()==1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.Z) && cur.getSizeZ()==1 && cur.getSizeT()>1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ())) {
+            if ((ax.equals(Experiment.AXIS_INTERPRETATION.TIME) && cur.getSizeZ()>1 && cur.getSizeT()==1) || (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && cur.getSizeZ()==1 && cur.getSizeT()>1) || (axisInterpretation.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ())) {
                 invertZTbyC[c] = true;
                 sizeT = cur.getSizeZ();
                 sizeZ = cur.getSizeT();
