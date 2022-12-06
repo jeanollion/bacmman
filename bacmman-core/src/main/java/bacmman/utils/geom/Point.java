@@ -29,7 +29,6 @@ import bacmman.utils.Utils;
 import java.util.*;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import net.imglib2.Localizable;
 import net.imglib2.RealLocalizable;
@@ -162,6 +161,7 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         return Math.sqrt(distSqXY(other));
     }
     public double distSq(RealLocalizable other) {
+        if (other instanceof Point) return distSq((Point)other);
         return IntStream.range(0,  coords.length).mapToDouble(i->Math.pow(coords[i]-other.getDoublePosition(i), 2)).sum();
     }
     public double distSqXY(RealLocalizable other) {
@@ -403,7 +403,22 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
             return sum.multiply(1./res.size());
         }
     }
+    public static <T extends RealLocalizable> double hausdorffDistSq(Collection<T> pointsA, Collection<T> pointsB) {
+        double maxDistance = 0;
+        for (T pA : pointsA) {
+            double minDistance = Double.MAX_VALUE;
+            for (T pB : pointsB) { // getClosest point in B
+                double distance = distSq(pA, pB);
+                if (distance < minDistance) minDistance = distance;
+            }
+            if (minDistance > maxDistance) maxDistance = minDistance;
+        }
+        return maxDistance;
+    }
     public static double distSq(RealLocalizable r1, RealLocalizable r2) {
-        return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
+        if (r1 instanceof Point) return ((Point)r1).distSq(r2);
+        else if (r2 instanceof Point) return ((Point)r2).distSq(r1);
+        else if (r1 instanceof Voxel && r2 instanceof Voxel) return ((Voxel)r1).getDistanceSquare((Voxel)r2);
+        else return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
     }
 }

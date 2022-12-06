@@ -30,6 +30,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
     BoundedNumberParameter maxSpotXYDistance = new BoundedNumberParameter("Maximum Spot x-y Distance", 1, 2, 0, null).setHint("Maximum xy distance (in pixels) within which spots can be matched, when matching spots across z-slices.");
     BoundedNumberParameter minZSliceNumber = new BoundedNumberParameter("Minimum Z-slice Number", 0, 2, 1, null).setEmphasized(true).setHint("Minimum number of z-slices which spots are required to appear consecutively.");
     BoundedNumberParameter fittingBox = new BoundedNumberParameter("Size of Fitting Box", 0, 5, 2, null).setEmphasized(true).setHint("Radius (in pixels) of square region in which to include data for fitting.");
+    BoundedNumberParameter clusterDist = new BoundedNumberParameter("Cluster Distance", 5, 7.5, 2, null).setEmphasized(true).setHint("When several peaks are closer than this distance, they are fitted together, on an area that is the union of area of all close peaks");
 
     @Override
     public String getHintText() {
@@ -55,7 +56,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
 
     BooleanParameter fitCenterAndAxesOnFilteredImage = new BooleanParameter("Fit Center And Axis On Filtered Image", true).setEmphasized(true).setHint("If true the center and axis of the ellipse will be fitted on the filtered image (used to detect local maxima) and afterwards the intensity only is fit on the raw image. <br />If false, center, axis and intensity are fit on the raw image");
     BooleanParameter fitEllipse = new BooleanParameter("Fit Ellipse", true).setHint("If False, a circular 2D Gaussian is fitted (more robust but less precise if observed spots are not circular)");
-    BooleanParameter fitBackgroundPlane = new BooleanParameter("Fit Background Plane", true).setHint("If False, background is fitted as a simple constant is fitted");
+    BooleanParameter fitBackgroundPlane = new BooleanParameter("Fit Background Plane", true).setHint("If False, background is fitted as a simple constant");
     BoundedNumberParameter maxIterations = new BoundedNumberParameter("Max Iterations", 0, 300, 1, null).setHint("Stop and return after this many iterations if not done.");
     BoundedNumberParameter lambda = new BoundedNumberParameter("Lambda", 6, 0.001, 1e-6, 0.1).setHint("Blend between steepest descent (lambda high) and jump to bottom of quadratic (lambda zero). Start with 0.001.");
     BoundedNumberParameter termEpsilon = new BoundedNumberParameter("Termination accuracy", 6, 0.01, 1e-6, 0.1).setHint("Termination accuracy (0.01)");
@@ -68,7 +69,7 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{rawOC, localMaximaThreshold, localMaximaRadius, maxSpotXYDistance, minZSliceNumber, fittingBox, spotRadiusEstimationCond, fitCenterAndAxesOnFilteredImage, fitParameters, filters};
+        return new Parameter[]{rawOC, localMaximaThreshold, localMaximaRadius, maxSpotXYDistance, minZSliceNumber, fittingBox, clusterDist, spotRadiusEstimationCond, fitCenterAndAxesOnFilteredImage, fitParameters, filters};
     }
 
     public double getTypicalSpotRadius(double pixelSizeInMicrons) {
@@ -127,9 +128,9 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
                 lmClose = allLMPerSlice.get(slice).stream().filter(p -> minDistFun.applyAsDouble(p)<=minDist).collect(Collectors.toList());
             } else lmClose = new ArrayList<>();
             logger.debug("slice: {}, run max: {} with close spots: {}", slice, lmMax.size(), lmClose.size());
-            Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue()*2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
+            Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
             if (fitCenterAndAxesOnFilteredImage.getSelected()) { // fit only intensity on raw image
-                fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), fittingBox.getValue().intValue()*2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps);
+                fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps);
             }
             logger.debug("slice: {} resulting fit: {}", slice, Utils.toStringMap(fitSlice, Object::toString, p->new GaussianFit.FitParameter(p, 2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected()).toString()));
             for (Point p : lmMax) {

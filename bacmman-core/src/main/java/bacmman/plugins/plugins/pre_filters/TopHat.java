@@ -18,11 +18,12 @@
  */
 package bacmman.plugins.plugins.pre_filters;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.ScaleXYZParameter;
+import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.image.Image;
+import bacmman.image.ImageInteger;
 import bacmman.image.ImageMask;
+import bacmman.image.TypeConverter;
 import bacmman.plugins.Hint;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
@@ -30,6 +31,8 @@ import bacmman.processing.ImageOperations;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.plugins.Filter;
 import bacmman.plugins.PreFilter;
+
+import java.util.concurrent.locks.Condition;
 
 /**
  *
@@ -39,8 +42,12 @@ public class TopHat implements PreFilter, Filter, Hint {
 
     ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setEmphasized(true);
     BooleanParameter darkBackground = new BooleanParameter("Image Background", "Dark", "Light", true).setEmphasized(true);
-    BooleanParameter smooth = new BooleanParameter("Perform Smoothing", true);
-    Parameter[] parameters = new Parameter[]{radius, darkBackground, smooth};
+    BooleanParameter convertToFloat = new BooleanParameter("Convert To Float", true).setHint("Convert image to float before applying the filter, if it is a 8-bit or 16-bit image");
+    BooleanParameter smooth = new BooleanParameter("Perform Smoothing", false);
+    PluginParameter<PreFilter> smoothMethod = new PluginParameter<>("Method", PreFilter.class, new ImageFeature().setFeature(ImageFeature.Feature.GAUSS).setSmoothScale(1.5), false).setHint("If true: perform smoothing with the selected method before performing the top hat");
+    ConditionalParameter<Boolean> smoothCond = new ConditionalParameter<>(smooth).setActionParameters(true, smoothMethod);
+
+    Parameter[] parameters = new Parameter[]{radius, darkBackground, smoothCond, convertToFloat};
     
     public TopHat(double radiusXY, double radiusZ, boolean darkBackground, boolean smooth) {
         this.radius.setScaleXY(radiusXY);
@@ -51,13 +58,17 @@ public class TopHat implements PreFilter, Filter, Hint {
     public TopHat() { }
     @Override
     public Image runPreFilter(Image input, ImageMask mask, boolean canModifyImage) {
-        return filter(input, radius.getScaleXY(), radius.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), darkBackground.getSelected(), smooth.getSelected(), false);
+        if (convertToFloat.getSelected() && input.getBitDepth()!=32) {
+            input = TypeConverter.toFloat(input, null);
+            canModifyImage = true;
+        }
+        if (smooth.getSelected()) input = smoothMethod.instantiatePlugin().runPreFilter(input, mask, canModifyImage);
+        return topHat(input, radius.getScaleXY(), radius.getScaleZ(mask.getScaleXY(), mask.getScaleZ()), darkBackground.getSelected(), false);
     }
     
-    public static Image filter(Image input, double radiusXY, double radiusZ, boolean darkBackground, boolean smooth, boolean parallele) {
+    public static Image topHat(Image input, double radiusXY, double radiusZ, boolean darkBackground, boolean parallele) {
         Neighborhood n = Filters.getNeighborhood(radiusXY, radiusZ, input);
-        Image smoothed = smooth ? ImageFeatures.gaussianSmooth(input, 1.5, false) : input ;
-        Image bck =darkBackground ? Filters.open(smoothed, smooth ? smoothed : null, n, parallele) : Filters.close(smoothed, smooth ? smoothed : null, n, parallele);
+        Image bck = darkBackground ? Filters.open(input, null, n, parallele) : Filters.close(input, null, n, parallele);
         ImageOperations.addImage(input, bck, bck, -1); //1-bck
         bck.resetOffset().translate(input);
         return bck;
@@ -68,7 +79,13 @@ public class TopHat implements PreFilter, Filter, Hint {
     }
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        return filter(image, radius.getScaleXY(), radius.getScaleZ(image.getScaleXY(), image.getScaleZ()), darkBackground.getSelected(), smooth.getSelected(), true); 
+        boolean canModify = false;
+        if (convertToFloat.getSelected() && image instanceof ImageInteger) {
+            image = TypeConverter.toFloat(image, null);
+            canModify = true;
+        }
+        if (smooth.getSelected()) image = smoothMethod.instantiatePlugin().runPreFilter(image, null, canModify);
+        return topHat(image, radius.getScaleXY(), radius.getScaleZ(image.getScaleXY(), image.getScaleZ()), darkBackground.getSelected(), true);
     }
     
     public boolean isConfigured(int totalChannelNumner, int totalTimePointNumber) {

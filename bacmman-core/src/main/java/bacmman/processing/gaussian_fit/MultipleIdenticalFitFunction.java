@@ -10,19 +10,19 @@ import java.util.stream.IntStream;
 
 public class MultipleIdenticalFitFunction implements FitFunctionUntrainableParameters, FitFunctionScalable {
     public static final Logger logger = LoggerFactory.getLogger(MultipleIdenticalFitFunction.class);
-    final FitFunction function;
+    final FitFunctionNParam function;
     final boolean fitBackground;
     final int nFunctions, nParams;
     public final double[][] parameterBucket;
-    final FitFunction backgroundFunction;
+    final FitFunctionNParam backgroundFunction;
     /**
      *
-     * @param nParams number of parameter per function.
+     * @param nDims number of dimensions of image.
      * @param function functions to fit simultaneously
      */
-    public MultipleIdenticalFitFunction(int nParams, int nFunctions, FitFunction function, int nParamsBackground, FitFunction backgroundFunction, boolean fitBackground) {
+    public MultipleIdenticalFitFunction(int nDims, int nFunctions, FitFunctionNParam function, FitFunctionNParam backgroundFunction, boolean fitBackground) {
         this.function = function;
-        this.nParams = nParams;
+        this.nParams = function.getNParameters(nDims);
         this.nFunctions = nFunctions;
         this.backgroundFunction=backgroundFunction;
         this.fitBackground = fitBackground;
@@ -30,7 +30,7 @@ public class MultipleIdenticalFitFunction implements FitFunctionUntrainableParam
         if (backgroundFunction!=null) {
             parameterBucket = new double[this.nFunctions +1][];
             IntStream.range(0, this.nFunctions).forEach(i->parameterBucket[i]=new double[nParams]);
-            parameterBucket[this.nFunctions] = new double[nParamsBackground];
+            parameterBucket[this.nFunctions] = new double[backgroundFunction.getNParameters(nDims)];
         } else this.parameterBucket = new double[this.nFunctions][nParams];
     }
 
@@ -104,5 +104,10 @@ public class MultipleIdenticalFitFunction implements FitFunctionUntrainableParam
             ((FitFunctionScalable)backgroundFunction).scaleIntensity(parameterBucket[nFunctions], center, scale, normalize);
         }
         copyBucketToParameters(parameters);
+    }
+
+    @Override
+    public int getNParameters(int nDims) {
+        return nFunctions * function.getNParameters(nDims) + (backgroundFunction==null? 0 : backgroundFunction.getNParameters(nDims));
     }
 }

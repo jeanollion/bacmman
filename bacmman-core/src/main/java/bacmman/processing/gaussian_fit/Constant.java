@@ -62,4 +62,9 @@ public class Constant implements FitFunctionScalable {
 		if (normalize) parameters[0] = (parameters[0] - center) / scale;
 		else parameters[0] = parameters[0] * scale + center;
 	}
+
+	@Override
+	public int getNParameters(int nDims) {
+		return 1;
+	}
 }

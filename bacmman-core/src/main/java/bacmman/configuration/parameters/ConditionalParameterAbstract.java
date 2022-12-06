@@ -120,7 +120,7 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     }
 
 
-    public T setDefaultParameters(Parameter[] defaultParameters) {
+    public T setDefaultParameters(Parameter... defaultParameters) {
         this.defaultParameters=Arrays.asList(defaultParameters);
         initChildList();
         return (T)this;

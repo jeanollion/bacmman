@@ -87,6 +87,7 @@ public class Utils {
         for (List<T> l : lists) res.addAll(l);
         return res;
     }
+
     public static <T> Stream<T> toStream(Iterator<T> iterator, boolean parallel) {
         if (iterator instanceof Spliterator) return StreamSupport.stream((Spliterator<T>)iterator, parallel);
         return StreamSupport.stream( Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED), parallel);

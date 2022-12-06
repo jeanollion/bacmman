@@ -29,9 +29,10 @@ public class EKLSpotDetector implements Segmenter, TestableProcessingPlugin {
     ConditionalParameter<Boolean> thldMethod = new ConditionalParameter<>(useThldFactor).setActionParameters(true, thldFactor).setActionParameters(false, thld);
     BoundedNumberParameter localMaxRadius = new BoundedNumberParameter("Local Max Radius", 5, 4, 1, null).setEmphasized(true).setHint("Radius (in pixels) for local max transform");
 
-    BoundedNumberParameter fittingBox = new BoundedNumberParameter("Size of Fitting Box", 0, 5, 2, null).setEmphasized(true).setHint("Radius (in pixels) of square region in which to include data for fitting.");
+    BoundedNumberParameter fittingBox = new BoundedNumberParameter("Size of Fitting Box", 0, 4, 2, null).setEmphasized(true).setHint("Radius (in pixels) of square region in which to include data for fitting.");
+    BoundedNumberParameter clusterDist = new BoundedNumberParameter("Cluster Distance", 5, 7, 2, null).setEmphasized(true).setHint("When several peaks are closer than this distance, they are fitted together, on an area that is the union of area of all close peaks");
     BooleanParameter fitEllipse = new BooleanParameter("Fit Ellipse", true).setHint("If False, a circular 2D Gaussian is fitted (more robust but less precise if observed spots are not circular)");
-    BooleanParameter fitBackgroundPlane = new BooleanParameter("Fit Background Plane", false).setHint("If False, background is fitted as a simple constant is fitted");
+    BooleanParameter fitBackgroundPlane = new BooleanParameter("Fit Background Plane", false).setHint("If False, background is fitted as a simple constant");
 
     BoundedNumberParameter maxIterations = new BoundedNumberParameter("Max Iterations", 0, 300, 1, null).setHint("Stop and return after this many iterations if not done.");
     BoundedNumberParameter lambda = new BoundedNumberParameter("Lambda", 6, 0.001, 1e-6, 0.1).setHint("Blend between steepest descent (lambda high) and jump to bottom of quadratic (lambda zero). Start with 0.001.");
@@ -39,7 +40,7 @@ public class EKLSpotDetector implements Segmenter, TestableProcessingPlugin {
     BoundedNumberParameter maxMajor = new BoundedNumberParameter("Maximum Major Axis", 3, 0, 0, null).setEmphasized(true).setHint("Spots with major axis greater than this value will be erased. If 0: not taken into account");
     BoundedNumberParameter minMinor = new BoundedNumberParameter("Minimum Minor Axis", 3, 0, 0, null).setEmphasized(true).setHint("Spots with minor axis lower than this value will be erased. If 0: not taken into account");
 
-    GroupParameter fitParameters = new GroupParameter("Fit Parameters", fittingBox, fitEllipse, fitBackgroundPlane, maxIterations, lambda, termEpsilon, maxMajor, minMinor);
+    GroupParameter fitParameters = new GroupParameter("Fit Parameters", fittingBox, clusterDist, fitEllipse, fitBackgroundPlane, maxIterations, lambda, termEpsilon, maxMajor, minMinor);
 
     @Override
     public Parameter[] getParameters() {
@@ -68,7 +69,7 @@ public class EKLSpotDetector implements Segmenter, TestableProcessingPlugin {
         int maxIter = maxIterations.getValue().intValue();
         double lambda = this.lambda.getValue().doubleValue();
         double eps = termEpsilon.getValue().doubleValue();
-        Map<Point, double[]> fit = GaussianFit.run(input, centers, localMaxRadius.getDoubleValue()/2, fittingBox.getValue().intValue(), fittingBox.getValue().intValue()*2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
+        Map<Point, double[]> fit = GaussianFit.run(input, centers, localMaxRadius.getDoubleValue()/2, fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
 
         List<Region> regions;
         if (fitEllipse.getSelected()) regions = fit.entrySet().stream().map(e -> GaussianFit.ellipse2DMapper.apply(e.getValue(), fitBackgroundPlane.getSelected(),input)).collect(Collectors.toList());

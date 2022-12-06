@@ -115,6 +115,7 @@ public class LevenbergMarquardtSolverUntrainbleParameters implements FunctionFit
         int nparm = a.length;
         double[] centerScale = scaleValues ? ArrayUtil.getMeanAndSigma(y) : new double[]{0, 1};
         if (scaleValues) {
+            centerScale[0] = y[ArrayUtil.min(y)]; // avoid negative values
             for (int i = 0; i<y.length;++i) y[i] = (y[i] - centerScale[0]) / centerScale[1];
             if (f instanceof FitFunctionScalable) ((FitFunctionScalable)f).scaleIntensity(a, centerScale[0], centerScale[1], true);
         }

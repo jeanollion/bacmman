@@ -161,31 +161,38 @@ public class GaussianFit {
      * @return clusters as sets of points
      */
     public static List<Set<Point>> getClusters(List<Point>peaks, double minDist) {
-        List<Set<Point>> clusters = new ArrayList<>();
-        Function<Point, Set<Point>> getCluster  = p -> clusters.stream().filter(c->c.contains(p)).findFirst().orElse(null);
+        Map<Point, Set<Point>> pointToCluster = new HashMap<>();
         double d2 = minDist * minDist;
         for (int i = 0; i<peaks.size()-1; ++i) {
-            Set<Point> currentCluster = getCluster.apply(peaks.get(i));
+            Point pi = peaks.get(i);
+            //Set<Point> currentCluster = getCluster.apply(peaks.get(i));
+            Set<Point> currentCluster = pointToCluster.get(peaks.get(i));
             for (int j = i+1; j<peaks.size(); ++j ) {
-                if (peaks.get(i).distSq(peaks.get(j))<=d2) {
-                    Set<Point> otherCluster = getCluster.apply(peaks.get(j));
+                Point pj = peaks.get(j);
+                if (pi.distSq(pj)<=d2) {
+                    Set<Point> otherCluster = pointToCluster.get(pj);
+                    //Set<Point> otherCluster = getCluster.apply(peaks.get(j));
                     if (currentCluster==null && otherCluster==null) { // creation of a cluster
                         currentCluster = new HashSet<>();
-                        currentCluster.add(peaks.get(i));
-                        currentCluster.add(peaks.get(j));
-                        clusters.add(currentCluster);
-                    } else if (currentCluster!=null && otherCluster==null) currentCluster.add(peaks.get(j));
-                    else if (otherCluster!=null && currentCluster==null) {
+                        currentCluster.add(pi);
+                        currentCluster.add(pj);
+                        pointToCluster.put(pi, currentCluster);
+                        pointToCluster.put(pj, currentCluster);
+                    } else if (currentCluster!=null && otherCluster==null) {
+                        currentCluster.add(pj); // other point is not in a cluster, simply add it to current cluster
+                        pointToCluster.put(pj, currentCluster);
+                    } else if (currentCluster==null) { // other point is in a cluster but not current point
                         currentCluster = otherCluster;
-                        currentCluster.add(peaks.get(i));
-                    } else { // fusion of 2 clusters
+                        currentCluster.add(pi);
+                        pointToCluster.put(pi, currentCluster);
+                    } else if (currentCluster!=otherCluster) { // fusion of 2 clusters
                         currentCluster.addAll(otherCluster);
-                        clusters.remove(otherCluster);
+                        pointToCluster.put(pj, currentCluster);
                     }
                 }
             }
         }
-        return clusters;
+        return new ArrayList<>(new HashSet<>(pointToCluster.values()));
     }
 
     /**
@@ -211,9 +218,9 @@ public class GaussianFit {
             else preInitParameters = trimParameterArray(preInitParameters, nDims+2);
             peakEstimator = new PreInitializedEstimator(typicalRadius, nDims, preInitParameters, peakEstimator, paramIndices);
         }
-        FitFunction peakFunction = fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
+        FitFunctionNParam peakFunction = fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
         MultipleIdenticalEstimator estimator = new MultipleIdenticalEstimator(peaks, peakEstimator, backgroundPlane ? new PlaneEstimator(fittingBoxRadius, img.numDimensions()) : new ConstantEstimator(fittingBoxRadius, img.numDimensions()));
-        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(fitEllipse ? 6 : img.numDimensions()+2, closePeaks.size(), peakFunction, backgroundPlane ? 3 : 1, backgroundPlane ? new Plane() : new Constant(), fitBackground);
+        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(img.numDimensions(), closePeaks.size(), peakFunction, backgroundPlane ? new Plane() : new Constant(), fitBackground);
         int[] untrainableIndices=fitFunction.getUntrainableIndices(nDims, fitCenter, fitAxis);
         FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, maxIter * closePeaks.size(), lambda, termEpsilon/closePeaks.size());
         PeakFitter fitter = new PeakFitter(img, Arrays.asList(estimator.center), solver, fitFunction, estimator);
@@ -247,8 +254,8 @@ public class GaussianFit {
             peakEstimator = new PreInitializedEstimator(typicalRadius, nDims, preInitParameters, peakEstimator, paramIndices);
         }
         EstimatorPlusBackground estimator = new EstimatorPlusBackground(peakEstimator, backgroundPlane ? new PlaneEstimator((int)Math.ceil(2*typicalRadius+1), nDims) : new ConstantEstimator((int)Math.ceil(2*typicalRadius+1), nDims));
-        FitFunction peakFunction = fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
-        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction(fitEllipse ? 6 : nDims+2, 1, peakFunction, backgroundPlane ? 3 : 1, backgroundPlane ? new Plane() : new Constant(), fitBackground);
+        FitFunctionNParam peakFunction = fitEllipse ? new EllipticGaussian2D(true) : new GaussianCustomTrain(true);
+        MultipleIdenticalFitFunction fitFunction = new MultipleIdenticalFitFunction( nDims, 1, peakFunction, backgroundPlane ? new Plane() : new Constant(), fitBackground);
         int[] untrainableIndices=fitFunction.getUntrainableIndices(nDims, fitCenter, fitAxis);
         FunctionFitter solver = new LevenbergMarquardtSolverUntrainbleParameters(untrainableIndices, true, maxIter, lambda, termEpsilon);
         PeakFitter fitter = new PeakFitter(img, peaks, solver, fitFunction, estimator);
@@ -259,7 +266,10 @@ public class GaussianFit {
             Map<L, double[]> invalid = filterInvalidEllipses(results, img.dimensionsAsLongArray(), backgroundPlane);
             if (!invalid.isEmpty()) {
                 Map<L, double[]> spots = runPeaks(img, invalid.keySet(), false, typicalRadius, fittingBoxRadius, backgroundPlane, fitBackground, preInitParameters, fitCenter, fitAxis, maxIter, lambda, termEpsilon);
-                logger.debug("invalid ellipses: {} replaced by spots: {}", Utils.toStringMap(invalid, Object::toString, p->new FitParameter(p, 2, true, backgroundPlane).toString()), Utils.toStringMap(spots, Object::toString, p->new FitParameter(p, 2, false, backgroundPlane).toString()));
+                invalid.forEach((e, ep) -> {
+                    double[] sp = spots.get(e);
+                    logger.debug("invalid ellipse: {} -> {} replaced by spot: {}", e.toString(), new FitParameter(ep, 2, true, backgroundPlane), new FitParameter(sp, 2, false, backgroundPlane));
+                });
                 spots.forEach((c, p) -> results.put(c, new FitParameter(p, 2, false, backgroundPlane).getEllipseParameters())); // replace
             }
         }

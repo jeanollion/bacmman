@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  * 
  * @author Jean Ollion
  */
-public class EllipticGaussian2D implements FitFunction, FitFunctionUntrainableParameters, FitFunctionScalable {
+public class EllipticGaussian2D implements FitFunctionNParam, FitFunctionUntrainableParameters, FitFunctionScalable {
 	public static final Logger logger = LoggerFactory.getLogger(EllipticGaussian2D.class);
 	static double maxSemiMajorAxis = 10; // TODO as parameter
 	static double eps = 1/Math.pow(maxSemiMajorAxis, 2);
@@ -98,15 +98,12 @@ public class EllipticGaussian2D implements FitFunction, FitFunctionUntrainablePa
 	@Override
 	public final double grad(final double[] x, final double[] a, final int k) {
 		if (k < 5) {
-			double grad =  dS(x, a, k) * val(x, a);
+			return dS(x, a, k) * val(x, a);
 			//if (k==4 && !isValid(a)) return 0; //-grad? // TODO study this option to avoid invalid ellipses
-			return grad;
-		}
-		else if (k == 5) {
+			//return grad;
+		} else if (k == 5) {
 			return E(x, a); // With respect to A
-		}
-		return 0;
-		//throw new RuntimeException("k must be inferior or equal to 5");
+		} else throw new RuntimeException("k must be inferior or equal to 5");
 	}
 
 	@Override
@@ -148,7 +145,7 @@ public class EllipticGaussian2D implements FitFunction, FitFunctionUntrainablePa
 
 	private static final double S(final double[] x, final double[] a) {
 		double dx = x[0] - a[0], dy = x[1] - a[1];
-		return - (a[2] * dx * dx + a[3] * dy * dy + a[4] * dx * dy);
+		return - (a[2] * dx * dx + a[3] * dy * dy + 2 * a[4] * dx * dy);
 	}
 
 	private static final double E(final double[] x, final double[] a) {
@@ -163,9 +160,7 @@ public class EllipticGaussian2D implements FitFunction, FitFunctionUntrainablePa
 			return - Math.pow(x[k-2] - a[k-2], 2);
 		} else if (k==4) { // With respect to c
 			return - 2 * (x[0] - a[0]) * (x[1] - a[1]);
-		}
-		return 0;
-		//throw new IllegalArgumentException("K must be <5");
+		} else throw new IllegalArgumentException("K must be <5");
 	}
 
 	@Override
@@ -177,5 +172,11 @@ public class EllipticGaussian2D implements FitFunction, FitFunctionUntrainablePa
 			if (normalize) parameters[5] = (parameters[5] - center) / scale;
 			else parameters[5] = parameters[5] * scale + center;
 		}
+	}
+
+	@Override
+	public int getNParameters(int nDims) {
+		if (nDims!=2) throw new IllegalArgumentException("Only valid in 2D");
+		return 6;
 	}
 }

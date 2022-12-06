@@ -273,7 +273,7 @@ public class Ellipse2D extends Region implements Analytical {
         double dx = Math.abs(major/2 * Math.cos(th) * Math.cos(theta) - minor/2 * Math.sin(th) * Math.sin(theta));
         double dy = Math.abs(major/2 * Math.cos(tv) * Math.sin(theta) + minor/2 * Math.sin(tv) * Math.cos(theta));
         BoundingBox bds = new SimpleBoundingBox((int)Math.floor(center.get(0)-dx), (int)Math.ceil(center.get(0)+dx), (int)Math.floor(center.get(1)-dy), (int)Math.ceil(center.get(1)+dy), (int)Math.floor(center.get(2)), (int)Math.ceil(center.get(2)));
-        logger.debug("getBounds: dx: {} dy: {}, center: {}, bounds: {}", dx, dy, center, bds);
+        //logger.debug("getBounds: dx: {} dy: {}, center: {}, bounds: {}", dx, dy, center, bds);
         return bds;
     }
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {

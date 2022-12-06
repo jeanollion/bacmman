@@ -82,4 +82,9 @@ public class Plane implements FitFunctionScalable {
 			parameters[parameters.length-1] = parameters[parameters.length-1] * scale + center;
 		}
 	}
+
+	@Override
+	public int getNParameters(int nDims) {
+		return nDims + 1;
+	}
 }

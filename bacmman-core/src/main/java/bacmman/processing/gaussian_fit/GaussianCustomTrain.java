@@ -35,4 +35,9 @@ public class GaussianCustomTrain extends Gaussian implements FitFunctionUntraina
             }
         }
     }
+    @Override
+    public int getNParameters(int nDims) {
+        if (nDims!=2) throw new IllegalArgumentException("Only valid in 2D");
+        return nDims + 2;
+    }
 }

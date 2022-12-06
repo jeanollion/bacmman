@@ -40,13 +40,12 @@ import bacmman.processing.ImageOperations;
 public class SubtractBackground implements PreFilter, Filter, Hint {
     enum METHOD {SUBTRACT_MEAN, SUBTRACT_GAUSSIAN}
     EnumChoiceParameter<METHOD> method = new EnumChoiceParameter<>("Method", METHOD.values(), METHOD.SUBTRACT_MEAN);
-    ConditionalParameter<METHOD> cond = new ConditionalParameter<>(method).setEmphasized(true);
-    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean transform to be subtracted").setEmphasized(true);
+    ScaleXYZParameter radius = new ScaleXYZParameter("Radius", 5, 1, true).setHint("Radius of the Gaussian/Mean/TopHat transform to be subtracted").setEmphasized(true);
+
+    ConditionalParameter<METHOD> cond = new ConditionalParameter<>(method).setDefaultParameters(radius).setEmphasized(true);
 
     Parameter[] parameters = new Parameter[]{cond};
     public SubtractBackground() {
-        cond.setActionParameters(METHOD.SUBTRACT_GAUSSIAN, radius);
-        cond.setActionParameters(METHOD.SUBTRACT_MEAN, radius);
     }
     public SubtractBackground(double radius) {
         this();
@@ -94,6 +93,6 @@ public class SubtractBackground implements PreFilter, Filter, Hint {
 
     @Override
     public String getHintText() {
-        return "Algorithms to reduce low frequency background signal: <br /><ul><li>SUBTRACT_GAUSSIAN: Subtracts a Gaussian transform of the input image</li><li>Subtracts a Mean transform of the input image (SUBTRACT_GAUSSIAN is faster for high radius)</li><li>TOP_HAT: I - Max( Min( I ) ) or I - Opening( I ) </li><li>TOP_HAT_INV: I - Min( Max( I ) ) or I - Closing( I ) </li></ul>";
+        return "Algorithms to reduce low frequency background signal: <br /><ul><li>SUBTRACT_GAUSSIAN: Subtracts a Gaussian transform of the input image</li><li>Subtracts a Mean transform of the input image (SUBTRACT_GAUSSIAN is faster for high radius)</li></ul>";
     }
 }
