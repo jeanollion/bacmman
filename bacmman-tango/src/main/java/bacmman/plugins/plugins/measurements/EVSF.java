@@ -92,7 +92,7 @@ public class EVSF implements Measurement, Hint {
         histograms.add(getRefHistogram(r, nBins));
         for (double[] h : histograms) { // normalized cum sum
             double sum = DoubleStream.of(h).sum();
-            for (int i = 0; i < h.length; ++i) h[i] = h[i] / sum + (i > 0 ? h[i-1] : 0);
+            for (int i = 0; i < h.length; ++i) h[i] = ( h[i] / sum ) + (i > 0 ? h[i-1] : 0);
         }
         for (int c = 0; c < channels.length; ++c) { //remove ref distribution so that a random distribution corresponds to x-axis
             double[] h = histograms.get(c);
@@ -141,7 +141,7 @@ public class EVSF implements Measurement, Hint {
         List<double[]> evsf = getEVSF(container.getRegion(), EVF, channelIms, nBins.getIntValue(), nShells.getIntValue(), shells);
         for (int cIdx = 0; cIdx<channelIdxs.length; ++cIdx) {
             double[] h = evsf.get(cIdx);
-            double area = DoubleStream.of(h).sum();
+            double area = DoubleStream.of(h).sum() / nBins.getDoubleValue();
             double maxOver = DoubleStream.of(h).filter(v -> v>=0).max().orElse(Double.NaN);
             double minUnder = DoubleStream.of(h).filter(v -> v<=0).min().orElse(Double.NaN);
             container.getMeasurements().setValue(key.getValue()+"_oc"+channelIdxs[cIdx]+"_area", area);

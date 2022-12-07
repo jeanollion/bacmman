@@ -80,6 +80,7 @@ public class JACOP implements Measurement, Hint {
         else {
             ArrayList<MeasurementKey> res = new ArrayList<>();
             for (Pair<Integer, String> z : planes) res.addAll(getMeasurementKeys(z.value));
+            res.add(new MeasurementKeyObject(prefix.getValue()+"MidPlane", mask.getSelectedClassIdx()));
             return res;
         }
     }
@@ -95,6 +96,7 @@ public class JACOP implements Measurement, Hint {
         res.add(new MeasurementKeyObject(prefix+"Manders1"+suffix, mask.getSelectedClassIdx()));
         res.add(new MeasurementKeyObject(prefix+"Manders2"+suffix, mask.getSelectedClassIdx()));
         res.add(new MeasurementKeyObject(prefix+"ICA"+suffix, mask.getSelectedClassIdx()));
+        res.add(new MeasurementKeyObject(prefix+"PearsonWhole"+suffix, mask.getSelectedClassIdx()));
         return res;
     }
 
@@ -115,6 +117,7 @@ public class JACOP implements Measurement, Hint {
             for (Pair<Integer, String> z : planes) {
                 if (z.key>=0 && z.key<mask.sizeZ()) performMeasurement(m, signal1.getZPlane(z.key), signal2.getZPlane(z.key), mask.getZPlane(z.key), mask1==null ? null : mask1.getZPlane(z.key), mask2==null ? null : mask2.getZPlane(z.key), thld1, thld2, z.value);
             }
+            object.getMeasurements().setValue(prefix.getValue()+"MidPlane", (mask.sizeZ()-1)/2 + object.getBounds().zMin());
         }
     }
 
@@ -128,6 +131,10 @@ public class JACOP implements Measurement, Hint {
         double[] overlapK1K2 = colocalizer.overlap();
         double[] M1M2 = colocalizer.MM();
         double ICA = colocalizer.ICA();
+        // person for all volume:
+        colocalizer.setThresholdA(Integer.MIN_VALUE);
+        colocalizer.setThresholdB(Integer.MIN_VALUE);
+        double pearsonWhole = colocalizer.pearson();
         List<MeasurementKey> keys = getMeasurementKeys(z);
         m.setValue(keys.get(0).getKey(), pearson);
         m.setValue(keys.get(1).getKey(), overlapK1K2[0]);
@@ -136,6 +143,7 @@ public class JACOP implements Measurement, Hint {
         m.setValue(keys.get(4).getKey(), M1M2[0]);
         m.setValue(keys.get(5).getKey(), M1M2[1]);
         m.setValue(keys.get(6).getKey(), ICA);
+        m.setValue(keys.get(7).getKey(), pearsonWhole);
     }
 
     @Override
@@ -149,7 +157,8 @@ public class JACOP implements Measurement, Hint {
                 "<br>Based on the implementation of Fabrice P. Cordelières: https://github.com/fabricecordelieres/IJ-Plugin_JACoP" +
                 "<br> This implementation computes all coefficients within the mask of the selected object class (parameter: Segmentation Mask)" +
                 "<br>If you use this module please cite: S. Bolte & F. P. Cordelières, A guided tour into subcellular colocalization analysis in light microscopy, Journal of Microscopy, Volume 224, Issue 3: 213-232" +
-                "<br>Note that all coefficient values except ICA depend on thresholds defined in parameters <em>Threshold for Signal 1</em> and <em>Threshold for signal 2</em>" +
-                "<br>Manders coefficient: Manders1 = fraction of Signal 1 overlapping Signal 2 / Manders2 = fraction of Signal 2 overlapping Signal 1.";
+                "<br>Note that all coefficient values except <em>ICA</em> and <em>PearsonWhole</em> depend on thresholds defined in parameters <em>Threshold for Signal 1</em> and <em>Threshold for signal 2</em>. When no threshold is selected, the area within the corresponding segmented object class is considered if existing otherwise no value is computed" +
+                "<br><em>PearsonWhole</em> and <em>ICA</em> are computed the whole volume." +
+                "<br><em>Manders coefficient</em>: Manders1 = fraction of Signal 1 overlapping Signal 2 / Manders2 = fraction of Signal 2 overlapping Signal 1.";
     }
 }
