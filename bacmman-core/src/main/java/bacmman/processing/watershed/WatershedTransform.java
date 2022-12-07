@@ -384,6 +384,7 @@ public class WatershedTransform {
         boolean decreasingPropagation;
         WatershedTransform instance;
         @Override public void setUp(WatershedTransform instance) {
+            this.instance = instance;
             setPropagationDirection(instance.decreasingPropagation);
         }
         public MonotonalPropagation setPropagationDirection(boolean decreasingPropagation) {

@@ -8,7 +8,7 @@ import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.ThresholderHisto;
 
 public class Percentile implements SimpleThresholder, ThresholderHisto {
-    BoundedNumberParameter percentile = new BoundedNumberParameter("Percentile", 2, 95, 0, 100).setEmphasized(true).setHint("Returns a percentile of the intensity distribution. <br />For instance 95 corresponds to the value of the 5% brightest pixels");
+    BoundedNumberParameter percentile = new BoundedNumberParameter("Percentile", 5, 95, 0, 100).setEmphasized(true).setHint("Returns a percentile of the intensity distribution. <br />For instance 95 corresponds to the value of the 5% brightest pixels");
 
     public Percentile setPercentile(double value) {
         assert value>=0 && value <=100 : "percentile should be in range [0, 100]";
