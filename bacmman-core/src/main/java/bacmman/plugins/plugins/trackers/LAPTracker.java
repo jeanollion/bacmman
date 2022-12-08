@@ -219,7 +219,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         }
         public AbstractLAPObject(RealLocalizable localization, Region r, int frame, DISTANCE distanceType, Map<SymetricalPair<Region>, Overlap> overlapMap, List<Voxel> skeletonPoints, double hausdorffDistSqThld) {
             super(localization, 1, 1); // if distance is mass center -> mass center should be set before
-            if (HAUSDORFF.equals(distanceType) && skeletonPoints==null || skeletonPoints.isEmpty()) throw new IllegalArgumentException(" HAUSDORFF distance and no skeleton points provided");
+            if (HAUSDORFF.equals(distanceType) && (skeletonPoints==null || skeletonPoints.isEmpty())) throw new IllegalArgumentException(" HAUSDORFF distance and no skeleton points provided");
             this.r=r;
             this.getFeatures().put(Spot.FRAME, (double)frame);
             this.distanceType=distanceType;
