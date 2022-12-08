@@ -39,7 +39,7 @@ public class MotionMetrics implements Measurement, Hint {
         res.add(new MeasurementKeyObject(prefix.getValue()+"MJD", objectClass.getSelectedIndex()));
         for (int i = 1; i<= msdScales.getIntValue(); ++i) {
             res.add(new MeasurementKeyObject(prefix.getValue()+"MSD_"+i, objectClass.getSelectedIndex()));
-            res.add(new MeasurementKeyObject(prefix.getValue()+"IntervalCount"+i, objectClass.getSelectedIndex()));
+            res.add(new MeasurementKeyObject(prefix.getValue()+"IntervalCount_"+i, objectClass.getSelectedIndex()));
         }
         return res;
     }
