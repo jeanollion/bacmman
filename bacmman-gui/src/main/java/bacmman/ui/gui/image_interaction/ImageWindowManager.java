@@ -60,6 +60,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 
 /**
  *
@@ -679,6 +680,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }
         if (i instanceof HyperStack) {
             HyperStack k = ((HyperStack)i);
+            k.setDisplayAllObjects(true);
             Image im = image;
             IntConsumer cb = idx -> {
                 hideAllRois(im, true, false);
@@ -858,6 +860,11 @@ public abstract class ImageWindowManager<I, U, V> {
             image = getDisplayer().getCurrentImage2();
             if (image==null) return Collections.emptyList();
         }
+        InteractiveImage i = getImageObjectInterface(image);
+        if (i==null) return Collections.emptyList();
+        if (i instanceof HyperStack && ((HyperStack)i).isDisplayAllObjects()) {
+            return Pair.unpairKeys(((HyperStack)i).getAllObjects());
+        }
         Set<U> rois = displayedLabileObjectRois.get(image);
         if (rois!=null) {
             List<Pair<SegmentedObject, BoundingBox>> pairs = Utils.getKeys(labileObjectRoiMap, rois);
@@ -1007,6 +1014,7 @@ public abstract class ImageWindowManager<I, U, V> {
         } else {
             displayedLabileTrackRois.remove(image);
             displayedLabileObjectRois.remove(image);
+            InteractiveImage i=this.getImageObjectInterface(image);
         }
         if (!nonLabile) {
             GUI.updateRoiDisplayForSelections(image, null);
@@ -1332,12 +1340,18 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     protected JPopupMenu getMenu(Image image) {
         final List<SegmentedObject> sel = getSelectedLabileObjects(image);
+        JPopupMenu menu;
+        if (sel.isEmpty()) return null;
+        else if (sel.size()==1) menu = getMenu(sel.get(0));
+        else {
+            Collections.sort(sel);
+            menu = getMenu(sel);
+        }
         if (testData.containsKey(image)) { // test menu
             Collection<TestDataStore> stores = testData.get(image);
             SegmentedObject o = sel.isEmpty() ? null : sel.get(0); // only first selected object
             Predicate<TestDataStore> storeWithinSel = s-> o == null || s.getParent().equals(o.getParent(s.getParent().getStructureIdx()));
             Set<String> commands = stores.stream().filter(storeWithinSel).map(TestDataStore::getMiscCommands).flatMap(Set::stream).distinct().sorted().collect(Collectors.toSet());
-            JPopupMenu menu = getMenu(o);
             if (!commands.isEmpty()) {
                 menu.addSeparator();
                 commands.forEach(s-> {
@@ -1346,15 +1360,8 @@ public abstract class ImageWindowManager<I, U, V> {
                     item.setAction(new AbstractActionImpl(item.getActionCommand(), stores, storeWithinSel, new ArrayList(sel)));
                 });
             }
-            return menu;
-        } else { // regular menu
-            if (sel.isEmpty()) return null;
-            else if (sel.size()==1) return getMenu(sel.get(0));
-            else {
-                Collections.sort(sel);
-                return getMenu(sel.subList(0, Math.min(50, sel.size())));
-            }
         }
+        return menu;
     }
 
     private JPopupMenu getMenu(SegmentedObject o) {
@@ -1407,44 +1414,58 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     private JPopupMenu getMenu(List<SegmentedObject> list) {
         JPopupMenu menu = new JPopupMenu();
-        menu.add(new JMenuItem(Utils.toStringList(list)));
-        menu.add(new JMenuItem("Prev:"+Utils.toStringList(list, o->o.getPrevious()==null?"NA":o.getPrevious().toString())));
-        menu.add(new JMenuItem("Next:"+Utils.toStringList(list, o->o.getNext()==null?"NA":o.getNext().toString())));
-        List<String> thList = Utils.transform(list, o->o.getTrackHead()==null?"NA":o.getTrackHead().toString());
+        List<SegmentedObject> sublist = list.subList(0, Math.min(20, list.size()));
+        menu.add(new JMenuItem(truncate(Utils.toStringList(sublist), TRUNC_LENGTH_MENU)));
+        menu.add(new JMenuItem(truncate("Prev:"+Utils.toStringList(sublist, o->o.getPrevious()==null?"NA":o.getPrevious().toString()), TRUNC_LENGTH_MENU)));
+        menu.add(new JMenuItem(truncate("Next:"+Utils.toStringList(sublist, o->o.getNext()==null?"NA":o.getNext().toString()), TRUNC_LENGTH_MENU)));
+        List<String> thList = Utils.transform(sublist, o->o.getTrackHead()==null?"NA":o.getTrackHead().toString());
         replaceRepetedValues(thList);
-        menu.add(new JMenuItem("TrackHead:"+Utils.toStringList(thList)));
+        menu.add(new JMenuItem(truncate("TrackHead:"+Utils.toStringList(thList), TRUNC_LENGTH_MENU)));
         //DecimalFormat df = new DecimalFormat("#.####E0");
         // getAllAttributeKeys
-        Collection<String> attributeKeys = new HashSet();
-        Collection<String> mesKeys = new HashSet();
+        Collection<String> attributeKeys = new HashSet<>();
+        Collection<String> mesKeys = new HashSet<>();
         for (SegmentedObject o : list) {
             if (!o.getAttributeKeys().isEmpty()) attributeKeys.addAll(o.getAttributeKeys());
             mesKeys.addAll(o.getMeasurements().getKeys());
         }
-        attributeKeys=new ArrayList(attributeKeys);
+        attributeKeys=new ArrayList<>(attributeKeys);
         Collections.sort((List)attributeKeys);
-        mesKeys=new ArrayList(mesKeys);
+        mesKeys=new ArrayList<>(mesKeys);
         Collections.sort((List)mesKeys);
         
         if (!attributeKeys.isEmpty()) {
             menu.addSeparator();
             for (String s : attributeKeys) {
-                List<Object> values = new ArrayList(list.size());
-                for (SegmentedObject o : list) values.add(o.getAttribute(s));
+                List<Object> values = new ArrayList<>(sublist.size());
+                for (SegmentedObject o : sublist) values.add(o.getAttribute(s));
+                boolean number = values.stream().filter(Objects::nonNull).anyMatch(o -> o instanceof Number);
                 replaceRepetedValues(values);
-                menu.add(new JMenuItem(truncate(s, TRUNC_LENGTH)+": "+Utils.toStringList(values, v -> truncate(toString(v), TRUNC_LENGTH))));
+                JMenuItem jmi = new JMenuItem(truncate(truncate(s, TRUNC_LENGTH)+": "+Utils.toStringList(values, v -> truncate(toString(v), TRUNC_LENGTH)), TRUNC_LENGTH_MENU));
+                menu.add(jmi);
+                if (number) jmi.addActionListener(evt -> displayHistogram(s, list.stream().map(o -> o.getAttribute(s)).filter(Objects::nonNull).map(o -> (Number)o).collect(Collectors.toList())));
             }
         }
         if (!mesKeys.isEmpty()) {
             menu.addSeparator();
             for (String s : mesKeys) {
-                List<Object> values = new ArrayList(list.size());
+                List<Object> values = new ArrayList<>(list.size());
                 for (SegmentedObject o : list) values.add(o.getMeasurements().getValue(s));
+                boolean number = values.stream().filter(Objects::nonNull).anyMatch(o -> o instanceof Number);
                 replaceRepetedValues(values);
-                menu.add(new JMenuItem(truncate(s, TRUNC_LENGTH)+": "+Utils.toStringList(values, v -> truncate(toString(v), TRUNC_LENGTH) )));
+                JMenuItem jmi = new JMenuItem(truncate(truncate(s, TRUNC_LENGTH)+": "+Utils.toStringList(values, v -> truncate(toString(v), TRUNC_LENGTH) ), TRUNC_LENGTH_MENU));
+                menu.add(jmi);
+                if (number) jmi.addActionListener(evt -> displayHistogram(s, list.stream().map(o -> o.getMeasurements().getValue(s)).filter(Objects::nonNull).map(o -> (Number)o).collect(Collectors.toList())));
             }
         }
         return menu;
+    }
+
+    private static void displayHistogram(String name, List<Number> values) {
+        Histogram h = HistogramFactory.getHistogram(()->values.stream().mapToDouble(Number::doubleValue), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+        double binSize = h.getBinSize();
+        double min = h.getMin() + binSize/2;
+        Utils.plotHistogram("Histogram of "+name, IntStream.range(0, h.getData().length).mapToDouble(i -> min + i*binSize).toArray(), LongStream.of(h.getData()).mapToDouble(l->(double)l).toArray());
     }
     
     private static void replaceRepetedValues(List list) {
@@ -1463,7 +1484,7 @@ public abstract class ImageWindowManager<I, U, V> {
         return Measurements.asString(o, MeasurementExtractor.numberFormater);
         //return o instanceof Number ? Utils.format((Number) o, 3) : o.toString();
     }
-    private static int TRUNC_LENGTH = 30;
+    private static int TRUNC_LENGTH = 30, TRUNC_LENGTH_MENU=200;
     private static String truncate(String s, int length) {
         if (s.length()>length) return s.substring(0, length-3)+"...";
         else return s;

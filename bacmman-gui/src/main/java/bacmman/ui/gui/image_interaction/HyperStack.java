@@ -30,10 +30,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -48,6 +50,7 @@ public class HyperStack extends Kymograph {
     public final Map<Integer, Integer> frameMapIdx, idxMapFrame;
     protected IntConsumer changeIdxCallback;
     DefaultWorker loadObjectsWorker;
+    boolean displayAllObjects = false;
     Object lock = new Object();
     public HyperStack(KymographFactory.KymographData data, int childStructureIdx, boolean loadObjects) {
         super(data, childStructureIdx, false);
@@ -73,6 +76,15 @@ public class HyperStack extends Kymograph {
             loadObjectsWorker.setStartTime();
         }
     }
+
+    public boolean isDisplayAllObjects() {
+        return displayAllObjects;
+    }
+
+    public void setDisplayAllObjects(boolean displayAllObjects) {
+        this.displayAllObjects = displayAllObjects;
+    }
+
     public void setMaxZ(int maxZ) {
         if (this.maxParentSizeZ!=maxZ) {
             this.maxParentSizeZ = maxZ;
@@ -111,6 +123,10 @@ public class HyperStack extends Kymograph {
     public List<Pair<SegmentedObject, BoundingBox>> getObjects(int frame) {
         int idx = frameMapIdx.get(frame);
         return trackObjects[idx].getObjects();
+    }
+
+    public List<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
+        return IntStream.range(0, trackObjects.length).mapToObj(i -> trackObjects[i].getObjects()).flatMap(Collection::stream).collect(Collectors.toList());
     }
 
     @Override public InteractiveImageKey getKey() {

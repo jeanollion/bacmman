@@ -215,7 +215,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         //fire deselected objects
                         listener.fireObjectSelected(Pair.unpairKeys(selectedObjects), true);
                     }
-                    if (hyperstack) ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
+                    if (hyperstack) {
+                        ((HyperStack)i).setChangeIdxCallback(null); // stop showing all objects/tracks
+                        ((HyperStack)i).setDisplayAllObjects(false);
+                    }
                 } else if (!strechObjects) { // display tracks
                     if (!hyperstack) {
                         List<SegmentedObject> trackHeads = new ArrayList<>();
