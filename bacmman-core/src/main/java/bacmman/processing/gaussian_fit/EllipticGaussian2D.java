@@ -18,7 +18,6 @@
  */
 package bacmman.processing.gaussian_fit;
 
-import net.imglib2.algorithm.localization.FitFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,11 +49,12 @@ import org.slf4j.LoggerFactory;
  * 
  * @author Jean Ollion
  */
-public class EllipticGaussian2D implements FitFunctionNParam, FitFunctionUntrainableParameters, FitFunctionScalable {
+public class EllipticGaussian2D implements FitFunctionCustom, FitFunctionUntrainableParameters, FitFunctionScalable {
 	public static final Logger logger = LoggerFactory.getLogger(EllipticGaussian2D.class);
-	static double maxSemiMajorAxis = 10; // TODO as parameter
-	static double eps = 1/Math.pow(maxSemiMajorAxis, 2);
+	double maxSemiMajorAxis = Double.NaN;
+	double eps = Double.NaN;;
 	final boolean backgroundIsFitApart;
+	double[] centerRange;
 	public EllipticGaussian2D(boolean backgroundIsFitApart) {
 		this.backgroundIsFitApart=backgroundIsFitApart;
 	}
@@ -89,10 +89,28 @@ public class EllipticGaussian2D implements FitFunctionNParam, FitFunctionUntrain
 	 * k = 5       - A
 	 *k = n+1     - b</pre> 
 	 */
-
-	private static boolean isValid(final double a[]) {
-		// AB>C*C so that Major axis is defined (A+B-Q^0.5 > 0) add eps
-		return a[2] * a[3] > a[4] * a[4] + (a[2] + a[3]) * eps;
+	@Override
+	public EllipticGaussian2D setSizeLimit(double maxSemiMajorAxis) {
+		this.maxSemiMajorAxis = maxSemiMajorAxis;
+		this.eps = 1/Math.pow(maxSemiMajorAxis, 2);
+		return this;
+	}
+	public EllipticGaussian2D setPositionLimit(double[] centerRange) {
+		this.centerRange = centerRange;
+		return this;
+	}
+	@Override
+	public boolean isValid(double[] initialParameters, double[] a) {
+		if (!Double.isNaN(eps)) {
+			// AB>C*C so that Major axis is defined (A+B-Q^0.5 > 0) add eps
+			if (a[2] * a[3] <= a[4] * a[4] + (a[2] + a[3]) * eps) return false;
+		}
+		if (centerRange!=null) {
+			for (int i = 0; i<2; ++i) {
+				if (Math.abs(initialParameters[i] - a[i])>centerRange[i]) return false;
+			}
+		}
+		return true;
 	}
 
 	@Override

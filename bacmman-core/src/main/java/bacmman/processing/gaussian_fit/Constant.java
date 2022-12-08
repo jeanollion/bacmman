@@ -18,8 +18,6 @@
  */
 package bacmman.processing.gaussian_fit;
 
-import net.imglib2.algorithm.localization.FitFunction;
-
 /**
  * A constant function.
  * <p>
@@ -66,5 +64,20 @@ public class Constant implements FitFunctionScalable {
 	@Override
 	public int getNParameters(int nDims) {
 		return 1;
+	}
+
+	@Override
+	public boolean isValid(double[] initialParameters, double[] parameters) {
+		return true;
+	}
+
+	@Override
+	public FitFunctionCustom setPositionLimit(double[] centerRange) {
+		return this;
+	}
+
+	@Override
+	public FitFunctionCustom setSizeLimit(double sizeLimit) {
+		return this;
 	}
 }

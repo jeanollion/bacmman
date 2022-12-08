@@ -128,9 +128,9 @@ public class SpatzcellsSpotSegmenter implements Segmenter, Hint {
                 lmClose = allLMPerSlice.get(slice).stream().filter(p -> minDistFun.applyAsDouble(p)<=minDist).collect(Collectors.toList());
             } else lmClose = new ArrayList<>();
             logger.debug("slice: {}, run max: {} with close spots: {}", slice, lmMax.size(), lmClose.size());
-            Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps);
+            Map<Point, double[]> fitSlice = GaussianFit.run(fitImage.getZPlane(slice), lmClose, typicalRad, Math.max(1, typicalRad), fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps, false);
             if (fitCenterAndAxesOnFilteredImage.getSelected()) { // fit only intensity on raw image
-                fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps);
+                fitSlice = GaussianFit.run(raw.getZPlane(slice), lmClose, typicalRad, Math.max(1, typicalRad), fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, fitSlice, false, false, maxIter, lambda, eps, false);
             }
             logger.debug("slice: {} resulting fit: {}", slice, Utils.toStringMap(fitSlice, Object::toString, p->new GaussianFit.FitParameter(p, 2, fitEllipse.getSelected(), fitBackgroundPlane.getSelected()).toString()));
             for (Point p : lmMax) {

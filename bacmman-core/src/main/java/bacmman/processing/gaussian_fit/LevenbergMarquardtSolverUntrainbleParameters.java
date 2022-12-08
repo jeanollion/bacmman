@@ -4,7 +4,6 @@ import Jama.Matrix;
 import bacmman.utils.ArrayUtil;
 import net.imglib2.algorithm.localization.FitFunction;
 import net.imglib2.algorithm.localization.FunctionFitter;
-import net.imglib2.loops.LoopBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -94,6 +93,12 @@ public class LevenbergMarquardtSolverUntrainbleParameters implements FunctionFit
         return sum;
     } //chiSquared
 
+    public static boolean isValid(final double[] initialParameter, final double[] a, final FitFunction f) {
+        if (f instanceof FitFunctionCustom) {
+            return ((FitFunctionCustom)f).isValid(initialParameter, a);
+        } else return true;
+    }
+
     /**
      * Minimize E = sum {(y[k] - f(x[k],a)) }^2
      * Note that function implements the value and gradient of f(x,a),
@@ -128,6 +133,7 @@ public class LevenbergMarquardtSolverUntrainbleParameters implements FunctionFit
             for (int i = 0; i < fitArray.length; ++i) res[fitToOriginal[i]] = fitArray[i];
             return res;
         };
+        double[] inita = Arrays.copyOf(a, nparm);
         double[] na = Arrays.copyOf(a, nparm); // next parameters
 
         double e0 = chiSquared(x, a, y, f);
@@ -196,11 +202,24 @@ public class LevenbergMarquardtSolverUntrainbleParameters implements FunctionFit
                 }
             }
             if (iter >= maxiter) done = true;
-
+            boolean valid = true;
+            if (!isValid(inita, na, f)) {
+                double[] params = Arrays.copyOf(a, nparm);
+                int change = 0;
+                for (int i = 0; i<params.length; ++i) { // inspect parameters one by one to revert those that make the fit invalid
+                    if (na[i]!=a[i]) {
+                        params[i] = na[i]; // try this parameter
+                        if (!isValid(inita, params, f)) params[i] = a[i]; // change back
+                        else ++change;
+                    }
+                }
+                System.arraycopy(params, 0, na, 0, nparm);
+                valid = change>0;
+            }
             // in the C++ version, found that changing this to e1 >= e0
             // was not a good idea.  See comment there.
             //
-            if (e1 > e0 || Double.isNaN(e1)) { // new location worse than before
+            if (e1 > e0 || Double.isNaN(e1) || !valid) { // new location worse than before
                 lambda *= 10.;
             }
             else {		// new location better, accept new parameters

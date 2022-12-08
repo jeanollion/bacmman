@@ -16,13 +16,13 @@ import java.util.*;
 public class SpotGaussianFit implements PostFilter, Hint {
     NumberParameter typicalRadius = new BoundedNumberParameter("Typical Radius", 1, 2, 1, null).setHint("Typical sigma of spot when fitted by a gaussian. Gaussian fit will be performed on an area of span 2 * σ +1 around the center. When two (or more) spot have spans that overlap, they are fitted together");
     BooleanParameter fitCenter = new BooleanParameter("Fit Center", false).setHint("If false, a gaussian centered at the center of the object will be fit. If true the center of the gaussian will be fit");
-    BooleanParameter fitEllipse = new BooleanParameter("Fit Ellipse", true).setHint("If true, an elliptic gaussian gaussian will be fit. Only available for 2D images.");
+    BooleanParameter fitEllipse = new BooleanParameter("Fit Ellipse", false).setHint("If true, an elliptic gaussian gaussian will be fit. Only available for 2D images.");
 
     Parameter[] parameters = new Parameter[]{typicalRadius, fitEllipse, fitCenter};
 
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
-        Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), typicalRadius.getValue().doubleValue(), 0, 2 * typicalRadius.getValue().doubleValue() +1, fitEllipse.getSelected(), false, true, fitCenter.getSelected(), true, true, 300, 0.001, 0.01);
+        Map<Region, double[]> parameters = GaussianFit.runOnRegions(parent.getRawImage(childStructureIdx), childPopulation.getRegions(), typicalRadius.getValue().doubleValue(), Math.max(1, typicalRadius.getValue().doubleValue()/2), 0, 2 * typicalRadius.getValue().doubleValue() +1, fitEllipse.getSelected(), false, true, fitCenter.getSelected(), true, true, 300, 0.001, 0.01, false);
         List<Region> regions = new ArrayList<>(childPopulation.getRegions().size());
         parameters.forEach((r, p)-> regions.add(GaussianFit.spotMapper.apply(p, false, childPopulation.getImageProperties()).setLabel(r.getLabel())));
         Collections.sort(regions, Comparator.comparingInt(Region::getLabel));
