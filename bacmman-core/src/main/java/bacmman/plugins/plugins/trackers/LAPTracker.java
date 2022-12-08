@@ -3,10 +3,14 @@ package bacmman.plugins.plugins.trackers;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.image.Image;
+import bacmman.image.ImageMask;
 import bacmman.image.Offset;
 import bacmman.plugins.*;
+import bacmman.processing.EDT;
+import bacmman.processing.Filters;
 import bacmman.processing.matching.TrackMateInterface;
 import bacmman.processing.matching.trackmate.Spot;
+import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
@@ -15,17 +19,18 @@ import net.imglib2.RealLocalizable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.MASS_CENTER_DISTANCE;
-import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.OVERLAP;
+import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.*;
 
 public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
     public final static Logger logger = LoggerFactory.getLogger(LAPTracker.class);
+
+    EnumChoiceParameter<DISTANCE> distance = new EnumChoiceParameter<>("Distance", DISTANCE.values(), DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li><li>HAUSDORFF: Hausdorff distance between skeleton points (BETA TESTING)</li></ul>");
+    BoundedNumberParameter distanceSearchThreshold = new BoundedNumberParameter("Distance Search Threshold", 5, -1, 1, null).setEmphasized(true).setHint("Hausdorff distance can be computationally expensive. When two objects have center-center distance above this threshold, hausdorff distance is not computed");
+    ConditionalParameter<LAPTracker.DISTANCE> distanceTypeCond = new ConditionalParameter<>(distance).setActionParameters(HAUSDORFF, distanceSearchThreshold);
     NumberParameter maxDistanceFTF = new BoundedNumberParameter("Maximal Distance for Frame-to-Frame Tracking", 5, -1, 0, null).setEmphasized(true).setHint("Maximal distance (see distance parameter for unit) used for Frame-to-Frame tracking procedure.<br />If two objects between two successive frames are separated by a distance superior to this threshold they can't be linked.");
     BooleanParameter allowGaps = new BooleanParameter("Allow Gaps", false).setEmphasized(true).setHint("Allow gaps in tracks");
     NumberParameter maxDistanceGC = new BoundedNumberParameter("Maximal Distance for Gap-Closing procedure", 5, -1, 0, null).setEmphasized(true).setHint("Maximal distance (see distance parameter for unit) used for for the gap-closing step");
@@ -46,13 +51,11 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
     }
 
     enum LINK_MODE {NORMAL, SPLIT, MERGE}
-    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, OVERLAP}
-
-    EnumChoiceParameter<DISTANCE> distance = new EnumChoiceParameter<>("Distance", DISTANCE.values(), DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li></ul>");
+    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, OVERLAP, HAUSDORFF}
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{maxDistanceFTF, distance, allowSplit, allowMerge, gapCond, relativeLandmark};
+        return new Parameter[]{maxDistanceFTF, distanceTypeCond, allowSplit, allowMerge, gapCond, relativeLandmark};
     }
 
     @Override
@@ -208,20 +211,50 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         final Region r;
         final DISTANCE distanceType;
         final Map<SymetricalPair<Region>, Overlap> overlapMap;
+        final List<Voxel> skeletonPoints;
+        final double hausdorffDistSqThld;
         LINK_MODE mode = LINK_MODE.NORMAL;
         public AbstractLAPObject(Region r, int frame, DISTANCE distanceType, Map<SymetricalPair<Region>, Overlap> overlapMap) {
-            this(r.getCenter()!=null ? r.getCenter() : r.getGeomCenter(false), r, frame, distanceType, overlapMap);
+            this(r.getCenterOrGeomCenter(), r, frame, distanceType, overlapMap, null, Double.POSITIVE_INFINITY);
         }
-        public AbstractLAPObject(RealLocalizable localization, Region r, int frame, DISTANCE distanceType, Map<SymetricalPair<Region>, Overlap> overlapMap) {
+        public AbstractLAPObject(RealLocalizable localization, Region r, int frame, DISTANCE distanceType, Map<SymetricalPair<Region>, Overlap> overlapMap, List<Voxel> skeletonPoints, double hausdorffDistSqThld) {
             super(localization, 1, 1); // if distance is mass center -> mass center should be set before
+            if (HAUSDORFF.equals(distanceType) && skeletonPoints==null || skeletonPoints.isEmpty()) throw new IllegalArgumentException(" HAUSDORFF distance and no skeleton points provided");
             this.r=r;
             this.getFeatures().put(Spot.FRAME, (double)frame);
             this.distanceType=distanceType;
             this.overlapMap=overlapMap;
+            this.hausdorffDistSqThld = hausdorffDistSqThld;
+            this.skeletonPoints = skeletonPoints;
             //this.getFeatures().put("Idx", (double)r.getLabel()-1); // for debugging purpose
+        }
+        // constructor for HAUSDORFF distance
+        public AbstractLAPObject(Region r, int frame, Image distanceMap, Neighborhood n, double hausdorffDistThld) {
+            super(r.getCenterOrGeomCenter(), 1, 1); // if distance is mass center -> mass center should be set before
+            this.r=r;
+            this.getFeatures().put(Spot.FRAME, (double)frame);
+            this.distanceType=HAUSDORFF;
+            this.overlapMap=null;
+            this.hausdorffDistSqThld = hausdorffDistThld * hausdorffDistThld;
+            this.skeletonPoints = getSkeletonPoint(r, distanceMap, n);
+            //this.getFeatures().put("Idx", (double)r.getLabel()-1); // for debugging purpose
+        }
+
+        public static List<Voxel> getSkeletonPoint(Region r, Image distanceMap, Neighborhood n) {
+            List<Voxel> skeletonPoints = new ArrayList<>();
+            if (distanceMap==null) distanceMap = EDT.transform(r.getMask(), true, r.getScaleXY(), r.getScaleZ(), false);
+            if (n == null) n = Filters.getNeighborhood(1.5, 1, distanceMap);
+            ImageMask lm = Filters.localExtrema(distanceMap, null, true, r.getMask(), n);
+            ImageMask.loopWithOffset(lm, (x, y, z) -> skeletonPoints.add(new Voxel(x, y, z)));
+            return skeletonPoints;
         }
         public S setLinkMode(LINK_MODE mode) {this.mode = mode; return (S)this;}
 
+        public double squareDistanceCenterCenterTo(S otherR) {
+            double sum = Math.pow( getDoublePosition(0) - otherR.getDoublePosition(0), 2 ) + Math.pow( getDoublePosition(1) - otherR.getDoublePosition(1), 2 );
+            if (!r.is2D()) sum += Math.pow( (getDoublePosition(0) - otherR.getDoublePosition(0)) * r.getScaleZ() / r.getScaleXY(), 2 ); // z anisotropy -> distance in pixel into XY scale
+            return sum;
+        }
         @Override
         public double squareDistanceTo(S otherR) {
             if (otherR.frame() < frame()) return otherR.squareDistanceTo((S)this);
@@ -229,9 +262,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
                 case GEOM_CENTER_DISTANCE:
                 case MASS_CENTER_DISTANCE:
                 default: {
-                    double sum = Math.pow( getDoublePosition(0) - otherR.getDoublePosition(0), 2 ) + Math.pow( getDoublePosition(1) - otherR.getDoublePosition(1), 2 );
-                    if (!r.is2D()) sum += Math.pow( (getDoublePosition(0) - otherR.getDoublePosition(0)) * r.getScaleZ() / r.getScaleXY(), 2 ); // z anisotropy -> distance in pixel into XY scale
-                    return sum;
+                    return squareDistanceCenterCenterTo(otherR);
                 }
                 case OVERLAP: {
                     SymetricalPair<Region> key = new SymetricalPair<>(r, otherR.r);
@@ -240,9 +271,16 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
                     if (o==null || o.overlap == 0) return Double.POSITIVE_INFINITY;
                     return Math.pow(1 - o.normalizedOverlap(mode), 2);
                 }
+                case HAUSDORFF: {
+                    if (Double.isFinite(hausdorffDistSqThld)) { // limit search
+                        double d2CC = squareDistanceCenterCenterTo(otherR);
+                        if (d2CC>hausdorffDistSqThld) return Double.POSITIVE_INFINITY;
+                    }
+                    double d2AB = Point.hausdorffDistSq(skeletonPoints, otherR.skeletonPoints);
+                    double d2BA = Point.hausdorffDistSq(otherR.skeletonPoints, skeletonPoints);
+                    return Math.min(d2AB, d2BA);
+                }
             }
-
-
         }
         @Override
         public String toString() {
@@ -250,16 +288,15 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         }
     }
     public static class LAPObject extends AbstractLAPObject<LAPObject> {
-
         public LAPObject(Region r, int frame, DISTANCE distanceType, Map<SymetricalPair<Region>, Overlap> overlapMap) {
             super(r, frame, distanceType, overlapMap);
         }
-
-        public LAPObject(RealLocalizable localization, Region r, int frame, DISTANCE distanceType, Map<SymetricalPair<Region>, Overlap> overlapMap) {
-            super(localization, r, frame, distanceType, overlapMap);
+        public LAPObject(Region r, int frame, double hausdorffDistThld) {
+            super(r, frame, null, null, hausdorffDistThld);
         }
     }
     public TrackMateInterface<LAPObject> getTMInterface(Map<SymetricalPair<Region>, Overlap> overlapMap) {
+        if (HAUSDORFF.equals(distance.getSelectedEnum())) return new TrackMateInterface<>((o, frame) -> new LAPObject(o, frame, distanceSearchThreshold.getDoubleValue()));
         return new TrackMateInterface<>((o, frame) -> new LAPObject(o, frame, distance.getSelectedEnum(), overlapMap));
     };
 }
