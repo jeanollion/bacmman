@@ -16,7 +16,9 @@ import bacmman.processing.jacop.ImageColocalizer;
 import bacmman.utils.Pair;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class JACOP implements Measurement, Hint {
     ObjectClassParameter mask = new ObjectClassParameter("Segmentation Mask", 0, false, false).setHint("Segmented Object class within which colocalization will be computed");
@@ -25,6 +27,8 @@ public class JACOP implements Measurement, Hint {
     PluginParameter<Thresholder> thld1 = new PluginParameter<>("Threshold for Signal 1", Thresholder.class,true).setHint("Threshold computed on signal 1. Values above this threshold will be considered in computations.<br> If no threshold is selected, areas inside segmented objects (if existing) of signal 1 will be considered in computations");
     PluginParameter<Thresholder> thld2 = new PluginParameter<>("Threshold for Signal 2", Thresholder.class,true).setHint("Threshold computed on signal 2. Values above this threshold will be considered in computations<br> If no threshold is selected, areas inside segmented objects (if existing) of signal 2 will be considered in computations");
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix added to the measurement names");
+    static final String[] metrics = {"PersonWhole", "Person", "ICA", "Manders1", "Manders2", "Overlap", "K1", "K2"};
+    MultipleChoiceParameter metricChoice = new MultipleChoiceParameter("Metrics", metrics, 0, 1, 2, 3, 4);
     enum Z_SLICES {ALL_SLICES, PER_SLICE_CONSTANT_STEP, PER_SLICE_RELATIVE_STEP}
     EnumChoiceParameter<Z_SLICES> zPlanes = new EnumChoiceParameter<>("Z Slice Mode", Z_SLICES.values(), Z_SLICES.ALL_SLICES).setHint("In case of 3D images choose how Z slices are handled: " +
             "<ul><li>ALL_SLICES: Colocalization is performed in 3D on all planes</li>" +
@@ -89,14 +93,9 @@ public class JACOP implements Measurement, Hint {
         ArrayList<MeasurementKey> res = new ArrayList<>();
         String prefix = this.prefix.getValue();
         String suffix = z==null ? "" : "_z"+z;
-        res.add(new MeasurementKeyObject(prefix+"Pearson"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"Overlap"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"K1"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"K2"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"Manders1"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"Manders2"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"ICA"+suffix, mask.getSelectedClassIdx()));
-        res.add(new MeasurementKeyObject(prefix+"PearsonWhole"+suffix, mask.getSelectedClassIdx()));
+        for (String m : metricChoice.getSelectedItemsNames()) {
+            res.add(new MeasurementKeyObject(prefix+m+suffix, mask.getSelectedClassIdx()));
+        }
         return res;
     }
 
@@ -127,28 +126,35 @@ public class JACOP implements Measurement, Hint {
         else colocalizer.setThresholdA(thld1);
         if (mask2!=null) colocalizer.setMaskB(IJImageWrapper.getImagePlus(mask2));
         else colocalizer.setThresholdB(thld2);
-        double pearson = colocalizer.pearson();
-        double[] overlapK1K2 = colocalizer.overlap();
-        double[] M1M2 = colocalizer.MM();
-        double ICA = colocalizer.ICA();
-        // person for all volume:
-        colocalizer.setThresholdA(Integer.MIN_VALUE);
-        colocalizer.setThresholdB(Integer.MIN_VALUE);
-        double pearsonWhole = colocalizer.pearson();
+        Map<String, Double> metricValues = new HashMap<>();
+        if (metricChoice.isSelected("Person")) metricValues.put("Person", colocalizer.pearson());
+        if (metricChoice.isSelected("Manders1") || metricChoice.isSelected("Manders2")) {
+            double[] M1M2 = colocalizer.MM();
+            metricValues.put("Manders1", M1M2[0]);
+            metricValues.put("Manders2", M1M2[1]);
+        }
+        if (metricChoice.isSelected("Overlap") || metricChoice.isSelected("K1") || metricChoice.isSelected("K2")) {
+            double[] overlapK1K2 = colocalizer.overlap();
+            metricValues.put("Overlap", overlapK1K2[0]);
+            metricValues.put("K1", overlapK1K2[1]);
+            metricValues.put("K2", overlapK1K2[2]);
+        }
+        if (metricChoice.isSelected("ICA")) metricValues.put("ICA", colocalizer.ICA());
+        if (metricChoice.isSelected("PersonWhole")) { // person for whole volume:
+            colocalizer.setThresholdA(Integer.MIN_VALUE);
+            colocalizer.setThresholdB(Integer.MIN_VALUE);
+            metricValues.put("PersonWhole", colocalizer.pearson());
+        }
         List<MeasurementKey> keys = getMeasurementKeys(z);
-        m.setValue(keys.get(0).getKey(), pearson);
-        m.setValue(keys.get(1).getKey(), overlapK1K2[0]);
-        m.setValue(keys.get(2).getKey(), overlapK1K2[1]);
-        m.setValue(keys.get(3).getKey(), overlapK1K2[2]);
-        m.setValue(keys.get(4).getKey(), M1M2[0]);
-        m.setValue(keys.get(5).getKey(), M1M2[1]);
-        m.setValue(keys.get(6).getKey(), ICA);
-        m.setValue(keys.get(7).getKey(), pearsonWhole);
+        String[] metrics = metricChoice.getSelectedItemsNames();
+        for (int i = 0; i<metrics.length; ++i) {
+            m.setValue(keys.get(i).getKey(), metricValues.get(metrics[i]));
+        }
     }
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{mask, signal1, signal2, thld1, thld2, zPlanesCond, prefix};
+        return new Parameter[]{mask, signal1, signal2, thld1, thld2, zPlanesCond, prefix, metricChoice};
     }
 
     @Override

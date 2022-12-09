@@ -101,7 +101,13 @@ public class EVSF implements Measurement, Hint {
         }
         histograms.remove(channelIms.length);
         if (nShells > 0) { // shells
-            IntStream.range(0, channelIms.length).mapToObj(c -> getHistogram(channels[c], r, nShells)).forEach(shellContainer::add);
+            IntStream.range(0, channelIms.length)
+                    .mapToObj(c -> getHistogram(channels[c], r, nShells))
+                    .peek(h -> { // sum to 1
+                        double sum = DoubleStream.of(h).sum();
+                        for (int i = 0; i<h.length; ++i) h[i]/=sum;
+                    })
+                    .forEach(shellContainer::add);
         }
         return histograms;
     }
