@@ -50,6 +50,7 @@ public class MotionMetrics implements Measurement, Hint {
         List<SegmentedObject> track = trim.getIntValue()>0 && trim.getIntValue() + 1 < t.size() ? t.subList(0, trim.getIntValue()+1) : t;
         List<Point> centers;
         UnaryOperator<Point> scaler = scale.getSelected() ? p -> {
+            p = p.duplicate(); // avoid modifying the center of the object!
             p.multiplyDim(object.getScaleXY(), 0);
             p.multiplyDim(object.getScaleXY(), 1);
             if (p.numDimensions()>2) p.multiplyDim(object.getScaleZ(), 2);
