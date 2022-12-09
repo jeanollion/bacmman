@@ -30,6 +30,7 @@ import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
 import java.nio.file.Paths;
+import java.util.function.IntPredicate;
 
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -44,11 +45,13 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     private final static Logger logger = LoggerFactory.getLogger(LocalTIFImageDAO.class);
     final String directory;
     final String microscopyFieldName;
+    final IntPredicate isSingleFrameChannel;
     static final int idxZeros = 5;
     
-    public LocalTIFImageDAO(String microscopyFieldName, String localDirectory) {
+    public LocalTIFImageDAO(String microscopyFieldName, String localDirectory, IntPredicate isSingleFrameChannel) {
         this.microscopyFieldName = microscopyFieldName;
         this.directory=localDirectory;
+        this.isSingleFrameChannel =isSingleFrameChannel;
     }
 
     @Override
@@ -61,6 +64,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
 
     @Override
     public Image openPreProcessedImage(int channelImageIdx, int timePoint) {
+        if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
@@ -76,6 +80,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     }
     @Override
     public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) {
+        if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {
@@ -88,6 +93,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     }
     @Override
     public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) {
+        if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
         if (f.exists()) {

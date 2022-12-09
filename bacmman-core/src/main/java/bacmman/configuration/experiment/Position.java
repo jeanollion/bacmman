@@ -132,7 +132,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     private ImageDAO getImageDAO(boolean allowByPass) {
         if (imageDAO==null) {
             synchronized(this) {
-                if (imageDAO==null) imageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory());
+                if (imageDAO==null) imageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory(), this::singleFrameChannel);
             }
         }
         if (allowByPass && this.getPreProcessingChain().isEmpty() && imageDAO.getPreProcessedImageProperties(0)==null)  {
