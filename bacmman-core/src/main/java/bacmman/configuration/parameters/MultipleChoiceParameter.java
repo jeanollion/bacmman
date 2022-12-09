@@ -79,6 +79,16 @@ public class MultipleChoiceParameter extends ParameterImpl implements ChoosableP
         for (int i = 0 ; i<res.length; ++i) res[i] = listChoice[selectedItems[i]];
         return res;
     }
+
+    public boolean isSelected(int idx) {
+        for (int i : selectedItems) if (i==idx) return true;
+        return false;
+    }
+
+    public boolean isSelected(String item) {
+        for (int i : selectedItems) if (listChoice[i].equals(item)) return true;
+        return false;
+    }
     
     @Override
     public String[] getChoiceList() {
