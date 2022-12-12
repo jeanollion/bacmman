@@ -67,15 +67,11 @@ public interface TrackConfigurable<P extends Plugin> {
     static <P extends Plugin> TrackConfigurer<P> getTrackConfigurer(int structureIdx, List<SegmentedObject> parentTrack, P plugin) {
         if (plugin instanceof TrackConfigurable) {
             TrackConfigurable<P> tp = (TrackConfigurable<P>)plugin;
-            List<SegmentedObject> pT = SegmentedObjectUtils.getTrack(parentTrack.get(0).getTrackHead());
-            //pT.removeIf(p->p.getPreFilteredImage(structureIdx)==null);
-            //if (pT.isEmpty()) throw new RuntimeException("NO prefiltered images set");
-            return tp.run(structureIdx, pT);
+            return tp.run(structureIdx, parentTrack);
         }
         return null;
     }
-    
-    
+
     static double getGlobalThreshold(int structureIdx, List<SegmentedObject> parentTrack, SimpleThresholder thlder) {
         Map<Image, ImageMask> maskMap = parentTrack.stream().collect(Collectors.toMap(p->p.getPreFilteredImage(structureIdx), p->p.getMask()));
         if (thlder instanceof ThresholderHisto) {

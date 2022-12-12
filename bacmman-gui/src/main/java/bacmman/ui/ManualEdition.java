@@ -440,19 +440,12 @@ public class ManualEdition {
             ManualSegmenter s = db.getExperiment().getStructure(structureIdx).getManualSegmenter();
             HashMap<SegmentedObject, TrackConfigurer> parentThMapParam = new HashMap<>();
             if (s instanceof TrackConfigurable) {
-                if (((TrackConfigurable) s).parentTrackMode().allowIntervals()) { // TODO TEST
-                    // split parents by track
-                    Map<SegmentedObject, List<SegmentedObject>> parentsByTH = points.keySet().stream().map(p -> p.getParent(parentStructureIdx)).distinct().collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
-                    parentsByTH.forEach((pth, list) -> {
-                        parentThMapParam.put(pth, TrackConfigurable.getTrackConfigurer(structureIdx, list, s));
-                    });
-                } else {
-                    points.keySet().stream()
-                            .map(p -> p.getParent(parentStructureIdx))
-                            .map(SegmentedObject::getTrackHead).distinct()
-                            .forEach(p -> parentThMapParam.put(p, TrackConfigurable.getTrackConfigurer(structureIdx, new ArrayList<>(db.getDao(positions[0]).getTrack(p)), s)));
-                    parentThMapParam.entrySet().removeIf(e -> e.getValue() == null);
-                }
+                Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(points.keySet().stream().map(p -> p.getParent(parentStructureIdx)).distinct(), ((TrackConfigurable) s).parentTrackMode());
+                trackSegments.forEach((pth, list) -> {
+                    logger.debug("track config for: {} (# elements: {})", pth, list.size());
+                    parentThMapParam.put(pth, TrackConfigurable.getTrackConfigurer(structureIdx, list, s));
+                });
+                parentThMapParam.entrySet().removeIf(e -> e.getValue() == null);
             }
             
             logger.debug("manual segment: {} distinct parents. Segmentation structure: {}, parent structure: {}", points.size(), structureIdx, segmentationParentStructureIdx);
@@ -541,28 +534,18 @@ public class ManualEdition {
             }
         }
     }
-
-    public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, Experiment xp , ObjectDAO dao) {
-        Processor.ensureScalerConfiguration(dao, structureIdx);
-        ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
-        if (pipeline instanceof SegmentationAndTrackingProcessingPipeline) ((SegmentationAndTrackingProcessingPipeline)pipeline).getTrackPostFilters().removeAllElements(); // we remove track post filter so that they do not inlfuence mode
-        ProcessingPipeline.PARENT_TRACK_MODE mode = ProcessingPipeline.parentTrackMode(pipeline);
-
-        TrackPreFilterSequence tpfWithPF = pipeline.getTrackPreFilters(true);
-        List<List<SegmentedObject>> tracks;
-        parents = parents.filter(p -> p.getPreFilteredImage(structureIdx)==null);
+    public static Map<SegmentedObject, List<SegmentedObject>> getTrackSegments(Stream<SegmentedObject> trackElements, ProcessingPipeline.PARENT_TRACK_MODE mode) {
         switch (mode) {
             case WHOLE_PARENT_TRACK_ONLY:
             default:
             {
-                tracks = parents.map(SegmentedObject::getTrackHead).distinct().map(SegmentedObjectUtils::getTrack).collect(Collectors.toList());
-                break;
+                return trackElements.map(SegmentedObject::getTrackHead).distinct().collect(Collectors.toMap(th->th, SegmentedObjectUtils::getTrack));
             }
             case SINGLE_INTERVAL: {
-                Map<SegmentedObject, List<SegmentedObject>> pByTh = parents.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
-                tracks = pByTh.values().stream().map(l -> {
-                    SegmentedObject first = l.stream().min(Comparator.comparing(SegmentedObject::getFrame)).get();
-                    SegmentedObject last = l.stream().max(Comparator.comparing(SegmentedObject::getFrame)).get();
+                Map<SegmentedObject, List<SegmentedObject>> pByTh = trackElements.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+                return pByTh.entrySet().stream().collect(Collectors.toMap(Entry::getKey, e -> {
+                    SegmentedObject first = e.getValue().stream().min(Comparator.comparing(SegmentedObject::getFrame)).get();
+                    SegmentedObject last = e.getValue().stream().max(Comparator.comparing(SegmentedObject::getFrame)).get();
                     List<SegmentedObject> res= new ArrayList<>(last.getFrame()-first.getFrame()+1);
                     res.add(first);
                     while(!first.equals(last)) {
@@ -570,20 +553,30 @@ public class ManualEdition {
                         res.add(first);
                     }
                     return res;
-                }).collect(Collectors.toList());
-                break;
+                }));
             }
             case MULTIPLE_INTERVALS: {
-                tracks = parents.collect(Collectors.groupingBy(SegmentedObject::getTrackHead)).values().stream().map(l->{
-                    l.sort(Comparator.comparing(SegmentedObject::getFrame));
-                    return l;
-                }).collect(Collectors.toList());
+                Map<SegmentedObject, List<SegmentedObject>> res = trackElements.collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
+                res.forEach((th, l) -> l.sort(Comparator.comparing(SegmentedObject::getFrame)));
+                return res;
             }
         }
-        for (List<SegmentedObject> t : tracks) {
+    }
+    public static void ensurePreFilteredImages(Stream<SegmentedObject> parents, int structureIdx, Experiment xp , ObjectDAO dao) {
+        Processor.ensureScalerConfiguration(dao, structureIdx);
+        ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
+        if (pipeline instanceof SegmentationAndTrackingProcessingPipeline) ((SegmentationAndTrackingProcessingPipeline)pipeline).getTrackPostFilters().removeAllElements(); // we remove track post filter so that they do not inlfuence mode
+        ProcessingPipeline.PARENT_TRACK_MODE mode = ProcessingPipeline.parentTrackMode(pipeline);
+
+        TrackPreFilterSequence tpfWithPF = pipeline.getTrackPreFilters(true);
+        parents = parents.filter(p -> p.getPreFilteredImage(structureIdx)==null);
+        Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(parents, mode);
+        trackSegments.entrySet().removeIf(e -> e.getValue().stream().noneMatch(p -> p.getPreFilteredImage(structureIdx)==null));
+        for (List<SegmentedObject> t : trackSegments.values()) {
             Core.userLog("Computing track pre-filters...");
             logger.debug("tpf for : {} (length: {}, mode: {}), objectclass: {}, #filters: {}", t.get(0).getTrackHead(), t.size(), mode, structureIdx, tpfWithPF.get().size());
             tpfWithPF.filter(structureIdx, t);
+            logger.debug("tracks with null pf images: {} : #{}", t, t.stream().filter(o -> o.getPreFilteredImage(structureIdx)==null).count());
             Core.userLog("Track pre-filters computed!");
         }
     }
