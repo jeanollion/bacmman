@@ -117,7 +117,23 @@ public class FreeLineSegmenter {
             factory.setChildren(parent, objects);
             factory.relabelChildren(parent, modified);
             modified.add(so);
-        } else {
+        } else { // just ensure label is not existing
+            if (objects.stream().anyMatch(o -> o.getIdx() == so.getIdx())) {
+                Collections.sort(objects);
+                if (objects.get(0).getIdx()>0) factory.setIdx(so, 0);
+                else if (objects.size()==1){
+                     factory.setIdx(so, objects.get(0).getIdx()+1);
+                }  else {
+                    boolean m = false;
+                    for (int i = 1; i<objects.size(); ++i) {
+                        if (objects.get(i).getIdx()>objects.get(i-1).getIdx()+1) {
+                            factory.setIdx(so, objects.get(i-1).getIdx()+1);
+                            m = true;
+                        }
+                        if (!m) factory.setIdx(so, objects.get(objects.size()-1).getIdx()+1);
+                    }
+                }
+            }
             modified.add(so);
             ManualEdition.removeDuplicateIdxs(modified, factory);
             objects.add(so);

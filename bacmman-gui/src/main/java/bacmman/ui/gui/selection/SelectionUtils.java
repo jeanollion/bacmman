@@ -523,8 +523,39 @@ public class SelectionUtils {
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
             });
         }
-
         menu.add(setOC);
+        JMenu getParentSelection = new JMenu("Create Parent/Child Selection");
+        List<String> ocNamesWithRoot = new ArrayList<>(Arrays.asList(ocNames));
+        ocNamesWithRoot.add(0, "Viewfield");
+        for (int i = 0; i<ocNamesWithRoot.size(); ++i) {
+            final int ocIdx = i-1;
+            JMenuItem oc = new JMenuItem(ocNamesWithRoot.get(i));
+            getParentSelection.add(oc);
+            oc.addActionListener((ActionEvent e) -> {
+                if (selectedValues.isEmpty()) return;
+                String name = JOptionPane.showInputDialog("Selection name:");
+                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                    Set<SegmentedObject> res = new HashSet<>();
+                    for (Selection s : selectedValues) {
+                        if (s.getMasterDAO().getExperiment().experimentStructure.isChildOf(ocIdx, s.getStructureIdx()))
+                            s.getAllElements().stream().map(o -> o.getParent(ocIdx)).forEach(res::add);
+                        else s.getAllElements().stream().flatMap(o -> o.getChildren(ocIdx, false)).forEach(res::add);
+                    }
+                    SelectionDAO sDAO = selectedValues.get(0).getMasterDAO().getSelectionDAO();
+                    Selection s = sDAO.getOrCreate(name, false);
+                    s.addElements(res);
+                    sDAO.store(s);
+                    GUI.getInstance().populateSelections();
+                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.getInstance().resetSelectionHighlight();
+                    list.updateUI();
+                    if (readOnly)
+                        Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                }
+            });
+        }
+        menu.add(getParentSelection);
+
 
         JMenuItem clear = new JMenuItem("Clear");
         clear.addActionListener((ActionEvent e) -> {
