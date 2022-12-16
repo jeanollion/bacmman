@@ -39,9 +39,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Polygon;
 import java.awt.Rectangle;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
-import java.awt.event.WindowListener;
+import java.awt.event.*;
 import java.awt.image.DirectColorModel;
 import java.awt.image.IndexColorModel;
 import java.lang.reflect.Constructor;
@@ -179,7 +177,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         fromSelection=true;
                         Rectangle rect = removeAfterwards && (r.getType()!=Roi.OVAL) ? r.getPolygon().getBounds() : r.getBounds();
                         if (rect.height==0 || rect.width==0) removeAfterwards=false;
-                        MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice()-1);
+                        MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getZ()-1, ip.getZ()-1);
                         //logger.debug("selection: {}", selection);
                         if (selection.sizeX()==0 && selection.sizeY()==0) selection=null;
                         i.addClickedObjects(selection, selectedObjects);
@@ -187,7 +185,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         boolean is2D = i.is2D();
                         if (removeAfterwards || (selection.sizeX()<=2 && selection.sizeY()<=2)) {
                             FloatPolygon fPoly = r.getInterpolatedPolygon();
-                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, is2D ? -1 : ip.getSlice()-1));
+                            selectedObjects.removeIf(p -> !intersect(p.key, p.value, fPoly, is2D ? -1 : ip.getZ()-1));
                         }
                         if (!freeHandSplit || !strechObjects || !freeHandDraw || !freeHandDrawMerge || !freeHandErase) ip.deleteRoi();
                     }
@@ -196,7 +194,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 if (!fromSelection && !strechObjects) {
                     int offscreenX = canvas.offScreenX(e.getX());
                     int offscreenY = canvas.offScreenY(e.getY());
-                    Pair<SegmentedObject, BoundingBox> o = i.getClickedObject(offscreenX, offscreenY, ip.getSlice()-1);
+                    Pair<SegmentedObject, BoundingBox> o = i.getClickedObject(offscreenX, offscreenY, ip.getZ()-1);
                     //logger.debug("click {}, {}, object: {} (total: {}, parent: {}), ctlr:{}", x, y, o, i.getObjects().size(), ctrl);
                     if (o!=null) {
                         selectedObjects.add(o);
@@ -254,7 +252,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                     int parentStructure = i.getParent().getExperimentStructure().getParentObjectClassIdx(i.getChildStructureIdx());
                     List<Pair<SegmentedObject, BoundingBox>> selectedParentObjects = new ArrayList<>();
                     Rectangle rect = r.getBounds();
-                    MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getSlice()-1, ip.getSlice());
+                    MutableBoundingBox selection = new MutableBoundingBox(rect.x, rect.x+rect.width, rect.y, rect.y+rect.height, ip.getZ()-1, ip.getZ());
                     InteractiveImage ioi = getImageObjectInterface(image, parentStructure);
                     ioi.addClickedObjects(selection, selectedParentObjects);
                     if (selectedParentObjects.size()>1) {
@@ -273,7 +271,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                         RegionPopulation pop = parent.getChildRegionPopulation(i.getChildStructureIdx());
                         boolean is2D = pop.getRegions().isEmpty() ? parent.is2D() : pop.getRegions().get(0).is2D();
                         roi.setIs2D(is2D);
-                        roi.put(ip.getSlice()-1, r);
+                        roi.put(ip.getZ()-1, r);
                         Region region = new Region(roi,1, roi.getBounds(), parent.getScaleXY(), parent.getScaleZ());
                         Offset revOff = new SimpleOffset(parentOffset).reverseOffset();
                         region.translate(revOff);
@@ -358,12 +356,33 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
     @Override public void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive) {
         ImagePlus ip = displayer.getImage(image);
         if (ip!=null && ip.getImageStack() instanceof IJVirtualStack) {
-            //logger.debug("registering frame callback on image: {} for kymograph : {}", image.getName(), k==null ? "null" : k.getKey());
+            //logger.debug("registering frame callback on image: {} for kymograph : {}", image.hashCode(), k==null ? "null" : k.hashCode());
             if (k==null) {
                 ((IJVirtualStack)ip.getImageStack()).resetSetFrameCallback();
             } else {
                 ((IJVirtualStack) ip.getImageStack()).appendSetFrameCallback(k::setIdx);
                 if (interactive) ((IJVirtualStack) ip.getImageStack()).appendSetFrameCallback(i -> GUI.updateRoiDisplayForSelections(image, k));
+                ((IJVirtualStack) ip.getImageStack()).updateFrameCallback();
+                ip.getWindow().addWindowListener(new WindowAdapter() {
+                    @Override
+                    public void windowClosing(WindowEvent windowEvent) {
+                        ((IJVirtualStack)ip.getImageStack()).resetSetFrameCallback();
+                    }
+                    @Override
+                    public void windowGainedFocus(WindowEvent e) {
+                        int currentFrame = ip.getT()-1;
+                        if (k.getIdx()!=currentFrame) {
+                            ((IJVirtualStack) ip.getImageStack()).updateFrameCallback();
+                        }
+                    }
+                    @Override
+                    public void windowActivated(WindowEvent e) {
+                        int currentFrame = ip.getT()-1;
+                        if (k.getIdx()!=currentFrame) {
+                            ((IJVirtualStack) ip.getImageStack()).updateFrameCallback();
+                        }
+                    }
+                });
             }
         }
     }

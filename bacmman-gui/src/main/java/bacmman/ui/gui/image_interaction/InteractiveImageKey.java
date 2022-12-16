@@ -52,7 +52,6 @@ public class InteractiveImageKey {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         InteractiveImageKey that = (InteractiveImageKey) o;
         return interactiveObjectClass == that.interactiveObjectClass &&
@@ -68,7 +67,7 @@ public class InteractiveImageKey {
     
     @Override
     public String toString() {
-        return parent.toString()+"/S="+interactiveObjectClass+"/Type="+imageType;
+        return parent.get(0).toString()+"-L="+parent.size()+"/S="+interactiveObjectClass+"/Type="+imageType+"/Name:"+name;
     }
     
     public boolean equalsIgnoreStructure(Object obj) {

@@ -518,6 +518,12 @@ public class Utils {
         for (Entry<K, V> e : map.entrySet()) if (value.equals(e.getValue())) res.add(e.getKey());
         return res;
     }
+
+    public static <K, V> ArrayList<K> getKeys2(Map<K, ? extends Collection<V>> map, V value) {
+        ArrayList<K> res = new ArrayList<>();
+        for (Entry<K, ? extends Collection<V>> e : map.entrySet()) if (e.getValue().stream().anyMatch(v->v.equals(value))) res.add(e.getKey());
+        return res;
+    }
     
     public static <K, V> ArrayList<K> getKeys(Map<K, V> map, Collection<V> values) {
         ArrayList<K> res = new ArrayList<>();

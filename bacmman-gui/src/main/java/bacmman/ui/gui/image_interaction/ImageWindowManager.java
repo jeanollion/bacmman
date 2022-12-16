@@ -91,7 +91,7 @@ public abstract class ImageWindowManager<I, U, V> {
     double ROI_STROKE_WIDTH = 0.5;
     public static double TRACK_LINK_MIN_SIZE = 23;
     protected final HashMap<InteractiveImageKey, InteractiveImage> imageObjectInterfaces;
-    protected final HashMap<Image, InteractiveImageKey> imageObjectInterfaceMap;
+    protected final HashMap<Image, Set<InteractiveImageKey>> imageObjectInterfaceMap;
     protected final HashMapGetCreate<SegmentedObject, List<List<SegmentedObject>>> trackHeadTrackMap;
     protected final LinkedHashMap<String, I> displayedRawInputFrames = new LinkedHashMap<>();
     protected final LinkedHashMap<String, I> displayedPrePocessedFrames = new LinkedHashMap<>();
@@ -116,7 +116,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public ImageWindowManager(ImageObjectListener listener, ImageDisplayer<I> displayer) {
         this.listener=null;
         this.displayer=displayer;
-        imageObjectInterfaceMap = new HashMap<>();
+        imageObjectInterfaceMap = new HashMapGetCreate.HashMapGetCreateRedirectedSync<>(new SetFactory<>());
         imageObjectInterfaces = new HashMap<>();
         trackHeadTrackMap = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory());
     }
@@ -290,12 +290,12 @@ public abstract class ImageWindowManager<I, U, V> {
             logger.error("cannot get image if IOI null");
             return null;
         }
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, i.getKey());
+        List<Image> list = Utils.getKeys2(imageObjectInterfaceMap, i.getKey());
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
     public Image getImage(InteractiveImage i, int displayStructureIdx) {
-        List<Image> list = Utils.getKeys(imageObjectInterfaceMap, i.getKey().getKey(displayStructureIdx));
+        List<Image> list = Utils.getKeys2(imageObjectInterfaceMap, i.getKey().getKey(displayStructureIdx));
         if (list.isEmpty()) return null;
         else return list.get(0);
     }
@@ -314,7 +314,7 @@ public abstract class ImageWindowManager<I, U, V> {
         }*/
         imageObjectInterfaces.put(i.getKey(), i);
         //T dispImage = getImage(image);
-        imageObjectInterfaceMap.put(image, i.getKey().getKey(displayOCIdx));
+        imageObjectInterfaceMap.get(image).add(i.getKey().getKey(displayOCIdx));
         if (displayImage) {
             displayImage(image, i);
             if (i instanceof Kymograph && ((Kymograph)i).imageCallback.containsKey(image)) this.displayer.addMouseWheelListener(image, ((Kymograph)i).imageCallback.get(image));
@@ -323,7 +323,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public abstract void registerInteractiveHyperStackFrameCallback(Image image, HyperStack k, boolean interactive);
     public void registerHyperStack(Image image, HyperStack i) {
         imageObjectInterfaces.put(i.getKey(), i);
-        imageObjectInterfaceMap.put(image, i.getKey());
+        imageObjectInterfaceMap.get(image).add(i.getKey());
         if (i.loadObjectsWorker!=null && !i.loadObjectsWorker.isDone()) {
             runningWorkers.get(image).add(i.loadObjectsWorker);
             i.loadObjectsWorker.appendEndOfWork(()->runningWorkers.get(image).remove(i.loadObjectsWorker));
@@ -458,6 +458,7 @@ public abstract class ImageWindowManager<I, U, V> {
         InteractiveImage i = imageObjectInterfaces.get(new InteractiveImageKey(parentTrack, type, childStructureIdx));
         logger.debug("getIOI: type: {}, hash: {} ({}), exists: {}, trackHeadTrackMap: {}", type, parentTrack.hashCode(), new InteractiveImageKey(parentTrack, type, childStructureIdx).hashCode(), i!=null, trackHeadTrackMap.containsKey(parentTrack.get(0)));
         if (i==null) {
+            //logger.debug("getIOI query: {}, existing: {}", new InteractiveImageKey(parentTrack, type, childStructureIdx), imageObjectInterfaces.keySet());
             long t0 = System.currentTimeMillis();
             i = Kymograph.generateKymograph(parentTrack, childStructureIdx, type.equals(InteractiveImageKey.TYPE.HYPERSTACK));
             long t1 = System.currentTimeMillis();
@@ -516,7 +517,9 @@ public abstract class ImageWindowManager<I, U, V> {
                 return null;
             }
         }
-        return imageObjectInterfaceMap.get(image);
+        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
+        if (keys.isEmpty()) return null;
+        else return keys.iterator().next();
     }
     public InteractiveImage getImageObjectInterface(Image image) {
         if (image==null) {
@@ -525,8 +528,9 @@ public abstract class ImageWindowManager<I, U, V> {
                 return null;
             }
         }
-        InteractiveImageKey key = imageObjectInterfaceMap.get(image);
-        if (key==null) return null;
+        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
+        if (keys.isEmpty()) return null;
+        InteractiveImageKey key = keys.iterator().next();
         return getImageObjectInterface(image, interactiveStructureIdx, key.imageType);
     }
 
@@ -541,8 +545,9 @@ public abstract class ImageWindowManager<I, U, V> {
                 return null;
             }
         }
-        InteractiveImageKey key = imageObjectInterfaceMap.get(image);
-        if (key==null) return null;
+        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
+        if (keys.isEmpty()) return null;
+        InteractiveImageKey key = keys.iterator().next();
         return getImageObjectInterface(image, objectClassIdx, key.imageType);
     }
 
@@ -553,8 +558,9 @@ public abstract class ImageWindowManager<I, U, V> {
                 return null;
             }
         }
-        InteractiveImageKey key = imageObjectInterfaceMap.get(image);
-        if (key==null) return null;
+        Set<InteractiveImageKey> keys = imageObjectInterfaceMap.get(image);
+        if (keys.isEmpty()) return null;
+        InteractiveImageKey key = keys.iterator().next();
         InteractiveImage i = this.imageObjectInterfaces.get(key.getKey(structureIdx));
         
         if (i==null) {
@@ -575,7 +581,12 @@ public abstract class ImageWindowManager<I, U, V> {
             }
             logger.debug("created IOI: {} from ref: {}", i.getKey(), ref);
             if (i instanceof HyperStack) registerHyperStack(image, (HyperStack) i);
-        } 
+        } else if (i instanceof HyperStack) {
+            if (!imageObjectInterfaceMap.get(image).contains(i.getKey())) {
+                logger.debug("registered existing IOI: {} to image: {}", i.getKey(), image.hashCode());
+                registerHyperStack(image, (HyperStack) i);
+            }
+        }
         return i;
     }
     
@@ -587,8 +598,8 @@ public abstract class ImageWindowManager<I, U, V> {
         // ignore structure
         Iterator<Entry<InteractiveImageKey, InteractiveImage>> it = imageObjectInterfaces.entrySet().iterator();
         while(it.hasNext()) if (it.next().getKey().equalsIgnoreStructure(key)) it.remove();
-        Iterator<Entry<Image, InteractiveImageKey>> it2 = imageObjectInterfaceMap.entrySet().iterator();
-        while(it2.hasNext()) if (it2.next().getValue().equalsIgnoreStructure(key)) it2.remove();
+        Iterator<Entry<Image, Set<InteractiveImageKey>>> it2 = imageObjectInterfaceMap.entrySet().iterator();
+        while(it2.hasNext()) if (it2.next().getValue().stream().anyMatch(k->k.equalsIgnoreStructure(key))) it2.remove();
     }
     
     public abstract void addMouseListener(Image image);
@@ -1053,7 +1064,7 @@ public abstract class ImageWindowManager<I, U, V> {
     public void displayTrackAllImages(InteractiveImage i, boolean addToCurrentSelectedTracks, List<Pair<SegmentedObject, BoundingBox>> track, Color color, boolean labile) {
         if (i==null && track!=null && !track.isEmpty()) i = this.getImageObjectInterface(track.get(0).key.getTrackHead(), track.get(0).key.getStructureIdx(), false);
         if (i==null) return;
-        ArrayList<Image> images= Utils.getKeys(this.imageObjectInterfaceMap, i.getKey().getKey(-1));
+        ArrayList<Image> images= Utils.getKeys2(this.imageObjectInterfaceMap, i.getKey().getKey(-1));
         //logger.debug("display track on {} images", images.size());
         for (Image image : images) {
             if (!addToCurrentSelectedTracks) hideAllRois(image, true, true); // TODO only tracks?

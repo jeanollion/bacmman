@@ -81,6 +81,10 @@ public class IJVirtualStack extends VirtualStack {
         if (this.setFrameCallback==null) this.setFrameCallback=otherSetFrameCallback;
         else this.setFrameCallback = setFrameCallback.andThen(otherSetFrameCallback);
     }
+    public void updateFrameCallback() {
+        if (this.setFrameCallback==null) return;
+        this.setFrameCallback.accept(ip.getT()-1);
+    }
     public void resetSetFrameCallback() {
         this.setFrameCallback=null;
     }
