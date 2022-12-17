@@ -39,7 +39,7 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
     SiblingObjectClassParameter oc1 = new SiblingObjectClassParameter("Object Class 1", -1, true, false, true);
     SiblingObjectClassParameter oc2 = new SiblingObjectClassParameter("Object Class 2", -1, true, false, false);
 
-    enum OPERATION {DIFFERENCE, INTERSECTION}
+    enum OPERATION {DIFFERENCE, INTERSECTION, UNION}
     EnumChoiceParameter<OPERATION> operation = new EnumChoiceParameter<>("Operation", OPERATION.values(), OPERATION.DIFFERENCE);
     protected Parameter[] parameters = new Parameter[]{oc1, oc2, operation, preFilters, trackPreFilters, tracker, trackPostFilters};
     public ObjectClassOperation() { // for plugin instanciation
@@ -113,16 +113,17 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
         Map<SegmentedObject, SegmentedObject> dupOC2 = Duplicate.duplicate(sourceOC2MapParent.keySet().stream(),  structureIdx, factory, null);
         Map<SegmentedObject, List<SegmentedObject>> dupOC1byParent = dupOC1.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC1MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));
         Map<SegmentedObject, List<SegmentedObject>> dupOC2byParent = dupOC2.entrySet().stream().collect(Collectors.groupingBy(e->sourceOC2MapParent.get(e.getKey()))).entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e->e.getValue().stream().map(Map.Entry::getValue).collect(Collectors.toList())));;
-        List<SegmentedObject> toRemove = new ArrayList<>();
+        //List<SegmentedObject> toRemove = new ArrayList<>();
         Sets.union(dupOC1byParent.keySet(), dupOC2byParent.keySet()).forEach(p -> {
             List<SegmentedObject> oc1 = dupOC1byParent.get(p);
             List<SegmentedObject> oc2 = dupOC2byParent.get(p);
-            performOperation(oc1, oc2, toRemove, factory);
+            List<SegmentedObject> oc = performOperation(oc1, oc2, factory);
+            factory.setChildren(p, oc);
         });
-        if (!toRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor, true);
+        //if (!toRemove.isEmpty()) SegmentedObjectEditor.deleteObjects(null, toRemove, SegmentedObjectEditor.ALWAYS_MERGE, factory, editor, true);
         getTrackPreFilters(true).filter(structureIdx, parentTrack);
     }
-    private List<SegmentedObject> performOperation(List<SegmentedObject> oc1, List<SegmentedObject> oc2, List<SegmentedObject> toRemove, SegmentedObjectFactory factory) {
+    private List<SegmentedObject> performOperation(List<SegmentedObject> oc1, List<SegmentedObject> oc2, SegmentedObjectFactory factory) {
         switch (operation.getSelectedEnum()) {
             case DIFFERENCE:
             default: {
@@ -139,14 +140,12 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
                     }
                     if (r1.size()==0) {
                         it1.remove();
-                        toRemove.add(o1);
                     }
                 }
                 return oc1;
             }
             case INTERSECTION: {
                 if (oc2==null || oc2.isEmpty()) {
-                    toRemove.addAll(oc1);
                     return Collections.emptyList();
                 }
                 if (oc1==null || oc1.isEmpty()) return Collections.emptyList();
@@ -157,7 +156,6 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
                     List<Region> inter = oc2.stream().map(SegmentedObject::getRegion).filter(r->r.intersect(r1)).collect(Collectors.toList());
                     if (inter.isEmpty()) {
                         it1.remove();
-                        toRemove.add(o1);
                     } else {
                         logger.debug("ref object: {}, reg abs: {}", o1, o1.getRegion().isAbsoluteLandMark());
                         for (SegmentedObject o : oc2) logger.debug("2d obj: {}, reg abs: {}", o, o.getRegion().isAbsoluteLandMark());
@@ -165,10 +163,37 @@ public class ObjectClassOperation extends SegmentationAndTrackingProcessingPipel
                         r1.and(Region.merge(inter));
                         if (r1.size()==0) {
                             it1.remove();
-                            toRemove.add(o1);
                         }
                     }
                 }
+                return oc1;
+            }
+            case UNION: {
+                if (oc2==null || oc2.isEmpty()) return oc1;
+                if (oc1==null || oc1.isEmpty()) return oc2;
+                int oc1Count = oc1.size();
+                int oc2Count = oc2.size();
+                Map<SegmentedObject, SegmentedObject> intersect = new HashMap<>();
+                Iterator<SegmentedObject> it1 = oc1.iterator();
+                while (it1.hasNext()) {
+                    SegmentedObject o1 = it1.next();
+                    Region r1 = o1.getRegion();
+                    for (SegmentedObject o2 : oc2) {
+                        if (r1.intersect(o2.getRegion())) {
+                            SegmentedObject other1 = intersect.get(o2);
+                            if (other1==null) { // simply merge r2 with r1
+                                r1.add(o2.getRegion());
+                                intersect.put(o2, o1);
+                            } else { // merge o1 with other 1
+                                other1.getRegion().add(r1);
+                                it1.remove();
+                            }
+                        }
+                    }
+                }
+                oc1.addAll(oc2);
+                oc1.removeAll(intersect.keySet());
+                logger.debug("OC1: {}, OC2: {}, final {}", oc1Count, oc2Count, oc1.size());
                 return oc1;
             }
         }
