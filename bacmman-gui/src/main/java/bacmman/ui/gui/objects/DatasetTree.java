@@ -168,8 +168,11 @@ public class DatasetTree {
         TreePath[] sel = tree.getSelectionPaths();
         addDir(null, getRoot().file, new HashSet<>(), pcb);
         removeEmptyFolders();
-        Utils.expandAll(tree, getRootPath(), expandedState); // TODO check that expanded paths still in tree ?
         tree.expandPath(getRootPath());
+        for (TreePath toExpand : expandedState) {
+            tree.expandPath(toExpand);
+        }
+
         Utils.addToSelectionPaths(tree, sel); // TODO check that selection still in tree ?
         tree.updateUI();
     }
