@@ -61,10 +61,16 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     }
 
     public <P extends Parameter> P getOtherParameter(String key, Class<P> valueClass) {
-        assert key!=null && valueClass!=null;
-        return (P)miscParameters.getChildren().stream()
-                .filter(p -> key.equals(p.getKey())).filter(p -> valueClass.equals(p.getCurrentParameter(false).getClass()))
+        if (key==null || valueClass==null) throw new IllegalArgumentException("Key and Value must not be null");
+        P res = (P)miscParameters.getChildren().stream()
+                .filter(p -> key.equals(p.getKey()))
+                .filter(p -> valueClass.getSimpleName().equals(p.getParameterClassName()))
                 .map(p -> p.getCurrentParameter(true)).findFirst().orElse(null);
+        if (res==null) res = (P)miscParameters.getChildren().stream()
+                .filter(p -> key.toLowerCase().equals(p.getKey().toLowerCase()))
+                .filter(p -> valueClass.getSimpleName().equals(p.getParameterClassName()))
+                .map(p -> p.getCurrentParameter(true)).findFirst().orElse(null);
+        return res;
     }
 
     public class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {

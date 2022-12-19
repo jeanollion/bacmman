@@ -363,11 +363,10 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 break;
             }
         }
-        double hausdorffDistSQ = Math.pow(this.distanceSearchThreshold.getDoubleValue(), 2);
         TrackMateInterface<TrackingObject> tmi = new TrackMateInterface<>((r, f) -> {
             SegmentedObject o = regionMapObjects.get(r);
             TrackingObject to;
-            if (HAUSDORFF.equals(distanceType.getSelectedEnum())) to = new TrackingObject(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), prediction.edmLM.get(o.getParent()).crop(o.getBounds()), distanceSearchThreshold.getDoubleValue(), d -> noPrevPenalty.applyAsDouble((Double) d, noPrevMap.get(o)), sizePenaltyFun);
+            if (HAUSDORFF.equals(distanceType.getSelectedEnum())) to = new TrackingObject(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), prediction==null || prediction.edmLM==null? null : prediction.edmLM.get(o.getParent()).crop(o.getBounds()), this.skeletonLMRad.getDoubleValue(), distanceSearchThreshold.getDoubleValue(), d -> noPrevPenalty.applyAsDouble((Double) d, noPrevMap.get(o)), sizePenaltyFun);
             else to = new TrackingObject(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), d -> noPrevPenalty.applyAsDouble((Double) d, noPrevMap.get(o)), distanceType.getSelectedEnum(), OVERLAP.equals(distanceType.getSelectedEnum())?overlapMap.get(f):null, sizePenaltyFun);
             return to;
         });
@@ -696,8 +695,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             return skeleton;
         }
         // specific constructor for Hausdorff distance
-        public TrackingObject(Region r, BoundingBox parentBounds, int frame, double dy, double dx, Image edmLM, double distanceLimit, ToDoubleFunction noPrevPenalty, ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty) {
-            super(r.getCenterOrGeomCenter(), r, frame, HAUSDORFF, null, getSkeleton(r, edmLM), distanceLimit*distanceLimit);
+        public TrackingObject(Region r, BoundingBox parentBounds, int frame, double dy, double dx, Image edmLM, double skeletonLMRad, double distanceLimit, ToDoubleFunction noPrevPenalty, ToDoubleBiFunction<TrackingObject, TrackingObject> sizePenalty) {
+            super(r.getCenterOrGeomCenter(), r, frame, HAUSDORFF, null, edmLM==null?getSkeletonPoint(r, null, Filters.getNeighborhood(skeletonLMRad, r.getMask())) : getSkeleton(r, edmLM), distanceLimit*distanceLimit);
             this.offset = new SimpleOffset(parentBounds).reverseOffset();
             BoundingBox bds = r.isAbsoluteLandMark() ? parentBounds : (BoundingBox)parentBounds.duplicate().resetOffset();
             touchEdges = BoundingBox.touchEdges2D(bds, r.getBounds());
@@ -1604,7 +1603,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 .setActionParameters(DIVISION_MODE.CONTACT)
                 .setActionParameters(DIVISION_MODE.TWO_STEPS);
         noPrevPenaltyMode.setSelectedEnum(NO_PREV_PENALTY.NO_PENALTY);
-        return new Parameter[] { distanceThreshold, contactCriterionCond, divisionCond, growthRateRange, sizePenaltyFactor, solveSplitAndMergeCond };
+        return new Parameter[] { distanceTypeCond, distanceThreshold, contactCriterionCond, divisionCond, growthRateRange, sizePenaltyFactor, solveSplitAndMergeCond };
     }
     public static class DistNet2DTracker implements Tracker, Hint {
         final DistNet2D distNet2D;

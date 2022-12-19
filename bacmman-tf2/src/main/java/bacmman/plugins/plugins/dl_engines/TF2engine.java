@@ -119,6 +119,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         if (model!=null) {
             model.close();
             model = null;
+            System.gc();
         }
         inputNames = null;
         outputNames = null;

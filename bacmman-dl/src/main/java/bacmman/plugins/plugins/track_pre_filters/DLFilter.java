@@ -2,6 +2,7 @@ package bacmman.plugins.plugins.track_pre_filters;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 import bacmman.image.TypeConverter;
@@ -12,7 +13,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
-public class DLFilter implements TrackPreFilter, Hint {
+public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine");
     enum INPUT_TYPE {RAW, BINARY_MASK}
     EnumChoiceParameter<INPUT_TYPE> type = new EnumChoiceParameter<>("Input Type", INPUT_TYPE.values(), INPUT_TYPE.BINARY_MASK);
@@ -79,6 +80,12 @@ public class DLFilter implements TrackPreFilter, Hint {
     @Override
     public Parameter[] getParameters() {
         return new Parameter[]{dlEngine, inputs, dlResample, channel};
+    }
+
+    @Override
+    public void configureFromMetadata(DLModelMetadata metadata) {
+        IntegerParameter channel = metadata.getOtherParameter("Channel", IntegerParameter.class);
+        if (channel!=null) this.channel.setValue(channel.getIntValue());
     }
 
     @Override

@@ -95,6 +95,8 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     public String getKey() {
         return key.getValue();
     }
+
+    public String getParameterClassName() {return selectedParameter;}
     @Override
     public String[] getChoiceList() {
         return parameterChoice.keySet().toArray(new String[0]);

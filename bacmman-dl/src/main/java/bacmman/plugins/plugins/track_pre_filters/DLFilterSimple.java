@@ -3,6 +3,7 @@ package bacmman.plugins.plugins.track_pre_filters;
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.input_image.InputImages;
+import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
 import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
@@ -16,7 +17,7 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformation, Filter, Hint { // TransformationApplyDirectly
+public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformation, Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine module");
     DLResizeAndScale dlResample = new DLResizeAndScale("ResizeAndScale").setMaxOutputNumber(1).setMaxInputNumber(1).setEmphasized(true);
     BoundedNumberParameter batchSize = new BoundedNumberParameter("Batch Size", 0, 0, 0, null).setEmphasized(true).setHint("For time-lapse dataset: defines how many frames are processed at the same time (0=all frames)");
@@ -145,6 +146,27 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
         IntFunction<Image[]> getImages = addNext ? i -> IntStream.rangeClosed(- nFrames, nFrames).mapToObj(n->getImage[0].apply(i, i + n * frameInterval)).toArray(Image[]::new) : i -> IntStream.rangeClosed(- nFrames, 0).mapToObj(n->getImage[0].apply(i, i + n * frameInterval)).toArray(Image[]::new);
         return IntStream.range(idxMin, idxMaxExcl).mapToObj(getImages).toArray(Image[][]::new);
     }
+
+    @Override
+    public void configureFromMetadata(DLModelMetadata metadata) {
+        IntegerParameter channel = metadata.getOtherParameter("Channel", IntegerParameter.class);
+        if (channel!=null) this.channel.setValue(channel.getIntValue());
+        int inputChannels = metadata.getInputs().get(0).getChannelNumber();
+        if (inputChannels == 1) this.timelapse.setSelected(false);
+        else if (inputChannels>1) {
+            BooleanParameter nextP = metadata.getOtherParameter("Next", BooleanParameter.class);
+            if (nextP==null) {
+                if (inputChannels%2 == 0) next.setSelected(false);
+            } else next.setSelected(nextP.getSelected());
+            if (next.getSelected() && inputChannels%2==0) {
+                logger.error("Error while configuring parameter: next is selected thus number of input channels should be uneven");
+            } else {
+                int nFrames = next.getSelected() ? (inputChannels - 1) / 2 : inputChannels;
+                this.nFrames.setValue(nFrames);
+            }
+        }
+    }
+
     private class PredictedChannels {
         Image[] filtered, filteredP, filteredN;
         final boolean next;
