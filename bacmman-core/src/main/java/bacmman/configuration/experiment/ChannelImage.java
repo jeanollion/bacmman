@@ -87,6 +87,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         res.put("importKeyword", this.importKeyWord.toJSONEntry());
         res.put("rgb", this.importRGBChannel.toJSONEntry());
         if (color.getSelectedEnum()!=null) res.put("color", this.color.toJSONEntry());
+        res.put("axesInterpretation", axesInterpretation.toJSONEntry());
         return res;
     }
 
@@ -97,6 +98,7 @@ public class ChannelImage extends ContainerParameterImpl<ChannelImage> {
         importKeyWord.initFromJSONEntry(jsonO.get("importKeyword"));
         if (jsonO.containsKey("rgb")) this.importRGBChannel.initFromJSONEntry(jsonO.get("rgb"));
         if (jsonO.containsKey("color")) this.color.initFromJSONEntry(jsonO.get("color"));
+        if (jsonO.containsKey("axesInterpretation")) this.axesInterpretation.initFromJSONEntry(jsonO.get("axesInterpretation"));
     }
     
 }
