@@ -59,6 +59,10 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
         // get local maxima
         Image inputLM = lmSmooth.getDoubleValue()>0 ? ImageFeatures.gaussianSmooth(input, lmSmooth.getDoubleValue(), 0, false) : input;
         ImageByte lm = Filters.localExtrema(inputLM, null, true, thld, null, Filters.getNeighborhood(localMaxRadius.getDoubleValue(), 1, input));
+        if (stores!=null && stores.get(parent).isExpertMode()) {
+            if (lmSmooth.getDoubleValue()>0) stores.get(parent).addIntermediateImage("Local Maxima Input", inputLM);
+            stores.get(parent).addIntermediateImage("Local Maxima", lm);
+        }
         List<Point> centers = ImageLabeller.labelImageList(lm).stream().map(r -> r.getGeomCenter(false)).collect(Collectors.toList());
         logger.debug("local maxima: {}", centers.size());
         if (this.minLMDistance.getDoubleValue()>this.localMaxRadius.getDoubleValue()) { // filter LM that are too close
