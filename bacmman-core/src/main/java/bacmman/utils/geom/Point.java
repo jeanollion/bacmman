@@ -21,6 +21,7 @@ package bacmman.utils.geom;
 import bacmman.data_structure.Voxel;
 import bacmman.image.BoundingBox;
 import bacmman.image.Offset;
+import bacmman.processing.skeleton.SparseSkeleton;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.SymetricalPair;
@@ -32,6 +33,8 @@ import java.util.stream.IntStream;
 
 import net.imglib2.Localizable;
 import net.imglib2.RealLocalizable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -39,6 +42,7 @@ import net.imglib2.RealLocalizable;
  * @param <T>
  */
 public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JSONSerializable, Localizable{
+    public final static Logger logger = LoggerFactory.getLogger(Point.class);
     protected float[] coords;
     public Point(float... coords) {
         this.coords=coords;
@@ -74,7 +78,15 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         this.coords[dim] = value;
         return (T)this;
     }
-    
+
+    public T translateRL(RealLocalizable other) {
+        for (int i = 0; i<Math.min(coords.length, other.numDimensions()); ++i) coords[i]+=other.getDoublePosition(i);
+        return (T)this;
+    }
+    public T translateRLRev(RealLocalizable other) {
+        for (int i = 0; i<Math.min(coords.length, other.numDimensions()); ++i) coords[i]-=other.getDoublePosition(i);
+        return (T)this;
+    }
     public T translate(Vector other) {
         for (int i = 0; i<Math.min(coords.length, other.coords.length); ++i) coords[i]+=other.coords[i];
         return (T)this;
@@ -326,6 +338,18 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         double yi = ((line2Point1.coords[1]-line2Point2.coords[1])*(line1Point1.coords[0]*line1Point2.coords[1]-line1Point1.coords[1]*line1Point2.coords[0])-(line1Point1.coords[1]-line1Point2.coords[1])*(line2Point1.coords[0]*line2Point2.coords[1]-line2Point1.coords[1]*line2Point2.coords[0]))/d;
         return new Point((float)xi, (float)yi);
     }
+
+    public static Point getIntersection2D(RealLocalizable linePoint1, RealLocalizable linePoint2, RealLocalizable p, boolean nullIfOutsideSegment) {
+        Vector abDir = Vector.vector2D(linePoint1, linePoint2);
+        Vector perpDir = new Vector(-abDir.coords[1], abDir.coords[0]);
+        Vector apDir = Vector.vector2D(linePoint1, p);
+        double s = (perpDir.coords[1] * apDir.coords[0] - perpDir.coords[0] * apDir.coords[1]) / (abDir.coords[0] * perpDir.coords[1] - abDir.coords[1] * perpDir.coords[0]);
+        if (nullIfOutsideSegment && (s<0 || s>1)) return null;
+        return Point.asPoint2D(linePoint1).add(abDir, s);
+    }
+    public static Point getIntersection2D(Point linePoint1, Point linePoint2, Point p) {
+        return getIntersection2D(linePoint1, linePoint2, p, false);
+    }
     // json interface
     @Override
     public Object toJSONEntry() {
@@ -416,9 +440,18 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         return maxDistance;
     }
     public static double distSq(RealLocalizable r1, RealLocalizable r2) {
-        if (r1 instanceof Point) return ((Point)r1).distSq(r2);
-        else if (r2 instanceof Point) return ((Point)r2).distSq(r1);
-        else if (r1 instanceof Voxel && r2 instanceof Voxel) return ((Voxel)r1).getDistanceSquare((Voxel)r2);
-        else return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
+        return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) - r2.getDoublePosition(i), 2)).sum();
+    }
+
+    /**
+     *
+     * @param r1
+     * @param r2
+     * @param d1 vector added to r1 (can be null)
+     * @param d2 vector added to r2 (can be null)
+     * @return distance between r1 translated by r1 and r2 translated by d2
+     */
+    public static double distSq(RealLocalizable r1, RealLocalizable r2, RealLocalizable d1, RealLocalizable d2) {
+        return IntStream.range(0,  Math.min(r1.numDimensions(), r2.numDimensions())).mapToDouble(i->Math.pow(r1.getDoublePosition(i) + (d1==null?0:d1.getDoublePosition(i)) - r2.getDoublePosition(i) - (d2==null?0:d2.getDoublePosition(i)), 2)).sum();
     }
 }
