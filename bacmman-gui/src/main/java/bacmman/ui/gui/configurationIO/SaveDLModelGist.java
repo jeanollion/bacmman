@@ -197,6 +197,19 @@ public class SaveDLModelGist {
                     }
                 }
             };
+            Consumer<UserAuth> repairFile = a -> {
+                File file = Utils.chooseFile("Select Model Folder/File to repair", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
+                if (file != null) {
+                    try {
+                        LargeFileGist gist = new LargeFileGist(url.getText());
+                        DefaultWorker w = gist.repairFile(file, a, true, ()->uploader=null, pcb);
+                        if (w!=null) uploader = new Pair<>(null, w);
+                    } catch (IOException ex) {
+                        if (pcb != null) pcb.setMessage("Could not repair file:" + ex.getMessage());
+                        logger.error("Error repairing model file", ex);
+                    }
+                }
+            };
             uploadButton.addActionListener(e -> {
                 uploadFile.accept(auth);
             });
@@ -221,6 +234,23 @@ public class SaveDLModelGist {
                             }
                         };
                         menu.add(upOther);
+                        Action repair = new AbstractAction("Check/Repair Uploaded Model file") {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, false);
+                                if (cred != null) {
+                                    try {
+                                        TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                        repairFile.accept(auth2);
+                                    } catch (IllegalArgumentException ex) {
+                                        if (pcb != null)
+                                            pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                                    }
+                                }
+                            }
+                        };
+                        menu.add(repair);
+                        repair.setEnabled(url.getText()!=null && url.getText().length()>0);
                         menu.show(uploadButton, evt.getX(), evt.getY());
                     }
                 }

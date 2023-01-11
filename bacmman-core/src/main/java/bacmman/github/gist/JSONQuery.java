@@ -28,7 +28,9 @@ public class JSONQuery {
     public static String REQUEST_PROPERTY_GITHUB_BASE64 = "application/vnd.github.v3.base64";
     public static String REQUEST_PROPERTY_GITHUB_JSON= "application/vnd.github+json";
     public static int MAX_PER_PAGE = 100;
-    public static int MAX_TRYOUTS = 5;
+    public static int MAX_TRYOUTS = 50;
+    public static int TRYOUT_SLEEP = 7500; //ms
+    public static int TRYOUT_SLEEP_INC = 100;
     private HttpURLConnection urlConnection;
     UserAuth auth;
     public static String GIST_BASE_URL = "https://gist.github.com/";
@@ -154,9 +156,11 @@ public class JSONQuery {
                 }
                 o_oSb.append(sLine);
             }
+        } catch(FileNotFoundException e) {
+            throw new IOException("Authentication Error for "+e.getMessage());
         } catch (IOException e) {
             throw e;
-        } finally {
+        }  finally {
             urlConnection.disconnect();
         }
         return o_oSb.toString();
@@ -208,6 +212,7 @@ public class JSONQuery {
     }
     public static String fetch(Supplier<JSONQuery> querySupplier, int tryouts) throws IOException{
         if (tryouts==0) tryouts=1;
+        int sleep = TRYOUT_SLEEP;
         while (tryouts-->0) {
             try {
                 return querySupplier.get().fetch();
@@ -215,7 +220,8 @@ public class JSONQuery {
                 if (tryouts==0 || !e.getMessage().contains("HTTP response code: 50")) throw e;
                 else {
                     logger.debug("error {} -> try again, remaining tryouts: {}", e.getMessage(), tryouts);
-                    sleep(5000);
+                    sleep(sleep);
+                    sleep+=TRYOUT_SLEEP_INC;
                 }
             }
         }

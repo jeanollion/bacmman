@@ -17,11 +17,14 @@ import java.io.*;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 import static bacmman.utils.ThreadRunner.sleep;
 import static org.apache.commons.codec.digest.MessageDigestAlgorithms.MD5;
 
@@ -31,7 +34,7 @@ public class LargeFileGist {
     static double MAX_CHUNK_SIZE_MB = 10;
     Map<String, String> chunksURL;
     double sizeMb;
-    int chunkSize;
+    int chunkSize, nChunks;
     String fileType, fullFileName;
     boolean valid;
     Map<String, byte[]> checksum_md5;
@@ -39,6 +42,7 @@ public class LargeFileGist {
     boolean visible, wasZipped;
 
     public LargeFileGist(String id) throws IOException {
+        if (id.startsWith(GIST_BASE_URL)) id=id.replace(GIST_BASE_URL, "");
         try {
             String response = new JSONQuery(BASE_URL + "/gists/" + id).method(JSONQuery.METHOD.GET).fetch();
             if (response != null) {
@@ -75,7 +79,7 @@ public class LargeFileGist {
                 if (master.containsKey("content") && !(Boolean)master.getOrDefault("truncated", false)) masterFileContent =  (String)master.get("content");
                 else masterFileContent = new JSONQuery(masterFileUrl, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
                 JSONObject masterFileJSON = JSONUtils.parse(masterFileContent);
-                int n_chunks = ((Number) masterFileJSON.get("n_chunks")).intValue();
+                nChunks = ((Number) masterFileJSON.get("n_chunks")).intValue();
                 sizeMb = ((Number) masterFileJSON.get("size_mb")).doubleValue();
                 chunkSize = ((Number) masterFileJSON.getOrDefault("chunk_size", 1024*1024*9)).intValue();
                 fileType = (String) (masterFileJSON).get("file_type");
@@ -84,14 +88,14 @@ public class LargeFileGist {
                 Stream<Object> s = allFiles.values().stream();
                 chunksURL = s.filter(f -> ((String) ((JSONObject) f).get("filename")).startsWith("chunk_"))
                         .collect(Collectors.toMap(f -> (String) ((JSONObject) f).get("filename"), f -> (String) ((JSONObject) f).get("raw_url")));
-                chunksURL = new TreeMap(chunksURL); // sorted map
-                valid = n_chunks == chunksURL.size();
-                if (!valid) logger.error("Invalid LF: expected chunk number: {}, actual: {}", n_chunks, chunksURL.size());
+                chunksURL = new TreeMap<>(chunksURL); // sorted map
+                valid = nChunks == chunksURL.size();
+                if (!valid) logger.error("Invalid LF: expected chunk number: {}, actual: {}", nChunks, chunksURL.size());
                 if (masterFileJSON.get("checksum_md5") != null) {
                     List<?> cs = (JSONArray) masterFileJSON.get("checksum_md5");
                     List<String> sortedChunkNames = new ArrayList<>(chunksURL.keySet());
-                    if (cs.size() == n_chunks) {
-                        checksum_md5 = IntStream.range(0, n_chunks).boxed().collect(Collectors.toMap(sortedChunkNames::get, i -> Base64.getDecoder().decode((String) cs.get(i))));
+                    if (cs.size() == nChunks) {
+                        checksum_md5 = IntStream.range(0, sortedChunkNames.size()).boxed().collect(Collectors.toMap(sortedChunkNames::get, i -> Base64.getDecoder().decode((String) cs.get(i))));
                     }
                 }
             } else throw new IOException("Master file not found");
@@ -106,6 +110,8 @@ public class LargeFileGist {
 
     public byte[] retrieveChunk(String chunkName) throws IOException {
         String chunkURL = chunksURL.get(chunkName);
+        byte[] md5 = checksum_md5==null ? null:checksum_md5.get(chunkName);
+        if (chunkURL==null) throw new IOException("Chunk not stored");
         String chunkB64 = new JSONQuery(chunkURL, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetch();
         byte[] chunk = null;
         try {
@@ -115,7 +121,6 @@ public class LargeFileGist {
             throw e;
         }
         logger.debug("chunk {} length: {}", chunkName, chunk.length);
-        byte[] md5 = checksum_md5==null ? null:checksum_md5.get(chunkName);
         if (md5!=null) {
             boolean checksum = false;
             try {
@@ -128,7 +133,6 @@ public class LargeFileGist {
             }
             else throw new ChecksumException("Invalid Checksum");
         } else return chunk;
-
     }
 
     public static class ChecksumException extends IOException{
@@ -228,9 +232,17 @@ public class LargeFileGist {
             String fileID = (String) json.get("id");
             String gist_url = BASE_URL + "/gists/" + fileID;
             List<Map.Entry<String, byte[]>> chunkList = new ArrayList<>(chunks.entrySet());
+            Predicate<String> chunkStored = c -> {
+                try {
+                    LargeFileGist lf = new LargeFileGist(fileID);
+                    return lf.retrieveChunk(c)!=null;
+                } catch (IOException e) {
+                    return false;
+                }
+            };
             DefaultWorker.WorkerTask task = i -> {
                 logger.debug("storing chunk {}/{}", i + 1, chunks.size());
-                storeBytes(gist_url, chunkList.get(i).getKey(), chunkList.get(i).getValue(), auth);
+                storeBytes(gist_url, chunkList.get(i).getKey(), chunkList.get(i).getValue(), auth, ()->chunkStored.test(chunkList.get(i).getKey()));
                 //sleep(1);
                 return null; // String.format("%.2f", chunkList.get(i).getValue().length / (1024d * 1024d)) + "MB stored";
             };
@@ -245,12 +257,12 @@ public class LargeFileGist {
             }
         } else return null;
     }
-    public void repairFile(File file, UserAuth auth, boolean background, ProgressLogger pcb) throws IOException {
+    public DefaultWorker repairFile(File file, UserAuth auth, boolean background, Runnable callback, ProgressLogger pcb) throws IOException {
         Map<String, byte[]> chunks;
         try {
             InputStream is;
             if (file.isDirectory()) { // start by zipping the file
-                if (pcb!=null) pcb.setMessage("zipping directgory...");
+                if (pcb!=null) pcb.setMessage("zipping directory...");
                 is = ZipUtils.zipFile(file).getInputStream();
             } else is = new FileInputStream(file);
             chunks = nameChunks("", splitFile(is, (double)chunkSize/(1024*1024)));
@@ -259,41 +271,63 @@ public class LargeFileGist {
             throw e;
         }
         double size = chunks.values().stream().mapToLong(b -> b.length).sum()/((double)1024*1024);
-        assert chunks.size() == this.chunksURL.size();
-        assert size == this.sizeMb;
-
+        if (size!=this.sizeMb) {
+            if (pcb!=null) pcb.setMessage("Selected file do not correspond to gist: size differ: selected file: "+size+"MB gist size: "+this.sizeMb+"MB");
+            return null;
+        }
+        if (chunks.size() != this.chunksURL.size()) {
+            if (chunks.size() != nChunks) {
+                if (pcb!=null) pcb.setMessage("Selected file do not correspond to gist: number of chunks differ");
+                return null;
+            }
+            if (pcb!=null) pcb.setMessage("Missing chunks: uploaded: "+chunksURL.size()+"/"+nChunks);
+        }
         String gist_url = BASE_URL + "/gists/" + id;
         List<String> chunkNames = new ArrayList<>(chunks.keySet());
+        Predicate<String> chunkStored = c -> {
+            try {
+                LargeFileGist lf = new LargeFileGist(id);
+                return lf.retrieveChunk(c)!=null;
+            } catch (IOException e) {
+                return false;
+            }
+        };
         DefaultWorker.WorkerTask task = idx -> {
             String chunk = chunkNames.get(idx);
             try {
                 retrieveChunk(chunk);
-            } catch (IOException e) {
+            } catch (IOException|IllegalArgumentException e) {
                 logger.debug("invalid chunk found: {} reason: {}", chunk, e.getMessage());
                 if (pcb!=null) pcb.setMessage("Invalid Chunk found: "+chunk+ " Problem: "+e.getMessage());
-                logger.debug("storing chunk {} ({}/{})", chunk, idx + 1, chunks.size());
-                storeBytes(gist_url, chunk, chunks.get(chunk), auth);
-                sleep(1);
+                logger.debug("storing chunk {} ({}/{}) at {}", chunk, idx + 1, chunks.size(), gist_url);
+                storeBytes(gist_url, chunk, chunks.get(chunk), auth, ()->chunkStored.test(chunk));
                 return String.format("%.2f", chunks.get(chunk).length / (1024d * 1024d)) + "MB stored";
             } return chunk+" is valid";
         };
-        if (background) DefaultWorker.execute(task, chunks.size(), pcb);
-        else DefaultWorker.executeInForeground(task, chunks.size());
+        if (background) {
+            return DefaultWorker.execute(task, chunks.size(), pcb).appendEndOfWork(callback);
+        } else {
+            DefaultWorker.executeInForeground(task, chunks.size());
+            if (callback!=null) callback.run();
+            return null;
+        }
     }
-    protected static boolean storeBytes(String gist_url, String name, byte[] bytes, UserAuth auth) throws IOException {
+    protected static boolean storeBytes(String gist_url, String name, byte[] bytes, UserAuth auth, BooleanSupplier chunkStored) throws IOException {
         String content = JSONQuery.encodeJSONBase64(name, bytes); // null will set empty content -> remove the file
-        return storeBytesTryout(gist_url, content, auth, JSONQuery.MAX_TRYOUTS);
+        return storeBytesTryout(gist_url, content, auth, chunkStored, JSONQuery.MAX_TRYOUTS, JSONQuery.TRYOUT_SLEEP);
     }
-    protected static boolean storeBytesTryout(String gist_url, String content, UserAuth auth, int remainingTryouts) throws IOException {
+    protected static boolean storeBytesTryout(String gist_url, String content, UserAuth auth, BooleanSupplier isStored, int remainingTryouts, int sleep) throws IOException {
         JSONQuery q = new JSONQuery(gist_url, JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).method(JSONQuery.METHOD.PATCH).authenticate(auth).setBody(content);
         try {
             String answer = q.fetch();
             return answer!=null;
         } catch (IOException e) {
             if (e.getMessage().contains("HTTP response code: 50") && remainingTryouts>0) {
+                // first check if chunk was stored:
+                if (isStored.getAsBoolean()) return true;
                 logger.debug("error {} -> try again, remaining tryouts: {}", e.getMessage(), remainingTryouts);
-                sleep(5000);
-                storeBytesTryout(gist_url, content, auth, remainingTryouts-1);
+                sleep(sleep);
+                storeBytesTryout(gist_url, content, auth, isStored, remainingTryouts-1, sleep+JSONQuery.TRYOUT_SLEEP_INC);
             } else throw e;
         }
         return true;
