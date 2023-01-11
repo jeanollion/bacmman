@@ -10,16 +10,17 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class TrackTreePopulation {
     public final static Logger logger = LoggerFactory.getLogger(TrackTreePopulation.class);
     final Set<TrackTree> trees;
-    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks) {
-        this(Track.getTracks(parentTrack,objectClassIdx, additionalLinks));
+    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing) {
+        this(Track.getTracks(parentTrack,objectClassIdx, additionalLinks, dividing));
     }
-    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx) {
-        this(Track.getTracks(parentTrack,objectClassIdx));
+    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, Predicate<SegmentedObject> dividing) {
+        this(Track.getTracks(parentTrack,objectClassIdx, dividing));
     }
     public TrackTreePopulation(Map<SegmentedObject, Track> tracks) {
         trees = new HashSet<>();

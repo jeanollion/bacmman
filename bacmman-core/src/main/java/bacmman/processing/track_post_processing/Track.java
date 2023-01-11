@@ -17,6 +17,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class Track {
@@ -177,10 +178,10 @@ public class Track {
     public String toString() {
         return head()+"["+getFirstFrame()+"->"+getLastFrame()+"]";
     }
-    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass) {
-        return getTracks(parent, segmentedObjectClass, Collections.emptyList());
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Predicate<SegmentedObject> dividing) {
+        return getTracks(parent, segmentedObjectClass, Collections.emptyList(), dividing);
     }
-    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, List<SymetricalPair<SegmentedObject>> additionalLinks) {
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, List<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing) {
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
@@ -215,7 +216,7 @@ public class Track {
             }
             Set<SegmentedObject> prevs = additionalPrevs.getOrDefault(t.head(), Collections.emptyList()).stream().map(p -> p.key).collect(Collectors.toSet());
             SegmentedObject p = t.head().getPrevious();
-            if (p!=null) prevs.add(p);
+            if (p!=null && (dividing==null || !dividing.test(t.head()))) prevs.add(p);
             for (SegmentedObject prev : prevs) {
                 Track prevT = tracks.get(prev.getTrackHead());
                 if (prevT != null) {

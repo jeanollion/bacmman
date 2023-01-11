@@ -119,6 +119,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         boolean incrementalPostProcessing = perWindow.getSelected();
         List<SymetricalPair<SegmentedObject>> allAdditionalLinks = new ArrayList<>();
         List<Consumer<String>> logContainers = new ArrayList<>();
+        Map<Region, Double> divMap=null;
+        Map<Region, Double>[] divMapContainer = new Map[1];
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
@@ -136,7 +138,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 subParentTrack.add(0, parentTrack.get(i-1));
             }
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers);
+            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers, divMapContainer);
+            if (divMap==null || incrementalPostProcessing) divMap = divMapContainer[0];
+            else divMap.putAll(divMapContainer[0]);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
             int maxF = subParentTrack.get(0).getFrame();
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1));
@@ -160,11 +164,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
-            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, editor, factory);
+            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, divMap, editor, factory);
             else allAdditionalLinks.addAll(additionalLinks);
             prevPrediction = prediction;
         }
-        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, editor, factory);
+        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, editor, factory);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
     }
@@ -178,6 +182,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         List<SymetricalPair<SegmentedObject>> allAdditionalLinks = new ArrayList<>();
         List<Consumer<String>> logContainers = new ArrayList<>();
+        Map<Region, Double> divMap=null;
+        Map<Region, Double>[] divMapContainer = new Map[1];
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
@@ -192,7 +198,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 subParentTrack.add(0, parentTrack.get(i-1));
             }
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers);
+            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers, divMapContainer);
+            if (divMap==null || incrementalPostProcessing) divMap = divMapContainer[0];
+            else divMap.putAll(divMapContainer[0]);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
             int maxF = subParentTrack.get(0).getFrame();
             logger.debug("Clearing window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(0).getFrame()+subParentTrack.size() - (last ? 0 : 1));
@@ -216,11 +224,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
-            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, editor, factory);
+            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, divMap, editor, factory);
             else allAdditionalLinks.addAll(additionalLinks);
             prevPrediction = prediction;
         }
-        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, editor, factory);
+        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, editor, factory);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
     }
@@ -279,7 +287,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         return res;
     }
 
-    public <T extends TrackingObject<T>> List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, List<Consumer<String>> logContainer) {
+    public <T extends TrackingObject<T>> List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, List<Consumer<String>> logContainer, Map<Region, Double>[] divMapContainer) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
@@ -305,6 +313,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 prediction==null || prediction.division == null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.division.get(o.getParent()), 0.5)[0],
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
+        divMapContainer[0] = divMap;
         Map<SegmentedObject, Double> noPrevMap = HashMapGetCreate.getRedirectedMap(
                 parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).parallel(),
                 prediction==null || prediction.noPrev == null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noPrev.get(o.getParent()), 0.5)[0],
@@ -969,9 +978,11 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             }
         });
     }
-    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, List<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, List<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<Region, Double> divMap, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         SplitAndMerge sm = getSplitAndMerge(prediction);
-        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, sm, factory, editor);
+        double divThld=divProbaThld.getValuesAsDouble()[1];
+        Predicate<SegmentedObject> dividing = divMap==null ? o -> false : o -> divMap.get(o.getRegion())>divThld;
+        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, dividing, sm, factory, editor);
     }
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
@@ -1295,12 +1306,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         };
     }
 
-    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (!solveSplitAndMerge.getSelected()) return;
         boolean solveSplit = this.solveSplit.getSelected();
         boolean solveMerge= this.solveMerge.getSelected();
         if (!solveSplit && !solveMerge) return;
-        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
+        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, dividing);
         if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), sm, factory, editor);
         if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), sm, factory, editor);
         parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
@@ -1670,23 +1681,16 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
      */
     protected void trackNoPrediction(int objectClassIdx, List<SegmentedObject> parentTrack, boolean postFilter, TrackLinkEditor editor) {
         List<Consumer<String>> logContainer = new ArrayList<>();
-        List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, null, editor, logContainer);
+        List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, null, editor, logContainer, new Map[1]);
         if (postFilter) {
             PredictionResults predictions = new PredictionResults().setEdm(Utils.toMapWithNullValues(parentTrack.stream(), o -> o, o -> o.getPreFilteredImage(objectClassIdx), true));
             if (predictions.edm.values().stream().allMatch(Objects::nonNull))
-                postFilterTracking(objectClassIdx, parentTrack, additionalLinks, predictions, editor, getFactory(objectClassIdx));
+                postFilterTracking(objectClassIdx, parentTrack, additionalLinks, predictions, null, editor, getFactory(objectClassIdx));
         }
         logContainer.forEach(c -> c.accept("PP_"));
     }
 
-    protected Parameter[] getTrackNoPredictionParametersAndSetDefault() {
-        divProbaThld.setValues(0, 0);
-        divisionCond = new ConditionalParameter<>(divisionMode)
-                .setActionParameters(DIVISION_MODE.CONTACT)
-                .setActionParameters(DIVISION_MODE.TWO_STEPS);
-        noPrevPenaltyMode.setSelectedEnum(NO_PREV_PENALTY.NO_PENALTY);
-        return new Parameter[] { distanceTypeCond, distanceThreshold, contactCriterionCond, divisionCond, growthRateRange, sizePenaltyFactor, solveSplitAndMergeCond };
-    }
+    // class for tracking only without prediction
     public static class DistNet2DTracker implements Tracker, Hint {
         final DistNet2D distNet2D;
         final Parameter[] parameters;
@@ -1713,5 +1717,13 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         public String getHintText() {
             return "Tracking part of DistNet2D algorithm. <br>Do not require any prediction and thus do not use displacement and cell category predictions.<br>If pre-filter image exist, they will be used as watershed maps such as EDM for post-processing (if enabled)";
         }
+    }
+    protected Parameter[] getTrackNoPredictionParametersAndSetDefault() {
+        divProbaThld.setValues(0, 0);
+        divisionCond = new ConditionalParameter<>(divisionMode)
+                .setActionParameters(DIVISION_MODE.CONTACT)
+                .setActionParameters(DIVISION_MODE.TWO_STEPS);
+        noPrevPenaltyMode.setSelectedEnum(NO_PREV_PENALTY.NO_PENALTY);
+        return new Parameter[] { distanceTypeCond, distanceThreshold, contactCriterionCond, divisionCond, growthRateRange, sizePenaltyFactor, solveSplitAndMergeCond };
     }
 }
