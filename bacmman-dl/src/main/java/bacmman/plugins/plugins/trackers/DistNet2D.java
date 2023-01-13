@@ -1382,8 +1382,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.arraycopy(ResizeUtils.getChannel(predictions[1 + inc], 0), 0, this.dyC, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[2 + inc], 0), 0, this.dxC, idx, n);
             if (predictCategories) {
-                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 2), 0, this.divMap, idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 3), 0, this.noPrevMap, idx, n);
+                int catInc = predictions[3+inc][0].length == 4 ? 1 : 0; // if 4 channels : predicted channels are background/normal cell/divided/no previous otherwise : normal cell/divided/no previous
+                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 1+catInc), 0, this.divMap, idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 2+catInc), 0, this.noPrevMap, idx, n);
             }
             if (avg) {
                 System.arraycopy(ResizeUtils.getChannel(predictions[0], 0), 0, this.edmP, idx, n);
