@@ -23,6 +23,7 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.core.DefaultWorker;
 import bacmman.github.gist.GistDLModel;
 import bacmman.github.gist.LargeFileGist;
+import bacmman.github.gist.UserAuth;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.AnimatedIcon;
 import bacmman.ui.gui.ToolTipImage;
@@ -77,7 +78,8 @@ public class DLModelGistTreeGenerator {
     Icon dlModelDefaultIcon, urlIcon, metadataIcon, folderIcon;
     String defaultDirectory;
     ProgressLogger pcb;
-    public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged, String defaultDirectory, ProgressLogger pcb) {
+    Supplier<UserAuth> authSupplier;
+    public DLModelGistTreeGenerator(List<GistDLModel> gists, Runnable selectionChanged, String defaultDirectory, Supplier<UserAuth> authSupplier, ProgressLogger pcb) {
         this.gists=gists;
         this.selectionChanged=selectionChanged;
         this.pcb = pcb;
@@ -86,6 +88,7 @@ public class DLModelGistTreeGenerator {
         urlIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/url32.png");
         metadataIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/metadata32.png");
         folderIcon = loadIcon(ConfigurationGistTreeGenerator.class, "/icons/folder32.png");
+        this.authSupplier = authSupplier;
     }
 
     public JTree getTree() {
@@ -203,10 +206,11 @@ public class DLModelGistTreeGenerator {
                     if (node.getUserObject() instanceof String && ((String)node.getUserObject()).startsWith("<html>URL") && e.getClickCount() == 2) {
                         GistTreeNode gtn = (GistTreeNode)node.getParent();
                         try {
-                            LargeFileGist lf = gtn.gist.getLargeFileGist();
+                            UserAuth auth = authSupplier.get();
+                            LargeFileGist lf = gtn.gist.getLargeFileGist(auth);
                             File destDir = Utils.chooseFile("Select Destination Directory", defaultDirectory, FileChooser.FileChooserOption.DIRECTORIES_ONLY, GUI.getInstance());
                             if (destDir!=null && destDir.exists()) {
-                                File modelFile = lf.retrieveFile(destDir, true, true, null, pcb);
+                                File modelFile = lf.retrieveFile(destDir, true, true, auth, null, pcb);
                                 if (modelFile!=null) {
                                     if (pcb!=null) pcb.setMessage("Model weights of size: "+String.format("%.2f", lf.getSizeMb())+"Mb will be downloaded @:" + modelFile);
                                     return;

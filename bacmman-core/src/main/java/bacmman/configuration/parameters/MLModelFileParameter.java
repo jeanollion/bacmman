@@ -2,6 +2,7 @@ package bacmman.configuration.parameters;
 
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.LargeFileGist;
+import bacmman.github.gist.NoAuth;
 import bacmman.ui.logger.ProgressLogger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -105,8 +106,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
             synchronized (this) {
                 if (lf==null) {
                     String id = this.id.getValue();
-                    if (id.startsWith(GIST_BASE_URL)) id = id.replace(GIST_BASE_URL, "");
-                    lf = new LargeFileGist(id);
+                    lf = new LargeFileGist(id, new NoAuth());
                 }
             }
         }
@@ -138,7 +138,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
                     return destFile; // model already exists simply return the path
                 }
             }
-            return lf.retrieveFile(destFile, background, true, callback, bacmmanLogger);
+            return lf.retrieveFile(destFile, background, true, new NoAuth(), callback, bacmmanLogger);
         }  catch (IOException ex) {
             if (bacmmanLogger!=null) bacmmanLogger.setMessage("Error trying to download model: "+ex.getMessage());
             logger.debug("error trying to download model", ex);

@@ -343,7 +343,7 @@ public class DLModelsLibrary {
         GistDLModel lastSel = tree == null ? null : tree.getSelectedGist();
         Stream expState = tree == null ? null : tree.getExpandedState();
         if (tree != null) tree.flush();
-        tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons, currentDirectory, pcb);
+        tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons, currentDirectory, this::getAuth, pcb);
         DLModelsJSP.setViewportView(tree.getTree());
         if (lastSel != null) tree.setSelectedGist(lastSel);
         tree.setExpandedState(expState);

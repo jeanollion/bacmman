@@ -31,8 +31,9 @@ public class GithubGateway {
     public File downloadModel(String id, File destFile) {
         if (id.startsWith(GIST_BASE_URL)) id = id.replace(GIST_BASE_URL, "");
         try {
-            LargeFileGist lf = new LargeFileGist(id);
-            return lf.retrieveFile(destFile, false, true, null, bacmmanLogger);
+            UserAuth auth = getAuthentication(false);
+            LargeFileGist lf = new LargeFileGist(id, auth);
+            return lf.retrieveFile(destFile, false, true, auth, null, bacmmanLogger);
         }  catch (IOException ex) {
             if (bacmmanLogger!=null) bacmmanLogger.setMessage("Error trying to download model: "+ex.getMessage());
             logger.debug("error trying to download model", ex);

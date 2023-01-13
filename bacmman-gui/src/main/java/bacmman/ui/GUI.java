@@ -29,6 +29,7 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
+import bacmman.github.gist.NoAuth;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
@@ -933,8 +934,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
                 if (f!=null) {
                     try {
-                        LargeFileGist lf = new LargeFileGist(id);
-                        lf.retrieveFile(f, true, true, null, INSTANCE);
+                        LargeFileGist lf = new LargeFileGist(id, new NoAuth());
+                        lf.retrieveFile(f, true, true, new NoAuth(), null, INSTANCE);
                     } catch (IOException e) {
                         setMessage("Could not download file: "+ e.getMessage());
                     }

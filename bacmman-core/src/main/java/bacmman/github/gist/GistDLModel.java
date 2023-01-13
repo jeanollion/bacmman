@@ -98,10 +98,10 @@ public class GistDLModel implements Hint {
         if (contentRetriever==null) contentRetriever = () -> new JSONQuery(fileURL).fetchSilently();
     }
 
-    public LargeFileGist getLargeFileGist() throws IOException {
+    public LargeFileGist getLargeFileGist(UserAuth auth) throws IOException {
         String url = getModelURL();
         if (url!=null && url.startsWith(GIST_BASE_URL)) {
-            return new LargeFileGist(url.replace(GIST_BASE_URL, ""));
+            return new LargeFileGist(url, auth);
         } else {
             throw new IOException("Cannot create large file: url do not correspond to a file stored in gist. URL=" + url);
         }
