@@ -23,6 +23,7 @@ package bacmman.configuration.parameters;
  * @author Jean Ollion
  */
 public abstract class ObjectClassParameterAbstract<T extends ObjectClassParameterAbstract<T>> extends ObjectClassOrChannelParameter<T> {
+    String noSelection  ="NO SELECTION";
     public ObjectClassParameterAbstract(String name) {
         super(name);
     }
@@ -51,6 +52,10 @@ public abstract class ObjectClassParameterAbstract<T extends ObjectClassParamete
 
     @Override
     public String getNoSelectionString() {
-        return "NO SELECTION";
+        return noSelection;
+    }
+    public T setNoSelectionString(String noSelection) {
+        this.noSelection = noSelection;
+        return (T)this;
     }
 }

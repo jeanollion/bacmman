@@ -857,7 +857,7 @@ public class Region {
         
         final ImageMask mask = is2D() && !other.is2D() ? new ImageMask2D(getMask()) : getMask();
         final ImageMask otherMask = other.is2D() && !is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
-        BoundingBox inter = inter2D ? (!is2D() ? getIntersection2D(thisBounds, otherBounds):getIntersection2D(otherBounds, thisBounds)) : BoundingBox.getIntersection(thisBounds, otherBounds);
+        BoundingBox inter = inter2D ? (is2D() ? getIntersection2D(thisBounds, otherBounds):getIntersection2D(otherBounds, thisBounds)) : BoundingBox.getIntersection(thisBounds, otherBounds);
         //logger.debug("off: {}, otherOff: {}, is2D: {} other Is2D: {}, inter: {}", thisBounds, otherBounds, is2D(), other.is2D(), inter);
 
         final int offX = thisBounds.xMin();

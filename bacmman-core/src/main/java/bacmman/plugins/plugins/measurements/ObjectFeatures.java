@@ -48,7 +48,9 @@ import java.util.function.BiFunction;
  * @author Jean Ollion
  */
 public class ObjectFeatures implements Measurement, Hint {
-    ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, false, false).setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
+    ObjectClassParameter structure = new ObjectClassParameter("Object class", -1, true, false)
+            .setNoSelectionString("Viewfield")
+            .setEmphasized(true).setHint("Segmented object class of to compute feature(s) on (defines the region-of-interest of the measurement)");
     PluginParameter<ObjectFeature> def = new PluginParameter<>("Feature", ObjectFeature.class, false)
             .setAdditionalParameters(new TextParameter("Name", "", false)).setNewInstanceConfiguration(oc->{
                 if (oc instanceof IntensityMeasurement) ((IntensityMeasurement)oc).setIntensityStructure(structure.getSelectedClassIdx());
@@ -103,7 +105,7 @@ public class ObjectFeatures implements Measurement, Hint {
     }
     @Override
     public int getCallObjectClassIdx() {
-        return structure.getParentObjectClassIdx();
+        return structure.getSelectedClassIdx()==-1 ? -1 : structure.getParentObjectClassIdx();
     }
     @Override
     public boolean callOnlyOnTrackHeads() {
