@@ -132,7 +132,7 @@ public class MeasurementExtractor {
             out.write(getHeader(getAllMeasurements(allMeasurements))); 
             
             int currentStructureIdx = allMeasurementsSort.lastKey();
-            int[] parentOrder = new int[currentStructureIdx]; // maps structureIdx to parent order
+            int[] parentOrder = currentStructureIdx==-1 ? new int[0] : new int[currentStructureIdx]; // maps structureIdx to parent order
             for (int s : allMeasurementsSort.keySet()) {
                 if (s!=currentStructureIdx) {
                     parentOrder[s] = xp.experimentStructure.getPathToStructure(s, currentStructureIdx).length;
@@ -203,6 +203,7 @@ public class MeasurementExtractor {
             out.close();
             long t1 = System.currentTimeMillis();
             logger.debug("data extractions: {} line in: {} ms", count, t1-t0);
+            if (count==0 && currentStructureIdx == -1) output.delete();
         } catch (IOException ex) {
             logger.debug("init extract data error: {}", ex);
         }

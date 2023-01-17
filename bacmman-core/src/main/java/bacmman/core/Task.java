@@ -91,7 +91,7 @@ public class Task implements ProgressCallback{
         int[] extractDSRawChannels;
         ExtractZAxis extractZAxis = ExtractZAxis.IMAGE3D;
         int extractZAxisPlaneIdx;
-
+        boolean extractByPosition;
         public JSONObject toJSON() {
             JSONObject res=  new JSONObject();
             res.put("dbName", dbName); 
@@ -509,10 +509,18 @@ public class Task implements ProgressCallback{
     public Task addExtractMeasurementDir(String dir, int... extractStructures) {
         if (extractStructures==null || extractStructures.length==0) {
             ensurePositionAndStructures(false, true);
-            for (int s : structures) this.extractMeasurementDir.add(new Pair(dir, new int[]{s}));
-        } else  this.extractMeasurementDir.add(new Pair(dir, extractStructures));
+            for (int s : structures) this.extractMeasurementDir.add(new Pair<>(dir, new int[]{s}));
+        } else this.extractMeasurementDir.add(new Pair<>(dir, extractStructures));
+        if (extractMeasurementDir.stream().noneMatch(p-> p.key.equals(dir) && Arrays.stream(p.value).anyMatch(s->s==-1))) {
+            this.extractMeasurementDir.add(new Pair<>(dir, new int[]{-1}));
+        }
         return this;
     }
+
+    public void setExtractByPosition(boolean extractByPosition) {
+        this.extractByPosition = extractByPosition;
+    }
+
     private void ensurePositionAndStructures(boolean positions, boolean structures) {
         if ((!positions || this.positions!=null) && (!structures || this.structures!=null)) return;
         initDB();
@@ -530,7 +538,7 @@ public class Task implements ProgressCallback{
             if (!keepDB) db = null;
             return false;
         }
-        if (structures!=null) checkArray(structures, db.getExperiment().getStructureCount(), "Invalid structure: ");
+        if (structures!=null) checkArray(structures, 0, db.getExperiment().getStructureCount(), "Invalid structure: ");
         if (positions!=null) checkArray(positions, db.getExperiment().getPositionCount(), "Invalid position: ");
         if (preProcess) { // compare pre processing to template
             ensurePositionAndStructures(true, false);
@@ -564,7 +572,7 @@ public class Task implements ProgressCallback{
             File f= new File(exDir);
             if (!f.exists()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " not found")));
             else if (!f.isDirectory()) errors.addExceptions(new Pair(dbName, new Exception("File: "+ exDir+ " is not a directory")));
-            else if (e.value!=null) checkArray(e.value, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
+            else if (e.value!=null) checkArray(e.value, -1, db.getExperiment().getStructureCount(), "Extract structure for dir: "+e.value+": Invalid structure: ");
         }
         if (!measurements && !preProcess && !segmentAndTrack && ! trackOnly && extractMeasurementDir.isEmpty() &&!generateTrackImages && !exportData && extractDSFile==null && extractRawDSFile==null) errors.addExceptions(new Pair(dbName, new Exception("No action to run!")));
         // check parametrization
@@ -646,9 +654,9 @@ public class Task implements ProgressCallback{
         }
         return errors.isEmpty();
     }
-    private void checkArray(int[] array, int maxValue, String message) {
-        if (array[ArrayUtil.max(array)]>=maxValue) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValue)));
-        if (array[ArrayUtil.min(array)]<0) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
+    private void checkArray(int[] array, int minValueIncl, int maxValueExcl, String message) {
+        if (array[ArrayUtil.max(array)]>=maxValueExcl) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.max(array)]+ " not found, max value: "+maxValueExcl)));
+        if (array[ArrayUtil.min(array)]<minValueIncl) errors.addExceptions(new Pair(dbName, new Exception(message + array[ArrayUtil.min(array)]+ " not found")));
     }
     private void checkArray(List<Integer> array, int maxValue, String message) {
         if (array==null || array.isEmpty()) errors.addExceptions(new Pair(dbName, new Exception(message)));
@@ -681,7 +689,8 @@ public class Task implements ProgressCallback{
             for (int s : structures)  if (!db.getExperiment().experimentStructure.getAllDirectChildStructures(s).isEmpty()) ++gen;
             count+=positionsToProcess*gen;
         }
-        count+=extractMeasurementDir.size();
+        if (extractByPosition) count+=extractMeasurementDir.size() * positionsToProcess;
+        else count+=extractMeasurementDir.size();
         if (this.exportObjects || this.exportPreProcessedImages || this.exportTrackImages) count+=positionsToProcess;
         if (extractDSFile!=null && extractDSFeatures!=null && extractDSSelections!=null) {
             ToIntFunction<String> countPosition = sName -> {
@@ -867,7 +876,7 @@ public class Task implements ProgressCallback{
         
         if (measurements) {
             publish("Measurements...");
-            logger.info("Measurements: DB: {}, Position: {}", dbName, position);
+            logger.info("Measurements: DB: {}, Position: {}", dbName, position);
             Processor.performMeasurements(db.getDao(position), measurementMode, selection, this);
             // process is incremented by method
             //publishMemoryUsage("After Measurements");
@@ -877,15 +886,27 @@ public class Task implements ProgressCallback{
         publish(message+Utils.getMemoryUsage());
     }
     public void extractMeasurements(String dir, int[] structures, List<String > positions) {
-        String file = Paths.get(dir, db.getDBName()+Utils.toStringArray(structures, "_", "", "_")+".csv").toString();
+
         publish("extracting measurements from object class: "+Utils.toStringArray(structures));
-        publish("measurements will be extracted to: "+ file);
+
         Map<Integer, String[]> keys = db.getExperiment().getAllMeasurementNamesByStructureIdx(MeasurementKeyObject.class, structures);
         logger.debug("keys: {}", Utils.toStringList(keys.entrySet()));
         logger.debug("extract read only positions: {}", getPositions().stream().filter(p -> db.getDao(p).isReadOnly()).toArray());
         Selection sel = selectionName == null ? null : db.getSelectionDAO().getOrCreate(selectionName, false);
-        MeasurementExtractor.extractMeasurementObjects(db, file, positions, sel, keys);
-        incrementProgress();
+        if (extractByPosition) {
+            for (String p : positions) {
+                String file = Paths.get(dir, db.getDBName() + Utils.toStringArray(structures, "_", "", "_") + "_p_"+p + ".csv").toString();
+                publish("measurements will be extracted to: " + file);
+                MeasurementExtractor.extractMeasurementObjects(db, file, Collections.singletonList(p), sel, keys);
+                incrementProgress();
+            }
+        } else {
+            String file = Paths.get(dir, db.getDBName() + Utils.toStringArray(structures, "_", "", "_") + ".csv").toString();
+            publish("measurements will be extracted to: " + file);
+            MeasurementExtractor.extractMeasurementObjects(db, file, positions, sel, keys);
+            incrementProgress();
+        }
+
     }
     /*public void exportData() {
         try {

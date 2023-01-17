@@ -160,7 +160,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter dbIncrementSize = new BoundedNumberParameter("Database Increment Size (Mb)", 0, 2, 1, null);
 
     private NumberParameter extractDSCompression = new BoundedNumberParameter("Extract Dataset Compression", 1, 4, 0, 9).setHint("HDF5 compression factor for extracted dataset. 0 = no compression (larger files)");
-
+    private BooleanParameter extractByPosition = new BooleanParameter("Extract By Position", false).setHint("If true, measurement files will be created for each positions");
     private NumberParameter tfPerProcessGpuMemoryFraction = new BoundedNumberParameter("Per Process Gpu Memory Fraction", 5, 0.5, 0.01, 1).setHint("Fraction of the available GPU memory to allocate for each process.\n" +
             "  1 means to allocate all of the GPU memory, 0.5 means the process\n" +
             "  allocates up to ~50% of the available GPU memory.\n" +
@@ -332,6 +332,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         measurementMode.add(measurementModeOnlyNewRadioButton);
         PropertyUtils.setPersistent(measurementMode, "measurement_mode", 0);
         PropertyUtils.setPersistent(testModeJCB, "test_mode", "Simplified");
+
+        PropertyUtils.setPersistent(extractByPosition, "measurementnt_by_position");
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(extractByPosition, measurementOptionMenu);
 
         // db
         PropertyUtils.setPersistent(dbStartSize, "db_size_start");
@@ -1668,7 +1671,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         extractMeasurementMenuItem = new javax.swing.JMenuItem();
         extractSelectionMenuItem = new javax.swing.JMenuItem();
         optionMenu = new javax.swing.JMenu();
-        jMenu2 = new javax.swing.JMenu();
+        measurementOptionMenu = new javax.swing.JMenu();
+        measurementModeMenu = new javax.swing.JMenu();
         measurementModeDeleteRadioButton = new javax.swing.JRadioButtonMenuItem();
         measurementModeOverwriteRadioButton = new javax.swing.JRadioButtonMenuItem();
         measurementModeOnlyNewRadioButton = new javax.swing.JRadioButtonMenuItem();
@@ -2617,21 +2621,21 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         optionMenu.setText("Options");
 
-        jMenu2.setText("Measurements");
+        measurementOptionMenu.setText("Measurements");
 
+        measurementModeMenu.setText("Mode");
+        measurementOptionMenu.add(measurementModeMenu);
         measurementModeDeleteRadioButton.setSelected(true);
         measurementModeDeleteRadioButton.setText("Delete existing measurements before Running Measurements");
-        jMenu2.add(measurementModeDeleteRadioButton);
+        measurementModeMenu.add(measurementModeDeleteRadioButton);
 
-        measurementModeOverwriteRadioButton.setSelected(true);
         measurementModeOverwriteRadioButton.setText("Overwrite measurement");
-        jMenu2.add(measurementModeOverwriteRadioButton);
+        measurementModeMenu.add(measurementModeOverwriteRadioButton);
 
-        measurementModeOnlyNewRadioButton.setSelected(true);
         measurementModeOnlyNewRadioButton.setText("Perform only new measurements");
-        jMenu2.add(measurementModeOnlyNewRadioButton);
+        measurementModeMenu.add(measurementModeOnlyNewRadioButton);
 
-        optionMenu.add(jMenu2);
+        optionMenu.add(measurementOptionMenu);
 
         dataBaseMenu.setText("Database");
 
@@ -3621,13 +3625,17 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             int[] selectedStructures = this.getSelectedStructures(true);
             t = new Task(db);
             t.setStructures(selectedStructures).setPositions(microscopyFields);
-            if (extract) for (int sIdx : selectedStructures) t.addExtractMeasurementDir(db.getDir().toFile().getAbsolutePath(), sIdx);
+            if (extract) {
+                for (int sIdx : selectedStructures) t.addExtractMeasurementDir(db.getDir().toFile().getAbsolutePath(), sIdx);
+                t.setExtractByPosition(extractByPosition.getSelected());
+            }
         } else if (dbName!=null) {
             
             t = new Task(dbName);
             if (extract && t.getDB()!=null) {
                 int[] selectedStructures = ArrayUtil.generateIntegerArray(t.getDB().getExperiment().getStructureCount());
                 for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDir().toFile().getAbsolutePath(), sIdx);
+                t.setExtractByPosition(extractByPosition.getSelected());
             }
             t.getDB().clearCache(); 
         } else return null;
@@ -5099,7 +5107,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JPanel interactiveObjectPanel;
     private javax.swing.JComboBox interactiveStructure;
     private javax.swing.JMenu jMenu1;
-    private javax.swing.JMenu jMenu2;
+    private javax.swing.JMenu measurementOptionMenu, measurementModeMenu;
     private javax.swing.JPopupMenu.Separator jSeparator1;
     private javax.swing.JMenu defaultInteractiveImageMenu;
     private javax.swing.JMenu hyperstackModeImageMenu;
