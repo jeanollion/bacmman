@@ -1378,7 +1378,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         void appendPrediction(Image[][][] predictions, int idx) {
             predictCategories = true; //predictions.length>3;
-            boolean newVersion = predictions[predictions.length-1][0].length == inputWindow * 4; // predictions are concatenated
+            boolean newVersion = predictions[predictions.length-1][0].length == inputWindow * 4 && predictions[predictions.length-2][0].length == inputWindow * 2; // clast output is categories (concatenated for prevs & nexts), and previous output is displacement
             int channelEdmCur = predictions[0][0].length == 1 ? 0 : 1;
             if (newVersion) predictContours = predictions.length == 5;
             else predictContours = (next && predictions.length == 6) || (!next && predictions.length == 5);
