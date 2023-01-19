@@ -1378,11 +1378,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         void appendPrediction(Image[][][] predictions, int idx) {
             predictCategories = true; //predictions.length>3;
-            boolean newVersion = predictions[predictions.length-1][0].length == inputWindow * 4 && predictions[predictions.length-2][0].length == inputWindow * 2; // clast output is categories (concatenated for prevs & nexts), and previous output is displacement
-            int channelEdmCur = predictions[0][0].length == 1 ? 0 : 1;
+            boolean newVersion = predictions[predictions.length-1][0].length == inputWindow * 8; // last output is categories (concatenated for prevs & nexts)
+            //logger.debug("last pre chans: {}, penult: {}, inputWindow: {}", predictions[predictions.length-1][0].length, predictions[predictions.length-2][0].length, inputWindow);
             if (newVersion) predictContours = predictions.length == 5;
             else predictContours = (next && predictions.length == 6) || (!next && predictions.length == 5);
             int inc = predictContours ? 1 : 0;
+            int channelEdmCur = inputWindow;
             int n = predictions[0].length;
             System.arraycopy(ResizeUtils.getChannel(predictions[0], channelEdmCur), 0, this.edmC, idx, n);
             if (predictContours)
@@ -1391,6 +1392,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             System.arraycopy(ResizeUtils.getChannel(predictions[2 + inc], inputWindow-1), 0, this.dxC, idx, n);
             if (predictCategories) {
                 int catInc = (inputWindow-1)*4; // predicted channels are background/normal cell/divided/no previous
+                //logger.debug("number of outputs: {}, new version: {} predict contours: {}", predictions.length, newVersion, predictContours);
                 System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 2+catInc), 0, this.divMap, idx, n);
                 System.arraycopy(ResizeUtils.getChannel(predictions[3 + inc], 3+catInc), 0, this.noPrevMap, idx, n);
             }
