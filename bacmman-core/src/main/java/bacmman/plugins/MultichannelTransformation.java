@@ -29,7 +29,7 @@ public interface MultichannelTransformation extends Transformation {
      * SINGLE: only one channel that can be configured
      * MULTIPLE : several channels that can be configured
      * ALL: all channels
-     * SAME: same channel as input channels. Transformation must be configurable for this mode, if not error will be throwns
+     * SAME: same channel as input channels. Transformation must be configurable for this mode, otherwise error will be thrown
      * @return 
      */
     public OUTPUT_SELECTION_MODE getOutputChannelSelectionMode();
