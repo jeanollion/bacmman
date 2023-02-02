@@ -28,10 +28,14 @@ import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
 /**
  *
  * @author Jean Ollion
@@ -188,27 +192,29 @@ public class InputImagesImpl implements InputImages {
     public void applyTranformationsAndSave(boolean close, boolean tempCheckPoint) {
         long tStart = System.currentTimeMillis();
         // start with modified channels
-        List<Integer> modifiedChannels = IntStream.range(0, getChannelNumber()).filter(c -> IntStream.range(0, imageCT[c].length).anyMatch(f -> imageCT[c][f].modified())).mapToObj(c->c).sorted().collect(Collectors.toList());
-        List<Integer> unmodifiedChannels = IntStream.range(0, getChannelNumber()).filter(c -> !modifiedChannels.contains(c)).mapToObj(c->c).sorted().collect(Collectors.toList());
+        List<Integer> modifiedChannels = IntStream.range(0, getChannelNumber()).filter(c -> IntStream.range(0, imageCT[c].length).anyMatch(f -> imageCT[c][f].modified())).mapToObj(c->c).sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+        List<Integer> unmodifiedChannels = IntStream.range(0, getChannelNumber()).filter(c -> !modifiedChannels.contains(c)).mapToObj(c->c).sorted(Comparator.reverseOrder()).collect(Collectors.toList());
         List<Integer> allChannels = new ArrayList<>(getChannelNumber());
         allChannels.addAll(modifiedChannels);
         allChannels.addAll(unmodifiedChannels);
         logger.debug("modified channels: {} unmodified: {}", modifiedChannels, unmodifiedChannels);
         allChannels.stream().forEachOrdered(c -> {
             InputImage[] imageF = imageCT[c];
-            Consumer<Integer> ex = f-> {
-                if (!tempCheckPoint || ((imageF[f].imageOpened() || imageF[f].hasHighMemoryTransformations()) && (imageF[f].modified() || imageF[f].hasTransformations()) )) {
+            Consumer<Integer> ex = f -> {
+                if (!tempCheckPoint || ((imageF[f].imageOpened() || imageF[f].hasHighMemoryTransformations() || imageF[f].hasApplyDirectlyTransformations()) && (imageF[f].modified() || imageF[f].hasTransformations()))) {
                     imageF[f].getImage();
                     imageF[f].saveImage(tempCheckPoint);
                 }
                 if (close) imageF[f].flush();
             };
             ThreadRunner.parallelExecutionBySegments(ex, 0, imageF.length, 100);
-            logger.debug("after applying transformation for channel: {} ", c, Utils.getMemoryUsage());
+            logger.debug("after applying transformation for channel: {} -> {}", c, Utils.getMemoryUsage());
         });
-        
+        if (close) { // in case some image have been re-opened by the process of other channels -> close them
+            allChannels.stream().forEachOrdered(c -> Arrays.stream(imageCT[c]).filter(InputImage::imageOpened).forEach(InputImage::flush));
+        }
         long tEnd = System.currentTimeMillis();
-        logger.debug("apply transformation & save: total time: {}, for {} time points and {} channels", tEnd-tStart, getFrameNumber(), getChannelNumber() );
+        logger.debug("apply transformation & {} save: total time: {}, for {} time points and {} channels", tempCheckPoint ? "temp":"", tEnd-tStart, getFrameNumber(), getChannelNumber() );
     }
 
     private void freeMemory(int maxFrame) {

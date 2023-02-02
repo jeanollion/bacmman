@@ -164,7 +164,7 @@ public class Processor {
                 if (pcb!=null) pcb.incrementSubTask();
             }
             images.addTransformation(tpp.getInputChannel(), tpp.getOutputChannels(), transfo);
-            if (i<transfos.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // copyTo is a special case where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
+            if (i<transfos.size()-1 && (Utils.getMemoryUsageProportion()>memoryLimit || transfo instanceof TransformationApplyDirectly)) { // TransformationApplyDirectly plugins are cases where keeping a copy of all the images can be too expensive in memory so applyTransformation must be called directly after computeConfigurationData
                 //if (pcb!=null) pcb.log(Utils.getMemoryUsage() + "limit is set to "+memoryLimit+" -> saving temporarily images to disk");
                 logger.debug("{} -> performing temp save & close", Utils.getMemoryUsage());
                 images.applyTranformationsAndSave(true, true);

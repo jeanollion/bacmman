@@ -76,6 +76,7 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
         Image otherImage = ii.getImage(otherChannel.getSelectedIndex(), timePoint);
+        //logger.debug("mix channels @ chan: {}+{} tp: {}, bds: {} other bds: {}", channelIdx, otherChannel.getSelectedIndex(), timePoint, image.getBoundingBox(), otherImage.getBoundingBox());
         if (!scalePerFrame.getSelected()) {
             if (otherScalerInstance!=null) otherImage = otherScalerInstance.scale(otherImage);
             if (scalerInstance!=null) image = scalerInstance.scale(image);

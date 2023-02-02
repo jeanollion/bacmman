@@ -361,8 +361,8 @@ public class ArrayUtil {
         return out.getPixelArray()[0];
     }
     
-    public static double[] subset(double[] data, int idxStart, int idxStop) {
-        double[] res = new double[idxStop-idxStart];
+    public static double[] subset(double[] data, int idxStart, int idxStopExcl) {
+        double[] res = new double[idxStopExcl-idxStart];
         System.arraycopy(data, idxStart, res, 0, res.length);
         return res;
     }

@@ -100,7 +100,7 @@ public class SimpleCrop implements MultichannelTransformation, Hint {
             currentBounds.setxMax(xLength.getValue().intValue()==0 ? bb.xMax() : currentBounds.xMin()+xLength.getValue().intValue()-1);
             currentBounds.setyMax(yLength.getValue().intValue()==0 ? bb.yMax() : currentBounds.yMin()+yLength.getValue().intValue()-1);
             currentBounds.setzMax(zLength.getValue().intValue()==0 ? bb.zMax() : currentBounds.zMin()+zLength.getValue().intValue()-1);
-            logger.debug("simple crop bounds: {}", currentBounds);
+            //logger.debug("simple crop bounds: {}", currentBounds);
             currentBounds.trim(bb);
             return currentBounds;
         }

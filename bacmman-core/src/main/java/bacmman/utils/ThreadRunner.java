@@ -432,7 +432,7 @@ public class ThreadRunner {
         for (int s = 0;s<n; ++s) {
             int min = s*window + minIdx;
             int max = s==n-1 ? maxIdxExcl :  (s+1) * window + minIdx;
-            logger.debug("parallel ex by segment: [{}; {}[ € [{}; {}[", min, max, minIdx, maxIdxExcl);
+            //logger.debug("parallel ex by segment: [{}; {}[ € [{}; {}[", min, max, minIdx, maxIdxExcl);
             IntStream.range(min, max).parallel().forEach(action::accept);
         }
     }
