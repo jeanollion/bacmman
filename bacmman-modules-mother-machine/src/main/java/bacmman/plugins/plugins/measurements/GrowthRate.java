@@ -53,12 +53,13 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
     protected PluginParameter<GeometricalFeature> feature = new PluginParameter<>("Feature", GeometricalFeature.class, new Size(), false).setHint("Geometrical Feature of object used to estimate the size of a bacterium in order to compute the Growth Rate");
     protected BooleanParameter wholeCycle = new BooleanParameter("Whole Cycle", true).setHint("If true, growth rate is computed on the whole cycle, otherwise on a sliding window");
     protected BoundedNumberParameter slidingWindow = new BoundedNumberParameter("Sliding Window", 0, 2, 1, null).setHint("Size of sliding window W: for each cycle in frames [F, F+N] growth rate will be computed at each frame f € [F+W, F+N-W] within the sliding window [f-W, f+W]");
+    protected BooleanParameter fillEdges = new BooleanParameter("Fill Edges", false).setHint("If true, for each cycle, NA values at start and end of cycle are replaced by the nearest non-NA value");
     protected BoundedNumberParameter minCells = new BoundedNumberParameter("Minimum cell number", 0, 3, 2, null).setHint("Set here the minimum number of cell per generation to compute growth rate. NA is returned for generations with fewer cells than the value of this parameter");
     protected BooleanParameter saveSizeAtDiv = new BooleanParameter("Save Size at Birth", false).setHint("Whether the estimated size at birth should be saved or not");
 
     protected ConditionalParameter<Boolean> wholeCycleCond = new ConditionalParameter<>(wholeCycle)
             .setActionParameters(true, minCells, saveSizeAtDiv)
-            .setActionParameters(false, slidingWindow);
+            .setActionParameters(false, slidingWindow, fillEdges);
 
     protected TextParameter suffix = new TextParameter("Suffix", "", false).setHint("Suffix added to measurement name (column name in the extracted table)");
     protected BooleanParameter saveFeature = new BooleanParameter("Save Feature", false);
@@ -130,6 +131,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
         long t3 = System.currentTimeMillis();
         boolean wholeCycle = this.wholeCycle.getSelected();
         int minCells = wholeCycle ? this.minCells.getValue().intValue() : slidingWindow.getIntValue()*2+1;
+        String key = "GrowthRate" + suffix;
         Utils.parallel(bacteriaTracks.values().stream(), true).forEach(l-> {
             if (l.size()>=minCells) {
                 double[] frame = new double[l.size()];
@@ -143,7 +145,7 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
                 if (wholeCycle) {
                     double[] beta = LinearRegression.run(frame, length);
                     for (SegmentedObject b : l) {
-                        b.getMeasurements().setValue("GrowthRate" + suffix, beta[1]);
+                        b.getMeasurements().setValue(key, beta[1]);
                         if (saveSizeDiv) b.getMeasurements().setValue("SizeAtBirth" + suffix, Math.exp(beta[0]));
                         if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b)));
                     }
@@ -151,18 +153,27 @@ public class GrowthRate implements Measurement, MultiThreaded, Hint {
                     int w = slidingWindow.getIntValue();
                     for (int i = 0; i<l.size(); ++i) {
                         SegmentedObject b = l.get(i);
-                        if (i<w || i>=l.size()-w) b.getMeasurements().setValue("GrowthRate" + suffix, null);
-                        else {
+                        if (i<w || i>=l.size()-w) {
+                            if (!fillEdges.getSelected()) b.getMeasurements().setValue(key, null);
+                        } else {
                             double[] frameSub = ArrayUtil.subset(frame, i-w, i+w+1);
                             double[] lengthSub = ArrayUtil.subset(length, i-w, i+w+1);
                             double[] beta = LinearRegression.run(frameSub, lengthSub);
-                            b.getMeasurements().setValue("GrowthRate" + suffix, beta[1]);
+                            b.getMeasurements().setValue(key, beta[1]);
+                        }
+                    }
+                    if (fillEdges.getSelected()) {
+                        for (int i = 0; i<w; ++i) {
+                            l.get(i).getMeasurements().setValue(key, (Number)l.get(w).getMeasurements().getValue(key));
+                        }
+                        for (int i = l.size()-w; i<l.size(); ++i) {
+                            l.get(i).getMeasurements().setValue(key, (Number)l.get(l.size()-w-1).getMeasurements().getValue(key));
                         }
                     }
                 }
             } else {
                 for (SegmentedObject b : l) {
-                    b.getMeasurements().setValue("GrowthRate"+suffix, null );  // erase values
+                    b.getMeasurements().setValue(key, null );  // erase values
                     if (wholeCycle && saveSizeDiv) b.getMeasurements().setValue("SizeAtBirth"+suffix, null );  // erase values
                     if (feat) b.getMeasurements().setValue(featKey, Math.exp(logLengthMap.get(b))); 
                 }
