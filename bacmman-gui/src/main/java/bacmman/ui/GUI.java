@@ -311,7 +311,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
@@ -919,6 +919,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
             importMenu.add(openTrackMateMenuItem);
         }
+        exportCTCMenuItem.setText("Export Cell Tracking Challenge");
+        exportCTCMenuItem.addActionListener(e -> {
+            if (checkConnection()) {
+                String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
+                if (dir != null) {
+                    ExportCellTrackingChallenge.export(db, dir, 0);
+                }
+            }
+        });
+        this.importMenu.add(exportCTCMenuItem);
         // sample datasets
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
@@ -1660,6 +1670,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         openTrackMateMenuItem = new javax.swing.JMenuItem();
         onlineConfigurationLibraryMenuItem = new javax.swing.JMenuItem();
         onlineDLModelLibraryMenuItem = new javax.swing.JMenuItem();
+        exportCTCMenuItem = new javax.swing.JMenuItem();
         deleteXPMenuItem = new javax.swing.JMenuItem();
         duplicateXPMenuItem = new javax.swing.JMenuItem();
         saveConfigMenuItem = new javax.swing.JMenuItem();
@@ -5140,6 +5151,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu sampleDatasetMenu;
     private javax.swing.JMenu motherMachineDatasetMenu;
     private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
+    private javax.swing.JMenuItem exportCTCMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;
