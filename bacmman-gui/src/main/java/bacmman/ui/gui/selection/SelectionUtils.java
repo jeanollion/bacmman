@@ -21,8 +21,9 @@ package bacmman.ui.gui.selection;
 import bacmman.data_structure.Selection;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.SelectionOperations;
 import bacmman.ui.GUI;
-import static bacmman.ui.GUI.logger;
+
 import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import bacmman.ui.gui.image_interaction.*;
@@ -40,10 +41,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.DefaultListModel;
@@ -56,16 +54,17 @@ import javax.swing.JPopupMenu;
 import javax.swing.JSeparator;
 import javax.swing.SwingUtilities;
 
-import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
 public class SelectionUtils {
-
+    public static final Logger logger = LoggerFactory.getLogger(SelectionUtils.class);
     public static boolean validSelectionName(MasterDAO db, String name) {
         if (!Utils.isValid(name, false)) {
             logger.error("Name should not contain special characters");
@@ -78,7 +77,7 @@ public class SelectionUtils {
         }
         if (db.getSelectionDAO()==null) return false;
         List<Selection> sel = db.getSelectionDAO().getSelections();
-        return !Utils.transform(sel, s->s.getName()).contains(name);
+        return !Utils.transform(sel, Selection::getName).contains(name);
     }
     
     public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, List<Selection> selections) {
@@ -91,166 +90,17 @@ public class SelectionUtils {
         for (Selection s : selections) allStrings.addAll(s.getElementStrings(fieldName));
         return Pair.unpairKeys(getSegmentedObjects(i, allStrings));
     }
-    public static Selection union(String name, Collection<Selection> selections) {
-        if (selections.isEmpty()) return new Selection();
-        Selection model = selections.iterator().next();
-        selections.removeIf(s->s.getStructureIdx()!=model.getStructureIdx());
-        HashMapGetCreate<String, Set<String>> elByPos = new HashMapGetCreate(new HashMapGetCreate.SetFactory());
-        for (Selection sel : selections) {
-            for (String pos : sel.getAllPositions()) elByPos.getAndCreateIfNecessary(pos).addAll(sel.getElementStrings(pos));
-        }
-        Selection res = new Selection(name,model.getStructureIdx(), model.getMasterDAO()); //"union:"+Utils.toStringList(selections, s->s.getName())
-        for (Entry<String, Set<String>> e : elByPos.entrySet()) res.addElements(e.getKey(), e.getValue());
-        return res;
-    }
-    public static Selection intersection(String name, Selection... selections) {
-        return intersection(name, Arrays.asList(selections));
-    }
-    public static Selection intersection(String name, Collection<Selection> selections) {
-        if (selections.isEmpty()) return new Selection();
-        Selection model = selections.iterator().next();
-        selections.removeIf(s->s.getStructureIdx()!=model.getStructureIdx());
-        Set<String> allPos = new HashSet<>();
-        allPos.addAll(model.getAllPositions());
-        for (Selection s : selections) allPos.retainAll(s.getAllPositions());
-        HashMapGetCreate<String, Set<String>> elByPos = new HashMapGetCreate(new HashMapGetCreate.SetFactory());
-        for (String p : allPos) elByPos.put(p, new HashSet<>(model.getElementStrings(p)));
-        for (Selection s : selections) {
-            if (s.equals(model)) continue;
-            for (String p : allPos) elByPos.get(p).retainAll(s.getElementStrings(p));
-        }
-        Selection res = new Selection(name,model.getStructureIdx(), model.getMasterDAO()); //"intersection:"+Utils.toStringList(selections, s->s.getName())
-        for (Entry<String, Set<String>> e : elByPos.entrySet()) res.addElements(e.getKey(), e.getValue());
-        return res;
-    }
-    public static void removeAll(Selection sel, Selection... selections) {
-        if (sel.getStructureIdx()==-2) return;
-        for (String pos:new ArrayList<>(sel.getAllPositions())) {
-            Arrays.stream(selections)
-                    .filter(s -> s.getStructureIdx() == sel.getStructureIdx() && s.getAllPositions().contains(pos))
-                    .forEach(s -> sel.removeAll(pos, s.getElementStrings(pos)));
-        }
-    }
-    
-    public static List<String> getElements(List<Selection> selections, String fieldName) {
-        if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
-        List<String> res=  new ArrayList<>();
-        if (fieldName!=null) for (Selection s : selections) {
-            res.addAll(s.getElementStrings(fieldName));
-        } else for (Selection s : selections) {
-            if (s.getAllElementStrings()!=null) res.addAll(s.getAllElementStrings());
-        }
-        return res;
-    }
-    
-    public static List<SegmentedObject> getSegmentedObjects(List<Selection> selections, String fieldName) {
-        if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
-        List<SegmentedObject> res=  new ArrayList<>();
-        if (fieldName!=null) for (Selection s : selections) {
-            if (s.getElements(fieldName)!=null) res.addAll(s.getElements(fieldName));
-        } else for (Selection s : selections) {
-            if (s.getAllElements()!=null) res.addAll(s.getAllElements());
-        }
-        return res;
-    }
-    
-    public static Map<String, List<SegmentedObject>> getSegmentedObjects(List<Selection> selections) {
-        if (selections==null || selections.isEmpty()) return Collections.EMPTY_MAP;
-        selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());
-        HashMapGetCreate<String, List<SegmentedObject>> res=  new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
-        for (Selection s : selections) {
-            for (String p : s.getAllPositions()) res.getAndCreateIfNecessary(p).addAll(s.getElements(p));
-        }
-        return res;
-    }
-    public static Set<String> getPositions(List<Selection> selections) {
-        Set<String> res = new HashSet<>();
-        for (Selection s: selections) res.addAll(s.getAllPositions());
-        return res;
-    }
-    public static String getNextPosition(Selection selection, String position, boolean next, Predicate<String> positionValid) {
-        String p = position;
-        while(true) {
-            p = getNextPosition(selection, p, next);
-            if (p==null) return null;
-            if (positionValid.test(p)) return p;
-        }
-    }
-    public static String getNextPosition(Selection selection, String position, boolean next) {
-        List<String> p = new ArrayList<>(selection.getAllPositions());
-        if (p.isEmpty()) return null;
-        Collections.sort(p);
-        int idx = position ==null ? -1 : Collections.binarySearch(p, position);
-        logger.debug("getNext pos: {}, cur: {}, idx: {}", p, position, idx);
-        if (idx==-1) {
-            if (next) return p.get(0);
-            else return null;
-        } else if (idx<0) {
-            idx = -idx-1;
-            if (!next) {
-                if (idx>0) idx--;
-                else return null;
-            }
-            if (idx>=p.size()) return next ? p.get(0) : p.get(p.size()-1);
-        } else {
-            if (next) {
-                if (idx==p.size()-1) return null;
-                else idx += 1;
-            } else {
-                if (idx>0) idx--;
-                else return null;
-            }
-        }
-        return p.get(idx);
-    }
+
     public static Collection<Pair<SegmentedObject, BoundingBox>> getSegmentedObjects(InteractiveImage i, Collection<String> indices) {
         if (i instanceof HyperStack) {
             // need to get objects from all frames of selection
             HyperStack h = (HyperStack)i;
             Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
             List<Pair<SegmentedObject, BoundingBox>> objects = frames.flatMap(frame -> h.getObjects(frame).stream()).collect(Collectors.toList());
-            return filterPairs(objects, indices);
-        } else return filterPairs(i.getObjects(), indices);
+            return SelectionOperations.filterPairs(objects, indices);
+        } else return SelectionOperations.filterPairs(i.getObjects(), indices);
     }
-    public static Collection<Pair<SegmentedObject, BoundingBox>> filterPairs(List<Pair<SegmentedObject, BoundingBox>> objects, Collection<String> indices) {
-        //Utils.removeDuplicates(objects, o->Selection.indicesString(o.key)); // remove duplicate labels. should not occur
-        Map<String, Pair<SegmentedObject, BoundingBox>> map = objects.stream().collect(Collectors.toMap(o->Selection.indicesString(o.key), o->o));
-        map.keySet().retainAll(indices);
-        return map.values();
-    }
-    public static Collection<SegmentedObject> filter(Stream<SegmentedObject> objects, Collection<String> indices) {
-        //Map<String, StructureObject> map = new HashMap<>(objects.size());
-        //for (StructureObject o : objects) map.put(Selection.indicesString(o), o);
-        Map<String, SegmentedObject> map = objects.collect(Collectors.toMap(o->Selection.indicesString(o), o->o));
-        map.keySet().retainAll(indices);
-        return map.values();
-    }
-    public static List<SegmentedObject> getParents(Selection sel, String position, MasterDAO db) {
-        List<String> parentStrings = Utils.transform(sel.getElementStrings(position), s->Selection.getParent(s));
-        Utils.removeDuplicates(parentStrings, false);
-        return new ArrayList<>(SelectionUtils.filter(SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), db.getExperiment().getStructure(sel.getStructureIdx()).getParentStructure()), parentStrings));
-    }
-    public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, MasterDAO db) {
-        List<SegmentedObject> parents = SelectionUtils.getParents(sel, position, db);
-        parents = Utils.transform(parents, o -> o.getTrackHead());
-        Utils.removeDuplicates(parents, false);
-        return parents;
-    }
-    public static List<SegmentedObject> getParents(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
-        if (!(db.getExperiment().experimentStructure.isChildOf(parentStructureIdx, sel.getStructureIdx())||parentStructureIdx==sel.getStructureIdx())) return Collections.EMPTY_LIST;
-        int[] path = db.getExperiment().experimentStructure.getPathToStructure(parentStructureIdx, sel.getStructureIdx());
-        List<String> parentStrings = parentStructureIdx!=sel.getStructureIdx()?Utils.transform(sel.getElementStrings(position), s->Selection.getParent(s, path.length)):new ArrayList<>(sel.getElementStrings(position));
-        Utils.removeDuplicates(parentStrings, false);
-        logger.debug("get parent sel: path: {}, parent strings: {}", path, parentStrings);
-        Stream<SegmentedObject> allObjects = SegmentedObjectUtils.getAllObjectsAsStream(db.getDao(position), parentStructureIdx);
-        return new ArrayList<>(SelectionUtils.filter(allObjects, parentStrings));
-    }
-    public static List<SegmentedObject> getParentTrackHeads(Selection sel, String position, int parentStructureIdx, MasterDAO db) {
-        List<SegmentedObject> parents = SelectionUtils.getParents(sel, position, parentStructureIdx, db);
-        return parents.stream().map(p->p.getTrackHead()).distinct().collect(Collectors.toList());
-    }
+
     public static InteractiveImage fixIOI(InteractiveImage i, int structureIdx) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         if (i!=null && i.getChildStructureIdx()!=structureIdx) {
@@ -264,7 +114,7 @@ public class SelectionUtils {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         i = fixIOI(i, s.getStructureIdx());
         if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
             //Set<StructureObject> objects = s.getElements(StructureObjectUtils.getPositions(i.getParents()));
             //logger.debug("disp objects: #positions: {}, #objects: {}", StructureObjectUtils.getPositions(i.getParents()).size(), objects.size() );
             if (objects!=null) {
@@ -279,7 +129,7 @@ public class SelectionUtils {
         i = fixIOI(i, s.getStructureIdx());
         if (i!=null) {
             //Set<StructureObject> objects = s.getElements(StructureObjectUtils.getPositions(i.getParents()));
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
             if (objects!=null) {
                 iwm.hideObjects(null, objects, false);
                 //iwm.hideObjects(null, i.pairWithOffset(objects), false);
@@ -290,7 +140,7 @@ public class SelectionUtils {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         i = fixIOI(i, s.getStructureIdx());
         if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
             List<SegmentedObject> tracks = Pair.unpairKeys(objects);
             tracks.removeIf(o->!o.isTrackHead());
             if (tracks.isEmpty()) return;
@@ -304,7 +154,7 @@ public class SelectionUtils {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         i = fixIOI(i, s.getStructureIdx());
         if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
             List<SegmentedObject> tracks = Pair.unpairKeys(objects);
             tracks.removeIf(o->!o.isTrackHead());
             if (tracks.isEmpty()) return;
@@ -589,7 +439,7 @@ public class SelectionUtils {
             union.addActionListener((ActionEvent e) -> {
                 String name = JOptionPane.showInputDialog("Union Selection name:");
                 if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                    Selection unionSel = SelectionUtils.union(name, selectedValues);
+                    Selection unionSel = SelectionOperations.union(name, selectedValues);
                     unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
                     GUI.getInstance().populateSelections();
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -604,7 +454,7 @@ public class SelectionUtils {
             union.addActionListener((ActionEvent e) -> {
                 String name = JOptionPane.showInputDialog("Union Selection name:");
                 if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                    Selection interSel = SelectionUtils.intersection(name, selectedValues);
+                    Selection interSel = SelectionOperations.intersection(name, selectedValues);
                     interSel.getMasterDAO().getSelectionDAO().store(interSel);
                     GUI.getInstance().populateSelections();
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
@@ -623,7 +473,7 @@ public class SelectionUtils {
             for (Selection sel : selDiff) {
                 JMenuItem diff = new JMenuItem(sel.getName());
                 diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
-                    SelectionUtils.removeAll(s, sel);
+                    SelectionOperations.removeAll(s, sel);
                     s.getMasterDAO().getSelectionDAO().store(s);
                     GUI.updateRoiDisplayForSelections(null, null);
                     GUI.getInstance().resetSelectionHighlight();
@@ -635,6 +485,7 @@ public class SelectionUtils {
         }
         return menu;
     }
+
     public static void addCurrentObjectsToSelections(Collection<Selection> selections, SelectionDAO dao) {
         if (selections.isEmpty()) return;
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
@@ -646,6 +497,7 @@ public class SelectionUtils {
             dao.store(s);
         }
     }
+
     public static void removeCurrentObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao) {
         List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
         for (Selection s : selections ) {
@@ -656,6 +508,7 @@ public class SelectionUtils {
             dao.store(s);
         }
     }
+
     public static void removeAllCurrentImageObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao) {
         InteractiveImage ioi = ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface();
         if (ioi==null) return;

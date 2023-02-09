@@ -6,6 +6,7 @@ import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.selection.SelectionRenderer;
 import bacmman.utils.Triplet;
@@ -193,7 +194,7 @@ public class ExtractDataset extends JDialog {
         )).collect(Collectors.toList());
         int[] dims = new int[]{outputShape.getArrayInt()[1], outputShape.getArrayInt()[0]};
         int[] eraseContoursOC = this.eraseTouchingContours.getActivatedChildren().stream().mapToInt(ObjectClassOrChannelParameter::getSelectedClassIdx).toArray();
-        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC);
+        resultingTask.setExtractDS(outputFile.getFirstSelectedFilePath(), sels, features, dims, eraseContoursOC, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
 
         dispose();
     }

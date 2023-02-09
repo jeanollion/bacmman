@@ -21,13 +21,6 @@
             <artifactId>jhdf5</artifactId>
             <version>19.04.1</version>
         </dependency>
-        <dependency>
-            <groupId>com.github.jeanollion.bacmman</groupId>
-            <artifactId>bacmman-gui</artifactId>
-            <version>3.4.0</version>
-            <scope>compile</scope>
-        </dependency>
-
     </dependencies>
 
 </project>

@@ -20,13 +20,8 @@ package bacmman.ui.gui.objects;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.ProgressCallback;
-import bacmman.data_structure.Selection;
-import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.data_structure.*;
 import bacmman.ui.ManualEdition;
-import bacmman.ui.gui.configuration.ConfigurationTreeModel;
-import bacmman.ui.gui.selection.SelectionUtils;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.ui.GUI;
@@ -111,7 +106,7 @@ public class TrackTreeGenerator {
             if (GUI.getInstance()==null) return Collections.EMPTY_SET;
             for (Selection s: GUI.getInstance().getSelections()) {
                 if (s.isHighlightingTracks() && (db.getExperiment().experimentStructure.isChildOf(getStructureIdx(), s.getStructureIdx()) || getStructureIdx()==s.getStructureIdx() )) {
-                    List<SegmentedObject> parents = SelectionUtils.getParentTrackHeads(s, position, getStructureIdx(), db);
+                    List<SegmentedObject> parents = SelectionOperations.getParentTrackHeads(s, position, getStructureIdx(), db);
                     GUI.logger.debug("highlight: parents for sel: {} structure: {}, eg:{}, tot: {}", s.getName(), getStructureIdx(), parents.isEmpty()?null:parents.get(0), parents.size());
                     if (!parents.isEmpty()) highlightedObjects.getAndCreateIfNecessary(position).addAll(parents);
                 }

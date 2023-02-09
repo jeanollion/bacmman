@@ -89,6 +89,7 @@ public class Task implements ProgressCallback{
         SimpleBoundingBox extractDSRawBounds;
         Map<String, List<Integer>> extractDSRawPositionMapFrames;
         int[] extractDSRawChannels;
+        int extractDSCompression = 4;
         ExtractZAxis extractZAxis = ExtractZAxis.IMAGE3D;
         int extractZAxisPlaneIdx;
         boolean extractByPosition;
@@ -123,6 +124,7 @@ public class Task implements ProgressCallback{
             if (extractDSFile!=null && extractDSSelections!=null && !extractDSSelections.isEmpty() && extractDSFeatures !=null && !extractDSFeatures.isEmpty()) {
                 JSONObject extractDS = new JSONObject();
                 extractDS.put("outputFile", extractDSFile);
+                extractDS.put("compression", extractDSCompression);
                 JSONArray extractDSSels = new JSONArray();
                 for (String s : extractDSSelections) extractDSSels.add(s);
                 extractDS.put("selections", extractDSSels);
@@ -146,6 +148,7 @@ public class Task implements ProgressCallback{
                 JSONObject extractRawDS = new JSONObject();
                 extractRawDS.put("outputFile", extractRawDSFile);
                 extractRawDS.put("channels", JSONUtils.toJSONArray(extractDSRawChannels));
+                extractRawDS.put("compression", extractDSCompression);
                 if (extractDSRawBounds!=null) extractRawDS.put("bounds", extractDSRawBounds.toJSONEntry());
                 JSONObject pf = new JSONObject();
                 for (String p : extractDSRawPositionMapFrames.keySet()) pf.put(p, JSONUtils.toJSONArray(extractDSRawPositionMapFrames.get(p)));
@@ -194,6 +197,7 @@ public class Task implements ProgressCallback{
             if (data.containsKey("extractDataset")) {
                 JSONObject extractDS = (JSONObject)data.get("extractDataset");
                 extractDSFile = (String)extractDS.get("outputFile");
+                extractDSCompression = ((Number)extractDS.get("compression")).intValue();
                 JSONArray sels = (JSONArray)extractDS.get("selections");
                 extractDSSelections = new ArrayList<>(sels.size());
                 for (Object s : sels) extractDSSelections.add((String)s);
@@ -216,6 +220,7 @@ public class Task implements ProgressCallback{
             if (data.containsKey("extractRawDataset")) {
                 JSONObject extractRawDS = (JSONObject)data.get("extractRawDataset");
                 extractRawDSFile = (String)extractRawDS.get("outputFile");
+                extractDSCompression = ((Number)extractRawDS.get("compression")).intValue();
                 extractDSRawChannels = JSONUtils.fromIntArray((JSONArray)extractRawDS.get("channels"));
                 if (extractRawDS.containsKey("bounds")) {
                     extractDSRawBounds = new SimpleBoundingBox();
@@ -397,7 +402,7 @@ public class Task implements ProgressCallback{
     public int getExtractRawZAxisPlaneIdx() {return extractZAxisPlaneIdx; }
     public Map<String, List<Integer>> getExtractRawDSFrames() {return extractDSRawPositionMapFrames;}
     public int[] getExtractRawDSChannels() {return extractDSRawChannels;}
-
+    public int getExtractDSCompression() {return extractDSCompression;}
     public Task setAllActions() {
         this.preProcess=true;
         this.segmentAndTrack=true;
@@ -441,21 +446,23 @@ public class Task implements ProgressCallback{
         this.generateTrackImages=generateTrackImages;
         return this;
     }
-    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC) {
+    public Task setExtractDS(String extractDSFile, List<String> extractDSSelections, List<FeatureExtractor.Feature> extractDS, int[] dimensions, int[] eraseTouchingContoursOC, int compression) {
         this.extractDSFile = extractDSFile;
         this.extractDSSelections = extractDSSelections;
         this.extractDSFeatures = extractDS;
         this.extractDSDimensions = dimensions;
         this.extractDSEraseTouchingContoursOC = eraseTouchingContoursOC;
+        this.extractDSCompression = compression;
         return this;
     }
-    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames) {
+    public Task setExtractRawDS(String extractDSFile, int[] channels, SimpleBoundingBox bounds, ExtractZAxis zAxis, int zAxisPlaneIdx, Map<String, List<Integer>> positionMapFrames, int compression) {
         this.extractRawDSFile = extractDSFile;
         this.extractDSRawPositionMapFrames = positionMapFrames;
         this.extractDSRawBounds = bounds;
         this.extractDSRawChannels = channels;
         this.extractZAxis = zAxis;
         this.extractZAxisPlaneIdx = zAxisPlaneIdx;
+        this.extractDSCompression = compression;
         return this;
     }
     /*public Task setExportData(boolean preProcessedImages, boolean trackImages, boolean objects, boolean config, boolean selections) {

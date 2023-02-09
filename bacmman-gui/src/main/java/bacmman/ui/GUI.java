@@ -25,8 +25,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.ParameterUI;
 import bacmman.configuration.parameters.ui.ParameterUIBinder;
 import bacmman.core.*;
-import bacmman.data_structure.Selection;
-import bacmman.data_structure.SegmentedObjectEditor;
+import bacmman.data_structure.*;
 import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
@@ -39,20 +38,17 @@ import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
 import bacmman.ui.gui.selection.SelectionUtils;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.measurement.MeasurementExtractor;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.measurement.SelectionExtractor;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 
 import static bacmman.data_structure.SegmentedObjectUtils.*;
+import static bacmman.plugins.PluginFactory.getClasses;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 
 import bacmman.ui.gui.selection.SelectionRenderer;
-import bacmman.data_structure.Processor;
 import bacmman.data_structure.Processor.MEASUREMENT_MODE;
-import bacmman.data_structure.MasterDAOFactory;
 import bacmman.ui.gui.configuration.TransparentListCellRenderer;
 import bacmman.image.Image;
 
@@ -919,16 +915,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
             importMenu.add(openTrackMateMenuItem);
         }
-        exportCTCMenuItem.setText("Export Cell Tracking Challenge");
+        exportCTCMenuItem.setText("Export Cell Tracking Benchmark");
         exportCTCMenuItem.addActionListener(e -> {
             if (checkConnection()) {
                 String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
                 if (dir != null) {
-                    ExportCellTrackingChallenge.export(db, dir, 0);
+                    ExportCellTrackingBenchmark.export(db, dir, 0);
                 }
             }
         });
-        this.importMenu.add(exportCTCMenuItem);
+        try { // check if ctb module is present
+            if (getClasses("bacmman.ui").stream().anyMatch(c->c.getSimpleName().equals("ExportCellTrackingBenchmark"))) this.importMenu.add(exportCTCMenuItem);
+        } catch (IOException | ClassNotFoundException e) { }
+
         // sample datasets
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
@@ -3123,7 +3122,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (nextPosition || position==null) {
                 String[] allPos = db.getExperiment().getPositionsAsString();
                 Predicate<String> insideXP = p -> p!=null && Arrays.stream(allPos).anyMatch(pp->pp.equals(p));
-                position = SelectionUtils.getNextPosition(sel, position, next, p->insideXP.test(p) && sel.hasElementsAt(p));
+                position = SelectionOperations.getNextPosition(sel, position, next, p->insideXP.test(p) && sel.hasElementsAt(p));
                 i=null;
                 if (position!=null) {
                     positionChanged = true;
@@ -3141,7 +3140,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     else if (sel.getMasterDAO().getExperiment().experimentStructure.isChildOf(i.getParent().getStructureIdx(), sel.getStructureIdx())) parentSIdx=i.getParent().getStructureIdx();
                 }
             }
-            List<SegmentedObject> parents = SelectionUtils.getParentTrackHeads(sel, position, parentSIdx, db);
+            List<SegmentedObject> parents = SelectionOperations.getParentTrackHeads(sel, position, parentSIdx, db);
             Collections.sort(parents);
             logger.debug("parent track heads: {} (sel object Idx: {}, parent object class: {}, displaySIdx: {})", parents.size(), sel.getStructureIdx(), parentSIdx, structureDisplay);
             int nextParentIdx = 0;

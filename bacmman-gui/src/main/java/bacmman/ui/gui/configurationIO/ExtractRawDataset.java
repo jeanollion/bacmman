@@ -6,6 +6,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
+import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
@@ -198,7 +199,7 @@ public class ExtractRawDataset extends JDialog {
         int[] channels = channelSelector.getSelectedIndices();
         SimpleBoundingBox bounds = new SimpleBoundingBox(xMin.getValue().intValue(), xMin.getValue().intValue() + xSize.getValue().intValue() - 1, yMin.getValue().intValue(), yMin.getValue().intValue() + ySize.getValue().intValue() - 1, zMin.getValue().intValue(), zMin.getValue().intValue() + zSize.getValue().intValue() - 1);
         Map<String, List<Integer>> positionMapFrames = selectedPositions.stream().collect(Collectors.toMap(p -> p, p -> getFrames(mDAO.getExperiment().getPosition(p).getInputImages(), frameChoiceChannelImage.getSelectedIndex())));
-        resultingTask.setExtractRawDS(outputFile.getFirstSelectedFilePath(), channels, bounds, extractZ.getSelectedEnum(), extractZPlaneIdx.getValue().intValue(), positionMapFrames);
+        resultingTask.setExtractRawDS(outputFile.getFirstSelectedFilePath(), channels, bounds, extractZ.getSelectedEnum(), extractZPlaneIdx.getValue().intValue(), positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 4);
         dispose();
     }
 

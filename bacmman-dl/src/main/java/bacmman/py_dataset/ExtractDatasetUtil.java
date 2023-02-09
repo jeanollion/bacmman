@@ -9,8 +9,6 @@ import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
-import bacmman.ui.GUI;
-import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.utils.HashMapGetCreate;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
@@ -40,6 +38,7 @@ public class ExtractDatasetUtil {
         int[] dimensions = t.getExtractDSDimensions();
         List<FeatureExtractor.Feature> features = t.getExtractDSFeatures();
         List<String> selectionNames = t.getExtractDSSelections();
+        int compression = t.getExtractDSCompression();
         int[] eraseTouchingContoursOC = t.getExtractDSEraseTouchingContoursOC();
         IntPredicate eraseTouchingContours = oc -> Arrays.stream(eraseTouchingContoursOC).anyMatch(i->i==oc);
         MasterDAO mDAO = t.getDB();
@@ -98,7 +97,7 @@ public class ExtractDatasetUtil {
                                 put(position, allParents);
                             }});
                             //for (String p : parentSelection.getAllPositions()) logger.debug("parent selection before intersect @{}: {}", p, parentSelection.getElementStrings(p));
-                            SelectionUtils.intersection(sel.getName(), parentSelection, sel);
+                            SelectionOperations.intersection(sel.getName(), parentSelection, sel);
                             parentSelection.setMasterDAO(mDAO);
                             //for (String p : parentSelection.getAllPositions()) logger.debug("parent selection @{}: {}", p, parentSelection.getElementStrings(p));
                         }
@@ -110,7 +109,7 @@ public class ExtractDatasetUtil {
                     if (!parentSelection.isEmpty()) {
                         extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), curResamplePops, dimensions);
                         boolean ZtoBatch = feature.getFeatureExtractor().getExtractZDim() == Task.ExtractZAxis.BATCH;
-                        extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, saveLabels, saveLabels, dimensions);
+                        extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, dimensions);
                         saveLabels = false;
                     }
                     t.incrementProgress();
@@ -130,6 +129,7 @@ public class ExtractDatasetUtil {
         BoundingBox bounds = t.getExtractRawDSBounds();
         Map<String, List<Integer>> positionMapFrames = t.getExtractRawDSFrames();
         int[] channels = t.getExtractRawDSChannels();
+        int compression = t.getExtractDSCompression();
         MasterDAO mDAO = t.getDB();
         String ds = mDAO.getDBName();
         String[] channelNames = mDAO.getExperiment().getChannelImagesAsString(false);
@@ -159,7 +159,7 @@ public class ExtractDatasetUtil {
                     images = s.collect(Collectors.toList());
                     logger.debug("after ZToBatch: {}", images.size());
                 }
-                extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false);
+                extractFeature(outputPath, outputName, images, SCALE_MODE.NO_SCALE, null, saveLabels, null, false, compression);
                 saveLabels = false;
             }
             inputImages.flush();
@@ -209,7 +209,7 @@ public class ExtractDatasetUtil {
     public static String getLabel(SegmentedObject e) {
         return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
     }
-    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, boolean saveLabels, boolean saveDimensions, int... dimensions) {
+    public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElements().stream().parallel() : () -> parentSel.getElements(position).stream().parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
@@ -235,9 +235,9 @@ public class ExtractDatasetUtil {
         }
         if (ExtractDatasetUtil.display) images.stream().forEach(i -> Core.getCore().showImage(i));
 
-        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance);
+        extractFeature(outputPath, dsName, images, scaleMode, metadata, saveLabels, originalDimensions, oneEntryPerInstance, compression);
     }
-    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance) {
+    public static void extractFeature(Path outputPath, String dsName, List<Image> images, SCALE_MODE scaleMode, Map<String, Object> metadata, boolean saveLabels, int[][] originalDimensions, boolean oneEntryPerInstance, int compression) {
         if (scaleMode == SCALE_MODE.NO_SCALE && !images.isEmpty()) { // ensure all images have same bitdepth
             int maxBD = images.stream().mapToInt(Image::getBitDepth).max().getAsInt();
             if (images.stream().anyMatch(i->i.getBitDepth()!=maxBD)) {
@@ -322,7 +322,6 @@ public class ExtractDatasetUtil {
         metadata.put("scale_xy", images.get(0).getScaleXY());
         metadata.put("scale_z", images.get(0).getScaleZ());
         if (converter!=null) images = images.stream().parallel().map(converter).collect(Collectors.toList());
-        int compression = GUI.getInstance()==null? 4 : GUI.getInstance().getExtractedDSCompressionFactor();
         if (oneEntryPerInstance) {
             for (int i = 0; i<images.size(); ++i) HDF5IO.savePyDataset(images.subList(i, i+1), outputPath.toFile(), true, dsName+"/"+images.get(i).getName(), compression, saveLabels, new int[][]{originalDimensions[i]}, metadata );
         } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels, originalDimensions, metadata ); // TODO : compression level as option
