@@ -6,6 +6,7 @@ import bacmman.core.ImageFieldFactory;
 import bacmman.core.ProgressCallback;
 import bacmman.core.Task;
 import bacmman.data_structure.MasterDAOFactory;
+import bacmman.data_structure.Processor;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.utils.JSONUtils;
@@ -27,11 +28,12 @@ public class Run {
         }
         if (!imageFolder.exists() || !imageFolder.isDirectory()) throw new IllegalArgumentException("Folder: " +imageFolder+ " not found");
         File parent = imageFolder.getParentFile();
-        File dsFolder = Paths.get(parent.getAbsolutePath(), "temp").toFile();
+        File dsFolder = Paths.get("", "temp").toAbsolutePath().toFile();
         String jsonConfig = args[1];
         if (jsonConfig == null || (jsonConfig.charAt(0)!='{' && jsonConfig.charAt(jsonConfig.length()-1)!='}') ) throw new IllegalArgumentException("Arg 2 must be a JSON configuration");
         // init bacmman
         Core.getCore();
+
         ConsoleProgressLogger ui = new ConsoleProgressLogger();
         Core.setUserLogger(ui);
 
@@ -41,12 +43,15 @@ public class Run {
         Experiment xp = new Experiment(parent.getName());
         xp.initFromJSONEntry(JSONUtils.parse(jsonConfig));
         db.setExperiment(xp);
+        xp.setOutputDirectory("Output");
 
         // import images, run and export
-        ImageFieldFactory.importImages(new String[]{imageFolder.getAbsolutePath()}, xp, ProgressCallback.get(ui));
+        Processor.importFiles(db.getExperiment(), true, ProgressCallback.get(ui), imageFolder.getAbsolutePath());
+        db.updateExperiment();
         Task t = new Task(db)
-                .setActions(false, true, true, false)
-                .setStructures(0);
+                .setActions(false, true, true, false);
+        t.setUI(ui);
+        if (!t.isValid()) throw new RuntimeException("Invalid Task");
         t.runTask(0.5);
         t.done();
         ExportCellTrackingBenchmark.export(db, parent.getAbsolutePath(), 0);
@@ -60,5 +65,6 @@ public class Run {
             db.unlockConfiguration();
             db.clearCache();
         }
+        java.lang.System.exit(0);
     }
 }
