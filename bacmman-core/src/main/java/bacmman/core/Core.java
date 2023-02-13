@@ -22,6 +22,7 @@ import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.image.Image;
 import bacmman.plugins.PluginFactory;
+import bacmman.ui.PropertyUtils;
 import bacmman.ui.logger.ProgressLogger;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
@@ -79,6 +80,13 @@ public class Core {
         PluginFactory.importIJ1Plugins();
         createOmeroGateway();
         githubGateway = new GithubGateway();
+        initTF2();
+    }
+
+    public void initTF2() {
+        tfPerProcessGpuMemoryFraction = PropertyUtils.get(PropertyUtils.TF_GPU_MEM, 1.);
+        tfSetAllowGrowth = PropertyUtils.get(PropertyUtils.TF_GROWTH, true);
+        tfVisibleDeviceList = PropertyUtils.get(PropertyUtils.TF_DEVICES, "0");
     }
     
     private static void initIJ2() {

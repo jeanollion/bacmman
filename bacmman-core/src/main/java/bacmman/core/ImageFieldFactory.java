@@ -269,6 +269,7 @@ public class ImageFieldFactory {
                 }
             }
         } else { // only one position is considered
+            if (posName==null) posName = input.getName();
             filesByPosition = new HashMap<>(1);
             filesByPosition.put(posName, files);
         }

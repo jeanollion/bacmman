@@ -469,9 +469,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistent(memoryThreshold, "memory_threshold");
 
         // tensorflow
-        PropertyUtils.setPersistent(tfPerProcessGpuMemoryFraction, "tf_per_process_gpu_memory_fraction");
-        PropertyUtils.setPersistent(tfSetAllowGrowth, "tf_set_allow_growth");
-        PropertyUtils.setPersistent(tfVisibleDeviceList, "tf_visible_device_list");
+        PropertyUtils.setPersistent(tfPerProcessGpuMemoryFraction, PropertyUtils.TF_GPU_MEM);
+        PropertyUtils.setPersistent(tfSetAllowGrowth, PropertyUtils.TF_GROWTH);
+        PropertyUtils.setPersistent(tfVisibleDeviceList, PropertyUtils.TF_DEVICES);
 
         ConfigurationTreeGenerator.addToMenu(tfVisibleDeviceList, tensorflowMenu);
         ConfigurationTreeGenerator.addToMenu(tfSetAllowGrowth, tensorflowMenu);
