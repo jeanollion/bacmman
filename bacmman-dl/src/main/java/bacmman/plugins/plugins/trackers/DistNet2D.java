@@ -34,8 +34,8 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import static bacmman.plugins.plugins.trackers.LAPTracker.DISTANCE.*;
+import static bacmman.plugins.plugins.trackers.DistNet2D.DISTANCE.*;
+import static bacmman.plugins.plugins.trackers.LAPTracker.AbstractLAPObject.getSkeleton;
 
 public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DistNet2D.class);
@@ -60,15 +60,21 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     PluginParameter<SegmenterSplitAndMerge> edmSegmenter = new PluginParameter<>("EDM Segmenter", SegmenterSplitAndMerge.class, new EDMCellSegmenter(), false).setEmphasized(true).setHint("Method to segment EDM predicted by the DNN");
     BooleanParameter useContours = new BooleanParameter("Use Contours", false).setLegacyInitializationValue(true).setEmphasized(false).setHint("If model predicts contours, DiSTNet will pass them to the Segmenter if it able to use them (currently EDMCellSegmenter is able to use them)");
     BoundedNumberParameter displacementThreshold = new BoundedNumberParameter("Displacement Threshold", 5, 0, 0, null).setHint("When two objects have predicted displacement that differs of an absolute value greater than this threshold they are not merged (this is tested on each axis).<br>Set 0 to ignore this criterion");
-
+    enum DISTANCE {GEOM_CENTER_DISTANCE, MASS_CENTER_DISTANCE, EDM_MEAN_DISTANCE, EDM_MAX_DISTANCE, SKELETON_CENTER_DISTANCE, OVERLAP, HAUSDORFF}
     // tracking
-    EnumChoiceParameter<LAPTracker.DISTANCE> distanceType = new EnumChoiceParameter<>("Distance", LAPTracker.DISTANCE.values(), LAPTracker.DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li><li>HAUSDORFF: Hausdorff distance between skeleton points (BETA TESTING)</li></ul>");
+    EnumChoiceParameter<DISTANCE> distanceType = new EnumChoiceParameter<>("Distance", Stream.of(DISTANCE.values()).filter(o -> !o.equals(HAUSDORFF)).toArray(DISTANCE[]::new), DISTANCE.GEOM_CENTER_DISTANCE).setEmphasized(true).setHint("Distance metric minimized by the LAP tracker algorithm. <ul><li>CENTER_DISTANCE: center-to-center Euclidean distance in pixels</li><li>OVERLAP: 1 - IoU (intersection over union)</li><li>HAUSDORFF: Hausdorff distance between skeleton points (BETA TESTING)</li></ul>");
     BoundedNumberParameter distanceSearchThreshold = new BoundedNumberParameter("Distance Search Threshold", 5, 20, 1, null).setEmphasized(true).setHint("Hausdorff distance can be computationally expensive. When two objects have center-center distance above this threshold, hausdorff distance is not computed");
+    BoundedNumberParameter edmDistMaxProp = new BoundedNumberParameter("Maximum Proportion", 5, 1, 0.1, 1).setHint("for each object: center is MASS_CENTER(EDM[EDM >= p * MAX(EDM)]) e.g. if the parameter is 0.9 : the center is the average point of pixels with EDM value over 90% of the max EDM value in the object, weighted by EDM value.");
+
     BoundedNumberParameter skeletonLMRad = new BoundedNumberParameter("Local Max Radius", 5, 1.5, 1, null).setHint("Skeleton points are computed as local maxima of the predicted edm.");
     BooleanParameter hausdorffAVG = new BooleanParameter("Average Distances",false).setHint("If true, HAUSDORFF is avg(min) instead of max(min) which is the classical definition");
     BooleanParameter skAddPoles = new BooleanParameter("Add Bacteria Poles",false).setHint("If true, bacteria poles are added to skeleton");
 
-    ConditionalParameter<LAPTracker.DISTANCE> distanceTypeCond = new ConditionalParameter<>(distanceType).setActionParameters(HAUSDORFF, distanceSearchThreshold, skeletonLMRad, hausdorffAVG, skAddPoles);
+
+    ConditionalParameter<DISTANCE> distanceTypeCond = new ConditionalParameter<>(distanceType)
+            .setActionParameters(DISTANCE.EDM_MAX_DISTANCE, edmDistMaxProp)
+            .setActionParameters(DISTANCE.SKELETON_CENTER_DISTANCE, skeletonLMRad)
+            .setActionParameters(DISTANCE.HAUSDORFF, distanceSearchThreshold, skeletonLMRad, hausdorffAVG, skAddPoles);
     BoundedNumberParameter distanceThreshold = new BoundedNumberParameter("Distance Threshold", 5, 10, 1, null).setEmphasized(true).setHint("If distance between two objects (after correction by predicted displacement) is over this threshold they cannot be linked. For center-to-center distance the value is in pixels, for overlap distance value an overlap proportion ( distance is  1 - overlap ) ");
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter sizePenaltyFactor = new BoundedNumberParameter("Size Penalty", 5, 0, 0, null).setEmphasized(true).setHint("Size Penalty applied for tracking. Allows to force linking between objects of similar size (taking into account growth rate).<br>Increase the value to increase the penalty when size differ.<br>Mathematical details: Expected size range at next frame [SMin; SMax] is defined by the <em>growth rate range</em> parameter, if size at next frame is outside this range, penalty p = 2 * |S - Sb| / (S + Sb) (Sb = SMax if S>SMax else SMin. Square distance becomes: d' = d * (1 + p).<br>If objects are truncated only upper bounds at next or current frame are tested.");
@@ -129,7 +135,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction, null); // actually appends to prevPrediction
-            if (distanceType.getSelectedEnum().equals(HAUSDORFF)) prediction.computeEDMLocalMaxima(subParentTrack, this.skeletonLMRad.getDoubleValue());
+            if (distanceType.getSelectedEnum().equals(HAUSDORFF) || distanceType.getSelectedEnum().equals(SKELETON_CENTER_DISTANCE)) prediction.computeEDMLocalMaxima(subParentTrack, this.skeletonLMRad.getDoubleValue());
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
             }
@@ -191,7 +197,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             PredictionResults prediction = predict(objectClassIdx, subParentTrack, null, prevPrediction, null); // actually appends to prevPrediction
-            if (distanceType.getSelectedEnum().equals(HAUSDORFF)) prediction.computeEDMLocalMaxima(subParentTrack, this.skeletonLMRad.getDoubleValue());
+            if (distanceType.getSelectedEnum().equals(HAUSDORFF) || distanceType.getSelectedEnum().equals(SKELETON_CENTER_DISTANCE)) prediction.computeEDMLocalMaxima(subParentTrack, this.skeletonLMRad.getDoubleValue());
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
             }
@@ -324,12 +330,24 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
         Map<SegmentedObject, Point> previousCenters = new HashMap<>();
-        if (MASS_CENTER_DISTANCE.equals(distanceType.getSelectedEnum())) { // pre-compute all mass centers
+        DISTANCE distanceType = this.distanceType.getSelectedEnum();
+        double edmDistMaxProp = this.edmDistMaxProp.getDoubleValue();
+        double skeletonLMRad = this.skeletonLMRad.getDoubleValue();
+        if (MASS_CENTER_DISTANCE.equals(distanceType) || EDM_MEAN_DISTANCE.equals(distanceType)) { // pre-compute all mass centers
             parentTrack.parallelStream().forEach( p -> {
-                Image im = p.getRawImage(objectClassIdx);
+                Image im = MASS_CENTER_DISTANCE.equals(distanceType) ? p.getRawImage(objectClassIdx) : prediction.edm.get(p);
                 p.getChildren(objectClassIdx).forEach( c -> {
                     if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
                     c.getRegion().setCenter(c.getRegion().getMassCenter(im, false));
+                });
+            });
+        } else if (EDM_MAX_DISTANCE.equals(distanceType)) {
+            parentTrack.parallelStream().forEach( p -> {
+                Image edm = prediction.edm.get(p);
+                p.getChildren(objectClassIdx).forEach( c -> {
+                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
+                    double thld = BasicMeasurements.getQuantileValue(c.getRegion(), edm, 0.5)[0] * edmDistMaxProp;
+                    c.getRegion().setCenter(c.getRegion().getMassCenter(edm, false, v->v>=thld));
                 });
             });
         }
@@ -378,13 +396,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         TrackMateInterface<T> tmi = getTrackMateInterface(regionMapObjects, dyMap, dxMap, noPrevPenalty, noPrevMap, sizePenaltyFun, overlapMap, prediction);
         tmi.setNumThreads(ThreadRunner.getMaxCPUs());
         tmi.addObjects(regionMapObjects.values().stream());
-        if (stores!=null && distanceType.getSelectedEnum().equals(HAUSDORFF)) parentTrack.forEach(p -> {
+        if (stores!=null && (distanceType.equals(HAUSDORFF)|| distanceType.equals(SKELETON_CENTER_DISTANCE) )) parentTrack.forEach(p -> {
             Image im = new ImageFloat("Skeleton Points", p.getMaskProperties());
+            Function<T, SparseSkeleton<Voxel>> getSk = s -> s instanceof TrackingObjectHausdorff ? ((TrackingObjectHausdorff)s).skeleton : ((TrackingObjectSkeletonCenter)s).skeleton;
             Utils.toStream(tmi.getSpotCollection().iterator(p.getFrame(), false), false)
-                    .map(s -> (TrackingObjectHausdorff)s)
+                    .map(getSk)
                             .forEach(o -> {
                                 int[] counter = new int[]{1};
-                                o.skeleton.graph().vertices().forEachOrdered(v -> im.setPixel(v.x, v.y, v.z, counter[0]++));
+                                o.graph().vertices().forEachOrdered(v -> im.setPixel(v.x, v.y, v.z, counter[0]++));
                             });
             stores.get(p).addIntermediateImage("Skeleton Points", im);
         });
@@ -540,7 +559,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         List<SymetricalPair<SegmentedObject>> additionalLinks = tmi.setTrackLinks(objectsF, editor);
         // restore centers
-        if (MASS_CENTER_DISTANCE.equals(distanceType.getSelectedEnum()) && !previousCenters.isEmpty()) {
+        if (!previousCenters.isEmpty()) {
             parentTrack.parallelStream().forEach( p -> p.getChildren(objectClassIdx).forEach(c -> {
                 Point center = previousCenters.get(c);
                 if (c!=null) c.getRegion().setCenter(center);
@@ -710,8 +729,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         public abstract S merge(S other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision);
         // constructor for merge
-        protected TrackingObject(S o1, S o2, Region r, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(Region.getGeomCenter(false, o1.r, o2.r),r, o1.frame()); // if distance is mass center -> mass center should be set before
+        protected TrackingObject(RealLocalizable localization, S o1, S o2, Region r, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            super(localization,r, o1.frame());
             if (o1.frame()!=o2.frame()) throw new IllegalArgumentException("Average Tracking object must be build with objets of same frame");
             this.touchEdges = o1.touchEdges || o2.touchEdges;
             this.offset = o1.offset;
@@ -724,6 +743,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.sizePenalty = o1.sizePenalty;
             this.cellDivision = cellDivision;
             //logger.debug("merged TO: {}-[{}+{}] size: {} & {}, center: {} & {} = {} , dx: {}, dy: {}", o1.frame(), o1.r.getLabel()-1, o2.r.getLabel()-1, o1.size, o2.size, new Point(o1.getDoublePosition(0), o1.getDoublePosition(1)), new Point(o2.getDoublePosition(0), o2.getDoublePosition(1)), new Point(getDoublePosition(0), getDoublePosition(1)), dx, dy );
+        }
+        protected TrackingObject(S o1, S o2, Region r, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            this(Region.getGeomCenter(false, o1.r, o2.r), o1, o2 ,r, noPrevPenalty, cellDivision);
         }
         public boolean isCluster() {
             return originalObjects!=null;
@@ -749,31 +771,66 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
     }
 
-    public static class TrackingObjectCenter extends TrackingObject<TrackingObjectCenter> {
-        public TrackingObjectCenter(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectCenter, TrackingObjectCenter> sizePenalty) {
+    static abstract class TrackingObjectCenterAbs<S extends TrackingObjectCenterAbs<S>> extends TrackingObject<S> {
+        public TrackingObjectCenterAbs(RealLocalizable loc, Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<S, S> sizePenalty) {
+            super(loc, r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
+        }
+        public TrackingObjectCenterAbs(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<S, S> sizePenalty) {
             super(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
         }
-        public TrackingObjectCenter(TrackingObjectCenter o1, TrackingObjectCenter o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+        public TrackingObjectCenterAbs(RealLocalizable loc, S o1, S o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            super(loc, o1, o2, o1.r, noPrevPenalty, cellDivision);
+        }
+        public TrackingObjectCenterAbs(S o1, S o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
             super(o1, o2, o1.r, noPrevPenalty, cellDivision);
         }
+
         @Override
-        public TrackingObjectCenter merge(TrackingObjectCenter other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            return new TrackingObjectCenter(this, other, noPrevPenalty, cellDivision);
-        }
-        @Override public double squareDistanceTo(TrackingObjectCenter nextTO) {
-            if (nextTO.frame() < frame()) return nextTO.squareDistanceTo(this);
+        public double squareDistanceTo(S nextTO) {
+            if (nextTO.frame() < frame()) return nextTO.squareDistanceTo((S)this);
             if (nextTO.cellDivision) return nextTO.originalObjects.stream().mapToDouble(n -> squareDistanceTo(n) * n.size).sum() / size; // cell division: average of distances
 
             double distSq = squareDistanceCenterCenterTo(nextTO);
             // compute size penalty
-            double sizePenalty = this.sizePenalty==null?0 : this.sizePenalty.applyAsDouble(this, nextTO);
+            double sizePenalty = this.sizePenalty==null?0 : this.sizePenalty.applyAsDouble((S)this, nextTO);
             distSq *= Math.pow(1 + sizePenalty, 2);
             if (nextTO.noPrevPenalty!=null) {
                 //logger.debug("No prev penalty: dist {} -> {} : was {} is now: {}", this, nextTO, Math.sqrt(distSq), Math.sqrt(nextTO.noPrevPenalty.applyAsDouble(distSq)));
                 distSq = nextTO.noPrevPenalty.applyAsDouble(distSq);
             }
-            if (logConsumer!=null) logConsumer.accept(this, nextTO, Math.sqrt(distSq));
+            if (logConsumer!=null) logConsumer.accept((S)this, nextTO, Math.sqrt(distSq));
             return distSq;
+        }
+    }
+    public static class TrackingObjectCenter extends TrackingObjectCenterAbs<TrackingObjectCenter> {
+        public TrackingObjectCenter(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectCenter, TrackingObjectCenter> sizePenalty) {
+            super(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
+        }
+        public TrackingObjectCenter(TrackingObjectCenter o1, TrackingObjectCenter o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            super(o1, o2, noPrevPenalty, cellDivision);
+        }
+        @Override
+        public TrackingObjectCenter merge(TrackingObjectCenter other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            return new TrackingObjectCenter(this, other, noPrevPenalty, cellDivision);
+        }
+    }
+    public static class TrackingObjectSkeletonCenter extends TrackingObjectCenterAbs<TrackingObjectSkeletonCenter> {
+        final SparseSkeleton<Voxel> skeleton;
+        public TrackingObjectSkeletonCenter(Region r, SparseSkeleton<Voxel> skeleton, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectSkeletonCenter, TrackingObjectSkeletonCenter> sizePenalty) {
+            super(skeleton.getClosestPoint(r.getCenterOrGeomCenter()), r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
+            this.skeleton = skeleton;
+        }
+        public TrackingObjectSkeletonCenter(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectSkeletonCenter, TrackingObjectSkeletonCenter> sizePenalty, Image edmLM, double skeletonLMRad) {
+            this(r, edmLM==null? getSkeleton(r, null, Filters.getNeighborhood(skeletonLMRad, r.getMask()), false) : DistNet2D.getSkeleton(r, edmLM, false), parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
+        }
+        public TrackingObjectSkeletonCenter(TrackingObjectSkeletonCenter o1, TrackingObjectSkeletonCenter o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            super(o1, o2, noPrevPenalty, cellDivision);
+            this.skeleton = o1.skeleton.merge(o2.skeleton, false);
+            setLocation(skeleton.getClosestPoint(this.getLocation()));
+        }
+        @Override
+        public TrackingObjectSkeletonCenter merge(TrackingObjectSkeletonCenter other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
+            return new TrackingObjectSkeletonCenter(this, other, noPrevPenalty, cellDivision);
         }
     }
     public static class TrackingObjectOverlap extends TrackingObject<TrackingObjectOverlap> {
@@ -840,7 +897,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         }
 
         public TrackingObjectHausdorff(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectHausdorff, TrackingObjectHausdorff> sizePenalty, Image edmLM, double skeletonLMRad, double distanceLimit, boolean avg, boolean addPoles) {
-            this(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty, edmLM==null? getSkeleton(r, null, Filters.getNeighborhood(skeletonLMRad, r.getMask()), addPoles) : getSkeleton(r, edmLM, addPoles), distanceLimit, avg);
+            this(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty, edmLM==null? getSkeleton(r, null, Filters.getNeighborhood(skeletonLMRad, r.getMask()), addPoles) : DistNet2D.getSkeleton(r, edmLM, addPoles), distanceLimit, avg);
             this.polesAdded = addPoles;
         }
 
@@ -900,21 +957,23 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 return nextTO.skeleton.hausdorffDistance(skeleton, delta, avg); // delta is applied to nextTO skeleton
             }
         }
-        protected static SparseSkeleton<Voxel> getSkeleton(Region r, Image edmLM, boolean addPoles) {
-            List<Voxel> skeleton = new ArrayList<>();
-            r.loop((x, y, z) -> {
-                if (edmLM.insideMaskWithOffset(x, y, z)) skeleton.add(new Voxel(x, y, z));
-            });
-            SparseSkeleton<Voxel> res = new SparseSkeleton<>(skeleton);
-            if (addPoles) res.addBacteriaPoles(r.getContour());
-            return res;
-        }
-    }
 
+    }
+    protected static SparseSkeleton<Voxel> getSkeleton(Region r, Image edmLM, boolean addPoles) {
+        List<Voxel> skeleton = new ArrayList<>();
+        r.loop((x, y, z) -> {
+            if (edmLM.insideMaskWithOffset(x, y, z)) skeleton.add(new Voxel(x, y, z));
+        });
+        SparseSkeleton<Voxel> res = new SparseSkeleton<>(skeleton);
+        if (addPoles) res.addBacteriaPoles(r.getContour());
+        return res;
+    }
     public <T extends TrackingObject<T>> TrackMateInterface<T> getTrackMateInterface(Map<Region, SegmentedObject> regionMapObjects, Map<SegmentedObject, Double> dyMap, Map<SegmentedObject, Double> dxMap, ToDoubleBiFunction<Double, Double> noPrevPenalty, Map<SegmentedObject, Double> noPrevMap, ToDoubleBiFunction<T, T> sizePenaltyFun, Map<Integer, Map<SymetricalPair<Region>, LAPTracker.Overlap>> overlapMap, PredictionResults prediction) {
         switch (distanceType.getSelectedEnum()) {
             case GEOM_CENTER_DISTANCE:
             case MASS_CENTER_DISTANCE:
+            case EDM_MAX_DISTANCE:
+            case EDM_MEAN_DISTANCE:
             default: {
                 return new TrackMateInterface<>( (r, f) -> {
                     SegmentedObject o = regionMapObjects.get(r);
@@ -925,6 +984,12 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 return new TrackMateInterface<>( (r, f) -> {
                     SegmentedObject o = regionMapObjects.get(r);
                     return (T)new TrackingObjectOverlap(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), d -> noPrevPenalty.applyAsDouble((Double) d, noPrevMap.get(o)), (ToDoubleBiFunction<TrackingObjectOverlap, TrackingObjectOverlap>)sizePenaltyFun, overlapMap.get(f));
+                });
+            }
+            case SKELETON_CENTER_DISTANCE: {
+                return new TrackMateInterface<>( (r, f) -> {
+                    SegmentedObject o = regionMapObjects.get(r);
+                    return (T)new TrackingObjectSkeletonCenter(r, o.getParent().getBounds(), f, dyMap.get(o), dxMap.get(o), d -> noPrevPenalty.applyAsDouble((Double) d, noPrevMap.get(o)), (ToDoubleBiFunction<TrackingObjectSkeletonCenter, TrackingObjectSkeletonCenter>)sizePenaltyFun, prediction==null || prediction.edmLM==null? null : prediction.edmLM.get(o.getParent()).crop(o.getBounds()), this.skeletonLMRad.getDoubleValue());
                 });
             }
             case HAUSDORFF: {
@@ -983,7 +1048,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
     public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, List<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<Region, Double> divMap, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         SplitAndMerge sm = getSplitAndMerge(prediction);
         double divThld=divProbaThld.getValuesAsDouble()[1];
-        Predicate<SegmentedObject> dividing = divMap==null ? o -> false : o -> divMap.get(o.getRegion())>divThld;
+        Predicate<SegmentedObject> dividing = divMap==null || divThld==0 ? o -> false : o -> divMap.get(o.getRegion())>divThld;
         solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, dividing, sm, factory, editor);
     }
 
@@ -1316,9 +1381,9 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         boolean solveSplit = this.solveSplit.getSelected();
         boolean solveMerge= this.solveMerge.getSelected();
         if (!solveSplit && !solveMerge) return;
-        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks, dividing);
-        if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), sm, factory, editor);
-        if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), sm, factory, editor);
+        TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
+        if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), dividing, sm, factory, editor);
+        if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, sm, factory, editor);
         parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
             if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
             o.getRegion().clearVoxels();

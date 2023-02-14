@@ -1,8 +1,7 @@
 package bacmman.processing.matching.trackmate;
 
-import bacmman.processing.matching.trackmate.Dimension;
-import bacmman.processing.matching.trackmate.SpotCollection;
 import bacmman.processing.matching.trackmate.util.AlphanumComparator;
+import bacmman.utils.geom.Point;
 import net.imglib2.AbstractEuclideanSpace;
 import net.imglib2.RealLocalizable;
 import net.imglib2.util.Util;
@@ -24,7 +23,14 @@ import static bacmman.processing.matching.trackmate.SpotCollection.VISIBLITY;
  * spot radius, and the spot quality. This somewhat cumbersome syntax is made to
  * avoid any bad surprise with missing features in a subsequent use. The spot
  * temporal features ({@link #FRAME} and {@link #POSITION_T}) are set upon
- * adding to a {@link SpotCollection}.
+ * adding to a {@link SpotCollection}.public static class LAPObject extends AbstractLAPObject<LAPObject> {
+        public LAPObject(Region r, int frame) {
+            super(r, frame);
+        }
+        @Override public double squareDistanceTo(LAPObject otherR) {
+            return squareDistanceCenterCenterTo(otherR);
+        }
+    }
  * <p>
  * Each spot received at creation a unique ID (as an <code>int</code>), used
  * later for saving, retrieving and loading. Interfering with this value will
@@ -177,6 +183,17 @@ public class Spot<S extends Spot<S>> extends AbstractEuclideanSpace implements R
 				IDcounter.set( ID );
 			}
 		}
+	}
+
+	public S setLocation(RealLocalizable loc) {
+		putFeature( POSITION_X, loc.getDoublePosition(0) );
+		putFeature( POSITION_Y, loc.getDoublePosition(1) );
+		putFeature( POSITION_Z, loc.numDimensions()>2?loc.getDoublePosition( 2 ):0 );
+		return (S)this;
+	}
+
+	public RealLocalizable getLocation() {
+		return new Point(getDoublePosition(0), getDoublePosition(1), getDoublePosition(2));
 	}
 
 	/*

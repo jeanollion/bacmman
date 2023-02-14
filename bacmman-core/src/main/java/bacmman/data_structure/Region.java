@@ -62,6 +62,7 @@ import static bacmman.utils.Utils.comparator;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 
+import java.util.function.DoublePredicate;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
@@ -278,14 +279,18 @@ public class Region {
         return getGeomCenter(scaled, this);
     }
     public Point getMassCenter(Image image, boolean scaled) {
+        return getMassCenter(image, scaled, null);
+    }
+     public Point getMassCenter(Image image, boolean scaled, DoublePredicate useValue) {
         double[] center = new double[3];
+        double[] count = new double[1];
+         DoublePredicate f = useValue==null? v->true:useValue;
         if (voxels!=null) {
             synchronized(voxels) { // sync because voxel value is modified
                 if (voxels.size()==1) {
                     Voxel v = voxels.iterator().next();
                     return new Point(v.x, v.y, v.z);
                 }
-                double count = 0;
                 if (absoluteLandmark) {
                     for (Voxel v : voxels) {
                         if (image.containsWithOffset(v.x, v.y, v.z)) {
@@ -301,30 +306,35 @@ public class Region {
                 }
                 Voxel minValue = Collections.min(voxels, Comparator.comparingDouble(v -> v.value));
                 for (Voxel v : voxels) {
-                    if (!Float.isNaN(v.value)) {
+                    if (!Float.isNaN(v.value) && f.test(v.value)) {
                         v.value-=minValue.value;
                         center[0] += v.x * v.value;
                         center[1] += v.y * v.value;
                         center[2] += v.z * v.value;
-                        count+=v.value;
+                        count[0]+=v.value;
                     }
                 }
             }
         } else {
             getMask();
-            int[] count = new int[1];
             double minValue = BasicMeasurements.getMinValue(this, image);
-            ImageMask.loopWithOffset(mask, (x, y, z)->{
-                double value = image.getPixel(x, y, z) - minValue;
-                center[0] += x * value;
-                center[1] += y * value;
-                center[2] += z * value;
-                count[0] += value;
+            ImageMask.loopWithOffset(mask, (x, y, z)-> {
+                double value = image.getPixel(x, y, z);
+                if (f.test(value)) {
+                    value -= minValue;
+                    center[0] += x * value;
+                    center[1] += y * value;
+                    center[2] += z * value;
+                    count[0] += value;
+                }
             });
-            center[0]/=count[0];
-            center[1]/=count[0];
-            center[2]/=count[0];
         }
+        if (count[0]==0) return getGeomCenter(scaled); // all values == minimal value
+
+        center[0]/=count[0];
+        center[1]/=count[0];
+        center[2]/=count[0];
+
         if (scaled) {
             center[0] *=this.getScaleXY();
             center[1] *=this.getScaleXY();

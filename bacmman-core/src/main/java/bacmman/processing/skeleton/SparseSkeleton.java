@@ -102,6 +102,11 @@ public class SparseSkeleton<P extends RealLocalizable> {
 
     public double distanceSq(RealLocalizable p) {
         if (graph.vertices.size()==1) return Point.distSq(p, graph.vertices.get(0));
+        return Point.distSq(p, getClosestPoint(p));
+    }
+
+    public Point getClosestPoint(RealLocalizable p) {
+        if (graph.vertices.size()==1) return Point.asPoint(graph.vertices.get(0));
         List<P> min = new ArrayList<>();
         double distMin = Double.MAX_VALUE;
         for(P other : graph.vertices) {
@@ -114,12 +119,13 @@ public class SparseSkeleton<P extends RealLocalizable> {
                 min.add(other);
             }
         }
-        double lineDist = graph.edgesOf(min)
-                .map(e -> Point.getIntersection2D(e.p1, e.p2, p, true))
+        Point intersec = graph.edgesOf(min)
+                .map(e -> Point.getIntersection2D(e.p1, e.p2, p, false))
                 .filter(Objects::nonNull)
-                .mapToDouble(inter -> Point.distSq(p,inter)).min().orElse(Double.MAX_VALUE);
-        return Math.min(lineDist, distMin);
+                .min(Comparator.comparingDouble(inter -> Point.distSq(p,inter))).get();
+        return Point.distSq(intersec, p) <= distMin ? intersec : Point.asPoint(min.get(0));
     }
+
     public double hausdorffDistance(SparseSkeleton<P> other, boolean average) {
         return hausdorffDistance(other, null, average);
     }
