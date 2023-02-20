@@ -19,8 +19,12 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
     PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Scaler", HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale this channel before mixing. Scaling will be reversed after mixing");
     PluginParameter<HistogramScaler> otherScaler = new PluginParameter<>("Other Scaler", HistogramScaler.class, new ModePercentileScaler(), true).setEmphasized(true).setHint("Method to scale the other channel before mixing");
     BooleanParameter scalePerFrame = new BooleanParameter("Scale Per Frame" ,false).setHint("If true, scaling is done per frame, otherwise for all frames").setEmphasized(true);
-    enum MIX {MAX, AVERAGE}
+    enum MIX {MAX, AVERAGE, WEIGHTED_SUM}
     EnumChoiceParameter<MIX> mix = new EnumChoiceParameter<>("Mix Mode", MIX.values(), MIX.MAX).setEmphasized(true);
+    BoundedNumberParameter w1 = new BoundedNumberParameter("Weight", 5, 0.5, null, null).setHint("Weight applied on first channel");
+    BoundedNumberParameter w2 = new BoundedNumberParameter("Other Weight", 5, 0.5, null, null).setHint("Weight applied on other channel");
+
+    ConditionalParameter<MIX> mixCond = new ConditionalParameter<>(mix).setActionParameters(MIX.WEIGHTED_SUM, w1, w2);
     InputImages ii;
     int inputChannelIdx;
     HistogramScaler scalerInstance, otherScalerInstance;
@@ -48,6 +52,14 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
                 mixFunction = (i1, i2) -> {
                     BoundingBox.loop(i1, (x, y, z)->i1.setPixel(x, y, z, 0.5 * (i1.getPixel(x, y, z) + i2.getPixel(x, y, z))));
                 };
+                break;
+            } case WEIGHTED_SUM: {
+                double w1 = this.w1.getDoubleValue();
+                double w2 = this.w2.getDoubleValue();
+                mixFunction = (i1, i2) -> {
+                    BoundingBox.loop(i1, (x, y, z)->i1.setPixel(x, y, z, w1 * i1.getPixel(x, y, z) + w2 * i2.getPixel(x, y, z)));
+                };
+                break;
             }
         }
     }
@@ -70,7 +82,7 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{otherChannel, scaler, otherScaler, scalePerFrame, mix};
+        return new Parameter[]{otherChannel, scaler, otherScaler, scalePerFrame, mixCond};
     }
 
     @Override

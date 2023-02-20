@@ -27,6 +27,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -57,7 +58,10 @@ public class Histogram implements JSONSerializable  {
     public long[] getData() {
         return data;
     }
-
+    public double[] getBinCenters() {
+        double start = getBinSize()/2 + getMin();
+        return IntStream.range(0, data.length).mapToDouble(i -> start + i * binSize).toArray();
+    }
     public double getMin() {
         return min;
     }
