@@ -19,7 +19,10 @@ public class SegmentedObjectFactory {
         return o.duplicate(generateNewId, duplicateRegion, duplicateImages);
     }
     public List<SegmentedObject> setChildObjects(SegmentedObject parent, RegionPopulation regions) {
-        return parent.setChildrenObjects(regions, editableObjectClassIdx);
+        return parent.setChildrenObjects(regions, editableObjectClassIdx, true);
+    }
+    public List<SegmentedObject> setChildObjects(SegmentedObject parent, RegionPopulation regions, boolean relabel) {
+        return parent.setChildrenObjects(regions, editableObjectClassIdx, relabel);
     }
     public List<SegmentedObject> getChildren(SegmentedObject parent) {
         return parent.getDirectChildren(editableObjectClassIdx);

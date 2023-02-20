@@ -365,21 +365,21 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         if (children!=null) children.forEach(o -> o.setParent(this));
     }
     
-    List<SegmentedObject> setChildrenObjects(RegionPopulation population, int structureIdx) {
+    List<SegmentedObject> setChildrenObjects(RegionPopulation population, int structureIdx, boolean relabel) {
         if (!getExperiment().experimentStructure.isDirectChildOf(this.structureIdx, structureIdx)) throw new IllegalArgumentException("Set children object call with non-direct child object class");
         if (population==null) {
             ArrayList<SegmentedObject> res = new ArrayList<>();
             childrenSM.set(res, structureIdx);
             return res;
         }
-        population.relabel(false);
         if (!population.isAbsoluteLandmark()) {
             population.translate(getBounds(), true); // from parent-relative coordinates to absolute coordinates
         }
         ArrayList<SegmentedObject> res = new ArrayList<>(population.getRegions().size());
         childrenSM.set(res, structureIdx);
         int i = 0;
-        for (Region o : population.getRegions()) res.add(new SegmentedObject(timePoint, structureIdx, i++, o, this));
+        for (Region o : population.getRegions()) res.add(new SegmentedObject(timePoint, structureIdx, relabel ? i++ : o.getLabel()-1, o, this));
+        if (!relabel) res.sort(Comparator.comparingInt(SegmentedObject::getIdx));
         return res;
     }
 

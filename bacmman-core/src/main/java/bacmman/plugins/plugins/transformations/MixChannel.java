@@ -33,7 +33,6 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
     public void computeConfigurationData(int channelIdx, InputImages inputImages) {
         ii = inputImages;
         inputChannelIdx=channelIdx;
-        scalerInstance = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
         if (!scalePerFrame.getSelected()) {
             scalerInstance = scaler.isOnePluginSet() ? scaler.instantiatePlugin() : null;
             if (scalerInstance!=null) scalerInstance.setHistogram(getHisto(channelIdx));

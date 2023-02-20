@@ -60,7 +60,7 @@ public class TrackMateToBacmman {
             List<SegmentedObject> existingObjects = p.getDirectChildren(objectClassIdx);
             if (overwrite || existingObjects.isEmpty()) {
                 if (overwrite) toRemove.addAll(existingObjects);
-                p.setChildrenObjects(new RegionPopulation(c, p.getMaskProperties()), objectClassIdx);
+                p.setChildrenObjects(new RegionPopulation(c, p.getMaskProperties()), objectClassIdx, false);
                 modifiedObjects.addAll(p.getDirectChildren(objectClassIdx));
             } else {
                 if (!matchWithOverlap) existingObjects.stream().filter(s -> s.getRegion().getCenter() == null).forEach(s -> s.getRegion().setCenter(s.getRegion().getGeomCenter(false)));
