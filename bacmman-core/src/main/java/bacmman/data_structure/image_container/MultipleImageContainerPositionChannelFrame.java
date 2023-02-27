@@ -29,6 +29,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import bacmman.utils.ArrayUtil;
@@ -319,11 +321,17 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         File[] allImages = in.listFiles((f, name) -> name.charAt(0)!='.' ); //(f, name) -> !isIgnoredFile(name)
         if (allImages==null) throw new RuntimeException("No Images found in directory:"+in.getAbsolutePath());
         List<File> files = Arrays.stream(allImages).filter( f -> positionPattern.matcher(f.getName()).find()).collect(Collectors.toList());
-        Pattern timePattern = Pattern.compile(".*"+timeKeyword+"(\\d+).*");
+        Pattern timePattern = timeKeyword!=null && timeKeyword.length()>0 ? Pattern.compile(".*"+timeKeyword+"(\\d+).*") : null;
         Map<Integer, List<File>> filesByChannel = files.stream().collect(Collectors.groupingBy(f -> getKeywordIdx(f.getName(), channelKeywords)));
         fileCT = new ArrayList<>(filesByChannel.size());
         filesByChannel.entrySet().stream().sorted(Comparator.comparingInt(Map.Entry::getKey)).forEach((channelFiles) -> {
-            Map<Integer, String> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> get(f.getName(), timePattern), f -> f.getAbsolutePath()));
+            Map<Integer, String> filesByTimePoint;
+            if (timePattern!=null) filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> get(f.getName(), timePattern), File::getAbsolutePath));
+            else {
+                Comparator<File> fileComp = Comparator.comparing(File::getName);
+                List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
+                filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, i->sortedFiles.get(i).getAbsolutePath()));
+            }
             fileCT.add(new ArrayList<>(new TreeMap(filesByTimePoint).values()).subList(0, frameNumber));
         });
         logger.debug("Position: {}, channels: {}, tp: {}", getName(), fileCT.size(), fileCT.get(0).size());

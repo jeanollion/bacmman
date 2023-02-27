@@ -247,7 +247,6 @@ public class ImageFieldFactory {
         
         // 3 split by position / channel (check number) / frames (check same number between channels & continuity)
         
-        Pattern timePattern = Pattern.compile(".*"+frameSep+"(\\d+).*");
         Map<String, List<File>> filesByPosition=null;
         if (posSep.length()>0) {
             if (posSep.length()==1 && posSep.charAt(0)=='^') { // position name is at the beginning of the file name
@@ -278,6 +277,8 @@ public class ImageFieldFactory {
             pcb.log("Directory: "+input.getAbsolutePath()+ ". Number of position found: "+ filesByPosition.size()+ ". Checking validity...");
             pcb.incrementTaskNumber(filesByPosition.size());
         }
+        Pattern timePattern = frameSep.length()>0 ? Pattern.compile(".*"+frameSep+"(\\d+).*") : null;
+
         PosLoop : for (Entry<String, List<File>> positionFiles : filesByPosition.entrySet()) {
             logger.debug("Pos: {}, grouping {} files by channels...", positionFiles.getKey(), positionFiles.getValue().size());
             Map<String, List<File>> filesByChannel = positionFiles.getValue().stream().collect(Collectors.groupingBy(f -> MultipleImageContainerPositionChannelFrame.getKeyword(f.getName(), channelKeywords, "")));
@@ -288,7 +289,13 @@ public class ImageFieldFactory {
                 boolean ok = true;
                 for (Entry<String, List<File>> channelFiles : filesByChannel.entrySet()) {
                     logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
-                    Map<Integer, File> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getName(), timePattern), Function.identity()));
+                    Map<Integer, File> filesByTimePoint;
+                    if (timePattern !=null) filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getName(), timePattern), Function.identity()));
+                    else {
+                        Comparator<File> fileComp = Comparator.comparing(File::getName);
+                        List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
+                        filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, sortedFiles::get));
+                    }
                     logger.debug("files grouped. checking continuity...");
                     List<Integer> tpList = new ArrayList<>(new TreeMap<>(filesByTimePoint).keySet());
                     int minTimePoint = tpList.get(0);
