@@ -60,11 +60,10 @@ public class SparseLAPSegmentTracker<S extends Spot<S>> implements SpotTracker<S
 
 	private int numThreads;
     private final double alternativeDistance;
-	Set<S> unlinkedSpots;
-	public SparseLAPSegmentTracker(final SimpleWeightedGraph< S, DefaultWeightedEdge > graph, Set<S> unlinkedSpots, final Map< String, Object > settings, final double alternativeDistance)
+
+	public SparseLAPSegmentTracker(final SimpleWeightedGraph< S, DefaultWeightedEdge > graph, final Map< String, Object > settings, final double alternativeDistance)
 	{
 		this.graph = graph;
-		this.unlinkedSpots=unlinkedSpots;
 		this.settings = settings;
 		this.alternativeDistance=alternativeDistance;
 		setNumThreads();
@@ -116,7 +115,7 @@ public class SparseLAPSegmentTracker<S extends Spot<S>> implements SpotTracker<S
 
 		logger.setProgress( 0d );
 		logger.setStatus( "Creating the segment linking cost matrix..." );
-		final JaqamanSegmentCostMatrixCreator<S> costMatrixCreator = new JaqamanSegmentCostMatrixCreator<S>( graph, unlinkedSpots, settings, alternativeDistance * alternativeDistance );
+		final JaqamanSegmentCostMatrixCreator<S> costMatrixCreator = new JaqamanSegmentCostMatrixCreator<S>( graph, settings, alternativeDistance * alternativeDistance );
 		costMatrixCreator.setNumThreads(numThreads);
 		final Logger.SlaveLogger jlLogger = new Logger.SlaveLogger( logger, 0, 0.9 );
 		final JaqamanLinker< S, S > linker = new JaqamanLinker<>( costMatrixCreator, jlLogger );

@@ -78,15 +78,13 @@ public class JaqamanSegmentCostMatrixCreator<S extends Spot<S>> implements CostM
 	private int numThreads;
         
 
-	Set<S> unlinkedSpots;
 	/**
 	 * Instantiates a cost matrix creator for the top-left quadrant of the
 	 * segment linking cost matrix.
 	 * 
 	 */
-	public JaqamanSegmentCostMatrixCreator(final Graph< S, DefaultWeightedEdge > graph, Set<S> unlinkedSpots, final Map< String, Object > settings, final double alternativeCost ) {
+	public JaqamanSegmentCostMatrixCreator(final Graph< S, DefaultWeightedEdge > graph, final Map< String, Object > settings, final double alternativeCost ) {
 		this.graph = graph;
-		this.unlinkedSpots=unlinkedSpots;
 		this.settings = settings;
 		this.alternativeCost=alternativeCost;
 		setNumThreads();
@@ -170,20 +168,12 @@ public class JaqamanSegmentCostMatrixCreator<S extends Spot<S>> implements CostM
 		 */
 		final List< S > allMiddles;
 		if ( mergingOrSplitting ) {
-			final List< List< S >> segmentMiddles = segmentSplitter.getSegmentMiddles();
-			List<S> middles = new ArrayList<>();
-			for ( final List< S > segment : segmentMiddles ) {
-				middles.addAll( segment );
-			}
-			allMiddles = StreamConcatenation.concat(unlinkedSpots.stream(), segmentStarts.stream(), middles.stream(), segmentEnds.stream()).collect(Collectors.toList());
-			allMiddles.sort(Spot.frameComparator());
+			allMiddles = segmentSplitter.getSegmentMiddles();
 		}
 		else {
 			allMiddles = Collections.EMPTY_LIST;
 		}
 		//logger.debug("segment starts: {}, ends: {}, unlinked: {}, middles: {}", segmentStarts.size(), segmentEnds.size(), unlinkedSpots.size(), allMiddles.size());
-		segmentStarts.addAll(unlinkedSpots);
-		segmentEnds.addAll(unlinkedSpots);
 
 		final Object lock = new Object();
 

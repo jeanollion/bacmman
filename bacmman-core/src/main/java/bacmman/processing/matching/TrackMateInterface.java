@@ -194,7 +194,7 @@ public class TrackMateInterface<S extends Spot<S>> {
         slSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
         slSettings.put( KEY_CUTOFF_PERCENTILE, 1.0 );
         // Solve.
-        final SparseLAPSegmentTracker<S> segmentLinker = new SparseLAPSegmentTracker<S>( graph, unlinkedSpots, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
+        final SparseLAPSegmentTracker<S> segmentLinker = new SparseLAPSegmentTracker<S>( graph, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
         //final bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker segmentLinker = new bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker( graph, slSettings);
         segmentLinker.setNumThreads(numThreads);
         final Logger.SlaveLogger slLogger = new Logger.SlaveLogger( internalLogger, 0.5, 0.5 );

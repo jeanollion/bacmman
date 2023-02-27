@@ -329,23 +329,29 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         );
 
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
-        Map<SegmentedObject, Point> previousCenters = new HashMap<>();
+        Map<SegmentedObject, Point> previousCenters;
         DISTANCE distanceType = this.distanceType.getSelectedEnum();
+        switch (distanceType) {
+            case MASS_CENTER_DISTANCE:
+            case EDM_MEAN_DISTANCE:
+            case EDM_MAX_DISTANCE: {
+                previousCenters = parentTrack.stream().filter(o -> o.getRegion().getCenter()!=null).collect(Collectors.toMap(o -> o, o->o.getRegion().getCenter()));
+                break;
+            }
+            default: {
+                previousCenters = null;
+            }
+        }
         double edmDistMaxProp = this.edmDistMaxProp.getDoubleValue();
-        double skeletonLMRad = this.skeletonLMRad.getDoubleValue();
         if (MASS_CENTER_DISTANCE.equals(distanceType) || EDM_MEAN_DISTANCE.equals(distanceType)) { // pre-compute all mass centers
             parentTrack.parallelStream().forEach( p -> {
                 Image im = MASS_CENTER_DISTANCE.equals(distanceType) ? p.getRawImage(objectClassIdx) : prediction.edm.get(p);
-                p.getChildren(objectClassIdx).forEach( c -> {
-                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
-                    c.getRegion().setCenter(c.getRegion().getMassCenter(im, false));
-                });
+                p.getChildren(objectClassIdx).forEach( c -> c.getRegion().setCenter(c.getRegion().getMassCenter(im, false)));
             });
         } else if (EDM_MAX_DISTANCE.equals(distanceType)) {
             parentTrack.parallelStream().forEach( p -> {
                 Image edm = prediction.edm.get(p);
                 p.getChildren(objectClassIdx).forEach( c -> {
-                    if (c.getRegion().getCenter()!=null) previousCenters.put(c, c.getRegion().getCenter());
                     double thld = BasicMeasurements.getQuantileValue(c.getRegion(), edm, 0.5)[0] * edmDistMaxProp;
                     c.getRegion().setCenter(c.getRegion().getMassCenter(edm, false, v->v>=thld));
                 });
@@ -536,10 +542,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         boolean ok = tmi.processFTF(distanceThld);
         if (!ok) throw new RuntimeException("Error FTF: "+tmi.errorMessage);
         long t1 = System.currentTimeMillis();
-        tmi.logGraphStatus("FTF", t1-t0);
+
         logContainer.forEach(c -> c.accept("FTF_"));
         // solve conflicting links between clusters and elements of cluster
-        if (!contactMap.isEmpty()) solveClusterLinks(tmi, contactMap.keySet().stream().mapToInt(i->i).min().getAsInt(), contactMap.keySet().stream().mapToInt(i->i).max().getAsInt());
+        if (!contactMap.isEmpty()) {
+            solveClusterLinks(tmi, contactMap.keySet().stream().mapToInt(i->i).min().getAsInt(), contactMap.keySet().stream().mapToInt(i->i).max().getAsInt());
+            logContainer.forEach(c -> c.accept("FTF_C_"));
+        }
+        tmi.logGraphStatus("FTF", t1-t0);
 
         if (divisionMode.getSelectedEnum().equals(DIVISION_MODE.TWO_STEPS)) { // TODO use division probability in this mode
             // for real divisions that are missed in the FTF step
@@ -559,7 +569,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
 
         List<SymetricalPair<SegmentedObject>> additionalLinks = tmi.setTrackLinks(objectsF, editor);
         // restore centers
-        if (!previousCenters.isEmpty()) {
+        if (previousCenters!=null && !previousCenters.isEmpty()) {
             parentTrack.parallelStream().forEach( p -> p.getChildren(objectClassIdx).forEach(c -> {
                 Point center = previousCenters.get(c);
                 if (c!=null) c.getRegion().setCenter(center);
@@ -636,7 +646,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                             if (!clusterNeigh.originalObjects.containsAll(elementNeighsE)) {
                                 //logger.debug("cluster kept: {} with conflicting objects: cluster links={} vs element links={}", o, clusterNeigh, elementNeighs);
                                 if (!conflict[0]) {synchronized (conflict) {conflict[0] = true;}}
-                            } else logger.debug("cluster kept: {} link to {} with no conflicting objects", o, clusterNeigh);
+                            } //else logger.debug("cluster kept: {} link to {} with no conflicting objects", o, clusterNeigh);
                             if (linkWithPrev) toRemovePrev.addAll(clusterNeigh.originalObjects);
                             if (linkWithPrev) toRemoveNext.addAll(o.originalObjects);
                             else toRemovePrev.addAll(o.originalObjects);
