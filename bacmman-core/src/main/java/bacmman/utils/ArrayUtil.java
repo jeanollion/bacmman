@@ -383,6 +383,12 @@ public class ArrayUtil {
         ImageFloat im = new ImageFloat("array", array.length, new float[][]{array});
         ImageFeatures.gaussianSmooth(im, scale, scale, true);
     }
+    public static void gaussianSmooth(double[] array, double scale) {
+        ImageFloat im = new ImageFloat("array", array.length, new float[][]{ArrayUtil.toFloat(array)});
+        ImageFeatures.gaussianSmooth(im, scale, scale, true);
+        float[] pixArray = im.getPixelArray()[0];
+        for (int i = 0; i<array.length; ++i) array[i] = pixArray[i];
+    }
     
     public static <T> T[] duplicate(T[] array) {
         if (array==null) return null;
@@ -653,6 +659,11 @@ public class ArrayUtil {
     public static double[] toDouble(long[] array) {
         double[] res= new double[array.length];
         for (int i = 0; i<array.length; ++i) res[i] = array[i];
+        return res;
+    }
+    public static float[] toFloat(long[] array) {
+        float[] res= new float[array.length];
+        for (int i = 0; i<array.length; ++i) res[i] = (float)array[i];
         return res;
     }
     public static float[] toFloat(double[] array) {

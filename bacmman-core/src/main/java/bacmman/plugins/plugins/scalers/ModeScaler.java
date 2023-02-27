@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -14,11 +15,14 @@ public class ModeScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center;
     BoundedNumberParameter range = new BoundedNumberParameter("Range", 3,  0, 0.001, null).setEmphasized(true).setHint("Values will be transformed: I -> ( I - mode ) / range");
+    BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Edges", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge");
+    BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Edges", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
+
     boolean transformInputImage = false;
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
-        this.center = histogram.getMode();
+        this.center = histogram.getModeExcludingEdges(modeExcludeEdgeLeft.getIntValue(), modeExcludeEdgeRight.getIntValue());
         logger.debug("ModePercentile scaler: center: {}, range: {}", center, range.getValue().doubleValue());
     }
 
@@ -49,7 +53,7 @@ public class ModeScaler implements HistogramScaler, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[] {range};
+        return new Parameter[] {range, modeExcludeEdgeLeft, modeExcludeEdgeRight};
     }
 
     @Override

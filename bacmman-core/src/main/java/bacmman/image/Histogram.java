@@ -20,6 +20,7 @@ package bacmman.image;
 
 import static bacmman.utils.Utils.parallel;
 
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
 import ij.gui.Plot;
@@ -187,14 +188,14 @@ public class Histogram implements JSONSerializable  {
     }
 
     public double getMode() {
-        long maxcount = data[0];
-        int maxbin = 0;
-        for (int i = 1; i<data.length; ++i) {
-            if (data[i]>maxcount) {
-                maxcount = data[i];
-                maxbin = i;
-            }
-        }
+        int maxbin = ArrayUtil.max(data);
+        return getValueFromIdx(maxbin);
+    }
+
+    public double getModeExcludingEdges(int excludeLeft, int excludeRight) {
+        if (excludeLeft<0) excludeLeft = 0;
+        if (excludeRight<0) excludeRight = 0;
+        int maxbin = ArrayUtil.max(data, excludeLeft, data.length-excludeRight);
         return getValueFromIdx(maxbin);
     }
 
