@@ -47,6 +47,7 @@ public class ImportCellTrackingBenchmark {
             if (!rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
             Processor.importFiles(mDAO.getExperiment(), true, pcb, rawDir.getAbsolutePath());
             importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, pcb);
+            mDAO.updateExperiment();
         }
     }
     public static void importObjects(ObjectDAO dao, File dir, int objectClassIdx, ProgressCallback pcb) throws IOException {
