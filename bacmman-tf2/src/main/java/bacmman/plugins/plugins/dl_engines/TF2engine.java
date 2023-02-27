@@ -178,7 +178,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         int increment = (int)Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) );
         for (int idx = 0; idx<nSamples; idx+=increment) {
             int idxMax = Math.min(idx+increment, nSamples);
-            logger.debug("batch: [{};{})", idx, idxMax);
+            logger.debug("batch: [{};{}) / [0;{})", idx, idxMax, nSamples);
             long t0 = System.currentTimeMillis();
             predict(inputNC, idx, idxMax, bufferContainer, res);
             if (flipXYZ!=null && flipXYZ.length>0) { // flipped predictions will be summed
