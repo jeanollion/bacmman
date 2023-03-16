@@ -143,17 +143,19 @@ public class TileUtils {
         Image[] tiles;
 
         public Overlap(BoundingBox area, Image... tiles) {
+            //logger.debug("Overlap: {} tiles: {} -> {}", area, tiles.length, tiles);
             this.tiles = tiles;
             this.area = area;
         }
 
+        // add unique overlaps current tile + adjacent (only in next direction, to avoid adding overlaps twice)
         public static void addOverlaps(Image tile, Image[] prevXYZ, Image[] nextXYZ, Image[] nextXY_XZ_YZ_XYZ, Map<Image, BoundingBox> tileView, List<Overlap> dest) {
             BoundingBox view = tileView.get(tile);
             BoundingBox[] prevView = Arrays.stream(prevXYZ).map(a -> a==null ? null : tileView.get(a)).toArray(BoundingBox[]::new);
             BoundingBox[] nextView = Arrays.stream(nextXYZ).map(a -> a==null ? null : tileView.get(a)).toArray(BoundingBox[]::new);
             ToIntIntFunction getCoordMin = axis -> prevView[axis] == null ? view.getIntPosition(axis) : Math.max(prevView[axis].getMax(axis),  view.getIntPosition(axis));
             ToIntIntFunction getCoordMax = axis -> nextView[axis] == null ? view.getMax(axis) : Math.min(nextView[axis].getIntPosition(axis), view.getMax(axis));
-
+            //logger.debug("view: {}, x=[{}, {}], y=[{}, {}], prevX={} nextX={} prevY={} nextY={} nextXY={}", view, getCoordMin.getAsInt(0), getCoordMax.getAsInt(0), getCoordMin.getAsInt(1), getCoordMax.getAsInt(1), prevView[0], nextView[0], prevView[1], nextView[1], nextXY_XZ_YZ_XYZ[0]);
             // center tile:
             dest.add(new Overlap(new SimpleBoundingBox(getCoordMin.getAsInt(0), getCoordMax.getAsInt(0), getCoordMin.getAsInt(1), getCoordMax.getAsInt(1), getCoordMin.getAsInt(2), getCoordMax.getAsInt(2)), tile));
             // 2 overlapping tiles
@@ -173,16 +175,20 @@ public class TileUtils {
                 Image.pasteImageView(tiles[0], target, area.duplicate().translate(target.getOffset().reverseOffset()), area.duplicate().translate(tiles[0].getBoundingBox().reverseOffset()) );
             } else { // average
                 Point[] centers = Arrays.stream(tiles).map(SimpleBoundingBox::getCenter).toArray(Point[]::new);
+                //double scale = area.sizeX() * area.sizeY() * area.sizeZ();
                 BoundingBox.loop(area, (x ,y, z)-> {
                     double res = 0;
                     double norm = 0;
                     for (int i = 0; i<tiles.length; ++i) {
-                        double d2 = 1 / centers[i].distSq(new Point(x, y, z));
-                        if (Double.isFinite(d2)) res+=tiles[i].getPixelWithOffset(x, y, z) * d2;
-                        else target.setPixelWithOffset(x, y, z, res);
-                        norm += d2;
+                        //double d = Math.exp(- centers[i].distSq(new Point(x, y, z)) / scale);
+                        double d = 1. / centers[i].distSq(new Point(x, y, z));
+                        if (Double.isFinite(d)) {
+                            res+=tiles[i].getPixelWithOffset(x, y, z) * d;
+                            norm += d;
+                        }
                     }
-                    if (Double.isFinite(norm)) target.setPixelWithOffset(x, y, z, res / norm);
+                    if (norm>0) target.setPixelWithOffset(x, y, z, res / norm);
+                    else target.setPixelWithOffset(x, y, z, tiles[0].getPixelWithOffset(x, y, z));
                 });
             }
         }

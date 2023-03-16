@@ -41,7 +41,7 @@ public class PreviousLabels implements FeatureExtractor, Hint {
         RegionPopulation curPop = resampledPopulations.get(objectClassIdx).get(parent);
         Image prevLabel = ImageInteger.createEmptyLabelImage("", curPop.getRegions().stream().mapToInt(Region::getLabel).max().orElse(0), curPop.getImageProperties());
         if (parent.getPrevious()!=null && resampledPopulations.get(objectClassIdx).get(parent.getPrevious())!=null) { // if first frame previous image is self: no previous labels
-            parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null).forEach(c -> {
+            parent.getChildren(objectClassIdx).filter(c->c.getPrevious()!=null && c.getPrevious().getFrame()==c.getFrame()-1).forEach(c -> {
                 Region r = curPop.getRegion(c.getIdx()+1);
                 if (r==null) {
                     logger.error("Object: {} (rel center: {}, bds: {}) not found from it's label. all labels (-1): {}, all objects: {}", c, c.getRegion().getGeomCenter(false).translate(c.getParent().getBounds().duplicate().reverseOffset()), c.getRelativeBoundingBox(c.getParent()), curPop.getRegions().stream().mapToInt(re -> re.getLabel()-1).toArray(), parent.getChildren(objectClassIdx).filter(o->o.getPrevious()!=null).collect(Collectors.toList()));
