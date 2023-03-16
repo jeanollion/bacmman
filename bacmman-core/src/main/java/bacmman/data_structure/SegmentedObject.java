@@ -497,12 +497,27 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
 
     /**
      *
-     * @return first element of the track in which this object is contained.
+     * @return next element of the track in which this object is contained if existing else null.
      */
     public SegmentedObject getNext() {
         if (next==null && nextId!=null) next = dao.getById(parentTrackHeadId, structureIdx, -1, nextId);
         return next;
     }
+
+    public SegmentedObject getPreviousAtFrame(int frame) {
+        if (frame>this.getFrame()) throw new IllegalArgumentException("Looking for previous object after");
+        SegmentedObject p = this;
+        while (p != null && p.getFrame()>frame) p = p.getPrevious();
+        return p;
+    }
+
+    public SegmentedObject getNextAtFrame(int frame) {
+        if (frame<this.getFrame()) throw new IllegalArgumentException("Looking for next object before");
+        SegmentedObject n = this;
+        while (n != null && n.getFrame()<frame) n = n.getNext();
+        return n;
+    }
+
     public String getNextId() {
         return nextId;
     }
@@ -715,7 +730,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, JSONSeriali
         this.regionContainer = null;
         flushImages();
         // second object is added to parent and returned
-        if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()));
+        if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()), true);
         SegmentedObject res = new SegmentedObject(timePoint, structureIdx, idx+1, pop.getRegions().get(1).setLabel(idx+2), getParent());
         getParent().getDirectChildren(structureIdx).add(getParent().getDirectChildren(structureIdx).indexOf(this)+1, res);
         setAttribute(EDITED_SEGMENTATION, true);

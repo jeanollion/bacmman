@@ -25,14 +25,18 @@ import bacmman.data_structure.Voxel;
 import bacmman.data_structure.CoordCollection;
 import bacmman.data_structure.SortedCoordSet;
 import bacmman.image.*;
+import bacmman.measurement.GeometricalMeasurements;
+import bacmman.plugins.GeometricalFeature;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageLabeller;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.utils.Utils;
+import bacmman.utils.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.ToLongBiFunction;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
@@ -45,6 +49,7 @@ public class WatershedTransform {
     public enum PropagationType {DIRECT, NORMAL};
     public static class WatershedConfiguration {
         boolean lowConnectivity;
+        TrackSeedFunction trackSeedFunction;
         boolean decreasingPropagation;
         PropagationCriterion propagationCriterion;
         FusionCriterion fusionCriterion;
@@ -71,8 +76,14 @@ public class WatershedTransform {
             this.decreasingPropagation = decreasingPropagation;
             return this;
         }
+
+        public WatershedConfiguration setTrackSeeds(TrackSeedFunction trackSeedFunction) {
+            this.trackSeedFunction = trackSeedFunction;
+            return this;
+        }
     }
     final protected SortedCoordSet heap;
+
     final protected Map<Integer, Spot> spots;
     final protected Image watershedMap;
     final protected ImageInteger segmentedMap;
@@ -82,6 +93,7 @@ public class WatershedTransform {
     protected boolean lowConnectivity = false;
     PropagationCriterion propagationCriterion;
     FusionCriterion fusionCriterion;
+    protected TrackSeedFunction trackSeedFunction;
     PropagationType prop;
     public SortedCoordSet getHeap() {return heap;}
     public Map<Integer, Spot> getSpots() {return spots;}
@@ -136,13 +148,16 @@ public class WatershedTransform {
         this.watershedMap=watershedMap;
         spots = new HashMap<>(regionalExtrema.size()+1);
         segmentedMap = ImageInteger.createEmptyLabelImage("segmentationMap", regionalExtrema.size()+1, watershedMap);
-        for (int i = 0; i<regionalExtrema.size(); ++i) spots.put(i+1, new Spot(i+1, regionalExtrema.get(i).getVoxels())); // do modify seed objects
-        //logger.debug("watershed transform: number of seeds: {} Segmented map type: {}, decreasing prop: {}", regionalExtrema.size(), segmentedMap.getClass().getSimpleName(), decreasingPropagation);
+        if (config.trackSeedFunction!=null) setTrackSeedFunction(config.trackSeedFunction);
         is3D=watershedMap.sizeZ()>1;
         if (config.propagationCriterion==null) setPropagationCriterion(new DefaultPropagationCriterion());
         else setPropagationCriterion(config.propagationCriterion);
         if (config.fusionCriterion==null) setFusionCriterion(new DefaultFusionCriterion());
         else setFusionCriterion(config.fusionCriterion);
+
+        // create spots
+        for (int i = 0; i<regionalExtrema.size(); ++i) spots.put(i+1, new Spot(i+1, regionalExtrema.get(i).getVoxels())); // do modify seed objects
+        //logger.debug("watershed transform: number of seeds: {} Segmented map type: {}, decreasing prop: {}", regionalExtrema.size(), segmentedMap.getClass().getSimpleName(), decreasingPropagation);
     }
 
     public WatershedTransform setFusionCriterion(FusionCriterion fusionCriterion) {
@@ -154,6 +169,11 @@ public class WatershedTransform {
     public WatershedTransform setPropagationCriterion(PropagationCriterion propagationCriterion) {
         this.propagationCriterion=propagationCriterion;
         propagationCriterion.setUp(this);
+        return this;
+    }
+    public WatershedTransform setTrackSeedFunction(TrackSeedFunction trackSeedFunction) {
+        this.trackSeedFunction=trackSeedFunction;
+        trackSeedFunction.setUp(this);
         return this;
     }
     public void run() {
@@ -326,11 +346,25 @@ public class WatershedTransform {
     public class Spot {
         public CoordCollection voxels;
         int label;
-        public Spot(int label, Collection<Voxel> voxels) {
+        public long seedCoord;
+        public Spot(int label, Collection<Voxel> seeds) {
             this.label=label;
             this.voxels= CoordCollection.create(heap.sizeX(), heap.sizeY(), heap.sizeZ());
-            voxels.stream().mapToLong(v -> heap.toCoord(v.x, v.y, v.z)).forEach(l -> this.voxels.add(l));
-            for (Voxel v : voxels) {
+            if (trackSeedFunction!=null) { // set seed
+                if (voxels.size() == 1) seedCoord = voxels.stream().iterator().next();
+                else {
+                    double[] center = new double[3];
+                    for (Voxel v : seeds) {
+                        center[0] += v.x;
+                        center[1] += v.y;
+                        center[2] += v.z;
+                    }
+                    double s = seeds.size();
+                    seedCoord = getHeap().toCoord((int)Math.round(center[0] / s), (int)Math.round(center[1] / s), (int)Math.round(center[2] / s));
+                }
+            }
+            seeds.stream().mapToLong(v -> heap.toCoord(v.x, v.y, v.z)).forEach(l -> this.voxels.add(l));
+            for (Voxel v : seeds) {
                 segmentedMap.setPixel(v.x, v.y, v.z, label);
             }
         }
@@ -346,6 +380,9 @@ public class WatershedTransform {
             spots.remove(spot.label);
             spot.setLabel(label);
             this.voxels.addAll(spot.voxels); // pas besoin de check si voxels.contains(v) car les spots ne se recouvrent pas            //update seed: lowest seedIntensity
+            if (trackSeedFunction!=null) {
+                seedCoord = trackSeedFunction.getSeed(this, spot);
+            }
             return this;
         }
         
@@ -528,6 +565,30 @@ public class WatershedTransform {
             for (FusionCriterion c : criteria) if (c.checkFusionCriteria(s1, s2, currentVoxel)) return true;
             return false;
         }
+    }
+    public interface TrackSeedFunction {
+        void setUp(WatershedTransform instance);
+        long getSeed(Spot s1, Spot s2);
+    }
+    public static TrackSeedFunction getIntensityTrackSeedFunction(Image image, boolean keepLowest) {
+        return new TrackSeedFunction() {
+            WatershedTransform instance;
+            @Override
+            public void setUp(WatershedTransform instance) {
+                this.instance=instance;
+            }
+
+            @Override
+            public long getSeed(Spot s1, Spot s2) {
+                double v1 = instance.getHeap().getPixel(image, s1.seedCoord);
+                double v2 = instance.getHeap().getPixel(image, s2.seedCoord);
+                if (keepLowest) {
+                    return v1<=v2 ? s1.seedCoord:s2.seedCoord;
+                } else {
+                    return v1<=v2 ? s2.seedCoord:s1.seedCoord;
+                }
+            }
+        };
     }
 
 }

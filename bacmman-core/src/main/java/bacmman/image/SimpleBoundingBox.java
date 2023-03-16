@@ -74,6 +74,18 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
                 throw new IllegalArgumentException("out-of-dimension");
         }
     }
+    @Override public int getMin(int dim) {
+        switch(dim) {
+            case 0:
+                return xMin;
+            case 1:
+                return yMin;
+            case 2:
+                return zMin;
+            default:
+                throw new IllegalArgumentException("out-of-dimension");
+        }
+    }
 
     @Override public int sizeX() {
         //if (xMax==Integer.MAX_VALUE || xMin==Integer.MIN_VALUE || xMax==Integer.MIN_VALUE || xMin==Integer.MAX_VALUE) return -1;

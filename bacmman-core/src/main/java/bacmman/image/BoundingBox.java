@@ -36,6 +36,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     int yMax();
     int zMax();
     int getMax(int dim);
+    int getMin(int dim);
     int sizeX();
     int sizeY();
     int sizeZ();
@@ -149,6 +150,30 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     public static boolean isIncluded2D(BoundingBox contained, BoundingBox container) {
         if (!contained.isValid() || !container.isValid()) return false;
         return contained.xMin()>=container.xMin() && contained.xMax()<=container.xMax() && contained.yMin()>=container.yMin() && contained.yMax()<=container.yMax();
+    }
+
+    static boolean isIncluded(Point point, BoundingBox container) {
+        return point.get(0)>=container.xMin() && point.get(0)<=container.xMax() && point.get(1)>=container.yMin() && point.get(1)<=container.yMax() && point.get(2)>=container.zMin() && point.get(2)<=container.zMax();
+    }
+
+    static boolean isIncluded2D(Point point, BoundingBox container) {
+        return point.get(0)>=container.xMin() && point.get(0)<=container.xMax() && point.get(1)>=container.yMin() && point.get(1)<=container.yMax();
+    }
+
+    static double distanceSq2D(Point point, BoundingBox bds) {
+        return Math.pow(distance1D(point.get(0), bds, 0), 2) + Math.pow(distance1D(point.get(1), bds, 1), 2);
+    }
+
+    static double distanceSq(Point point, BoundingBox bds) {
+        return Math.pow(distance1D(point.get(0), bds, 0), 2) + Math.pow(distance1D(point.get(1), bds, 1), 2)  + Math.pow(distance1D(point.get(2), bds, 2), 2);
+    }
+
+    static double distance1D(double coord, BoundingBox bds, int dim) {
+        int min = bds.getMin(dim);
+        if (coord < min) return min - coord;
+        int max = bds.getMax(dim);
+        if (coord > max) return coord - max;
+        return 0;
     }
     
     public static MutableBoundingBox getMergedBoundingBox(Stream<BoundingBox> bounds) {

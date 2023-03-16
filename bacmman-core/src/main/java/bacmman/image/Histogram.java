@@ -192,7 +192,7 @@ public class Histogram implements JSONSerializable  {
         return getValueFromIdx(maxbin);
     }
 
-    public double getModeExcludingEdges(int excludeLeft, int excludeRight) {
+    public double getModeExcludingTailEnds(int excludeLeft, int excludeRight) {
         if (excludeLeft<0) excludeLeft = 0;
         if (excludeRight<0) excludeRight = 0;
         int maxbin = ArrayUtil.max(data, excludeLeft, data.length-excludeRight);

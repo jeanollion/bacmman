@@ -583,7 +583,7 @@ public class SegmentedObjectUtils {
         List<SegmentedObject> res=new ArrayList<>();
         //logger.trace("get div siblings: frame: {}, number of siblings: {}", this.getTimePoint(), siblings.size());
         if (object.getPrevious()!=null) {
-            getSiblings(object).filter(o->o!=object && o.getPrevious()==object.getPrevious()).forEachOrdered(o-> res.add(o));
+            getSiblings(object).filter(o->o!=object && o.getPrevious()==object.getPrevious()).forEachOrdered(res::add);
 
 
         } /*else { // get thespatially closest sibling

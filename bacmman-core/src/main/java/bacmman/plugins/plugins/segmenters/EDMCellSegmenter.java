@@ -58,6 +58,12 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         return res;
     }
     List<FusionCriterion<Region, I>> fusionCriteria = new ArrayList<>();
+
+    public EDMCellSegmenter setMinimalEDMValue(double minimalEDMValue) {
+        this.minimalEDMValue.setValue(minimalEDMValue);
+        return this;
+    }
+
     @Override
     public void addFusionCriterion(FusionCriterion<Region, I> crit) {
         fusionCriteria.add(crit);

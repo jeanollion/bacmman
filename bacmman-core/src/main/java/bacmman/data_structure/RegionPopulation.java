@@ -532,7 +532,7 @@ public class RegionPopulation {
     public RegionPopulation filterAndMergeWithConnected(SimpleFilter filter) {
         List<Region> removed = new ArrayList<>();
         filter(filter, removed);
-        if (!removed.isEmpty()) mergeWithConnected(removed);
+        if (!removed.isEmpty()) mergeWithConnected(removed, true);
         return this;
     }
     
@@ -598,7 +598,7 @@ public class RegionPopulation {
         mergeAllConnected(Integer.MIN_VALUE);
     }
     /**
-     * Merge all objects connected if their label is above {@param fromLabel}
+     * Merge all objects connected if their label is greater or equal {@param fromLabel}
      * Existing region are not modified, when merged, new regions are created
      * @param fromLabel 
      */
@@ -644,7 +644,8 @@ public class RegionPopulation {
         }
         objects = new ArrayList<>(labelMapRegion.values());
     }
-    public void mergeWithConnected(Collection<Region> objectsToMerge) {
+
+    public void mergeWithConnected(Collection<Region> objectsToMerge, boolean eraseUnMergedObjects) {
         // create a new list, with objects to merge at the end, and record the last label to merge
         ArrayList<Region> newObjects = new ArrayList<Region>();
         Set<Region> toMerge=  new HashSet<>(objectsToMerge);
@@ -652,14 +653,16 @@ public class RegionPopulation {
         int labelToMerge = newObjects.size()+1;
         newObjects.addAll(toMerge);
         this.objects=newObjects;
+        relabel(false);
         mergeAllConnected(labelToMerge);
-        // erase unmerged objects
-        Iterator<Region> it = objects.iterator();
-        while(it.hasNext()) {
-            Region n = it.next();
-            if (n.getLabel()>=labelToMerge) {
-                eraseObject(n, false);
-                it.remove();
+        if (eraseUnMergedObjects) {
+            Iterator<Region> it = objects.iterator();
+            while (it.hasNext()) {
+                Region n = it.next();
+                if (n.getLabel() >= labelToMerge) {
+                    eraseObject(n, false);
+                    it.remove();
+                }
             }
         }
     }
@@ -675,16 +678,18 @@ public class RegionPopulation {
     }
     
     public void sortBySpatialOrder(final IndexingOrder order) {
-        Comparator<Region> comp = new Comparator<Region>() {
-            @Override
-            public int compare(Region arg0, Region arg1) {
-                return compareCenters(getCenterArray(arg0.getBounds()), getCenterArray(arg1.getBounds()), order);
-            }
-        };
+        Comparator<Region> comp = (arg0, arg1) -> compareCenters(getCenterArray(arg0.getBounds()), getCenterArray(arg1.getBounds()), order);
         Collections.sort(objects, comp);
         relabel(false);
     }
-    
+
+    public void sortBySize(boolean increasing) {
+        Comparator<Region> comp = Comparator.comparingDouble(Region::size);
+        if (!increasing) comp = comp.reversed();
+        Collections.sort(objects, comp);
+        relabel(false);
+    }
+
     public Image getLocalThicknessMap() {
         Image ltmap = new ImageFloat("Local Thickness Map "+getImageProperties().getScaleXY()+ " z:"+getImageProperties().getScaleZ(), getImageProperties());
         for (Region r : getRegions()) {
