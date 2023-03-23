@@ -754,9 +754,14 @@ public class Utils {
         if (dir==null || !dir.exists()) return;
         if (dir.isFile()) dir.delete();
         else {
-            for (File f : dir.listFiles()) deleteDirectory(f);
+            emptyDirectory(dir);
             dir.delete();
         }
+    }
+    public static void emptyDirectory(File dir) {
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) deleteDirectory(f);
     }
     
     public static List<File> seachAll(String path, Predicate<String> fileMatch, int recLevels) {

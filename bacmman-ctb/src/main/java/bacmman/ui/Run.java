@@ -17,6 +17,10 @@ import java.io.IOException;
 import java.nio.file.Paths;
 
 public class Run {
+    /**
+     *
+     * @param args 0 = image folder (string) / 1 = json config (string) / 2 = remove temp file (boolean, optional, default True) / 3 = edge margin (int, optional, default 0)
+     */
     public static void main(String[] args) {
         // check args and init path
         if (args.length<2) throw new IllegalArgumentException("at least 2 arguments required: image path and json configuration");
@@ -54,7 +58,8 @@ public class Run {
         if (!t.isValid()) throw new RuntimeException("Invalid Task");
         t.runTask(0.5);
         t.done();
-        ExportCellTrackingBenchmark.export(db, parent.getAbsolutePath(), 0);
+        int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;
+        ExportCellTrackingBenchmark.export(db, parent.getAbsolutePath(), 0, margin, false);
 
         // close / remove temp files
         if (args.length==2 || Boolean.parseBoolean(args[2])) {

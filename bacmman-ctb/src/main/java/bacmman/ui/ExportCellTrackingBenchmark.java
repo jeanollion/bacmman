@@ -2,6 +2,7 @@ package bacmman.ui;
 
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
+import bacmman.data_structure.Selection;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.image.BoundingBox;
@@ -30,25 +31,46 @@ public class ExportCellTrackingBenchmark {
         put("Fluo-N2DH-GOWT1", 50);put("Fluo-N3DH-CE", 50);put("Fluo-N3DH-CHO", 50);put("PhC-C2DH-U373", 50);
         put("BF-C2DL-HSC", 25);put("BF-C2DL-MuSC", 25);put("Fluo-C3DL-MDA231", 25);put("Fluo-N2DL-HeLa", 25);put("PhC-C2DL-PSC", 25);}};
 
-    public static void export(MasterDAO mDAO, String dir, int objectClassIdx) {
-        int edge = FOI.getOrDefault(mDAO.getDBName(), 0);
+    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, boolean exportRaw) {
+        if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
+        List<Selection> sel = mDAO.getSelectionDAO().getSelections().stream().filter(s -> selectionNames.contains(s.getName())).collect(Collectors.toList());
+        if (sel.isEmpty()) logger.error("No selection");
+        for (Selection s : sel) {
+            for (String p : s.getAllPositions()) {
+                List<SegmentedObject> parentTrack = s.getElements(p).stream().sorted().collect(Collectors.toList());
+                File curDir = Paths.get(dir, p+"-"+s.getName()+"_RES").toFile();
+                if (!curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
+                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportRaw);
+            }
+        }
+    }
+    public static void export(MasterDAO mDAO, String dir, int objectClassIdx, int margin, boolean exportRaw) {
+        if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         for (String p : mDAO.getExperiment().getPositionsAsString()) {
             File dirP = Paths.get(dir, p+"_RES").toFile();
             if (!dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
-            exportPosition(mDAO.getDao(p), dirP.toString(), objectClassIdx, edge);
+            exportPosition(mDAO.getDao(p), dirP.toString(), objectClassIdx, margin, exportRaw);
         }
     }
-    public static void exportPosition(ObjectDAO dao, String dir, int objectClassIdx, int edge) {
+
+    public static void exportPosition(ObjectDAO dao, String dir, int objectClassIdx, int margin, boolean exportRaw) {
+        export(dao.getRoots(), dir, objectClassIdx, margin, exportRaw);
+    }
+    public static void export(List<SegmentedObject> parentTrack, String dir, int objectClassIdx, int margin, boolean exportRaw) {
+        logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, dir, margin);
+        if (parentTrack.isEmpty()) return;
         int[] counter=new int[]{0};
+        int parentOC = parentTrack.get(0).getStructureIdx();
         Map<SegmentedObject, Integer> getTrackLabel = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> ++counter[0]);
         // FOI specs
-        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(dao.getRoots(), objectClassIdx);
+        Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, objectClassIdx);
         // the two following maps are to overwrite track links in case of gaps created by out-of-FOI objects
         Map<SegmentedObject, SegmentedObject> trackHeadMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(SegmentedObject::getTrackHead);
         Map<SegmentedObject, SegmentedObject> previousMap = new HashMapGetCreate.HashMapGetCreateRedirected<>(SegmentedObject::getPrevious);
-        if (edge>0) { // remove all objects with no pixel in FOI and create gaps
+        Map<SegmentedObject, Boolean> objectInFOI = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> objectInFoi(o.getParent(parentOC), o, margin));
+        if (margin>0) { // remove all objects with no pixel in FOI and create gaps
             new HashMap<>(allTracks).entrySet().stream().forEach(e -> {
-                List<SegmentedObject> newTrack = e.getValue().stream().filter(o->objectInFoi(o, edge)).collect(Collectors.toList());
+                List<SegmentedObject> newTrack = e.getValue().stream().filter(objectInFOI::get).collect(Collectors.toList());
                 if (newTrack.size() < e.getValue().size()) { // objects have been removed : get continuous segments
                     List<List<SegmentedObject>> newTracks = new ArrayList<>();
                     int lastTrackStart = 0;
@@ -58,7 +80,7 @@ public class ExportCellTrackingBenchmark {
                             lastTrackStart = i;
                         }
                     }
-                    logger.debug("FOI: Track: {} split at frames {}", e.getKey(), newTracks.stream().mapToInt(t -> t.get(0).getFrame()).toArray());
+                    //logger.debug("FOI: Track: {} split at frames {}", e.getKey(), newTracks.stream().mapToInt(t -> t.get(0).getFrame()).toArray());
                     allTracks.remove(e.getKey());
                     for (int i = 0; i< newTracks.size(); ++i) {
                         List<SegmentedObject> t = newTracks.get(i);
@@ -72,14 +94,19 @@ public class ExportCellTrackingBenchmark {
                 }
             });
         }
-        // write images
-        dao.getRoots().forEach(r -> {
-            Image labels = new ImageShort("mask"+ Utils.formatInteger(3, r.getFrame()), r.getMaskProperties());
-            r.getChildren(objectClassIdx).forEach(o -> o.getRegion().draw(labels, getTrackLabel.get(trackHeadMap.get(o))));
+        // write label images
+        int padding = parentTrack.size()>=1000 ? 4 : 3;
+        String rawDir = dir.substring(0, dir.length()-4);
+        Utils.emptyDirectory(new File(dir));
+        if (exportRaw) Utils.emptyDirectory(new File(rawDir));
+        parentTrack.forEach(r -> {
+            Image labels = new ImageShort("mask"+ Utils.formatInteger(padding, r.getFrame()), r.getMaskProperties());
+            r.getChildren(objectClassIdx).filter(objectInFOI::get).forEach(o -> o.getRegion().draw(labels, getTrackLabel.get(trackHeadMap.get(o))));
             ImageWriter.writeToFile(labels, Paths.get(dir, labels.getName()).toString(), ImageFormat.TIF);
+            if (exportRaw) ImageWriter.writeToFile(r.getRawImage(objectClassIdx), Paths.get(rawDir, labels.getName()).toString(), ImageFormat.TIF);
         });
 
-        logger.debug("Exporting to : {}, edge: {}, number of labels: {} number of tracks: {}", dir, edge, counter[0], allTracks.size());
+        logger.debug("Exporting to : {}, edge: {}, number of labels: {} number of tracks: {}", dir, margin, counter[0], allTracks.size());
         // write lineage information
         File f = Paths.get(dir, "res_track.txt").toFile();
         try {
@@ -107,19 +134,9 @@ public class ExportCellTrackingBenchmark {
             throw new RuntimeException(e);
         }
     }
-    public static boolean objectInFoi(SegmentedObject o, int edge) {
+    public static boolean objectInFoi(SegmentedObject parent, SegmentedObject o, int edge) {
         if (edge <= 0 ) return true;
-        MutableBoundingBox ref=new MutableBoundingBox(o.getRoot().getBounds()).addBorder(-edge, false);
+        MutableBoundingBox ref=new MutableBoundingBox(parent.getBounds()).addBorder(-edge, false);
         return BoundingBox.intersect2D(ref, o.getBounds());
-    }
-
-    public static boolean trackInFoi(List<SegmentedObject> track, int edge, int trackLabel) {
-        if (edge <= 0 ) return true;
-        MutableBoundingBox ref=new MutableBoundingBox(track.get(0).getRoot().getBounds()).addBorder(-edge, false);
-        for (SegmentedObject o : track) {
-            if (BoundingBox.intersect2D(ref, o.getBounds())) return true;
-        }
-        //logger.debug("Track: {} is out of bounds", trackLabel);
-        return false;
     }
 }

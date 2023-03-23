@@ -194,6 +194,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     refer to third_party/tensorflow/core/common_runtime/gpu/gpu_id.h\n" +
             "     for more information.");
 
+    private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
+
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
@@ -307,7 +309,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JListReorderDragAndDrop.enableDragAndDrop(actionPoolList, actionPoolListModel, Task.class);
         actionPoolList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         // disable components when run action
-        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(importCTCMenuItem);}};
+        relatedToXPSet = new ArrayList<Component>() {{add(saveConfigMenuItem);add(exportSelectedFieldsMenuItem);add(exportXPConfigMenuItem);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedStructuresMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(extractMeasurementMenuItem);add(openTrackMateMenuItem);add(exportCTCMenuItem);add(exportSelCTCMenuItem);add(importCTCMenuItem);add(importCTCRelinkMenuItem);}};
         relatedToReadOnly = new ArrayList<Component>() {{add(saveConfigMenuItem); add(manualSegmentButton);add(splitObjectsButton);add(mergeObjectsButton);add(deleteObjectsButton);add(pruneTrackButton);add(linkObjectsButton);add(unlinkObjectsButton);add(resetLinksButton);add(importImagesMenuItem);add(importImagesFromOmeroMenuItem);add(runSelectedActionsMenuItem);add(importMenu);add(importPositionsToCurrentExperimentMenuItem);add(importConfigurationForSelectedPositionsMenuItem);add(importConfigurationForSelectedStructuresMenuItem);}};
         // persistent properties
         setLogFile(PropertyUtils.get(PropertyUtils.LOG_FILE));
@@ -504,6 +506,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         pyGatewayAddress.addListener(pyGatewayListener);
         pyGatewayPythonPort.addListener(pyGatewayListener);
         pyGatewayAddress.addListener(pyGatewayListener);
+
+        // ctc
+        ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
+        PropertyUtils.setPersistent(marginCTC, "ctc_margin");
         // load xp after persistent props loaded
         populateDatasetTree();
         dsTree.setRecentSelection();
@@ -915,32 +921,83 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             });
             importMenu.add(openTrackMateMenuItem);
         }
-        importCTCMenuItem.setText("Import Cell Tracking Benchmark");
-        importCTCMenuItem.addActionListener(e -> {
+        CTCMenu.setText("Cell Tracking Benchmark");
+        Consumer<Boolean> importFun = relink -> {
             if (checkConnection()) {
                 String dir = promptDir("Select Input Directory", db.getDir().toString(), true);
                 if (dir != null) {
-                    try {
-                        ImportCellTrackingBenchmark.importPositions(db, dir, 0, ProgressCallback.get(this));
-                    } catch (IOException ex) {
-                        setMessage("Error while importing CTC:"+ex.getMessage());
-                    }
+                    DefaultWorker.execute(i -> {
+                        try {
+                            ImportCellTrackingBenchmark.importPositions(db, dir, 0, relink, ProgressCallback.get(this));
+                        } catch (IOException ex) {
+                            setMessage("Error while importing CTC:" + ex.getMessage());
+                        }
+                        // also lock all new positions
+                        boolean lock = db.lockPositions();
+                        return "";
+                    }, 1).setEndOfWork(() -> {
+                        populateActionPositionList();
+                        populateTestPositionJCB();
+                        updateConfigurationTree();
+                        if (tabs.getSelectedComponent() == dataPanel) {
+                            reloadObjectTrees = false;
+                            loadObjectTrees();
+                            displayTrackTrees();
+                        } else reloadObjectTrees = true;
+                    });
                 }
             }
+        };
+        importCTCMenuItem.setText("Import Positions");
+        importCTCMenuItem.addActionListener(e -> {
+            importFun.accept(false);
         });
-        exportCTCMenuItem.setText("Export Cell Tracking Benchmark");
+        CTCMenu.add(importCTCMenuItem);
+        importCTCRelinkMenuItem.setText("Import Positions (Overwrite Segmented Objects)");
+        importCTCRelinkMenuItem.addActionListener(e -> {
+            importFun.accept(true);
+        });
+        CTCMenu.add(importCTCRelinkMenuItem);
+        exportCTCMenuItem.setText("Export Positions");
         exportCTCMenuItem.addActionListener(e -> {
             if (checkConnection()) {
                 String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
+                int[] ocs = getSelectedStructures(false);
+                int oc;
+                if (ocs.length==1) oc = ocs[0];
+                else if (ocs.length==0 && db.getExperiment().getStructureCount()==1) oc = 0;
+                else {
+                    setMessage("Select Object Class to export");
+                    return;
+                }
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.export(db, dir, 0);
+                    ExportCellTrackingBenchmark.export(db, dir, oc, marginCTC.getIntValue(), true);
                 }
             }
         });
+        CTCMenu.add(exportCTCMenuItem);
+        exportSelCTCMenuItem.setText("Export Selections");
+        exportSelCTCMenuItem.addActionListener(e -> {
+            if (checkConnection()) {
+                String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
+                int[] ocs = getSelectedStructures(false);
+                int oc;
+                if (ocs.length==1) oc = ocs[0];
+                else if (ocs.length==0 && db.getExperiment().getStructureCount()==1) oc = 0;
+                else {
+                    setMessage("Select Object Class to export");
+                    return;
+                }
+                List<String> sel = getSelectedSelections(true).stream().map(Selection::getName).collect(Collectors.toList());
+                if (dir != null) {
+                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), true);
+                }
+            }
+        });
+        CTCMenu.add(exportSelCTCMenuItem);
         try { // check if ctb module is present
             if (getClasses("bacmman.ui").stream().anyMatch(c->c.getSimpleName().equals("ExportCellTrackingBenchmark"))) {
-                this.importMenu.add(importCTCMenuItem);
-                this.importMenu.add(exportCTCMenuItem);
+                this.importMenu.add(CTCMenu);
             }
         } catch (IOException | ClassNotFoundException e) { }
 
@@ -1686,7 +1743,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         onlineConfigurationLibraryMenuItem = new javax.swing.JMenuItem();
         onlineDLModelLibraryMenuItem = new javax.swing.JMenuItem();
         exportCTCMenuItem = new javax.swing.JMenuItem();
+        exportSelCTCMenuItem = new javax.swing.JMenuItem();
         importCTCMenuItem = new javax.swing.JMenuItem();
+        importCTCRelinkMenuItem = new javax.swing.JMenuItem();
         deleteXPMenuItem = new javax.swing.JMenuItem();
         duplicateXPMenuItem = new javax.swing.JMenuItem();
         saveConfigMenuItem = new javax.swing.JMenuItem();
@@ -1762,7 +1821,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         displayShortcutMenuItem = new javax.swing.JMenuItem();
         printShortcutMenuItem = new javax.swing.JMenuItem();
         shortcutPresetMenu = new javax.swing.JMenu();
-
+        CTCMenu = new javax.swing.JMenu();
         setDefaultCloseOperation(javax.swing.WindowConstants.DO_NOTHING_ON_CLOSE);
 
         homeSplitPane.setOrientation(javax.swing.JSplitPane.VERTICAL_SPLIT);
@@ -5167,8 +5226,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu sampleDatasetMenu;
     private javax.swing.JMenu motherMachineDatasetMenu;
     private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
-    private javax.swing.JMenuItem exportCTCMenuItem;
+    private javax.swing.JMenu CTCMenu;
+    private javax.swing.JMenuItem exportCTCMenuItem, exportSelCTCMenuItem;
     private javax.swing.JMenuItem importCTCMenuItem;
+    private javax.swing.JMenuItem importCTCRelinkMenuItem;
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;

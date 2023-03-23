@@ -38,15 +38,23 @@ public class ImportCellTrackingBenchmark {
         ConsoleProgressLogger ui = new ConsoleProgressLogger();
         Core.setUserLogger(ui);
     }
-    public static void importPositions(MasterDAO mDAO, String dir, int objectClassIdx, ProgressCallback pcb) throws IOException {
+    public static void importPositions(MasterDAO mDAO, String dir, int objectClassIdx, boolean overwriteObjects, ProgressCallback pcb) throws IOException {
         File mainDir = new File(dir);
         File[] allDir = mainDir.listFiles(f->f.isDirectory() && f.getName().endsWith("_RES"));
-        if (allDir == null) throw new IOException("No directories found in "+dir);
+        if (allDir == null || allDir.length==0) {
+            if (pcb!=null) pcb.log("No position found in directory");
+            logger.warn("No position found in directory");
+            return;
+        }
+        if (pcb!=null) pcb.incrementTaskNumber(2 * allDir.length);
         for (File resDir : allDir) {
-            File rawDir = Paths.get(resDir.getParent(), resDir.getName().replace("_RES", "")).toFile();
+            String posName = resDir.getName().replace("_RES", "");
+            File rawDir = Paths.get(resDir.getParent(), posName).toFile();
             if (!rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
+            boolean exists = mDAO.getExperiment().getPositions().stream().map(ContainerParameterImpl::getName).anyMatch(p->p.equals(posName));
             Processor.importFiles(mDAO.getExperiment(), true, pcb, rawDir.getAbsolutePath());
-            importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, pcb);
+            if (overwriteObjects || !exists) importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, pcb);
+            else if (pcb!=null) pcb.incrementProgress();
             mDAO.updateExperiment();
         }
     }
@@ -83,7 +91,10 @@ public class ImportCellTrackingBenchmark {
             else {
                 for (int f = idStartStopParent[1] + 1; f <= idStartStopParent[2]; ++f) {
                     SegmentedObject cur = getObject.apply(id, f);
-                    if (cur == null) pcb.log("Error (track element import): object "+id+" @ frame: "+f+" not found");
+                    if (cur == null) {
+                        pcb.log("Error (track element import): object "+id+" @ frame: "+f+" not found");
+                        logger.warn("Error (track element import): object {} @ frame: {} not found", id, f);
+                    }
                     else {
                         editor.setTrackLinks(prev, cur, true, true, true);
                         prev = cur;
@@ -104,11 +115,16 @@ public class ImportCellTrackingBenchmark {
                 connectedTracks.forEach(n -> {
                     SegmentedObject nTh = getObject.apply(n[0], n[1]);
                     if (nTh == null) pcb.log("Error (track head parent-next import): object "+n[0]+" @ frame: "+n[1]+" not found");
+                    else if (nTh.getFrame()<=prev.getFrame()) {
+                        pcb.log("Error: cannot link "+prev+" to "+nTh+": next is before prev");
+                        logger.error("Cannot link {} to {}: next is before prev", prev, nTh);
+                    }
                     else editor.setTrackLinks(prev, nTh, true, connectedTracks.size() == 1, connectedTracks.size() == 1);
                 });
             }
         }) ;
-
+        dao.store(SegmentedObjectUtils.getAllChildrenAsStream(roots.stream(), objectClassIdx).collect(Collectors.toList()));
+        if (pcb!=null)  pcb.incrementProgress();
     }
 
 
