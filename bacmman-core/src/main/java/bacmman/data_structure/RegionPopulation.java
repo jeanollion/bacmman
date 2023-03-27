@@ -629,7 +629,7 @@ public class RegionPopulation {
                                         label = currentRegion.getLabel();
                                         otherLabel = otherRegion.getLabel();
                                     }
-                                    Region newRegion = Region.merge(currentRegion, otherRegion);
+                                    Region newRegion = Region.merge(false, currentRegion, otherRegion);
                                     newRegion.setLabel(label);
                                     draw(otherRegion, label);
                                     labelMapRegion.remove(otherLabel);

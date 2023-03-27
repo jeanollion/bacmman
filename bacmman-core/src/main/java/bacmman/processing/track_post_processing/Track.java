@@ -279,12 +279,6 @@ public class Track {
         return track2;
     }
 
-    protected static void binaryClose(Region r, double radius) {
-        Neighborhood n = new EllipsoidalNeighborhood(radius, false);
-        ImageInteger closed = Filters.binaryCloseExtend(r.getMaskAsImageInteger(), n, false);
-        r.setMask(closed);
-    }
-
     public static Track mergeTracks(Track track1, Track track2, SegmentedObjectFactory factory, TrackLinkEditor editor, Consumer<Track> removeTrack, Consumer<Track> addTrack) {
         if (track1.getFirstFrame()>track2.getLastFrame() || track2.getFirstFrame()>track1.getLastFrame()) {
             logger.error("cannot merge tracks: incompatible first/last frames {} + {}", track1, track2);
@@ -313,12 +307,7 @@ public class Track {
         Utils.parallel(track1.objects.stream(), parallel).forEach(o1 -> {
             SegmentedObject o2 =  track2.getObject(o1.getFrame());
             if (o2!=null) {
-                Set<Voxel> contour2 = o2.getRegion().getContour();
-                double minDistSq = o1.getRegion().getContour().stream().mapToDouble(v1 -> contour2.stream().mapToDouble(v1::getDistanceSquare).min().orElse(0)).min().orElse(0);
-                o1.getRegion().merge(o2.getRegion());
-                if (minDistSq > 1) { // in case objects do not touch : perform binary close
-                    binaryClose(o1.getRegion(), Math.sqrt(minDistSq+1));
-                }
+                o1.getRegion().setMask(Region.merge(true, o1.getRegion(), o2.getRegion()).getMask());
                 factory.removeFromParent(o2);
             }
         });

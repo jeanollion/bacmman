@@ -252,9 +252,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                             double d1 = new Point(instance.getHeap().parse(s1.seedCoord)).dist(meet);
                             double d2 = new Point(instance.getHeap().parse(s2.seedCoord)).dist(meet);
                             double crit = d1<=d2 ? (d1 - meetCenterValue)/meetCenterValue: (d2 - meetCenterValue)/meetCenterValue;
-
-
-                            logger.debug("frame: {} fusion @ {}: meetCenterValue {} dist 1 = {} 2 = {}, crit: {}", p.getFrame(), meet, meetCenterValue, d1, d2, crit);
+                            //logger.debug("frame: {} fusion @ {}: meetCenterValue {} dist 1 = {} 2 = {}, crit: {}", p.getFrame(), meet, meetCenterValue, d1, d2, crit);
                             return crit>fusionCriterion.getDoubleValue();
                         }
                     });
@@ -309,7 +307,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         return res;
     }
 
-    public <T extends TrackingObject<T>> List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, List<Consumer<String>> logContainer, Map<Region, Double>[] divMapContainer) {
+    public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, List<Consumer<String>> logContainer, Map<Region, Double>[] divMapContainer) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
@@ -423,12 +421,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                             .collect(Collectors.toList());
                 }
                 if (toLink!=null && !toLink.isEmpty()) {
+                    if (c.getPrevious()!=null) toLink.removeIf(p -> p.equals(c.getPrevious()));
+                    toLink.removeIf(p -> c.equals(p.getNext()));
                     toLink.forEach( p -> {
                         if (c.getPrevious()!=null && p.getNext()!=null) additionalLinks.add(new SymetricalPair<>(p, c));
                         else {
                             boolean div = p.getNext()!=null;
                             boolean merge = c.getPrevious()!=null;
-                            if (merge && !c.getPrevious().equals(p) && c.equals(c.getPrevious().getNext())) { // convert double link to single link
+                            if (merge && c.equals(c.getPrevious().getNext())) { // convert double link to single link
                                 SegmentedObject existingPrev = c.getPrevious();
                                 editor.setTrackLinks(null, c, true, false, true);
                                 editor.setTrackLinks(existingPrev, c, false, true, false);
@@ -449,15 +449,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 prevMapNexts.forEach((p, nexts) -> {
                     if (nexts.size()>1 && nexts.stream().mapToDouble(o -> divMap.get(o.getRegion())).max().getAsDouble()<divProb) {
                         List<SegmentedObject> allNexts = nexts.stream().flatMap(n -> SegmentedObjectEditor.getNext(n).stream()).collect(Collectors.toList());
+                        // merge objects
                         nexts.sort(SegmentedObject::compareTo);
-                        for (int i = 1; i<nexts.size(); ++i) { // merge objects
-                            nexts.get(0).getRegion().merge(nexts.get(1).getRegion());
-                            factory.removeFromParent(nexts.get(i));
-                        }
+                        nexts.get(0).getRegion().setMask(Region.merge(nexts.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), true).getMask());
+                        for (int i = 1; i<nexts.size(); ++i) factory.removeFromParent(nexts.get(i));
                         // set links
                         editor.setTrackLinks(p, nexts.get(0), true, true, true);
                         boolean div = allNexts.size()>1;
-                        for (SegmentedObject n : allNexts) editor.setTrackLinks(nexts.get(0), n, true, !div, !div);
+                        for (SegmentedObject n : allNexts) editor.setTrackLinks(nexts.get(0), n, true, !div, true);
                     }
                 });
             }
@@ -483,275 +482,6 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             ++distance;
         }
         return distance;
-    }
-
-    static abstract class TrackingObject<S extends TrackingObject<S>> extends LAPTracker.AbstractLAPObject<S> {
-        final Offset offset;
-        final Offset offsetToPrev;
-        final double dy, dx, size;
-        final boolean touchEdges;
-        final boolean cellDivision;
-        final ToDoubleFunction<Double> noPrevPenalty;
-        final ToDoubleBiFunction<S, S> sizePenalty;
-        List<S> originalObjects;
-        TriConsumer<S, S, Double> logConsumer;
-        public TrackingObject(RealLocalizable localization, Region r, BoundingBox parentBounds, int frame, double dy, double dx,  ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<S, S> sizePenalty) {
-            super(localization, r, frame); // if distance is mass center -> mass center should be set before
-            this.offset = new SimpleOffset(parentBounds).reverseOffset();
-            BoundingBox bds = r.isAbsoluteLandMark() ? parentBounds : (BoundingBox)parentBounds.duplicate().resetOffset();
-            touchEdges = BoundingBox.touchEdges2D(bds, r.getBounds());
-            this.offsetToPrev = offset.duplicate().translate(new SimpleOffset(-(int) Math.round(dx), -(int) Math.round(dy), 0));
-            this.dy = dy;
-            this.dx = dx;
-            this.noPrevPenalty=noPrevPenalty;
-            this.size = r.size();
-            this.sizePenalty = sizePenalty;
-            this.cellDivision=false;
-        }
-        public TrackingObject(Region r, BoundingBox parentBounds, int frame, double dy, double dx,  ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<S, S> sizePenalty) {
-            this(r.getCenterOrGeomCenter(), r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty); // if distance is mass center -> mass center should be set before
-        }
-
-        public abstract S merge(S other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision);
-        // constructor for merge
-        protected TrackingObject(RealLocalizable localization, S o1, S o2, Region r, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(localization,r, o1.frame());
-            if (o1.frame()!=o2.frame()) throw new IllegalArgumentException("Average Tracking object must be build with objets of same frame");
-            this.touchEdges = o1.touchEdges || o2.touchEdges;
-            this.offset = o1.offset;
-            this.size = o1.size + o2.size;
-            this.dy = (o1.dy * o1.size + o2.dy * o2.size)/size;
-            this.dx = (o1.dx * o1.size + o2.dx * o2.size)/size;
-            this.offsetToPrev = offset.duplicate().translate(new SimpleOffset(-(int) Math.round(dx), -(int) Math.round(dy), 0));
-            this.noPrevPenalty= noPrevPenalty;
-            originalObjects = Arrays.asList(o1, o2);
-            this.sizePenalty = o1.sizePenalty;
-            this.cellDivision = cellDivision;
-            //logger.debug("merged TO: {}-[{}+{}] size: {} & {}, center: {} & {} = {} , dx: {}, dy: {}", o1.frame(), o1.r.getLabel()-1, o2.r.getLabel()-1, o1.size, o2.size, new Point(o1.getDoublePosition(0), o1.getDoublePosition(1)), new Point(o2.getDoublePosition(0), o2.getDoublePosition(1)), new Point(getDoublePosition(0), getDoublePosition(1)), dx, dy );
-        }
-        protected TrackingObject(S o1, S o2, Region r, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            this(Region.getGeomCenter(false, o1.r, o2.r), o1, o2 ,r, noPrevPenalty, cellDivision);
-        }
-        public boolean isCluster() {
-            return originalObjects!=null;
-        }
-        @Override
-        public double squareDistanceCenterCenterTo(S nextTO) {
-            return Math.pow( getDoublePosition(0) + offset.xMin() - ( nextTO.getDoublePosition(0) + nextTO.offset.xMin() - nextTO.dx ) , 2 )
-                    + Math.pow( getDoublePosition(1) + offset.yMin() - ( nextTO.getDoublePosition(1) + nextTO.offset.yMin() - nextTO.dy), 2 );
-        }
-
-        public boolean intersect(S next) {
-            if (next != null) {
-                if (frame() == next.frame() + 1) return next.intersect((S)this);
-                if (frame() != next.frame() - 1) return false;
-                return BoundingBox.intersect2D(r.getBounds(), next.r.getBounds().duplicate().translate(next.offsetToPrev));
-            } else return false;
-        }
-
-        @Override
-        public String toString() {
-            if (originalObjects ==null) return super.toString();
-            return frame() + "-" + Arrays.toString(originalObjects.stream().mapToInt(oo -> oo.r.getLabel() - 1).toArray());
-        }
-    }
-
-    static abstract class TrackingObjectCenterAbs<S extends TrackingObjectCenterAbs<S>> extends TrackingObject<S> {
-        public TrackingObjectCenterAbs(RealLocalizable loc, Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<S, S> sizePenalty) {
-            super(loc, r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-        }
-        public TrackingObjectCenterAbs(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<S, S> sizePenalty) {
-            super(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-        }
-        public TrackingObjectCenterAbs(RealLocalizable loc, S o1, S o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(loc, o1, o2, o1.r, noPrevPenalty, cellDivision);
-        }
-        public TrackingObjectCenterAbs(S o1, S o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(o1, o2, o1.r, noPrevPenalty, cellDivision);
-        }
-
-        @Override
-        public double squareDistanceTo(S nextTO) {
-            if (nextTO.frame() < frame()) return nextTO.squareDistanceTo((S)this);
-            if (nextTO.cellDivision) return nextTO.originalObjects.stream().mapToDouble(n -> squareDistanceTo(n) * n.size).sum() / size; // cell division: average of distances
-
-            double distSq = squareDistanceCenterCenterTo(nextTO);
-            // compute size penalty
-            double sizePenalty = this.sizePenalty==null?0 : this.sizePenalty.applyAsDouble((S)this, nextTO);
-            distSq *= Math.pow(1 + sizePenalty, 2);
-            if (nextTO.noPrevPenalty!=null) {
-                //logger.debug("No prev penalty: dist {} -> {} : was {} is now: {}", this, nextTO, Math.sqrt(distSq), Math.sqrt(nextTO.noPrevPenalty.applyAsDouble(distSq)));
-                distSq = nextTO.noPrevPenalty.applyAsDouble(distSq);
-            }
-            if (logConsumer!=null) logConsumer.accept((S)this, nextTO, Math.sqrt(distSq));
-            return distSq;
-        }
-    }
-    public static class TrackingObjectCenter extends TrackingObjectCenterAbs<TrackingObjectCenter> {
-        public TrackingObjectCenter(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectCenter, TrackingObjectCenter> sizePenalty) {
-            super(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-        }
-        public TrackingObjectCenter(TrackingObjectCenter o1, TrackingObjectCenter o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(o1, o2, noPrevPenalty, cellDivision);
-        }
-        @Override
-        public TrackingObjectCenter merge(TrackingObjectCenter other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            return new TrackingObjectCenter(this, other, noPrevPenalty, cellDivision);
-        }
-    }
-    public static class TrackingObjectSkeletonCenter extends TrackingObjectCenterAbs<TrackingObjectSkeletonCenter> {
-        final SparseSkeleton<Voxel> skeleton;
-        public TrackingObjectSkeletonCenter(Region r, SparseSkeleton<Voxel> skeleton, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectSkeletonCenter, TrackingObjectSkeletonCenter> sizePenalty) {
-            super(skeleton.getClosestPoint(r.getCenterOrGeomCenter()), r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-            this.skeleton = skeleton;
-        }
-        public TrackingObjectSkeletonCenter(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectSkeletonCenter, TrackingObjectSkeletonCenter> sizePenalty, Image edmLM, double skeletonLMRad) {
-            this(r, edmLM==null? getSkeleton(r, null, Filters.getNeighborhood(skeletonLMRad, r.getMask()), false) : DistNet2Dv2.getSkeleton(r, edmLM, false), parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-        }
-        public TrackingObjectSkeletonCenter(TrackingObjectSkeletonCenter o1, TrackingObjectSkeletonCenter o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(o1, o2, noPrevPenalty, cellDivision);
-            this.skeleton = o1.skeleton.merge(o2.skeleton, false);
-            setLocation(skeleton.getClosestPoint(this.getLocation()));
-        }
-        @Override
-        public TrackingObjectSkeletonCenter merge(TrackingObjectSkeletonCenter other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            return new TrackingObjectSkeletonCenter(this, other, noPrevPenalty, cellDivision);
-        }
-    }
-    public static class TrackingObjectOverlap extends TrackingObject<TrackingObjectOverlap> {
-        final Map<SymetricalPair<Region>, LAPTracker.Overlap> overlapMap;
-        public TrackingObjectOverlap(Region r, BoundingBox parentBounds, int frame, double dy, double dx,  ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectOverlap, TrackingObjectOverlap> sizePenalty, Map<SymetricalPair<Region>, LAPTracker.Overlap> overlapMap) {
-            super(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-            this.overlapMap = overlapMap;
-        }
-        public TrackingObjectOverlap(TrackingObjectOverlap o1, TrackingObjectOverlap o2,ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(o1, o2, !cellDivision? Region.merge(o1.r, o2.r) : o1.r, noPrevPenalty, cellDivision);
-            this.overlapMap = o1.overlapMap;
-        }
-        @Override
-        public TrackingObjectOverlap merge(TrackingObjectOverlap other, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            return new TrackingObjectOverlap(this, other, noPrevPenalty, cellDivision);
-        }
-
-        @Override public double squareDistanceTo(TrackingObjectOverlap nextTO) {
-            if (nextTO.frame() < frame()) return nextTO.squareDistanceTo(this);
-            if (nextTO.cellDivision) return nextTO.originalObjects.stream().mapToDouble(n -> squareDistanceTo(n) * n.size).sum() / size; // cell division: average of distances
-            SymetricalPair<Region> key = new SymetricalPair<>(r, nextTO.r);
-            if (!overlapMap.containsKey(key)) {
-                double overlap = overlap(nextTO);
-                if (overlap==0) {
-                    overlapMap.put(key, null); // put null value instead of Overlap object to save memory
-                    return Double.POSITIVE_INFINITY;
-                } else {
-                    LAPTracker.Overlap o = new LAPTracker.Overlap(this.r, nextTO.r, overlap);
-                    overlapMap.put(key, o);
-                    double distSq = Math.pow(1 - o.normalizedOverlap(mode), 2);
-                    if (nextTO.noPrevPenalty!=null) distSq = nextTO.noPrevPenalty.applyAsDouble(distSq);
-                    return distSq;
-                }
-            } else {
-                LAPTracker.Overlap o = overlapMap.get(key);
-                if (o==null) return Double.POSITIVE_INFINITY;
-                else {
-                    double distSq = Math.pow(1 - o.normalizedOverlap(mode), 2);
-                    if (nextTO.noPrevPenalty!=null) distSq = nextTO.noPrevPenalty.applyAsDouble(distSq);
-                    return distSq;
-                }
-            }
-        }
-
-        public double overlap(TrackingObjectOverlap next) {
-            if (next != null) {
-                if (frame() == next.frame() + 1) return next.overlap(this);
-                if (frame() != next.frame() - 1) return 0;
-                double overlap = r.getOverlapArea(next.r, offset, next.offsetToPrev);
-                return overlap;
-            } else return 0;
-        }
-    }
-    public static class TrackingObjectHausdorff extends TrackingObject<TrackingObjectHausdorff> {
-        final double hausdorffDistSqThld;
-        final SparseSkeleton<Voxel> skeleton;
-        final boolean avg;
-        boolean polesAdded;
-        public TrackingObjectHausdorff(Region r, BoundingBox parentBounds, int frame, double dy, double dx,  ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectHausdorff, TrackingObjectHausdorff> sizePenalty, SparseSkeleton<Voxel> skeleton, double distanceLimit, boolean avg) {
-            super(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty);
-            this.skeleton = skeleton;
-            this.hausdorffDistSqThld = distanceLimit*distanceLimit;
-            this.avg = avg;
-        }
-
-        public TrackingObjectHausdorff(Region r, BoundingBox parentBounds, int frame, double dy, double dx, ToDoubleFunction<Double> noPrevPenalty, ToDoubleBiFunction<TrackingObjectHausdorff, TrackingObjectHausdorff> sizePenalty, Image edmLM, double skeletonLMRad, double distanceLimit, boolean avg, boolean addPoles) {
-            this(r, parentBounds, frame, dy, dx, noPrevPenalty, sizePenalty, edmLM==null? getSkeleton(r, null, Filters.getNeighborhood(skeletonLMRad, r.getMask()), addPoles) : DistNet2Dv2.getSkeleton(r, edmLM, addPoles), distanceLimit, avg);
-            this.polesAdded = addPoles;
-        }
-
-        public TrackingObjectHausdorff(TrackingObjectHausdorff o1, TrackingObjectHausdorff o2, ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(o1, o2, o1.r, noPrevPenalty, cellDivision);
-            this.hausdorffDistSqThld = o1.hausdorffDistSqThld;
-            this.avg = o1.avg;
-            this.polesAdded = o1.polesAdded;
-            this.skeleton = polesAdded ? o1.skeleton.mergeRemoveClosestEnds(o2.skeleton) : o1.skeleton.merge(o2.skeleton, false);
-        }
-
-        @Override
-        public TrackingObjectHausdorff merge(TrackingObjectHausdorff other, ToDoubleFunction noPrevPenalty, boolean cellDivision) {
-            return new TrackingObjectHausdorff(this, other, noPrevPenalty, cellDivision);
-        }
-
-        @Override public double squareDistanceTo(TrackingObjectHausdorff nextTO) {
-            if (nextTO.frame() < frame()) return nextTO.squareDistanceTo(this);
-            if (nextTO.cellDivision) return nextTO.originalObjects.stream().mapToDouble(n -> squareDistanceTo(n) * n.size).sum() / size; // cell division: average of distances
-
-            if (Double.isFinite(hausdorffDistSqThld)) { // limit search
-                double d2CC = squareDistanceCenterCenterTo(nextTO);
-                if (d2CC>hausdorffDistSqThld) return Double.POSITIVE_INFINITY;
-            }
-
-            double distSq;
-            switch (mode) {
-                case NORMAL:
-                default: {
-                    double d2AB = hausdorffDistSq(nextTO, false);
-                    double d2BA = hausdorffDistSq(nextTO, true);
-                    distSq = Math.max(d2AB, d2BA);
-                    break;
-                } case SPLIT: {
-                    distSq = hausdorffDistSq(nextTO, false);
-                    break;
-                } case MERGE: {
-                    distSq = hausdorffDistSq(nextTO, true);
-                    break;
-                }
-            }
-            double sizePenalty = this.sizePenalty==null?0 : this.sizePenalty.applyAsDouble(this, nextTO);
-            distSq *= Math.pow(1 + sizePenalty, 2);
-            if (nextTO.noPrevPenalty!=null) {
-                //logger.debug("No prev penalty: dist {} -> {} : was {} is now: {}", this, nextTO, Math.sqrt(distSq), Math.sqrt(nextTO.noPrevPenalty.applyAsDouble(distSq)));
-                distSq = nextTO.noPrevPenalty.applyAsDouble(distSq);
-            }
-            if (logConsumer!=null) logConsumer.accept(this, nextTO, Math.sqrt(distSq));
-            return Math.sqrt(distSq); //TODO square dist or dist ?
-        }
-
-        public double hausdorffDistSq(TrackingObjectHausdorff nextTO, boolean forward) {
-            Vector delta = new Vector(nextTO.dx, nextTO.dy);
-            if (forward) {
-                return skeleton.hausdorffDistance(nextTO.skeleton, delta.reverse(), avg); // delta is applied to this skeleton
-            } else {
-                return nextTO.skeleton.hausdorffDistance(skeleton, delta, avg); // delta is applied to nextTO skeleton
-            }
-        }
-
-    }
-    protected static SparseSkeleton<Voxel> getSkeleton(Region r, Image edmLM, boolean addPoles) {
-        List<Voxel> skeleton = new ArrayList<>();
-        r.loop((x, y, z) -> {
-            if (edmLM.insideMaskWithOffset(x, y, z)) skeleton.add(new Voxel(x, y, z));
-        });
-        SparseSkeleton<Voxel> res = new SparseSkeleton<>(skeleton);
-        if (addPoles) res.addBacteriaPoles(r.getContour());
-        return res;
     }
 
     public void setTrackingAttributes(int objectClassIdx, List<SegmentedObject> parentTrack) {

@@ -850,7 +850,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
             this.overlapMap = overlapMap;
         }
         public TrackingObjectOverlap(TrackingObjectOverlap o1, TrackingObjectOverlap o2,ToDoubleFunction<Double> noPrevPenalty, boolean cellDivision) {
-            super(o1, o2, !cellDivision? Region.merge(o1.r, o2.r) : o1.r, noPrevPenalty, cellDivision);
+            super(o1, o2, !cellDivision? Region.merge(false, o1.r, o2.r) : o1.r, noPrevPenalty, cellDivision);
             this.overlapMap = o1.overlapMap;
         }
         @Override

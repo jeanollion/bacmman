@@ -64,6 +64,7 @@ import bacmman.utils.geom.Vector;
 
 import java.util.function.DoublePredicate;
 import java.util.function.Predicate;
+import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.Stream;
@@ -960,7 +961,7 @@ public class Region {
             this.mask=null; // reset mask
             this.bounds=null; // reset bounds
         } else {
-            Region res = merge(this, other);
+            Region res = merge(false, this, other);
             this.mask = res.mask;
             this.voxels = null;
             this.bounds = res.bounds;
@@ -969,13 +970,27 @@ public class Region {
         this.center = null;
         regionModified=true;
     }
-    public static Region merge(Region... regions) {
-        return merge(Arrays.asList(regions));
+    public static Region merge(boolean close, Region... regions) {
+        return merge(Arrays.asList(regions), close);
     }
     public static Region merge(Collection<Region> regions) {
+        return merge(regions, false);
+    }
+    public static Region merge(Collection<Region> regions, boolean close) {
         if (regions==null || regions.isEmpty()) return null;
         if (!Utils.objectsAllHaveSameProperty(regions, Region::isAbsoluteLandMark)) throw new IllegalArgumentException("Trying to merge regions with different landmarks");
         if (!Utils.objectsAllHaveSameProperty(regions, r->r.is2D)) throw new IllegalArgumentException("Trying to merge 2D with 3D regions");
+        double closeDistSq = 0;
+        if (close) {
+            List<Set<Voxel>> contours = regions.stream().map(Region::getContour).collect(Collectors.toList());
+            ToDoubleBiFunction<Set<Voxel>, Set<Voxel>> getMinDist = (c1, c2) -> c1.stream().mapToDouble(v1 -> c2.stream().mapToDouble(v1::getDistanceSquare).min().orElse(0)).min().orElse(0);
+            for (int i = 0; i<regions.size()-1; ++i) {
+                for (int j = i+1; j<regions.size(); ++j) {
+                    double d = getMinDist.applyAsDouble(contours.get(i), contours.get(j));
+                    if (d>closeDistSq) closeDistSq = d;
+                }
+            }
+        }
         Iterator<Region> it = regions.iterator();
         Region ref = it.next();
         MutableBoundingBox bounds = new MutableBoundingBox(ref.getBounds());
@@ -985,7 +1000,17 @@ public class Region {
             if (r.voxelsCreated()) for (Voxel v:r.voxels) mask.setPixelWithOffset(v.x, v.y, v.z, 1);
             else ImageMask.loopWithOffset(r.getMask(), (x, y, z)-> mask.setPixelWithOffset(x, y, z, 1));
         }
-        return new Region(mask, 1, ref.is2D).setIsAbsoluteLandmark(ref.isAbsoluteLandMark());
+        Region merge = new Region(mask, 1, ref.is2D).setIsAbsoluteLandmark(ref.isAbsoluteLandMark());
+        if (closeDistSq > 1) merge.binaryClose(Math.sqrt(closeDistSq+1)); // in case objects do not touch : perform binary close
+        return merge;
+    }
+    public void binaryClose(double radius) {
+        binaryClose(radius, radius * scaleXY / scaleZ);
+    }
+    public void binaryClose(double radius, double radiusZ) {
+        Neighborhood n = is2D() ? new EllipsoidalNeighborhood(radius, false):new EllipsoidalNeighborhood(radius, radiusZ, false);
+        ImageInteger closed = Filters.binaryCloseExtend(getMaskAsImageInteger(), n, false);
+        setMask(closed);
     }
     
     public RegionContainer createRegionContainer(SegmentedObject structureObject) {

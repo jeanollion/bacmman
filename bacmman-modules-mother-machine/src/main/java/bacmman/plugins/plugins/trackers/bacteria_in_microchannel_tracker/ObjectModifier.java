@@ -115,7 +115,7 @@ public abstract class ObjectModifier extends CorrectionScenario {
             super(frame);
             this.source = source;
             cost = tracker.segmenters.getAndCreateIfNecessary(frame).computeMergeCost(tracker.getParent(frame).getPreFilteredImage(tracker.structureIdx), tracker.getParent(frame), tracker.structureIdx, listSource());
-            value = Region.merge(source.key, source.value).setLabel(source.key.getLabel());
+            value = Region.merge(false, source.key, source.value).setLabel(source.key.getLabel());
         }
         public Merge(int frame, Pair<Region, Region> source, Region value, double cost) {
             super(frame);
