@@ -40,6 +40,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     protected IntensityMeasurementCore core;
     protected ObjectClassParameter intensity = new ObjectClassParameter("Intensity").setEmphasized(true).setAutoConfiguration(ObjectClassParameter.defaultAutoConfiguration()).setHint("The channel image associated to the selected object class will be used for the intensity measurement");
     protected Image intensityMap;
+    protected int z = -1;
     protected boolean usePreFilteredImage = false;
     public IntensityMeasurement setIntensityStructure(int structureIdx) {
         this.intensity.setSelectedClassIdx(structureIdx);
@@ -49,6 +50,12 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         this.usePreFilteredImage = true;
         return this;
     }
+
+    public IntensityMeasurement limitToZ(int z) {
+        this.z = z;
+        return this;
+    }
+
     @Override
     public int getIntensityStructure() {
         return this.intensity.getSelectedClassIdx();
@@ -67,12 +74,12 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
     @Override
     public void setUpOrAddCore(Map<Image, IntensityMeasurementCore> availableCores, BiFunction<Image, ImageMask, Image> filters) {
         IntensityMeasurementCore existingCore = availableCores==null ? null : availableCores.get(intensityMap);
-        if (existingCore==null) {
+        if (existingCore==null || z>=0) {
             if (core==null) {
-                core = new IntensityMeasurementCore();
+                core = new IntensityMeasurementCore().limitToZ(z);
                 core.setUp(intensityMap, filters==null ? null : filters.apply(intensityMap, parent.getMask()));
             }
-            if (availableCores!=null) availableCores.put(intensityMap, core);
+            if (availableCores!=null && z==-1) availableCores.put(intensityMap, core);
         } else core=existingCore;
     }
 }

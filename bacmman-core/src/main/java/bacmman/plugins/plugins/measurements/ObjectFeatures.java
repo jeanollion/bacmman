@@ -18,6 +18,7 @@
  */
 package bacmman.plugins.plugins.measurements;
 
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
@@ -30,12 +31,6 @@ import bacmman.plugins.PreFilter;
 import bacmman.plugins.object_feature.IntensityMeasurement;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.plugins.object_feature.ObjectFeatureWithCore;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
-import bacmman.configuration.parameters.PreFilterSequence;
-import bacmman.configuration.parameters.SimpleListParameter;
-import bacmman.configuration.parameters.ObjectClassParameter;
-import bacmman.configuration.parameters.TextParameter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -58,7 +53,11 @@ public class ObjectFeatures implements Measurement, Hint {
             });;
     SimpleListParameter<PluginParameter<ObjectFeature>> features = new SimpleListParameter<>("Features", 0, def).setEmphasized(true);
     PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All intensity measurements features will be computed on the image filtered by the operation defined in this parameter.");
-    Parameter[] parameters = new Parameter[]{structure, preFilters, features};
+    enum MODE_3D {ALL_PLANES, SINGLE_PLANE}
+    EnumChoiceParameter<MODE_3D> mode3D = new EnumChoiceParameter<MODE_3D>("3D measurement", MODE_3D.values(), MODE_3D.ALL_PLANES).setHint("For intensity measurement only: In case of 3D measurement: choose ALL_PLANES to perform regular 3D measurement, or SINGLE_PLANE to limit measurement to a single user-defined plane");
+    BoundedNumberParameter plane = new BoundedNumberParameter("Plane", 0, -1, 0, null).setHint("Choose plane to perform measurement on (zero-based index of plane)");
+    ConditionalParameter<MODE_3D> mode3Dcond = new ConditionalParameter<>(mode3D).setActionParameters(MODE_3D.SINGLE_PLANE, plane);
+    Parameter[] parameters = new Parameter[]{structure, preFilters, features, mode3Dcond};
     
     @Override
     public String getHintText() {
@@ -125,6 +124,7 @@ public class ObjectFeatures implements Measurement, Hint {
         for (PluginParameter<ObjectFeature> ofp : features.getActivatedChildren()) {
             ObjectFeature f = ofp.instantiatePlugin();
             if (f!=null) {
+                if (f instanceof IntensityMeasurement && mode3D.getSelectedEnum().equals(MODE_3D.SINGLE_PLANE)) ((IntensityMeasurement)f).limitToZ(plane.getIntValue());
                 f.setUp(parent, structureIdx, parent.getChildRegionPopulation(structureIdx));
                 if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(cores, pf);
                 parent.getChildren(structureIdx).forEach(o-> {
@@ -134,6 +134,7 @@ public class ObjectFeatures implements Measurement, Hint {
             }
         }
     }
+
     @Override
     public Parameter[] getParameters() {
         return parameters;

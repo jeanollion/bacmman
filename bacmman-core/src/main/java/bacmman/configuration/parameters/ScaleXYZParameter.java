@@ -19,6 +19,8 @@
 package bacmman.configuration.parameters;
 
 import java.util.Arrays;
+import java.util.function.Function;
+
 import org.json.simple.JSONObject;
 
 
@@ -27,7 +29,7 @@ import org.json.simple.JSONObject;
  * @author Jean Ollion
  */
 
-public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter> {
+public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter> implements ParameterWithLegacyInitialization<ScaleXYZParameter, Double> {
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("ScaleXY (pix)", 3, 1, 0, null).setEmphasized(true);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("ScaleZ (pix)", 3, 1, 0, null).setEmphasized(true);
     BooleanParameter useImageCalibration = new BooleanParameter("Use image calibration for Z-scale", true).setEmphasized(true);
@@ -44,10 +46,15 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
-        JSONObject jsonO = (JSONObject)jsonEntry;
-        scaleXY.initFromJSONEntry(jsonO.get("scaleXY"));
-        scaleZ.initFromJSONEntry(jsonO.get("scaleZ"));
-        useImageCalibration.initFromJSONEntry(jsonO.get("useImageCalibration"));
+        if (jsonEntry instanceof Number) {
+            scaleXY.setValue((Number)jsonEntry);
+            useImageCalibration.setSelected(true);
+        } else {
+            JSONObject jsonO = (JSONObject) jsonEntry;
+            scaleXY.initFromJSONEntry(jsonO.get("scaleXY"));
+            scaleZ.initFromJSONEntry(jsonO.get("scaleZ"));
+            useImageCalibration.initFromJSONEntry(jsonO.get("useImageCalibration"));
+        }
     }
 
     public ScaleXYZParameter setDecimalPlaces(int decimalPlaces) {
@@ -120,5 +127,28 @@ public class ScaleXYZParameter extends ContainerParameterImpl<ScaleXYZParameter>
         return this.useImageCalibration.getSelected();
     }
 
-    
+    // legacy init interface
+    @Override
+    public void legacyInit() {
+        if (this.legacyInitFun!=null) scaleXY.setValue(legacyInitFun.apply(legacyInitParam));
+    }
+    Parameter legacyInitParam;
+    Function<Parameter, Double> legacyInitFun;
+    @Override
+    public Parameter getLegacyParameter() {
+        return legacyInitParam;
+    }
+
+    @Override
+    public ScaleXYZParameter setLegacyParameter(Parameter p, Function<Parameter, Double> setValue) {
+        this.legacyInitParam = p;
+        this.legacyInitFun = setValue;
+        return this;
+    }
+
+    @Override
+    public ScaleXYZParameter setLegacyInitializationValue(Double value) {
+        this.scaleXY.setValue(value);
+        return this;
+    }
 }

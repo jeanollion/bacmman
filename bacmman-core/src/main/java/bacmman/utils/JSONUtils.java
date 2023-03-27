@@ -26,6 +26,7 @@ import bacmman.data_structure.Selection;
 
 import java.util.*;
 import java.util.Map.Entry;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.json.simple.JSONArray;
@@ -295,6 +296,18 @@ public class JSONUtils {
         //logger.debug("init param map: receive map: {}, json: {}", list, json);
         List<ParameterWithLegacyInitialization> listLI = list.stream().filter(p->p instanceof ParameterWithLegacyInitialization).map(p->(ParameterWithLegacyInitialization)p).collect(Collectors.toList());
         Map<String, ParameterWithLegacyInitialization> legacyParameters = listLI.stream().filter(p -> p.getLegacyParameter()!=null).collect(Collectors.toMap(p->p.getLegacyParameter().getName(), p->p));
+        Consumer<Entry> initLP = e -> {
+            if (legacyParameters.containsKey(e.getKey())) {
+                Parameter lp = legacyParameters.get(e.getKey()).getLegacyParameter();
+                logger.debug("initializing legacy init parameter: {} with: {}", lp, e.getValue());
+                try {
+                    lp.initFromJSONEntry(e.getValue());
+                } catch(Throwable ex) {
+                    logger.info("Error While initializing legacy init parameter: {} (class: {}) with: {}", lp, lp.getClass(), e);
+                    logger.info("Error while init:" , ex);
+                }
+            }
+        };
         for (Object o : json) {
             if (!(o instanceof JSONObject)) {
                 logger.info("Could not initialize parameters: {} with json entry: {}", list, json);
@@ -310,17 +323,9 @@ public class JSONUtils {
                 } catch(Throwable ex) {
                     logger.info("Error While initializing parameter: {} (class: {}) with: {}", r, r.getClass(), e);
                     logger.info("Error while init:" ,ex);
+                    initLP.accept(e);
                 }
-            } else if (legacyParameters.containsKey(e.getKey())) {
-                Parameter lp = legacyParameters.get(e.getKey()).getLegacyParameter();
-                logger.debug("initializing legacy init parameter: {} with: {}", lp, e.getValue());
-                try {
-                    lp.initFromJSONEntry(e.getValue());
-                } catch(Throwable ex) {
-                    logger.info("Error While initializing legacy init parameter: {} (class: {}) with: {}", lp, lp.getClass(), e);
-                    logger.info("Error while init:" , ex);
-                }
-            }
+            } else initLP.accept(e);
         }
         if (count<list.size()) {
             List<ParameterWithLegacyInitialization> lps = listLI.stream().filter(p->!initP.contains(p)).collect(Collectors.toList());

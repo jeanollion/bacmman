@@ -200,8 +200,8 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
     }
     public static <T extends Image<T>> T mergeZPlanes(List<T> planes) {
         if (planes==null || planes.isEmpty()) return null;
-        int maxZ  = planes.stream().mapToInt(i->i.sizeZ()).max().getAsInt();
-        if (maxZ>1) planes = planes.stream().map(i-> i.splitZPlanes()).flatMap(List::stream).collect(Collectors.toList());
+        int maxZ  = planes.stream().mapToInt(SimpleBoundingBox::sizeZ).max().getAsInt();
+        if (maxZ>1) planes = planes.stream().map(Image::splitZPlanes).flatMap(List::stream).collect(Collectors.toList());
         String title = "merged planes";
         Image<T> plane0 = planes.get(0);
         if (plane0 instanceof ImageByte) {
@@ -303,6 +303,10 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         if (mask==null) return stream();
         int minZ = maskHasAbsoluteOffset? Math.max(zMin, mask.zMin()) : mask.zMin();
         int maxZ = maskHasAbsoluteOffset ? Math.min(zMin+sizeZ, mask.zMin()+mask.sizeZ()) : Math.min(sizeZ, mask.sizeZ()+mask.zMin());
+        if (mask instanceof ImageMask2D) {
+            minZ = maskHasAbsoluteOffset ? zMin : 0;
+            maxZ = maskHasAbsoluteOffset ? zMax : zMax - zMin;
+        }
         if (minZ>=maxZ) return DoubleStream.empty();
         if (minZ==maxZ-1) return streamPlane(minZ-(maskHasAbsoluteOffset?zMin:0), mask, maskHasAbsoluteOffset);
         return StreamConcatenation.concat((DoubleStream[])IntStream.range(minZ-(maskHasAbsoluteOffset?zMin:0), maxZ-(maskHasAbsoluteOffset?zMin:0)).mapToObj(z->streamPlane(z, mask, maskHasAbsoluteOffset)).filter(s->s!=DoubleStream.empty()).toArray(s->new DoubleStream[s]));

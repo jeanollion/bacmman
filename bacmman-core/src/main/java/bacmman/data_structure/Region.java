@@ -163,6 +163,43 @@ public class Region {
         return quality;
     }
 
+    /**
+     *
+     * @param z plane to intersect with. Should be in the same landmark as the region
+     * @return a new object that correspond to the intersection of this region with the plane, or null if intersection is empty.
+     */
+    public Region intersectWithZPlane(int z) { // return a new object. Z should be relative to the landmark of the object.
+        if (this.is2D) { // simply turn into 3D object at desired plane
+            if (voxels!=null) {
+                Set<Voxel> vox = voxels.stream().map(v -> new Voxel(v.x, v.y, z)).collect(Collectors.toSet());
+                return new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
+            } else {
+                ImageInteger m = getMaskAsImageInteger().duplicate();
+                if (m.sizeZ()>1) throw new RuntimeException("2D object with 3D mask");
+                m.translate(0, 0, z - m.zMin());
+                return new Region(m, label, false).setIsAbsoluteLandmark(absoluteLandmark);
+            }
+        } else {
+            if (getBounds().zMin() > z || getBounds().zMax() < z) return null;
+            if (voxels != null) {
+                Set<Voxel> vox = voxels.stream().filter(v -> v.z == z).collect(Collectors.toSet());
+                return new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
+            } else {
+                Set<Voxel> vox = new HashSet<>();
+                loop((x, y, zz) -> {
+                    if (z==zz) vox.add(new Voxel(x, y, z));
+                });
+                if (vox.isEmpty()) {
+                    //logger.debug("Empty intersection: z={} bounds={}", z, getBounds()); // this should not happen, unless object has been modified and bounds not updated
+                    return null;
+                }
+                Region res = new Region(vox, label, false, scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark);
+                res.clearVoxels();
+                return res;
+            }
+        }
+    }
+
     public Region duplicate(boolean duplicateVoxels) {
         if (this.roi!=null) {
             Region res = new Region(roi.duplicate(), label, new SimpleBoundingBox(bounds), scaleXY, scaleZ).setIsAbsoluteLandmark(absoluteLandmark).setQuality(quality).setCenter(center==null ? null : center.duplicate());
@@ -867,7 +904,7 @@ public class Region {
         
         final ImageMask mask = is2D() && !other.is2D() ? new ImageMask2D(getMask()) : getMask();
         final ImageMask otherMask = other.is2D() && !is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
-        BoundingBox inter = inter2D ? (is2D() ? getIntersection2D(thisBounds, otherBounds):getIntersection2D(otherBounds, thisBounds)) : BoundingBox.getIntersection(thisBounds, otherBounds);
+        BoundingBox inter = inter2D ? (is2D() ? getIntersection2D(otherBounds, thisBounds):getIntersection2D(thisBounds, otherBounds)) : BoundingBox.getIntersection(thisBounds, otherBounds);
         //logger.debug("off: {}, otherOff: {}, is2D: {} other Is2D: {}, inter: {}", thisBounds, otherBounds, is2D(), other.is2D(), inter);
 
         final int offX = thisBounds.xMin();

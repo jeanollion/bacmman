@@ -116,6 +116,10 @@ public class Spot extends Region implements Analytical {
         double dy = y - center.get(1);
         if (is2D()) return (dx*dx + dy*dy)/radiusSq;
         double dz = z - center.get(2);
+        if (zAspectRatio==0) {
+            if (dz!=0) return Double.POSITIVE_INFINITY;
+            else return (dx*dx + dy*dy)/radiusSq;
+        }
         return (dx*dx + dy*dy)/radiusSq + dz*dz/(zAspectRatio*zAspectRatio*radiusSq);
     }
 
@@ -147,6 +151,12 @@ public class Spot extends Region implements Analytical {
             if (!this.getBounds().containsWithOffset(p)) return false;
             return equation(p.get(0), p.get(1), p.get(2))<=1;
         }
+    }
+    @Override
+    public Spot intersectWithZPlane(int z) {
+        Spot res = new Spot(center.duplicate().translate(new Voxel(0, 0, z - center.zMin())), radius, 0, intensity, label, false, scaleXY, scaleZ);
+        res.setIsAbsoluteLandmark(absoluteLandmark);
+        return res;
     }
 
     @Override

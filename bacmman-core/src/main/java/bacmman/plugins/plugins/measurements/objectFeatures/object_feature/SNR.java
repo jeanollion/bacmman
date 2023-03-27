@@ -19,24 +19,25 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.*;
+import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.*;
 import bacmman.processing.Filters;
 import bacmman.plugins.Hint;
 import bacmman.plugins.object_feature.IntensityMeasurement;
 import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
-import bacmman.image.ImageByte;
-import bacmman.image.ImageInteger;
-import bacmman.image.ImageMask;
-import bacmman.image.Offset;
-import bacmman.image.SimpleOffset;
-import bacmman.image.TypeConverter;
+import bacmman.utils.SymetricalPair;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -62,15 +63,16 @@ public class SNR extends IntensityMeasurement implements Hint {
         }
     }
     protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class").setEmphasized(true);
-    protected BoundedNumberParameter dilateExcluded = new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null).setHint("Dilated foreground objects will be excluded from background mask");
-    protected BoundedNumberParameter erodeBorders = new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null).setHint("Background mask will be eroded in order to avoid border effects (after removing foreground objects)");
+    protected ScaleXYZParameter dilateExcluded = new ScaleXYZParameter("Dilatation radius for foreground object", 1, 0, false).setHint("Dilated foreground objects will be excluded from background mask").setLegacyParameter(new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null), p->((NumberParameter)p).getDoubleValue());
+
+    protected ScaleXYZParameter erodeBorders = new ScaleXYZParameter("Radius for background mask erosion", 1, 0, false).setHint("Background mask will be eroded in order to avoid border effects (after removing foreground objects)").setLegacyParameter(new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null), p->((NumberParameter)p).getDoubleValue());
     protected EnumChoiceParameter<FORMULA> formula = new EnumChoiceParameter<>("Formula", FORMULA.values(), FORMULA.AMPLITUDE_NORM_STD, e->e.name).setEmphasized(true).setHint("formula for SNR estimation. F = Foreground, B = background, std = standard-deviation");
     protected EnumChoiceParameter<FOREGROUND_FORMULA> foregroundFormula = new EnumChoiceParameter<>("Foreground", FOREGROUND_FORMULA.values(), FOREGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Foreground estimation method");
     protected EnumChoiceParameter<BACKGROUND_FORMULA> backgroundFormula = new EnumChoiceParameter<>("Background", BACKGROUND_FORMULA.values(), BACKGROUND_FORMULA.MEAN, e->e.name).setEmphasized(true).setHint("Background estimation method");
 
     @Override public Parameter[] getParameters() {return new Parameter[]{intensity, backgroundStructure, formula, foregroundFormula, backgroundFormula, dilateExcluded, erodeBorders};}
     HashMap<Region, Region> foregroundMapBackground;
-    Offset foregorundOffset;
+    Offset foregroundOffset;
     Offset parentOffsetRev;
     public SNR() {}
     public SNR(int backgroundStructureIdx) {
@@ -81,8 +83,8 @@ public class SNR extends IntensityMeasurement implements Hint {
         return this;
     }
     public SNR setRadii(double dilateForegroundRadius, double erodeBackgroundMaskRadius) {
-        this.dilateExcluded.setValue(dilateForegroundRadius);
-        this.erodeBorders.setValue(erodeBackgroundMaskRadius);
+        this.dilateExcluded.setScaleXY(dilateForegroundRadius);
+        this.erodeBorders.setScaleXY(erodeBackgroundMaskRadius);
         return this;
     }
     public SNR setFormula(FORMULA formula, FOREGROUND_FORMULA foregroundFormula, BACKGROUND_FORMULA backgroundFormula) {
@@ -94,8 +96,8 @@ public class SNR extends IntensityMeasurement implements Hint {
     @Override public IntensityMeasurement setUp(SegmentedObject parent, int childStructureIdx, RegionPopulation foregroundPopulation) {
         super.setUp(parent, childStructureIdx, foregroundPopulation);
         if (foregroundPopulation.getRegions().isEmpty()) return this;
-        if (!foregroundPopulation.isAbsoluteLandmark()) foregorundOffset = parent.getBounds(); // the step it still at processing, thus their offset of objects is related to their direct parent
-        else foregorundOffset = new SimpleOffset(0, 0, 0); // absolute offsets
+        if (!foregroundPopulation.isAbsoluteLandmark()) foregroundOffset = parent.getBounds(); // the step it still at processing, thus their offset of objects is related to their direct parent
+        else foregroundOffset = new SimpleOffset(0, 0, 0); // absolute offsets
         parentOffsetRev = new SimpleOffset(parent.getBounds()).reverseOffset();
         
         List<Region> backgroundObjects;
@@ -105,36 +107,50 @@ public class SNR extends IntensityMeasurement implements Hint {
             backgroundObjects = new ArrayList<>(1);
             backgroundObjects.add(parent.getRegion());
         }
-        double erodeRad= this.erodeBorders.getValue().doubleValue();
-        double dilRad = this.dilateExcluded.getValue().doubleValue();
+        if (backgroundObjects.get(0).is2D() && !foregroundPopulation.getRegions().get(0).is2D()) { // background is 2D and foreground is 3D: make background objects 3D
+            Image raw = parent.getRawImage(getIntensityStructure());
+            int nZ = raw.sizeZ();
+            int offZ = raw.zMin();
+            backgroundObjects = backgroundObjects.stream().map(b -> {
+                ImageInteger plane = b.getMaskAsImageInteger();
+                ImageInteger mask = Image.mergeZPlanes(IntStream.range(0, nZ).mapToObj(i -> plane).collect(Collectors.toList()));
+                mask.translate(0, 0, offZ);
+                Region res = new Region(mask, b.getLabel(), false).setIsAbsoluteLandmark(b.isAbsoluteLandMark());
+                //logger.debug("inflate background: {} -> {} size: {} -> {}", b.getBounds(), res.getBounds(), b.size(), res.size());
+                return res;
+            }).collect(Collectors.toList());
+        }
+        double erodeRad= this.erodeBorders.getScaleXY();
+        double erodeRadZ = this.erodeBorders.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
+        double dilRad = this.dilateExcluded.getScaleXY();
+        double dilRadZ = this.dilateExcluded.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
         // assign parents to children by inclusion
-        HashMapGetCreate<Region, List<Pair<Region, Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory());
+        HashMapGetCreate<Region, List<SymetricalPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory());
         for (Region o : foregroundPopulation.getRegions()) {
-            Region p = o.getContainer(backgroundObjects, foregorundOffset, null); // parents are in absolute offset
+            Region p = o.getContainer(backgroundObjects, foregroundOffset, null); // parents are in absolute offset
             if (p!=null) {
                 Region oDil = o;
                 if (dilRad>0)  {
                     ImageInteger oMask = o.getMaskAsImageInteger();
-                    oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilRad, dilRad, oMask), false, true, false);
-                    oDil = new Region(oMask, 1, o.is2D()).setIsAbsoluteLandmark(o.isAbsoluteLandMark());
+                    oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilRad, dilRadZ, oMask), false, true, false);
+                    oDil = new Region(oMask, o.getLabel(), o.is2D()).setIsAbsoluteLandmark(o.isAbsoluteLandMark());
                 }
-                backgroundMapForeground.getAndCreateIfNecessary(p).add(new Pair(o, oDil));
+                backgroundMapForeground.getAndCreateIfNecessary(p).add(new SymetricalPair<>(o, oDil));
             }
         }
         
         // remove foreground objects from background mask & erode it
         foregroundMapBackground = new HashMap<>();
         for (Region backgroundRegion : backgroundObjects) {
-            ImageMask ref = backgroundRegion.getMask();
-            List<Pair<Region, Region>> children = backgroundMapForeground.get(backgroundRegion);
+            List<SymetricalPair<Region>> children = backgroundMapForeground.get(backgroundRegion);
             if (children!=null) {
-                ImageByte mask  = TypeConverter.toByteMask(ref, null, 1).setName("SNR mask");
-                for (Pair<Region, Region> o : backgroundMapForeground.get(backgroundRegion)) o.value.draw(mask, 0, foregorundOffset);// was with offset: absolute = 0 / relative = parent
+                ImageInteger mask = backgroundRegion.getMask() instanceof ImageInteger ? backgroundRegion.getMaskAsImageInteger().duplicate() : backgroundRegion.getMaskAsImageInteger();
+                for (Pair<Region, Region> o : backgroundMapForeground.get(backgroundRegion)) o.value.draw(mask, 0, foregroundOffset);// was with offset: absolute = 0 / relative = parent
                 if (erodeRad>0) {
-                    ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeRad, erodeRad, mask), true, false);
+                    ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeRad, erodeRadZ, mask), true, false);
                     if (maskErode.count()>0) mask = maskErode;
                 }
-                Region modifiedBackgroundRegion = new Region(mask, 1, backgroundRegion.is2D()).setIsAbsoluteLandmark(true);
+                Region modifiedBackgroundRegion = new Region(mask, backgroundRegion.getLabel(), backgroundRegion.is2D()).setIsAbsoluteLandmark(true);
                 for (Pair<Region, Region> o : children) foregroundMapBackground.put(o.key, modifiedBackgroundRegion);
                 
                 //ImageWindowManagerFactory.showImage( mask);
@@ -151,14 +167,13 @@ public class SNR extends IntensityMeasurement implements Hint {
                 setUpOrAddCore(null, null);
             }
         }
-        Region parentObject;
-        if (foregroundMapBackground==null) parentObject = super.parent.getRegion();
-        else parentObject=this.foregroundMapBackground.get(object);
-        if (parentObject==null) return Double.NaN;
-        IntensityMeasurementCore.IntensityMeasurements iParent = super.core.getIntensityMeasurements(parentObject);
+        Region bckObject;
+        if (foregroundMapBackground==null) bckObject = super.parent.getRegion();
+        else bckObject=this.foregroundMapBackground.get(object);
+        if (bckObject==null) return Double.NaN;
+        IntensityMeasurementCore.IntensityMeasurements iBck = super.core.getIntensityMeasurements(bckObject);
         IntensityMeasurementCore.IntensityMeasurements fore = super.core.getIntensityMeasurements(object);
-        //logger.debug("SNR: parent: {} object: {}, value: {}, fore:{}, back I: {} back SD: {}", super.parent, object.getLabel(), getValue(getForeValue(fore), iParent.mean, iParent.sd), getForeValue(fore), iParent.mean, iParent.sd);
-        return getValue(getForeValue(fore), getBackValue(iParent), iParent.sd);
+        return getValue(getForeValue(fore), getBackValue(iBck), iBck.sd);
     }
     public double[] getBackgroundMeanSD(Region foregroundRegion) {
         if (core==null) synchronized(this) {

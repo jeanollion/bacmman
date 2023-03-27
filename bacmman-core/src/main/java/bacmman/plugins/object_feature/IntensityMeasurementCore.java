@@ -18,14 +18,13 @@
  */
 package bacmman.plugins.object_feature;
 
-import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.data_structure.Region;
-import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
-import java.util.HashMap;
+
 import java.util.Map;
 
+import bacmman.image.ImageMask2D;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.DoubleStatistics;
 import bacmman.utils.HashMapGetCreate;
@@ -40,8 +39,15 @@ import org.slf4j.LoggerFactory;
 public class IntensityMeasurementCore {
     private final static Logger logger = LoggerFactory.getLogger(IntensityMeasurementCore.class);
     Image intensityMap, transformedMap;
-    Map<Region, IntensityMeasurements> values = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(o -> new IntensityMeasurements(o));
-    
+    Map<Region, IntensityMeasurements> values = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(IntensityMeasurements::new);
+    int z = -1;
+    public IntensityMeasurementCore limitToZ(int z) {
+        this.z = z;
+        return this;
+    }
+    public int getZPlane() {
+        return z;
+    }
     public void setUp(Image intensityMap, Image transformedMap) {
         this.intensityMap=intensityMap;    
         if (transformedMap==null) this.transformedMap=intensityMap;
@@ -51,6 +57,9 @@ public class IntensityMeasurementCore {
         return transformed ? transformedMap : intensityMap;
     }
     public IntensityMeasurements getIntensityMeasurements(Region o) {
+        if (z>=0) {
+            return new IntensityMeasurements(o.intersectWithZPlane(z));
+        }
         return values.get(o);
     }
     
@@ -60,8 +69,14 @@ public class IntensityMeasurementCore {
         
         public IntensityMeasurements(Region o) {
             this.o=o;
+            if (o==null) {
+                count = 0;
+                return;
+            }
             if (!o.getBounds().isValid()) throw new RuntimeException("invalid bounds"); // TODO understand why the error thrown by getMask blocks the whole process
-            DoubleStatistics stats = DoubleStatistics.getStats(transformedMap.stream(o.getMask(), o.isAbsoluteLandMark()));
+            ImageMask m = o.getMask();
+            if (o.is2D() && transformedMap.sizeZ()>1 && !(m instanceof ImageMask2D)) m = new ImageMask2D(m);
+            DoubleStatistics stats = DoubleStatistics.getStats(transformedMap.stream(m, o.isAbsoluteLandMark()));
             mean = stats.getAverage();
             sd = stats.getStandardDeviation();
             min = stats.getMin();

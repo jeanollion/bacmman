@@ -173,7 +173,13 @@ public class Ellipse2D extends Region implements Analytical {
             return equation(p.get(0)-bounds.xMin(), p.get(1)-bounds.yMin(), 0) <= 1;
         }
     }
-
+    @Override
+    public Ellipse2D intersectWithZPlane(int z) {
+        Ellipse2D res = new Ellipse2D(center.duplicate().translate(new Voxel(0, 0, z - center.zMin())), major, minor, theta, intensity, label, false, scaleXY, scaleZ);
+        res.setQuality(quality);
+        res.setIsAbsoluteLandmark(absoluteLandmark);
+        return res;
+    }
     @Override
     public Ellipse2D duplicate(boolean duplicateVoxels) {
         Ellipse2D res = new Ellipse2D(center.duplicate(), major, minor, theta, intensity, label, is2D, scaleXY, scaleZ);
