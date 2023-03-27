@@ -31,33 +31,38 @@ public class ExportCellTrackingBenchmark {
         put("Fluo-N2DH-GOWT1", 50);put("Fluo-N3DH-CE", 50);put("Fluo-N3DH-CHO", 50);put("PhC-C2DH-U373", 50);
         put("BF-C2DL-HSC", 25);put("BF-C2DL-MuSC", 25);put("Fluo-C3DL-MDA231", 25);put("Fluo-N2DL-HeLa", 25);put("PhC-C2DL-PSC", 25);}};
 
-    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, boolean exportRaw) {
+    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, boolean exportTrainingSet, boolean exportRaw) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         List<Selection> sel = mDAO.getSelectionDAO().getSelections().stream().filter(s -> selectionNames.contains(s.getName())).collect(Collectors.toList());
         if (sel.isEmpty()) logger.error("No selection");
+        int count = 1;
+        int padding = mDAO.getExperiment().getPositionCount()>100 ? 3 : 2;
         for (Selection s : sel) {
             for (String p : s.getAllPositions()) {
                 List<SegmentedObject> parentTrack = s.getElements(p).stream().sorted().collect(Collectors.toList());
-                File curDir = Paths.get(dir, p+"-"+s.getName()+"_RES").toFile();
+                //File curDir = Paths.get(dir, p+"-"+s.getName()).toFile();
+                File curDir = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
                 if (!curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
-                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportRaw);
+                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportTrainingSet, exportRaw);
             }
         }
     }
-    public static void export(MasterDAO mDAO, String dir, int objectClassIdx, int margin, boolean exportRaw) {
+    public static void export(MasterDAO mDAO, String dir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
+        int count = 1;
+        int padding = mDAO.getExperiment().getPositionCount()>100 ? 3 : 2;
         for (String p : mDAO.getExperiment().getPositionsAsString()) {
-            File dirP = Paths.get(dir, p+"_RES").toFile();
+            File dirP = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
             if (!dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
-            exportPosition(mDAO.getDao(p), dirP.toString(), objectClassIdx, margin, exportRaw);
+            exportPosition(mDAO.getDao(p), dirP.toString(), objectClassIdx, margin, exportTrainingSet, exportRaw);
         }
     }
 
-    public static void exportPosition(ObjectDAO dao, String dir, int objectClassIdx, int margin, boolean exportRaw) {
-        export(dao.getRoots(), dir, objectClassIdx, margin, exportRaw);
+    public static void exportPosition(ObjectDAO dao, String dir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
+        export(dao.getRoots(), dir, objectClassIdx, margin, exportTrainingSet, exportRaw);
     }
-    public static void export(List<SegmentedObject> parentTrack, String dir, int objectClassIdx, int margin, boolean exportRaw) {
-        logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, dir, margin);
+    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
+        logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, rawDir, margin);
         if (parentTrack.isEmpty()) return;
         int[] counter=new int[]{0};
         int parentOC = parentTrack.get(0).getStructureIdx();
@@ -96,19 +101,22 @@ public class ExportCellTrackingBenchmark {
         }
         // write label images
         int padding = parentTrack.size()>=1000 ? 4 : 3;
-        String rawDir = dir.substring(0, dir.length()-4);
-        Utils.emptyDirectory(new File(dir));
+        String procDir = rawDir + (exportTrainingSet ? "_GT" : "_RES");
+        String segDir = exportTrainingSet ? Paths.get(procDir, "SEG").toString() : procDir;
+        String traDir = exportTrainingSet ? Paths.get(procDir, "TRA").toString() : procDir;
+        Utils.emptyDirectory(new File(procDir));
         if (exportRaw) Utils.emptyDirectory(new File(rawDir));
         parentTrack.forEach(r -> {
-            Image labels = new ImageShort("mask"+ Utils.formatInteger(padding, r.getFrame()), r.getMaskProperties());
+            Image labels = new ImageShort(Utils.formatInteger(padding, r.getFrame()), r.getMaskProperties());
             r.getChildren(objectClassIdx).filter(objectInFOI::get).forEach(o -> o.getRegion().draw(labels, getTrackLabel.get(trackHeadMap.get(o))));
-            ImageWriter.writeToFile(labels, Paths.get(dir, labels.getName()).toString(), ImageFormat.TIF);
-            if (exportRaw) ImageWriter.writeToFile(r.getRawImage(objectClassIdx), Paths.get(rawDir, labels.getName()).toString(), ImageFormat.TIF);
+            if (exportTrainingSet) ImageWriter.writeToFile(labels, Paths.get(segDir, "man_seg" + labels.getName()).toString(), ImageFormat.TIF);
+            ImageWriter.writeToFile(labels, Paths.get(traDir, ( exportTrainingSet ? "man_track" : "mask" ) + labels.getName()).toString(), ImageFormat.TIF);
+            if (exportRaw) ImageWriter.writeToFile(r.getRawImage(objectClassIdx), Paths.get(rawDir, "t"+labels.getName()).toString(), ImageFormat.TIF);
         });
 
-        logger.debug("Exporting to : {}, edge: {}, number of labels: {} number of tracks: {}", dir, margin, counter[0], allTracks.size());
+        logger.debug("Exporting to : {}, edge: {}, number of labels: {} number of tracks: {}", traDir, margin, counter[0], allTracks.size());
         // write lineage information
-        File f = Paths.get(dir, "res_track.txt").toFile();
+        File f = Paths.get(traDir, (exportTrainingSet ? "man_track.txt" : "res_track.txt")).toFile();
         try {
             if (!f.exists()) f.createNewFile();
             RandomAccessFile raf = new RandomAccessFile(f, "rw");

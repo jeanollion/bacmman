@@ -59,7 +59,7 @@ public class Run {
         t.runTask(0.5);
         t.done();
         int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;
-        ExportCellTrackingBenchmark.export(db, parent.getAbsolutePath(), 0, margin, false);
+        ExportCellTrackingBenchmark.export(db, parent.getAbsolutePath(), 0, margin, false, false);
 
         // close / remove temp files
         if (args.length==2 || Boolean.parseBoolean(args[2])) {

@@ -195,7 +195,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     for more information.");
 
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
-
+    private BooleanParameter exportModeTrainCTC = new BooleanParameter("Export Mode", "Training Set", "Result", false);
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
@@ -508,8 +508,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         pyGatewayAddress.addListener(pyGatewayListener);
 
         // ctc
-        ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
         PropertyUtils.setPersistent(marginCTC, "ctc_margin");
+        PropertyUtils.setPersistent(exportModeTrainCTC, "ctc_export_mode");
+        ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(exportModeTrainCTC, CTCMenu);
         // load xp after persistent props loaded
         populateDatasetTree();
         dsTree.setRecentSelection();
@@ -971,7 +973,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     return;
                 }
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.export(db, dir, oc, marginCTC.getIntValue(), true);
+                    ExportCellTrackingBenchmark.export(db, dir, oc, marginCTC.getIntValue(), exportModeTrainCTC.getSelected(), true);
                 }
             }
         });
@@ -990,7 +992,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
                 List<String> sel = getSelectedSelections(true).stream().map(Selection::getName).collect(Collectors.toList());
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), true);
+                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelected(), true);
                 }
             }
         });
