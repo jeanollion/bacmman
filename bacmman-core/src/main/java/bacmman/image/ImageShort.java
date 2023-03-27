@@ -67,10 +67,10 @@ public class ImageShort extends ImageInteger<ImageShort> {
     }
     @Override public DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset) {
         if (maskHasAbsoluteOffset) {
-            if (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ()) return DoubleStream.empty();
+            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
             SimpleBoundingBox inter = BoundingBox.getIntersection2D(this, mask);
             if (inter.isEmpty()) return DoubleStream.empty();
-            if (inter.sameBounds(this) && inter.sameBounds(mask)) {
+            if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
                 else return IntStream.range(0,sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]&0xffff:Double.NaN).filter(v->!Double.isNaN(v));
             }
@@ -86,10 +86,10 @@ public class ImageShort extends ImageInteger<ImageShort> {
             }
         }
         else { // masks is relative to image
-            if (z<0 || z>=sizeZ || z-mask.zMin()<0 || z-mask.zMin()>mask.sizeZ()) return DoubleStream.empty();
+            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
             SimpleBoundingBox inter = BoundingBox.getIntersection2D(new SimpleBoundingBox(this).resetOffset(), mask);
             if (inter.isEmpty()) return DoubleStream.empty();
-            if (inter.sameDimensions(mask) && inter.sameDimensions(this)) {
+            if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
                 else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]&0xffff:Double.NaN).filter(v->!Double.isNaN(v));
             }

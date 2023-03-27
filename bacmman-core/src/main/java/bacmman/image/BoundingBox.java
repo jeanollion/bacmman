@@ -50,6 +50,7 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
     boolean containsWithOffset(int x, int y, int z);
     boolean containsWithOffset(Point point);
     boolean sameBounds(BoundingBox other);
+    boolean sameBounds2D(BoundingBox other);
     boolean sameDimensions(BoundingBox other);
     @Override BoundingBox<T> duplicate();
     @Override BoundingBox<T> translate(Offset other);

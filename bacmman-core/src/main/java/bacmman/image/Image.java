@@ -309,7 +309,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         }
         if (minZ>=maxZ) return DoubleStream.empty();
         if (minZ==maxZ-1) return streamPlane(minZ-(maskHasAbsoluteOffset?zMin:0), mask, maskHasAbsoluteOffset);
-        return StreamConcatenation.concat((DoubleStream[])IntStream.range(minZ-(maskHasAbsoluteOffset?zMin:0), maxZ-(maskHasAbsoluteOffset?zMin:0)).mapToObj(z->streamPlane(z, mask, maskHasAbsoluteOffset)).filter(s->s!=DoubleStream.empty()).toArray(s->new DoubleStream[s]));
+        return StreamConcatenation.concat(IntStream.range(minZ-(maskHasAbsoluteOffset?zMin:0), maxZ-(maskHasAbsoluteOffset?zMin:0)).mapToObj(z->streamPlane(z, mask, maskHasAbsoluteOffset)).filter(s->s!=DoubleStream.empty()).toArray(DoubleStream[]::new));
     }
     public abstract DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset);
     

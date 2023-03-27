@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2018 Jean Ollion
  *
  * This File is part of BACMMAN
@@ -36,22 +36,22 @@ public class ImageByte extends ImageInteger<ImageByte> {
         super(name, properties);
         this.pixels=new byte[sizeZ][sizeXY];
     }
-    
+
     public ImageByte(String name, int sizeX, int sizeY, int sizeZ) {
         super(name, sizeX, sizeY, sizeZ);
         this.pixels=new byte[sizeZ][sizeX*sizeY];
     }
-    
+
     public ImageByte(String name, int sizeX, byte[][] pixels) {
         super(name, sizeX, sizeX>0?pixels[0].length/sizeX:0, pixels.length);
         this.pixels=pixels;
     }
-    
+
     public ImageByte(String name, int sizeX, byte[] pixels) {
         super(name, sizeX, sizeX>0?pixels.length/sizeX:0, 1);
         this.pixels=new byte[][]{pixels};
     }
-    
+
     @Override
     public ImageByte getZPlane(int idxZ) {
         if (idxZ>=sizeZ) throw new IllegalArgumentException("Z-plane cannot be superior to sizeZ");
@@ -67,10 +67,10 @@ public class ImageByte extends ImageInteger<ImageByte> {
     }
     @Override public DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset) {
         if (maskHasAbsoluteOffset) {
-            if (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ()) return DoubleStream.empty();
+            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
             SimpleBoundingBox inter = BoundingBox.getIntersection2D(this, mask);
             if (inter.isEmpty()) return DoubleStream.empty();
-            if (inter.sameBounds(this) && inter.sameBounds(mask)) {
+            if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
                 else return IntStream.range(0,sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
             }
@@ -86,10 +86,10 @@ public class ImageByte extends ImageInteger<ImageByte> {
             }
         }
         else { // masks is relative to image
-            if (z<0 || z>=sizeZ || z-mask.zMin()<0 || z-mask.zMin()>mask.sizeZ()) return DoubleStream.empty();
+            if (!(mask instanceof ImageMask2D) && (z<0 || z>=sizeZ || z+zMin-mask.zMin()<0 || z+zMin-mask.zMin()>=mask.sizeZ())) return DoubleStream.empty();
             SimpleBoundingBox inter = BoundingBox.getIntersection2D(new SimpleBoundingBox(this).resetOffset(), mask);
             if (inter.isEmpty()) return DoubleStream.empty();
-            if (inter.sameDimensions(mask) && inter.sameDimensions(this)) {
+            if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
                 else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
             }
@@ -157,7 +157,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public int getPixelInt(int xy, int z) {
         return pixels[z][xy] & 0xff;
     }
-    
+
     @Override
     public float getPixel(int xy, int z) {
         return (float) (pixels[z][xy] & 0xff);
@@ -167,7 +167,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public float getPixel(int x, int y, int z) {
         return (float) (pixels[z][x + y * sizeX] & 0xff);
     }
-    
+
     @Override
     public float getPixelLinInterX(int x, int y, int z, float dx) {
         if (dx==0) return (float) (pixels[z][x + y * sizeX] & 0xff);
@@ -178,7 +178,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public void setPixel(int x, int y, int z, int value) {
         pixels[z][x + y * sizeX] = (byte) value;
     }
-    
+
     @Override
     public void setPixelWithOffset(int x, int y, int z, int value) {
         pixels[z-zMin][x-offsetXY + y * sizeX] = (byte)value;
@@ -193,7 +193,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public void setPixel(int x, int y, int z, double value) {
         pixels[z][x + y * sizeX] = value<0?0:(value>255?(byte)255:(byte)value);
     }
-    
+
     @Override
     public void setPixelWithOffset(int x, int y, int z, double value) {
         pixels[z-zMin][x-offsetXY + y * sizeX] = value<=0?0:(value>=255?(byte)255:(byte)value);
@@ -213,7 +213,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public void setPixel(int xy, int z, double value) {
         pixels[z][xy] = value<=0?0:(value>=255?(byte)255:(byte)value);
     }
-    
+
     @Override
     public int getPixelIntWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x-offsetXY + y * sizeX] & 0xff;
@@ -250,7 +250,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
     @Override public boolean insideMask(int xy, int z) {
         return pixels[z][xy]!=0;
     }
-    
+
     @Override public int count() {
         int count = 0;
         for (int z = 0; z< sizeZ; ++z) {
@@ -260,7 +260,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
         }
         return count;
     }
-    
+
     @Override public boolean insideMaskWithOffset(int x, int y, int z) {
         return pixels[z-zMin][x+y*sizeX-offsetXY]!=0;
     }
@@ -269,12 +269,12 @@ public class ImageByte extends ImageInteger<ImageByte> {
     public byte[][] getPixelArray() {
         return pixels;
     }
-    
+
     @Override
     public ImageByte newImage(String name, ImageProperties properties) {
         return new ImageByte(name, properties);
     }
-    
+
     @Override
     public void invert() {
         for (int z = 0; z < sizeZ; z++) {
@@ -283,7 +283,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
             }
         }
     }
-    
+
     @Override
     public void appendBinaryMasks(int startLabel, ImageMask... masks) {
         if (masks == null || masks.length==0) return;
@@ -311,7 +311,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
 
     @Override public int getBitDepth() {return 8;}
 
-    
 
-    
+
+
 }

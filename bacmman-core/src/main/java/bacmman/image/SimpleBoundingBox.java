@@ -116,6 +116,9 @@ public class SimpleBoundingBox<T extends SimpleBoundingBox<T>> implements Boundi
     @Override public boolean sameBounds(BoundingBox boundingBox) {
         return xMin==boundingBox.xMin() && yMin==boundingBox.yMin() && zMin==boundingBox.zMin() && xMax==boundingBox.xMax() && yMax==boundingBox.yMax() && zMax==boundingBox.zMax();
     }
+    @Override public boolean sameBounds2D(BoundingBox boundingBox) {
+        return xMin==boundingBox.xMin() && yMin==boundingBox.yMin() && xMax==boundingBox.xMax() && yMax==boundingBox.yMax();
+    }
     @Override public boolean sameDimensions(BoundingBox bounds) {
         return sizeX() == bounds.sizeX() && sizeY() == bounds.sizeY() && sizeZ() == bounds.sizeZ();
     }
