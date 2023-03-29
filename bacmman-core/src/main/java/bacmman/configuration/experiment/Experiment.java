@@ -317,11 +317,22 @@ public class Experiment extends ContainerParameterImpl<Experiment> {
     public String getImportImagePositionSeparator() {
         return positionSeparator.getValue();
     }
+
+    public Experiment setImportImagePositionSeparator(String sep) {
+        if (sep==null) sep = "";
+        positionSeparator.setValue(sep);
+        return this;
+    }
     
     public String getImportImageFrameSeparator() {
         return frameSeparator.getValue();
     }
-    
+
+    public Experiment setImportImageFrameSeparator(String sep) {
+        frameSeparator.setValue(sep);
+        return this;
+    }
+
     public String getOutputDirectory() {
         return outputPath.getFirstSelectedFilePath();
     }

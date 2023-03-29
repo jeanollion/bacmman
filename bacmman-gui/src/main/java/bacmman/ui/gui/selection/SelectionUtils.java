@@ -44,15 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import javax.swing.DefaultListModel;
-import javax.swing.JCheckBoxMenuItem;
-import javax.swing.JList;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JOptionPane;
-import javax.swing.JPopupMenu;
-import javax.swing.JSeparator;
-import javax.swing.SwingUtilities;
+import javax.swing.*;
 
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -307,53 +299,6 @@ public class SelectionUtils {
             });
         }
         menu.add(colorMenu);
-        menu.add(new JSeparator());
-        JMenuItem add = new JMenuItem("Add objects selected on active Kymograph");
-        add.addActionListener((ActionEvent e) -> {
-            if (selectedValues.isEmpty()) return;
-            addCurrentObjectsToSelections(selectedValues, dao);
-            list.updateUI();
-            GUI.updateRoiDisplayForSelections(null, null);
-            GUI.getInstance().resetSelectionHighlight();
-            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-        });
-        menu.add(add);
-        
-        JMenuItem remove = new JMenuItem("Remove objects selected on active Kymograph");
-        remove.addActionListener((ActionEvent e) -> {
-            if (selectedValues.isEmpty()) return;
-            removeCurrentObjectsFromSelections(selectedValues, dao);
-            GUI.updateRoiDisplayForSelections(null, null);
-            GUI.getInstance().resetSelectionHighlight();
-            list.updateUI();
-            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-        });
-        menu.add(remove);
-        
-        JMenuItem removeFromParent = new JMenuItem("Remove all Objects from active Kymograph");
-        removeFromParent.addActionListener((ActionEvent e) -> {
-            if (selectedValues.isEmpty()) return;
-            removeAllCurrentImageObjectsFromSelections(selectedValues, dao);
-            GUI.updateRoiDisplayForSelections(null, null);
-            GUI.getInstance().resetSelectionHighlight();
-            list.updateUI();
-            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-        });
-        menu.add(removeFromParent);
-        JMenuItem duplicate = new JMenuItem("Duplicate");
-        duplicate.addActionListener((ActionEvent e) -> {
-            if (selectedValues.isEmpty()) return;
-            String name = JOptionPane.showInputDialog("Duplicate Selection name:");
-            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                Selection dup = selectedValues.get(0).duplicate(name);
-                dup.getMasterDAO().getSelectionDAO().store(dup);
-                GUI.getInstance().populateSelections();
-                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-            }
-            list.updateUI();
-        });
-        menu.add(duplicate);
-        if (selectedValues.size()!=1) duplicate.setEnabled(false);
         JMenu setOC = new JMenu("Set Object Class");
         String[] ocNames = GUI.getDBConnection().getExperiment().experimentStructure.getObjectClassesAsString();
         for (int i = 0; i<ocNames.length; ++i) {
@@ -374,6 +319,141 @@ public class SelectionUtils {
             });
         }
         menu.add(setOC);
+
+        menu.add(new JSeparator());
+        JMenuItem add = new JMenuItem("Add objects selected on active Kymograph");
+        add.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            addCurrentObjectsToSelections(selectedValues, dao);
+            list.updateUI();
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+        });
+        menu.add(add);
+        JMenu removeMenu = new JMenu("Remove...");
+        JMenuItem clear = new JMenuItem("All objects");
+        clear.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            for (Selection s : selectedValues ) {
+                s.clear();
+                dao.store(s);
+            }
+            list.updateUI();
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+        });
+        removeMenu.add(clear);
+        JMenuItem remove = new JMenuItem("All objects selected on active image");
+        remove.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            removeCurrentObjectsFromSelections(selectedValues, dao);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+            list.updateUI();
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+        });
+        removeMenu.add(remove);
+        
+        JMenuItem removeFromParent = new JMenuItem("All objects from active image");
+        removeFromParent.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            removeAllCurrentImageObjectsFromSelections(selectedValues, dao, false, false);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+            list.updateUI();
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+        });
+        removeMenu.add(removeFromParent);
+
+        JMenuItem removeAfter = new JMenuItem("All objects from active image after selected frame");
+        removeAfter.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            removeAllCurrentImageObjectsFromSelections(selectedValues, dao, true, true);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+            list.updateUI();
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+        });
+        removeMenu.add(removeAfter);
+        JMenuItem removeBefore = new JMenuItem("All objects from active image before selected frame");
+        removeBefore.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            removeAllCurrentImageObjectsFromSelections(selectedValues, dao, true, false);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+            list.updateUI();
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+        });
+        removeMenu.add(removeBefore);
+        menu.add(removeMenu);
+
+        JMenuItem duplicate = new JMenuItem("Duplicate");
+        duplicate.addActionListener((ActionEvent e) -> {
+            if (selectedValues.isEmpty()) return;
+            String name = JOptionPane.showInputDialog("Duplicate Selection name:");
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                Selection dup = selectedValues.get(0).duplicate(name);
+                dup.getMasterDAO().getSelectionDAO().store(dup);
+                GUI.getInstance().populateSelections();
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            }
+            list.updateUI();
+        });
+        menu.add(duplicate);
+        if (selectedValues.size()!=1) duplicate.setEnabled(false);
+        JMenu setOpMenu = new JMenu("Set Operations");
+        if (selectedValues.size()>=1) {
+            JMenuItem union = new JMenuItem("Union");
+            union.addActionListener((ActionEvent e) -> {
+                String name = JOptionPane.showInputDialog("Union Selection name:");
+                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                    Selection unionSel = SelectionOperations.union(name, selectedValues);
+                    unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
+                    GUI.getInstance().populateSelections();
+                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                }
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
+            });
+            setOpMenu.add(union);
+        }
+        if (selectedValues.size()>1) {
+            JMenuItem union = new JMenuItem("Intersection");
+            union.addActionListener((ActionEvent e) -> {
+                String name = JOptionPane.showInputDialog("Union Selection name:");
+                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                    Selection interSel = SelectionOperations.intersection(name, selectedValues);
+                    interSel.getMasterDAO().getSelectionDAO().store(interSel);
+                    GUI.getInstance().populateSelections();
+                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                }
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
+            });
+            setOpMenu.add(union);
+        }
+        if (selectedValues.size()>=1 && selectedValues.stream().allMatch(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())) {
+            JMenu diffMenu = new JMenu("Remove all from");
+            List<Selection> selDiff = allSelections.stream()
+                    .filter(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())
+                    .filter(s->!selectedValues.contains(s))
+                    .collect(Collectors.toList());
+            for (Selection sel : selDiff) {
+                JMenuItem diff = new JMenuItem(sel.getName());
+                diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
+                    SelectionOperations.removeAll(s, sel);
+                    s.getMasterDAO().getSelectionDAO().store(s);
+                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.getInstance().resetSelectionHighlight();
+                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                }));
+                diffMenu.add(diff);
+            }
+            setOpMenu.add(diffMenu);
+        }
+        menu.add(setOpMenu);
         JMenu getParentSelection = new JMenu("Create Parent/Child Selection");
         List<String> ocNamesWithRoot = new ArrayList<>(Arrays.asList(ocNames));
         ocNamesWithRoot.add(0, "Viewfield");
@@ -406,21 +486,6 @@ public class SelectionUtils {
         }
         menu.add(getParentSelection);
 
-
-        JMenuItem clear = new JMenuItem("Clear");
-        clear.addActionListener((ActionEvent e) -> {
-            if (selectedValues.isEmpty()) return;
-            for (Selection s : selectedValues ) {
-                s.clear();
-                dao.store(s);
-            }
-            list.updateUI();
-            GUI.updateRoiDisplayForSelections(null, null);
-            GUI.getInstance().resetSelectionHighlight();
-            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-        });
-        menu.add(clear);
-        
         JMenuItem delete = new JMenuItem("Delete Selection");
         delete.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
@@ -433,56 +498,7 @@ public class SelectionUtils {
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
         });
         menu.add(delete);
-        menu.add(new JSeparator());
-        if (selectedValues.size()>=1) {
-            JMenuItem union = new JMenuItem("Union");
-            union.addActionListener((ActionEvent e) -> {
-                String name = JOptionPane.showInputDialog("Union Selection name:");
-                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                    Selection unionSel = SelectionOperations.union(name, selectedValues);
-                    unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
-                    GUI.getInstance().populateSelections();
-                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                }
-                GUI.updateRoiDisplayForSelections(null, null);
-                GUI.getInstance().resetSelectionHighlight();
-            });
-            menu.add(union);
-        }
-        if (selectedValues.size()>1) {
-            JMenuItem union = new JMenuItem("Intersection");
-            union.addActionListener((ActionEvent e) -> {
-                String name = JOptionPane.showInputDialog("Union Selection name:");
-                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                    Selection interSel = SelectionOperations.intersection(name, selectedValues);
-                    interSel.getMasterDAO().getSelectionDAO().store(interSel);
-                    GUI.getInstance().populateSelections();
-                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                }
-                GUI.updateRoiDisplayForSelections(null, null);
-                GUI.getInstance().resetSelectionHighlight();
-            });
-            menu.add(union);
-        }
-        if (selectedValues.size()>=1 && selectedValues.stream().allMatch(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())) {
-            JMenu diffMenu = new JMenu("Remove all from");
-            List<Selection> selDiff = allSelections.stream()
-                    .filter(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())
-                    .filter(s->!selectedValues.contains(s))
-                    .collect(Collectors.toList());
-            for (Selection sel : selDiff) {
-                JMenuItem diff = new JMenuItem(sel.getName());
-                diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
-                    SelectionOperations.removeAll(s, sel);
-                    s.getMasterDAO().getSelectionDAO().store(s);
-                    GUI.updateRoiDisplayForSelections(null, null);
-                    GUI.getInstance().resetSelectionHighlight();
-                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                }));
-                diffMenu.add(diff);
-            }
-            menu.add(diffMenu);
-        }
+
         return menu;
     }
 
@@ -509,10 +525,24 @@ public class SelectionUtils {
         }
     }
 
-    public static void removeAllCurrentImageObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao) {
-        InteractiveImage ioi = ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface();
+    public static void removeAllCurrentImageObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao, boolean limitFrame, boolean afterSelected) {
+        ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+        InteractiveImage ioi = iwm.getCurrentImageObjectInterface();
         if (ioi==null) return;
+
         List<SegmentedObject> parents = ioi.getParents();
+        if (limitFrame) {
+            List<SegmentedObject> sel = iwm.getSelectedLabileObjectsOrTracks(iwm.getDisplayer().getCurrentImage2());
+            if (sel.isEmpty()) return;
+            if (afterSelected) {
+                int frame = sel.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+                parents = parents.stream().filter(p -> p.getFrame()>=frame).collect(Collectors.toList());
+            } else {
+                int frame = sel.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
+                parents = parents.stream().filter(p -> p.getFrame()<=frame).collect(Collectors.toList());
+            }
+            if (parents.isEmpty()) return;
+        }
         for (Selection s : selections ) {
             s.removeChildrenOf(parents);
             dao.store(s);

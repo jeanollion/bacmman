@@ -447,12 +447,12 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         Map<String, List<SegmentedObject>> parentsByPosition = SegmentedObjectUtils.splitByPosition(parents);
         for (String position : parentsByPosition.keySet()) {
             Set<String> elements = getElementStrings(position);
-            Map<String, List<String>> parentToChildrenMap = elements.stream().collect(Collectors.groupingBy(s->Selection.getParent(s)));
-            int parentSIdx = this.mDAO.getExperiment().getStructure(objectClassIdx).getParentStructure();
+            Map<String, List<String>> parentToChildrenMap = elements.stream().collect(Collectors.groupingBy(Selection::getParent));
+            int parentSIdx = objectClassIdx==-1 ? -1 : this.mDAO.getExperiment().getStructure(objectClassIdx).getParentStructure();
             List<SegmentedObject> posParents = parentsByPosition.get(position);
             Map<Integer, List<SegmentedObject>> parentsBySIdx = SegmentedObjectUtils.splitByStructureIdx(posParents);
             if (!parentsBySIdx.containsKey(parentSIdx)) continue;
-            Set<String> curParents = new HashSet<>(Utils.transform(parentsBySIdx.get(parentSIdx), p->Selection.indicesString(p)));
+            Set<String> curParents = new HashSet<>(Utils.transform(parentsBySIdx.get(parentSIdx), Selection::indicesString));
             Set<String> intersectParents = Sets.intersect(curParents, parentToChildrenMap.keySet());
             if (intersectParents.isEmpty()) continue;
             List<String> toRemove = new ArrayList<>();

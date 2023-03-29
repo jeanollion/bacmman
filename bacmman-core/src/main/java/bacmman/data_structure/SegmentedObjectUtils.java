@@ -188,7 +188,7 @@ public class SegmentedObjectUtils {
     public static Map<SegmentedObject, List<SegmentedObject>> getAllTracks(List<SegmentedObject> parentTrack, int structureIdx, boolean allowSearchInPreviousFrames, boolean allowSearchInNextFrames) {
         if (parentTrack==null || parentTrack.isEmpty()) return Collections.EMPTY_MAP;
         if (allowSearchInPreviousFrames && parentTrack.get(0).equals(parentTrack.get(0).getTrackHead())) allowSearchInPreviousFrames=false;
-        
+        if (parentTrack.get(0).getStructureIdx() == structureIdx) return new HashMap<SegmentedObject, List<SegmentedObject>>(){{put(parentTrack.get(0), parentTrack);}};
         // set all children
         setAllChildren(parentTrack, structureIdx);
         Stream<SegmentedObject> allChildrenStream = StreamConcatenation.concat((Stream<SegmentedObject>[])parentTrack.stream()

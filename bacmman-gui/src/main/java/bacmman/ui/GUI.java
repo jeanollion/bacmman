@@ -973,7 +973,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     return;
                 }
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.export(db, dir, oc, marginCTC.getIntValue(), exportModeTrainCTC.getSelected(), true);
+                    ExportCellTrackingBenchmark.exportPositions(db, dir, oc, getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelected(), true);
                 }
             }
         });
@@ -4890,7 +4890,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public void removeAllFromSelectionActionPerformed(int selNumber) {
         if (!this.checkConnection()) return;
         List<Selection> selList = this.getAddObjectsSelection(selNumber);
-        SelectionUtils.removeAllCurrentImageObjectsFromSelections(selList, db.getSelectionDAO());
+        SelectionUtils.removeAllCurrentImageObjectsFromSelections(selList, db.getSelectionDAO(), false, false);
         selectionList.updateUI();
         GUI.updateRoiDisplayForSelections(null, null);
         resetSelectionHighlight();

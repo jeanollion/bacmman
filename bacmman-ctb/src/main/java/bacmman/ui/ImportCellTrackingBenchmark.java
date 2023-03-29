@@ -46,6 +46,10 @@ public class ImportCellTrackingBenchmark {
             logger.warn("No position found in directory");
             return;
         }
+        String posSep = mDAO.getExperiment().getImportImagePositionSeparator();
+        mDAO.getExperiment().setImportImagePositionSeparator("");
+        String fSep = mDAO.getExperiment().getImportImageFrameSeparator();
+        mDAO.getExperiment().setImportImageFrameSeparator("t");
         if (pcb!=null) pcb.incrementTaskNumber(2 * allDir.length);
         for (File resDir : allDir) {
             String posName = resDir.getName().replace("_RES", "");
@@ -57,6 +61,13 @@ public class ImportCellTrackingBenchmark {
             else if (pcb!=null) pcb.incrementProgress();
             mDAO.updateExperiment();
         }
+        if (!posSep.equals("") || fSep.equals("t")) {
+            mDAO.getExperiment().setImportImagePositionSeparator(posSep);
+            mDAO.getExperiment().setImportImageFrameSeparator(fSep);
+            mDAO.updateExperiment();
+        }
+
+
     }
     public static void importObjects(ObjectDAO dao, File dir, int objectClassIdx, ProgressCallback pcb) throws IOException {
         File trackFile = Paths.get(dir.getAbsolutePath(), "res_track.txt").toFile();

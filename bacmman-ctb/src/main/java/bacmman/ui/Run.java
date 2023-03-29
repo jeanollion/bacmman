@@ -2,7 +2,6 @@ package bacmman.ui;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.core.Core;
-import bacmman.core.ImageFieldFactory;
 import bacmman.core.ProgressCallback;
 import bacmman.core.Task;
 import bacmman.data_structure.MasterDAOFactory;
@@ -59,7 +58,7 @@ public class Run {
         t.runTask(0.5);
         t.done();
         int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;
-        ExportCellTrackingBenchmark.export(db, parent.getAbsolutePath(), 0, margin, false, false);
+        ExportCellTrackingBenchmark.exportPositions(db, parent.getAbsolutePath(), 0, null, margin, false, false);
 
         // close / remove temp files
         if (args.length==2 || Boolean.parseBoolean(args[2])) {

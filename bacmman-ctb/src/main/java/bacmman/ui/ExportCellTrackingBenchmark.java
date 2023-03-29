@@ -40,6 +40,11 @@ public class ExportCellTrackingBenchmark {
         for (Selection s : sel) {
             for (String p : s.getAllPositions()) {
                 List<SegmentedObject> parentTrack = s.getElements(p).stream().sorted().collect(Collectors.toList());
+                for (int i = 1; i<parentTrack.size(); ++i) {
+                    if (parentTrack.get(i).getFrame()!=parentTrack.get(i-1).getFrame()+1) {
+                        throw new RuntimeException("Parent Track must be continuous");
+                    }
+                }
                 //File curDir = Paths.get(dir, p+"-"+s.getName()).toFile();
                 File curDir = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
                 if (!curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
@@ -47,25 +52,29 @@ public class ExportCellTrackingBenchmark {
             }
         }
     }
-    public static void export(MasterDAO mDAO, String dir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
+    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, boolean exportTrainingSet, boolean exportRaw) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         int count = 1;
         int padding = mDAO.getExperiment().getPositionCount()>100 ? 3 : 2;
-        for (String p : mDAO.getExperiment().getPositionsAsString()) {
-            File dirP = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
-            if (!dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
-            exportPosition(mDAO.getDao(p), dirP.toString(), objectClassIdx, margin, exportTrainingSet, exportRaw);
+        if (positions==null) positions = Arrays.asList(mDAO.getExperiment().getPositionsAsString());
+        int parentTrack = mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(objectClassIdx);
+        for (String p : positions) {
+            ObjectDAO dao = mDAO.getDao(p);
+            List<SegmentedObject> roots = dao.getRoots();
+            for (List<SegmentedObject> pTrack : SegmentedObjectUtils.getAllTracks(roots, parentTrack).values()) {
+                File dirP = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
+                if (!dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
+                export(pTrack, dirP.toString(), objectClassIdx, margin, exportTrainingSet, exportRaw);
+            }
         }
     }
 
-    public static void exportPosition(ObjectDAO dao, String dir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
-        export(dao.getRoots(), dir, objectClassIdx, margin, exportTrainingSet, exportRaw);
-    }
     public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
         logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, rawDir, margin);
         if (parentTrack.isEmpty()) return;
         int[] counter=new int[]{0};
         int parentOC = parentTrack.get(0).getStructureIdx();
+        int maxFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
         Map<SegmentedObject, Integer> getTrackLabel = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> ++counter[0]);
         // FOI specs
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, objectClassIdx);
@@ -125,8 +134,8 @@ public class ExportCellTrackingBenchmark {
                     .sorted(Comparator.comparingInt(e-> getTrackLabel.get(e.getKey())))
                     .forEach(e -> {
                         int label = getTrackLabel.get(e.getKey());
-                        int startFrame = e.getKey().getFrame();
-                        int endFrame = e.getValue().get(e.getValue().size()-1).getFrame();
+                        int startFrame = e.getKey().getFrame(); // TODO check if works when first frame is not ZERO otherwise remove offset.
+                        int endFrame = Math.min(maxFrame, e.getValue().get(e.getValue().size()-1).getFrame());
                         SegmentedObject prev = previousMap.get(e.getKey());
                         int parentLabel = prev==null ? 0 : getTrackLabel.get(trackHeadMap.get(prev));
                         try {
