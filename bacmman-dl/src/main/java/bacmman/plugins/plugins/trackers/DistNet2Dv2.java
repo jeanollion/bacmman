@@ -10,11 +10,9 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
 import bacmman.processing.Filters;
-import bacmman.processing.ImageFeatures;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
-import bacmman.processing.skeleton.SparseSkeleton;
 import bacmman.processing.track_post_processing.SplitAndMerge;
 import bacmman.processing.track_post_processing.Track;
 import bacmman.processing.track_post_processing.TrackTreePopulation;
@@ -53,8 +51,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> is >1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1)");
     // segmentation
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 1, 0, null).setEmphasized(true).setHint("Threshold applied on predicted EDM to define foreground areas");
-    BoundedNumberParameter seedThreshold = new BoundedNumberParameter("Seed Threshold", 5, 2.5, 1, null).setEmphasized(true).setHint("Threshold applied on predicted EDM to define watershed seeds: seeds are local maxima of predicted center with EDM values higher than this threshold");
-    BoundedNumberParameter localMinRad = new BoundedNumberParameter("Seed Radius", 5, 10, 0, null).setEmphasized(false).setHint("Radius of local minima filter applied on predicted distance to center to define seeds");
+    BoundedNumberParameter seedThreshold = new BoundedNumberParameter("Seed Threshold", 5, 2.5, 0, null).setEmphasized(true).setHint("Threshold applied on predicted EDM to define watershed seeds: seeds are local maxima of predicted center with EDM values higher than this threshold");
+    BoundedNumberParameter localMinRad = new BoundedNumberParameter("Seed Radius", 5, 5, 1, null).setEmphasized(false).setHint("Radius of local minima filter applied on predicted distance to center to define seeds");
     BoundedNumberParameter fusionCriterion = new BoundedNumberParameter("Fusion Criterion", 5, 0.5, 0, 1).setEmphasized(true).setHint("");
 
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(true).setHint("Objects under this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
@@ -228,8 +226,10 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             //if (stores != null) stores.get(p).addIntermediateImage("Center", centerI);
             ImageMask insideCells = new PredicateMask(edmI, edmThreshold.getDoubleValue(), true, true);
             insideCells = PredicateMask.and(p.getMask(), insideCells);
-            ImageByte localExtrema = Filters.localExtrema(centerDistI, null, false, insideCells, Filters.getNeighborhood(localMinRad.getDoubleValue(), 1, centerDistI));
-            ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), (x, y, z) -> edmI.getPixel(x, y, z)<seedThreshold.getDoubleValue()); // || edmI.getPixel(x, y, z)<=edmThreshold.getDoubleValue() condition is verified with mask
+            Image centerI = Filters.applyFilter(centerDistI, null, new Filters.Median(insideCells), Filters.getNeighborhood(Math.max(localMinRad.getDoubleValue()/2, 2), centerDistI), false);
+            if (stores != null ) synchronized (stores) {stores.get(p).addIntermediateImage("Center Dist Filtered", centerI);}
+            ImageByte localExtrema = Filters.localExtrema(centerI, null, false, insideCells, Filters.getNeighborhood(localMinRad.getDoubleValue(), 1, centerDistI));
+            if (seedThreshold.getDoubleValue()>0) ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), (x, y, z) -> edmI.getPixel(x, y, z)<seedThreshold.getDoubleValue()); // TODO this criterion may be problematic in case on inconsitency betwen EDM and center...
 
             /*
             // run watershed on distance to center map
@@ -239,7 +239,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             */
             WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true)
                     .propagationCriterion(new WatershedTransform.ThresholdPropagation(edmI, edmThreshold.getDoubleValue(), true))
-                    .setTrackSeeds(WatershedTransform.getIntensityTrackSeedFunction(centerDistI, true))
+                    .setTrackSeeds(WatershedTransform.getIntensityTrackSeedFunction(centerI, true))
                     .fusionCriterion(new WatershedTransform.FusionCriterion() {
                         WatershedTransform instance;
                         @Override
@@ -247,7 +247,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
 
                         @Override
                         public boolean checkFusionCriteria(WatershedTransform.Spot s1, WatershedTransform.Spot s2, long currentVoxel) {
-                            double meetCenterValue = instance.getHeap().getPixel(centerDistI, currentVoxel);
+                            double meetCenterValue = instance.getHeap().getPixel(centerI, currentVoxel);
                             Point meet = new Point(instance.getHeap().parse(currentVoxel));
                             double d1 = new Point(instance.getHeap().parse(s1.seedCoord)).dist(meet);
                             double d2 = new Point(instance.getHeap().parse(s2.seedCoord)).dist(meet);
@@ -339,7 +339,6 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 prediction==null || prediction.noPrev == null ? o->0d : o -> BasicMeasurements.getQuantileValue(o.getRegion(), prediction.noPrev.get(o.getParent()), 0.5)[0],
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
-
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
         if (objectsF.isEmpty()) return Collections.emptyList();
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
@@ -423,18 +422,32 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 if (toLink!=null && !toLink.isEmpty()) {
                     if (c.getPrevious()!=null) toLink.removeIf(p -> p.equals(c.getPrevious()));
                     toLink.removeIf(p -> c.equals(p.getNext()));
+                    boolean merge = c.getPrevious()!=null || toLink.size()>1;
                     toLink.forEach( p -> {
-                        if (c.getPrevious()!=null && p.getNext()!=null) additionalLinks.add(new SymetricalPair<>(p, c));
-                        else {
-                            boolean div = p.getNext()!=null;
-                            boolean merge = c.getPrevious()!=null;
-                            if (merge && c.equals(c.getPrevious().getNext())) { // convert double link to single link
-                                SegmentedObject existingPrev = c.getPrevious();
-                                editor.setTrackLinks(null, c, true, false, true);
+                        boolean div = p.getNext()!=null;
+                        if (c.getPrevious()!=null) { // several previous point to c -> merge link @ c
+                            SegmentedObject existingPrev = c.getPrevious();
+                            editor.setTrackLinks(null, c, true, false, true);
+                            if (c.equals(existingPrev.getNext())) { // convert double link to single link
                                 editor.setTrackLinks(existingPrev, c, false, true, false);
+                            } else {
+                                if (existingPrev.getNext()!=null) {
+                                    logger.error("MERGE LINK SEARCH: INVALID LINK: {}->{} and {}->{}", existingPrev, existingPrev.getNext(), existingPrev, c);
+                                    //additionalLinks.add(new SymetricalPair<>(existingPrev, existingPrev.getNext()));
+                                    //editor.setTrackLinks(existingPrev, null, false, true, false);
+                                }
+                                additionalLinks.add(new SymetricalPair<>(existingPrev, c));
                             }
-                            editor.setTrackLinks(p, c, !merge, !div, !merge && !div);
                         }
+                        if (div) { // prev candidate p has already a next object -> div link @ p
+                            SegmentedObject pNext = p.getNext();
+                            SegmentedObject pNextPrev = pNext.getPrevious();
+                            editor.setTrackLinks(p, null, false, true, false);
+                            if (p.equals(pNextPrev)) editor.setTrackLinks(p, pNext, true, false, true);
+                            else additionalLinks.add(new SymetricalPair<>(p, pNext));
+                        }
+                        if (!merge || !div) editor.setTrackLinks(p, c, !merge, !div, !merge && !div);
+                        else additionalLinks.add(new SymetricalPair<>(p, c)); // link cannot be encoded
                     } );
                 }
             }
@@ -447,16 +460,20 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 Map<SegmentedObject, List<SegmentedObject>> prevMapNexts = objectsF.get(f).stream()
                         .filter(o -> o.getPrevious()!=null).collect(Collectors.groupingBy(SegmentedObject::getPrevious));
                 prevMapNexts.forEach((p, nexts) -> {
+                    if (p.getNext()!=null && !nexts.contains(p.getNext())) nexts.add(p.getNext());
                     if (nexts.size()>1 && nexts.stream().mapToDouble(o -> divMap.get(o.getRegion())).max().getAsDouble()<divProb) {
-                        List<SegmentedObject> allNexts = nexts.stream().flatMap(n -> SegmentedObjectEditor.getNext(n).stream()).collect(Collectors.toList());
+                        Set<SegmentedObject> nextsNexts = nexts.stream().flatMap(n -> SegmentedObjectEditor.getNext(n).stream()).collect(Collectors.toSet());
+                        Set<SegmentedObject> nextsPrevs = nexts.stream().flatMap(n -> SegmentedObjectEditor.getPrevious(n).stream()).collect(Collectors.toSet());
+                        nextsPrevs.remove(p);
+                        if (!nextsPrevs.isEmpty()) logger.error("Div Correction step: {} -> {}, other previous: {}", p, nexts, nextsPrevs);
                         // merge objects
                         nexts.sort(SegmentedObject::compareTo);
                         nexts.get(0).getRegion().setMask(Region.merge(nexts.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), true).getMask());
                         for (int i = 1; i<nexts.size(); ++i) factory.removeFromParent(nexts.get(i));
                         // set links
                         editor.setTrackLinks(p, nexts.get(0), true, true, true);
-                        boolean div = allNexts.size()>1;
-                        for (SegmentedObject n : allNexts) editor.setTrackLinks(nexts.get(0), n, true, !div, true);
+                        boolean div = nextsNexts.size()>1;
+                        for (SegmentedObject n : nextsNexts) editor.setTrackLinks(nexts.get(0), n, true, !div, true);
                     }
                 });
             }
