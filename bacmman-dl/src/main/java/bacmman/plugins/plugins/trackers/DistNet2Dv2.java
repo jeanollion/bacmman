@@ -13,8 +13,12 @@ import bacmman.processing.Filters;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
+import bacmman.processing.matching.GraphObjectMapper;
+import bacmman.processing.matching.LAPLinker;
+import bacmman.processing.matching.ObjectGraph;
 import bacmman.processing.track_post_processing.SplitAndMerge;
 import bacmman.processing.track_post_processing.Track;
+import bacmman.processing.track_post_processing.TrackAssigner;
 import bacmman.processing.track_post_processing.TrackTreePopulation;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.utils.*;
@@ -31,6 +35,8 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+
+import static bacmman.processing.track_post_processing.Track.getTrack;
 
 public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DistNet2Dv2.class);
@@ -58,7 +64,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(true).setHint("Objects under this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
     // tracking
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
-    IntervalParameter divProbaThld = new IntervalParameter("Division Probability", 5, 0, 1, 0.5, 0.75).setEmphasized(true).setHint("Thresholds applied on the predicted probability that an object is the result of a cell division: Above the higher threshold, cell is dividing, under the lower threshold cell is not. Both threshold at zero means division probability is not used");
+    BoundedNumberParameter divProbaThld = new BoundedNumberParameter("Division Probability", 5, 0.75, 0, 1).setEmphasized(true).setHint("Thresholds applied on the predicted probability that an object is the result of a cell division: above the threshold, cell is considered as result of a division (mitosis). Zero means division probability is not used");
     BoundedNumberParameter mergeLinkDistanceThreshold = new BoundedNumberParameter("Merge Link Distance Threshold", 0, 5, 0, null).setEmphasized(true).setHint("In case of over-segmentation at previous frame or under-segmentation at next-frame: only o_{f-1} is linked to o_{f}. If this parameter is >0, object to be linked to o_{f} will be searched among objects at f-1 that come from same division as o_{f-1} and have no link to an object at f. Center of o_{f} translated by the predicted distance");
     BoundedNumberParameter noPrevThreshold = new BoundedNumberParameter("No Previous Probability", 5, 0.75, 0, 1).setEmphasized(true);
 
@@ -94,16 +100,18 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         int increment = frameWindow.getIntValue ()<=1 ? parentTrack.size () : (int)Math.ceil( parentTrack.size() / Math.ceil( (double)parentTrack.size() / frameWindow.getIntValue()) );
         PredictionResults prevPrediction = null;
         boolean incrementalPostProcessing = perWindow.getSelected();
-        List<SymetricalPair<SegmentedObject>> allAdditionalLinks = new ArrayList<>();
+        Set<SymetricalPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
         List<Consumer<String>> logContainers = new ArrayList<>();
         Map<Region, Double> divMap=null;
         Map<Region, Double>[] divMapContainer = new Map[1];
+        TrackAssignerDistnet assigner = new TrackAssignerDistnet();
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction, null); // actually appends to prevPrediction
+            assigner.setPrediction(prediction);
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
             }
@@ -114,7 +122,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 subParentTrack.add(0, parentTrack.get(i-1));
             }
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers, divMapContainer);
+            Set<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers, divMapContainer);
             if (divMap==null || incrementalPostProcessing) divMap = divMapContainer[0];
             else divMap.putAll(divMapContainer[0]);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
@@ -125,8 +133,10 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
                 prediction.centerDist.put(p, TypeConverter.toFloatU8(prediction.centerDist.get(p), null));
                 prediction.division.remove(p);
-                prediction.dx.remove(p);
-                prediction.dy.remove(p);
+                if (!incrementalPostProcessing) {
+                    prediction.dx.put(p, TypeConverter.toFloat8(prediction.dx.get(p), null));
+                    prediction.dy.put(p, TypeConverter.toFloat8(prediction.dy.get(p), null));
+                }
                 prediction.noPrev.remove(p);
                 if (prediction.edmLM!=null) prediction.edmLM.remove(p);
                 if (p.getFrame()>maxF) maxF = p.getFrame();
@@ -139,11 +149,18 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
-            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, divMap, editor, factory);
+            if (incrementalPostProcessing) {
+                postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, divMap, assigner, editor, factory);
+                for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
+                    SegmentedObject p = subParentTrack.get(j);
+                    prediction.dx.remove(p);
+                    prediction.dy.remove(p);
+                }
+            }
             else allAdditionalLinks.addAll(additionalLinks);
             prevPrediction = prediction;
         }
-        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, editor, factory);
+        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, assigner, editor, factory);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
     }
@@ -155,15 +172,17 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         PredictionResults prevPrediction = null;
         boolean incrementalPostProcessing = perWindow.getSelected();
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
-        List<SymetricalPair<SegmentedObject>> allAdditionalLinks = new ArrayList<>();
+        Set<SymetricalPair<SegmentedObject>> allAdditionalLinks = new HashSet<>();
         List<Consumer<String>> logContainers = new ArrayList<>();
         Map<Region, Double> divMap=null;
         Map<Region, Double>[] divMapContainer = new Map[1];
+        TrackAssignerDistnet assigner = new TrackAssignerDistnet();
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
             PredictionResults prediction = predict(objectClassIdx, subParentTrack, null, prevPrediction, null); // actually appends to prevPrediction
+            assigner.setPrediction(prediction);
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
             }
@@ -172,7 +191,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 subParentTrack.add(0, parentTrack.get(i-1));
             }
             logger.debug("Tracking window: [{}; {}]", subParentTrack.get(0).getFrame(), subParentTrack.get(subParentTrack.size()-1).getFrame());
-            List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers, divMapContainer);
+            Set<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, subParentTrack, prediction, editor, logContainers, divMapContainer);
             if (divMap==null || incrementalPostProcessing) divMap = divMapContainer[0];
             else divMap.putAll(divMapContainer[0]);
             // clear images / voxels / masks to free-memory and leave the last item for next prediction. leave EDM (and contours) as it is used for post-processing
@@ -183,8 +202,10 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
                 prediction.centerDist.put(p, TypeConverter.toFloatU8(prediction.centerDist.get(p), null));
                 prediction.division.remove(p);
-                prediction.dx.remove(p);
-                prediction.dy.remove(p);
+                if (!incrementalPostProcessing) {
+                    prediction.dx.put(p, TypeConverter.toFloat8(prediction.dx.get(p), null));
+                    prediction.dy.put(p, TypeConverter.toFloat8(prediction.dy.get(p), null));
+                }
                 prediction.noPrev.remove(p);
                 if (prediction.edmLM!=null) prediction.edmLM.remove(p);
                 if (p.getFrame()>maxF) maxF = p.getFrame();
@@ -197,11 +218,18 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
             System.gc();
             logger.debug("additional links detected: {}", additionalLinks);
-            if (incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, divMap, editor, factory);
+            if (incrementalPostProcessing) {
+                postFilterTracking(objectClassIdx, parentTrack.subList(0, maxIdx), additionalLinks, prediction, divMap, assigner, editor, factory);
+                for (int j = 0; j<subParentTrack.size() - (last ? 0 : 1); ++j) {
+                    SegmentedObject p = subParentTrack.get(j);
+                    prediction.dx.remove(p);
+                    prediction.dy.remove(p);
+                }
+            }
             else allAdditionalLinks.addAll(additionalLinks);
             prevPrediction = prediction;
         }
-        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, editor, factory);
+        if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, assigner, editor, factory);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
     }
@@ -307,7 +335,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         return res;
     }
 
-    public List<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, List<Consumer<String>> logContainer, Map<Region, Double>[] divMapContainer) {
+    public Set<SymetricalPair<SegmentedObject>> track(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults prediction, TrackLinkEditor editor, List<Consumer<String>> logContainer, Map<Region, Double>[] divMapContainer) {
         logger.debug("tracking : test mode: {}", stores != null);
         if (prediction!=null && stores != null && this.stores.get(parentTrack.get(0)).isExpertMode())
             prediction.dy.forEach((o, im) -> stores.get(o).addIntermediateImage("dy", im));
@@ -340,45 +368,18 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 HashMapGetCreate.Syncronization.NO_SYNC
         );
         Map<Integer, List<SegmentedObject>> objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, objectClassIdx);
-        if (objectsF.isEmpty()) return Collections.emptyList();
+        if (objectsF.isEmpty()) return Collections.emptySet();
         int minFrame = objectsF.keySet().stream().mapToInt(i->i).min().getAsInt();
         int maxFrame = objectsF.keySet().stream().mapToInt(i->i).max().getAsInt();
         long t0 = System.currentTimeMillis();
-        List<SymetricalPair<SegmentedObject>> additionalLinks = new ArrayList<>();
+        ObjectGraph<SegmentedObject> graph = new ObjectGraph<>(new GraphObjectMapper.SegmentedObjectMapper(), true);
+        objectsF.values().forEach(l -> l.forEach(o -> graph.graphObjectMapper.add(o.getRegion(), o)));
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
             List<SegmentedObject> cur = objectsF.get(f);
-            if (prev==null || prev.isEmpty() || cur==null || cur.isEmpty()) continue;
-            for (SegmentedObject c : cur) {
-                double dy = dyMap.get(c);
-                double dx = dxMap.get(c);
-                Point centerTrans = c.getRegion().getCenter().duplicate().translateRev(new Vector(dx, dy));
-                Voxel centerTransV = centerTrans.asVoxel();
-                if (stores!=null) {
-                    c.setAttribute("Center", c.getRegion().getCenter());
-                    c.setAttribute("Center Translated", centerTrans);
-                }
-                SegmentedObject p= prev.stream()
-                        .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds()))
-                        .filter(o -> o.getRegion().contains(centerTransV))
-                        .findAny().orElse(null);
-                if (p != null) {
-                    if (c.getPrevious()!=null && p.getNext()!=null) additionalLinks.add(new SymetricalPair<>(p, c));
-                    else {
-                        boolean div = p.getNext()!=null;
-                        boolean merge = c.getPrevious()!=null;
-                        if (div && !p.getNext().equals(c) && p.equals(p.getNext().getPrevious())) { // change double link to single div link
-                            SegmentedObject existingNext = p.getNext();
-                            editor.setTrackLinks(p, null, false, true, false);
-                            editor.setTrackLinks(p, existingNext, true, false, false);
-                            editor.setTrackHead(existingNext, existingNext, false, true);
-                        }
-                        editor.setTrackLinks(p, c, !merge, !div, !merge && !div);
-                    }
-                }
-            }
+            assign(prev, cur, graph, dxMap, dyMap, stores!=null);
         }
-
+        logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
         // Look for merge links due to over segmentation at previous frame or under segmentation at current frame:
         // case 1 : previous has sibling with interrupted branch at this frame
         // case 2: idem as 1 but division is outside range. look for candidates in contact.
@@ -387,108 +388,86 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         int searchDistLimit = mergeLinkDistanceThreshold.getIntValue();
         double noPrevThld = noPrevThreshold.getDoubleValue();
         double mergeDistThld = this.mergeDistThld.getDoubleValue();
-        ToDoubleBiFunction<Region, Region> contactFun = contact(mergeDistThld, null, divMap, true);
+        Map<Region, Object>[] contourMap = new Map[1];
+        ToDoubleBiFunction<Region, Region> contactFun = contact(mergeDistThld, contourMap, divMap, true);
 
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
-            Set<SegmentedObject> prevWithoutNext = prev.stream().filter( p -> SegmentedObjectEditor.getNext(p).isEmpty()).collect(Collectors.toSet());
             List<SegmentedObject> cur = objectsF.get(f);
             if (prev==null || prev.isEmpty() || cur==null || cur.isEmpty()) continue;
+            Set<SegmentedObject> prevWithoutNext = prev.stream().filter( p -> graph.getAllNexts(p).isEmpty()).collect(Collectors.toSet());
             for (SegmentedObject c : cur) {
                 double dy = dyMap.get(c);
                 double dx = dxMap.get(c);
                 Point centerTrans = c.getRegion().getCenter().duplicate().translateRev(new Vector(dx, dy));
                 List<SegmentedObject> toLink = null;
-                if (c.getPrevious()!=null) { // case 1 / 2
-                    List<SegmentedObject> divSiblings =getDivSiblings(c.getPrevious()); // case 1
+                SegmentedObject cPrev = graph.getPrevious(c);
+                if (cPrev!=null) { // case 1 / 2
+                    List<SegmentedObject> divSiblings = getDivSiblings(cPrev, graph); // case 1
                     Stream<SegmentedObject> candidates;
                     if (divSiblings.isEmpty()) { // case 2
                         candidates = prevWithoutNext.stream()
                             .map(o2 -> {
-                                double d = contactFun.applyAsDouble(c.getPrevious().getRegion(), o2.getRegion());
+                                double d = contactFun.applyAsDouble(cPrev.getRegion(), o2.getRegion());
                                 if (d<=mergeDistThld) return o2;
                                 else return null;
                             })
                             .filter(Objects::nonNull);
-                    } else candidates = divSiblings.stream().filter(prevWithoutNext::contains);
+                        List<SegmentedObject> cand = candidates.collect(Collectors.toList());
+                        //logger.debug("object: {} prev: {} prev in contact {}", c, cPrev, cand);
+                        candidates = cand.stream();
+                    } else {
+                        candidates = divSiblings.stream().filter(prevWithoutNext::contains);
+                    }
                     toLink = candidates
                             //.peek(p -> logger.debug("cur: {} prev candidate: {} distance: {}", c, p, getDistanceToObject(centerTrans, p, searchDistLimit * 2)))
                             .filter(o -> getDistanceToObject(centerTrans, o, searchDistLimit) <= searchDistLimit)
                             .collect(Collectors.toList());
+                    //if (!divSiblings.isEmpty()) logger.debug("object: {} prev: {} div siblings {} with no next: {} to link: {}", c, cPrev, divSiblings, divSiblings.stream().filter(prevWithoutNext::contains).collect(Collectors.toList()), toLink);
+
                 } else if (noPrevThld>0 && noPrevMap.get(c)<noPrevThld) { // case 3
                     toLink = prevWithoutNext.stream().filter(o -> getDistanceToObject(centerTrans, o, searchDistLimit)<=searchDistLimit)
                             .collect(Collectors.toList());
+                    //logger.debug("object: {} no prev. candidates: {}", c, toLink);
                 }
                 if (toLink!=null && !toLink.isEmpty()) {
-                    if (c.getPrevious()!=null) toLink.removeIf(p -> p.equals(c.getPrevious()));
-                    toLink.removeIf(p -> c.equals(p.getNext()));
-                    boolean merge = c.getPrevious()!=null || toLink.size()>1;
-                    toLink.forEach( p -> {
-                        boolean div = p.getNext()!=null;
-                        if (c.getPrevious()!=null) { // several previous point to c -> merge link @ c
-                            SegmentedObject existingPrev = c.getPrevious();
-                            editor.setTrackLinks(null, c, true, false, true);
-                            if (c.equals(existingPrev.getNext())) { // convert double link to single link
-                                editor.setTrackLinks(existingPrev, c, false, true, false);
-                            } else {
-                                if (existingPrev.getNext()!=null) {
-                                    logger.error("MERGE LINK SEARCH: INVALID LINK: {}->{} and {}->{}", existingPrev, existingPrev.getNext(), existingPrev, c);
-                                    //additionalLinks.add(new SymetricalPair<>(existingPrev, existingPrev.getNext()));
-                                    //editor.setTrackLinks(existingPrev, null, false, true, false);
-                                }
-                                additionalLinks.add(new SymetricalPair<>(existingPrev, c));
-                            }
-                        }
-                        if (div) { // prev candidate p has already a next object -> div link @ p
-                            SegmentedObject pNext = p.getNext();
-                            SegmentedObject pNextPrev = pNext.getPrevious();
-                            editor.setTrackLinks(p, null, false, true, false);
-                            if (p.equals(pNextPrev)) editor.setTrackLinks(p, pNext, true, false, true);
-                            else additionalLinks.add(new SymetricalPair<>(p, pNext));
-                        }
-                        if (!merge || !div) editor.setTrackLinks(p, c, !merge, !div, !merge && !div);
-                        else additionalLinks.add(new SymetricalPair<>(p, c)); // link cannot be encoded
-                    } );
+                    if (cPrev!=null) toLink.removeIf(p -> p.equals(cPrev));
+                    toLink.forEach(p -> graph.addEdge(p, c));
                 }
             }
         }
-        // Correct over-segmentation errors using division probability
-        double divProb = divProbaThld.getValuesAsDouble()[0];
-        if (divProb>0) {
-            SegmentedObjectFactory factory = getFactory(objectClassIdx);
-            for (int f = minFrame + 1; f <= maxFrame; ++f) {
-                Map<SegmentedObject, List<SegmentedObject>> prevMapNexts = objectsF.get(f).stream()
-                        .filter(o -> o.getPrevious()!=null).collect(Collectors.groupingBy(SegmentedObject::getPrevious));
-                prevMapNexts.forEach((p, nexts) -> {
-                    if (p.getNext()!=null && !nexts.contains(p.getNext())) nexts.add(p.getNext());
-                    if (nexts.size()>1 && nexts.stream().mapToDouble(o -> divMap.get(o.getRegion())).max().getAsDouble()<divProb) {
-                        Set<SegmentedObject> nextsNexts = nexts.stream().flatMap(n -> SegmentedObjectEditor.getNext(n).stream()).collect(Collectors.toSet());
-                        Set<SegmentedObject> nextsPrevs = nexts.stream().flatMap(n -> SegmentedObjectEditor.getPrevious(n).stream()).collect(Collectors.toSet());
-                        nextsPrevs.remove(p);
-                        if (!nextsPrevs.isEmpty()) logger.error("Div Correction step: {} -> {}, other previous: {}", p, nexts, nextsPrevs);
-                        // merge objects
-                        nexts.sort(SegmentedObject::compareTo);
-                        nexts.get(0).getRegion().setMask(Region.merge(nexts.stream().map(SegmentedObject::getRegion).collect(Collectors.toList()), true).getMask());
-                        for (int i = 1; i<nexts.size(); ++i) factory.removeFromParent(nexts.get(i));
-                        // set links
-                        editor.setTrackLinks(p, nexts.get(0), true, true, true);
-                        boolean div = nextsNexts.size()>1;
-                        for (SegmentedObject n : nextsNexts) editor.setTrackLinks(nexts.get(0), n, true, !div, true);
-                    }
-                });
-            }
-        }
+        logger.debug("After adding merge links: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
         long t1 = System.currentTimeMillis();
-
-
-        return additionalLinks;
+        return graph.setTrackLinks(objectsF, editor);
+    }
+    static void assign(List<SegmentedObject> prev, List<SegmentedObject> cur, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Double> dxMap, Map<SegmentedObject, Double> dyMap, boolean verbose) {
+        if (prev==null || prev.isEmpty() || cur==null || cur.isEmpty()) return;
+        for (SegmentedObject c : cur) {
+            double dy = dyMap.get(c);
+            double dx = dxMap.get(c);
+            Point centerTrans = c.getRegion().getCenter().duplicate().translateRev(new Vector(dx, dy));
+            Voxel centerTransV = centerTrans.asVoxel();
+            if (verbose) {
+                c.setAttribute("Center", c.getRegion().getCenter());
+                c.setAttribute("Center Translated", centerTrans);
+            }
+            SegmentedObject p= prev.stream()
+                    .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds()))
+                    .filter(o -> o.getRegion().contains(centerTransV))
+                    .findAny().orElse(null);
+            if (p != null) graph.addEdge(p, c);
+        }
     }
 
-    static List<SegmentedObject> getDivSiblings(SegmentedObject o) {
-        return SegmentedObjectUtils.getDivisionSiblings(o.getTrackHead(), false)
-                .stream().map(oo -> oo.getNextAtFrame(o.getFrame()))
+    static List<SegmentedObject> getDivSiblings(SegmentedObject object, ObjectGraph<SegmentedObject> graph) {
+        SegmentedObject trackHead = graph.getTrackHead(object);
+        SegmentedObject parent = graph.getPrevious(trackHead);
+        if (parent==null) return Collections.emptyList();
+        return SegmentedObjectUtils.getSiblings(trackHead).filter(o->!trackHead.equals(o) && parent.equals(graph.getPrevious(o)))
+                .map(oo -> graph.getNextAtFrame(oo, object.getFrame()))
                 .filter(Objects::nonNull).collect(Collectors.toList());
     }
+
     static int getDistanceToObject(Point start, SegmentedObject object, int limit) {
         if (BoundingBox.distanceSq2D(start, object.getBounds())>limit*limit) return limit+1;
         Vector v = Vector.vector2D(start, object.getRegion().getCenter()).normalize();
@@ -545,11 +524,11 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
         });
     }
-    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, List<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<Region, Double> divMap, TrackLinkEditor editor, SegmentedObjectFactory factory) {
+    public void postFilterTracking(int objectClassIdx, List<SegmentedObject> parentTrack, Set<SymetricalPair<SegmentedObject>> additionalLinks , PredictionResults prediction, Map<Region, Double> divMap, TrackAssigner assigner, TrackLinkEditor editor, SegmentedObjectFactory factory) {
         SplitAndMerge sm = getSplitAndMerge(prediction);
-        double divThld=divProbaThld.getValuesAsDouble()[1];
+        double divThld=divProbaThld.getDoubleValue();
         Predicate<SegmentedObject> dividing = divMap==null || divThld==0 ? o -> false : o -> divMap.get(o.getRegion())>divThld;
-        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, dividing, sm, factory, editor);
+        solveSplitMergeEvents(parentTrack, objectClassIdx, additionalLinks, dividing, sm, assigner, factory, editor);
     }
 
     public SegmenterSplitAndMerge getSegmenter(PredictionResults predictionResults) {
@@ -794,7 +773,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     if (Double.isNaN(ecc) || ellipse.getEccentricity()<eccentricityThld) {
                         return new Pair<>(null, r.getContour());
                     } else {
-                        SymetricalPair<Point> polesTh = ellipse.getPoles(r.getCenterOrGeomCenter());
+                        SymetricalPair<Point> polesTh = ellipse.getPoles();
                         Set<Voxel> contour = r.getContour();
                         // get contour points closest to th poles
                         Set<Point> poles = new HashSet<>(2);
@@ -831,16 +810,17 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                         SymetricalPair<Point> poles;
                         Point center;
                         if (pole1.key!=null) {
-                            poles = pole1.key.getPoles(r1.getCenterOrGeomCenter());
-                            center = r2.getCenterOrGeomCenter();
+                            poles = pole1.key.getPoles();
+                            center = r2.getGeomCenter(false);
                         } else {
-                            poles = pole2.key.getPoles(r2.getCenterOrGeomCenter());
-                            center = r1.getCenterOrGeomCenter();
+                            poles = pole2.key.getPoles();
+                            center = r1.getGeomCenter(false);
                         }
                         Point closestPole = Point.getClosest(poles, center);
                         Vector v1 = Vector.vector2D(closestPole, Pair.getOther(poles, closestPole));
                         Vector v2 = Vector.vector2D(closestPole, center);
                         double angle = 180 - v1.angleXY180(v2) * 180 / Math.PI;
+                        //logger.debug("test alignment with degenerated dipole: {} + {} = poles: {}, center: {}, angle {}", r1.getLabel()-1, r2.getLabel()-1, poles, center, angle);
                         if (Double.isNaN(angle) || angle > alignmentThld) return Double.POSITIVE_INFINITY;
                     }
                     // criterion on pole contact distance
@@ -865,20 +845,171 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         };
     }
 
-    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    protected void solveSplitMergeEvents(List<SegmentedObject> parentTrack, int objectClassIdx, Set<SymetricalPair<SegmentedObject>> additionalLinks, Predicate<SegmentedObject> dividing, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         if (!solveSplitAndMerge.getSelected()) return;
         boolean solveSplit = this.solveSplit.getSelected();
         boolean solveMerge= this.solveMerge.getSelected();
         if (!solveSplit && !solveMerge) return;
         TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
-        if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), dividing, sm, factory, editor);
-        if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, sm, factory, editor);
+        if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), dividing, sm, assigner, factory, editor);
+        if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, sm, assigner, factory, editor);
         parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory
             if (o.getRegion().getCenter() == null) o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
             o.getRegion().clearVoxels();
             o.getRegion().clearMask();
         }));
     }
+
+    private static class TrackAssignerDistnet implements TrackAssigner {
+        PredictionResults prediction;
+        private double getDx(SegmentedObject o) {
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dx.get(o.getParent()), 0.5)[0];
+        }
+        private double getDy(SegmentedObject o) {
+            return BasicMeasurements.getQuantileValue(o.getRegion(), prediction.dy.get(o.getParent()), 0.5)[0];
+        }
+        public void setPrediction(PredictionResults prediction) {
+            this.prediction = prediction;
+        }
+
+        /*@Override
+        public void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor) {
+            if (prevTracks.isEmpty()) {
+                nextTracks.forEach(n->n.getPrevious().clear());
+                return;
+            }
+            if (nextTracks.isEmpty()) {
+                prevTracks.forEach(p -> p.getNext().clear());
+                return;
+            }
+            if (!Utils.objectsAllHaveSameProperty(prevTracks, Track::getLastFrame)) throw new IllegalArgumentException("prev tracks do not end at same frame");
+            if (!Utils.objectsAllHaveSameProperty(nextTracks, Track::getFirstFrame)) throw new IllegalArgumentException("next tracks do not start at same frame");
+            int prevFrame = prevTracks.iterator().next().getLastFrame();
+            int nextFrame = nextTracks.iterator().next().getFirstFrame();
+            if (prevFrame+1!=nextFrame) throw new IllegalArgumentException("frame should be successive");
+
+            List<SegmentedObject> prev = prevTracks.stream().map(Track::tail).collect(Collectors.toList());
+            List<SegmentedObject> cur = nextTracks.stream().map(Track::head).collect(Collectors.toList());
+            Map<Integer, List<SegmentedObject>> map = new HashMap<Integer, List<SegmentedObject>>(){{put(prevFrame, prev); put(nextFrame, cur);}};
+            ObjectGraph<SegmentedObject> graph = new ObjectGraph<>(new GraphObjectMapper.SegmentedObjectMapper(), true);
+            prev.forEach(o -> graph.graphObjectMapper.add(o.getRegion(), o));
+            cur.forEach(o -> graph.graphObjectMapper.add(o.getRegion(), o));
+            assign(prev, cur, graph, dxMap, dyMap, false);
+            graph.setTrackLinks(map, editor, false);
+            //logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
+            nextTracks.forEach(n -> n.getPrevious().clear());
+            prevTracks.forEach(p -> p.getNext().clear());
+            nextTracks.forEach(n -> {
+                List<SegmentedObject> allPrev = graph.getAllPrevious(graph.graphObjectMapper.getGraphObject(n.head().getRegion())).stream().map(np -> graph.getSegmentedObject(map.get(prevFrame), np)).collect(Collectors.toList());
+                //logger.debug("next track {}, assigned prev: {}", n, allPrev);
+                allPrev.forEach(np -> {
+                    Track p = getTrack(prevTracks, np.getTrackHead());
+                    if (p != null) {
+                        n.addPrevious(p);
+                        p.addNext(n);
+                    }
+                });
+            });
+            prevTracks.forEach(p -> {
+                List<SegmentedObject> allNexts = graph.getAllNexts(graph.graphObjectMapper.getGraphObject(p.tail().getRegion())).stream().map(np -> graph.getSegmentedObject(map.get(prevFrame), np)).collect(Collectors.toList());
+                //logger.debug("prev track {}, assigned prev: {}", p, allNexts);
+                allNexts.forEach(pn -> {
+                    Track n = getTrack(nextTracks, pn);
+                    if (n != null) {
+                        n.addPrevious(p);
+                        p.addNext(n);
+                    }
+                });
+            });
+        }*/
+        @Override
+        public void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor) {
+            if (prevTracks.isEmpty()) {
+                nextTracks.forEach(n->n.getPrevious().clear());
+                return;
+            }
+            if (nextTracks.isEmpty()) {
+                prevTracks.forEach(p -> p.getNext().clear());
+                return;
+            }
+            if (!Utils.objectsAllHaveSameProperty(prevTracks, Track::getLastFrame)) throw new IllegalArgumentException("prev tracks do not end at same frame");
+            if (!Utils.objectsAllHaveSameProperty(nextTracks, Track::getFirstFrame)) throw new IllegalArgumentException("next tracks do not start at same frame");
+            int prevFrame = prevTracks.iterator().next().getLastFrame();
+            int nextFrame = nextTracks.iterator().next().getFirstFrame();
+            if (prevFrame+1!=nextFrame) throw new IllegalArgumentException("frame should be successive");
+
+            Map<Integer, List<SegmentedObject>> map = new HashMap<>();
+            map.put(prevFrame, prevTracks.stream().map(Track::tail).collect(Collectors.toList()));
+            map.put(nextFrame, nextTracks.stream().map(Track::head).collect(Collectors.toList()));
+            Map<Region, SegmentedObject> regionMapObjects = map.values().stream().flatMap(Collection::stream).collect(Collectors.toMap(SegmentedObject::getRegion, o->o));
+            LAPLinker<TrackingObject> tmi = new LAPLinker<>((o, frame) -> {
+                SegmentedObject so = regionMapObjects.get(o);
+                return new TrackingObject(o.getCenterOrGeomCenter(), o, so.getParent().getBounds(),  frame, getDy(so), getDx(so));
+            });
+            tmi.addObjects(map);
+            double dMax = Math.sqrt(Double.MAX_VALUE) / 100; // not Double.MAX_VALUE -> crash because squared..
+            boolean ok = tmi.processFTF(dMax, prevFrame, nextFrame);
+            int countPrev = tmi.edgeCount();
+            tmi.processSegments(dMax, 0, true, true);
+            int countCur = tmi.edgeCount();
+            while(countCur>countPrev) {
+                countPrev = countCur;
+                tmi.processSegments(dMax, 0, true, true);
+                countCur = tmi.edgeCount();
+            }
+            if (ok) {
+                logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
+                tmi.setTrackLinks(map, editor, false);
+                nextTracks.forEach(n -> n.getPrevious().clear());
+                prevTracks.forEach(p -> p.getNext().clear());
+                nextTracks.forEach(n -> {
+                    List<SegmentedObject> allPrev = tmi.getAllPrevious(tmi.graphObjectMapper.getGraphObject(n.head().getRegion())).stream().map(np -> tmi.getSegmentedObject(map.get(prevFrame), np)).collect(Collectors.toList());
+                    //logger.debug("next track {}, assigned prev: {}", n, allPrev);
+                    allPrev.forEach(np -> {
+                        Track p = getTrack(prevTracks, np.getTrackHead());
+                        if (p != null) {
+                            n.addPrevious(p);
+                            p.addNext(n);
+                        }
+                    });
+                });
+                prevTracks.forEach(p -> {
+                    List<SegmentedObject> allNexts = tmi.getAllNexts(tmi.graphObjectMapper.getGraphObject(p.tail().getRegion())).stream().map(np -> tmi.getSegmentedObject(map.get(prevFrame), np)).collect(Collectors.toList());
+                    //logger.debug("prev track {}, assigned prev: {}", p, allNexts);
+                    allNexts.forEach(pn -> {
+                        Track n = getTrack(nextTracks, pn);
+                        if (n != null) {
+                            n.addPrevious(p);
+                            p.addNext(n);
+                        }
+                    });
+                });
+            } else {
+                logger.debug("Could not assign");
+            }
+        }
+    }
+    static class TrackingObject extends LAPTracker.AbstractLAPObject<TrackingObject> {
+        final Offset offset;
+        final Offset offsetToPrev;
+        final double dy, dx, size;
+        public TrackingObject(RealLocalizable localization, Region r, BoundingBox parentBounds, int frame, double dy, double dx) {
+            super(localization, r, frame);
+            this.offset = new SimpleOffset(parentBounds).reverseOffset();
+            this.offsetToPrev = offset.duplicate().translate(new SimpleOffset(-(int) Math.round(dx), -(int) Math.round(dy), 0));
+            this.dy = dy;
+            this.dx = dx;
+            this.size = r.size();
+        }
+        @Override
+        public double squareDistanceTo(TrackingObject nextTO) {
+            if (nextTO.getFrame() < getFrame()) return nextTO.squareDistanceTo(this);
+            return Math.pow( getDoublePosition(0) + offset.xMin() - ( nextTO.getDoublePosition(0) + nextTO.offset.xMin() - nextTO.dx ) , 2 )
+                    + Math.pow( getDoublePosition(1) + offset.yMin() - ( nextTO.getDoublePosition(1) + nextTO.offset.yMin() - nextTO.dy), 2 );
+        }
+    }
+
+
 
     /// DL prediction
 
@@ -1065,21 +1196,4 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         }
     }
 
-    //// tracking without predictions
-    /**
-     *
-     * @param objectClassIdx
-     * @param parentTrack parent track. If all pre-filtered images are non-null, they will be considered as watershed map for post-processing. Otherwise, post-processing will not be used.
-     * @param editor
-     */
-    protected void trackNoPrediction(int objectClassIdx, List<SegmentedObject> parentTrack, boolean postFilter, TrackLinkEditor editor) {
-        List<Consumer<String>> logContainer = new ArrayList<>();
-        List<SymetricalPair<SegmentedObject>> additionalLinks = track(objectClassIdx, parentTrack, null, editor, logContainer, new Map[1]);
-        if (postFilter) {
-            PredictionResults predictions = new PredictionResults().setEdm(Utils.toMapWithNullValues(parentTrack.stream(), o -> o, o -> o.getPreFilteredImage(objectClassIdx), true));
-            if (predictions.edm.values().stream().allMatch(Objects::nonNull))
-                postFilterTracking(objectClassIdx, parentTrack, additionalLinks, predictions, null, editor, getFactory(objectClassIdx));
-        }
-        logContainer.forEach(c -> c.accept("PP_"));
-    }
 }
