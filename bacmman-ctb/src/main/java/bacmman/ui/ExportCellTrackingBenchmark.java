@@ -25,13 +25,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class ExportCellTrackingBenchmark {
+    public enum MODE {RESULTS, RESULTS_AND_RAW, GOLD_TRUTH, SILVER_TRUTH}
     public static final Logger logger = LoggerFactory.getLogger(ExportCellTrackingBenchmark.class);
     public static final Map<String, Integer> FOI = new HashMap<String, Integer>(){{
         put("DIC-C2DH-HeLa", 50);put("Fluo-C2DL-Huh7", 50);put("Fluo-C2DL-MSC", 50);put("Fluo-C3DH-H157", 50);
         put("Fluo-N2DH-GOWT1", 50);put("Fluo-N3DH-CE", 50);put("Fluo-N3DH-CHO", 50);put("PhC-C2DH-U373", 50);
         put("BF-C2DL-HSC", 25);put("BF-C2DL-MuSC", 25);put("Fluo-C3DL-MDA231", 25);put("Fluo-N2DL-HeLa", 25);put("PhC-C2DL-PSC", 25);}};
 
-    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, boolean exportTrainingSet, boolean exportRaw) {
+    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, MODE exportMode) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         List<Selection> sel = mDAO.getSelectionDAO().getSelections().stream().filter(s -> selectionNames.contains(s.getName())).collect(Collectors.toList());
         if (sel.isEmpty()) logger.error("No selection");
@@ -48,11 +49,11 @@ public class ExportCellTrackingBenchmark {
                 //File curDir = Paths.get(dir, p+"-"+s.getName()).toFile();
                 File curDir = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
                 if (!curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
-                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportTrainingSet, exportRaw);
+                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportMode);
             }
         }
     }
-    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, boolean exportTrainingSet, boolean exportRaw) {
+    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, MODE exportMode) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         int count = 1;
         int padding = mDAO.getExperiment().getPositionCount()>100 ? 3 : 2;
@@ -64,12 +65,12 @@ public class ExportCellTrackingBenchmark {
             for (List<SegmentedObject> pTrack : SegmentedObjectUtils.getAllTracks(roots, parentTrack).values()) {
                 File dirP = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
                 if (!dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
-                export(pTrack, dirP.toString(), objectClassIdx, margin, exportTrainingSet, exportRaw);
+                export(pTrack, dirP.toString(), objectClassIdx, margin, exportMode);
             }
         }
     }
 
-    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, boolean exportTrainingSet, boolean exportRaw) {
+    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, MODE exportMode) {
         logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, rawDir, margin);
         if (parentTrack.isEmpty()) return;
         int[] counter=new int[]{0};
@@ -108,9 +109,12 @@ public class ExportCellTrackingBenchmark {
                 }
             });
         }
+        boolean exportTrainingSet = exportMode.equals(MODE.GOLD_TRUTH) || exportMode.equals(MODE.SILVER_TRUTH);
+        boolean silverTruth = exportMode.equals(MODE.SILVER_TRUTH);
+        boolean exportRaw = !exportMode.equals(MODE.RESULTS);
         // write label images
         int padding = parentTrack.size()>=1000 ? 4 : 3;
-        String procDir = rawDir + (exportTrainingSet ? "_GT" : "_RES");
+        String procDir = rawDir + (exportTrainingSet ? (silverTruth? "_ST" : "_GT") : "_RES");
         String segDir = exportTrainingSet ? Paths.get(procDir, "SEG").toString() : procDir;
         String traDir = exportTrainingSet ? Paths.get(procDir, "TRA").toString() : procDir;
         Utils.emptyDirectory(new File(procDir));

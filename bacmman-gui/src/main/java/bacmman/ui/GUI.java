@@ -195,7 +195,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     for more information.");
 
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
-    private BooleanParameter exportModeTrainCTC = new BooleanParameter("Export Mode", "Training Set", "Result", false);
+    private EnumChoiceParameter<ExportCellTrackingBenchmark.MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", ExportCellTrackingBenchmark.MODE.values(), ExportCellTrackingBenchmark.MODE.RESULTS);
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
@@ -930,7 +930,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (dir != null) {
                     DefaultWorker.execute(i -> {
                         try {
-                            ImportCellTrackingBenchmark.importPositions(db, dir, 0, relink, ProgressCallback.get(this));
+                            ImportCellTrackingBenchmark.importPositions(db, dir, 0, relink, exportModeTrainCTC.getSelectedEnum(), ProgressCallback.get(this));
                         } catch (IOException ex) {
                             setMessage("Error while importing CTC:" + ex.getMessage());
                         }
@@ -973,7 +973,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     return;
                 }
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportPositions(db, dir, oc, getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelected(), true);
+                    ExportCellTrackingBenchmark.exportPositions(db, dir, oc, getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum());
                 }
             }
         });
@@ -992,7 +992,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
                 List<String> sel = getSelectedSelections(true).stream().map(Selection::getName).collect(Collectors.toList());
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelected(), true);
+                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum());
                 }
             }
         });

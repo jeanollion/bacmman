@@ -36,11 +36,10 @@ public class Run {
         if (jsonConfig == null || (jsonConfig.charAt(0)!='{' && jsonConfig.charAt(jsonConfig.length()-1)!='}') ) throw new IllegalArgumentException("Arg 2 must be a JSON configuration");
         // init bacmman
         Core.getCore();
-
         ConsoleProgressLogger ui = new ConsoleProgressLogger();
         Core.setUserLogger(ui);
 
-        // init
+        // init experiment
         MasterDAO db = MasterDAOFactory.createDAO(parent.getName(), dsFolder.getAbsolutePath(), MasterDAOFactory.DAOType.DBMap);
         db.setConfigurationReadOnly(false);
         Experiment xp = new Experiment(parent.getName());
@@ -58,7 +57,7 @@ public class Run {
         t.runTask(0.5);
         t.done();
         int margin = args.length>3 ? Integer.parseInt(args[3]) : 0;
-        ExportCellTrackingBenchmark.exportPositions(db, parent.getAbsolutePath(), 0, null, margin, false, false);
+        ExportCellTrackingBenchmark.exportPositions(db, parent.getAbsolutePath(), 0, null, margin, ExportCellTrackingBenchmark.MODE.RESULTS);
 
         // close / remove temp files
         if (args.length==2 || Boolean.parseBoolean(args[2])) {
