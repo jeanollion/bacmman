@@ -12,8 +12,9 @@ public class FitEllipseShape {
 
     public static class Ellipse {
         public final double majorAxisLength, minorAxisLength, orientation;
-
-        public Ellipse(double majorAxisLength, double minorAxisLength, double orientation) {
+        final public Point center;
+        public Ellipse(Point center, double majorAxisLength, double minorAxisLength, double orientation) {
+            this.center = center;
             this.majorAxisLength = majorAxisLength;
             this.minorAxisLength = minorAxisLength;
             this.orientation = orientation;
@@ -24,14 +25,15 @@ public class FitEllipseShape {
         public Vector getDirection() {
             return new Vector(Math.cos(orientation * Math.PI / 180), Math.sin(orientation * Math.PI / 180)).multiply(majorAxisLength);
         }
-        public SymetricalPair<Point> getPoles(Point center) {
+        public SymetricalPair<Point> getPoles() {
             Vector dir = getDirection().multiply(0.5);
             return new SymetricalPair<>(center.duplicate().translate(dir), center.duplicate().translateRev(dir));
         }
     }
 
     public static Ellipse fitShape(Region region) {
-        double[] moments = region.getSecondCentralMoments2D();
+        Point center = region.getGeomCenter(false);
+        double[] moments = region.getSecondCentralMoments2D(center);
         double uxx = moments[0];
         double uyy = moments[1];
         double uxy = moments[2];
@@ -50,6 +52,6 @@ public class FitEllipseShape {
             den = uxx - uyy + common;
         }
         double orientation = num == 0 && den == 0 ? 0 : (180/Math.PI) * Math.atan(num/den);
-        return new Ellipse(majorAxisLength, minorAxisLength, orientation);
+        return new Ellipse(center, majorAxisLength, minorAxisLength, orientation);
     }
 }

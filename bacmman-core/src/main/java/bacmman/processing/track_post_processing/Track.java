@@ -1,11 +1,7 @@
 package bacmman.processing.track_post_processing;
 
 import bacmman.data_structure.*;
-import bacmman.image.ImageInteger;
-import bacmman.processing.Filters;
-import bacmman.processing.matching.TrackMateInterface;
-import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
-import bacmman.processing.neighborhood.Neighborhood;
+import bacmman.processing.matching.LAPLinker;
 import bacmman.utils.Pair;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Triplet;
@@ -17,7 +13,6 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class Track {
@@ -74,10 +69,10 @@ public class Track {
     public List<Triplet<Region,Region,Double>> getSplitRegions() {
         return splitRegions;
     }
-    protected List<Track> getPrevious() {
+    public List<Track> getPrevious() {
         return previous;
     }
-    protected List<Track> getNext() {
+    public List<Track> getNext() {
         return next;
     }
     public SegmentedObject getObject(int frame) {return objects.stream().filter(o -> o.getFrame()==frame).findAny().orElse(null);}
@@ -181,7 +176,7 @@ public class Track {
     public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass) {
         return getTracks(parent, segmentedObjectClass, Collections.emptyList());
     }
-    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, List<SymetricalPair<SegmentedObject>> additionalLinks) {
+    public static Map<SegmentedObject, Track> getTracks(List<SegmentedObject> parent, int segmentedObjectClass, Collection<SymetricalPair<SegmentedObject>> additionalLinks) {
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalNexts = additionalLinks.stream().collect(Collectors.groupingBy(p->p.key));
         Map<SegmentedObject, List<SymetricalPair<SegmentedObject>>> additionalPrevs = additionalLinks.stream().collect(Collectors.groupingBy(p->p.value));
         Map<SegmentedObject, List<SegmentedObject>> allTracks = parent.stream().flatMap(p -> p.getChildren(segmentedObjectClass)).collect(Collectors.groupingBy(SegmentedObject::getTrackHead));
@@ -196,6 +191,7 @@ public class Track {
         for (Track t : tracks.values()) {
             Set<SegmentedObject> nexts = additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(p -> p.value).collect(Collectors.toSet());
             SegmentedObject n = t.tail().getNext();
+            if (!nexts.isEmpty()) logger.debug("Track: {} next: {}, additional nexts: {}", t, n, nexts);
             if (n!=null) nexts.add(n);
             for (SegmentedObject next : nexts) {
                 Track nextT = tracks.get(next.getTrackHead());
@@ -229,7 +225,7 @@ public class Track {
         return tracks;
     }
 
-    public static Track splitTrack(Track track, SegmentedObjectFactory factory, TrackLinkEditor trackEditor) {
+    public static Track splitTrack(Track track, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor) {
         List<Triplet<Region, Region, Double>> regions = track.getSplitRegions();
         if (regions==null) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
         Triplet<Region, Region, Double> impossible=regions.stream().filter(t -> t.v1==null || t.v2==null || Double.isInfinite(t.v3)).findAny().orElse(null);
@@ -267,13 +263,13 @@ public class Track {
         Set<Track> allPrevNext = track.getPrevious().stream().flatMap(p -> p.getNext().stream()).collect(Collectors.toSet());
         allPrevNext.add(track2);
         //logger.debug("before assign prev: all previous: {}, all prev's next: {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(allPrevNext, Track::head));
-        assignTracks(new ArrayList<>(track.getPrevious()), allPrevNext, trackEditor);
+        assigner.assignTracks(new ArrayList<>(track.getPrevious()), allPrevNext, trackEditor);
         //logger.debug("after assign prev: {} + {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(track2.getPrevious(), Track::head));
         // set next tracks
         Set<Track> allNextPrev = track.getNext().stream().flatMap(n -> n.getPrevious().stream()).collect(Collectors.toSet());
         allNextPrev.add(track2);
         //logger.debug("before assign next: all next: {} all next's prev: {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(allNextPrev, Track::head));
-        assignTracks(allNextPrev, new ArrayList<>(track.getNext()), trackEditor);
+        assigner.assignTracks(allNextPrev, new ArrayList<>(track.getNext()), trackEditor);
         //logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(track2.getNext(), Track::head));
         track.splitRegions = null;
         return track2;
@@ -369,11 +365,11 @@ public class Track {
         return track1;
     }
 
-    private static boolean matchOrder(Pair<Region, Region> source, Pair<Region, Region> target) {
-        Point sourceCenter1 = source.key.getCenter()==null ? source.key.getGeomCenter(false) : source.key.getCenter();
-        Point sourceCenter2 = source.value.getCenter()==null ? source.value.getGeomCenter(false) : source.value.getCenter();
-        Point targetCenter1 = target.key.getCenter()==null ? target.key.getGeomCenter(false) : target.key.getCenter();
-        Point targetCenter2 = target.value.getCenter()==null ? target.value.getGeomCenter(false) : target.value.getCenter();
+    public static boolean matchOrder(Pair<Region, Region> source, Pair<Region, Region> target) {
+        Point sourceCenter1 = source.key.getCenterOrGeomCenter();
+        Point sourceCenter2 = source.value.getCenterOrGeomCenter();
+        Point targetCenter1 = target.key.getCenterOrGeomCenter();
+        Point targetCenter2 = target.value.getCenterOrGeomCenter();
 
         double d11 = sourceCenter1.distSq(targetCenter1);
         double d12 = sourceCenter1.distSq(targetCenter2);
@@ -383,81 +379,8 @@ public class Track {
         if (d11+d22 <= d12+d21) return true;
         else return false;
     }
-    public static void assignTracks(Collection<Track> prev, Collection<Track> next, TrackLinkEditor editor) {
-        if (prev.isEmpty()) {
-            next.forEach(n->n.getPrevious().clear());
-            return;
-        }
-        if (next.isEmpty()) {
-            prev.forEach(p -> p.getNext().clear());
-            return;
-        }
-        if (!Utils.objectsAllHaveSameProperty(prev, Track::getLastFrame)) throw new IllegalArgumentException("prev tracks do not end at same frame");
-        if (!Utils.objectsAllHaveSameProperty(next, Track::getFirstFrame)) throw new IllegalArgumentException("next tracks do not start at same frame");
-        int prevFrame = prev.iterator().next().getLastFrame();
-        int nextFrame = next.iterator().next().getFirstFrame();
-        if (prevFrame+1!=nextFrame) throw new IllegalArgumentException("frame should be successive");
-        if (prev.size()==2 && next.size()==2) { // quicker method for the most common case: 2 vs 2
-            List<Track> prevL = prev instanceof List ? (List<Track>)prev : new ArrayList<>(prev);
-            List<Track> nextL = next instanceof List ? (List<Track>)next : new ArrayList<>(next);
-            boolean matchOrder = matchOrder(new Pair<>(prevL.get(0).tail().getRegion(), prevL.get(1).tail().getRegion()), new Pair<>(nextL.get(0).head().getRegion(), nextL.get(1).head().getRegion()));
-            next.forEach(n -> n.getPrevious().clear());
-            prev.forEach(p -> p.getNext().clear());
-            if (matchOrder) {
-                prevL.get(0).addNext(nextL.get(0));
-                prevL.get(1).addNext(nextL.get(1));
-                nextL.get(0).addPrevious(prevL.get(0));
-                nextL.get(1).addPrevious(prevL.get(1));
-                editor.setTrackLinks(prevL.get(0).tail(), nextL.get(0).head(), true, true, false);
-                editor.setTrackLinks(prevL.get(1).tail(), nextL.get(1).head(), true, true, false);
-            } else {
-                prevL.get(0).addNext(nextL.get(1));
-                prevL.get(1).addNext(nextL.get(0));
-                nextL.get(0).addPrevious(prevL.get(1));
-                nextL.get(1).addPrevious(prevL.get(0));
-                editor.setTrackLinks(prevL.get(0).tail(), nextL.get(1).head(), true, true, false);
-                editor.setTrackLinks(prevL.get(1).tail(), nextL.get(0).head(), true, true, false);
-            }
-            next.forEach(n -> editor.setTrackHead(n.head(), n.head(), false, false)); // keep track head as long as tracks are not fused
-        } else {
-            Map<Integer, List<SegmentedObject>> map = new HashMap<>();
-            map.put(prevFrame, prev.stream().map(Track::tail).collect(Collectors.toList()));
-            map.put(nextFrame, next.stream().map(Track::head).collect(Collectors.toList()));
-            TrackMateInterface<TrackMateInterface.SpotImpl> tmi = new TrackMateInterface<>(TrackMateInterface.defaultFactory());
-            tmi.addObjects(map);
-            double dMax = Math.sqrt(Double.MAX_VALUE) / 100; // not Double.MAX_VALUE -> causes trackMate to crash possibly because squared..
-            if (tmi.processFTF(dMax)) {
-                tmi.setTrackLinks(map, editor, false);
-                next.forEach(n -> editor.setTrackHead(n.head(), n.head(), false, false)); // keep track head as long as tracks are not fused
-                next.forEach(n -> n.getPrevious().clear());
-                prev.forEach(p -> p.getNext().clear());
-                next.forEach(n -> {
-                    if (n.head().getPrevious() != null) {
-                        Track p = getTrack(prev, n.head().getPrevious().getTrackHead());
-                        logger.trace("assign prev: {} <- {} (th: {}) track is null ? {}", n.head(), n.head().getPrevious(), n.head().getPrevious().getTrackHead(), p == null);
-                        if (p != null) {
-                            n.addPrevious(p);
-                            p.addNext(n);
-                        }
-                    } else logger.trace("next head has no previous: {}", n.head());
-                });
-                prev.forEach(p -> {
-                    if (p.tail().getNext() != null) {
-                        Track n = getTrack(next, p.tail().getNext());
-                        logger.trace("assign next: {} -> {} (th: {}) track is null ? {}", p.head(), p.tail().getNext(), p.tail().getNext().getTrackHead(), n == null);
-                        if (n != null) {
-                            n.addPrevious(p);
-                            p.addNext(n);
-                        }
-                    } else logger.trace("prev tail has no next: {}", p.tail());
-                });
-            } else {
-                logger.debug("Could not assign");
-            }
-        }
-    }
 
-    private static Track getTrack(Collection<Track> track, SegmentedObject head) {
+    public static Track getTrack(Collection<Track> track, SegmentedObject head) {
         return track.stream().filter(t -> t.head().equals(head)).findAny().orElse(null);
     }
 }

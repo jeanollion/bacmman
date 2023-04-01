@@ -4,7 +4,6 @@ import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.image.ImageByte;
 import bacmman.image.ImageMask;
-import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
 import bacmman.plugins.Hint;
@@ -13,7 +12,7 @@ import bacmman.plugins.PostFilterFeature;
 import bacmman.plugins.plugins.post_filters.FeatureFilter;
 import bacmman.processing.matching.MaxOverlapMatcher;
 import bacmman.processing.matching.SimpleTrackGraph;
-import bacmman.processing.matching.TrackMateInterface;
+import bacmman.processing.matching.LAPLinker;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -338,15 +337,15 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
     }
     static Map<Region, Overlap> match(int frame, List<SegmentedObject> G, List<SegmentedObject> S, Map<Integer, Set<Region>> falsePositives) {
         Map<Pair<Region, Region>, Overlap> overlaps = getOverlap(G, S); // overlaps are all computed at once in order to avoid re-computing them
-        TrackMateInterface<RegionDistOverlap> tm = getTM(overlaps);
+        LAPLinker<RegionDistOverlap> tm = getTM(overlaps);
         tm.addObjects(G.stream().map(SegmentedObject::getRegion), frame);
         tm.addObjects(S.stream().map(SegmentedObject::getRegion), frame+1); // convention in order to use frame to frame linking
         tm.processFTF(1);
-        falsePositives.put(frame, S.stream().map(SegmentedObject::getRegion).filter(s -> tm.getPrevious(tm.objectSpotMap.get(s))==null).collect(toSet()));
+        falsePositives.put(frame, S.stream().map(SegmentedObject::getRegion).filter(s -> tm.getPrevious(tm.graphObjectMapper.getGraphObject(s))==null).collect(toSet()));
         return G.stream().map(SegmentedObject::getRegion).collect(toMap(Function.identity(), g -> {
-            RegionDistOverlap sdo = tm.getNext(tm.objectSpotMap.get(g));
+            RegionDistOverlap sdo = tm.getNext(tm.graphObjectMapper.getGraphObject(g));
             if (sdo==null) return new Overlap(g, null, 0);
-            Region s = tm.spotObjectMap.get(sdo);
+            Region s = tm.graphObjectMapper.getRegion(sdo);
             Overlap o = overlaps.get(new Pair<>(g, s));
             if (o!=null) return o;
             else {
@@ -365,8 +364,8 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
         }
         return res;
     }
-    static TrackMateInterface<RegionDistOverlap> getTM(Map<Pair<Region, Region>, Overlap> overlapMap) {
-        return new TrackMateInterface<RegionDistOverlap>(new TrackMateInterface.SpotFactory<RegionDistOverlap>() {
+    static LAPLinker<RegionDistOverlap> getTM(Map<Pair<Region, Region>, Overlap> overlapMap) {
+        return new LAPLinker<RegionDistOverlap>(new LAPLinker.SpotFactory<RegionDistOverlap>() {
             @Override
             public RegionDistOverlap toSpot(Region o, int frame) {
                 return new RegionDistOverlap(o, frame, overlapMap);
@@ -385,7 +384,7 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint {
 
         @Override
         public double squareDistanceTo(RegionDistOverlap otherR) {
-            if (otherR.frame() < frame()) return otherR.squareDistanceTo(this);
+            if (otherR.getFrame() < getFrame()) return otherR.squareDistanceTo(this);
             Overlap o = overlapMap.get(new Pair<>(r, otherR.r));
             if (o==null || o.overlap == 0) return Double.POSITIVE_INFINITY;
             return 1 - o.jacardIndex();

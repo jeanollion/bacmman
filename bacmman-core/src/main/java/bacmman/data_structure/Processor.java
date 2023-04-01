@@ -56,6 +56,7 @@ import bacmman.utils.Utils;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import java.util.function.BiPredicate;
@@ -190,12 +191,14 @@ public class Processor {
     public static void processAndTrackStructures(MasterDAO db, boolean deleteObjects, int... structures) {
         Experiment xp = db.getExperiment();
         if (deleteObjects && structures.length==0) {
-            db.deleteAllObjects();
-            deleteObjects=false;
+            if (IntStream.range(0, xp.getStructureCount()).mapToObj(xp::getStructure).allMatch(s -> s.getProcessingPipelineParameter().isOnePluginSet())) { // special case: do not erease objects when no processing pipeline is set
+                db.deleteAllObjects();
+                deleteObjects = false;
+            }
         }
         for (String fieldName : xp.getPositionsAsString()) {
             try {
-            processAndTrackStructures(db.getDao(fieldName), deleteObjects, false, structures);
+                processAndTrackStructures(db.getDao(fieldName), deleteObjects, false, structures);
             } catch (MultipleException e) {
                   for (Pair<String, Throwable> p : e.getExceptions()) logger.error(p.key, p.value);
             } catch (Exception e) {
@@ -208,14 +211,29 @@ public class Processor {
     }
     public static void deleteObjects(ObjectDAO dao, int...structures) {
         Experiment xp = dao.getExperiment();
-        if (structures.length==0 || structures.length==xp.getStructureCount()) dao.deleteAllObjects();
-        else dao.deleteObjectsByStructureIdx(structures);
+        boolean canDeleteAll = IntStream.range(0, xp.getStructureCount()).mapToObj(xp::getStructure).allMatch(s -> s.getProcessingPipelineParameter().isOnePluginSet());
+        boolean allOC = structures.length==0 || structures.length==xp.getStructureCount();
+        if (allOC && canDeleteAll) {
+            dao.deleteAllObjects();
+        } else {
+            for (int s : structures) {
+                if (xp.getStructure(s).getProcessingPipelineParameter().isOnePluginSet()) {
+                    dao.deleteObjectsByStructureIdx(structures);
+                }
+            }
+        }
         ImageDAO imageDAO = xp.getPosition(dao.getPositionName()).getImageDAO();
         if (imageDAO instanceof ImageDAOTrack) {
             ImageDAOTrack imageDAOt = (ImageDAOTrack) imageDAO;
-            if (structures.length == 0) for (int s : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray())
-                imageDAOt.deleteTrackImages(s);
-            else for (int s : structures) imageDAOt.deleteTrackImages(s);
+            if (allOC && canDeleteAll) {
+                for (int s : xp.experimentStructure.getStructuresInHierarchicalOrderAsArray()) imageDAOt.deleteTrackImages(s);
+            } else {
+                for (int s : structures) {
+                    if (xp.getStructure(s).getProcessingPipelineParameter().isOnePluginSet()) {
+                        imageDAOt.deleteTrackImages(s);
+                    }
+                }
+            }
         }
     }
     public static void processAndTrackStructures(ObjectDAO dao, boolean deleteObjects, boolean trackOnly, int... structures) {
@@ -237,6 +255,7 @@ public class Processor {
         final ObjectDAO dao = parentTrack.get(0).getDAO();
         Experiment xp = parentTrack.get(0).getExperiment();
         final ProcessingPipeline ps = xp.getStructure(structureIdx).getProcessingScheme();
+        if (ps==null) return;
         int directParentStructure = xp.getStructure(structureIdx).getParentStructure();
         String position = parentTrack.get(0).getPositionName();
         if (selection!=null) {

@@ -35,7 +35,6 @@ import bacmman.ui.gui.image_interaction.InteractiveImageKey;
 import bacmman.ui.gui.image_interaction.ImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.utils.geom.Point;
-import bacmman.processing.matching.trackmate.Spot;
 
 import java.awt.Color;
 import java.lang.reflect.Constructor;
@@ -43,7 +42,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 import java.util.Map.Entry;
 
-import bacmman.processing.matching.TrackMateInterface;
+import bacmman.processing.matching.LAPLinker;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
@@ -54,7 +53,6 @@ import java.util.function.BiPredicate;
 
 import bacmman.ui.gui.image_interaction.FreeLineSplitter;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
-import it.unimi.dsi.fastutil.ints.IntArrays;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -269,7 +267,7 @@ public class ManualEdition {
         }
         if (!map.isEmpty() && !unlink) {
             List<SegmentedObject> allObjects = Utils.flattenMap(map);
-            TrackMateInterface<TrackMateInterface.SpotImpl> tmi = new TrackMateInterface<>(TrackMateInterface.defaultFactory());
+            LAPLinker<LAPLinker.SpotImpl> tmi = new LAPLinker<>(LAPLinker.defaultFactory());
             tmi.addObjects(map);
             //double meanLength = allObjects.stream().mapToDouble( s->GeometricalMeasurements.getFeretMax(s.getRegion())).average().getAsDouble();
             //logger.debug("Mean size: {}", meanLength);

@@ -56,6 +56,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 /**
@@ -742,11 +743,14 @@ public class Task implements ProgressCallback{
         logger.debug("locked positions: {} / {}", positionsToProcess.size() - readOnlyPos.size(), positionsToProcess.size());
         boolean needToDeleteObjects = preProcess || segmentAndTrack;
         boolean deleteAll =  needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && positionsToProcess.size()==db.getExperiment().getPositionCount();
+        boolean canDeleteAll = IntStream.range(0, db.getExperiment().getStructureCount()).mapToObj(db.getExperiment()::getStructure).allMatch(s -> s.getProcessingPipelineParameter().isOnePluginSet());
         if (deleteAll) {
-            publish("deleting objects...");
-            db.deleteAllObjects();
+            if (canDeleteAll) {
+                publish("deleting objects...");
+                db.deleteAllObjects();
+            }
         }
-        boolean deleteAllField = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll;
+        boolean deleteAllField = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll && canDeleteAll;
         logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllField);
         if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
         publish("number of subtasks: "+countSubtasks());
@@ -836,7 +840,7 @@ public class Task implements ProgressCallback{
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
             logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
-            Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), true, preProcessingMemoryThreshold, this);
+            Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllField, preProcessingMemoryThreshold, this);
             boolean createRoot = segmentAndTrack || trackOnly || generateTrackImages;
             if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
             db.getExperiment().getPosition(position).flushImages(true, true); 

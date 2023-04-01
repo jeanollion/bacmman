@@ -45,7 +45,7 @@ import java.util.stream.Stream;
 import static bacmman.data_structure.SegmentedObjectUtils.getSiblings;
 
 
-public class SegmentedObject implements Comparable<SegmentedObject>, JSONSerializable {
+public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject<SegmentedObject>, JSONSerializable {
     public final static Logger logger = LoggerFactory.getLogger(SegmentedObject.class);
     public static final String TRACK_ERROR_PREV = "TrackErrorPrev";
     public static final String TRACK_ERROR_NEXT = "TrackErrorNext";

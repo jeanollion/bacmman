@@ -18,13 +18,14 @@
  */
 package bacmman.plugins.plugins.processing_pipeline;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.ParentObjectClassParameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.*;
+import bacmman.image.BoundingBox;
 import bacmman.plugins.*;
 import bacmman.utils.StreamConcatenation;
-import bacmman.utils.Utils;
 
 import java.lang.reflect.Field;
 import java.util.*;
@@ -38,7 +39,8 @@ import java.util.stream.Stream;
 public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplicate, Tracker> implements Hint {
     protected PluginParameter<Tracker> tracker = new PluginParameter<>("Tracker", Tracker.class, true);
     ParentObjectClassParameter dup = new ParentObjectClassParameter("Duplicate From").setAllowNoSelection(false);
-    protected Parameter[] parameters = new Parameter[]{dup, preFilters, trackPreFilters, tracker, trackPostFilters};
+    BooleanParameter trimObjects = new BooleanParameter("Trim Objects", true).setHint("When duplicating objects into another parent track, some objects are partially included into the new parent. Set True to trim them to the new parent bounds");
+    protected Parameter[] parameters = new Parameter[]{dup, trimObjects, preFilters, trackPreFilters, tracker, trackPostFilters};
     public Duplicate() {} // for plugin instantiation
     @Override
     public String getHintText() {
@@ -101,8 +103,21 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         logger.debug("duplicate for parentTrack: {} structure: {}: #{} duplicated objects, null parents: {}", parentTrack.get(0), structureIdx, sourceMapDup.size(), sourceMapParent.values().stream().filter(Objects::isNull).count());
         setParents(sourceMapDup, sourceMapParent, parentObjectClassIdx, sourceObjectClassIdx, factory);
         logger.debug("objects set to parents: {}", parentTrack.stream().flatMap(p -> StreamConcatenation.emptyIfNull(p.getChildren(structureIdx))).count());
-        getTrackPreFilters(true).filter(structureIdx, parentTrack); // TODO  why ?
+        if (trimObjects.getSelected()) trimToParentBounds(parentTrack, structureIdx);
+        getTrackPreFilters(true).filter(structureIdx, parentTrack);
     }
+
+    public static void trimToParentBounds(List<SegmentedObject> parentTrack, int objectClassIdx) {
+        parentTrack.stream().parallel().forEach(p -> {
+            BoundingBox pBounds = p.getBounds();
+            p.getChildren(objectClassIdx).filter(c -> c.is2D() ? !BoundingBox.isIncluded2D(c.getBounds(), pBounds) : !BoundingBox.isIncluded(c.getBounds(), p.getBounds()))
+                .forEach(c -> {
+                    BoundingBox inter = c.is2D() ? BoundingBox.getIntersection2D(c.getBounds(), pBounds) : BoundingBox.getIntersection(c.getBounds(), pBounds);
+                    c.getRegion().setMask(c.getRegion().getMaskAsImageInteger().cropWithOffset(inter));
+                });
+        });
+    }
+
     @Override
     public Parameter[] getParameters() {
         return parameters;

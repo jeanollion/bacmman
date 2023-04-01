@@ -63,7 +63,7 @@ public class DistanceComputationParameters {
             return this;
         }
         public double getSquareDistancePenalty(double distanceSq, SpotWithQuality s, SpotWithQuality t) {
-            int delta = Math.abs(t.frame()-s.frame())-1;
+            int delta = Math.abs(t.getFrame()-s.getFrame())-1;
             if (delta==0) return 0;
             if (!allowGapBetweenLQ && s.isLowQuality() && t.isLowQuality()) return Double.POSITIVE_INFINITY; // no gap closing between LQ spots
             return  delta * delta * gapSquareDistancePenalty + 2*delta * gapDistancePenalty*Math.sqrt(distanceSq); // working on square distance

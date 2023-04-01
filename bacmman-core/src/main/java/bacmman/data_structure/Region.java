@@ -248,8 +248,8 @@ public class Region {
         regionModified=true;
         return this;
     }
-    public double[] getSecondCentralMoments2D() {
-        Point center = getCenter()==null ? getGeomCenter(false) : getCenter();
+    public double[] getSecondCentralMoments2D(Point center) {
+        center = center==null ? (getCenter()==null ? getGeomCenter(false) : getCenter()) : center;
         double cx = center.get(0);
         double cy = center.get(1);
         double[] buffer = new double[4];

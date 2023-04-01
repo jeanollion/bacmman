@@ -8,7 +8,7 @@ import bacmman.image.Offset;
 import bacmman.plugins.*;
 import bacmman.processing.EDT;
 import bacmman.processing.Filters;
-import bacmman.processing.matching.TrackMateInterface;
+import bacmman.processing.matching.LAPLinker;
 import bacmman.processing.matching.trackmate.Spot;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.processing.skeleton.SparseSkeleton;
@@ -122,13 +122,13 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             currentRegions = nextRegions;
         }
 
-        TrackMateInterface<LAPObject> tmi = getTMInterface(overlapMap);
+        LAPLinker<LAPObject> tmi = getTMInterface(overlapMap);
         Map<Integer, List<SegmentedObject>> map = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
         List<SegmentedObject> allChildren = SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), structureIdx).collect(Collectors.toList());
         logger.debug("LAP tracking: total number of objects: {}", allChildren.size());
         logger.debug("LAP tracking: {}", Utils.toStringList(map.entrySet(), e->"t:"+e.getKey()+"->"+e.getValue().size()));
         tmi.addObjects(allChildren.stream());
-        if (tmi.objectSpotMap.isEmpty()) {
+        if (tmi.graphObjectMapper.isEmpty()) {
             logger.debug("No objects to track");
             return;
         }
@@ -138,7 +138,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         tmi.logGraphStatus("FTF", -1);
         boolean overlap = OVERLAP.equals(distance.getSelectedEnum());
         if (ok && allowSplit.getSelected()) {
-            if (overlap) tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LINK_MODE.SPLIT)); // TODO set a custom CostFunction
+            if (overlap) tmi.graphObjectMapper.graphObjects().forEach(o -> o.setLinkMode(LINK_MODE.SPLIT)); // TODO set a custom CostFunction
             ok = tmi.processSegments(ftfDistance, 0, true, !overlap && allowMerge.getSelected()); // division / merging
             tmi.logGraphStatus("Split", -1);
             if (overlap) { // second round for links that are missed in the FTF process
@@ -147,7 +147,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             }
         }
         if (ok && overlap && allowMerge.getSelected()) {
-            tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LINK_MODE.MERGE)); // TODO set a custom CostFunction
+            tmi.graphObjectMapper.graphObjects().forEach(o -> o.setLinkMode(LINK_MODE.MERGE)); // TODO set a custom CostFunction
             ok = tmi.processSegments(ftfDistance, 0, false, true); // division / merging
             tmi.logGraphStatus("Merge", -1);
             if (overlap) { // second round for links that are missed in the FTF process
@@ -158,7 +158,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         int maxGap = this.maxGapGC.getIntValue();
         if (ok && allowGaps.getSelected() && maxGap>0) {
             double gcDistance = maxDistanceGC.getDoubleValue();
-            if (overlap) tmi.objectSpotMap.values().forEach(o -> o.setLinkMode(LINK_MODE.NORMAL));
+            if (overlap) tmi.graphObjectMapper.graphObjects().forEach(o -> o.setLinkMode(LINK_MODE.NORMAL));
             ok = tmi.processSegments(gcDistance, maxGap, false, false);
             tmi.logGraphStatus("GC", -1);
         }
@@ -242,7 +242,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
         }
         @Override
         public String toString() {
-            return frame() +"-"+ (r.getLabel() - 1);
+            return getFrame() +"-"+ (r.getLabel() - 1);
         }
     }
     public static class LAPObject extends AbstractLAPObject<LAPObject> {
@@ -260,9 +260,9 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             this.overlapMap = overlapMap;
         }
         @Override public double squareDistanceTo(LAPObjectOverlap otherR) {
-            if (otherR.frame() < frame()) return otherR.squareDistanceTo(this);
+            if (otherR.getFrame() < getFrame()) return otherR.squareDistanceTo(this);
             SymetricalPair<Region> key = new SymetricalPair<>(r, otherR.r);
-            if (frame() == (otherR).frame() - 1 && !overlapMap.containsKey(key)) return Double.POSITIVE_INFINITY; // all FTF overlap have been computed -> no need to call redirected get method
+            if (getFrame() == (otherR).getFrame() - 1 && !overlapMap.containsKey(key)) return Double.POSITIVE_INFINITY; // all FTF overlap have been computed -> no need to call redirected get method
             Overlap o = overlapMap.get(key);
             if (o==null || o.overlap == 0) return Double.POSITIVE_INFINITY;
             return Math.pow(1 - o.normalizedOverlap(mode), 2);
@@ -285,7 +285,7 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             this(r, frame, getSkeleton(r, null, null, addPoles), hausdorffDistThld, avg);
         }
         @Override public double squareDistanceTo(LAPObjectHausdorff nextR) {
-            if (nextR.frame() < frame()) return nextR.squareDistanceTo(this);
+            if (nextR.getFrame() < getFrame()) return nextR.squareDistanceTo(this);
             if (Double.isFinite(hausdorffDistSqThld)) { // limit search
                 double d2CC = squareDistanceCenterCenterTo(nextR);
                 if (d2CC>hausdorffDistSqThld) return Double.POSITIVE_INFINITY;
@@ -309,18 +309,18 @@ public class LAPTracker implements Tracker, Hint, TestableProcessingPlugin {
             return distSq;
         }
     }
-    public <T extends AbstractLAPObject<T>> TrackMateInterface<T> getTMInterface(Map<SymetricalPair<Region>, Overlap> overlapMap) {
+    public <T extends AbstractLAPObject<T>> LAPLinker<T> getTMInterface(Map<SymetricalPair<Region>, Overlap> overlapMap) {
         switch (distance.getSelectedEnum()) {
             case GEOM_CENTER_DISTANCE:
             case MASS_CENTER_DISTANCE:
             default: {
-                return new TrackMateInterface<>((o, frame) -> (T)new LAPObject(o, frame));
+                return new LAPLinker<>((o, frame) -> (T)new LAPObject(o, frame));
             }
             case OVERLAP: {
-                new TrackMateInterface<>((o, frame) -> (T)new LAPObjectOverlap(o, frame, overlapMap));
+                new LAPLinker<>((o, frame) -> (T)new LAPObjectOverlap(o, frame, overlapMap));
             }
             case HAUSDORFF: {
-                return new TrackMateInterface<>((o, frame) -> (T)new LAPObjectHausdorff(o, frame, distanceSearchThreshold.getDoubleValue(), hausdorffAVG.getSelected(), skAddPoles.getSelected()));
+                return new LAPLinker<>((o, frame) -> (T)new LAPObjectHausdorff(o, frame, distanceSearchThreshold.getDoubleValue(), hausdorffAVG.getSelected(), skAddPoles.getSelected()));
             }
         }
     };

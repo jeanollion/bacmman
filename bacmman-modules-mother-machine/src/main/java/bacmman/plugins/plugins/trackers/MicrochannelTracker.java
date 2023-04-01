@@ -37,7 +37,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.plugins.segmenters.MicrochannelPhase2D;
-import bacmman.processing.matching.TrackMateInterface;
+import bacmman.processing.matching.LAPLinker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
@@ -127,10 +127,10 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
      */
     @Override public  void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
         if (parentTrack.isEmpty()) return;
-        TrackMateInterface<TrackMateInterface.SpotImpl> tmi = new TrackMateInterface<>((o, frame) -> {
+        LAPLinker<LAPLinker.SpotImpl> tmi = new LAPLinker<>((o, frame) -> {
             Point center = o.getCenter();
             if (center==null) center = o.getGeomCenter(true);
-            TrackMateInterface.SpotImpl s = new TrackMateInterface.SpotImpl(center.get(0), 0, 0, 1, 1); // tracking only using X position
+            LAPLinker.SpotImpl s = new LAPLinker.SpotImpl(center.get(0), 0, 0, 1, 1); // tracking only using X position
             s.getFeatures().put(Spot.FRAME, (double)frame);
             //if (frame<2) logger.debug("Frame={} x={}, y={} ([{};{}]), scale: {}", frame, center.get(0), center.get(1), o.getBounds().yMin(), o.getBounds().yMax(), o.getScaleXY());
             return s;
@@ -141,7 +141,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         logger.debug("tracking: total number of objects: {}", allChildren.size());
         logger.debug("tracking: {}", Utils.toStringList(map.entrySet(), e->"t:"+e.getKey()+"->"+e.getValue().size()));
         tmi.addObjects(allChildren.stream());
-        if (tmi.objectSpotMap.isEmpty()) {
+        if (tmi.graphObjectMapper.isEmpty()) {
             logger.debug("No objects to track");
             return;
         }

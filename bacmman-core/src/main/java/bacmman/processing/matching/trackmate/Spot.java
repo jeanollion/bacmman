@@ -1,5 +1,6 @@
 package bacmman.processing.matching.trackmate;
 
+import bacmman.data_structure.GraphObject;
 import bacmman.processing.matching.trackmate.util.AlphanumComparator;
 import bacmman.utils.geom.Point;
 import net.imglib2.AbstractEuclideanSpace;
@@ -39,7 +40,7 @@ import static bacmman.processing.matching.trackmate.SpotCollection.VISIBLITY;
  * @author Jean-Yves Tinevez &lt;jeanyves.tinevez@gmail.com&gt; 2010, 2013
  *
  */
-public class Spot<S extends Spot<S>> extends AbstractEuclideanSpace implements RealLocalizable, Comparable<S>
+public class Spot<S extends Spot<S>> extends AbstractEuclideanSpace implements RealLocalizable, Comparable<S>, GraphObject<S>
 {
 
 	/*
@@ -332,7 +333,7 @@ public class Spot<S extends Spot<S>> extends AbstractEuclideanSpace implements R
 		return features.get( feature );
 	}
 
-	public final int frame() {
+	public final int getFrame() {
 		return getFeature(Spot.FRAME).intValue();
 	}
 

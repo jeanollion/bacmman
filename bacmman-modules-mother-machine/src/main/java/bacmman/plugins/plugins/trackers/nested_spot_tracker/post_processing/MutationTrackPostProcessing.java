@@ -21,6 +21,7 @@ package bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing;
 import bacmman.data_structure.*;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.SpotWithQuality;
+import bacmman.processing.matching.GraphObjectMapper;
 import bacmman.utils.HashMapGetCreate;
 
 import java.util.ArrayList;
@@ -44,14 +45,14 @@ import bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing.Trac
  */
 public class MutationTrackPostProcessing<S extends SpotWithQuality<S>> {
     final TreeMap<SegmentedObject, List<SegmentedObject>> trackHeadTrackMap; // sorted by timePoint
-    final Map<Region, S>  objectSpotMap;
+    final GraphObjectMapper<S>  objectSpotMap;
     final Map<SegmentedObject, List<S>> trackHeadSpotTrackMap;
     final HashMapGetCreate<List<S>, Track> spotTrackMap;
     final RemoveObjectCallBact removeObject;
     final int spotStructureIdx;
     final TrackLinkEditor editor;
     final SegmentedObjectFactory factory;
-    public MutationTrackPostProcessing(int structureIdx, List<SegmentedObject> parentTrack, Map<Region, S> objectSpotMap, RemoveObjectCallBact removeObject, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public MutationTrackPostProcessing(int structureIdx, List<SegmentedObject> parentTrack, GraphObjectMapper<S> objectSpotMap, RemoveObjectCallBact removeObject, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         this.removeObject=removeObject;
         this.spotStructureIdx=structureIdx;
         trackHeadTrackMap = new TreeMap<>(SegmentedObjectUtils.getStructureObjectComparator());
@@ -61,7 +62,7 @@ public class MutationTrackPostProcessing<S extends SpotWithQuality<S>> {
         for (Entry<SegmentedObject, List<SegmentedObject>> e : trackHeadTrackMap.entrySet()) {
             List<S> l = new ArrayList<>(e.getValue().size());
             trackHeadSpotTrackMap.put(e.getKey(), l);
-            for (SegmentedObject o : e.getValue()) l.add(objectSpotMap.get(o.getRegion()));
+            for (SegmentedObject o : e.getValue()) l.add(objectSpotMap.getGraphObject(o.getRegion()));
         }
         spotTrackMap = new HashMapGetCreate<>(Track::new);
         this.editor=editor;
@@ -81,8 +82,8 @@ public class MutationTrackPostProcessing<S extends SpotWithQuality<S>> {
             // cherche un spot s proche dans la même bactérie tq LQ(s) ou LQ(trackHead(track))
             if (nextTrack.size()==1) continue;
             SegmentedObject nextTrackTH = nextTrack.get(0);
-            SpotWithQuality sNextTrackTH  = objectSpotMap.get(nextTrackTH.getRegion());
-            SpotWithQuality sNextTrackN  = objectSpotMap.get(nextTrack.get(1).getRegion());
+            SpotWithQuality sNextTrackTH  = objectSpotMap.getGraphObject(nextTrackTH.getRegion());
+            SpotWithQuality sNextTrackN  = objectSpotMap.getGraphObject(nextTrack.get(1).getRegion());
             
             double minDist = Double.POSITIVE_INFINITY;
             SegmentedObject bestPrevTrackEnd=null;
@@ -97,8 +98,8 @@ public class MutationTrackPostProcessing<S extends SpotWithQuality<S>> {
                     .collect(Collectors.toList());
             for (SegmentedObject prevTrackEnd : iter) { // look in spots within same compartiment
                 //if (trackHeadTrackMap.get(headTrackTail.getTrackHead()).size()>=maxTrackSize) continue;
-                SpotWithQuality sprevTrackEnd  = objectSpotMap.get(prevTrackEnd.getRegion());
-                SpotWithQuality sPrevTrackP = objectSpotMap.get(prevTrackEnd.getPrevious().getRegion());
+                SpotWithQuality sprevTrackEnd  = objectSpotMap.getGraphObject(prevTrackEnd.getRegion());
+                SpotWithQuality sPrevTrackP = objectSpotMap.getGraphObject(prevTrackEnd.getPrevious().getRegion());
                 if (!sNextTrackTH.isLowQuality() && !sprevTrackEnd.isLowQuality()) continue;
                 double dEndToN = sprevTrackEnd.squareDistanceTo(sNextTrackN);
                 double dPToTH = sPrevTrackP.squareDistanceTo(sNextTrackTH);

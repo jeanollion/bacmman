@@ -43,8 +43,8 @@ import bacmman.plugins.plugins.segmenters.SpotSegmenter;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.DistanceComputationParameters;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.NestedSpot;
 import bacmman.plugins.plugins.trackers.nested_spot_tracker.post_processing.MutationTrackPostProcessing;
-import bacmman.processing.matching.TrackMateInterface;
-import bacmman.processing.matching.TrackMateInterface.SpotFactory;
+import bacmman.processing.matching.LAPLinker;
+import bacmman.processing.matching.LAPLinker.SpotFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -220,7 +220,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         }, HashMapGetCreate.Syncronization.SYNC_ON_KEY);
         localizerMap.putAll(lMap);
         
-        TrackMateInterface<NestedSpot> tmi = new TrackMateInterface<>(new SpotFactory<NestedSpot>() {
+        LAPLinker<NestedSpot> tmi = new LAPLinker<>(new SpotFactory<NestedSpot>() {
             @Override
             public NestedSpot toSpot(Region o, int frame) {
                 SegmentedObject b = mutationMapParentBacteria.get(o);
@@ -244,8 +244,8 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         long t1 = System.currentTimeMillis();
         if (LQSpots || logger.isDebugEnabled()) {
             int lQCount = 0;
-            for (NestedSpot s : tmi.spotObjectMap.keySet()) if (s.isLowQuality()) ++lQCount;
-            logger.debug("LAP Tracker: {}, spot HQ: {}, #spots LQ: {} (thld: {}), time: {}", parentTrack.get(0), tmi.spotObjectMap.size()-lQCount, lQCount, spotQualityThreshold, t1-t0);
+            for (NestedSpot s : tmi.graphObjectMapper.graphObjects()) if (s.isLowQuality()) ++lQCount;
+            logger.debug("LAP Tracker: {}, spot HQ: {}, #spots LQ: {} (thld: {}), time: {}", parentTrack.get(0), tmi.graphObjectMapper.graphObjects().size()-lQCount, lQCount, spotQualityThreshold, t1-t0);
         }
         if (LQSpots) { // sequence to remove LQ spots
             distParams.includeLQ=false;
@@ -257,7 +257,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             if (ok) {
                 tmi.setTrackLinks(objectsF, editor);
                 tmi.resetEdges();
-                MutationTrackPostProcessing postProcessor = new MutationTrackPostProcessing(structureIdx, parentTrack, tmi.objectSpotMap, o->tmi.removeObject(o.getRegion(), o.getFrame()), factory, editor);
+                MutationTrackPostProcessing postProcessor = new MutationTrackPostProcessing(structureIdx, parentTrack, tmi.graphObjectMapper, o->tmi.removeObject(o.getRegion(), o.getFrame()), factory, editor);
                 postProcessor.connectShortTracksByDeletingLQSpot(maxLinkingDistanceGC);
                 removeUnlinkedLQSpots(parentTrack, structureIdx, tmi, factory);
                 objectsF = SegmentedObjectUtils.getChildrenByFrame(parentTrack, structureIdx);
@@ -270,7 +270,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         if (ok && LQSpots) {
             //switchCrossingLinksWithLQBranches(tmi, maxLinkingDistanceGC/Math.sqrt(2), maxLinkingDistanceGC, maxGap); // remove crossing links
             tmi.setTrackLinks(objectsF, editor);
-            MutationTrackPostProcessing postProcessor = new MutationTrackPostProcessing(structureIdx, parentTrack, tmi.objectSpotMap, o->tmi.removeObject(o.getRegion(), o.getFrame()), factory, editor); // TODO : do directly in graph
+            MutationTrackPostProcessing postProcessor = new MutationTrackPostProcessing(structureIdx, parentTrack, tmi.graphObjectMapper, o->tmi.removeObject(o.getRegion(), o.getFrame()), factory, editor); // TODO : do directly in graph
             postProcessor.connectShortTracksByDeletingLQSpot(maxLinkingDistanceGC); //
             trimLQExtremityWithGaps(tmi, 2, true, true); // a track cannot start with a LQ spot separated by a gap
         }
@@ -370,7 +370,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
                         logger.info("Distance {} -> {} = {} µm. Nested Spot distance: {}", l.get(0), l.get(1), proj.dist(l.get(1).getRegion().getCenter())*l.get(0).getScaleXY(),nDist);
                         if (Double.isInfinite(nDist)) {
                             logger.debug("2 LQ: {}", !distParams.includeLQ && (s1.isLowQuality() || s2.isLowQuality()));
-                            logger.debug("max frame diff: {}", s2.frame()-s1.frame()>distParams.maxFrameDiff);
+                            logger.debug("max frame diff: {}", s2.getFrame()-s1.getFrame()>distParams.maxFrameDiff);
                             
                         }
                     } else {
@@ -406,7 +406,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
     }
     
     
-    private static void trimLQExtremityWithGaps(TrackMateInterface<NestedSpot> tmi, double gapTolerance, boolean start, boolean end) {
+    private static void trimLQExtremityWithGaps(LAPLinker<NestedSpot> tmi, double gapTolerance, boolean start, boolean end) {
         long t0 = System.currentTimeMillis();
         //--gapTolerance;
         Set<DefaultWeightedEdge> toRemove = new HashSet<>();
@@ -419,12 +419,12 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         long t1 = System.currentTimeMillis();
         tmi.logGraphStatus("trim extremities ("+toRemove.size()+")", t1-t0);
     }
-    private static boolean addLQSpot(TrackMateInterface<NestedSpot> tmi, DefaultWeightedEdge e, double gapTolerance, boolean start, boolean end, Set<DefaultWeightedEdge> toRemove, boolean wholeTrack) {
+    private static boolean addLQSpot(LAPLinker<NestedSpot> tmi, DefaultWeightedEdge e, double gapTolerance, boolean start, boolean end, Set<DefaultWeightedEdge> toRemove, boolean wholeTrack) {
         //if (true) return false;
         NestedSpot s = tmi.getObject(e, true);
         NestedSpot t = tmi.getObject(e, false);
         //logger.debug("check trim: {}({})->{}({}) no gap? {}", s, s.lowQuality?"LQ":"HQ", t, t.lowQuality?"LQ":"HQ",t.frame-s.frame-1<gapTolerance );
-        if (t.frame()-s.frame()-1<gapTolerance) return false; // no gap
+        if (t.getFrame()-s.getFrame()-1<gapTolerance) return false; // no gap
         if (start && s.isLowQuality()) {
             NestedSpot prev = tmi.getPrevious(s);
             if (prev==null || toRemove.contains(tmi.getEdge(prev, s))) { // start of track -> remove edge
@@ -516,14 +516,14 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
         return true;
     }
     */
-    private static void removeUnlinkedLQSpots(List<SegmentedObject> parentTrack, int structureIdx, TrackMateInterface<NestedSpot> tmi, SegmentedObjectFactory factory) {
+    private static void removeUnlinkedLQSpots(List<SegmentedObject> parentTrack, int structureIdx, LAPLinker<NestedSpot> tmi, SegmentedObjectFactory factory) {
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, structureIdx);
         Set<SegmentedObject> parentsToRelabel = new HashSet<>();
         int eraseCount = 0;
         for (List<SegmentedObject> list : allTracks.values()) {
             boolean hQ = false;
             for (SegmentedObject o : list) {
-                NestedSpot s = tmi.objectSpotMap.get(o.getRegion());
+                NestedSpot s = tmi.graphObjectMapper.getGraphObject(o.getRegion());
                 if (s!=null && !s.isLowQuality()) {
                     hQ = true;
                     break;

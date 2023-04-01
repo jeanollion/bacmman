@@ -16,7 +16,7 @@ import java.util.stream.Collectors;
 public class TrackTreePopulation {
     public final static Logger logger = LoggerFactory.getLogger(TrackTreePopulation.class);
     final Set<TrackTree> trees;
-    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, List<SymetricalPair<SegmentedObject>> additionalLinks) {
+    public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx, Collection<SymetricalPair<SegmentedObject>> additionalLinks) {
         this(Track.getTracks(parentTrack,objectClassIdx, additionalLinks));
     }
     public TrackTreePopulation(List<SegmentedObject> parentTrack, int objectClassIdx) {
@@ -41,28 +41,28 @@ public class TrackTreePopulation {
             }
         });
     }
-    public void solveMergeEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public void solveMergeEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         logger.debug("solving merge events by merging on {} trackTrees", trees.size());
         solveMergeEventsByMerging(trees, forbidFusion, dividing, factory, editor);
         Collection<TrackTree> correctedTracks = trees;
         ArrayList<TrackTree> toRemove=  new ArrayList<>();
         while(!correctedTracks.isEmpty()) {
             logger.debug("solving merge events by splitting on {} trackTrees", correctedTracks.size());
-            correctedTracks = solveMergeEventsBySplitting(correctedTracks,toRemove, forbidFusion, sm, factory, editor);
+            correctedTracks = solveMergeEventsBySplitting(correctedTracks,toRemove, forbidFusion, sm, assigner, factory, editor);
             toRemove.forEach(trees::remove);
             toRemove.clear();
             trees.addAll(correctedTracks);
         }
     }
 
-    public void solveSplitEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public void solveSplitEvents(BiPredicate<Track, Track> forbidFusion, Predicate<SegmentedObject> dividing, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         logger.debug("solving split events by merging on {} trackTrees", trees.size());
         solveSplitEventsByMerging(trees, forbidFusion, dividing, factory, editor);
         Collection<TrackTree> correctedTracks = trees;
         List<TrackTree> toRemove = new ArrayList<>();
         while(!correctedTracks.isEmpty()) {
             logger.debug("solving split events by splitting on {} trackTrees", correctedTracks.size());
-            correctedTracks = solveSplitEventsBySplitting(correctedTracks, toRemove, forbidFusion, sm, factory, editor);
+            correctedTracks = solveSplitEventsBySplitting(correctedTracks, toRemove, forbidFusion, sm, assigner, factory, editor);
             toRemove.forEach(trees::remove);
             toRemove.clear();
             trees.addAll(correctedTracks);
@@ -128,12 +128,12 @@ public class TrackTreePopulation {
         return null;
     }
 
-    public static Collection<TrackTree> solveMergeEventsBySplitting(Collection<TrackTree> trackTrees, Collection<TrackTree> toRemove, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public static Collection<TrackTree> solveMergeEventsBySplitting(Collection<TrackTree> trackTrees, Collection<TrackTree> toRemove, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Set<TrackTree> correctedTracks = new HashSet<>();
         trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
             Track t = tt.getFirstMerge();
             if (t!=null) {
-                Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, factory, editor); // TODO : multithread here ?
+                Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, assigner, factory, editor); // TODO : multithread here ?
                 if (corr!=null) {
                     synchronized (correctedTracks) {
                         correctedTracks.addAll(corr);
@@ -145,12 +145,12 @@ public class TrackTreePopulation {
         return correctedTracks;
     }
 
-    public static Collection<TrackTree> solveSplitEventsBySplitting(Collection<TrackTree> trackTrees, Collection<TrackTree> toRemove, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    public static Collection<TrackTree> solveSplitEventsBySplitting(Collection<TrackTree> trackTrees, Collection<TrackTree> toRemove, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Set<TrackTree> correctedTracks = new HashSet<>();
         trackTrees.parallelStream().filter(tt -> tt.size()>1).forEach(tt -> {
             Track t = tt.getFirstSplit();
             if (t!=null) {
-                Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, factory, editor);
+                Collection<TrackTree> corr = split(tt, t, forbidFusion,sm, assigner, factory, editor);
                 if (corr!=null) {
                     synchronized (correctedTracks) {
                         correctedTracks.addAll(corr);
@@ -162,10 +162,10 @@ public class TrackTreePopulation {
         return correctedTracks;
     }
 
-    private static Collection<TrackTree> split(TrackTree tree, Track t, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    private static Collection<TrackTree> split(TrackTree tree, Track t, BiPredicate<Track, Track> forbidFusion, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         SymetricalPair<Track> splitPoint = shouldSplit(t, forbidFusion);
         if (splitPoint!=null) {
-            Collection<TrackTree> newTrees = tree.split(splitPoint.key, splitPoint.value, sm, factory, editor);
+            Collection<TrackTree> newTrees = tree.split(splitPoint.key, splitPoint.value, sm, assigner, factory, editor);
             if (newTrees!=null) return newTrees; // a correction has been performed
         }
 
