@@ -72,10 +72,11 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     EnumChoiceParameter<CONTACT_CRITERION> contactCriterion = new EnumChoiceParameter<>("Contact Criterion", CONTACT_CRITERION.values(), CONTACT_CRITERION.BACTERIA_POLE).setHint("Criterion for contact between two cells. Contact is used to solve over/under segmentation events, and can be use to handle cell division.<ul><li>CONTOUR_DISTANCE: edge-edges distance</li><li>BACTERIA_POLE: pole-pole distance</li></ul>");
     BoundedNumberParameter eccentricityThld = new BoundedNumberParameter("Eccentricity Threshold", 5, 0.87, 0, 1).setEmphasized(true).setHint("If eccentricity of the fitted ellipse is lower than this value, poles are not computed and the whole contour is considered for distance criterion. This allows to avoid looking for poles on circular objects such as small over-segmented objects<br/>Ellipse is fitted using the normalized second central moments");
     BoundedNumberParameter alignmentThld = new BoundedNumberParameter("Alignment Threshold", 5, 45, 0, 180).setEmphasized(true).setHint("Threshold for bacteria alignment. 0 = perfect alignment, X = allowed deviation from perfect alignment in degrees. 180 = no alignment constraint (cells are side by side)");
-    BoundedNumberParameter mergeDistThld = new BoundedNumberParameter("Merge Distance Threshold", 5, 3, 0, null).setEmphasized(true).setHint("If the distance between 2 objects is inferior to this threshold, a contact is considered. Distance type depends on the contact criterion");
+    BoundedNumberParameter contactDistThld = new BoundedNumberParameter("Distance Threshold", 5, 3, 0, null).setEmphasized(true).setHint("If the distance between 2 objects is inferior to this threshold, a contact is considered. Distance type depends on the contact criterion");
+    BoundedNumberParameter poleAngle = new BoundedNumberParameter("Pole Angle", 5, 45, 0, 90);
     ConditionalParameter<CONTACT_CRITERION> contactCriterionCond = new ConditionalParameter<>(contactCriterion).setEmphasized(true)
-            .setActionParameters(CONTACT_CRITERION.BACTERIA_POLE, eccentricityThld, alignmentThld, mergeDistThld)
-            .setActionParameters(CONTACT_CRITERION.CONTOUR_DISTANCE, mergeDistThld);
+            .setActionParameters(CONTACT_CRITERION.BACTERIA_POLE, eccentricityThld, alignmentThld, poleAngle, contactDistThld)
+            .setActionParameters(CONTACT_CRITERION.CONTOUR_DISTANCE, contactDistThld);
 
     // track post-processing
     BooleanParameter solveSplitAndMerge = new BooleanParameter("Solve Split / Merge events", true).setEmphasized(true);
@@ -381,16 +382,19 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         }
         logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
         // Look for merge links due to over segmentation at previous frame or under segmentation at current frame:
-        // case 1 : previous has sibling with interrupted branch at this frame
-        // case 2: idem as 1 but division is outside range. look for candidates in contact.
+        // case 1 : previous has sibling with interrupted branch at this frame + falls better into growth rate
+        // case 2: idem as 1 but either division is happened before first frame or under-segmentation at current frame. look for candidates in contact + falls better into growth rate
         // case 3 : one object has no prev (translated center falls between 2 divided objects)
 
         int searchDistLimit = mergeLinkDistanceThreshold.getIntValue();
         double noPrevThld = noPrevThreshold.getDoubleValue();
-        double mergeDistThld = this.mergeDistThld.getDoubleValue();
+        double mergeDistThld = this.contactDistThld.getDoubleValue();
         Map<Region, Object>[] contourMap = new Map[1];
         ToDoubleBiFunction<Region, Region> contactFun = contact(mergeDistThld, contourMap, divMap, true);
-
+        BiPredicate<SegmentedObject, SegmentedObject> contactFilter = (prev, prevCandidate) -> contactFun.applyAsDouble(prev.getRegion(), prevCandidate.getRegion())<=mergeDistThld;
+        double[] growthRate = this.growthRateRange.getValuesAsDouble();
+        DoublePredicate matchGr = gr -> gr>=growthRate[0] && gr<growthRate[1];
+        ToDoubleFunction<Double> grDist = gr -> matchGr.test(gr) ? Math.min(gr-growthRate[0], growthRate[1]-gr) : Math.min(Math.abs(growthRate[0]-gr), Math.abs(gr-growthRate[1]));
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
             List<SegmentedObject> cur = objectsF.get(f);
@@ -405,17 +409,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 if (cPrev!=null) { // case 1 / 2
                     List<SegmentedObject> divSiblings = getDivSiblings(cPrev, graph); // case 1
                     Stream<SegmentedObject> candidates;
-                    if (divSiblings.isEmpty()) { // case 2
+                    SegmentedObject prevTrackHead = graph.getTrackHead(cPrev);
+                    if (divSiblings.isEmpty() && prevTrackHead.getFrame() == minFrame) { // case 2
                         candidates = prevWithoutNext.stream()
-                            .map(o2 -> {
-                                double d = contactFun.applyAsDouble(cPrev.getRegion(), o2.getRegion());
-                                if (d<=mergeDistThld) return o2;
-                                else return null;
-                            })
-                            .filter(Objects::nonNull);
-                        List<SegmentedObject> cand = candidates.collect(Collectors.toList());
-                        //logger.debug("object: {} prev: {} prev in contact {}", c, cPrev, cand);
-                        candidates = cand.stream();
+                            .filter(o2 -> graph.getTrackHead(o2).getFrame() == minFrame) // candidate trackhead should be at minFrame
+                            .filter(o2 -> contactFilter.test(cPrev, o2));
+                        /*List<SegmentedObject> cand = candidates.collect(Collectors.toList());
+                        logger.debug("object: {} prev: {} prev in contact {}", c, cPrev, cand);
+                        candidates = cand.stream();*/
                     } else {
                         candidates = divSiblings.stream().filter(prevWithoutNext::contains);
                     }
@@ -424,7 +425,26 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                             .filter(o -> getDistanceToObject(centerTrans, o, searchDistLimit) <= searchDistLimit)
                             .collect(Collectors.toList());
                     //if (!divSiblings.isEmpty()) logger.debug("object: {} prev: {} div siblings {} with no next: {} to link: {}", c, cPrev, divSiblings, divSiblings.stream().filter(prevWithoutNext::contains).collect(Collectors.toList()), toLink);
-
+                    // check that it improves growth rate criterion
+                    double cSize = c.getRegion().size();
+                    double pSize = cPrev.getRegion().size();
+                    double newPSize = pSize + toLink.stream().mapToDouble(p->p.getRegion().size()).sum();
+                    double gr1 = cSize / pSize;
+                    double gr2 = cSize / newPSize;
+                    if (matchGr.test(gr1)) {
+                        if (matchGr.test(gr2)) {
+                            if (grDist.applyAsDouble(gr2)<grDist.applyAsDouble(gr1)) {
+                                logger.debug("growth rate check both inside range");
+                                toLink.clear(); // both fall within range but gr2 is closer to an edge
+                            }
+                        }
+                        else toLink.clear();
+                    } else {
+                        if (!matchGr.test(gr2) && grDist.applyAsDouble(gr2)>grDist.applyAsDouble(gr1)) {
+                            logger.debug("growth rate check both outside range");
+                            toLink.clear(); // both outside range but gr2 is worse
+                        }
+                    }
                 } else if (noPrevThld>0 && noPrevMap.get(c)<noPrevThld) { // case 3
                     toLink = prevWithoutNext.stream().filter(o -> getDistanceToObject(centerTrans, o, searchDistLimit)<=searchDistLimit)
                             .collect(Collectors.toList());
@@ -767,6 +787,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             case BACTERIA_POLE: {
                 double eccentricityThld = this.eccentricityThld.getDoubleValue();
                 double alignmentThld= this.alignmentThld.getDoubleValue();
+                double poleAngle = this.poleAngle.getDoubleValue();
                 Function<Region, Pair<FitEllipseShape.Ellipse, Set<? extends RealLocalizable>> > getPole = r -> {
                     FitEllipseShape.Ellipse ellipse = FitEllipseShape.fitShape(r);
                     double ecc = ellipse.getEccentricity();
@@ -775,10 +796,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     } else {
                         SymetricalPair<Point> polesTh = ellipse.getPoles();
                         Set<Voxel> contour = r.getContour();
-                        // get contour points closest to th poles
-                        Set<Point> poles = new HashSet<>(2);
-                        poles.add(Point.getClosest(polesTh.key, contour));
-                        poles.add(Point.getClosest(polesTh.value, contour));
+                        // get contour points within pole angle
+                        Vector dir = Vector.vector2D(polesTh.key, polesTh.value);
+                        Vector revDir = dir.duplicate().reverse();
+                        DoublePredicate isValid = angle -> Math.abs(angle)<=poleAngle;
+                        Set<Point> poles = contour.stream()
+                                .filter(v -> isValid.test(dir.angleXY(Vector.vector2D(polesTh.value, v))) ||
+                                        isValid.test(revDir.angleXY(Vector.vector2D(polesTh.key, v))))
+                                .map(v->Point.asPoint2D((Offset)v)).collect(Collectors.toSet());
                         return new Pair<>(ellipse, poles);
                     }
                 };
@@ -789,8 +814,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     Pair<FitEllipseShape.Ellipse, Set<? extends RealLocalizable>> pole1 = getContour.apply(r1);
                     Pair<FitEllipseShape.Ellipse, Set<? extends RealLocalizable>> pole2 = getContour.apply(r2);
                     if (pole1.key!=null && pole2.key!=null) { // test alignment of 2 dipoles
-                        SymetricalPair<Point> poles1 = new SymetricalPair<>((Point)pole1.value.iterator().next(), (Point)new ArrayList(pole1.value).get(1));
-                        SymetricalPair<Point> poles2 = new SymetricalPair<>((Point)pole2.value.iterator().next(), (Point)new ArrayList(pole2.value).get(1));
+                        SymetricalPair<Point> poles1 = pole1.key.getPoles();
+                        SymetricalPair<Point> poles2 = pole2.key.getPoles();
                         SymetricalPair<Point> closests = Point.getClosest(poles1, poles2);
                         SymetricalPair<Point> farthests = new SymetricalPair<>(Pair.getOther(poles1, closests.key), Pair.getOther(poles2, closests.value));
                         // test angle between dir of 1st bacteria and each pole
@@ -835,7 +860,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     }
 
     protected BiPredicate<Track, Track> gapBetweenTracks() {
-        BiPredicate<Region, Region> contact = (r1, r2) -> contact(mergeDistThld.getDoubleValue(), null, new HashMapGetCreate.HashMapGetCreateRedirected<>(r -> 0d), false).applyAsDouble(r1, r2)<=mergeDistThld.getDoubleValue();
+        BiPredicate<Region, Region> contact = (r1, r2) -> contact(contactDistThld.getDoubleValue(), null, new HashMapGetCreate.HashMapGetCreateRedirected<>(r -> 0d), false).applyAsDouble(r1, r2)<= contactDistThld.getDoubleValue();
         return (t1, t2) -> {
             for (int i = 0; i < t1.length(); ++i) {
                 SegmentedObject o2 = t2.getObject(t1.getObjects().get(i).getFrame());
@@ -959,7 +984,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
             if (ok) {
                 logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
-                tmi.setTrackLinks(map, editor, false);
+                tmi.setTrackLinks(map, editor, false, false);
                 nextTracks.forEach(n -> n.getPrevious().clear());
                 prevTracks.forEach(p -> p.getNext().clear());
                 nextTracks.forEach(n -> {
