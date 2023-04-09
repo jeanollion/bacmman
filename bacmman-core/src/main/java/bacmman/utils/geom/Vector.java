@@ -110,11 +110,14 @@ public class Vector extends Point<Vector> implements Comparable<Vector> {
         return Double.NaN;
     }
     /**
-     * Oriented angle in XY plane
+     * Oriented angle in XY plane in range (-pi, pi]
      * @return oriented angle of {@param v} relative to this vector 
      */
     public double angleXY(Vector v) {
-        return Math.atan2(v.coords[1], v.coords[0]) - Math.atan2(coords[1], coords[0]);
+        double angle = Math.atan2(v.coords[1], v.coords[0]) - Math.atan2(coords[1], coords[0]);
+        if (angle > Math.PI) angle -= 2 * Math.PI;
+        else if (angle <= -Math.PI) angle += 2 * Math.PI;
+        return angle;
     }
     public static Vector crossProduct3D(Vector u, Vector v) {
         return new Vector(

@@ -34,8 +34,13 @@ public class TrackLinkEditor {
 
     }
     public void setTrackLinks(SegmentedObject prev, SegmentedObject next, boolean setPrev, boolean setNext, boolean propagateTrackHead) {
+        setTrackLinks(prev, next, setPrev, setNext, true, propagateTrackHead);
+    }
+
+
+    public void setTrackLinks(SegmentedObject prev, SegmentedObject next, boolean setPrev, boolean setNext, boolean setTrackHead, boolean propagateTrackHead) {
         if (editableObjectClassIdx>=0 && ( (prev!=null && editableObjectClassIdx!=prev.getStructureIdx()) || (next!=null && editableObjectClassIdx!=next.getStructureIdx()))) throw new IllegalArgumentException("This object is not editable");
-        if (prev!=null) prev.setTrackLinks(next, setPrev, setNext, propagateTrackHead, modifiedObjects);
+        if (prev!=null) prev.setTrackLinks(next, setPrev, setNext, setTrackHead, propagateTrackHead, modifiedObjects);
         else if (next!=null && setPrev) {
             next.resetTrackLinks(true, false, propagateTrackHead, modifiedObjects);
         }

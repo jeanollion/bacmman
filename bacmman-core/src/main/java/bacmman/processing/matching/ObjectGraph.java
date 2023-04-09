@@ -74,9 +74,9 @@ public class ObjectGraph<S extends GraphObject<S>> {
         };
     }
     public Set<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor) {
-        return setTrackLinks(objectsF, editor, true);
+        return setTrackLinks(objectsF, editor, true, true);
     }
-    public Set<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean propagateTrackHead) {
+    public Set<SymetricalPair<SegmentedObject>> setTrackLinks(Map<Integer, List<SegmentedObject>> objectsF, TrackLinkEditor editor, boolean setTrackHead, boolean propagateTrackHead) {
         if (objectsF==null || objectsF.isEmpty()) return Collections.emptySet();
         List<SegmentedObject> objects = Utils.flattenMap(objectsF);
         int minF = objectsF.keySet().stream().min(Comparator.comparingInt(i -> i)).get();
@@ -90,17 +90,19 @@ public class ObjectGraph<S extends GraphObject<S>> {
         // set links
 
         TreeSet<DefaultWeightedEdge> edgeBucket = new TreeSet<>(edgeComparator());
-        setEdges(objects, objectsF, false, edgeBucket, editor, additionalLinks);
-        setEdges(objects, objectsF, true, edgeBucket, editor, additionalLinks);
-        Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
-        for (SegmentedObject so : objects) {
-            if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
-                editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, propagateTrackHead);
-            else editor.setTrackHead(so, so, false, propagateTrackHead);
+        setEdges(objects, objectsF, false, setTrackHead, edgeBucket, editor, additionalLinks);
+        setEdges(objects, objectsF, true, setTrackHead, edgeBucket, editor, additionalLinks);
+        if (setTrackHead) {
+            Collections.sort(objects, Comparator.comparingInt(SegmentedObject::getFrame));
+            for (SegmentedObject so : objects) {
+                if (so.getPrevious() != null && so.equals(so.getPrevious().getNext()))
+                    editor.setTrackHead(so, so.getPrevious().getTrackHead(), false, propagateTrackHead);
+                else editor.setTrackHead(so, so, false, propagateTrackHead);
+            }
         }
         return additionalLinks;
     }
-    private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor, Set<SymetricalPair<SegmentedObject>> additionalLinks) {
+    private void setEdges(List<SegmentedObject> objects, Map<Integer, List<SegmentedObject>> objectsByF, boolean prev, boolean setTrackHead, TreeSet<DefaultWeightedEdge> edgesBucket, TrackLinkEditor editor, Set<SymetricalPair<SegmentedObject>> additionalLinks) {
         for (SegmentedObject o : objects) {
             edgesBucket.clear();
             //logger.debug("settings links for: {}", child);
@@ -115,11 +117,11 @@ public class ObjectGraph<S extends GraphObject<S>> {
                     if (prev) {
                         if (o.getPrevious()!=null && !o.getPrevious().equals(other)) {
                             logger.error("warning: {} has already a previous assigned: {}, cannot assign: {}", o, o.getPrevious(), other);
-                        } else editor.setTrackLinks(other, o, true, false, false);
+                        } else editor.setTrackLinks(other, o, true, false, setTrackHead, false);
                     } else {
                         if (o.getNext()!=null && !o.getNext().equals(other)) {
                             logger.error("warning: {} has already a next assigned: {}, cannot assign: {}", o, o.getNext(), other);
-                        } else editor.setTrackLinks(o, other, false, true, false);
+                        } else editor.setTrackLinks(o, other, false, true, setTrackHead, false);
                     }
                 }
                 //else logger.warn("SpotWrapper: next: {}, next of {}, has already a previous assigned: {}", nextSo, child, nextSo.getPrevious());

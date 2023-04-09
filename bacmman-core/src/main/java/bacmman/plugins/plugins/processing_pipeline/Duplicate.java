@@ -149,9 +149,9 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
             // copy track links
             sourceMapDup.forEach((key, value) -> {
                 if (key.getNext() != null)
-                    editor.setTrackLinks(value, sourceMapDup.get(key.getNext()), false, true, false);
+                    editor.setTrackLinks(value, sourceMapDup.get(key.getNext()), false, true, false, false);
                 if (key.getPrevious() != null)
-                    editor.setTrackLinks(sourceMapDup.get(key.getPrevious()), value, true, false, false);
+                    editor.setTrackLinks(sourceMapDup.get(key.getPrevious()), value, true, false, false, false);
             });
             // sets trackHeads afterwards because trackHeads depend on the order of the previous operation
             // as some source objects may not have duplicated objects trackHeads are computed de novo

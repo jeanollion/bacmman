@@ -88,7 +88,7 @@ public class SegmentedObjectUtils {
         SegmentedObject trackHead = track.get(0).getTrackHead();
         SegmentedObject prev = null;
         for (SegmentedObject o : track) {
-            o.setTrackHead(trackHead, false);
+            o.setTrackHead(trackHead, false, false, null);
             if (prev!=null) {
                 o.setPrevious(prev);
                 prev.setNext(o);
@@ -459,27 +459,29 @@ public class SegmentedObjectUtils {
     }
     
     // duplicate objects 
-    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, boolean children, boolean parents, boolean generateNewId) {
+    private static SegmentedObject duplicateWithChildrenAndParents(SegmentedObject o, ObjectDAO newDAO, Map<String, SegmentedObject> sourceToDupMap, Map<String, SegmentedObject> dupToSourceMap, boolean children, boolean parents, boolean generateNewId) {
         o.loadAllChildren(false);
         SegmentedObject res=o.duplicate(generateNewId, true, true);
-        if (sourceToDupMap!=null) sourceToDupMap.put(o.getId(), res);
+        sourceToDupMap.put(o.getId(), res);
+        dupToSourceMap.put(res.getId(), o);
         if (children) {
             for (int cIdx : o.getExperiment().experimentStructure.getAllDirectChildStructures(o.structureIdx)) {
                 List<SegmentedObject> c = o.childrenSM.get(cIdx);
-                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, true, false, generateNewId)), cIdx);
+                if (c!=null) res.setChildren(Utils.transform(c, oo->duplicateWithChildrenAndParents(oo, newDAO, sourceToDupMap, dupToSourceMap, true, false, generateNewId)), cIdx);
             }
         }
         if (parents && !o.isRoot() && res.getParent()!=null) { // duplicate all parents until roots
             SegmentedObject current = o;
             SegmentedObject currentDup = res;
             while (!current.isRoot() && current.getParent()!=null) {
-                SegmentedObject pDup = current.getParent().duplicate(generateNewId, true, true);
-                if (sourceToDupMap!=null) sourceToDupMap.put(current.getParent().getId(), pDup);
-                pDup.dao=newDAO;
-                currentDup.setParent(pDup);
-                ArrayList<SegmentedObject> pCh = new ArrayList<>(1);
-                pCh.add(currentDup);
-                pDup.setChildren(pCh, currentDup.structureIdx);
+                SegmentedObject pDup = sourceToDupMap.get(current.getParent().id);
+                if (pDup==null) {
+                    pDup = current.getParent().duplicate(generateNewId, true, true);
+                    sourceToDupMap.put(current.getParent().getId(), pDup);
+                    dupToSourceMap.put(pDup.getId(), current.getParent());
+                    pDup.dao=newDAO;
+                }
+                pDup.addChildren(currentDup, currentDup.structureIdx); // also set parent
                 current = current.getParent();
                 currentDup = pDup;
             }
@@ -496,7 +498,7 @@ public class SegmentedObjectUtils {
         if (track==null) return null;
         if (track.isEmpty()) return Collections.EMPTY_MAP;
         // transform track to root track in order to include indirect children
-        track = track.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
+        if (includeChildren) track = track.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         // load trackImages if existing (on duplicated objects trackHead can be changed and trackImage won't be loadable anymore)
         Experiment xp = track.get(0).getExperiment();
         Map<Integer, List<Integer>> directChildren = HashMapGetCreate.getRedirectedMap(xp.experimentStructure::getAllDirectChildStructures, HashMapGetCreate.Syncronization.SYNC_ON_MAP);
@@ -513,12 +515,13 @@ public class SegmentedObjectUtils {
         }
 
         // create basic dao for duplicated objects
-        Map<String, SegmentedObject> dupMap = new HashMap<>();
+        Map<String, SegmentedObject> dupMap = new HashMap<>(); // maps original ID to new object
+        Map<String, SegmentedObject> revDupMap = new HashMap<>(); // maps new ID to old object
         BasicMasterDAO mDAO = new BasicMasterDAO(new SegmentedObjectAccessor());
         mDAO.setExperiment(track.get(0).getExperiment());
         BasicObjectDAO dao = mDAO.getDao(track.get(0).getPositionName());
         
-        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, includeChildren, true, generateNewId));
+        List<SegmentedObject> dup = Utils.transform(track, oo->duplicateWithChildrenAndParents(oo, dao, dupMap, revDupMap, includeChildren, true, generateNewId));
         List<SegmentedObject> rootTrack = dup.stream().map(SegmentedObject::getRoot).distinct().sorted().collect(Collectors.toList());
         dao.setRoots(rootTrack);
         
@@ -528,15 +531,23 @@ public class SegmentedObjectUtils {
             if (o.nextId!=null) o.setNext(dupMap.get(o.nextId));
         }
         // update trackHeads && trackImages
+
         for (SegmentedObject o : dupMap.values()) {
-            if (o.isTrackHead()) {
-                o.setTrackHead(o, false);
+            if (o.isTrackHead) {
+                o.trackImagesC=revDupMap.get(o.id).trackImagesC.duplicate();
                 continue;
             }
-            SegmentedObject th = o;
-            while(!th.isTrackHead && th.getPrevious()!=null) th=th.getPrevious();
-            th.trackImagesC=th.getTrackHead().trackImagesC.duplicate();
-            o.setTrackHead(th, false);
+            SegmentedObject th = dupMap.get(o.trackHeadId);
+            if (th==null) { // trackhead is out-of-range
+                SegmentedObject oTh = revDupMap.get(o.id).getTrackHead();
+                th = dup.get(0).getChildren(o.getStructureIdx()).filter(oo -> oo.trackHeadId.equals(o.trackHeadId)).findAny().orElseThrow(() -> new IllegalArgumentException("No trackhead for object :" + o));
+                th.setTrackHead(null, true, true, null);
+            } else {
+                if (!th.isTrackHead) logger.error("current th is not th: o={}, th={}, original th: {} -> is th: {}", o, th, revDupMap.get(o.id).getTrackHead(), revDupMap.get(o.id).getTrackHead().isTrackHead);
+                o.setTrackHead(th, false, false, null);
+            }
+            if (th.equals(o)) th.trackImagesC=revDupMap.get(th.id).getTrackHead().trackImagesC.duplicate();
+
         }
         // update parent trackHeads
         for (SegmentedObject o : dupMap.values()) {

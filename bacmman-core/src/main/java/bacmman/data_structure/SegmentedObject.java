@@ -364,6 +364,17 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         this.childrenSM.set(children, structureIdx);
         if (children!=null) children.forEach(o -> o.setParent(this));
     }
+
+    void addChildren(SegmentedObject child, int structureIdx) {
+        List<SegmentedObject> children = this.childrenSM.get(structureIdx);
+        if (children==null) {
+            children = new ArrayList<>();
+            this.childrenSM.set(children, structureIdx);
+        }
+        children.add(child);
+        children.sort(SegmentedObject::compareTo);
+        child.setParent(this);
+    }
     
     List<SegmentedObject> setChildrenObjects(RegionPopulation population, int structureIdx, boolean relabel) {
         if (!getExperiment().experimentStructure.isDirectChildOf(this.structureIdx, structureIdx)) throw new IllegalArgumentException("Set children object call with non-direct child object class");
@@ -408,10 +419,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
     
     // track-related methods
     void setTrackLinks(SegmentedObject next, boolean setPrev, boolean setNext) {
-        setTrackLinks(next, setPrev, setNext, false, null);
+        setTrackLinks(next, setPrev, setNext, true, false, null);
     }
-    void setTrackLinks(SegmentedObject next, boolean setPrev, boolean setNext, boolean propagate, Collection<SegmentedObject> modifiedObjects) {
-        if (next==null) resetTrackLinks(setPrev, setNext, propagate, modifiedObjects);
+    void setTrackLinks(SegmentedObject next, boolean setPrev, boolean setNext, boolean setTrackHead, boolean propagateTrackHead, Collection<SegmentedObject> modifiedObjects) {
+        if (next==null) resetTrackLinks(setPrev, setNext, propagateTrackHead, modifiedObjects);
         else {
             if (next.getFrame()<=this.getFrame()) throw new RuntimeException("setLink previous after next!");
             if (setPrev && setNext) { // double link: set trackHead
@@ -421,7 +432,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                 }
                 if (!this.equals(next.getPrevious()) || !getTrackHead().equals(next.getTrackHead())) {
                     next.setPrevious(this);
-                    next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
+                    next.setTrackHead(getTrackHead(), false, propagateTrackHead, modifiedObjects);
                     if (modifiedObjects!=null) modifiedObjects.add(next);
                 }
             } else if (setPrev) {
@@ -430,17 +441,18 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                     next.setPrevious(this);
                     nextModified=true;
                 }
-                if (!next.equals(this.getNext())) {
-                    if (!next.equals(next.getTrackHead())) {
-                        next.setTrackHead(next, false, propagate, modifiedObjects);
+                if (setTrackHead) {
+                    if (!next.equals(this.getNext())) {
+                        if (!next.equals(next.getTrackHead())) {
+                            next.setTrackHead(next, false, propagateTrackHead, modifiedObjects);
+                            nextModified = true;
+                        }
+                    } else if (next.getTrackHead() != getTrackHead()) {
+                        next.setTrackHead(getTrackHead(), false, propagateTrackHead, modifiedObjects);
                         nextModified = true;
                     }
-                } else if (next.getTrackHead()!=getTrackHead()) {
-                    next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
-                    nextModified=true;
                 }
                 if (modifiedObjects!=null && nextModified) {
-
                     modifiedObjects.add(next);
                 }
             } else if (setNext) {
@@ -449,14 +461,16 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                     setNext(next);
                     modified = true;
                 }
-                if (!this.equals(next.getPrevious())) {
-                    if (!next.equals(next.getTrackHead())) {
-                        next.setTrackHead(next, false, propagate, modifiedObjects);
+                if (setTrackHead) {
+                    if (!this.equals(next.getPrevious())) {
+                        if (!next.equals(next.getTrackHead())) {
+                            next.setTrackHead(next, false, propagateTrackHead, modifiedObjects);
+                            modified = true;
+                        }
+                    } else if (next.getTrackHead() != getTrackHead()) {
+                        next.setTrackHead(getTrackHead(), false, propagateTrackHead, modifiedObjects);
                         modified = true;
                     }
-                } else if (next.getTrackHead()!=getTrackHead()) {
-                    next.setTrackHead(getTrackHead(), false, propagate, modifiedObjects);
-                    modified = true;
                 }
                 if (modified && modifiedObjects!=null) {
                     modifiedObjects.add(this);
@@ -616,7 +630,7 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         else return false;
     }
     /**
-     * Whether this element is the first of the track it is contain in
+     * Whether this element is the first of the track it is contained in
      * @return
      */
     public boolean isTrackHead() {return this.isTrackHead;}
@@ -636,12 +650,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         }
         return this;
     }
-    SegmentedObject setTrackHead(SegmentedObject trackHead, boolean resetPreviousIfTrackHead) {
-        return setTrackHead(trackHead, resetPreviousIfTrackHead, false, null);
-    }
     
     SegmentedObject setTrackHead(SegmentedObject trackHead, boolean resetPreviousIfTrackHead, boolean propagateToNextObjects, Collection<SegmentedObject> modifiedObjects) {
         if (trackHead==null) trackHead=this;
+        else if (!trackHead.equals(this) && !trackHead.isTrackHead) {
+            throw new IllegalArgumentException("Set TrackHead called with non-trackhead element");
+        }
         if (resetPreviousIfTrackHead && this.equals(trackHead) && previous!=null && previous.next==this) {
             previous.setNext(null);
             if (modifiedObjects!=null) modifiedObjects.add(previous);

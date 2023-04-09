@@ -66,7 +66,7 @@ public interface TrackAssigner {
                 tmi.processSegments(dMax, 1, true, true);
                 if (ok) {
                     //logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
-                    tmi.setTrackLinks(map, editor, false);
+                    tmi.setTrackLinks(map, editor, false, false);
                     nextTracks.forEach(n -> n.getPrevious().clear());
                     prevTracks.forEach(p -> p.getNext().clear());
                     nextTracks.forEach(n -> {
