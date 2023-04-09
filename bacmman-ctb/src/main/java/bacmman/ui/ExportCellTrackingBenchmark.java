@@ -111,7 +111,7 @@ public class ExportCellTrackingBenchmark {
         }
         boolean exportTrainingSet = exportMode.equals(MODE.GOLD_TRUTH) || exportMode.equals(MODE.SILVER_TRUTH);
         boolean silverTruth = exportMode.equals(MODE.SILVER_TRUTH);
-        boolean exportRaw = !exportMode.equals(MODE.RESULTS);
+        boolean exportRaw = !exportMode.equals(MODE.RESULTS_AND_RAW);
         // write label images
         int padding = parentTrack.size()>=1000 ? 4 : 3;
         String procDir = rawDir + (exportTrainingSet ? (silverTruth? "_ST" : "_GT") : "_RES");
