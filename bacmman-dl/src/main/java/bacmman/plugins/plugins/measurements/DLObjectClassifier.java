@@ -7,8 +7,6 @@ import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.SegmentedObjectUtils;
 import bacmman.image.Image;
-import bacmman.image.io.ImageFormat;
-import bacmman.image.io.ImageWriter;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
@@ -16,7 +14,6 @@ import bacmman.plugins.DLengine;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
 import bacmman.plugins.MultiThreaded;
-import bacmman.processing.EDT;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Utils;
@@ -27,12 +24,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class DLObjetClassifier implements Measurement, Hint, MultiThreaded {
+public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
     protected ObjectClassParameter objects = new ObjectClassParameter("Objects", -1, false, false).setHint("Objects to perform measurement on");
     protected ObjectClassParameter channels = new ObjectClassParameter("Channels", -1, true, true).setHint("Channels images that will be fed to the neural network. If no channel is selected, the channel of the <em>Objects</em> parameter will be used");
     BooleanParameter proba = new BooleanParameter("Export All Probabilities", false).setHint("If true, probabilities for each class are returned");
