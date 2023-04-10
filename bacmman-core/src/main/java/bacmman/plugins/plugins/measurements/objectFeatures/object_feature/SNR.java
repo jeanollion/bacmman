@@ -132,7 +132,7 @@ public class SNR extends IntensityMeasurement implements Hint {
                 Region oDil = o;
                 if (dilRad>0)  {
                     ImageInteger oMask = o.getMaskAsImageInteger();
-                    oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilRad, dilRadZ, oMask), false, true, false);
+                    oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilRad, dilRadZ, oMask), true, false);
                     oDil = new Region(oMask, o.getLabel(), o.is2D()).setIsAbsoluteLandmark(o.isAbsoluteLandMark());
                 }
                 backgroundMapForeground.getAndCreateIfNecessary(p).add(new SymetricalPair<>(o, oDil));
@@ -147,7 +147,7 @@ public class SNR extends IntensityMeasurement implements Hint {
                 ImageInteger mask = backgroundRegion.getMask() instanceof ImageInteger ? backgroundRegion.getMaskAsImageInteger().duplicate() : backgroundRegion.getMaskAsImageInteger();
                 for (Pair<Region, Region> o : backgroundMapForeground.get(backgroundRegion)) o.value.draw(mask, 0, foregroundOffset);// was with offset: absolute = 0 / relative = parent
                 if (erodeRad>0) {
-                    ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeRad, erodeRadZ, mask), true, false);
+                    ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeRad, erodeRadZ, mask), false);
                     if (maskErode.count()>0) mask = maskErode;
                 }
                 Region modifiedBackgroundRegion = new Region(mask, backgroundRegion.getLabel(), backgroundRegion.is2D()).setIsAbsoluteLandmark(true);

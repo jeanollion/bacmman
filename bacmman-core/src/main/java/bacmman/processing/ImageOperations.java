@@ -1012,7 +1012,7 @@ public class ImageOperations {
      * @return dilatedMask
      */
     public static ImageByte getDilatedMask(ImageInteger image, double radiusXY, double radiusZ, ImageInteger mask, boolean keepOnlyDilatedPart, boolean parallele) {
-        ImageByte dilatedMask = Filters.binaryMax(image, new ImageByte("", 0, 0, 0), Filters.getNeighborhood(radiusXY, radiusZ, image), false, true, parallele);
+        ImageByte dilatedMask = Filters.binaryMax(image, new ImageByte("", 0, 0, 0), Filters.getNeighborhood(radiusXY, radiusZ, image), true, parallele);
         if (keepOnlyDilatedPart) {
             ImageOperations.xorWithOffset(dilatedMask, image, dilatedMask);
         }

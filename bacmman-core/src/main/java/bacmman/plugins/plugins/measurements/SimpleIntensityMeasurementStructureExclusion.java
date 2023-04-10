@@ -100,7 +100,7 @@ public class SimpleIntensityMeasurementStructureExclusion implements Measurement
         Stream<SegmentedObject> children = parent.getChildren(excludeStructureIdx);
         ImageByte mask  = TypeConverter.toByteMask(parent.getMask(), null, 1).setName("mask:");
         if (erodeObjectRaduis>0) {
-            ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeObjectRaduis, mask), true, false);
+            ImageByte maskErode = Filters.binaryMin(mask, null, Filters.getNeighborhood(erodeObjectRaduis, mask), false);
             //if (maskErode.count()>0) mask = maskErode;
             mask = maskErode;
         }
@@ -109,7 +109,7 @@ public class SimpleIntensityMeasurementStructureExclusion implements Measurement
             Region ob = o.getRegion();
             if (dilateExcludeRadius>0)  {
                 ImageInteger oMask = o.getRegion().getMaskAsImageInteger();
-                oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilateExcludeRadius, oMask), false, true, false);
+                oMask = Filters.binaryMax(oMask, null, Filters.getNeighborhood(dilateExcludeRadius, oMask), true, false);
                 ob = new Region(oMask, 1, ob.is2D());
             }
             ob.draw(m, 0, null);

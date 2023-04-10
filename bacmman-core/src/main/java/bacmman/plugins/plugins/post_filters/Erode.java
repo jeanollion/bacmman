@@ -70,7 +70,7 @@ public class Erode implements PostFilter, MultiThreaded, Hint {
         childPopulation.ensureEditableRegions();
         for (Region o : childPopulation.getRegions()) {
             ImageInteger min = edt? TypeConverter.maskToImageInteger(BinaryMorphoEDT.binaryErode(o.getMask(), radius, radiusZ, parallel), null)
-                    : Filters.binaryMin(o.getMaskAsImageInteger(), null, n, false, parallel);
+                    : Filters.binaryMin(o.getMaskAsImageInteger(), null, n, parallel);
             o.setMask(min);
             o.resetMask(); // bounds can differ
         }

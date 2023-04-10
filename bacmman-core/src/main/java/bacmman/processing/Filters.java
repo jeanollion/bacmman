@@ -67,13 +67,13 @@ public class Filters {
         return applyFilter(image, output, new Min(), neighborhood, parallele);
     }
     
-    public static <T extends ImageInteger<T>, I extends ImageInteger<I>> T binaryMax(I image, T output, Neighborhood neighborhood, boolean outOfBoundIsNonNull, boolean extendImage, boolean parallele) {
+    public static <T extends ImageInteger<T>, I extends ImageInteger<I>> T binaryMax(I image, T output, Neighborhood neighborhood, boolean extendImage, boolean parallele) {
         if (extendImage) image =  image.extend(neighborhood.getBoundingBox());
-        return applyFilter(image, output, new BinaryMax(outOfBoundIsNonNull), neighborhood, parallele);
+        return applyFilter(image, output, new BinaryMax(false), neighborhood, parallele);
     }
     
-    public static <T extends ImageInteger<T>> T binaryMin(ImageInteger image, T output, Neighborhood neighborhood, boolean outOfBoundIsNull, boolean parallele) {
-        return applyFilter(image, output, new BinaryMin(outOfBoundIsNull), neighborhood, parallele);
+    public static <T extends ImageInteger<T>> T binaryMin(ImageInteger image, T output, Neighborhood neighborhood, boolean parallele) {
+        return applyFilter(image, output, new BinaryMin(true), neighborhood, parallele);
     }
     
     public static <T extends Image<T>> T open(Image image, T output, Neighborhood neighborhood, boolean parallele) {
@@ -97,12 +97,12 @@ public class Filters {
         MutableBoundingBox extent = neighborhood.getBoundingBox();
         T resized =  image.extend(extent);
         ImageByte max = applyFilter(resized, new ImageByte("", 0, 0, 0), new BinaryMax(false), neighborhood, parallele);
-        T min = applyFilter(max, resized, new BinaryMin(false), neighborhood, parallele);
+        T min = applyFilter(max, resized, new BinaryMin(true), neighborhood, parallele);
         return min.crop(image.getBoundingBox().resetOffset().translate(extent.duplicate().reverseOffset()));
     }
     public static <T extends ImageInteger<T>> T binaryClose(ImageInteger image, T output, Neighborhood neighborhood, boolean parallele) {
         ImageByte max = applyFilter(image, new ImageByte("", 0, 0, 0), new BinaryMax(false), neighborhood, parallele);
-        return applyFilter(max, output, new BinaryMin(false), neighborhood, parallele);
+        return applyFilter(max, output, new BinaryMin(true), neighborhood, parallele);
     }
     /*public static <T extends ImageInteger> T labelWiseBinaryCloseExtend(T image, Neighborhood neighborhood) {
         BoundingBox extent = neighborhood.getBoundingBox();
@@ -446,6 +446,9 @@ public class Filters {
         public BinaryMin(boolean outOfBoundIsNull) {
             this.outOfBoundIsNull=outOfBoundIsNull;
         }
+        public BinaryMin() {
+            this.outOfBoundIsNull=true;
+        }
         @Override public BinaryMin duplicate() {
             return new BinaryMin(outOfBoundIsNull);
         }
@@ -456,6 +459,9 @@ public class Filters {
     }
     public static class BinaryMax extends Filter {
         final boolean outOfBoundIsNonNull;
+        public BinaryMax() {
+            this.outOfBoundIsNonNull=false;
+        }
         public BinaryMax(boolean outOfBoundIsNonNull) {
             this.outOfBoundIsNonNull=outOfBoundIsNonNull;
         }
