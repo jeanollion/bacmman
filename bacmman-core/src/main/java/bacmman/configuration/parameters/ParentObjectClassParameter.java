@@ -69,6 +69,7 @@ public class ParentObjectClassParameter extends ObjectClassParameterAbstract<Par
         }
         if (maxStructure<=0) autoConfiguration();
         if (maxStructure<=0) return new String[]{};
+        if (maxStructure>choices.length) maxStructure = choices.length;
         String[] res = new String[maxStructure];
         System.arraycopy(choices, 0, res, 0, maxStructure);
         return res;
