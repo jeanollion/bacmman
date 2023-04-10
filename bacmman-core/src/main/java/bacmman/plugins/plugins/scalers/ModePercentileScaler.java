@@ -10,6 +10,8 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
+
 public class ModePercentileScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center, scale;
@@ -17,12 +19,19 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
     BoundedNumberParameter modeExcludeEdgeLeft = new BoundedNumberParameter("Exclude Mode at Left Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow left edge, or a value >0 represent the number of bins to exclude at the left edge");
     BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
     boolean transformInputImage = false;
+    Consumer<String> scaleLogger;
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {this.scaleLogger=logger;}
+    protected void log(double[] scaleCenter) {
+        if (scaleLogger!=null) scaleLogger.accept("ModePercentile Scaler : mode="+scaleCenter[1]+", percentile="+(scaleCenter[1]+ 1./scaleCenter[0]) + ", scale="+scaleCenter[0]);
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
         double[] scale_center = getScaleCenter(histogram);
         this.scale = scale_center[0];
         this.center = scale_center[1];
+        log(scale_center);
         //logger.debug("ModePercentile scaler: center: {}, percentile: {} scale {}", center, center+ 1./scale, 1./scale);
     }
     public double[] getScaleCenter(Histogram histogram) {
@@ -37,6 +46,7 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
         if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scale, -center);
         else { // perform on single image
             double[] scale_center = getScaleCenter(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            log(scale_center);
             return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scale_center[0], -scale_center[1]);
         }
     }

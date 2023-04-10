@@ -10,12 +10,19 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 public class MeanSdScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double mean, sd;
     boolean transformInputImage = false;
+    Consumer<String> scaleLogger;
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {this.scaleLogger=logger;}
+    protected void log(double[] meanSd) {
+        if (scaleLogger!=null) scaleLogger.accept("MeanSd Scaler : center="+meanSd[0]+", sd="+meanSd[1]);
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
@@ -23,6 +30,7 @@ public class MeanSdScaler implements HistogramScaler, Hint {
         this.mean=meanSd[0];
         this.sd = meanSd[1];
         logger.debug("Mean SD scaler: mean: {}, sd: {}", mean, sd);
+        log(meanSd);
     }
     public static double[] getMeanSd(Histogram histogram) {
         double total = histogram.count();
@@ -35,6 +43,7 @@ public class MeanSdScaler implements HistogramScaler, Hint {
         if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1 / sd, -mean);
         else { // perform on single image
             double[] meanSd = ImageOperations.getMeanAndSigma(image, null, null, false);
+            log(meanSd);
             return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1/meanSd[1], -meanSd[0]);
         }
     }

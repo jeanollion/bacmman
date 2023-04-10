@@ -9,6 +9,7 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 public class ModeSdScaler implements HistogramScaler, Hint {
@@ -18,15 +19,22 @@ public class ModeSdScaler implements HistogramScaler, Hint {
     BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
 
     boolean transformInputImage = false;
+    Consumer<String> scaleLogger;
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {this.scaleLogger=logger;}
+    protected void log(double[] meanSD) {
+        if (scaleLogger!=null) scaleLogger.accept("Mean SD Scaler : mean="+meanSD[0]+", SD="+meanSD[1]);
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
-        double[] meanSd = getModeSd(histogram, modeExcludeEdgeLeft.getIntValue(), modeExcludeEdgeRight.getIntValue());
+        double[] meanSd = getMeanSd(histogram, modeExcludeEdgeLeft.getIntValue(), modeExcludeEdgeRight.getIntValue());
         this.mode=meanSd[0];
         this.sd = meanSd[1];
-        logger.debug("Mean SD scaler: mode: {}, sd: {}", mode, sd);
+        log(meanSd);
+        //logger.debug("Mean SD scaler: mode: {}, sd: {}", mode, sd);
     }
-    public static double[] getModeSd(Histogram histogram, int excludeLeft, int excludeRight) {
+    public static double[] getMeanSd(Histogram histogram, int excludeLeft, int excludeRight) {
         double total = histogram.count();
         double mean = IntStream.range(0, histogram.getData().length).mapToDouble(i->histogram.getValueFromIdx(i) * histogram.getData()[i]).sum() / total;
         double sd = IntStream.range(0, histogram.getData().length).mapToDouble(i-> Math.pow(histogram.getValueFromIdx(i) - mean, 2) * histogram.getData()[i]).sum() / total;
@@ -37,8 +45,9 @@ public class ModeSdScaler implements HistogramScaler, Hint {
     public Image scale(Image image) {
         if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1 / sd, -mode);
         else { // perform on single image
-            double[] modeSd = ImageOperations.getMeanAndSigma(image, null, null, false);
-            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1/modeSd[1], -modeSd[0]);
+            double[] meanSd = ImageOperations.getMeanAndSigma(image, null, null, false);
+            log(meanSd);
+            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1/meanSd[1], -meanSd[0]);
         }
     }
 

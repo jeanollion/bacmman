@@ -9,6 +9,8 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
+
 public class ConstantScaler implements HistogramScaler, Hint {
     boolean transformInputImage = false;
     NumberParameter scale = (NumberParameter)new NumberParameter("Scale factor", 5, 1).addValidationFunction(n->((NumberParameter)n).getValue().doubleValue()!=0).setEmphasized(true);
@@ -17,6 +19,8 @@ public class ConstantScaler implements HistogramScaler, Hint {
     public void setHistogram(Histogram histogram) {
 
     }
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {}
 
     @Override
     public Image scale(Image image) {

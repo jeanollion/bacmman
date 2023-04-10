@@ -10,11 +10,19 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
+
 public class IQRScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center, scale, IQR;
     IntervalParameter quantiles = new IntervalParameter("Quantiles", 3, 0, 1, 0.05, 0.5, 0.95).setHint("IQR = (3rd value - 1st value), center is 2nd value").setEmphasized(true);
     boolean transformInputImage = false;
+    Consumer<String> scaleLogger;
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {this.scaleLogger=logger;}
+    protected void log(double[] IQR_scale_center) {
+        if (scaleLogger!=null) scaleLogger.accept("IQR Scaler : center="+IQR_scale_center[2]+", scale="+IQR_scale_center[1]+", IQR="+IQR_scale_center[0]);
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
@@ -23,6 +31,7 @@ public class IQRScaler implements HistogramScaler, Hint {
         this.scale = IQR_scale_center[1];
         this.center = IQR_scale_center[2];
         logger.debug("IQR scaler: center: {}, IQR: {}", center, IQR);
+        log(IQR_scale_center);
     }
     public double[] getIQR_Scale_Center(Histogram histogram) {
         double[] quantiles = histogram.getQuantiles(this.quantiles.getValuesAsDouble());
@@ -36,6 +45,7 @@ public class IQRScaler implements HistogramScaler, Hint {
         if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, -center);
         else { // perform on single image
             double[] IQR_scale_center = getIQR_Scale_Center(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            log(IQR_scale_center);
             return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, IQR_scale_center[1], -IQR_scale_center[2]);
         }
     }

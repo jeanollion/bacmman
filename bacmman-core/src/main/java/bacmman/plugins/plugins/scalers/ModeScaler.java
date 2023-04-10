@@ -10,6 +10,8 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
+
 public class ModeScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double center;
@@ -18,11 +20,18 @@ public class ModeScaler implements HistogramScaler, Hint {
     BoundedNumberParameter modeExcludeEdgeRight = new BoundedNumberParameter("Exclude Mode at Right Tail", 0, 0, 0, null).setHint("In case of saturation, mode can be artificially at lower or higher tail of the distribution. Set 0 to allow right edge, or a value >0 represent the number of bins to exclude at the right edge");
 
     boolean transformInputImage = false;
+    Consumer<String> scaleLogger;
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {this.scaleLogger=logger;}
+    protected void log(double mode) {
+        if (scaleLogger!=null) scaleLogger.accept("Mode Scaler : mode="+mode+", scale="+1./range.getDoubleValue());
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
         this.center = histogram.getModeExcludingTailEnds(modeExcludeEdgeLeft.getIntValue(), modeExcludeEdgeRight.getIntValue());
-        logger.debug("ModePercentile scaler: center: {}, range: {}", center, range.getValue().doubleValue());
+        log(center);
+        //logger.debug("Mode scaler: center: {}, range: {}", center, range.getValue().doubleValue());
     }
 
     @Override
@@ -30,6 +39,7 @@ public class ModeScaler implements HistogramScaler, Hint {
         if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
         else { // perform on single image
             double center = HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS).getMode(); // TODO smooth ?
+            log(center);
             return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, 1./ range.getValue().doubleValue(), -center);
         }
     }

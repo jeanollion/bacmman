@@ -10,6 +10,7 @@ import bacmman.image.Image;
 import bacmman.plugins.Plugin;
 
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -18,12 +19,16 @@ public interface HistogramScaler extends Plugin {
     Image scale(Image image);
     Image reverseScale(Image image);
     boolean isConfigured();
+    void setScaleLogger(Consumer<String> logger);
     HistogramScaler transformInputImage(boolean transformInputImage);
     static HistogramScaler noScaling() {return new HistogramScaler.NoScaling();}
     class NoScaling implements HistogramScaler {
 
         @Override
         public void setHistogram(Histogram histogram) { }
+
+        @Override
+        public void setScaleLogger(Consumer<String> logger) {}
 
         @Override
         public Image scale(Image image) {

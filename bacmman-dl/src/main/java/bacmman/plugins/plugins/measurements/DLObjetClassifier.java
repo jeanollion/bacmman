@@ -49,7 +49,7 @@ public class DLObjetClassifier implements Measurement, Hint, MultiThreaded {
     EnumChoiceParameter<STAT> stat =  new EnumChoiceParameter<>("Quantification", STAT.values(), STAT.MEDIAN).setHint("Operation to reduce estimated probability in each segmented object");
     @Override
     public String getHintText() {
-        return "Runs a DL model fed with 1/ one or several channels and 2/ EDM of objects and that predicts a category for each objet";
+        return "Runs a DL model fed with one or several channels as well as the EDM of segmented objects; it predicts a category for each objet";
     }
 
     @Override
@@ -101,6 +101,7 @@ public class DLObjetClassifier implements Measurement, Hint, MultiThreaded {
                 .toArray(Image[][]::new);
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
+        dlResizeAndScale.setScaleLogger(Core::userLog); // TODO remove this.
         Image[][] predNC = dlResizeAndScale.predict(engine, chanImages, edm)[0];
         boolean allProba = this.proba.getSelected();
         if (allProba && predNC[0].length!=classNumber.getIntValue()) throw new RuntimeException("ClassNumber parameter differs from number of predicted classes: "+predNC[0].length);

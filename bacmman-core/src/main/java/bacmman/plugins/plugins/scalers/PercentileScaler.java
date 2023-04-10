@@ -11,19 +11,30 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HistogramScaler;
 import bacmman.processing.ImageOperations;
 
+import java.util.function.Consumer;
+
 public class PercentileScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double offset, scale;
     IntervalParameter percentile = new IntervalParameter("Min/Max Percentiles", 5, 0, 1, 0.01, 0.99).setEmphasized(true);
 
     boolean transformInputImage = false;
+    Consumer<String> scaleLogger;
+    @Override
+    public void setScaleLogger(Consumer<String> logger) {this.scaleLogger=logger;}
+    protected void log(double[] scaleOff) {
+        double scale = scaleOff[0];
+        double offset = scaleOff[1];
+        if (scaleLogger!=null) scaleLogger.accept("Percentiles Scaler : percentiles=["+(-offset)+"; "+(-offset+ 1./scale)+"] range="+(1./scale)+"scale="+scale);
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;
         double[] scaleOff = getScaleOffset(histogram);
         this.scale = scaleOff[0];
         this.offset = scaleOff[1];
-        //logger.debug("Percentile scaler: percentiles: [{} - {}] scale {}", -offset, -offset+ 1./scale, 1./scale);
+        log(scaleOff);
+        //logger.debug("Percentile scaler: percentiles: [{} - {}] scale {}", -offset, -offset+ 1./scale, scale);
     }
     public double[] getScaleOffset(Histogram histogram) {
         double[] min_max = histogram.getQuantiles(this.percentile.getValuesAsDouble());
@@ -36,6 +47,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
         if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else { // perform on single image
             double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
+            log(scaleOff);
             return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }
     }

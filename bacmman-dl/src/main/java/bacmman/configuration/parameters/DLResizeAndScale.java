@@ -16,6 +16,7 @@ import org.slf4j.LoggerFactory;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.IntSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -49,6 +50,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     SimpleListParameter<? extends Parameter> outputInterpAndScaling;
     SimpleListParameter<? extends Parameter> outputScaling;
     boolean noReverseScaling, singleOutput;
+    Consumer<String> scaleLogger;
     private void initOutput(boolean singleOutput, boolean noReverseScaling) {
         this.noReverseScaling=noReverseScaling;
         this.singleOutput = singleOutput;
@@ -87,7 +89,10 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         setConditionalParameter();
         setHint("Prepares input images for Deep Neural Network processing: resize & scale images <br /><ul><li>SCALE_ONLY: Only performs intensity scaling (no resizing is performed). Shape of all input image provided must be equal to be processed by the dl engine.</li><li>RESAMPLE: Resize all images to a fixed size that must be compatible with the network input requirements. Choose this option to make a prediction on the whole image.</li><li>PAD: expand image either to a fixed user-defined size, or to a size compatible with the contraction level of the network</li><li>TILE: image is split into tiles on which predictions are made. Tiles are re-assembled by averaging the overlapping part. To limit border effects, border defined by the <em>min overlap</em> parameter are removed before assembling tiles.</li></ul>");
     }
-
+    public DLResizeAndScale setScaleLogger(Consumer<String> scaleLogger) {
+        this.scaleLogger = scaleLogger;
+        return this;
+    }
     public DLResizeAndScale addInputNumberValidation(IntSupplier inputNumber) {
         inputInterpAndScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
         inputScaling.addValidationFunction(list -> list.getChildCount()==inputNumber.getAsInt());
@@ -307,6 +312,14 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         Image[][][] out = engine.process(in.v1);
         return processPrediction(out, in);
     }
+    private Supplier<HistogramScaler> setScaleLogger(Supplier<HistogramScaler> supplier) {
+        if (scaleLogger!=null) return () -> {
+            HistogramScaler scaler = supplier.get();
+            if (scaler!=null) scaler.setScaleLogger(scaleLogger);
+            return scaler;
+        };
+        else return supplier;
+    }
     public Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> getNetworkInput(Image[][][] inputINC) {
         switch (getMode()) {
             case SCALE_ONLY: {
@@ -316,7 +329,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
                     int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], ()->inputScaling.getChildAt(ii).instantiatePlugin(), scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), scaleFrameByFrame.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
@@ -332,7 +345,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 for (int i = 0; i < inputINC.length; ++i) {
                     PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> params = inputInterpAndScaling.getChildAt(i);
                     interpolsI[i] = params.getParam1().getInterpolation();
-                    scalerSuppliersI[i] = () -> params.getParam2().instantiatePlugin();
+                    scalerSuppliersI[i] = setScaleLogger(() -> params.getParam2().instantiatePlugin());
                 }
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
@@ -351,7 +364,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
                     int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), ()->inputScaling.getChildAt(ii).instantiatePlugin(), getTargetImageShape(inputINC[i], true), scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), getTargetImageShape(inputINC[i], true), scaleFrameByFrame.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
@@ -368,7 +381,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
                 for (int i = 0; i < inputINC.length; ++i) {
                     int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, ()->inputScaling.getChildAt(ii).instantiatePlugin(), tileShapeXYZ, minOverlapXYZ, scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), tileShapeXYZ, minOverlapXYZ, scaleFrameByFrame.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
