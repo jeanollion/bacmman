@@ -37,7 +37,7 @@ public class TestAlignment {
             if (Double.isNaN(ecc) || ellipse.getEccentricity()<0.5) {
                 return new Pair<>(null, r.getContour());
             } else {
-                SymetricalPair<Point> polesTh = ellipse.getPoles(r.getCenterOrGeomCenter());
+                SymetricalPair<Point> polesTh = ellipse.getPoles();
                 Set<Voxel> contour = r.getContour();
                 // get contour points closest to th poles
                 Set<Point> poles = new HashSet<>(4);
@@ -81,10 +81,10 @@ public class TestAlignment {
             SymetricalPair<Point> poles;
             Point center;
             if (pole1.key!=null) {
-                poles = pole1.key.getPoles(r1.getCenterOrGeomCenter());
+                poles = pole1.key.getPoles();
                 center = r2.getCenterOrGeomCenter();
             } else {
-                poles = pole2.key.getPoles(r2.getCenterOrGeomCenter());
+                poles = pole2.key.getPoles();
                 center = r1.getCenterOrGeomCenter();
             }
             Point closestPole = Point.getClosest(poles, center);
