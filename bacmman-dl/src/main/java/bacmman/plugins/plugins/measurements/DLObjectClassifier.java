@@ -96,7 +96,7 @@ public class DLObjectClassifier implements Measurement, Hint, MultiThreaded {
                 .toArray(Image[][]::new);
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
-        dlResizeAndScale.setScaleLogger(Core::userLog); // TODO remove this.
+        //dlResizeAndScale.setScaleLogger(Core::userLog);
         Image[][] predNC = dlResizeAndScale.predict(engine, chanImages, edm)[0];
         boolean allProba = this.proba.getSelected();
         if (allProba && predNC[0].length!=classNumber.getIntValue()) throw new RuntimeException("ClassNumber parameter differs from number of predicted classes: "+predNC[0].length);
