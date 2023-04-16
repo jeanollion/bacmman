@@ -133,8 +133,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 SegmentedObject p = subParentTrack.get(j);
                 prediction.edm.put(p, TypeConverter.toFloatU8(prediction.edm.get(p), null));
                 prediction.centerDist.put(p, TypeConverter.toFloatU8(prediction.centerDist.get(p), null));
-                prediction.division.remove(p);
                 if (!incrementalPostProcessing) {
+                    prediction.division.put(p, TypeConverter.toFloatU8(prediction.division.get(p), new ImageFloatU8Scale("div", prediction.division.get(p), 255.)));
                     prediction.dx.put(p, TypeConverter.toFloat8(prediction.dx.get(p), null));
                     prediction.dy.put(p, TypeConverter.toFloat8(prediction.dy.get(p), null));
                 }
@@ -156,6 +156,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     SegmentedObject p = subParentTrack.get(j);
                     prediction.dx.remove(p);
                     prediction.dy.remove(p);
+                    prediction.division.remove(p);
                 }
             }
             else allAdditionalLinks.addAll(additionalLinks);
@@ -269,7 +270,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true)
                     .propagationCriterion(new WatershedTransform.ThresholdPropagation(edmI, edmThreshold.getDoubleValue(), true))
                     .setTrackSeeds(WatershedTransform.getIntensityTrackSeedFunction(centerI, true))
-                    .fusionCriterion(new WatershedTransform.FusionCriterion() {
+                    .fusionCriterion(new WatershedTransform.FusionCriterion() { // TODO
                         WatershedTransform instance;
                         @Override
                         public void setUp(WatershedTransform instance) {this.instance = instance;}
@@ -280,7 +281,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                             Point meet = new Point(instance.getHeap().parse(currentVoxel));
                             double d1 = new Point(instance.getHeap().parse(s1.seedCoord)).dist(meet);
                             double d2 = new Point(instance.getHeap().parse(s2.seedCoord)).dist(meet);
-                            double crit = d1<=d2 ? (d1 - meetCenterValue)/meetCenterValue: (d2 - meetCenterValue)/meetCenterValue;
+                            double crit = d1<=d2 ? (d1 - meetCenterValue)/d1: (d2 - meetCenterValue)/d2;
                             //logger.debug("frame: {} fusion @ {}: meetCenterValue {} dist 1 = {} 2 = {}, crit: {}", p.getFrame(), meet, meetCenterValue, d1, d2, crit);
                             return crit>fusionCriterion.getDoubleValue();
                         }
@@ -1083,8 +1084,9 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             System.arraycopy(ResizeUtils.getChannel(predictions[2], 0), 0, this.dy, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[3], 0), 0, this.dx, idx, n);
             if (predictCategories) {
-                System.arraycopy(ResizeUtils.getChannel(predictions[4], 2), 0, this.divMap, idx, n);
-                System.arraycopy(ResizeUtils.getChannel(predictions[4], 3), 0, this.noPrevMap, idx, n);
+                int inc = predictions[4][0].length == 4 ? 1 : 0;
+                System.arraycopy(ResizeUtils.getChannel(predictions[4], 1+inc), 0, this.divMap, idx, n);
+                System.arraycopy(ResizeUtils.getChannel(predictions[4], 2+inc), 0, this.noPrevMap, idx, n);
             }
         }
 
