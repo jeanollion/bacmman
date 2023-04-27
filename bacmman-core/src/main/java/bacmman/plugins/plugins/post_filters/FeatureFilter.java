@@ -18,10 +18,7 @@
  */
 package bacmman.plugins.plugins.post_filters;
 
-import bacmman.configuration.parameters.BooleanParameter;
-import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.Parameter;
-import bacmman.configuration.parameters.PluginParameter;
+import bacmman.configuration.parameters.*;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.Image;
@@ -29,6 +26,7 @@ import bacmman.image.ImageMask;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PostFilterFeature;
+import bacmman.plugins.object_feature.IntensityMeasurement;
 import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 
 import java.util.function.BiFunction;
@@ -42,8 +40,10 @@ public class FeatureFilter implements PostFilterFeature, Hint {
     NumberParameter threshold = new NumberParameter<>("Threshold", 4, 0).setEmphasized(true);
     BooleanParameter keepOverThreshold = new BooleanParameter("Keep over threshold", true).setEmphasized(true).setHint("<ul><li>If set to <em>true</em>, only segmented object that have a value of the feature (as defined in the <em>Feature</em> parameter) larger than the threshold will be kept</li><li>If set to <em>false</em>, only segmented object that have a value of the feature smaller than the threshold will be kept</li></ul>");
     BooleanParameter strict = new BooleanParameter("Strict comparison with threshold", true);
-    
-    Parameter[] parameters = new Parameter[]{feature, threshold, keepOverThreshold, strict};
+    BooleanParameter preFiltered = new BooleanParameter("Use Pre-filtered Image", true);
+    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All features computed on image intensity will be computed on the image filtered by the operations defined in this parameter.");
+
+    Parameter[] parameters = new Parameter[]{feature, threshold, keepOverThreshold, strict, preFiltered, preFilters};
     
     @Override
     public String getHintText() {
@@ -65,7 +65,11 @@ public class FeatureFilter implements PostFilterFeature, Hint {
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         ObjectFeature f = feature.instantiatePlugin();
         f.setUp(parent, childStructureIdx, childPopulation);
-        if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(null, null);
+        if (f instanceof IntensityMeasurement) ((IntensityMeasurement)f).setUsePreFilteredImage(preFiltered.getSelected());
+        if (f instanceof ObjectFeatureWithCore) {
+            BiFunction<Image, ImageMask, Image> pf = (im, mask) -> preFilters.filter(im,mask);
+            ((ObjectFeatureWithCore)f).setUpOrAddCore(null, pf);
+        }
         childPopulation=childPopulation.filter(new RegionPopulation.Feature(f, threshold.getValue().doubleValue(), keepOverThreshold.getSelected(), strict.getSelected()));
         return childPopulation;
     }

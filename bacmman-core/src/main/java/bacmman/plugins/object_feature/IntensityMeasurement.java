@@ -46,8 +46,8 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         this.intensity.setSelectedClassIdx(structureIdx);
         return this;
     }
-    public IntensityMeasurement setUsePreFilteredImage() {
-        this.usePreFilteredImage = true;
+    public IntensityMeasurement setUsePreFilteredImage(boolean preFilteredImage) {
+        this.usePreFilteredImage = preFilteredImage;
         return this;
     }
 
@@ -65,7 +65,7 @@ public abstract class IntensityMeasurement extends SimpleObjectFeature implement
         this.parent=parent;
         if (intensity.getSelectedIndex()==-1) intensity.setSelectedIndex(childStructureIdx);
         this.intensityMap=usePreFilteredImage ? parent.getPreFilteredImage(intensity.getSelectedIndex()) : parent.getRawImage(intensity.getSelectedIndex());
-        if (this.intensity==null) throw new RuntimeException("Could not open raw image of object class "+intensity.getSelectedIndex()+". Maybe experiment structure was modified after pre-processing was run ? ");
+        if (this.intensityMap==null) throw new RuntimeException("Could not open image of object class "+intensity.getSelectedIndex()+". Maybe experiment structure was modified after pre-processing was run ? ");
         return this;
     }
     

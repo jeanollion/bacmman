@@ -53,7 +53,7 @@ import java.util.stream.Collectors;
 public class RemoveTrackByFeature implements TrackPostFilter, Hint {
     public enum STAT {Mean, Median, Quantile}
     PluginParameter<ObjectFeature> feature = new PluginParameter<>("Feature", ObjectFeature.class, false).setEmphasized(true).setHint("Feature computed on each object of the track");
-    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All features computed on image intensity will be computed on the image filtered by the operation defined in this parameter.");
+    PreFilterSequence preFilters = new PreFilterSequence("Pre-Filters").setHint("All features computed on image intensity will be computed on the image filtered by the operations defined in this parameter.");
 
     EnumChoiceParameter<STAT> statistics = new EnumChoiceParameter("Statistics", STAT.values(), STAT.Mean);
     NumberParameter quantile = new BoundedNumberParameter("Quantile", 3, 0.5, 0, 1);

@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.Core;
 import bacmman.image.*;
 import bacmman.plugins.*;
+import bacmman.plugins.SimpleThresholder;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.processing.*;
 import bacmman.processing.neighborhood.ConicalNeighborhood;
@@ -173,12 +174,14 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         boolean lapScaled, gaussScaled;
         double[] ms;
         double[] gaussianScale;
-        public void initPV(Image input, ImageMask mask, double[] gaussianScale, NORMALIZATION_MODE normMode) {
+        public void initPV(Image input, ImageMask mask, double[] gaussianScale, NORMALIZATION_MODE normMode) { //, SimpleThresholder thresholder
             this.input=input;
             this.gaussianScale=gaussianScale;
             if (ms == null && (NORMALIZATION_MODE.PER_CELL_CENTER.equals(normMode) || NORMALIZATION_MODE.PER_CELL_CENTER_SCALE.equals(normMode) )) {
                 //BackgroundFit.debug=debug;
                 ms = new double[2];
+                //double thld = thresholder.runSimpleThresholder(input, mask);
+                //ms = ImageOperations.getMeanAndSigma(input, mask, d -> d<thld);
                 //double thld = BackgroundFit.backgroundFit(HistogramFactory.getHistogram(()->input.stream(mask, true), HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS), 5, ms);
                 double thld = BackgroundThresholder.runThresholder(input, mask, 6, 6, 2, Double.MAX_VALUE, ms); // more robust than background fit because too few values to make histogram
                 if (debug) logger.debug("scaling thld: {} mean & sigma: {}", thld, ms); //if (debug) 
@@ -262,9 +265,9 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
             scale = gaussScale;
             primaryThld = gaussianThreshold;
             secondaryThld = laplacianThld;
-            invertedMaps= true;
+            invertedMaps = true;
         } else {
-            secondarySPZ = noGaussian()? new Image[0] : Image.mergeImagesInZ(Arrays.asList(pv.getGaussianMap())).toArray(new ImageFloat[0]);
+            secondarySPZ = noGaussian() ? new Image[0] : Image.mergeImagesInZ(Arrays.asList(pv.getGaussianMap())).toArray(new ImageFloat[0]);
             primarySPZ = Image.mergeImagesInZ(Arrays.asList(pv.getLaplacianMap())).toArray(new ImageFloat[0]);
             qFormula = qualityFormula.getSelectedEnum();
             secondaryThld = gaussianThreshold;
@@ -506,7 +509,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
         logger.debug("track config: norm mode: {}", normMode.getSelectedEnum());
         Map<SegmentedObject, double[]> parentMapMeanAndSigma = NORMALIZATION_MODE.PER_FRAME_CENTER.equals(normMode.getSelectedEnum()) ? parentTrack.stream().parallel().collect(Collectors.toMap(p->p, p -> {
             SNR snr = new SNR();
-            snr.setUsePreFilteredImage();
+            snr.setUsePreFilteredImage(true);
             RegionPopulation bactPop = p.getChildRegionPopulation(segParent);
             if (bactPop.getRegions().isEmpty()) return new double[0];
             snr.setUp(p, structureIdx, bactPop);
