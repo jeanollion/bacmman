@@ -19,12 +19,9 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.plugins.Plugin;
-import ij.IJ;
-import ij.ImageJ;
-import ij.ImagePlus;
+import ij.*;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.Image;
-import ij.WindowManager;
 import ij.gui.GUI;
 import ij.gui.ImageCanvas;
 import bacmman.image.BoundingBox;
@@ -101,7 +98,6 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
         for (ImagePlus ip : new ArrayList<>(displayedImages.values())) if (ip.isVisible()) ip.close();
         displayedImages.clear();
         displayedImagesInv.clear();
-        WindowManager.closeAllWindows(); // also close all open windows
     }
     @Override public void close(Image image) {
         ImagePlus imp = this.getImage(image);

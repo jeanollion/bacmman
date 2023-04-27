@@ -24,9 +24,14 @@ import bacmman.configuration.parameters.Parameter;
 import bacmman.configuration.parameters.PluginParameter;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
+import bacmman.image.Image;
+import bacmman.image.ImageMask;
 import bacmman.plugins.ObjectFeature;
 import bacmman.plugins.Hint;
 import bacmman.plugins.PostFilterFeature;
+import bacmman.plugins.object_feature.ObjectFeatureWithCore;
+
+import java.util.function.BiFunction;
 
 /**
  *
@@ -60,6 +65,7 @@ public class FeatureFilter implements PostFilterFeature, Hint {
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         ObjectFeature f = feature.instantiatePlugin();
         f.setUp(parent, childStructureIdx, childPopulation);
+        if (f instanceof ObjectFeatureWithCore) ((ObjectFeatureWithCore)f).setUpOrAddCore(null, null);
         childPopulation=childPopulation.filter(new RegionPopulation.Feature(f, threshold.getValue().doubleValue(), keepOverThreshold.getSelected(), strict.getSelected()));
         return childPopulation;
     }
