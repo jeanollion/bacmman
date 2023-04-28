@@ -80,6 +80,7 @@ public class ImportCellTrackingBenchmark {
                 .map(s -> Arrays.stream(s).mapToInt(Integer::parseInt))
                 .map(IntStream::toArray)
                 .collect(Collectors.toMap(i -> i[0], i -> i));
+                //.collect(Collectors.toMap(i -> i[0], i -> new int[]{i[0], i[1]-1, i[2]-1, i[3]}));
         logger.debug("{} tracks found", tracks.size());
         LabelImage seg = new LabelImage();
         TrackLinkEditor editor = getEditor(objectClassIdx, new HashSet<>());
@@ -103,14 +104,18 @@ public class ImportCellTrackingBenchmark {
             if (prev == null) pcb.log("Error (track head import): object "+id+" @ frame: "+idStartStopParent[1]+" not found");
             else {
                 for (int f = idStartStopParent[1] + 1; f <= idStartStopParent[2]; ++f) {
-                    SegmentedObject cur = getObject.apply(id, f);
-                    if (cur == null) {
-                        pcb.log("Error (track element import): object "+id+" @ frame: "+f+" not found");
-                        logger.warn("Error (track element import): object {} @ frame: {} not found", id, f);
-                    }
-                    else {
-                        editor.setTrackLinks(prev, cur, true, true, true);
-                        prev = cur;
+                    try {
+                        SegmentedObject cur = getObject.apply(id, f);
+                        if (cur == null) {
+                            pcb.log("Error (track element import): object "+id+" @ frame: "+f+" not found");
+                            logger.warn("Error (track element import): object {} @ frame: {} not found", id, f);
+                        }
+                        else {
+                            editor.setTrackLinks(prev, cur, true, true, true);
+                            prev = cur;
+                        }
+                    } catch (Throwable t) {
+                        logger.error("Error importing object : {} at frame: {}", id, f);
                     }
                 }
             }
@@ -119,20 +124,37 @@ public class ImportCellTrackingBenchmark {
         Map<Integer, List<int[]>> parentIdMapTracks = tracks.values().stream()
                 .filter(e->e[3]!=0)
                 .collect(Collectors.groupingBy(e->e[3]));
+        Map<Integer, List<int[]>> mergedTracks = tracks.values().stream()
+                .filter(e->e[3]!=0)
+                .collect(Collectors.groupingBy(e->e[0]));
+        mergedTracks.entrySet().removeIf(e -> e.getValue().size()<=1);
         parentIdMapTracks.forEach((pId, connectedTracks) -> {
             SegmentedObject pTh = getTrackHead.apply(pId);
             if (pTh == null) pcb.log("Error (track head parent import): object "+pId+" @ frame: "+tracks.get(pId)[1]+" not found");
             else {
                 List<SegmentedObject> pTrack = allTracks.get(pTh);
                 SegmentedObject prev = pTrack.get(pTrack.size() - 1);
+                // TODO exclude merged tracks here
                 connectedTracks.forEach(n -> {
+                    List<int[]> merged = mergedTracks.get(n[0]);
                     SegmentedObject nTh = getObject.apply(n[0], n[1]);
-                    if (nTh == null) pcb.log("Error (track head parent-next import): object "+n[0]+" @ frame: "+n[1]+" not found");
-                    else if (nTh.getFrame()<=prev.getFrame()) {
-                        pcb.log("Error: cannot link "+prev+" to "+nTh+": next is before prev");
+                    if (nTh == null)
+                        pcb.log("Error (track head parent-next import): object " + n[0] + " @ frame: " + n[1] + " not found");
+                    else if (nTh.getFrame() <= prev.getFrame()) {
+                        pcb.log("Error: cannot link " + prev + " to " + nTh + ": next is before prev");
                         logger.error("Cannot link {} to {}: next is before prev", prev, nTh);
+                    } else {
+                        if (merged == null) { // normal or divide link
+                            editor.setTrackLinks(prev, nTh, true, connectedTracks.size() == 1, connectedTracks.size() == 1);
+                        } else {
+                            if (connectedTracks.size() > 1) {
+                                pcb.log("Error: cannot link " + prev + " to " + nTh + ": merge link with divide link");
+                                logger.error("Cannot link {} to {}: merge link with divide link", prev, nTh);
+                            } else { // merge link
+                                editor.setTrackLinks(prev, nTh, false, true, false);
+                            }
+                        }
                     }
-                    else editor.setTrackLinks(prev, nTh, true, connectedTracks.size() == 1, connectedTracks.size() == 1);
                 });
             }
         }) ;
