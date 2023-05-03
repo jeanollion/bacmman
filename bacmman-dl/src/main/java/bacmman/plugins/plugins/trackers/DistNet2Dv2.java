@@ -10,12 +10,16 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
 import bacmman.processing.Filters;
+import bacmman.processing.Medoid;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
+import bacmman.processing.clustering.InterfaceRegion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
+import bacmman.processing.clustering.RegionCluster;
 import bacmman.processing.matching.GraphObjectMapper;
 import bacmman.processing.matching.LAPLinker;
 import bacmman.processing.matching.ObjectGraph;
+import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.track_post_processing.SplitAndMerge;
 import bacmman.processing.track_post_processing.Track;
 import bacmman.processing.track_post_processing.TrackAssigner;
@@ -25,6 +29,7 @@ import bacmman.utils.*;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import net.imglib2.RealLocalizable;
+import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -256,9 +261,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             //if (stores != null) stores.get(p).addIntermediateImage("Center", centerI);
             ImageMask insideCells = new PredicateMask(edmI, edmThreshold.getDoubleValue(), true, true);
             insideCells = PredicateMask.and(p.getMask(), insideCells);
-            Image centerI = Filters.applyFilter(centerDistI, null, new Filters.Median(insideCells), Filters.getNeighborhood(Math.max(localMinRad.getDoubleValue()/2, 2), centerDistI), false);
-            if (stores != null ) synchronized (stores) {stores.get(p).addIntermediateImage("Center Dist Filtered", centerI);}
-            ImageByte localExtrema = Filters.localExtrema(centerI, null, false, insideCells, Filters.getNeighborhood(localMinRad.getDoubleValue(), 1, centerDistI));
+            ImageByte localExtrema = Filters.localExtrema(centerDistI, null, false, insideCells, Filters.getNeighborhood(localMinRad.getDoubleValue(), 0, centerDistI));
             if (seedThreshold.getDoubleValue()>0) ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), (x, y, z) -> edmI.getPixel(x, y, z)<seedThreshold.getDoubleValue()); // TODO this criterion may be problematic in case on inconsitency betwen EDM and center...
 
             /*
@@ -269,8 +272,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             */
             WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true)
                     .propagationCriterion(new WatershedTransform.ThresholdPropagation(edmI, edmThreshold.getDoubleValue(), true))
-                    .setTrackSeeds(WatershedTransform.getIntensityTrackSeedFunction(centerI, true))
-                    .fusionCriterion(new WatershedTransform.FusionCriterion() { // TODO
+                    /*.setTrackSeeds(WatershedTransform.getIntensityTrackSeedFunction(centerI, true))
+                    .fusionCriterion(new WatershedTransform.FusionCriterion() {
                         WatershedTransform instance;
                         @Override
                         public void setUp(WatershedTransform instance) {this.instance = instance;}
@@ -285,8 +288,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                             //logger.debug("frame: {} fusion @ {}: meetCenterValue {} dist 1 = {} 2 = {}, crit: {}", p.getFrame(), meet, meetCenterValue, d1, d2, crit);
                             return crit>fusionCriterion.getDoubleValue();
                         }
-                    });
+                    })*/
+                    ;
+
             RegionPopulation pop = WatershedTransform.watershed(edmI, p.getMask(), localExtrema, config);
+            //reduce over-segmentation: merge touching regions with criterion on center : center distance @ interface should be larger than distance to center
+            logger.debug("Merge sort for parent: {}", p);
+            RegionCluster.mergeSort(pop, (e1, e2)->new CenterDistInterface(e1, e2, centerDistI, localExtrema, fusionCriterion.getDoubleValue()));
+
             int minSize= minObjectSize.getIntValue();
             if (minSize>0) pop.filterAndMergeWithConnected(new RegionPopulation.Size().setMin(minSize+1));
 
@@ -311,6 +320,91 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         };
         ThreadRunner.execute(parentTrack, false, ta);
         //parentTrack.forEach(p -> ta.run(p, 0));
+    }
+
+    static class CenterDistInterface extends InterfaceRegionImpl<CenterDistInterface> implements RegionCluster.InterfaceVoxels<CenterDistInterface> {
+        double value = Double.NaN;
+        Point center = null;
+        final Point centerR1, centerR2;
+        final Set<Voxel> voxels;
+        final Image centerDist;
+        final double fusionCriterion;
+        public CenterDistInterface(Region e1, Region e2, Image centerDist, ImageMask seeds, double fusionCriterion) {
+            super(e1, e2);
+            voxels = new HashSet<>();
+            this.centerDist = centerDist;
+            this.fusionCriterion = fusionCriterion;
+            centerR1 = getCenter(e1, seeds);
+            centerR2 = getCenter(e2, seeds);
+        }
+        private Point getCenter(Region r, ImageMask seeds) {
+            Point c = new Point(-1, -1);
+            double dMin = Double.POSITIVE_INFINITY;
+            r.loop((x, y, z) -> {
+                if (seeds.insideMask(x, y, z)) {
+                    double d = centerDist.getPixel(x, y, z);
+                    if (d<dMin) c.setData(x, y);
+                }
+            });
+            return c;
+        }
+
+        @Override
+        public double getValue() {
+            return value;
+        }
+
+        @Override
+        public void performFusion() {
+            super.performFusion();
+        }
+
+        @Override
+        public void updateInterface() {
+            center = Point.asPoint((RealLocalizable)Medoid.computeMedoid(voxels));
+            value = centerDist.getPixel(center.get(0), center.get(1), 0);
+        }
+
+        @Override
+        public void fusionInterface(CenterDistInterface otherInterface, Comparator<? super Region> elementComparator) {
+            CenterDistInterface other = otherInterface;
+            voxels.addAll(other.voxels);
+            value = Double.NaN;// updateSortValue will be called afterward
+            center = null;
+        }
+
+        @Override
+        public boolean checkFusion() {
+            double d1 = centerR1.dist(center);
+            double d2 = centerR2.dist(center);
+            if (d1<=1 || d2 <=1) return true;
+            double crit = d1<=d2 ? (d1 - value)/d1: (d2 - value)/d2;
+            logger.debug("Check fusion: crit={}->{} I={}", crit, crit>fusionCriterion, this);
+            return crit>fusionCriterion;
+        }
+
+        @Override
+        public void addPair(Voxel v1, Voxel v2) {
+            voxels.add(v1);
+            voxels.add(v2);
+        }
+
+        @Override
+        public int compareTo(CenterDistInterface t) {
+            int c = Double.compare(value, t.value);
+            if (c == 0) return super.compareElements(t, RegionCluster.regionComparator); // consistency with equals method
+            else return c;
+        }
+
+        @Override
+        public Collection<Voxel> getVoxels() {
+            return voxels;
+        }
+
+        @Override
+        public String toString() {
+            return "Interface: " + e1.getLabel()+"="+centerR1 + "+" + e2.getLabel()+"="+centerR2 + " center:" + (center==null?"null":center.toString()) + " sortValue: " + value;
+        }
     }
 
     @Override
