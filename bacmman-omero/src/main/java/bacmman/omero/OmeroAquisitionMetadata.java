@@ -34,10 +34,17 @@ public class OmeroAquisitionMetadata {
         Collections.sort(entries, Comparator.comparing(Map.Entry::getKey));
         FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+ TypeConverter.convert(e.getValue()));
     }
-    public List<Long> extractTimepoints() {
-        List<Date> dates = globalMetadata.entrySet().stream().filter(e-> e.getKey().startsWith("timestamp")).sorted(Map.Entry.comparingByKey()).map(e -> ((RLong)(e.getValue())).getValue()).map(Date::new).collect(Collectors.toList());
+    public List<Long> extractTimepoints(boolean relative) {
+        List<Date> dates = globalMetadata.entrySet().stream()
+                .filter(e-> e.getKey().startsWith("timestamp"))
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> ((RLong)(e.getValue())).getValue())
+                .map(Date::new).collect(Collectors.toList());
         if (dates.isEmpty()) return Collections.emptyList();
-        Date ref=  dates.get(0);
-        return dates.stream().map(d -> (d.getTime() - ref.getTime())).collect(Collectors.toList());
+        if (relative) {
+            Date ref= dates.get(0);
+            return dates.stream().map(d -> (d.getTime() - ref.getTime())).collect(Collectors.toList());
+        }
+        else return dates.stream().map(Date::getTime).collect(Collectors.toList());
     }
 }

@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -201,7 +202,7 @@ public class OmeroGatewayI implements OmeroGateway {
     @Override
     public ImageReader createReader(long imageID) {
         connectIfNecessary();
-        logger.debug("creating reader for ID: {}, connected ? {}", imageID, isConnected());
+        //logger.debug("creating reader for ID: {}, connected ? {}", imageID, isConnected());
         return new ImageReaderOmero(imageID, this);
     }
 
@@ -212,62 +213,64 @@ public class OmeroGatewayI implements OmeroGateway {
             logger.debug("import instance already running");
             importInstance.toFront();
         } else {
-            Consumer<List<OmeroImageMetadata>> importCallback = sel -> {
+            BiConsumer<List<OmeroImageMetadata>, Boolean> importCallback = (sel, importMetadata) -> {
                 if (!sel.isEmpty()) {
                     Map<Long, OmeroAquisitionMetadata> metadataMap  = new HashMap<>(sel.size());
-                    if (!xp.getImportImageMethod().equals(ONE_FILE_PER_CHANNEL_FRAME_POSITION)) {
+                    if (importMetadata) {
                         logger.debug("fetching metadata for : {} files", sel.size());
+                        boolean movie = !xp.getImportImageMethod().equals(ONE_FILE_PER_CHANNEL_FRAME_POSITION);
                         sel.forEach( im -> {
                             OmeroAquisitionMetadata gm = new OmeroAquisitionMetadata(im.getFileId());
                             if (gm.fetch(this)) {
-                                List<Long> timePoints = gm.extractTimepoints();
-                                if (timePoints.size() == im.getSizeT()) im.setTimePoint(timePoints);
+                                List<Long> timePoints = gm.extractTimepoints(movie);
+                                im.setTimePoint(timePoints);
                                 metadataMap.put(im.getFileId(), gm);
                             }
-
                         } );
                     }
                     logger.debug("Creating positions...");
                     List<MultipleImageContainer> images = OmeroImageFieldFactory.importImages(sel, xp, pcb);
                     logger.debug("{} position created", images.size());
                     if (!images.isEmpty()) {
-                        logger.debug("writing metadata...");
-                        // write metadata files to SourceImageMetadata folder
-                        File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
-                        if (!dir.exists()) dir.mkdirs();
-                        switch (xp.getImportImageMethod()) {
-                            case SINGLE_FILE:
-                                images.stream().map( m -> (MultipleImageContainerSingleFile)m).forEach(m -> {
-                                    OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID());
-                                    if (metadata!=null) {
-                                        String path = Paths.get(dir.getAbsolutePath(), m.getName()+".txt").toAbsolutePath().toString();
-                                        metadata.writeToFile(path);
-                                    }
-                                });
-                                break;
-                            case ONE_FILE_PER_CHANNEL_POSITION:
-                                images.stream().map( m -> (MultipleImageContainerChannelSerie)m).forEach(m -> {
-                                    for (int cIdx = 0; cIdx<m.getChannelNumber(); ++cIdx) {
-                                        OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID(cIdx));
-                                        if (metadata!=null) {
-                                            String path = Paths.get(dir.getAbsolutePath(), m.getName()+"_c"+cIdx+".txt").toAbsolutePath().toString();
+                        if (importMetadata) {
+                            logger.debug("writing metadata...");
+                            // write metadata files to SourceImageMetadata folder
+                            File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
+                            if (!dir.exists()) dir.mkdirs();
+                            switch (xp.getImportImageMethod()) {
+                                case SINGLE_FILE:
+                                    images.stream().map(m -> (MultipleImageContainerSingleFile) m).forEach(m -> {
+                                        OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID());
+                                        if (metadata != null) {
+                                            String path = Paths.get(dir.getAbsolutePath(), m.getName() + ".txt").toAbsolutePath().toString();
                                             metadata.writeToFile(path);
                                         }
-                                    }
-                                });
-                            case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
-                                images.stream().map( m -> (MultipleImageContainerPositionChannelFrame)m).forEach(m -> {
-                                    for (int cIdx = 0; cIdx<m.getChannelNumber(); ++cIdx) {
-                                        int frameNumber = m.singleFrame(cIdx) ? 1:m.getFrameNumber();
-                                        for (int t = 0; t<frameNumber; ++t) {
-                                            OmeroAquisitionMetadata metadata = metadataMap.get(m.getImageID(cIdx, t));
+                                    });
+                                    break;
+                                case ONE_FILE_PER_CHANNEL_POSITION:
+                                    images.stream().map(m -> (MultipleImageContainerChannelSerie) m).forEach(m -> {
+                                        for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
+                                            OmeroAquisitionMetadata metadata = metadataMap.get(m.getOmeroID(cIdx));
                                             if (metadata != null) {
-                                                String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + "_t" + m.getFrameNumber() + ".txt").toAbsolutePath().toString();
+                                                String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + ".txt").toAbsolutePath().toString();
                                                 metadata.writeToFile(path);
                                             }
                                         }
-                                    }
-                                });
+                                    });
+                                case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
+                                    images.stream().map(m -> (MultipleImageContainerPositionChannelFrame) m).forEach(m -> {
+                                        for (int cIdx = 0; cIdx < m.getChannelNumber(); ++cIdx) {
+                                            int frameNumber = m.singleFrame(cIdx) ? 1 : m.getFrameNumber();
+                                            for (int t = 0; t < frameNumber; ++t) {
+                                                OmeroAquisitionMetadata metadata = metadataMap.get(m.getImageID(cIdx, t));
+                                                if (metadata != null) {
+                                                    String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + "_t" + t + ".txt").toAbsolutePath().toString();
+                                                    metadata.writeToFile(path);
+                                                }
+                                            }
+                                        }
+                                    });
+                            }
                         }
                         callback.accept(images);
                     }

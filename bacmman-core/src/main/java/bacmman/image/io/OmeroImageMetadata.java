@@ -49,7 +49,6 @@ public class OmeroImageMetadata implements JSONSerializable {
         this.pixelType = pixelType;
     }
     public OmeroImageMetadata setTimePoint(List<Long> timePoint) {
-        assert timePoint.size() == sizeT;
         this.timepoints = timePoint;
         return this;
     }

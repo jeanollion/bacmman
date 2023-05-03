@@ -25,15 +25,11 @@ import bacmman.data_structure.image_container.MultipleImageContainerChannelSerie
 import bacmman.data_structure.image_container.MultipleImageContainerPositionChannelFrame;
 import bacmman.data_structure.image_container.MultipleImageContainerSingleFile;
 import bacmman.image.io.ImageIOCoordinates;
-import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.OmeroImageMetadata;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
-import java.io.FileFilter;
-import java.nio.file.Paths;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -81,6 +77,7 @@ public class OmeroImageFieldFactory {
                 break;
         }
         Collections.sort(res, (MultipleImageContainer arg0, MultipleImageContainer arg1) -> arg0.getName().compareToIgnoreCase(arg1.getName()));
+        for (MultipleImageContainer c : res) c.setPath(xp.getPath());
         return res;
     }
 
@@ -209,6 +206,7 @@ public class OmeroImageFieldFactory {
                         sizeZC[cIdx] = invertTZ_C[cIdx] ? meta.getSizeT() : meta.getSizeZ();
                         ++cIdx;
                     }
+
                     String refChan = sortedFilesByChannel.keySet().iterator().next();
                     containersTC.add(
                         new MultipleImageContainerPositionChannelFrame(

@@ -128,7 +128,9 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
         }
     }
     public void cancelSilently() {
-        try {cancel(true);} catch (Throwable t) {}
+        try {
+            cancel(true);
+        } catch (Exception ignored) {}
     }
     public DefaultWorker setEndOfWork(Runnable endOfWork) {
         this.endOfWork=endOfWork;

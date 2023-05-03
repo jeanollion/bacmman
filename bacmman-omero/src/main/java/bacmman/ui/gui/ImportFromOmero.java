@@ -22,7 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
+import java.util.function.BiConsumer;
 
 public class ImportFromOmero extends JFrame {
     public static final Logger logger = LoggerFactory.getLogger(ImportFromOmero.class);
@@ -39,13 +39,14 @@ public class ImportFromOmero extends JFrame {
     private JPasswordField password;
     private JButton disconnectButton;
     private JCheckBox displayAllUsersCheckBox;
+    private JCheckBox importMetadataCheckBox;
     Map<String, char[]> savedPassword;
     OmeroTree tree;
     ProgressCallback bacmmanLogger;
     OmeroGatewayI gateway;
-    Consumer<List<OmeroImageMetadata>> closeCallback;
+    BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback;
 
-    public ImportFromOmero(OmeroGatewayI gateway, Map<String, char[]> savedPassword, Consumer<List<OmeroImageMetadata>> closeCallback, ProgressCallback bacmmanLogger) {
+    public ImportFromOmero(OmeroGatewayI gateway, Map<String, char[]> savedPassword, BiConsumer<List<OmeroImageMetadata>, Boolean> closeCallback, ProgressCallback bacmmanLogger) {
         setContentPane(contentPane);
         setTitle("Omero Browser");
         getRootPane().setDefaultButton(connect);
@@ -171,13 +172,13 @@ public class ImportFromOmero extends JFrame {
 
     private void onOK() {
         if (closeCallback != null)
-            closeCallback.accept(tree == null ? Collections.emptyList() : tree.getSelectedImages());
+            closeCallback.accept(tree == null ? Collections.emptyList() : tree.getSelectedImages(), importMetadataCheckBox.isSelected());
         close();
         dispose();
     }
 
     private void onCancel() {
-        if (closeCallback != null) closeCallback.accept(Collections.emptyList());
+        if (closeCallback != null) closeCallback.accept(Collections.emptyList(), importMetadataCheckBox.isSelected());
         close();
         dispose();
     }
@@ -185,7 +186,7 @@ public class ImportFromOmero extends JFrame {
     public static void main(String[] args) {
         new ImageJ();
         OmeroGatewayI gateway = new OmeroGatewayI();
-        ImportFromOmero dialog = new ImportFromOmero(gateway, new HashMap<>(), (sel) -> {
+        ImportFromOmero dialog = new ImportFromOmero(gateway, new HashMap<>(), (sel, isSel) -> {
         }, null);
         dialog.pack();
         dialog.setVisible(true);

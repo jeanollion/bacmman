@@ -25,17 +25,16 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
 import java.io.File;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import bacmman.utils.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import bacmman.utils.ArrayUtil;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.Pair;
 
 /**
  *
@@ -176,6 +175,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     public MultipleImageContainerPositionChannelFrame(String inputDir, String extension, String positionKey, String timeKeyword, String[] channelKeywords, int frameNumber, String positionName) {
         this(inputDir, extension, positionKey, timeKeyword, channelKeywords, null, frameNumber, -1, -1, positionName);
     }
+
     public MultipleImageContainerPositionChannelFrame(List<List<String>> fileIDsCT, int frameNumber, boolean[] invertTZ_C, int[] sizeZC, double scaleXY, double scaleZ, String positionName) {
         super(scaleXY, scaleZ);
         this.fileCT = fileIDsCT;
@@ -194,7 +194,10 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     @Override public double getCalibratedTimePoint(int t, int c, int z) {
         if (timePointCZT==null) {
             synchronized(this) {
-                if (timePointCZT==null) initTimePointMap();
+                if (timePointCZT==null) {
+                    if (fromOmero()) initTimePointMapOmero();
+                    else initTimePointMap();
+                }
             }
         }
         if (timePointCZT==null) return Double.NaN;
@@ -204,7 +207,49 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         if (d!=null) return d;
         else return Double.NaN;
     }
-    
+
+    private void initTimePointMapOmero() {
+        if (!fromOmero()) return;
+        timePointCZT = new HashMap<>();
+        synchronized(this) {
+            for (int c = 0; c<this.nChannels; ++c) {
+                logger.debug("init timepoint map for channel: {} (omero)", c);
+                long ref = 0;
+                for (int f = 0; f < fileCT.get(c).size(); ++f) {
+                    try {
+                        String filename = positionName + "_c"+c+"_t"+f+".txt";
+                        File file = Paths.get(path.toAbsolutePath().toString(), "SourceImageMetadata", filename).toFile();
+                        if (!file.exists()) { // TODO: otherwise fetch from server
+                            continue;
+                        }
+                        List<SymetricalPair<String>> entries = FileIO.readFromFile(file.getPath(), line -> {
+                            if (!line.contains("=")) return null;
+                            String[] p = line.split("=");
+                            if (p.length!=2) return null;
+                            return new SymetricalPair<>(p[0], p[1]);
+                        }, null);
+                        List<Long> timestamps = entries.stream().filter(Objects::nonNull).filter(p -> p.key.startsWith("timestamp")).sorted(Comparator.comparing(p->p.key)).map(p -> p.value).map(Long::parseLong).collect(Collectors.toList());
+                        if (timestamps.size() == sizeZC[c]) {
+                            for (int z = 0; z < sizeZC[c]; ++z) {
+                                long t = timestamps.get(0);
+                                if (this.frameNumber>1 && !singleFrame(c)) {
+                                    if (f==0) {
+                                        ref = t;
+                                        t=0;
+                                    } else t-= ref; // relative time
+                                }
+                                timePointCZT.put(getKey(c, z, f), (double)t);
+                            }
+                        } else logger.debug("invalid timestamp number for channel: {} -> {} number of z: {}", c, timestamps.size(), sizeZC[c]);
+                    } catch (Exception | Error e) {
+                        logger.debug("error init timepoint", e);
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     private void initTimePointMap() {
         if (fromOmero()) return;
         if (fileCT==null) {
