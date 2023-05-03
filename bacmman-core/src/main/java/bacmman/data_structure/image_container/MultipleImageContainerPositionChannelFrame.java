@@ -347,7 +347,12 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                 List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
                 filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, i->sortedFiles.get(i).getAbsolutePath()));
             }
-            fileCT.add(new ArrayList<>(new TreeMap(filesByTimePoint).values()).subList(0, frameNumber));
+            List<String> filenames = new ArrayList<>(new TreeMap<>(filesByTimePoint).values());
+            if (filenames.size()>1) {
+                if (filenames.size()<frameNumber) throw new RuntimeException("Invalid file number for channel "+fileCT.size());
+                filenames = filenames.subList(0, frameNumber);
+            }
+            fileCT.add(filenames);
         });
         logger.debug("Position: {}, channels: {}, tp: {}", getName(), fileCT.size(), fileCT.get(0).size());
     }

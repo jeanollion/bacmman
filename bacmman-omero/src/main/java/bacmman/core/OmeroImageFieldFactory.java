@@ -158,11 +158,13 @@ public class OmeroImageFieldFactory {
             if (filesByChannel.size()==channelKeywords.length) {
                 Integer frameNumber = null;
                 boolean ok = true;
+                Map<String, List<OmeroImageMetadata>> sortedFilesByChannel = new HashMap<>();
                 for (Entry<String, List<OmeroImageMetadata>> channelFiles : filesByChannel.entrySet()) {
                     logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
                     Map<Integer, OmeroImageMetadata> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getFileName(), timePattern), Function.identity()));
                     logger.debug("files grouped. checking frame continuity...");
-                    List<Integer> tpList = new ArrayList<>(new TreeMap<>(filesByTimePoint).keySet());
+                    filesByTimePoint = new TreeMap<>(filesByTimePoint);
+                    List<Integer> tpList = new ArrayList<>(filesByTimePoint.keySet());
                     int minTimePoint = tpList.get(0);
                     int maxFrameNumberSuccessive=1;
                     while(maxFrameNumberSuccessive<tpList.size() && tpList.get(maxFrameNumberSuccessive-1)+1==tpList.get(maxFrameNumberSuccessive)) {++maxFrameNumberSuccessive;}
@@ -187,34 +189,35 @@ public class OmeroImageFieldFactory {
                             break;
                         }
                     }
+                    sortedFilesByChannel.put(channelFiles.getKey(), new ArrayList<>(filesByTimePoint.values()));
                     logger.debug("continuity checked");
                 }
                 if (ok) {
                     logger.debug("creating container...");
-                    List<List<String>> fileIDsCT = new ArrayList<>(filesByChannel.size());
+                    List<List<String>> fileIDsCT = new ArrayList<>(sortedFilesByChannel.size());
                     Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
                     List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
-                    int[] sizeZC = new int[filesByChannel.size()];
-                    boolean[] invertTZ_C = new boolean[filesByChannel.size()];
+                    int[] sizeZC = new int[sortedFilesByChannel.size()];
+                    boolean[] invertTZ_C = new boolean[sortedFilesByChannel.size()];
                     int cIdx = 0;
-                    for (String c : filesByChannel.keySet()) {
-                        fileIDsCT.add(filesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
-                        OmeroImageMetadata meta = filesByChannel.get(c).get(0);
+                    for (String c : sortedFilesByChannel.keySet()) {
+                        fileIDsCT.add(sortedFilesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
+                        OmeroImageMetadata meta = sortedFilesByChannel.get(c).get(0);
                         Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(cIdx).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(cIdx);
                         if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) invertTZ_C[cIdx] = true;
                         else if (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && meta.getSizeT()>1 && meta.getSizeZ()==1) invertTZ_C[cIdx] = true;
                         sizeZC[cIdx] = invertTZ_C[cIdx] ? meta.getSizeT() : meta.getSizeZ();
                         ++cIdx;
                     }
-                    String refChan = filesByChannel.keySet().iterator().next();
+                    String refChan = sortedFilesByChannel.keySet().iterator().next();
                     containersTC.add(
                         new MultipleImageContainerPositionChannelFrame(
                             fileIDsCT,
                             frameNumber,
                             invertTZ_C,
                             sizeZC,
-                            filesByChannel.get(refChan).get(0).getScaleXY(),
-                            filesByChannel.get(refChan).get(0).getScaleZ(),
+                            sortedFilesByChannel.get(refChan).get(0).getScaleXY(),
+                            sortedFilesByChannel.get(refChan).get(0).getScaleZ(),
                             positionFiles.getKey()
                         ));
                     logger.debug("container created");
