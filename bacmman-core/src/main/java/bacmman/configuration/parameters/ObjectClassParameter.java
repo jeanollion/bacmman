@@ -21,7 +21,6 @@ package bacmman.configuration.parameters;
 /**
  *
  * @author Jean Ollion
- * @param <T>
  */
 public class ObjectClassParameter extends ObjectClassParameterAbstract<ObjectClassParameter> {
     

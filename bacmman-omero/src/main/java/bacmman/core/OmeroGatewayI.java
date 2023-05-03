@@ -3,6 +3,7 @@ package bacmman.core;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.data_structure.image_container.MultipleImageContainerChannelSerie;
+import bacmman.data_structure.image_container.MultipleImageContainerPositionChannelFrame;
 import bacmman.data_structure.image_container.MultipleImageContainerSingleFile;
 import bacmman.image.Image;
 import bacmman.image.io.ImageReader;
@@ -212,19 +213,26 @@ public class OmeroGatewayI implements OmeroGateway {
             importInstance.toFront();
         } else {
             Consumer<List<OmeroImageMetadata>> importCallback = sel -> {
-                if (!sel.isEmpty() && !xp.getImportImageMethod().equals(ONE_FILE_PER_CHANNEL_FRAME_POSITION)) {
+                if (!sel.isEmpty()) {
                     Map<Long, OmeroAquisitionMetadata> metadataMap  = new HashMap<>(sel.size());
-                    sel.forEach( im -> {
-                        OmeroAquisitionMetadata gm = new OmeroAquisitionMetadata(im.getFileId());
-                        if (gm.fetch(this)) {
-                            List<Long> timePoints = gm.extractTimepoints();
-                            if (timePoints.size()==im.getSizeT()) im.setTimePoint(timePoints);
-                            metadataMap.put(im.getFileId(), gm);
-                        }
-                    } );
+                    if (!xp.getImportImageMethod().equals(ONE_FILE_PER_CHANNEL_FRAME_POSITION)) {
+                        logger.debug("fetching metadata for : {} files", sel.size());
+                        sel.forEach( im -> {
+                            OmeroAquisitionMetadata gm = new OmeroAquisitionMetadata(im.getFileId());
+                            if (gm.fetch(this)) {
+                                List<Long> timePoints = gm.extractTimepoints();
+                                if (timePoints.size() == im.getSizeT()) im.setTimePoint(timePoints);
+                                metadataMap.put(im.getFileId(), gm);
+                            }
+
+                        } );
+                    }
+                    logger.debug("Creating positions...");
                     List<MultipleImageContainer> images = OmeroImageFieldFactory.importImages(sel, xp, pcb);
+                    logger.debug("{} position created", images.size());
                     if (!images.isEmpty()) {
-                        // write files
+                        logger.debug("writing metadata...");
+                        // write metadata files to SourceImageMetadata folder
                         File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
                         if (!dir.exists()) dir.mkdirs();
                         switch (xp.getImportImageMethod()) {
@@ -244,6 +252,19 @@ public class OmeroGatewayI implements OmeroGateway {
                                         if (metadata!=null) {
                                             String path = Paths.get(dir.getAbsolutePath(), m.getName()+"_c"+cIdx+".txt").toAbsolutePath().toString();
                                             metadata.writeToFile(path);
+                                        }
+                                    }
+                                });
+                            case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
+                                images.stream().map( m -> (MultipleImageContainerPositionChannelFrame)m).forEach(m -> {
+                                    for (int cIdx = 0; cIdx<m.getChannelNumber(); ++cIdx) {
+                                        int frameNumber = m.singleFrame(cIdx) ? 1:m.getFrameNumber();
+                                        for (int t = 0; t<frameNumber; ++t) {
+                                            OmeroAquisitionMetadata metadata = metadataMap.get(m.getImageID(cIdx, t));
+                                            if (metadata != null) {
+                                                String path = Paths.get(dir.getAbsolutePath(), m.getName() + "_c" + cIdx + "_t" + m.getFrameNumber() + ".txt").toAbsolutePath().toString();
+                                                metadata.writeToFile(path);
+                                            }
                                         }
                                     }
                                 });

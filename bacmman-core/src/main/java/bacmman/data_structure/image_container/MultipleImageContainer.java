@@ -75,6 +75,11 @@ public abstract class MultipleImageContainer implements JSONSerializable {
             res = new MultipleImageContainerSingleFile().setPath(path);
         } else if (jsonEntry.containsKey("inputDir")) {
             res = new MultipleImageContainerPositionChannelFrame().setPath(path);
+        } else if (jsonEntry.containsKey("omeroID_c0")) {
+            res = new MultipleImageContainerPositionChannelFrame();
+        } else {
+            logger.error("Invalid JSON entry for container: {}", jsonEntry);
+            throw new IllegalArgumentException("Cannot initiate Image container from entry");
         }
         if (res!=null) res.initFromJSONEntry(jsonEntry);
         return res;

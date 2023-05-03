@@ -120,7 +120,20 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
         System.arraycopy(coords, 0, res, 0, Math.min(untilDimensionIncluded, coords.length));
         return new Point(res);
     }
-
+    public static Point center(Collection<? extends RealLocalizable> points, int nDims) {
+        if (points.isEmpty()) return null;
+        double[] center = new double[nDims];
+        for (RealLocalizable l : points) {
+            for (int d = 0; d<nDims; ++d) center[d] += l.getDoublePosition(d);
+        }
+        int s = points.size();
+        for (int d = 0; d<nDims; ++d) center[d] /=s;
+        return new Point(center);
+    }
+    public static Point center(Collection<? extends Localizable> points) {
+        if (points.isEmpty()) return null;
+        return center(points, points.iterator().next().numDimensions());
+    }
     public static Point middle(Offset o1, Offset o2) {
         return new Point((o1.xMin()+o2.xMin())/2f, (o1.yMin()+o2.yMin())/2f, (o1.zMin()+o2.zMin())/2f);
     }

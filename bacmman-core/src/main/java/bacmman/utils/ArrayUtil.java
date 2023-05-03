@@ -394,6 +394,10 @@ public class ArrayUtil {
         if (array==null) return null;
         return Arrays.copyOf(array, array.length);
     }
+    public static boolean[] duplicate(boolean[] array) {
+        if (array==null) return null;
+        return Arrays.copyOf(array, array.length);
+    }
     public static int[] duplicate(int[] array) {
         if (array==null) return null;
         return Arrays.copyOf(array, array.length);

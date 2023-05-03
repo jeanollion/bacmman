@@ -127,6 +127,9 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             } //else System.out.println("No GUI. End of JOBS");
         }
     }
+    public void cancelSilently() {
+        try {cancel(true);} catch (Throwable t) {}
+    }
     public DefaultWorker setEndOfWork(Runnable endOfWork) {
         this.endOfWork=endOfWork;
         return this;

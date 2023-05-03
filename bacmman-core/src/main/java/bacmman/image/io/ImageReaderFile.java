@@ -461,9 +461,9 @@ public class ImageReaderFile implements ImageReader {
     }
     
     public static Image openImage(String filePath, ImageIOCoordinates ioCoords) {
-        return openImage(filePath, ioCoords, null);
+        return openImage(filePath, ioCoords, false, null);
     }
-    public static Image openImage(String filePath, ImageIOCoordinates ioCoords, byte[][] buffer) {
+    public static Image openImage(String filePath, ImageIOCoordinates ioCoords, boolean invertTZ, byte[][] buffer) {
         if (filePath.toLowerCase().endsWith(".tif")) { // try with faster IJ's method (10x to 100x faster than bioformat as of january 2022 : setID method is very slow)
             if (ioCoords.getSerie()==0 && ioCoords.getChannel()==0 && ioCoords.getTimePoint()==0) { // this only works when
                 int[] slices = ioCoords.getBounds()==null ? null : ArrayUtil.generateIntegerArray(ioCoords.getBounds().zMin(), ioCoords.getBounds().zMax()+1);
@@ -480,7 +480,7 @@ public class ImageReaderFile implements ImageReader {
             }
         }
         long t0 = System.currentTimeMillis();
-        ImageReaderFile reader = new ImageReaderFile(filePath);
+        ImageReaderFile reader = new ImageReaderFile(filePath).setInvertTZ(invertTZ);
         long t1 = System.currentTimeMillis();
         if (buffer!=null) reader.buffer = buffer[0];
         Image im = reader.openImage(ioCoords);

@@ -313,6 +313,7 @@ public class ImageFieldFactory {
                     } 
                     // check if all channels have same number of Frames
                     if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
+                    else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
                     else {
                         if (frameNumber!=maxFrameNumberSuccessive) {
                             logger.warn("Dir: {} Position: {}, Channel: {}, {} timepoint found instead of {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);

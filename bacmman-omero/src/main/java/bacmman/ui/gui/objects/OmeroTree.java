@@ -179,8 +179,9 @@ public class OmeroTree {
         return Arrays.stream(paths).map(TreePath::getLastPathComponent).anyMatch(p -> p instanceof ProjectNode || p instanceof DatasetNode || p instanceof ImageNode);
     }
     public List<OmeroImageMetadata> getSelectedImages() {
-        TreePath[] paths=  tree.getSelectionPaths();
+        TreePath[] paths = tree.getSelectionPaths();
         if (paths ==null) return Collections.EMPTY_LIST;
+        logger.debug("getting selected images from {} paths", paths.length);
         return Arrays.stream(paths).map(TreePath::getLastPathComponent).flatMap( n -> {
             if (n instanceof ProjectNode) return ((ProjectNode)n).getAllImageNodes();
             if (n instanceof DatasetNode) return ((DatasetNode)n).getAllImageNodes();
@@ -264,7 +265,7 @@ public class OmeroTree {
             LazyLoadingMutableTreeNode g = (LazyLoadingMutableTreeNode)groups.nextElement();
             if (g instanceof GroupNode) {
                 GroupNode gn = ((GroupNode)g);
-                if (gn.lazyLoader!=null) gn.lazyLoader.cancel(true);
+                if (gn.lazyLoader!=null) gn.lazyLoader.cancelSilently();
                 if (gn.childrenCreated()) gn.getChildrenAsStream().forEach(n -> closeExperimenter((ExperimenterNode)n));
             } else if (g instanceof ExperimenterNode) closeExperimenter((ExperimenterNode) g);
         }
@@ -279,10 +280,11 @@ public class OmeroTree {
                 if (p.childrenCreated()) p.getChildrenAsStream()
                         .map(d -> (DatasetNode)d)
                         .filter(d -> ((DatasetNode)d).lazyIconLoader!=null)
-                        .forEach(d -> ((DatasetNode)d).lazyIconLoader.cancel(true));
+                        .forEach(d -> ((DatasetNode)d).lazyIconLoader.cancelSilently());
             });
         }
     }
+
     public abstract class LazyLoadingMutableTreeNode<T extends DataObject> extends DefaultMutableTreeNode {
         final T data;
         LazyLoadingMutableTreeNode(T data) {
@@ -517,8 +519,8 @@ public class OmeroTree {
             return ((DatasetNode)getParent()).data;
         }
         public OmeroImageMetadata getMetadata() {
-            ParametersI params = new ParametersI();
-            params.acquisitionData();
+            //ParametersI params = new ParametersI();
+            //params.acquisitionData();
             try {
                 PixelsData pixels = data.getDefaultPixels();
                 double scaleXY = (pixels.getPixelSizeX(UnitsLength.MICROMETER)!=null) ? pixels.getPixelSizeX(UnitsLength.MICROMETER).getValue() : 1;
@@ -527,6 +529,9 @@ public class OmeroTree {
             } catch(NoSuchElementException | BigResult e) {
                 return null;
             }
+        }
+        public OmeroImageMetadata getMetadata(OmeroImageMetadata ref) {
+            return new OmeroImageMetadata(getName(), ((LazyLoadingMutableTreeNode)getParent()).getName(), getId(), ref.getSizeX(), ref.getSizeY(), ref.getSizeZ(), ref.getSizeT(), ref.getSizeC(), ref.getScaleXY(), ref.getScaleZ(), ref.getPixelType());
         }
         public String getImageSpecsAsString() {
             OmeroImageMetadata meta = getMetadata();

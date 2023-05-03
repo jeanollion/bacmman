@@ -72,7 +72,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
             if (inter.isEmpty()) return DoubleStream.empty();
             if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
-                else return IntStream.range(0,sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
+                else return IntStream.range(0,sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]&0xff:Double.NaN).filter(v->!Double.isNaN(v));
             }
             else { // loop within intersection
                 int sX = inter.sizeX();
@@ -81,7 +81,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
                 return IntStream.range(0,inter.getSizeXY()).mapToDouble(i->{
                         int x = i%sX+offX;
                         int y = i/sX+offY;
-                        return mask.insideMaskWithOffset(x, y, z+zMin)?pixels[z][x+y*sizeX-offsetXY]:Double.NaN;}
+                        return mask.insideMaskWithOffset(x, y, z+zMin)?pixels[z][x+y*sizeX-offsetXY]&0xff:Double.NaN;}
                 ).filter(v->!Double.isNaN(v));
             }
         }
@@ -91,7 +91,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
             if (inter.isEmpty()) return DoubleStream.empty();
             if (inter.sameBounds(this) && (inter.sameBounds(mask) || (mask instanceof ImageMask2D && inter.sameBounds2D(mask)))) {
                 if (mask instanceof BlankMask) return this.streamPlane(z);
-                else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]:Double.NaN).filter(v->!Double.isNaN(v));
+                else return IntStream.range(0, sizeXY).mapToDouble(i->mask.insideMask(i, z)?pixels[z][i]&0xff:Double.NaN).filter(v->!Double.isNaN(v));
             }
             else {
                 int sX = inter.sizeX();
@@ -100,7 +100,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
                 return IntStream.range(0,inter.getSizeXY()).mapToDouble(i->{
                         int x = i%sX+offX;
                         int y = i/sX+offY;
-                        return mask.insideMaskWithOffset(x, y, z)?pixels[z][x+y*sizeX]:Double.NaN;}
+                        return mask.insideMaskWithOffset(x, y, z)?pixels[z][x+y*sizeX]&0xff:Double.NaN;}
                 ).filter(v->!Double.isNaN(v));
             }
         }
@@ -115,7 +115,7 @@ public class ImageByte extends ImageInteger<ImageByte> {
             if (inter.isEmpty()) return IntStream.empty();
             if (inter.sameBounds(this) && inter.sameBounds(mask)) {
                 if (mask instanceof BlankMask) return this.streamIntPlane(z);
-                else return IntStream.range(0,sizeXY).map(i->mask.insideMask(i, z)?pixels[z][i]& 0xff:Integer.MAX_VALUE).filter(v->v!=Integer.MAX_VALUE);
+                else return IntStream.range(0,sizeXY).map(i->mask.insideMask(i, z)?pixels[z][i]&0xff:Integer.MAX_VALUE).filter(v->v!=Integer.MAX_VALUE);
             }
             else { // loop within intersection
                 int sX = inter.sizeX();

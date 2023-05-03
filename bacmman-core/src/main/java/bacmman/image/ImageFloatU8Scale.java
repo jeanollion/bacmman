@@ -74,7 +74,7 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
         }
     }
     @Override public DoubleStream streamPlane(int z) {
-        return ArrayUtil.stream(pixels[z]);
+        return IntStream.range(0, sizeXY).mapToDouble(i->(pixels[z][i]&0xff)/scale);
     }
     @Override public DoubleStream streamPlane(int z, ImageMask mask, boolean maskHasAbsoluteOffset) {
         if (maskHasAbsoluteOffset) {

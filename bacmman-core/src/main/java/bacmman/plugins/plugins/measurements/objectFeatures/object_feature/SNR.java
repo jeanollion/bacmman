@@ -62,7 +62,7 @@ public class SNR extends IntensityMeasurement implements Hint {
             this.name = name;
         }
     }
-    protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class").setEmphasized(true);
+    protected ObjectClassParameter backgroundStructure = new ObjectClassParameter("Background Object Class", -2, true, false).setNoSelectionString("Viewfield").setEmphasized(true);
     protected ScaleXYZParameter dilateExcluded = new ScaleXYZParameter("Dilatation radius for foreground object", 1, 0, false).setHint("Dilated foreground objects will be excluded from background mask").setLegacyParameter(new BoundedNumberParameter("Dilatation radius for foreground object", 1, 1, 0, null), p->((NumberParameter)p).getDoubleValue());
 
     protected ScaleXYZParameter erodeBorders = new ScaleXYZParameter("Radius for background mask erosion", 1, 0, false).setHint("Background mask will be eroded in order to avoid border effects (after removing foreground objects)").setLegacyParameter(new BoundedNumberParameter("Radius for background mask erosion", 1, 1, 0, null), p->((NumberParameter)p).getDoubleValue());

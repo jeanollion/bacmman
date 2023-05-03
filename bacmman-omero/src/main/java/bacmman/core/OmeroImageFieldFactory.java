@@ -178,6 +178,7 @@ public class OmeroImageFieldFactory {
                     } 
                     // check if all channels have same number of Frames
                     if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
+                    else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
                     else {
                         if (frameNumber!=maxFrameNumberSuccessive) {
                             logger.warn("Position: {}, Channel: {}, {} timepoint found instead of {}", positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);
@@ -191,13 +192,29 @@ public class OmeroImageFieldFactory {
                 if (ok) {
                     logger.debug("creating container...");
                     List<List<String>> fileIDsCT = new ArrayList<>(filesByChannel.size());
-                    for (int c = 0; c<channelKeywords.length; ++c) fileIDsCT.add(filesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
+                    Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
+                    List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
+                    int[] sizeZC = new int[filesByChannel.size()];
+                    boolean[] invertTZ_C = new boolean[filesByChannel.size()];
+                    int cIdx = 0;
+                    for (String c : filesByChannel.keySet()) {
+                        fileIDsCT.add(filesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
+                        OmeroImageMetadata meta = filesByChannel.get(c).get(0);
+                        Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(cIdx).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(cIdx);
+                        if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) invertTZ_C[cIdx] = true;
+                        else if (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && meta.getSizeT()>1 && meta.getSizeZ()==1) invertTZ_C[cIdx] = true;
+                        sizeZC[cIdx] = invertTZ_C[cIdx] ? meta.getSizeT() : meta.getSizeZ();
+                        ++cIdx;
+                    }
+                    String refChan = filesByChannel.keySet().iterator().next();
                     containersTC.add(
                         new MultipleImageContainerPositionChannelFrame(
                             fileIDsCT,
                             frameNumber,
-                            filesByChannel.get(0).get(0).getScaleXY(),
-                            filesByChannel.get(0).get(0).getScaleZ(),
+                            invertTZ_C,
+                            sizeZC,
+                            filesByChannel.get(refChan).get(0).getScaleXY(),
+                            filesByChannel.get(refChan).get(0).getScaleZ(),
                             positionFiles.getKey()
                         ));
                     logger.debug("container created");
