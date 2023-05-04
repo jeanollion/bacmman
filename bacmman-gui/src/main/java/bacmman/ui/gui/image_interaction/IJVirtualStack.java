@@ -202,6 +202,8 @@ public class IJVirtualStack extends VirtualStack {
         ip.show();
         ImageWindowManagerFactory.getImageManager().addLocalZoom(ip.getCanvas());
         ImageWindowManagerFactory.getImageManager().addInputImage(position, ip, !preProcessed);
+        Image hook = imageOpenerCT.apply(new int[]{0, 0, 0});
+        ImageWindowManagerFactory.getImageManager().getDisplayer().putImage(hook, ip);
     }
 
     public static Image openVirtual(List<SegmentedObject> parentTrack, int interactiveOC, boolean interactive, int objectClassIdx, boolean image5D) {
