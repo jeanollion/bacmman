@@ -3759,6 +3759,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             log("Omero Gateway not found. Is Omero module installed ?");
             return;
         }
+        setRunning(true);
         Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), omeroGateway, () -> {
             populateActionPositionList();
             populateTestPositionJCB();
@@ -3771,7 +3772,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 loadObjectTrees();
                 displayTrackTrees();
             } else reloadObjectTrees = true;
-
+            setRunning(false);
         });
     }//GEN-LAST:event_importImagesFromOmeroMenuItemActionPerformed
 

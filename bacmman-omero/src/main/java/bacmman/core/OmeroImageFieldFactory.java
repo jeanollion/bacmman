@@ -64,6 +64,7 @@ public class OmeroImageFieldFactory {
             case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
                 {
                     String[] keyWords = xp.getChannelImages().getChildren().stream().map(ChannelImage::getImportImageChannelKeyword).toArray(String[]::new);
+                    logger.debug("channel keywords: {}", keyWords);
                     long countBlank = Arrays.stream(keyWords).filter(""::equals).count();
                     if (countBlank>1) {
                         if (pcb!=null) pcb.log("When Experiment has several channels, one must specify channel keyword for this import method");
@@ -155,7 +156,7 @@ public class OmeroImageFieldFactory {
             if (filesByChannel.size()==channelKeywords.length) {
                 Integer frameNumber = null;
                 boolean ok = true;
-                Map<String, List<OmeroImageMetadata>> sortedFilesByChannel = new HashMap<>();
+                Map<String, List<OmeroImageMetadata>> sortedFilesByChannel = new TreeMap<>();
                 for (Entry<String, List<OmeroImageMetadata>> channelFiles : filesByChannel.entrySet()) {
                     logger.debug("grouping {} files for channel {} by time point...", channelFiles.getValue().size(), channelFiles.getKey());
                     Map<Integer, OmeroImageMetadata> filesByTimePoint = channelFiles.getValue().stream().collect(Collectors.toMap(f -> MultipleImageContainerPositionChannelFrame.get(f.getFileName(), timePattern), Function.identity()));
@@ -195,30 +196,42 @@ public class OmeroImageFieldFactory {
                     Experiment.AXIS_INTERPRETATION axisInterpretation = xp.getAxisInterpretation();
                     List<Experiment.AXIS_INTERPRETATION> axisInterpretationByC = xp.getChannelImages().getChildren().stream().map(ChannelImage::getAxisInterpretation).collect(Collectors.toList());
                     int[] sizeZC = new int[sortedFilesByChannel.size()];
-                    boolean[] invertTZ_C = new boolean[sortedFilesByChannel.size()];
+                    Map<String, Boolean> invertTZ_CT = new HashMap<>();
                     int cIdx = 0;
                     for (String c : sortedFilesByChannel.keySet()) {
                         fileIDsCT.add(sortedFilesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
-                        OmeroImageMetadata meta = sortedFilesByChannel.get(c).get(0);
                         Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(cIdx).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(cIdx);
-                        if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) invertTZ_C[cIdx] = true;
-                        else if (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && meta.getSizeT()>1 && meta.getSizeZ()==1) invertTZ_C[cIdx] = true;
-                        sizeZC[cIdx] = invertTZ_C[cIdx] ? meta.getSizeT() : meta.getSizeZ();
+                        List<OmeroImageMetadata> files = sortedFilesByChannel.get(c);
+                        for (int t = 0; t<files.size(); ++t) {
+                            OmeroImageMetadata meta = sortedFilesByChannel.get(c).get(t);
+                            boolean invertTZ = false;
+                            if (ax.equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) && xp.isImportImageInvertTZ()) invertTZ = true;
+                            else if (ax.equals(Experiment.AXIS_INTERPRETATION.Z) && meta.getSizeT()>1 && meta.getSizeZ()==1) invertTZ = true;
+                            if (t==0) sizeZC[cIdx] = invertTZ ? meta.getSizeT() : meta.getSizeZ();
+                            else if (sizeZC[cIdx]!= (invertTZ ? meta.getSizeT() : meta.getSizeZ())){
+                                logger.warn("Position: {}, Channel: {}, Frame: {} invalid number of slices: {} instead of {}", positionFiles.getKey(), c, t, invertTZ ? meta.getSizeT() : meta.getSizeZ(), sizeZC[cIdx]);
+                                if (pcb!=null) pcb.log("Position: "+positionFiles.getKey()+", Channel: "+cIdx+", Frame: "+t+" invalid number of slices: "+(invertTZ ? meta.getSizeT() : meta.getSizeZ())+" instead of :"+sizeZC[cIdx]);
+                                ok = false;
+                                break;
+                            }
+                            invertTZ_CT.put(MultipleImageContainerPositionChannelFrame.getKeyCT(cIdx, t), invertTZ);
+                        }
                         ++cIdx;
                     }
-
-                    String refChan = sortedFilesByChannel.keySet().iterator().next();
-                    containersTC.add(
-                        new MultipleImageContainerPositionChannelFrame(
-                            fileIDsCT,
-                            frameNumber,
-                            invertTZ_C,
-                            sizeZC,
-                            sortedFilesByChannel.get(refChan).get(0).getScaleXY(),
-                            sortedFilesByChannel.get(refChan).get(0).getScaleZ(),
-                            positionFiles.getKey()
-                        ));
-                    logger.debug("container created");
+                    if (ok) {
+                        String refChan = channelKeywords[0];
+                        containersTC.add(
+                                new MultipleImageContainerPositionChannelFrame(
+                                        fileIDsCT,
+                                        frameNumber,
+                                        invertTZ_CT,
+                                        sizeZC,
+                                        sortedFilesByChannel.get(refChan).get(0).getScaleXY(),
+                                        sortedFilesByChannel.get(refChan).get(0).getScaleZ(),
+                                        positionFiles.getKey()
+                                ));
+                        logger.debug("container created");
+                    }
                 }
                 
             } else {

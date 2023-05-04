@@ -47,7 +47,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     int nChannels;
     String[] channelKeywords;
     int[] sizeZC;
-    boolean[] invertTZ_C;
+    Map<String, Boolean> invertTZ_CT;
     List<List<String>> fileCT;
     Map<String, Double> timePointCZT;
     boolean fromOmero;
@@ -101,7 +101,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         res.put("frameNumber", frameNumber);
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
         if (timePointCZT!=null) res.put("timePointCZT", JSONUtils.toJSONObject(timePointCZT));
-        if (invertTZ_C!=null) res.put("invertTZ", JSONUtils.toJSONArray(invertTZ_C));
+        if (invertTZ_CT!=null) res.put("invertTZ_CT", JSONUtils.toJSONObject(invertTZ_CT));
         return res;
     }
 
@@ -126,7 +126,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         frameNumber = ((Number)jsonO.get("frameNumber")).intValue();
         sizeZC = JSONUtils.fromIntArray((JSONArray)jsonO.get("sizeZC"));
         if (jsonO.containsKey("timePointCZT")) timePointCZT = (Map<String, Double>)jsonO.get("timePointCZT");
-        if (jsonO.containsKey("invertTZ")) invertTZ_C = JSONUtils.fromBooleanArray((List)jsonO.get("invertTZ"));
+        if (jsonO.containsKey("invertTZ_CT")) invertTZ_CT = (Map<String, Boolean>)jsonO.get("invertTZ_CT");
         positionName =  jsonO.containsKey("positionName") ?  (String)jsonO.get("positionName") : positionKey;
         //else initTimePointMap();         
     }
@@ -176,7 +176,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         this(inputDir, extension, positionKey, timeKeyword, channelKeywords, null, frameNumber, -1, -1, positionName);
     }
 
-    public MultipleImageContainerPositionChannelFrame(List<List<String>> fileIDsCT, int frameNumber, boolean[] invertTZ_C, int[] sizeZC, double scaleXY, double scaleZ, String positionName) {
+    public MultipleImageContainerPositionChannelFrame(List<List<String>> fileIDsCT, int frameNumber, Map<String, Boolean> invertTZ_CT, int[] sizeZC, double scaleXY, double scaleZ, String positionName) {
         super(scaleXY, scaleZ);
         this.fileCT = fileIDsCT;
         this.nChannels = fileCT.size();
@@ -186,7 +186,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
         this.scaleZ=scaleZ;
         this.fromOmero = true;
         this.sizeZC = sizeZC;
-        this.invertTZ_C = invertTZ_C;
+        this.invertTZ_CT = invertTZ_CT;
     }
     public boolean fromOmero() {
         return fromOmero;
@@ -310,9 +310,14 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     @Override
     public synchronized Image getImage(int frame, int channel) { // synchronized if use of buffer
+        if (singleFrame(channel)) frame = 0;
+        boolean invertTZ = false;
+        if (invertTZ_CT!=null) {
+            Boolean inv = invertTZ_CT.get(getKeyCT(channel, frame));
+            if (inv!=null) invertTZ = inv;
+        }
         if (fromOmero()) {
-            ImageReader r = getReader(channel, frame);
-            if (invertTZ_C!=null) r.setInvertTZ(invertTZ_C[channel]);
+            ImageReader r = getReader(channel, frame).setInvertTZ(invertTZ);
             Image i = r.openImage(new ImageIOCoordinates());
             r.closeReader();
             return i;
@@ -322,7 +327,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                 if (fileCT == null) createFileMap();
                 //}
             }
-            return ImageReaderFile.openImage(fileCT.get(channel).get(frame), new ImageIOCoordinates(), invertTZ_C != null && invertTZ_C[channel], bufferStore);
+            return ImageReaderFile.openImage(fileCT.get(channel).get(frame), new ImageIOCoordinates(), invertTZ, bufferStore);
         }
     }
     
@@ -332,9 +337,13 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     public Image getImage(int frame, int channel, BoundingBox bounds) {
         if (singleFrame(channel)) frame = 0;
         ImageIOCoordinates coords = new ImageIOCoordinates(0, 0, 0, bounds);
+        boolean invertTZ = false;
+        if (invertTZ_CT!=null) {
+            Boolean inv = invertTZ_CT.get(getKeyCT(channel, frame));
+            if (inv!=null) invertTZ = inv;
+        }
         if (fromOmero()) {
-            ImageReader r = getReader(channel, frame);
-            if (invertTZ_C!=null) r.setInvertTZ(invertTZ_C[channel]);
+            ImageReader r = getReader(channel, frame).setInvertTZ(invertTZ);
             Image i = r.openImage(coords);
             r.closeReader();
             return i;
@@ -344,7 +353,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                 if (fileCT==null) createFileMap();
             }
         }
-        return ImageReaderFile.openImage(fileCT.get(channel).get(frame), coords, invertTZ_C != null && invertTZ_C[channel], bufferStore);
+        return ImageReaderFile.openImage(fileCT.get(channel).get(frame), coords, invertTZ, bufferStore);
     }
 
     @Override
@@ -366,7 +375,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     @Override
     public MultipleImageContainer duplicate() {
         if (fromOmero()) {
-            MultipleImageContainer res = new MultipleImageContainerPositionChannelFrame(fileCT, frameNumber, ArrayUtil.duplicate(invertTZ_C), ArrayUtil.duplicate(sizeZC), scaleXY, scaleZ, positionName);
+            MultipleImageContainer res = new MultipleImageContainerPositionChannelFrame(fileCT, frameNumber, new HashMap<>(invertTZ_CT), ArrayUtil.duplicate(sizeZC), scaleXY, scaleZ, positionName);
             res.setOmeroGateway(omeroGateway);
             return res;
         } else {

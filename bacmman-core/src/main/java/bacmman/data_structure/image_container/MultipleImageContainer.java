@@ -85,6 +85,9 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public static String getKey(int c, int z, int t) {
         return new StringBuilder(11).append(c).append(";").append(z).append(";").append(t).toString();
     }
+    public static String getKeyCT(int c, int t) {
+        return new StringBuilder(7).append(c).append(";").append(t).toString();
+    }
     protected String relativePath(String absolutePath) {
         try {
             return path.relativize(Paths.get(absolutePath)).toString();

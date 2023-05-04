@@ -62,6 +62,7 @@ public class ImportFromOmero extends JFrame {
         PropertyUtils.setPersistent(username, "OMERO_USERNAME", "", true);
         PropertyUtils.setPersistent(hostname, "OMERO_HOSTNAME", "localhost", true);
         PropertyUtils.setPersistent(displayAllUsersCheckBox, "OMERO_SHOW_ALL_USERS", false);
+        PropertyUtils.setPersistent(importMetadataCheckBox, "OMERO_IMPORT_METADATA", false);
         updateConnectButton();
         updateImportButton();
         DocumentListener dl = new DocumentListener() {
@@ -258,9 +259,15 @@ public class ImportFromOmero extends JFrame {
         connect = new JButton();
         connect.setText("Connect");
         connectionPanel.add(connect, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        final JPanel panel5 = new JPanel();
+        panel5.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        connectionPanel.add(panel5, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         displayAllUsersCheckBox = new JCheckBox();
         displayAllUsersCheckBox.setText("Display all users");
-        connectionPanel.add(displayAllUsersCheckBox, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel5.add(displayAllUsersCheckBox, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        importMetadataCheckBox = new JCheckBox();
+        importMetadataCheckBox.setText("Import Metadata");
+        panel5.add(importMetadataCheckBox, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**

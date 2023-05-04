@@ -30,6 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -67,7 +68,7 @@ public class OmeroGatewayI implements OmeroGateway {
         if (!gateway.isConnected()) {
             synchronized (gateway) {
                 if (!gateway.isConnected() && validCredentials()) connect();
-                logger.debug("current connection information: {}, {}, pwd:{}, connected ? {}, is GUI: {}", hostname, username, password==null? "null" : password.length(), bacmmanLogger.isGUI());
+                logger.debug("current connection information: {}, {}, pwd:{}, is GUI: {}", hostname, username, password==null? "null" : password.length(), bacmmanLogger.isGUI());
                 if (!gateway.isConnected() && bacmmanLogger!=null && bacmmanLogger.isGUI()) promptCredentials(serverPasswords, (s, u, p)-> {
                     setCredentials(s, u, p);
                     connect();
@@ -215,24 +216,23 @@ public class OmeroGatewayI implements OmeroGateway {
         } else {
             BiConsumer<List<OmeroImageMetadata>, Boolean> importCallback = (sel, importMetadata) -> {
                 if (!sel.isEmpty()) {
-                    Map<Long, OmeroAquisitionMetadata> metadataMap  = new HashMap<>(sel.size());
-                    if (importMetadata) {
-                        logger.debug("fetching metadata for : {} files", sel.size());
+                    logger.debug("Creating positions...");
+                    List<MultipleImageContainer> images = OmeroImageFieldFactory.importImages(sel, xp, pcb);
+                    logger.debug("{} position created", images.size());
+                    if (!images.isEmpty()) {
+                        Map<Long, OmeroAquisitionMetadata> metadataMap = new HashMap<>(sel.size());
                         boolean movie = !xp.getImportImageMethod().equals(ONE_FILE_PER_CHANNEL_FRAME_POSITION);
-                        sel.forEach( im -> {
+                        DefaultWorker.WorkerTask metadataTask = i -> {
+                            OmeroImageMetadata im = sel.get(i);
                             OmeroAquisitionMetadata gm = new OmeroAquisitionMetadata(im.getFileId());
                             if (gm.fetch(this)) {
                                 List<Long> timePoints = gm.extractTimepoints(movie);
                                 im.setTimePoint(timePoints);
                                 metadataMap.put(im.getFileId(), gm);
                             }
-                        } );
-                    }
-                    logger.debug("Creating positions...");
-                    List<MultipleImageContainer> images = OmeroImageFieldFactory.importImages(sel, xp, pcb);
-                    logger.debug("{} position created", images.size());
-                    if (!images.isEmpty()) {
-                        if (importMetadata) {
+                            return null;
+                        };
+                        Runnable metadataCB = () -> {
                             logger.debug("writing metadata...");
                             // write metadata files to SourceImageMetadata folder
                             File dir = Paths.get(xp.getPath().toAbsolutePath().toString(), "SourceImageMetadata").toAbsolutePath().toFile();
@@ -270,11 +270,19 @@ public class OmeroGatewayI implements OmeroGateway {
                                             }
                                         }
                                     });
-                            }
-                        }
-                        callback.accept(images);
-                    }
-                }
+                                }
+                            };
+                        if (importMetadata) {
+                            logger.debug("fetching metadata for : {} files", sel.size());
+                            DefaultWorker res = new DefaultWorker(metadataTask, sel.size(), null)
+                                .setProgressCallBack(pcb)
+                                .appendEndOfWork(metadataCB)
+                                .appendEndOfWork(() -> callback.accept(images));
+                            if (pcb!=null) pcb.log("Fetching metadata for "+sel.size()+" files");
+                            res.execute();
+                        } else callback.accept(images);
+                    } else callback.accept(Collections.EMPTY_LIST);
+                } else callback.accept(Collections.EMPTY_LIST); // run = false
                 importInstance = null;
             };
             importInstance = new ImportFromOmero(this, serverPasswords, importCallback, pcb);

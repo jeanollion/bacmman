@@ -37,7 +37,12 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected Runnable endOfWork;
     protected int[] taskIdx;
     protected ProgressLogger progressor;
+    protected ProgressCallback pcb;
     long tStart;
+    public DefaultWorker setProgressCallBack(ProgressCallback pcb) {
+        this.pcb = pcb;
+        return this;
+    }
     public static DefaultWorker executeSingleTask(Runnable task, ProgressLogger gui) {
         return execute(t  -> {
             task.run();
@@ -86,10 +91,12 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
             logger.debug("Set running true");
             progressor.setRunning(true);
         }
+        if (pcb!=null) pcb.incrementTaskNumber(taskIdx.length);
         for (int i : taskIdx) {
             String message = task.run(i);
             if (message!=null&&!"".equals(message)) publish(message);
             setProgress(100 * (++count) / taskIdx.length);
+            if (pcb!=null) pcb.incrementProgress();
         }
         if (progressor !=null) {
             logger.debug("Set running false");
@@ -102,7 +109,10 @@ public class DefaultWorker extends SwingWorker<Integer, String>{
     protected void process(List<String> strings) {
         if (progressor !=null) {
             for (String s : strings) progressor.setMessage(s);
-        } 
+        }
+        if (pcb !=null) {
+            for (String s : strings) pcb.log(s);
+        }
     }
 
     @Override 

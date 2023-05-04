@@ -389,7 +389,7 @@ public class OmeroTree {
                     } catch (Throwable t) {}
                 }
                 return null;
-            }, users.size());
+            }, users.size(), null);
         }
 
         @Override
@@ -501,7 +501,7 @@ public class OmeroTree {
             lazyIconLoader = DefaultWorker.execute(i -> { // TODO  only load when unfold dataset folder ?
                 ((ImageNode)children.get(i)).getIcon();
                 return null;
-            }, children.size());
+            }, children.size(), null);
         }
     }
 
@@ -581,6 +581,10 @@ public class OmeroTree {
                 }
             }
             return icon;
+        }
+        @Override
+        public String toString() {
+            return getName();
         }
     }
     public static class ToolTipImage extends JToolTip {
