@@ -195,9 +195,9 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     }
     
     public BlankMask getMask() {
-        BlankMask mask = getImageDAO().getPreProcessedImageProperties(0);
+        BlankMask mask = getImageDAO().getPreProcessedImageProperties(0).resetOffset();
         if (mask==null) return null;
-        // TODO: recreate image if configuration data has been already computed
+        if (mask.sizeZ()>1) mask = new BlankMask(mask.sizeX(), mask.sizeY(), 1);
         mask.setCalibration(getScaleXY(), getScaleZ());
         return mask;
     }
