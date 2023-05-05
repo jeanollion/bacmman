@@ -195,12 +195,18 @@ public class WatershedTransform {
         for (Spot s : spots.values()) { // initialize with direct neighbors of spots
             s.voxels.stream()
                 .filter(c->heap.insideMask(mask, c))
-                .flatMap( c -> IntStream.range(0, neigh.getSize())
+                .forEach( c -> {
+                    IntStream.range(0, neigh.getSize())
                         .filter(nidx -> heap.insideBounds(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx]))
-                        .mapToLong(nidx -> heap.translate(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx])))
-                .filter(c -> !heap.insideMask(segmentedMap, c))
-                .filter(c -> heap.insideMask(mask, c))
-                .forEach(heap::add);
+                        .mapToLong(nidx -> heap.translate(c, neigh.dx[nidx], neigh.dy[nidx], neigh.dz[nidx]))
+                        .filter(n -> !heap.insideMask(segmentedMap, n))
+                        .filter(n -> heap.insideMask(mask, n))
+                        .filter(n -> propagationCriterion.continuePropagation(c, n))
+                        .forEach(heap::add);
+                    }
+                );
+
+
         }
         Score score = generateScore();
         CoordCollection nextProp = CoordCollection.create(heap.sizeX(), heap.sizeY(), heap.sizeZ());
