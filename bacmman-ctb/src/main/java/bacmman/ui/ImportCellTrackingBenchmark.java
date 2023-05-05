@@ -57,7 +57,7 @@ public class ImportCellTrackingBenchmark {
             File rawDir = Paths.get(resDir.getParent(), posName).toFile();
             if (!rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
             boolean exists = mDAO.getExperiment().getPositions().stream().map(ContainerParameterImpl::getName).anyMatch(p->p.equals(posName));
-            Processor.importFiles(mDAO.getExperiment(), true, pcb, rawDir.getAbsolutePath());
+            Processor.importFiles(mDAO.getExperiment(), true, false, pcb, rawDir.getAbsolutePath());
             if (trainingSet) resDir = Paths.get(resDir.getAbsolutePath(), "TRA").toFile();
             if (overwriteObjects || !exists) importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, trainingSet, pcb);
             else if (pcb!=null) pcb.incrementProgress();

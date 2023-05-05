@@ -136,7 +136,7 @@ public class DeleteFromDAOTest {
         generateImages("field2", inputImage.getAbsolutePath(), 1, 2, 1);
         generateImages("field3", inputImage.getAbsolutePath(), 1, 2, 1);
         generateImages("field4", inputImage.getAbsolutePath(), 1, 2, 1);
-        Processor.importFiles(xp, true, null, inputImage.getAbsolutePath());
+        Processor.importFiles(xp, true, false, null, inputImage.getAbsolutePath());
         assertEquals("number fields", 5, xp.getPositionCount());
         File outputDir = testFolder.newFolder();
         //File outputDir = new File("/tmp/testJava");

@@ -62,7 +62,8 @@ public class ImportFromOmero extends JFrame {
         PropertyUtils.setPersistent(username, "OMERO_USERNAME", "", true);
         PropertyUtils.setPersistent(hostname, "OMERO_HOSTNAME", "localhost", true);
         PropertyUtils.setPersistent(displayAllUsersCheckBox, "OMERO_SHOW_ALL_USERS", false);
-        PropertyUtils.setPersistent(importMetadataCheckBox, "OMERO_IMPORT_METADATA", false);
+        PropertyUtils.setPersistent(importMetadataCheckBox, "import_image_metadata", false);
+        logger.debug("IMportMetadata:  {} stored: {}", importMetadataCheckBox.isSelected(), PropertyUtils.get("import_image_metadata"));
         updateConnectButton();
         updateImportButton();
         DocumentListener dl = new DocumentListener() {

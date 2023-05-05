@@ -148,6 +148,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
     private BooleanParameter relabel = new BooleanParameter("Relabel objects", true).setHint("Ater manual curation, relabel all objects of the same parent to ensure continuous labels. This operation can be time consuming when many objects are present.");
     private BooleanParameter safeMode = new BooleanParameter("Safe Mode (undo)", false);
+    private BooleanParameter importMetadata = new BooleanParameter("Import Image Metadata", false).setHint("When importing images, choose this option to extract image metadata in the folder ./SourceImageMetadata");
     private NumberParameter pyGatewayPort = new BoundedNumberParameter("Gateway Port", 0, 25333, 1, null);
     private NumberParameter pyGatewayPythonPort = new BoundedNumberParameter("Gateway Python Port", 0, 25334, 1, null);
     private TextParameter pyGatewayAddress = new TextParameter("Gateway Address", "127.0.0.1", true, false);
@@ -516,7 +517,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         populateDatasetTree();
         dsTree.setRecentSelection();
         updateDisplayRelatedToXPSet();
-
+        // metadata
+        PropertyUtils.setPersistent(importMetadata, "import_image_metadata");
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(importMetadata, optionMenu);
 
         pyGatewayListener.accept(null);
         
@@ -3760,7 +3763,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             return;
         }
         setRunning(true);
-        Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), omeroGateway, () -> {
+        Processor.importFiles(this.db.getExperiment(), true, importMetadata.getSelected(), ProgressCallback.get(this), omeroGateway, () -> {
             populateActionPositionList();
             populateTestPositionJCB();
             updateConfigurationTree();
@@ -3790,8 +3793,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             }
+            boolean importMetadata = this.importMetadata.getSelected();
             DefaultWorker.execute(i -> {
-                Processor.importFiles(this.db.getExperiment(), true, ProgressCallback.get(this), Utils.convertFilesToString(selectedFiles));
+                Processor.importFiles(this.db.getExperiment(), true, importMetadata, ProgressCallback.get(this), Utils.convertFilesToString(selectedFiles));
                 File dir = Utils.getOneDir(selectedFiles);
                 if (dir!=null) PropertyUtils.set(PropertyUtils.LAST_IMPORT_IMAGE_DIR, dir.getAbsolutePath());
                 db.updateExperiment(); //stores imported position

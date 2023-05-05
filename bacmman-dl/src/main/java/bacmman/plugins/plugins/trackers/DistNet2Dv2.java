@@ -10,16 +10,16 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.segmenters.EDMCellSegmenter;
 import bacmman.processing.Filters;
+import bacmman.processing.ImageOperations;
 import bacmman.processing.Medoid;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.FusionCriterion;
-import bacmman.processing.clustering.InterfaceRegion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
+import bacmman.processing.gaussian_fit.GaussianFit;
 import bacmman.processing.matching.GraphObjectMapper;
 import bacmman.processing.matching.LAPLinker;
 import bacmman.processing.matching.ObjectGraph;
-import bacmman.processing.split_merge.SplitAndMergeEDM;
 import bacmman.processing.track_post_processing.SplitAndMerge;
 import bacmman.processing.track_post_processing.Track;
 import bacmman.processing.track_post_processing.TrackAssigner;
@@ -61,7 +61,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
 
     BoundedNumberParameter frameSubsampling = new BoundedNumberParameter("Frame sub-sampling", 0, 1, 1, null).setHint("When <em>Input Window</em> is >1, defines the gaps between frames (except for frames adjacent to current frame for which gap is always 1)");
     // segmentation
-    BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 1, 0, null).setEmphasized(true).setHint("Threshold applied on predicted EDM to define foreground areas");
+    BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(true).setHint("Threshold applied on predicted EDM to define foreground areas");
     BoundedNumberParameter seedThreshold = new BoundedNumberParameter("Seed Threshold", 5, 2.5, 0, null).setEmphasized(true).setHint("Threshold applied on predicted EDM to define watershed seeds: seeds are local maxima of predicted center with EDM values higher than this threshold");
     BoundedNumberParameter localMinRad = new BoundedNumberParameter("Seed Radius", 5, 5, 1, null).setEmphasized(false).setHint("Radius of local minima filter applied on predicted distance to center to define seeds");
     BoundedNumberParameter fusionCriterion = new BoundedNumberParameter("Fusion Criterion", 5, 0.5, 0, 1).setEmphasized(true).setHint("");
@@ -261,15 +261,28 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             //if (stores != null) stores.get(p).addIntermediateImage("Center", centerI);
             ImageMask insideCells = new PredicateMask(edmI, edmThreshold.getDoubleValue(), true, true);
             insideCells = PredicateMask.and(p.getMask(), insideCells);
-            ImageByte localExtrema = Filters.localExtrema(centerDistI, null, false, insideCells, Filters.getNeighborhood(localMinRad.getDoubleValue(), 0, centerDistI));
+
+            double seedRad = localMinRad.getDoubleValue();
+            ImageByte localExtrema = Filters.localExtrema(centerDistI, null, false, insideCells, Filters.getNeighborhood(seedRad, 0, centerDistI));
             if (seedThreshold.getDoubleValue()>0) ImageMask.loop(localExtrema, (x, y, z)->localExtrema.setPixel(x, y, z, 0), (x, y, z) -> edmI.getPixel(x, y, z)<seedThreshold.getDoubleValue()); // TODO this criterion may be problematic in case on inconsitency betwen EDM and center...
 
-            /*
-            // run watershed on distance to center map
-            WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(false);
-            config.propagationCriterion(new WatershedTransform.ThresholdPropagation(edmI, edmThreshold.getDoubleValue(), true));
-            RegionPopulation pop = WatershedTransform.watershed(centerDistI, p.getMask(), localExtrema, config);
-            */
+            // run watershed on distance to center map to define seeds
+            WatershedTransform.WatershedConfiguration seedWSConfig = new WatershedTransform.WatershedConfiguration().decreasingPropagation(false);
+            double centerDistThld = 5; // TODO thld -> could be relative to seed value ?
+            seedWSConfig.propagationCriterion(new WatershedTransform.ThresholdPropagation(centerDistI, centerDistThld, false));
+            seedWSConfig.fusionCriterion(new WatershedTransform.FusionCriterion() {
+                @Override
+                public void setUp(WatershedTransform instance) {}
+
+                @Override
+                public boolean checkFusionCriteria(WatershedTransform.Spot s1, WatershedTransform.Spot s2, long currentVoxel) {
+                    return true;
+                }
+            });
+            RegionPopulation seedPop = WatershedTransform.watershed(centerDistI, insideCells, localExtrema, seedWSConfig);
+            double size = Math.max(4, seedRad*seedRad*Math.PI / 4);
+            seedPop.filter(new RegionPopulation.Size().setMin(size));
+            if (stores != null) stores.get(p).addIntermediateImage("Seeds", seedPop.getLabelMap());
             WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true)
                     .propagationCriterion(new WatershedTransform.ThresholdPropagation(edmI, edmThreshold.getDoubleValue(), true))
                     /*.setTrackSeeds(WatershedTransform.getIntensityTrackSeedFunction(centerI, true))
@@ -291,10 +304,11 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     })*/
                     ;
 
-            RegionPopulation pop = WatershedTransform.watershed(edmI, p.getMask(), localExtrema, config);
+            RegionPopulation pop = WatershedTransform.watershed(edmI, p.getMask(), seedPop.getRegions(), config);
+
             //reduce over-segmentation: merge touching regions with criterion on center : center distance @ interface should be larger than distance to center
             logger.debug("Merge sort for parent: {}", p);
-            RegionCluster.mergeSort(pop, (e1, e2)->new CenterDistInterface(e1, e2, centerDistI, localExtrema, fusionCriterion.getDoubleValue()));
+            //RegionCluster.mergeSort(pop, (e1, e2)->new CenterDistInterface(e1, e2, centerDistI, localExtrema, fusionCriterion.getDoubleValue()));
 
             int minSize= minObjectSize.getIntValue();
             if (minSize>0) pop.filterAndMergeWithConnected(new RegionPopulation.Size().setMin(minSize+1));

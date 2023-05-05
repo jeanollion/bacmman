@@ -73,13 +73,13 @@ public class Processor {
     /*public static int getRemainingMemory() {
         
     }*/
-    public static void importFiles(Experiment xp, boolean relink, ProgressCallback pcb, String... selectedFiles) {
-        importFiles(xp, null, relink, pcb, null, selectedFiles);
+    public static void importFiles(Experiment xp, boolean relink, boolean importMetadata, ProgressCallback pcb, String... selectedFiles) {
+        importFiles(xp, null, relink, importMetadata, pcb, null, selectedFiles);
     }
-    public static void importFiles(Experiment xp, boolean relink, ProgressCallback pcb, OmeroGateway omeroGateway, Runnable endOfWorkCallback) {
-        importFiles(xp, omeroGateway, relink, pcb, endOfWorkCallback);
+    public static void importFiles(Experiment xp, boolean relink, boolean importMetadata, ProgressCallback pcb, OmeroGateway omeroGateway, Runnable endOfWorkCallback) {
+        importFiles(xp, omeroGateway, relink, importMetadata, pcb, endOfWorkCallback);
     }
-    private static void importFiles(Experiment xp, OmeroGateway omeroGateway, boolean relink, ProgressCallback pcb, Runnable endOfWorkCallback, String... selectedFiles) {
+    private static void importFiles(Experiment xp, OmeroGateway omeroGateway, boolean relink, boolean importMetadata, ProgressCallback pcb, Runnable endOfWorkCallback, String... selectedFiles) {
         Consumer<List<MultipleImageContainer>> importFun = images -> {
             int count = 0, relinkCount = 0;
             for (MultipleImageContainer c : images) {
@@ -110,7 +110,7 @@ public class Processor {
         if (omeroGateway!=null) {
             omeroGateway.importFiles(xp, importFun, pcb);
         } else {
-            List<MultipleImageContainer> images = ImageFieldFactory.importImages(selectedFiles, xp, pcb);
+            List<MultipleImageContainer> images = ImageFieldFactory.importImages(selectedFiles, xp, importMetadata, pcb);
             importFun.accept(images);
         }
     }

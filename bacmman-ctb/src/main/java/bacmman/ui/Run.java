@@ -48,7 +48,7 @@ public class Run {
         xp.setOutputDirectory("Output");
 
         // import images, run and export
-        Processor.importFiles(db.getExperiment(), true, ProgressCallback.get(ui), imageFolder.getAbsolutePath());
+        Processor.importFiles(db.getExperiment(), true, false, ProgressCallback.get(ui), imageFolder.getAbsolutePath());
         db.updateExperiment();
         Task t = new Task(db)
                 .setActions(false, true, true, false);

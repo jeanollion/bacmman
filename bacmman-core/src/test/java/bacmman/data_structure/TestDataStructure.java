@@ -137,7 +137,7 @@ public class TestDataStructure {
         images[0][0].setPixel(12, 12, 0, 2);
         File folder = testFolder.newFolder("TestInputImagesStructureObject");
         ImageWriter.writeToFile(folder.getAbsolutePath(), fieldName, ImageFormat.OMETIF, images);
-        Processor.importFiles(xp, true, null, folder.getAbsolutePath());
+        Processor.importFiles(xp, true, false, null, folder.getAbsolutePath());
         //save to db
         
         MasterDAO.deleteObjectsAndSelectionAndXP(db);
