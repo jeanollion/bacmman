@@ -315,7 +315,7 @@ public class ImageFieldFactory {
                     if (frameNumber == null) frameNumber = maxFrameNumberSuccessive;
                     else if (frameNumber==1 && maxFrameNumberSuccessive>1) frameNumber = maxFrameNumberSuccessive;
                     else {
-                        if (frameNumber!=maxFrameNumberSuccessive) {
+                        if (maxFrameNumberSuccessive!=1 && frameNumber!=maxFrameNumberSuccessive) {
                             logger.warn("Dir: {} Position: {}, Channel: {}, {} timepoint found instead of {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), maxFrameNumberSuccessive, frameNumber);
                             if (pcb!=null) pcb.log("Dir: "+input.getAbsolutePath()+" Position: "+positionFiles.getKey()+", Channel: "+channelFiles.getKey()+", "+maxFrameNumberSuccessive+" timepoint found instead of "+frameNumber);
                             ok = false;

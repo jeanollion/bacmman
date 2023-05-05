@@ -293,7 +293,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         if (sourceImages!=null) {
             int frameNb = sourceImages.getFrameNumber();
             preProcessingChain.trimFrames.setUpperBound(frameNb-1);
-            if (preProcessingChain.trimFrames.getValuesAsInt()[1]<=0 || preProcessingChain.trimFrames.getValuesAsInt()[1]>=frameNb) preProcessingChain.trimFrames.setValue(frameNb-1, 1);
+            if (preProcessingChain.trimFrames.getValuesAsInt()[1]<0 || preProcessingChain.trimFrames.getValuesAsInt()[1]>=frameNb) preProcessingChain.trimFrames.setValue(0, 1);
             defaultTimePoint.setUpperBound(frameNb-1);
             if (defaultTimePoint.getValue().intValue()>frameNb-1) defaultTimePoint.setValue(frameNb-1);
         }

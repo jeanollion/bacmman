@@ -45,6 +45,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
@@ -55,7 +57,7 @@ import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.MultichannelTransformation;
 import bacmman.plugins.Hint;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.ReusableQueueWithSourceObject;
+import bacmman.utils.SynchronizedPoolWithSourceObject;
 import bacmman.utils.ThreadRunner;
 
 /**
@@ -208,18 +210,18 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         MutableBoundingBox refBB = cropBB==null ? inputImages.getImage(channelIdx, tRef).getBoundingBox().resetOffset() : cropBB;
         // process each segment
         final HashMapGetCreate<Integer, FloatProcessor> processorMap = new HashMapGetCreate<>(i-> getFloatProcessor(cropBB==null ? inputImages.getImage(channelIdx, i) : inputImages.getImage(channelIdx, i).crop(cropBB), false));
-        ReusableQueueWithSourceObject.Reset<Bucket, Integer> r = (bucket, imageRefIdx) -> {
+        BiFunction<Integer, Bucket, Bucket> r = (imageRefIdx, bucket) -> {
             if (bucket.imageRefIdx!=imageRefIdx) { // only compute gradient if reference image is different
                 ImageStabilizerCore.gradient(bucket.pyramid[1][0], processorMap.getAndCreateIfNecessarySync(imageRefIdx));
                 bucket.imageRefIdx=imageRefIdx;
             }
             return bucket;
         };
-        ReusableQueueWithSourceObject.Factory<Bucket, Integer> f = (imageRefIdx) -> {
+        Function<Integer, Bucket> f = (imageRefIdx) -> {
             Bucket res = new Bucket(refBB, pyramidLevel.getSelectedIndex());
-            return r.reset(res, imageRefIdx);
+            return r.apply(imageRefIdx, res);
         };
-        ReusableQueueWithSourceObject<Bucket, Integer> pyramids = new ReusableQueueWithSourceObject(f, r, true);
+        SynchronizedPoolWithSourceObject<Bucket, Integer> pyramids = new SynchronizedPoolWithSourceObject<>(f, r, true);
         List<Entry<Integer, Integer>> l = new ArrayList<>(mapImageToRef.entrySet());
         Collections.shuffle(l); // shuffle so that pyramids with given gradient have more chance to be used several times
         ThreadRunner.execute(l, false, (Entry<Integer, Integer> p, int idx) -> {

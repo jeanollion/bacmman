@@ -41,7 +41,7 @@ import org.json.simple.JSONObject;
  * @author Jean Ollion
  */
 public class MultipleImageContainerPositionChannelFrame extends MultipleImageContainer { // one file per channel & per frame
-    byte[][] bufferStore = new byte[1][];
+    final SynchronizedPool<byte[][]> bufferPool = new SynchronizedPool<>(() -> new byte[1][], null);
     String inputDir, extension, positionKey, positionName, timeKeyword;
     int frameNumber;
     int nChannels;
@@ -96,7 +96,6 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             res.put("timeKeyword", timeKeyword);
             res.put("channelKeywords", JSONUtils.toJSONArray(channelKeywords));
         }
-
         res.put("positionName", positionName);
         res.put("frameNumber", frameNumber);
         res.put("sizeZC", JSONUtils.toJSONArray(sizeZC));
@@ -252,16 +251,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     private void initTimePointMap() {
         if (fromOmero()) return;
-        if (fileCT==null) {
-            synchronized(this) {
-                if (fileCT==null) createFileMap();
-            }
-        }
         timePointCZT = new HashMap<>();
         synchronized(this) {
             for (int c = 0; c<this.nChannels; ++c) {
                 logger.debug("init timepoint map for channel: {}", c);
-                for (int f = 0; f<fileCT.get(c).size(); ++f) {
+                for (int f = 0; f<getFileMap().get(c).size(); ++f) {
                     try {
                         ImageReader r = getReader(c, f);
                         if (r == null) return;
@@ -290,7 +284,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     protected ImageReader getReader(int c, int f) {
         if (singleFrame(c)) f = 0;
         if (fromOmero()) return omeroGateway==null ? null : omeroGateway.createReader(getImageID(c, f));
-        else return new ImageReaderFile(fileCT.get(c).get(f));
+        else return new ImageReaderFile(getFileMap().get(c).get(f));
     }
 
     @Override
@@ -309,7 +303,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     }
 
     @Override
-    public synchronized Image getImage(int frame, int channel) { // synchronized if use of buffer
+    public Image getImage(int frame, int channel) {
         if (singleFrame(channel)) frame = 0;
         boolean invertTZ = false;
         if (invertTZ_CT!=null) {
@@ -322,12 +316,9 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             r.closeReader();
             return i;
         } else {
-            if (fileCT == null) {
-                //synchronized(this) {
-                if (fileCT == null) createFileMap();
-                //}
-            }
-            return ImageReaderFile.openImage(fileCT.get(channel).get(frame), new ImageIOCoordinates(), invertTZ, bufferStore);
+            int f = frame;
+            boolean inv = invertTZ;
+            return bufferPool.apply( b -> ImageReaderFile.openImage(getFileMap().get(channel).get(f), new ImageIOCoordinates(), inv, b) );
         }
     }
     
@@ -347,13 +338,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             Image i = r.openImage(coords);
             r.closeReader();
             return i;
+        } else {
+            int f = frame;
+            boolean inv = invertTZ;
+            return bufferPool.apply( b -> ImageReaderFile.openImage(getFileMap().get(channel).get(f), coords, inv, b));
         }
-        if (fileCT==null) {
-            synchronized(this) {
-                if (fileCT==null) createFileMap();
-            }
-        }
-        return ImageReaderFile.openImage(fileCT.get(channel).get(frame), coords, invertTZ, bufferStore);
     }
 
     @Override
@@ -363,8 +352,10 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     @Override
     public void flush() {
-        if (!fromOmero()) fileCT=null;
-        bufferStore[0] = null;
+        if (!fromOmero()) {
+            fileCT=null;
+            bufferPool.flush();
+        }
     }
 
     @Override
@@ -382,7 +373,16 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             return new MultipleImageContainerPositionChannelFrame(inputDir, extension, positionKey, timeKeyword, ArrayUtil.duplicate(channelKeywords), ArrayUtil.duplicate(sizeZC), frameNumber, scaleXY, scaleZ, positionName);
         }
     }
-    
+    private List<List<String>> getFileMap() {
+        if (!fromOmero()) {
+            if (fileCT == null) {
+                synchronized (this) {
+                    if (fileCT == null) createFileMap();
+                }
+            }
+        }
+        return fileCT;
+    }
     private void createFileMap() {
         if (fromOmero()) return;
         File in = new File(inputDir);
@@ -455,6 +455,6 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
 
     @Override
     public boolean singleFrame(int channel) {
-        return fileCT.get(channel).size()==1;
+        return getFileMap().get(channel).size()==1;
     }
 }

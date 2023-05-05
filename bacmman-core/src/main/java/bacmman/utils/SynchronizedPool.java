@@ -20,35 +20,48 @@ package bacmman.utils;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+
 import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Jean Ollion
  */
-public class ReusableQueue<T> {
-    //public static final org.slf4j.Logger logger = LoggerFactory.getLogger(ReusableQueue.class);
+public class SynchronizedPool<T> {
+    public static final org.slf4j.Logger logger = LoggerFactory.getLogger(SynchronizedPool.class);
     final Queue<T> queue = new LinkedList<>();
-    final Factory<T> factory;
-    final Reset<T> reset;
-    public ReusableQueue(Factory<T> factory, Reset<T> reset) {
+    final Supplier<T> factory;
+    final UnaryOperator<T> reset;
+    public SynchronizedPool(Supplier<T> factory) {
+        this(factory, null);
+    }
+    public SynchronizedPool(Supplier<T> factory, UnaryOperator<T> reset) {
         this.factory=factory;
         this.reset=reset;
     }
     public synchronized T pull() {
         T res = queue.poll();
-        if (res==null) return factory.create();
-        else if (reset!=null) res = reset.reset(res);
+        if (res==null) return factory.get();
+        else if (reset!=null) res = reset.apply(res);
         return res;
     }
     public synchronized void push(T object) {
         queue.add(object);
         //logger.debug("queue size: {} (type: {})", queue.size(), object.getClass().getSimpleName());
     }
-    public static interface Factory<T> {
-        public T create();
+    public <U> U apply(Function<T, U> function) {
+        T buffer = this.pull();
+        U res = function.apply(buffer);
+        this.push(buffer);
+        return res;
     }
-    public static interface Reset<T> {
-        public T reset(T object);
+    public void flush() {
+        queue.clear();
     }
 }
+
+
