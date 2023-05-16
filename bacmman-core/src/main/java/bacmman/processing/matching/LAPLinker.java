@@ -103,7 +103,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         logger.debug("added spots: {}", count);*/
     }
 
-    public void  addObjects(Map<Integer, List<SegmentedObject>> objectsF) {
+    public void  addObjects(Map<Integer, ? extends Collection<SegmentedObject>> objectsF) {
         StreamConcatenation.concatNestedCollections(objectsF.values()).forEach(o->addObject(o.getRegion(), o.getFrame()));
     }
 

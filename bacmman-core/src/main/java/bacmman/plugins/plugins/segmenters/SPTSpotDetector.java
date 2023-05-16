@@ -79,10 +79,12 @@ public class SPTSpotDetector implements Segmenter, TestableProcessingPlugin {
         }
         logger.debug("local maxima after distance filter: {}", centers.size());
         // perform elliptical gaussian fit
-        int maxIter = maxIterations.getValue().intValue();
-        double lambda = this.lambda.getValue().doubleValue();
-        double eps = termEpsilon.getValue().doubleValue();
-        Map<Point, double[]> fit = GaussianFit.run(input, centers, localMaxRadius.getDoubleValue(), Math.max(localMaxRadius.getDoubleValue(), 1), fittingBox.getValue().intValue(), clusterDist.getValue().intValue(), fitEllipse.getSelected(), fitBackgroundPlane.getSelected(), true, null, true, true, maxIter, lambda, eps, false);
+        GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(localMaxRadius.getDoubleValue(), fitEllipse.getSelected(), true)
+                .setMaxCenterDisplacement(Math.max(localMaxRadius.getDoubleValue(), 1))
+                .setFittingBoxRadius(fittingBox.getValue().intValue())
+                .setMinDistance(clusterDist.getValue().intValue())
+                .setBackgroundPlane(fitBackgroundPlane.getSelected()).setMaxIter(maxIterations.getValue().intValue()).setLambda(lambda.getValue().doubleValue()).setTermEpsilon(termEpsilon.getValue().doubleValue());
+        Map<Point, double[]> fit = GaussianFit.run(input, centers, config, null, false);
 
         List<Region> regions;
         if (fitEllipse.getSelected()) regions = fit.entrySet().stream().map(e -> GaussianFit.ellipse2DMapper.apply(e.getValue(), fitBackgroundPlane.getSelected(),input)).peek(e -> e.setQuality(e.getIntensity())).collect(Collectors.toList());

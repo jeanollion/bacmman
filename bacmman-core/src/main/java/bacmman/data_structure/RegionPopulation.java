@@ -150,8 +150,8 @@ public class RegionPopulation {
         return this;
     }
 
-    public RegionPopulation addObjects(boolean updateLabelImage, Region... objects) {
-        return addObjects(Arrays.asList(objects), updateLabelImage);
+    public RegionPopulation addObjects(boolean relabel, Region... objects) {
+        return addObjects(Arrays.asList(objects), relabel);
     }
 
     /**
@@ -160,10 +160,12 @@ public class RegionPopulation {
      * @param objects
      * @return
      */
-    public RegionPopulation addObjects(List<Region> objects, boolean updateLabelImage) {
-        this.objects.addAll(objects);
-        checkObjectValidity();
-        if (updateLabelImage) relabel(true);
+    public RegionPopulation addObjects(List<Region> objects, boolean relabel) {
+        if (!objects.isEmpty()) {
+            this.objects.addAll(objects);
+            checkObjectValidity();
+            if (relabel) relabel(false);
+        }
         return this;
     }
 

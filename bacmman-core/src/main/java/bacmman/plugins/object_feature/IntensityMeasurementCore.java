@@ -19,12 +19,11 @@
 package bacmman.plugins.object_feature;
 
 import bacmman.data_structure.Region;
-import bacmman.image.Image;
-import bacmman.image.ImageMask;
+import bacmman.image.*;
 
 import java.util.Map;
+import java.util.stream.DoubleStream;
 
-import bacmman.image.ImageMask2D;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.utils.DoubleStatistics;
 import bacmman.utils.HashMapGetCreate;
@@ -38,6 +37,7 @@ import org.slf4j.LoggerFactory;
  */
 public class IntensityMeasurementCore {
     private final static Logger logger = LoggerFactory.getLogger(IntensityMeasurementCore.class);
+    static int sizeLimitMedian = 512 * 512;
     Image intensityMap, transformedMap;
     Map<Region, IntensityMeasurements> values = new HashMapGetCreate.HashMapGetCreateRedirectedSyncKey<>(IntensityMeasurements::new);
     int z = -1;
@@ -73,15 +73,19 @@ public class IntensityMeasurementCore {
                 count = 0;
                 return;
             }
-            if (!o.getBounds().isValid()) throw new RuntimeException("invalid bounds"); // TODO understand why the error thrown by getMask blocks the whole process
-            ImageMask m = o.getMask();
-            if (o.is2D() && transformedMap.sizeZ()>1 && !(m instanceof ImageMask2D)) m = new ImageMask2D(m);
-            DoubleStatistics stats = DoubleStatistics.getStats(transformedMap.stream(m, o.isAbsoluteLandMark()));
+            if (!o.getBounds().isValid()) throw new RuntimeException("invalid bounds");
+            DoubleStatistics stats = DoubleStatistics.getStats(stream());
             mean = stats.getAverage();
             sd = stats.getStandardDeviation();
             min = stats.getMin();
             max = stats.getMax();
             count = stats.getCount();
+        }
+
+        public DoubleStream stream() {
+            ImageMask m = o.getMask();
+            if (o.is2D() && transformedMap.sizeZ()>1 && !(m instanceof ImageMask2D)) m = new ImageMask2D(m);
+            return transformedMap.stream(m, o.isAbsoluteLandMark());
         }
         
         public double getValueAtCenter() {
@@ -99,7 +103,14 @@ public class IntensityMeasurementCore {
             return valueAtCenter;
         }
         public double getMedian() {
-            if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, transformedMap, 0.5)[0];
+
+            if (Double.isNaN(median)) {
+                if (o.getBounds().volume() > sizeLimitMedian) { // volume is large: use histogram
+                    Histogram h = HistogramFactory.getHistogram(this::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS);
+                    if (h.count() >= sizeLimitMedian/2 ) this.median = h.getQuantiles(0.5)[0];
+                }
+                if (Double.isNaN(median)) this.median = BasicMeasurements.getQuantileValue(o, transformedMap, 0.5)[0];
+            }
             return median;
         }
     }

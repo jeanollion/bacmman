@@ -90,6 +90,10 @@ public class ImageLabeller {
         }
     }
     
+    public static List<Region> labelImageList(ImageMask mask, Neighborhood n) {
+        return new ArrayList<>(Arrays.asList(labelImage(mask, n)));
+    }
+
     public static List<Region> labelImageList(ImageMask mask) {
         return new ArrayList<>(Arrays.asList(labelImage(mask)));
     }

@@ -71,7 +71,7 @@ public class Pair<K, V> {
     public String toString() {
         return "{"+(key==null?"null":key.toString())+"->"+(value==null?"null":value.toString())+"}";
     }
-    public static <K, V> List<V> unpairValues(Collection<Pair<K, V>> list) {
+    public static <K, V> List<V> unpairValues(Collection<? extends Pair<K, V>> list) {
         if (list == null) {
             return null;
         }
@@ -84,7 +84,7 @@ public class Pair<K, V> {
         return res;
     }
 
-    public static <K, V> List<K> unpairKeys(Collection<Pair<K, V>> list) {
+    public static <K, V> List<K> unpairKeys(Collection<? extends Pair<K, V>> list) {
         if (list == null) {
             return null;
         }

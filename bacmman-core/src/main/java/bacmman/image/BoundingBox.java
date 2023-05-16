@@ -161,6 +161,10 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         return point.get(0)>=container.xMin() && point.get(0)<=container.xMax() && point.get(1)>=container.yMin() && point.get(1)<=container.yMax();
     }
 
+    static boolean isIncluded2D(Point point, BoundingBox container, int tolerance) {
+        return point.get(0)+tolerance>=container.xMin() && point.get(0)-tolerance<=container.xMax() && point.get(1)+tolerance>=container.yMin() && point.get(1)-tolerance<=container.yMax();
+    }
+
     static double distanceSq2D(Point point, BoundingBox bds) {
         return Math.pow(distance1D(point.get(0), bds, 0), 2) + Math.pow(distance1D(point.get(1), bds, 1), 2);
     }
@@ -261,6 +265,26 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
             for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
                 for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
                     if (predicate.test(x, y, z)) function.loop(x, y, z);
+                }
+            }
+        }
+    }
+
+    static void loop(BoundingBox bb, LoopFunction function, LoopPredicate predicate, LoopPredicate exitPredicate) {
+        if (predicate==null && exitPredicate == null) {
+            loop(bb, function);
+            return;
+        } else if (exitPredicate == null) {
+            loop(bb, function, predicate);
+            return;
+        } else if (predicate == null) {
+            predicate = (x, y, z) -> true;
+        }
+        for (int z = bb.zMin(); z<=bb.zMax(); ++z) {
+            for (int y = bb.yMin(); y<=bb.yMax(); ++y) {
+                for (int x=bb.xMin(); x<=bb.xMax(); ++x) {
+                    if (predicate.test(x, y, z)) function.loop(x, y, z);
+                    if (exitPredicate.test(x, y, z)) return;
                 }
             }
         }

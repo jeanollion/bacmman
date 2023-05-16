@@ -355,7 +355,7 @@ public class Filters {
     }
     public static class LocalMax extends Filter {
         
-        final ImageMask mask;
+        final protected ImageMask mask;
         public LocalMax(ImageMask mask) {
             this.mask = mask;
         }
@@ -376,7 +376,7 @@ public class Filters {
             return true;
         }
     }
-    private static class LocalMaxThreshold extends Filter {
+    public static class LocalMaxThreshold extends Filter {
         double threshold;
         final ImageMask mask;
         public LocalMaxThreshold(double threshold, ImageMask mask) {
@@ -394,6 +394,30 @@ public class Filters {
             double max = neighborhood.getPixelValues()[0];
             for (int i = 1; i<neighborhood.getValueCount(); ++i) if (neighborhood.getPixelValues()[i]>max) return 0;
             return 1;
+        }
+    }
+    public static class LabelWiseLocalMaxima extends Filters.Filter {
+        final ImageInteger labels;
+        public LabelWiseLocalMaxima(ImageInteger labels) {
+            this.labels = labels;
+        }
+        @Override
+        public float applyFilter(int x, int y, int z) {
+            if (!labels.insideMask(x, y, z)) return 0;
+            neighborhood.setPixels(x, y, z, image, null);
+            neighborhood.setPixelsInt(x, y, z, labels, null);
+            double max = neighborhood.getPixelValues()[0]; // coords are sorted by distance, first is center
+            int curLabel = neighborhood.getPixelValuesInt()[0];
+            for (int i = 1; i<neighborhood.getValueCount(); ++i) {
+                if (neighborhood.getPixelValuesInt()[i]>0 && neighborhood.getPixelValuesInt()[i]!=curLabel) continue; // do not consider values in other labels
+                if (neighborhood.getPixelValues()[i]>max) return 0;
+            }
+            return 1;
+        }
+
+        @Override
+        public Filters.Filter duplicate() {
+            return new LabelWiseLocalMaxima(labels);
         }
     }
     private static class LocalMin extends Filter {

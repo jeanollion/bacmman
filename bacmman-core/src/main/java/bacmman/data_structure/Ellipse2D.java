@@ -154,6 +154,7 @@ public class Ellipse2D extends Region implements Analytical {
         }
         return equation(v.x, v.y, 0)<=1;
     }
+    @Override
     public boolean contains(Point p) {
         if (absoluteLandmark) {
             if (is2D()) {
@@ -304,20 +305,14 @@ public class Ellipse2D extends Region implements Analytical {
 
     @Override
     public boolean intersect(Region other) {
-        return Analytical.getOverlapArea(this, other, null, null, true)>0;
+        return Analytical.getOverlapArea(this, other, null, null, 1)>0;
     }
 
-    /**
-     * Estimation of the overlap (in voxels number) between this region and {@param other} (no creation of voxels)
-     * @param other other region
-     * @param offset offset to add to this region so that it would be in absolute landmark
-     * @param offsetOther offset to add to {@param other} so that it would be in absolute landmark
-     * @return overlap (in voxels) between this region and {@param other}
-     */
     @Override
-    public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        return Analytical.getOverlapArea(this, other, offset, offsetOther, false);
+    public double getOverlapArea(Region other, Offset offset, Offset offsetOther, double overlapLimit) {
+        return Analytical.getOverlapArea(this, other, offset, offsetOther, overlapLimit);
     }
+
     @Override
     public void merge(Region other) {
         throw new RuntimeException("Cannot perform operation on ellipse");

@@ -30,7 +30,10 @@ public class GaussianFitAmplitude extends IntensityMeasurement {
             Image image = core.getIntensityMap(true);
             boolean fitCenter = this.fitCenter.getSelected();
             double sigma = this.radius.getValue().doubleValue();
-            fit = GaussianFit.runOnRegions(image, pop.getRegions(), sigma, 0, 0, sigma * 4 + 1, fitEllipse.getSelected(), false, fitBackground.getSelected(), fitCenter, true, true, 300, 0.001, 0.01, false);
+            GaussianFit.GaussianFitConfig config = new GaussianFit.GaussianFitConfig(sigma, fitEllipse.getSelected(), fitBackground.getSelected())
+                    .setMaxCenterDisplacement(0)
+                    .setMinDistance(sigma * 4 + 1).setFitCenter(fitCenter);
+            fit = GaussianFit.runOnRegions(image, pop.getRegions(), config, true, false);
         }
         return fit;
     }

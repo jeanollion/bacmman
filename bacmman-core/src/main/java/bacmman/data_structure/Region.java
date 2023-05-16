@@ -500,6 +500,9 @@ public class Region {
         if (voxels!=null) return voxels.contains(v);
         else return getMask().containsWithOffset(v.x, v.y, v.z) && mask.insideMaskWithOffset(v.x, v.y, v.z);
     }
+    public boolean contains(Point p) {
+        return contains(p.asVoxel());
+    }
     public synchronized void clearVoxels() {
         if (roi == null && mask==null) getMask();
         voxels = null;
@@ -875,24 +878,26 @@ public class Region {
     }
 
     public boolean intersect(Region other) {
-        return getOverlapArea(other, null, null, true)>0;
+        return getOverlapArea(other, null, null, 1)>0;
     }
 
     public double getOverlapArea(Region other) {
         return getOverlapArea(other, null, null);
     }
 
+
+    public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
+        return getOverlapArea(other, offset, offsetOther, Double.POSITIVE_INFINITY);
+    }
     /**
      * Counts the overlap (in voxels) between this region and {@param other}, using masks of both region (no creation of voxels)
      * @param other other region
      * @param offset offset to add to this region so that it would be in absolute landmark
      * @param offsetOther offset to add to {@param other} so that it would be in absolute landmark
+     * @param overlapLimit limit the count to this value. Set 1 to test overlap, POSITIVE_INFINITY to compute the overlap
      * @return overlap (in voxels) between this region and {@param other}
      */
-    public double getOverlapArea(Region other, Offset offset, Offset offsetOther) {
-        return getOverlapArea(other, offset, offsetOther, false);
-    }
-    private double getOverlapArea(Region other, Offset offset, Offset offsetOther, boolean stopAtFirstIntersection) {
+    public double getOverlapArea(Region other, Offset offset, Offset offsetOther, double overlapLimit) {
         if (other instanceof Analytical) return other.getOverlapArea(this, offsetOther, offset); // spot version is more efficient
         BoundingBox otherBounds = offsetOther==null? new SimpleBoundingBox(other.getBounds()) : new SimpleBoundingBox(other.getBounds()).translate(offsetOther);
         BoundingBox thisBounds = offset==null? new SimpleBoundingBox(getBounds()) : new SimpleBoundingBox(getBounds()).translate(offset);
@@ -915,11 +920,11 @@ public class Region {
         final int otherOffY = otherBounds.yMin();
         final int otherOffZ = otherBounds.zMin();
         BoundingBox.LoopPredicate intersect = (x, y, z) -> mask.insideMask(x - offX, y - offY, z - offZ) && otherMask.insideMask(x - otherOffX, y - otherOffY, z - otherOffZ);
-        if (stopAtFirstIntersection) {
+        if (overlapLimit == 1) {
             return BoundingBox.test(inter, intersect) ? 1:0;
         } else {
             final int[] count = new int[1];
-            BoundingBox.loop(inter, (x, y, z) -> ++count[0], intersect);
+            BoundingBox.loop(inter, (x, y, z) -> ++count[0], intersect, Double.isFinite(overlapLimit) ? (x, y, z) -> count[0]>=overlapLimit : null);
             return count[0];
         }
     }
@@ -953,6 +958,21 @@ public class Region {
             }
         }
         return currentParent;
+    }
+
+    public Set<Region> getOverlappingRegions(Collection<Region> candidates, Offset offset, Offset containerOffset) {
+        return getOverlappingRegions(candidates, offset, containerOffset, 1);
+    }
+
+    public Set<Region> getOverlappingRegions(Collection<Region> candidates, Offset offset, Offset containerOffset, double minOverlap) {
+        return getOverlappingRegions(candidates, offset, containerOffset, (r1, r2)->minOverlap);
+    }
+    public Set<Region> getOverlappingRegions(Collection<Region> candidates, Offset offset, Offset containerOffset, ToDoubleBiFunction<Region, Region> minOverlap) {
+        if (candidates.isEmpty()) return Collections.emptySet();
+        return candidates.stream().filter(p -> {
+            double thld = minOverlap.applyAsDouble(this, p);
+            return getOverlapArea(p, offset, containerOffset, thld) >= thld;
+        }).collect(Collectors.toSet());
     }
     
     public void merge(Region other) {
