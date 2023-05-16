@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 
 public class ExportCellTrackingBenchmark {
@@ -32,7 +33,7 @@ public class ExportCellTrackingBenchmark {
         put("Fluo-N2DH-GOWT1", 50);put("Fluo-N3DH-CE", 50);put("Fluo-N3DH-CHO", 50);put("PhC-C2DH-U373", 50);
         put("BF-C2DL-HSC", 25);put("BF-C2DL-MuSC", 25);put("Fluo-C3DL-MDA231", 25);put("Fluo-N2DL-HeLa", 25);put("PhC-C2DL-PSC", 25);}};
 
-    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, MODE exportMode) {
+    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, MODE exportMode, boolean duplicateForMergeLinks) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         List<Selection> sel = mDAO.getSelectionDAO().getSelections().stream().filter(s -> selectionNames.contains(s.getName())).collect(Collectors.toList());
         if (sel.isEmpty()) logger.error("No selection");
@@ -48,12 +49,13 @@ public class ExportCellTrackingBenchmark {
                 }
                 //File curDir = Paths.get(dir, p+"-"+s.getName()).toFile();
                 File curDir = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
-                if (!curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
-                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportMode);
+                boolean exportRaw = !exportMode.equals(MODE.RESULTS);
+                if (exportRaw && !curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
+                export(parentTrack, curDir.toString(), objectClassIdx, margin, exportMode, duplicateForMergeLinks);
             }
         }
     }
-    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, MODE exportMode) {
+    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, MODE exportMode, boolean duplicateForMergeLinks) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         int count = 1;
         int padding = mDAO.getExperiment().getPositionCount()>100 ? 3 : 2;
@@ -64,13 +66,14 @@ public class ExportCellTrackingBenchmark {
             List<SegmentedObject> roots = dao.getRoots();
             for (List<SegmentedObject> pTrack : SegmentedObjectUtils.getAllTracks(roots, parentTrack).values()) {
                 File dirP = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
-                if (!dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
-                export(pTrack, dirP.toString(), objectClassIdx, margin, exportMode);
+                boolean exportRaw = !exportMode.equals(MODE.RESULTS);
+                if (exportRaw && !dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
+                export(pTrack, dirP.toString(), objectClassIdx, margin, exportMode, duplicateForMergeLinks);
             }
         }
     }
 
-    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, MODE exportMode) {
+    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, MODE exportMode, boolean duplicateForMergeLinks) {
         logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, rawDir, margin);
         if (parentTrack.isEmpty()) return;
         int[] counter=new int[]{0};
@@ -86,7 +89,7 @@ public class ExportCellTrackingBenchmark {
         if (margin>0) { // remove all objects with no pixel in FOI and create gaps
             new HashMap<>(allTracks).entrySet().stream().forEach(e -> {
                 List<SegmentedObject> newTrack = e.getValue().stream().filter(objectInFOI::get).collect(Collectors.toList());
-                if (newTrack.size() < e.getValue().size()) { // objects have been removed : get continuous segments
+                if (newTrack.size() < e.getValue().size()) { // objects have been removed : divide track into continuous segments
                     List<List<SegmentedObject>> newTracks = new ArrayList<>();
                     int lastTrackStart = 0;
                     for (int i = 1; i<newTrack.size(); ++i) {
@@ -109,6 +112,11 @@ public class ExportCellTrackingBenchmark {
                 }
             });
         }
+        Map<SegmentedObject, List<SegmentedObject>> trackHeadMapPrevs = allTracks.values().stream()
+                .map(t -> t.get(t.size()-1))
+                .filter(e->e.getNext()!=null)
+                .collect(Collectors.groupingBy(SegmentedObject::getNext));
+
         boolean exportTrainingSet = exportMode.equals(MODE.GOLD_TRUTH) || exportMode.equals(MODE.SILVER_TRUTH);
         boolean silverTruth = exportMode.equals(MODE.SILVER_TRUTH);
         boolean exportRaw = !exportMode.equals(MODE.RESULTS);
@@ -140,13 +148,25 @@ public class ExportCellTrackingBenchmark {
                         int label = getTrackLabel.get(e.getKey());
                         int startFrame = e.getKey().getFrame(); // TODO check if works when first frame is not ZERO otherwise remove offset.
                         int endFrame = Math.min(maxFrame, e.getValue().get(e.getValue().size()-1).getFrame());
+                        IntConsumer write = parentLabel -> {
+                            try {
+                                FileIO.write(raf, label + " " + startFrame + " " + endFrame + " " + parentLabel, !firstLine[0]);
+                            } catch (IOException ex) {
+                                logger.error("Error writing to file", ex);
+                                throw new RuntimeException(ex);
+                            }
+                        };
                         SegmentedObject prev = previousMap.get(e.getKey());
-                        int parentLabel = prev==null ? 0 : getTrackLabel.get(trackHeadMap.get(prev));
-                        try {
-                            FileIO.write(raf, label+" "+startFrame+ " "+endFrame + " "+parentLabel, !firstLine[0]);
-                        } catch (IOException ex) {
-                            logger.error("Error writing to file", ex);
-                            throw new RuntimeException(ex);
+                        if (prev==null && trackHeadMapPrevs.containsKey(e.getKey())) { // merge link case
+                            List<SegmentedObject> prevs = trackHeadMapPrevs.get(e.getKey());
+                            if (prevs.size()>1) logger.debug("track: {} frame: {} has several parent links: {}", label, startFrame, prevs.stream().mapToInt(p -> getTrackLabel.get(trackHeadMap.get(p))).toArray());
+                            if (prevs.size()>1 && !duplicateForMergeLinks) { // parent = min label
+                                int parentLabel =  getTrackLabel.get(trackHeadMap.get(Collections.min(prevs)));
+                                write.accept(parentLabel);
+                            } else prevs.stream().mapToInt(p -> getTrackLabel.get(trackHeadMap.get(p))).forEach(write); // write duplicate lines for each label
+                        } else {
+                            int parentLabel = prev == null ? 0 : getTrackLabel.get(trackHeadMap.get(prev));
+                            write.accept(parentLabel);
                         }
                         firstLine[0] = false;
             });

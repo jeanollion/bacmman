@@ -197,6 +197,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
     private EnumChoiceParameter<ExportCellTrackingBenchmark.MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", ExportCellTrackingBenchmark.MODE.values(), ExportCellTrackingBenchmark.MODE.RESULTS);
+    private BooleanParameter exportDuplicateCTC = new BooleanParameter("Merge Links", "Duplicate Entries", "Smallest Label", false).setHint("In case of merge link (one cell has several distinct cells, this option allows to write one entry per link or to choose the link to the track of smallest label");
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
     TrackMatePanel trackMatePanel;
@@ -511,8 +512,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // ctc
         PropertyUtils.setPersistent(marginCTC, "ctc_margin");
         PropertyUtils.setPersistent(exportModeTrainCTC, "ctc_export_mode");
+        PropertyUtils.setPersistent(exportDuplicateCTC, "ctc_merge_duplicate");
         ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(exportModeTrainCTC, CTCMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(exportDuplicateCTC, CTCMenu);
         // load xp after persistent props loaded
         populateDatasetTree();
         dsTree.setRecentSelection();
@@ -976,7 +979,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     return;
                 }
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportPositions(db, dir, oc, getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum());
+                    ExportCellTrackingBenchmark.exportPositions(db, dir, oc, getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
                 }
             }
         });
@@ -995,7 +998,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
                 List<String> sel = getSelectedSelections(true).stream().map(Selection::getName).collect(Collectors.toList());
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum());
+                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
                 }
             }
         });
@@ -1356,6 +1359,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         populateModuleList(moduleModel, moduleList, null, Collections.emptyList());
         hintTextPane.setText("");
         if (trackMatePanel!=null) trackMatePanel.dispose();
+
+        if (Core.getCore().getOmeroGateway()!=null) Core.getCore().getOmeroGateway().close();
+
     }
     
     private void updateDisplayRelatedToXPSet() {

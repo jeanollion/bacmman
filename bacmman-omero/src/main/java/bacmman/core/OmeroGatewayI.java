@@ -46,7 +46,7 @@ import static bacmman.ui.gui.PromptOmeroConnectionInformation.promptCredentials;
 
 public class OmeroGatewayI implements OmeroGateway {
     public static final Logger logger = LoggerFactory.getLogger(OmeroGatewayI.class);
-    Gateway gateway;
+    final Gateway gateway;
     SecurityContext ctx;
     BrowseFacility browse;
     String hostname, username, password;
@@ -139,7 +139,6 @@ public class OmeroGatewayI implements OmeroGateway {
             ctx = new SecurityContext(user.getGroupId());
             ctx.setExperimenter(user);
             browse = gateway.getFacility(BrowseFacility .class);
-
             return true;
         } catch (DSOutOfServiceException|ExecutionException|Ice.SecurityException e) {
             logger.debug("error while connecting: ", e);

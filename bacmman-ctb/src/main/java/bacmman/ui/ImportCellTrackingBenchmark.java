@@ -80,7 +80,6 @@ public class ImportCellTrackingBenchmark {
                 .map(s -> Arrays.stream(s).mapToInt(Integer::parseInt))
                 .map(IntStream::toArray)
                 .collect(Collectors.toMap(i -> i[0], i -> i));
-                //.collect(Collectors.toMap(i -> i[0], i -> new int[]{i[0], i[1]-1, i[2]-1, i[3]}));
         logger.debug("{} tracks found", tracks.size());
         LabelImage seg = new LabelImage();
         TrackLinkEditor editor = getEditor(objectClassIdx, new HashSet<>());

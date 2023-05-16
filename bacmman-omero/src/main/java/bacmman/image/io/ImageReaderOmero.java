@@ -63,13 +63,13 @@ public class ImageReaderOmero implements ImageReader {
 
     @Override
     public void closeReader() {
-        rawData = null;
-        pixels = null;
-        /*try {
-            rawData.close(); // necessary ?
+        try {
+            rawData.close();
         } catch (ServerError e) {
-
-        }*/
+        } finally {
+            rawData = null;
+            pixels = null;
+        }
     }
 
     @Override
