@@ -42,7 +42,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> grp = new PairParameter<>("Input", interpolation, scaler).setEmphasized(true);
     SimpleListParameter<PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>>> inputInterpAndScaling = new SimpleListParameter<>("Input Interpolation/Scaling", grp).setNewInstanceNameFunction((s, i)->"Input #"+i).setEmphasized(true).setHint("Define here Interpolation mode and scaling mode for each input. All channels of each input will be processed together");
     SimplePluginParameterList<HistogramScaler> inputScaling = new SimplePluginParameterList<>("Input Scaling", "Scaler", HistogramScaler.class, new IQRScaler(), true).setNewInstanceNameFunction((s, i)->"Scaler for input #"+i).setEmphasized(true).setHint("Define here histogram scaling mode for each input. All channels of each input will be processed together");
-    BooleanParameter scaleFrameByFrame = new BooleanParameter("Scale Frame by Frame", false).setHint("If true, scaling factors are computed on the histogram of the whole track, if false scale is computed frame by frame");
+    BooleanParameter scaleImageByImage = new BooleanParameter("Scale Image by Image", false).setHint("If true, scaling factors are computed on the histogram of the whole batch, if false scale is computed for each image. If image has several channels (sometimes corresponding to different frames) they will be scaled together");
 
     BoundedNumberParameter outputScalerIndex = new BoundedNumberParameter("Output scaler index", 0, 0, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image. -1 no reverse scaling");
     BooleanParameter reverseScaling = new BooleanParameter("Reverse scaling", true).setEmphasized(true).setHint("Whether scale the output using the scaling parameters of the corresponding input");
@@ -187,15 +187,15 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         iIS.setEmphasized(true);
         oIS.setEmphasized(true);
         if (noReverseScaling) {
-            this.setActionParameters(MODE.SCALE_ONLY, iS, scaleFrameByFrame);
-            this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, scaleFrameByFrame);
-            this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, scaleFrameByFrame);
+            this.setActionParameters(MODE.SCALE_ONLY, iS, scaleImageByImage);
+            this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, scaleImageByImage);
+            this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, scaleImageByImage);
         } else {
-            this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleFrameByFrame);
-            this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, oS, scaleFrameByFrame);
-            this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleFrameByFrame);
+            this.setActionParameters(MODE.SCALE_ONLY, iS, oS, scaleImageByImage);
+            this.setActionParameters(MODE.PAD, targetShape, contraction, paddingMode, minPad, iS, oS, scaleImageByImage);
+            this.setActionParameters(MODE.TILE, tileShape, minOverlap, padTilesCond, iS, oS, scaleImageByImage);
         }
-        this.setActionParameters(MODE.RESAMPLE, targetShape, contraction, iIS, oIS ,scaleFrameByFrame);
+        this.setActionParameters(MODE.RESAMPLE, targetShape, contraction, iIS, oIS , scaleImageByImage);
         initChildList();
     }
     public DLResizeAndScale setEmphasized(boolean emp) {
@@ -329,7 +329,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
                     int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), scaleImageByImage.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
@@ -350,7 +350,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndResampleInput(inputINC[i], interpolsI[i], scalerSuppliersI[i], getTargetImageShape(inputINC[i], false), scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndResampleInput(inputINC[i], interpolsI[i], scalerSuppliersI[i], getTargetImageShape(inputINC[i], false), scaleImageByImage.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
@@ -364,7 +364,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
                     int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), getTargetImageShape(inputINC[i], true), scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), getTargetImageShape(inputINC[i], true), scaleImageByImage.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
@@ -381,7 +381,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
                 for (int i = 0; i < inputINC.length; ++i) {
                     int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), tileShapeXYZ, minOverlapXYZ, scaleFrameByFrame.getSelected());
+                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), tileShapeXYZ, minOverlapXYZ, scaleImageByImage.getSelected());
                     imINC[i] = res.v1;
                     shapesIN[i] = res.v2;
                     scalersI[i] = res.v3;
@@ -412,7 +412,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 Image[][][] outputONC = new Image[predictionsONC.length][][];
                 for (int i = 0;i<predictionsONC.length; ++i) {
                     int scalerIndex = getOutputScalerIndex(false, i);
-                    if (scalerIndex>=0) outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex], predictionsONC[i], null, input.v3[scalerIndex], null, scaleFrameByFrame.getSelected());
+                    if (scalerIndex>=0) outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex], predictionsONC[i], null, input.v3[scalerIndex], null, scaleImageByImage.getSelected());
                     else outputONC[i] = predictionsONC[i];
                 }
                 return outputONC;
@@ -437,7 +437,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                         interpol = ((InterpolationParameter)params.getChildAt(0) ).getInterpolation();
                     }
                     int scalerIndex = getOutputScalerIndex(true, i);
-                    outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0], scaleFrameByFrame.getSelected());
+                    outputONC[i] = scaleAndResampleReverse(input.v1[scalerIndex>=0?scalerIndex:0], predictionsONC[i],interpol, scalerIndex>=0? input.v3[scalerIndex]: null, input.v2[scalerIndex>=0?scalerIndex:0], scaleImageByImage.getSelected());
                 }
                 return outputONC;
             }

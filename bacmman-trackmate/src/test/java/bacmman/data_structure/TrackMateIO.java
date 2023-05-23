@@ -116,6 +116,7 @@ public class TrackMateIO {
         Core.getCore();
         Core.setFreeDisplayerMemory(man::flush);
         Core.setImageDisplayer(disp::showImage);
+        Core.setOverlayDisplayer(disp);
         Core.setImage5dDisplayer(disp::showImage5D);
     }
 }

@@ -23,6 +23,7 @@ import bacmman.github.gist.UserAuth;
 import bacmman.image.Image;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.PropertyUtils;
+import bacmman.ui.gui.image_interaction.OverlayDisplayer;
 import bacmman.ui.logger.ProgressLogger;
 import net.imagej.ImageJ;
 import net.imagej.ops.OpService;
@@ -57,6 +58,7 @@ public class Core {
     private static final Object lock = new Object();
     private static ProgressLogger progressLogger;
     private static Consumer<Image> imageDisplayer;
+    private static OverlayDisplayer overlayDisplayer;
     private static BiConsumer<String, Image[][]> image5D_Displayer;
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
@@ -111,9 +113,13 @@ public class Core {
     public static void setImageDisplayer(Consumer<Image> imageDisp) {
         imageDisplayer=imageDisp;
     }
+    public static void setOverlayDisplayer(OverlayDisplayer overlayDisp) {
+        overlayDisplayer=overlayDisp;
+    }
     public static void showImage(Image image) {
         if (imageDisplayer!=null) imageDisplayer.accept(image);
     }
+    public static OverlayDisplayer getOverlayDisplayer() {return overlayDisplayer;}
     public static void setImage5dDisplayer(BiConsumer<String, Image[][]> image5D_Disp) {
         image5D_Displayer=image5D_Disp;
     }

@@ -196,7 +196,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     for more information.");
 
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
-    private EnumChoiceParameter<ExportCellTrackingBenchmark.MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", ExportCellTrackingBenchmark.MODE.values(), ExportCellTrackingBenchmark.MODE.RESULTS);
+    private EnumChoiceParameter<CTB_IO_MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", CTB_IO_MODE.values(), CTB_IO_MODE.RESULTS);
     private BooleanParameter exportDuplicateCTC = new BooleanParameter("Merge Links", "Duplicate Entries", "Smallest Label", false).setHint("In case of merge link (one cell has several distinct cells, this option allows to write one entry per link or to choose the link to the track of smallest label");
     final private List<Component> relatedToXPSet;
     final private List<Component> relatedToReadOnly;
@@ -4797,10 +4797,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void testPositionJCBItemStateChanged(java.awt.event.ItemEvent evt) {//GEN-FIRST:event_testPositionJCBItemStateChanged
         if (freezeTestPositionListener) return;
         logger.debug("fire test position changed");
-        int positionIdx = testPositionJCB.getSelectedIndex();
+        setTestFrameRange();
         if (testStepJCB.getSelectedIndex()==0) { // pre-processing
-            setTestFrameRange();
-            this.updateTestConfigurationTree();
+            updateTestConfigurationTree();
         } else {
             populateTestParentTrackHead();
         }
@@ -4994,6 +4993,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 this.testFrameRange.setUpperBound(null);
             }
         }
+        testFramePanel.updateUI();
     }
     private boolean freezeTestPositionListener = false;
     public void populateTestPositionJCB() {

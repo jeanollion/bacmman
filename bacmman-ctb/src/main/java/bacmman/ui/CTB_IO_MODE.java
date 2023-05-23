@@ -1,0 +1,3 @@
+package bacmman.ui;
+
+public enum CTB_IO_MODE {RESULTS, RESULTS_AND_RAW, GOLD_TRUTH, SILVER_TRUTH, RAW}

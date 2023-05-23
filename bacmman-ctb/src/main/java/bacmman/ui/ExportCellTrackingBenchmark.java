@@ -23,17 +23,17 @@ import java.io.RandomAccessFile;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.IntConsumer;
+import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
 public class ExportCellTrackingBenchmark {
-    public enum MODE {RESULTS, RESULTS_AND_RAW, GOLD_TRUTH, SILVER_TRUTH}
     public static final Logger logger = LoggerFactory.getLogger(ExportCellTrackingBenchmark.class);
     public static final Map<String, Integer> FOI = new HashMap<String, Integer>(){{
         put("DIC-C2DH-HeLa", 50);put("Fluo-C2DL-Huh7", 50);put("Fluo-C2DL-MSC", 50);put("Fluo-C3DH-H157", 50);
         put("Fluo-N2DH-GOWT1", 50);put("Fluo-N3DH-CE", 50);put("Fluo-N3DH-CHO", 50);put("PhC-C2DH-U373", 50);
         put("BF-C2DL-HSC", 25);put("BF-C2DL-MuSC", 25);put("Fluo-C3DL-MDA231", 25);put("Fluo-N2DL-HeLa", 25);put("PhC-C2DL-PSC", 25);}};
 
-    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, MODE exportMode, boolean duplicateForMergeLinks) {
+    public static void exportSelections(MasterDAO mDAO, String dir, int objectClassIdx, List<String> selectionNames, int margin, CTB_IO_MODE exportMode, boolean duplicateForMergeLinks) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         List<Selection> sel = mDAO.getSelectionDAO().getSelections().stream().filter(s -> selectionNames.contains(s.getName())).collect(Collectors.toList());
         if (sel.isEmpty()) logger.error("No selection");
@@ -49,13 +49,13 @@ public class ExportCellTrackingBenchmark {
                 }
                 //File curDir = Paths.get(dir, p+"-"+s.getName()).toFile();
                 File curDir = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
-                boolean exportRaw = !exportMode.equals(MODE.RESULTS);
+                boolean exportRaw = !exportMode.equals(CTB_IO_MODE.RESULTS);
                 if (exportRaw && !curDir.exists() && !curDir.mkdirs()) throw new RuntimeException("Could not create dir : " + curDir);
                 export(parentTrack, curDir.toString(), objectClassIdx, margin, exportMode, duplicateForMergeLinks);
             }
         }
     }
-    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, MODE exportMode, boolean duplicateForMergeLinks) {
+    public static void exportPositions(MasterDAO mDAO, String dir, int objectClassIdx, List<String> positions, int margin, CTB_IO_MODE exportMode, boolean duplicateForMergeLinks) {
         if (margin<=0) margin = FOI.getOrDefault(mDAO.getDBName(), 0);
         int count = 1;
         int padding = mDAO.getExperiment().getPositionCount()>100 ? 3 : 2;
@@ -66,16 +66,27 @@ public class ExportCellTrackingBenchmark {
             List<SegmentedObject> roots = dao.getRoots();
             for (List<SegmentedObject> pTrack : SegmentedObjectUtils.getAllTracks(roots, parentTrack).values()) {
                 File dirP = Paths.get(dir, Utils.formatInteger(padding, count++)).toFile();
-                boolean exportRaw = !exportMode.equals(MODE.RESULTS);
+                boolean exportRaw = !exportMode.equals(CTB_IO_MODE.RESULTS);
                 if (exportRaw && !dirP.exists() && !dirP.mkdirs()) throw new RuntimeException("Could not create dir : " + dirP);
                 export(pTrack, dirP.toString(), objectClassIdx, margin, exportMode, duplicateForMergeLinks);
             }
         }
     }
 
-    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, MODE exportMode, boolean duplicateForMergeLinks) {
+    public static void export(List<SegmentedObject> parentTrack, String rawDir, int objectClassIdx, int margin, CTB_IO_MODE exportMode, boolean duplicateForMergeLinks) {
         logger.debug("Export: {} frames from oc: {} @ {} with margin={}", parentTrack.size(), objectClassIdx, rawDir, margin);
         if (parentTrack.isEmpty()) return;
+        boolean rawOnly = exportMode.equals(CTB_IO_MODE.RAW);
+        boolean exportTrainingSet = exportMode.equals(CTB_IO_MODE.GOLD_TRUTH) || exportMode.equals(CTB_IO_MODE.SILVER_TRUTH);
+        boolean silverTruth = exportMode.equals(CTB_IO_MODE.SILVER_TRUTH);
+        boolean exportRaw = !exportMode.equals(CTB_IO_MODE.RESULTS);
+        int padding = parentTrack.size()>=1000 ? 4 : 3;
+        IntFunction<String> getLabel = f -> Utils.formatInteger(padding, f);
+        if (exportRaw) {
+            Utils.emptyDirectory(new File(rawDir));
+            parentTrack.forEach(r -> ImageWriter.writeToFile(r.getRawImage(objectClassIdx), Paths.get(rawDir, "t"+getLabel.apply(r.getFrame())).toString(), ImageFormat.TIF));
+            if (rawOnly) return;
+        }
         int[] counter=new int[]{0};
         int parentOC = parentTrack.get(0).getStructureIdx();
         int maxFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
@@ -117,22 +128,18 @@ public class ExportCellTrackingBenchmark {
                 .filter(e->e.getNext()!=null)
                 .collect(Collectors.groupingBy(SegmentedObject::getNext));
 
-        boolean exportTrainingSet = exportMode.equals(MODE.GOLD_TRUTH) || exportMode.equals(MODE.SILVER_TRUTH);
-        boolean silverTruth = exportMode.equals(MODE.SILVER_TRUTH);
-        boolean exportRaw = !exportMode.equals(MODE.RESULTS);
+
         // write label images
-        int padding = parentTrack.size()>=1000 ? 4 : 3;
+
         String procDir = rawDir + (exportTrainingSet ? (silverTruth? "_ST" : "_GT") : "_RES");
         String segDir = exportTrainingSet ? Paths.get(procDir, "SEG").toString() : procDir;
         String traDir = exportTrainingSet ? Paths.get(procDir, "TRA").toString() : procDir;
         Utils.emptyDirectory(new File(procDir));
-        if (exportRaw) Utils.emptyDirectory(new File(rawDir));
         parentTrack.forEach(r -> {
-            Image labels = new ImageShort(Utils.formatInteger(padding, r.getFrame()), r.getMaskProperties());
+            Image labels = new ImageShort(getLabel.apply(r.getFrame()), r.getMaskProperties());
             r.getChildren(objectClassIdx).filter(objectInFOI::get).forEach(o -> o.getRegion().draw(labels, getTrackLabel.get(trackHeadMap.get(o))));
             if (exportTrainingSet) ImageWriter.writeToFile(labels, Paths.get(segDir, "man_seg" + labels.getName()).toString(), ImageFormat.TIF);
             ImageWriter.writeToFile(labels, Paths.get(traDir, ( exportTrainingSet ? "man_track" : "mask" ) + labels.getName()).toString(), ImageFormat.TIF);
-            if (exportRaw) ImageWriter.writeToFile(r.getRawImage(objectClassIdx), Paths.get(rawDir, "t"+labels.getName()).toString(), ImageFormat.TIF);
         });
 
         logger.debug("Exporting to : {}, edge: {}, number of labels: {} number of tracks: {}", traDir, margin, counter[0], allTracks.size());

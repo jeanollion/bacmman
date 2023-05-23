@@ -521,11 +521,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         }
 
         if (displayCorrections && object.key.getAttribute(SegmentedObject.EDITED_SEGMENTATION, false)) { // also display when segmentation is edited
-            double size = TRACK_ARROW_STROKE_WIDTH*1.5;
+            double size = TRACK_ARROW_STROKE_WIDTH*1.1;
             Point p = new Point((float)object.key.getBounds().xMean(), (float)object.key.getBounds().yMean());
             object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
             p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
-            Arrow arrow = new Arrow(p.get(0)+size, p.get(1)+size, p.get(0), p.get(1));
+            Arrow arrow = new Arrow(p.get(0), p.get(1), p.get(0), p.get(1));
             arrow.enableSubPixelResolution();
             arrow.setStrokeColor(trackCorrectionColor);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
@@ -655,11 +655,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             Consumer<Pair<SegmentedObject, BoundingBox>> addEditedArrow = object -> {
                 if (edited.test(object.key)) { // also display when segmentation is edited
                     Integer frameIdx = getFrame.apply(object.key.getFrame());
-                    double size = TRACK_ARROW_STROKE_WIDTH * 1.5;
+                    double size = TRACK_ARROW_STROKE_WIDTH * 1.1;
                     Point p = new Point((float) object.key.getBounds().xMean(), (float) object.key.getBounds().yMean());
                     object.key.getRegion().translateToFirstPointOutsideRegionInDir(p, new Vector(1, 1));
                     p.translate(object.value).translateRev(object.key.getBounds()); // go to kymograph offset
-                    Arrow arrow = new Arrow(p.get(0) + size, p.get(1) + size, p.get(0), p.get(1));
+                    Arrow arrow = new Arrow(p.get(0), p.get(1), p.get(0), p.get(1));
                     arrow.enableSubPixelResolution();
                     arrow.setStrokeColor(trackCorrectionColor);
                     arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
@@ -681,7 +681,6 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             track.stream().forEach(addEditedArrow::accept);
         }
         // add arrow to indicate splitting
-        double arrowSize = track.size()==1 ? 1.5 : 0.65;
         Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitArrow = (o1, o2, c) -> {
             Integer frame = getFrame.apply(o1.key.getFrame());
             Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
@@ -693,7 +692,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             arrow.setDoubleHeaded(true);
             arrow.setStrokeColor(c);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
+            arrow.setHeadSize(track.size() == 1 ? Math.max(1, TRACK_ARROW_STROKE_WIDTH*0.65) : TRACK_ARROW_STROKE_WIDTH * 1.1);
             int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
             int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
             if (zMin==zMax) {
@@ -719,13 +718,13 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             arrow1.setDoubleHeaded(false);
             arrow1.setStrokeColor(c);
             arrow1.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow1.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
+            arrow1.setHeadSize(TRACK_ARROW_STROKE_WIDTH*1.1);
             Arrow arrow2 = new Arrow(p2.get(0), p2.get(1), middle.get(0), middle.get(1));
             arrow2.enableSubPixelResolution();
             arrow2.setDoubleHeaded(false);
             arrow2.setStrokeColor(c);
             arrow2.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow2.setHeadSize(TRACK_ARROW_STROKE_WIDTH*arrowSize);
+            arrow2.setHeadSize(TRACK_ARROW_STROKE_WIDTH*1.1);
             int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
             int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
             if (zMin==zMax) {

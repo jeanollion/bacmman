@@ -59,6 +59,7 @@ public class IJ1 implements PlugIn {
         Core.getCore();
         Core.setFreeDisplayerMemory(man::flush);
         Core.setImageDisplayer(disp::showImage);
+        Core.setOverlayDisplayer(disp);
         Core.setImage5dDisplayer(disp::showImage5D);
         Core.getCore().getGithubGateway().setPromptGithubCredientials(PromptGithubCredentials::promptCredentials);
     }

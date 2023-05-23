@@ -2,28 +2,21 @@ package bacmman.ui;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.ContainerParameterImpl;
-import bacmman.core.Core;
 import bacmman.core.ProgressCallback;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.image.Image;
-import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
-import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.plugins.segmenters.LabelImage;
-import bacmman.ui.logger.ConsoleProgressLogger;
 import bacmman.utils.FileIO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.BiFunction;
@@ -34,11 +27,12 @@ import java.util.stream.IntStream;
 public class ImportCellTrackingBenchmark {
     public static final Logger logger = LoggerFactory.getLogger(ImportCellTrackingBenchmark.class);
 
-    public static void importPositions(MasterDAO mDAO, String dir, int objectClassIdx, boolean overwriteObjects, ExportCellTrackingBenchmark.MODE importMode, ProgressCallback pcb) throws IOException {
+    public static void importPositions(MasterDAO mDAO, String dir, int objectClassIdx, boolean overwriteObjects, CTB_IO_MODE importMode, ProgressCallback pcb) throws IOException {
         File mainDir = new File(dir);
-        boolean trainingSet = importMode.equals(ExportCellTrackingBenchmark.MODE.GOLD_TRUTH) || importMode.equals(ExportCellTrackingBenchmark.MODE.SILVER_TRUTH);
-        boolean silverTruth = importMode.equals(ExportCellTrackingBenchmark.MODE.SILVER_TRUTH);
-        String suffix = trainingSet ? (silverTruth ? "_ST" : "_GT") : "_RES";
+        boolean trainingSet = importMode.equals(CTB_IO_MODE.GOLD_TRUTH) || importMode.equals(CTB_IO_MODE.SILVER_TRUTH);
+        boolean silverTruth = importMode.equals(CTB_IO_MODE.SILVER_TRUTH);
+        boolean rawOnly = importMode.equals(CTB_IO_MODE.RAW);
+        String suffix = trainingSet ? (silverTruth ? "_ST" : "_GT") : (rawOnly ? "" : "_RES");
         File[] allDir = mainDir.listFiles(f->f.isDirectory() && f.getName().endsWith(suffix));
         if (allDir == null || allDir.length==0) {
             if (pcb!=null) pcb.log("No position found in directory");
@@ -58,8 +52,11 @@ public class ImportCellTrackingBenchmark {
             if (!rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
             boolean exists = mDAO.getExperiment().getPositions().stream().map(ContainerParameterImpl::getName).anyMatch(p->p.equals(posName));
             Processor.importFiles(mDAO.getExperiment(), true, false, pcb, rawDir.getAbsolutePath());
-            if (trainingSet) resDir = Paths.get(resDir.getAbsolutePath(), "TRA").toFile();
-            if (overwriteObjects || !exists) importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, trainingSet, pcb);
+            if (!rawOnly) {
+                if (trainingSet) resDir = Paths.get(resDir.getAbsolutePath(), "TRA").toFile();
+                if (overwriteObjects || !exists)
+                    importObjects(mDAO.getDao(rawDir.getName()), resDir, objectClassIdx, trainingSet, pcb);
+            }
             else if (pcb!=null) pcb.incrementProgress();
             mDAO.updateExperiment();
         }

@@ -84,7 +84,7 @@ public class ImageOperations {
     }
     public static Image applyFunction(Image image, ToDoubleFunction<Double> fun, boolean inplace) {
         Image output = inplace ? image : new ImageFloat(image.getName(), image);
-        BoundingBox.loop(image, (x, y, z) -> output.setPixel(x, y, z, fun.applyAsDouble((double)image.getPixel(x, y, z))));
+        BoundingBox.loop(image.getBoundingBox().resetOffset(), (x, y, z) -> output.setPixel(x, y, z, fun.applyAsDouble((double)image.getPixel(x, y, z))));
         return output;
     }
     public static Image applyPlaneByPlane(Image image, Function<Image, Image> function, boolean parallel) {
@@ -634,7 +634,7 @@ public class ImageOperations {
                 return res/count;
             };
         }
-        BoundingBox.loop(result, (x, y, z)-> {
+        BoundingBox.loop(result.getBoundingBox().resetOffset(), (x, y, z)-> {
             result.setPixel(x, y, z, getValue.apply(x * factorXY, y * factorXY, z * factorZ));
         }, true);
         return result;

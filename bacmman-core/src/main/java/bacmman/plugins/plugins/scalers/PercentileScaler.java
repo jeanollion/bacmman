@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.IntervalParameter;
 import bacmman.configuration.parameters.Parameter;
@@ -17,7 +18,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
     Histogram histogram;
     double offset, scale;
     IntervalParameter percentile = new IntervalParameter("Min/Max Percentiles", 5, 0, 1, 0.01, 0.99).setEmphasized(true);
-
+    BooleanParameter saturate = new BooleanParameter("Saturate", true).setEmphasized(true).setHint("If true, values under min percentile and values over max percentile are set to 0 and 1 respectively");
     boolean transformInputImage = false;
     Consumer<String> scaleLogger;
     @Override
@@ -34,7 +35,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
         this.scale = scaleOff[0];
         this.offset = scaleOff[1];
         log(scaleOff);
-        //logger.debug("Percentile scaler: percentiles: [{} - {}] scale {}", -offset, -offset+ 1./scale, scale);
+        //logger.debug("Percentile scaler: percentiles: [{} - {}] range: {} scale {}", -offset, -offset+ 1./scale, 1./scale, scale);
     }
     public double[] getScaleOffset(Histogram histogram) {
         double[] min_max = histogram.getQuantiles(this.percentile.getValuesAsDouble());
@@ -44,12 +45,16 @@ public class PercentileScaler implements HistogramScaler, Hint {
     }
     @Override
     public Image scale(Image image) {
-        if (isConfigured()) return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
+        if (isConfigured()) image = ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, scale, offset);
         else { // perform on single image
             double[] scaleOff = getScaleOffset(HistogramFactory.getHistogram(image::stream, HistogramFactory.BIN_SIZE_METHOD.AUTO_WITH_LIMITS));
             log(scaleOff);
-            return ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
+            image = ImageOperations.affineOperation2(image, transformInputImage?TypeConverter.toFloatingPoint(image, false, false):null, scaleOff[0], scaleOff[1]);
         }
+        if (saturate.getSelected()) {
+            ImageOperations.applyFunction(image, v -> Math.max(0, Math.min(1, v)), true);
+        }
+        return image;
     }
 
     @Override
@@ -70,7 +75,7 @@ public class PercentileScaler implements HistogramScaler, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[] {percentile};
+        return new Parameter[] {percentile , saturate};
     }
 
     @Override

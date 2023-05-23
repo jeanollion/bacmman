@@ -1350,28 +1350,32 @@ public abstract class ImageWindowManager<I, U, V> {
         this.testData.put(image, testData);
     }
     protected JPopupMenu getMenu(Image image) {
-        final List<SegmentedObject> sel = getSelectedLabileObjects(image);
+        List<SegmentedObject> sel = getSelectedLabileObjects(image);
         JPopupMenu menu;
-        if (sel.isEmpty()) return null;
-        else if (sel.size()==1) menu = getMenu(sel.get(0));
-        else {
+        if (sel.size()==1) menu = getMenu(sel.get(0));
+        else if (!sel.isEmpty()) {
             Collections.sort(sel);
             menu = getMenu(sel);
-        }
+        } else menu = new JPopupMenu();
         if (testData.containsKey(image)) { // test menu
             Collection<TestDataStore> stores = testData.get(image);
+            if (sel.isEmpty()) {
+                InteractiveImage ii = getImageObjectInterface(null);
+                if (ii!=null) sel = ii.getObjects().stream().map(o -> o.key).collect(Collectors.toList());
+            }
             SegmentedObject o = sel.isEmpty() ? null : sel.get(0); // only first selected object
             Predicate<TestDataStore> storeWithinSel = s-> o == null || s.getParent().equals(o.getParent(s.getParent().getStructureIdx()));
-            Set<String> commands = stores.stream().filter(storeWithinSel).map(TestDataStore::getMiscCommands).flatMap(Set::stream).distinct().sorted().collect(Collectors.toSet());
+            List<String> commands = stores.stream().filter(storeWithinSel).map(TestDataStore::getMiscCommands).flatMap(Set::stream).distinct().sorted().collect(Collectors.toList());
             if (!commands.isEmpty()) {
                 menu.addSeparator();
+                List<SegmentedObject> sel2 = new ArrayList<>(sel);
                 commands.forEach(s-> {
                     JMenuItem item = new JMenuItem(s);
                     menu.add(item);
-                    item.setAction(new AbstractActionImpl(item.getActionCommand(), stores, storeWithinSel, new ArrayList(sel)));
+                    item.setAction(new AbstractActionImpl(item.getActionCommand(), stores, storeWithinSel, sel2));
                 });
             }
-        }
+        } else if (sel.isEmpty()) return null;
         return menu;
     }
 

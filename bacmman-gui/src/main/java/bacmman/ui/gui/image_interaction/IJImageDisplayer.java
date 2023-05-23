@@ -18,22 +18,22 @@
  */
 package bacmman.ui.gui.image_interaction;
 
+import bacmman.data_structure.Region;
+import bacmman.data_structure.region_container.roi.Roi3D;
 import bacmman.plugins.Plugin;
+import bacmman.utils.geom.Point;
+import bacmman.utils.geom.Vector;
 import ij.*;
 import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.Image;
-import ij.gui.GUI;
-import ij.gui.ImageCanvas;
+import ij.gui.*;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
-import ij.gui.ImageWindow;
-import ij.gui.StackWindow;
 import ij.plugin.frame.SyncWindows;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.Point;
-import java.awt.Rectangle;
+import java.awt.*;
 import java.awt.event.MouseWheelListener;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,7 +44,7 @@ import java.util.function.Supplier;
  *
  * @author Jean Ollion
  */
-public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
+public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisplayer{
     static Logger logger = LoggerFactory.getLogger(IJImageDisplayer.class);
     protected HashMap<Image, ImagePlus> displayedImages=new HashMap<>();
     protected HashMap<ImagePlus, Image> displayedImagesInv=new HashMap<>();
@@ -175,7 +175,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
                 boolean scrollChannels = needScrollChannel && !scrollZ && !scrollTime && (!needScrollImage || altGr);
                 //logger.debug("scroll : type {}, amount: {}, rotation: {}, scrollZ: {}, scrollTime: {}, scrollChannels: {}, need scroll image: {}", e.getScrollType(), amount, rotation, scrollZ, scrollTime, scrollChannels, needScrollImage);
                 if (ctrl && ic!=null) { // zoom
-                        Point loc = ic.getCursorLoc();
+                        java.awt.Point loc = ic.getCursorLoc();
                         int x = ic.screenX(loc.x);
                         int y = ic.screenY(loc.y);
                         if (rotation<0) ic.zoomIn(x, y);
@@ -386,5 +386,103 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> {
         if (ip==null) return null;
         int[] FCZCount = getFCZCount(ip);
         return ImageDisplayer.reslice(IJImageWrapper.wrap(ip), FCZCount, IJImageWrapper.getStackIndexFunction(FCZCount));
+    }
+    private Overlay getCurrentImageOverlay() {
+        ImagePlus im = getCurrentImage();
+        if (im == null) return null;
+        Overlay o = im.getOverlay();
+        if (o==null) {
+            o = new Overlay();
+            im.setOverlay(o);
+        }
+        return o;
+    }
+    private void setFrameAndZ(Roi3D roi, int frame, ImagePlus image) {
+        roi.setFrame(frame);
+        if (image.getNSlices()>1 && roi.is2D()) {
+            roi.duplicateROIUntilZ(image.getNSlices());
+        }
+        if (!image.isDisplayedHyperStack()) {
+            if (image.getNSlices()>1) roi.setZToPosition();
+            else if (image.getNFrames()>1) roi.setTToPosition();
+        }
+    }
+    @Override
+    public void displayContours(Region region, int frame, double strokeWidth, Color color, boolean dashed) {
+        Overlay o = getCurrentImageOverlay();
+        if (o==null) return;
+        if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
+        Roi3D roi = region.getRoi();
+        if (roi == null) {
+            region.createRoi();
+            roi = region.getRoi();
+        }
+        roi = roi.duplicate();
+        setFrameAndZ(roi, frame, getCurrentImage());
+        for (Roi r : roi.values()) {
+            r.setStrokeWidth(strokeWidth); // also sets scaleStrokeWidth = True
+            if (dashed) {
+                BasicStroke stroke = new BasicStroke((float)strokeWidth, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 10, new float[]{9}, 0);
+                r.setStroke(stroke);
+            }
+            r.setStrokeColor(color);
+            o.add(r);
+        }
+    }
+
+    @Override
+    public void displayRegion(Region region, int frame, Color color) {
+        Overlay o = getCurrentImageOverlay();
+        if (o==null) return;
+        Roi3D roi = region.getRoi();
+        if (roi == null) {
+            region.createRoi();
+            roi = region.getRoi();
+        }
+        roi = roi.duplicate();
+        setFrameAndZ(roi, frame, getCurrentImage());
+        for (Roi r : roi.values()) {
+            r.setFillColor(color);
+            o.add(r);
+        }
+    }
+
+    @Override
+    public void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
+        Overlay o = getCurrentImageOverlay();
+        if (o==null) return;
+        if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
+        Point end = start.duplicate().translate(direction);
+        if (arrowStart && !arrowEnd) {
+            Point temp = start;
+            start = end;
+            end = temp;
+        }
+        Arrow arrow = new Arrow(start.getDoublePosition(0), start.getDoublePosition(1), end.getDoublePosition(0), end.getDoublePosition(1));
+        arrow.enableSubPixelResolution();
+        arrow.setStrokeWidth(strokeWidth);
+        arrow.setHeadSize(strokeWidth * 1.1);
+        arrow.setStrokeColor(color);
+        if (arrowStart && arrowEnd) arrow.setDoubleHeaded(true);
+        Roi3D roi = new Roi3D(1);
+        if (start.numDimensions()>2) {
+            for (int i = (int)start.get(2); i<=(int)Math.ceil(end.get(2)); ++i) {
+                roi.put(i, (Roi)arrow.clone());
+            }
+            roi.setIs2D(false);
+        } else {
+            roi.put(0, arrow);
+            roi.setIs2D(true);
+        }
+        setFrameAndZ(roi, frame, getCurrentImage());
+        for (Roi r : roi.values()) o.add(r);
+    }
+    @Override
+    public void updateDisplay() {
+        ImagePlus ip = getCurrentImage();
+        if (ip!=null) {
+            ip.draw();
+            logger.debug("updating display for image: {}", ip.getTitle());
+        }
     }
 }
