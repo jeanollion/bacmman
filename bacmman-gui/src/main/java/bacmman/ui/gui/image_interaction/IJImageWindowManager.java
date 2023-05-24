@@ -683,8 +683,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         // add arrow to indicate splitting
         Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addSplitArrow = (o1, o2, c) -> {
             Integer frame = getFrame.apply(o1.key.getFrame());
-            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
-            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter();
+            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter().duplicate();
+            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter().duplicate();
             p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to hyperstack offset
             p2.translate(o2.value).translateRev(o2.key.getBounds());
             Arrow arrow = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
@@ -708,8 +708,8 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
         };
         Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addMergeArrow = (o1, o2, c) -> {
             Integer frame = getFrame.apply(o1.key.getFrame());
-            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter();
-            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter();
+            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter().duplicate();
+            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter().duplicate();
             p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to hyperstack offset
             p2.translate(o2.value).translateRev(o2.key.getBounds());
             Point middle = Point.middle2D(p1, p2);
