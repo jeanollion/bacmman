@@ -1,9 +1,13 @@
 package bacmman.data_structure;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.Set;
 import java.util.stream.Stream;
 
 public class TrackLinkEditor {
+    public final static Logger logger = LoggerFactory.getLogger(TrackLinkEditor.class);
     private final int editableObjectClassIdx;
     private final Set<SegmentedObject> modifiedObjects;
     private final boolean manualEditing;
@@ -28,7 +32,9 @@ public class TrackLinkEditor {
             }
             if (next && object.getParent().getNext()!=null) { // in case there is a division link
                 Stream<SegmentedObject> nexts = object.getParent().getNext().getChildren(editableObjectClassIdx);
-                if (nexts!=null) nexts.filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
+                if (nexts!=null) nexts
+                        .peek(o -> {if (o==null) logger.error("object: {} has null children for OC: {}", object.getParent().getNext(), editableObjectClassIdx);})
+                        .filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
             }
         }
 

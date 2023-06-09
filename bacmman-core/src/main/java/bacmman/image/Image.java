@@ -119,7 +119,7 @@ public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I>
         return (I)this;
     }
     
-    public ImageProperties getProperties() {return new SimpleImageProperties(this);}
+    public SimpleImageProperties getProperties() {return new SimpleImageProperties(this);}
     public static <T extends Image<T>> T createEmptyImage(int bitDepth) {
         switch(bitDepth) {
             case 8:

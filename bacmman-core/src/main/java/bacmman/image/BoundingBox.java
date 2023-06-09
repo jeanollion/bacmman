@@ -165,20 +165,29 @@ public interface BoundingBox<T extends BoundingBox<T>> extends Offset<T> {
         return point.get(0)+tolerance>=container.xMin() && point.get(0)-tolerance<=container.xMax() && point.get(1)+tolerance>=container.yMin() && point.get(1)-tolerance<=container.yMax();
     }
 
-    static double distanceSq2D(Point point, BoundingBox bds) {
-        return Math.pow(distance1D(point.get(0), bds, 0), 2) + Math.pow(distance1D(point.get(1), bds, 1), 2);
+    static double outterDistanceSq2D(Point point, BoundingBox bds) {
+        return Math.pow(outterDistance1D(point.get(0), bds, 0), 2) + Math.pow(outterDistance1D(point.get(1), bds, 1), 2);
     }
 
-    static double distanceSq(Point point, BoundingBox bds) {
-        return Math.pow(distance1D(point.get(0), bds, 0), 2) + Math.pow(distance1D(point.get(1), bds, 1), 2)  + Math.pow(distance1D(point.get(2), bds, 2), 2);
+    static double outterDistanceSq(Point point, BoundingBox bds) {
+        return Math.pow(outterDistance1D(point.get(0), bds, 0), 2) + Math.pow(outterDistance1D(point.get(1), bds, 1), 2)  + Math.pow(outterDistance1D(point.get(2), bds, 2), 2);
     }
 
-    static double distance1D(double coord, BoundingBox bds, int dim) {
+    // returns zero when inside
+    static double outterDistance1D(double coord, BoundingBox bds, int dim) {
         int min = bds.getMin(dim);
         if (coord < min) return min - coord;
         int max = bds.getMax(dim);
         if (coord > max) return coord - max;
         return 0;
+    }
+
+    static double innerDistance1D(double coord, BoundingBox bds, int dim) {
+        int min = bds.getMin(dim);
+        if (coord < min) return 0;
+        int max = bds.getMax(dim);
+        if (coord > max) return 0;
+        return Math.min(coord - min, max - coord);
     }
     
     public static MutableBoundingBox getMergedBoundingBox(Stream<BoundingBox> bounds) {

@@ -2,6 +2,7 @@ package bacmman.processing;
 
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
+import bacmman.image.wrappers.ImgLib2ImageWrapper;
 import net.imglib2.interpolation.InterpolatorFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -143,7 +144,7 @@ public class ResizeUtils {
         res.toArray(output);
         return output;
     }
-    public static <T extends Image> T[] resample(T[] imagesN, T[] output, Resize.INTERPOLATION interpolation, int[][] imageShapeN) {
+    public static <T extends Image> T[] resample(T[] imagesN, T[] output, ImgLib2ImageWrapper.INTERPOLATION interpolation, int[][] imageShapeN) {
         Stream<T> s =  IntStream.range(0, imagesN.length).parallel()
                 .mapToObj(idx -> (T) Resize.resample(imagesN[idx], interpolation, imageShapeN.length == 1 ? imageShapeN[0] : imageShapeN[idx]));
         List<T> res = s.collect(Collectors.toList());

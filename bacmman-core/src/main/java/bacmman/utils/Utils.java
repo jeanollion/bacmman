@@ -64,6 +64,18 @@ import java.awt.Frame;
  * @author Jean Ollion
  */
 public class Utils {
+    public static <T, U> Collector<T, ?, List<U>> collectToList(Function<T, U> mapper) {
+        return Collector.of(ArrayList::new, (l, e)->l.add(mapper.apply(e)), (left, right) -> {
+            left.addAll(right);
+            return left;
+        });
+    }
+    public static <T, U> Collector<T, ?, List<U>> collectToList(Function<T, U> mapper, Predicate<U> filter) {
+        return Collector.of(ArrayList::new, (l, e)->{U u = mapper.apply(e); if (filter.test(u)) l.add(u);}, (left, right) -> {
+            left.addAll(right);
+            return left;
+        });
+    }
     public static <T> double getDist(Collection<? extends T> l1, Collection<? extends T> l2, ToDoubleBiFunction<T, T> distance) {
         double min = Double.POSITIVE_INFINITY;
         for (T a : l1) {

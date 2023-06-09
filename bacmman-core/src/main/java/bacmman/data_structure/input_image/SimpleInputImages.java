@@ -23,6 +23,11 @@ public class SimpleInputImages implements InputImages {
     }
 
     @Override
+    public int getMinFrame() {
+        return 0;
+    }
+
+    @Override
     public int getChannelNumber() {
         return imagesCT.length;
     }

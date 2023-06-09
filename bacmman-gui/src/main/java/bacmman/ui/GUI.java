@@ -34,6 +34,7 @@ import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.ui.gui.JListReorderDragAndDrop;
+import bacmman.ui.gui.PSFCommand;
 import bacmman.ui.gui.configurationIO.*;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.ui.gui.objects.*;
@@ -508,6 +509,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         pyGatewayAddress.addListener(pyGatewayListener);
         pyGatewayPythonPort.addListener(pyGatewayListener);
         pyGatewayAddress.addListener(pyGatewayListener);
+        pyGatewayListener.accept(null);
 
         // ctc
         PropertyUtils.setPersistent(marginCTC, "ctc_margin");
@@ -516,16 +518,24 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(exportModeTrainCTC, CTCMenu);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(exportDuplicateCTC, CTCMenu);
-        // load xp after persistent props loaded
-        populateDatasetTree();
-        dsTree.setRecentSelection();
-        updateDisplayRelatedToXPSet();
+
         // metadata
         PropertyUtils.setPersistent(importMetadata, "import_image_metadata");
         ConfigurationTreeGenerator.addToMenuAsSubMenu(importMetadata, optionMenu);
 
-        pyGatewayListener.accept(null);
-        
+        // PSF
+        JMenu psfMenu = PSFCommand.getPSFMenu(()->this.getSelectedSelections(false), ()-> db.getDir().toString());
+        miscMenu.add(psfMenu);
+        relatedToXPSet.add(psfMenu);
+
+        // load xp after persistent props loaded
+        populateDatasetTree();
+        dsTree.setRecentSelection();
+        updateDisplayRelatedToXPSet();
+
+
+
+
         // KEY shortcuts
         Map<Shortcuts.ACTION, Action> actionMap = new HashMap<>();
         actionMap.put(Shortcuts.ACTION.SHORTCUT_TABLE, new AbstractAction("Shortcut table") {
@@ -932,11 +942,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         CTCMenu.setText("Cell Tracking Benchmark");
         Consumer<Boolean> importFun = relink -> {
             if (checkConnection()) {
+                int[] objectClass = getSelectedStructures(true);
+                if (objectClass.length>1) {
+                    setMessage("Select one object class to import objects to");
+                    return;
+                }
                 String dir = promptDir("Select Input Directory", db.getDir().toString(), true);
                 if (dir != null) {
                     DefaultWorker.execute(i -> {
                         try {
-                            ImportCellTrackingBenchmark.importPositions(db, dir, 0, relink, exportModeTrainCTC.getSelectedEnum(), ProgressCallback.get(this));
+                            ImportCellTrackingBenchmark.importPositions(db, dir, objectClass[0], relink, exportModeTrainCTC.getSelectedEnum(), ProgressCallback.get(this));
                         } catch (IOException ex) {
                             setMessage("Error while importing CTC:" + ex.getMessage());
                         }
@@ -969,17 +984,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         exportCTCMenuItem.setText("Export Positions");
         exportCTCMenuItem.addActionListener(e -> {
             if (checkConnection()) {
-                String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
-                int[] ocs = getSelectedStructures(false);
-                int oc;
-                if (ocs.length==1) oc = ocs[0];
-                else if (ocs.length==0 && db.getExperiment().getStructureCount()==1) oc = 0;
-                else {
-                    setMessage("Select Object Class to export");
+                int[] ocs = getSelectedStructures(true);
+                if (ocs.length>1) {
+                    setMessage("Select one Object Class to export");
                     return;
                 }
+                String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportPositions(db, dir, oc, getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
+                    logger.debug("Will export OC: {} to : {}", ocs, dir);
+                    ExportCellTrackingBenchmark.exportPositions(db, dir, ocs[0], getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
                 }
             }
         });
@@ -987,18 +1000,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         exportSelCTCMenuItem.setText("Export Selections");
         exportSelCTCMenuItem.addActionListener(e -> {
             if (checkConnection()) {
-                String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
-                int[] ocs = getSelectedStructures(false);
-                int oc;
-                if (ocs.length==1) oc = ocs[0];
-                else if (ocs.length==0 && db.getExperiment().getStructureCount()==1) oc = 0;
-                else {
-                    setMessage("Select Object Class to export");
+                int[] ocs = getSelectedStructures(true);
+                if (ocs.length>1) {
+                    setMessage("Select one Object Class to export");
                     return;
                 }
+                String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
                 List<String> sel = getSelectedSelections(true).stream().map(Selection::getName).collect(Collectors.toList());
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportSelections(db, dir, oc, sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
+                    ExportCellTrackingBenchmark.exportSelections(db, dir, ocs[0], sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
                 }
             }
         });

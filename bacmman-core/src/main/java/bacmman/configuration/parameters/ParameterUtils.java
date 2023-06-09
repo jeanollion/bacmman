@@ -28,6 +28,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+
+import bacmman.plugins.ParameterChangeCallback;
 import bacmman.utils.Utils;
 
 /**
@@ -117,7 +119,7 @@ public class ParameterUtils {
             try {
                 recieve.get(i).setContentFrom(give.get(i));
             } catch (IllegalArgumentException e) {
-                logger.debug("set content list error @ {} : r={} / s={}", i, recieve.get(i)!=null ? recieve.get(i).getName() : "null", give.get(i)!=null ? give.get(i).getName() : "null");
+                logger.debug("set content list error @{} : r={} / s={}", i, recieve.get(i)!=null ? recieve.get(i).getName() : "null", give.get(i)!=null ? give.get(i).getName() : "null");
                 logger.error("set content list error : ", e);
                 ok = false;
             }
@@ -245,19 +247,27 @@ public class ParameterUtils {
     }
     
     // Configuration by hints
-    public static <T extends Parameter> T getFirstParameterFromParents(Class<T> clazz, Parameter parameter, boolean lookInIndirectParents) {
+    public static ParameterChangeCallback getParameterCallback(Parameter parameter) {
+        return (ParameterChangeCallback)getFirstParameterFromParents(p->(p instanceof ParameterChangeCallback) && ((ParameterChangeCallback)p).getParameterChangeCallback()!=null, parameter, false );
+    }
+    public static <T> T getFirstParameterFromParents(Class<T> clazz, Parameter parameter, boolean lookInIndirectParents) {
+        if (parameter==null) return null;
+        Predicate<Parameter> test = p -> p==null ? false : clazz.isAssignableFrom(p.getClass());
+        return (T) getFirstParameterFromParents(test, parameter, lookInIndirectParents);
+    }
+    public static Parameter getFirstParameterFromParents(Predicate<Parameter> test, Parameter parameter, boolean lookInIndirectParents) {
         if (parameter==null) return null;
         Parameter parent=parameter;
         while (parent.getParent()!=null) {
             parent = ((Parameter)parent.getParent());
             // look in siblings/uncles
             if (lookInIndirectParents && parent instanceof ListParameter) {
-                Parameter res = ((ListParameter<? extends Parameter, ? extends ListParameter>)parent).getActivatedChildren().stream().filter(p->clazz.equals(p.getClass())).findAny().orElse(null);
-                if (res!=null) return (T)res;
+                Parameter res = ((ListParameter<? extends Parameter, ? extends ListParameter>)parent).getActivatedChildren().stream().filter(test).findAny().orElse(null);
+                if (res!=null) return res;
             } else if (lookInIndirectParents && parent instanceof ContainerParameter) {
-                Object res = ((ContainerParameterImpl)parent).getChildren().stream().filter(p->clazz.equals(p.getClass())).findAny().orElse(null);
-                if (res!=null) return (T)res;
-            } else  if (clazz.equals(parent.getClass())) return (T)parent;
+                Object res = ((ContainerParameterImpl)parent).getChildren().stream().filter(test).findAny().orElse(null);
+                if (res!=null) return (Parameter)res;
+            } else if (test.test(parent)) return (Parameter)parent;
         }
         return null;
     }

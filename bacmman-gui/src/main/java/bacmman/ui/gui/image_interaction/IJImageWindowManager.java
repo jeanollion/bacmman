@@ -692,7 +692,7 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             arrow.setDoubleHeaded(true);
             arrow.setStrokeColor(c);
             arrow.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow.setHeadSize(track.size() == 1 ? Math.max(1, TRACK_ARROW_STROKE_WIDTH*0.65) : TRACK_ARROW_STROKE_WIDTH * 1.1);
+            arrow.setHeadSize(TRACK_ARROW_STROKE_WIDTH * 1.1);
             int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
             int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
             if (zMin==zMax) {
@@ -706,40 +706,28 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
                 }
             }
         };
-        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addMergeArrow = (o1, o2, c) -> {
-            Integer frame = getFrame.apply(o1.key.getFrame());
-            Point p1 = o1.key.getRegion().getCenter() == null ? o1.key.getBounds().getCenter() : o1.key.getRegion().getCenter().duplicate();
-            Point p2 = o2.key.getRegion().getCenter() == null ? o2.key.getBounds().getCenter() : o2.key.getRegion().getCenter().duplicate();
-            p1.translate(o1.value).translateRev(o1.key.getBounds()); // go back to hyperstack offset
-            p2.translate(o2.value).translateRev(o2.key.getBounds());
-            Point middle = Point.middle2D(p1, p2);
-            Arrow arrow1 = new Arrow(p1.get(0), p1.get(1), middle.get(0), middle.get(1));
+        Utils.TriConsumer<Pair<SegmentedObject, BoundingBox>, Pair<SegmentedObject, BoundingBox>, Color> addArrow = (source, target, c) -> {
+            Integer frame = getFrame.apply(source.key.getFrame());
+            Point p1 = source.key.getRegion().getCenter() == null ? source.key.getBounds().getCenter() : source.key.getRegion().getCenter().duplicate();
+            Point p2 = target.key.getRegion().getCenter() == null ? target.key.getBounds().getCenter() : target.key.getRegion().getCenter().duplicate();
+            p1.translate(source.value).translateRev(source.key.getBounds()); // go back to hyperstack offset
+            p2.translate(target.value).translateRev(target.key.getBounds());
+            Arrow arrow1 = new Arrow(p1.get(0), p1.get(1), p2.get(0), p2.get(1));
             arrow1.enableSubPixelResolution();
             arrow1.setDoubleHeaded(false);
             arrow1.setStrokeColor(c);
             arrow1.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
             arrow1.setHeadSize(TRACK_ARROW_STROKE_WIDTH*1.1);
-            Arrow arrow2 = new Arrow(p2.get(0), p2.get(1), middle.get(0), middle.get(1));
-            arrow2.enableSubPixelResolution();
-            arrow2.setDoubleHeaded(false);
-            arrow2.setStrokeColor(c);
-            arrow2.setStrokeWidth(TRACK_ARROW_STROKE_WIDTH);
-            arrow2.setHeadSize(TRACK_ARROW_STROKE_WIDTH*1.1);
-            int zMin = Math.max(o1.value.zMin(), o2.value.zMin());
-            int zMax = Math.min(o1.value.zMax(), o2.value.zMax());
+            int zMin = Math.max(source.value.zMin(), target.value.zMin());
+            int zMax = Math.min(source.value.zMax(), target.value.zMax());
             if (zMin==zMax) {
                 arrow1.setPosition(0, zMin+1, frame+1);
                 trackRoi.add(arrow1);
-                arrow2.setPosition(0, zMin+1, frame+1);
-                trackRoi.add(arrow2);
             } else {
                 for (int z = zMin; z <= zMax; ++z) {
                     Arrow a1 = (Arrow) arrow1.clone();
                     a1.setPosition(0, z+1, frame+1);
                     trackRoi.add(a1);
-                    Arrow a2 = (Arrow) arrow1.clone();
-                    a2.setPosition(0, z+1, frame+1);
-                    trackRoi.add(a2);
                 }
             }
         };
@@ -762,10 +750,11 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             }
             if (o.getNextId()!=null && o.getNext()!=null && !o.getNext().getTrackHead().equals(o.getTrackHead())) {
                 List<SegmentedObject> merge = SegmentedObjectEditor.getPrevious(o.getNext());
+                Pair<SegmentedObject, BoundingBox> target = new Pair<>(o.getNext(), i.getObjectOffset(o.getNext()));
                 if (merge.size()>1) { // only show
                     List<Pair<SegmentedObject, BoundingBox>> mergeP = i.pairWithOffset(merge);
                     for (Pair<SegmentedObject, BoundingBox> other : mergeP) {
-                        if (!other.key.equals(o) && other.key.getIdx()>o.getIdx()) addMergeArrow.accept(track.get(0), other, getColor(o.getNext().getTrackHead()));
+                        addArrow.accept(other, target, getColor(o.getNext().getTrackHead()));
                     }
                 }
             }
@@ -780,10 +769,10 @@ public class IJImageWindowManager extends ImageWindowManager<ImagePlus, Roi3D, T
             }
             if (track.get(0).key.getPreviousId() == null) {
                 List<SegmentedObject> prev = SegmentedObjectEditor.getPrevious(track.get(0).key);
+                Pair<SegmentedObject, BoundingBox> target = track.get(0);
                 if (prev.size() > 1) { // show merging by displaying arrows between objects
                     List<Pair<SegmentedObject, BoundingBox>> prevP = i.pairWithOffset(prev);
-                    for (int idx = 0; idx < prev.size() - 1; ++idx)
-                        addMergeArrow.accept(prevP.get(idx), prevP.get(idx + 1), color);
+                    prevP.forEach(p -> addArrow.accept(p, target, color));
                 }
             }
         }

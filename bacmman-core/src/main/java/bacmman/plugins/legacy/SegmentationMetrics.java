@@ -1,12 +1,13 @@
-package bacmman.plugins.plugins.measurements;
+package bacmman.plugins.legacy;
 
 import bacmman.configuration.parameters.*;
 import bacmman.data_structure.*;
 import bacmman.measurement.MeasurementKey;
 import bacmman.measurement.MeasurementKeyObject;
+import bacmman.plugins.DevPlugin;
 import bacmman.plugins.Hint;
 import bacmman.plugins.Measurement;
-import bacmman.processing.matching.MaxOverlapMatcher;
+import bacmman.processing.matching.OverlapMatcher;
 import bacmman.utils.Utils;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
@@ -16,7 +17,7 @@ import java.util.function.Function;
 import java.util.function.ToDoubleBiFunction;
 import java.util.stream.Collectors;
 
-public class SegmentationMetrics implements Measurement, Hint {
+public class SegmentationMetrics implements Measurement, Hint, DevPlugin {
     ObjectClassParameter groundTruth = new ObjectClassParameter("Ground truth", -1, false, false).setHint("Reference object class");
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setHint("Object class to compare to the ground truth");
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix to add to measurement keys");
@@ -73,14 +74,14 @@ public class SegmentationMetrics implements Measurement, Hint {
         Map<Integer, List<SegmentedObject>> SbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sIdx));
 
         // compute all overlaps between regions and put non null overlap in a map
-        MaxOverlapMatcher<SegmentedObject> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.segmentedObjectOverlap());
+        OverlapMatcher<SegmentedObject> matcher = new OverlapMatcher<>(OverlapMatcher.segmentedObjectOverlap());
         SimpleWeightedGraph<SegmentedObject, DefaultWeightedEdge> matchG2S = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
         parentTrack.forEach(p -> {
             List<SegmentedObject> G = GbyF.get(p.getFrame());
             List<SegmentedObject> S = SbyF.get(p.getFrame());
             if (G!=null) G.forEach(matchG2S::addVertex);
             if (S!=null) S.forEach(matchG2S::addVertex);
-            matcher.match(G, S, matchG2S);
+            matcher.addMaxOverlap(G, S, matchG2S);
         });
         Function<SegmentedObject, Set<SegmentedObject>> getAllMatchingS = g -> matchG2S.outgoingEdgesOf(g).stream().map(matchG2S::getEdgeTarget).collect(Collectors.toSet());
         Function<SegmentedObject, Set<SegmentedObject>> getAllMatchingG = s -> matchG2S.incomingEdgesOf(s).stream().map(matchG2S::getEdgeSource).collect(Collectors.toSet());

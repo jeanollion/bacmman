@@ -202,6 +202,7 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     public double dist(Offset other) {
         return Math.sqrt(distSq(other));
     }
+    public double dist1D(Point other, int dim) {return Math.abs(get(dim) - other.get(dim));}
     public T multiplyDim(double factor, int dim) {
         if (coords.length>dim) coords[dim]*=factor;
         return (T)this;
@@ -320,6 +321,7 @@ public class Point<T extends Point<T>> implements Offset<T>, RealLocalizable, JS
     @Override public String toString() {
         return Utils.toStringArray(coords);
     }
+
     @Override
     public int hashCode() {
         return Arrays.hashCode(coords);

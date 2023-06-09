@@ -22,6 +22,8 @@ import bacmman.configuration.parameters.*;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.MultichannelTransformation;
 import java.util.List;
+
+import bacmman.plugins.ParameterChangeCallback;
 import org.json.simple.JSONObject;
 import bacmman.plugins.Transformation;
 import java.util.function.Consumer;
@@ -30,7 +32,7 @@ import java.util.function.Consumer;
  *
  * @author Jean Ollion
  */
-public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChain> {
+public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChain> implements ParameterChangeCallback<PreProcessingChain> {
     BooleanParameter useImageScale = new BooleanParameter("Voxel Calibration", "Use Image Calibration", "Custom Calibration", true).setHint("Voxel calibration (voxel size in x, y, z axis). If <em>Custom calibration</em> is set, the image calibration will be overwritten.<br />Pre-processing must be re-run after modifying the calibration");
     BoundedNumberParameter scaleXY = new BoundedNumberParameter("Scale XY", 5, 1, 0.00001, null);
     BoundedNumberParameter scaleZ = new BoundedNumberParameter("Scale Z", 5, 1, 0.00001, null);
@@ -147,5 +149,15 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     public TransformationPluginParameter<Transformation> addTransformation(int inputChannel, int[] outputChannel, Transformation transformation) {
         return addTransformation(this.transformations.getChildCount(), inputChannel, outputChannel, transformation);
     }
+    Consumer<Parameter> parameterChangeCallBack;
+    @Override
+    public PreProcessingChain setParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        this.parameterChangeCallBack=parameterChangeCallBack;
+        return this;
+    }
 
+    @Override
+    public Consumer<Parameter> getParameterChangeCallback() {
+        return parameterChangeCallBack;
+    }
 }

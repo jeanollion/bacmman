@@ -27,16 +27,25 @@ public interface CoordCollection {
     boolean add(long coord);
     boolean addAll(long... coord);
     boolean addAll(CoordCollection coord);
+    boolean addAll(ImageMask mask);
     long translate(long coord, int dx, int dy, int dz);
     long toCoord(int x, int y, int z);
-    int[] parse(long coord);
+    int[] parse(long coord, int[] buffer);
     BoundingBox getBounds();
     ImageMask getMask(double scaleXY, double scaleZ);
-    static CoordCollection create(int sizeX, int sizeY, int sizeZ) {
+    static ListCoordCollection create(int sizeX, int sizeY, int sizeZ) {
         if (sizeZ==1) return new CoordCollection2D(sizeX, sizeY);
         else return new CoordCollection3D(sizeX, sizeY, sizeZ);
     }
-
+    static ListCoordCollection create(ImageMask mask) {
+        ListCoordCollection res = (mask.sizeZ()==1) ? new CoordCollection2D(mask.sizeX(), mask.sizeY()) : new CoordCollection3D(mask.sizeX(), mask.sizeY(), mask.sizeZ());
+        res.addAll(mask);
+        return res;
+    }
+    interface ListCoordCollection extends CoordCollection {
+        long get(int idx);
+        int[] getCoord(int idx, int[] buffer);
+    }
     abstract class AbstractCoordCollection2D implements CoordCollection {
         final int sizeX, sizeY, z, sizeXY;
 
@@ -72,10 +81,28 @@ public interface CoordCollection {
             x+=dx;
             return x>=0 && x<sizeX;
         }
-        @Override public int[] parse(long coord) {
+        @Override public int[] parse(long coord, int[] buffer) {
             long y = coord/sizeX;
             int x = (int)(coord - y * sizeX);
-            return new int[]{x, (int)y, z};
+            if (buffer==null) return new int[]{x, (int)y, z};
+            else {
+                buffer[0] = x;
+                buffer[1] = (int)y;
+                buffer[2] = z;
+                return buffer;
+            }
+        }
+
+        public int[] parse(int coord, int[] buffer) {
+            int y = coord/sizeX;
+            int x = (coord - y * sizeX);
+            if (buffer==null) return new int[]{x, y, z};
+            else {
+                buffer[0] = x;
+                buffer[1] = y;
+                buffer[2] = z;
+                return buffer;
+            }
         }
 
         @Override public long translate(long coord, int dx, int dy, int dz) {
@@ -116,6 +143,14 @@ public interface CoordCollection {
             return mask;
         }
         public abstract IntCollection getCoords();
+
+        @Override
+        public boolean addAll(ImageMask mask) {
+            if (mask.sizeX()!=sizeX || mask.sizeY()!=sizeY) throw new IllegalArgumentException("Mask size must correspond to collection size");
+            boolean[] add = new boolean[1];
+            ImageMask.loop(mask, (x, y, z) -> add[0] = add(toCoord(x, y, z)));
+            return add[0];
+        }
     }
 
     abstract class AbstractCoordCollection3D implements CoordCollection {
@@ -168,12 +203,18 @@ public interface CoordCollection {
             return x + y * sizeX + z * sizeXY;
         }
 
-        @Override public int[] parse(long coord) {
+        @Override public int[] parse(long coord, int[] buffer) {
             long z = coord / sizeXY;
             int xy = (int)(coord - z * sizeXY);
             int y = xy/sizeX;
             int x = xy - y * sizeX;
-            return new int[]{x, y, (int)z};
+            if (buffer == null) return new int[]{x, y, (int)z};
+            else {
+                buffer[0] = x;
+                buffer[1] = y;
+                buffer[2] = (int)z;
+                return buffer;
+            }
         }
 
         @Override
@@ -212,16 +253,21 @@ public interface CoordCollection {
             return mask;
         }
         public abstract LongCollection getCoords();
+
+        @Override
+        public boolean addAll(ImageMask mask) {
+            if (mask.sizeX()!=sizeX || mask.sizeY()!=sizeZ || mask.sizeY()!=sizeZ) throw new IllegalArgumentException("Mask size must correspond to collection size");
+            boolean[] add = new boolean[1];
+            ImageMask.loop(mask, (x, y, z) -> add[0] = add(toCoord(x, y, z)));
+            return add[0];
+        }
     }
 
-    class CoordCollection2D extends AbstractCoordCollection2D {
-        final IntCollection coords;
+    class CoordCollection2D extends AbstractCoordCollection2D implements ListCoordCollection {
+        final IntArrayList coords;
         public CoordCollection2D(int sizeX, int sizeY) {
-            this(sizeX, sizeY, new IntArrayList());
-        }
-        public CoordCollection2D(int sizeX, int sizeY, IntCollection coords) {
             super(sizeX, sizeY);
-            this.coords = coords;
+            this.coords = new IntArrayList();
         }
         public LongStream stream() {
             return coords.intStream().asLongStream();
@@ -265,16 +311,24 @@ public interface CoordCollection {
                 return coords.addAll(((AbstractCoordCollection2D) coordCollection).getCoords());
             } else throw new IllegalArgumentException("Invalid coordset");
         }
+
+        @Override
+        public long get(int idx) {
+            return coords.getInt(idx);
+        }
+
+        @Override
+        public int[] getCoord(int idx, int[] buffer) {
+            return parse(coords.getInt(idx), buffer);
+        }
     }
 
-    class CoordCollection3D extends AbstractCoordCollection3D {
-        final LongCollection coords;
+    class CoordCollection3D extends AbstractCoordCollection3D implements ListCoordCollection {
+        final LongArrayList coords;
+
         public CoordCollection3D(int sizeX, int sizeY, int sizeZ) {
-            this(sizeX, sizeY, sizeZ, new LongArrayList());
-        }
-        public CoordCollection3D(int sizeX, int sizeY, int sizeZ, LongCollection coords) {
             super(sizeX, sizeY, sizeZ);
-            this.coords = coords;
+            this.coords = new LongArrayList();
         }
         public LongStream stream() {
             return coords.longStream();
@@ -315,6 +369,16 @@ public interface CoordCollection {
             if (coordCollection instanceof AbstractCoordCollection3D) {
                 return coords.addAll(((AbstractCoordCollection3D) coordCollection).getCoords());
             } else throw new IllegalArgumentException("Invalid coordset");
+        }
+
+        @Override
+        public long get(int idx) {
+            return coords.getLong(idx);
+        }
+
+        @Override
+        public int[] getCoord(int idx, int[] buffer) {
+            return parse(coords.getLong(idx), buffer);
         }
     }
 

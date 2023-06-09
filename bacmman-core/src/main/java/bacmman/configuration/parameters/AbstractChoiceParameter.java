@@ -103,12 +103,12 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     @Override
     public void setContentFrom(Parameter other) {
         if (other instanceof AbstractChoiceParameter) {
-            bypassListeners=true;
+            //bypassListeners=true;
             AbstractChoiceParameter otherC = (AbstractChoiceParameter)other;
             setSelectedItem(otherC.getSelectedItem());
-            bypassListeners=false;
-            //logger.debug("choice {} set content from: {} current item: {}, current idx {}, other item: {}, other idx : {}", this.hashCode(), otherC.hashCode(), this.getSelectedItem(), this.getSelectedIndex(), otherC.getSelectedItem(), otherC.getSelectedIndex());
-        } else throw new IllegalArgumentException("wrong parameter type: "+(other==null? "null":other.getClass()) +" instead of ChoiceParameter");
+            //bypassListeners=false;
+            //logger.debug("choice {} set content from: {} current item: {}, current idx {}, other item: {}, other idx : {}", this.hashCode(), otherC.hashCode(), this.getSelectedItem(), this.getSelectedIndex(), otherC.getSelectedItem(), otherC.getSelectedIndex());
+        } //else throw new IllegalArgumentException("wrong parameter type: "+(other==null? "null":other.getClass()) +" instead of ChoiceParameter");
     }
     
     // choosable parameter
@@ -162,7 +162,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
                 if (legacyParameter!=null) legacyParameter.initFromJSONEntry(json);
                 legacyInit();
             }
-        } else throw new IllegalArgumentException("JSON Entry is not String");
+        } else logger.error("Error init: {} with {}", this, json);//else throw new IllegalArgumentException("JSON Entry is not String");
     }
 
     // legacy init

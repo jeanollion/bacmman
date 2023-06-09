@@ -442,6 +442,17 @@ public class ImageOperations {
         }
         return output;
     }
+
+    public static <T extends Image<T>> T multiplyValue(Image source1, double value, T output) {
+        if (output==null) output = (T)new ImageFloat(source1.getName()+" + "+value, source1);
+        else if (!output.sameDimensions(source1)) output = Image.createEmptyImage(source1.getName()+" x "+value, output, source1);
+        for (int z = 0; z<output.sizeZ(); ++z) {
+            for (int xy=0; xy<output.sizeXY(); ++xy) {
+                output.setPixel(xy, z, source1.getPixel(xy, z)*value);
+            }
+        }
+        return output;
+    }
     
     public static <T extends Image<T>> T divide(Image source1, Image source2, T output, double... multiplicativeCoefficient) {
         if (!source1.sameDimensions(source2)) throw new IllegalArgumentException("cannot multiply images of different sizes");

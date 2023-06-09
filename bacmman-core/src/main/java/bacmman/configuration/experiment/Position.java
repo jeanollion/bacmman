@@ -167,7 +167,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                     int defTp = defaultTimePoint.getValue().intValue()-tpOff;
                     if (defTp<0) defTp=0;
                     if (defTp>=tpNp) defTp=tpNp-1;   
-                    inputImages = new InputImagesImpl(res, defTp, getExperiment().getFocusChannelAndAlgorithm());
+                    inputImages = new InputImagesImpl(res, defTp, getExperiment().getFocusChannelAndAlgorithm()).setMinFrame(tpOff);
                     logger.debug("creation input images: def tp: {}, frames: {} ([{}; {}]), channels: {}",defTp, inputImages.getFrameNumber(), getStartTrimFrame(),getEndTrimFrame() , inputImages.getChannelNumber());
                 }
             }

@@ -26,9 +26,11 @@ import bacmman.data_structure.*;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.*;
 import bacmman.utils.StreamConcatenation;
+import bacmman.utils.Utils;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -98,10 +100,10 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         logger.debug("dup: {} dup parent: {}, parentTrack: {}", dup.getSelectedClassIdx(), dup.getParentObjectClassIdx(), parentTrack.get(0).getStructureIdx());
         int sourceObjectClassIdx = dup.getSelectedClassIdx();
         //if (dup.getParentStructureIdx()!=parentTrack.get(0).getStructureIdx() && dup.getSelectedStructureIdx()!=parentTrack.get(0).getStructureIdx()) throw new IllegalArgumentException("Parent Structure should be the same as duplicated's parent strucutre");
-        Map<SegmentedObject, SegmentedObject> sourceMapParent = getSourceMapParents(parentTrack, sourceObjectClassIdx);
+        Map<SegmentedObject, SegmentedObject> sourceMapParent = getSourceMapParents(parentTrack.stream(), parentObjectClassIdx, sourceObjectClassIdx);
         Map<SegmentedObject, SegmentedObject> sourceMapDup = duplicate(sourceMapParent.keySet().stream().parallel(), structureIdx, factory, editor);
         logger.debug("duplicate for parentTrack: {} structure: {}: #{} duplicated objects, null parents: {}", parentTrack.get(0), structureIdx, sourceMapDup.size(), sourceMapParent.values().stream().filter(Objects::isNull).count());
-        setParents(sourceMapDup, sourceMapParent, parentObjectClassIdx, sourceObjectClassIdx, factory);
+        setParents(sourceMapDup, sourceMapParent, parentObjectClassIdx, sourceObjectClassIdx, false, factory);
         logger.debug("objects set to parents: {}", parentTrack.stream().flatMap(p -> StreamConcatenation.emptyIfNull(p.getChildren(structureIdx))).count());
         if (trimObjects.getSelected()) trimToParentBounds(parentTrack, structureIdx);
         getTrackPreFilters(true).filter(structureIdx, parentTrack);
@@ -162,28 +164,45 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         }
         return sourceMapDup;
     }
-    public static Map<SegmentedObject, SegmentedObject> getSourceMapParents(List<SegmentedObject> parentTrack, int sourceObjectClassIdx) {
-        int parentOCIdx = parentTrack.get(0).getStructureIdx();
-        if (sourceObjectClassIdx == parentOCIdx) return parentTrack.stream().collect(Collectors.toMap(o->o, o->o));
-        Map<SegmentedObject, SegmentedObject> res = new HashMap<>();
+    public static Map<SegmentedObject, SegmentedObject> getSourceMapParents(Stream<SegmentedObject> parentTrack, int parentObjectClassIdx, int sourceObjectClassIdx) {
+        if (sourceObjectClassIdx == parentObjectClassIdx) return parentTrack.collect(Collectors.toMap(o->o, o->o));
         // current policy: when a duplicated object is partially included in several parent -> it is duplicated for each parent track
-        return parentTrack.stream()
+        return parentTrack
                 .map(p -> StreamConcatenation.emptyIfNull(p.getChildren(sourceObjectClassIdx, false)).collect(Collectors.toMap(o->o, o->p)))
                 .reduce((m1, m2) -> {
                     m1.putAll(m2);
                     return m1;
                 }).orElse(new HashMap<>());
         //return sourceObjectClassIdx == parentTrack.get(0).getStructureIdx() ? sourceStream.collect(Collectors.toMap(o->o, o->o)) : Utils.toMapWithNullValues(sourceStream.parallel(), o->o, o->o.getParent(parentOCIdx), false);
-
     }
-    public static void setParents(Map<SegmentedObject, SegmentedObject> sourceMapDup, Map<SegmentedObject, SegmentedObject> sourceMapParent, int parentObjectClassIdx, int sourceObjectClassIdx, SegmentedObjectFactory factory) {
+    public static void setParents(Map<SegmentedObject, SegmentedObject> sourceMapDup, Map<SegmentedObject, SegmentedObject> sourceMapParent, int parentObjectClassIdx, int sourceObjectClassIdx, boolean append, SegmentedObjectFactory factory) {
         // set to parents : collect by parent and set to parent. set parent will also set parent && parent track head Id to each object
         if (sourceObjectClassIdx == parentObjectClassIdx) { // simply store each object into parent // previous condition included also: parentObjectClassIdx == parentTrack.get(0).getStructureIdx()
             sourceMapDup.entrySet().forEach(e->factory.setChildren(e.getKey(), new ArrayList<SegmentedObject>(1){{add(e.getValue());}}));
         } else { // group by parent & store
-            sourceMapDup.entrySet().stream()
-                    .collect(Collectors.groupingBy(e -> sourceMapParent.get(e.getKey())))
-                    .forEach((key, value) -> factory.setChildren(key, value.stream().map(Map.Entry::getValue).sorted(Comparator.comparingInt(SegmentedObject::getIdx)).collect(Collectors.toList())));
+            Map<SegmentedObject, List<SegmentedObject>> parentMapDup = sourceMapDup.entrySet().stream()
+                    .collect(Collectors.groupingBy(e -> sourceMapParent.get(e.getKey()), Utils.collectToList(Map.Entry::getValue)));
+            BiFunction<SegmentedObject, List<SegmentedObject>, List<SegmentedObject>> mapper = append ? (p, newC) -> {
+                List<SegmentedObject> existing = p.getChildren(factory.getEditableObjectClassIdx()).sorted().collect(Collectors.toList());
+                if (existing.isEmpty()) return newC;
+                newC.forEach(o -> {
+                    int i = getInsertionPoint(existing);
+                    factory.setIdx(o, i==0 ? 0 : existing.get(i-1).getIdx()+1);
+                    if (i==existing.size()) existing.add(o);
+                    else existing.add(i, o);
+                });
+                return existing;
+            } : (p, newC)->newC;
+            parentMapDup.forEach((key, value) -> factory.setChildren(key, mapper.apply(key, value).stream().sorted(Comparator.comparingInt(SegmentedObject::getIdx)).collect(Collectors.toList())));
         }
+
+    }
+    private static int getInsertionPoint(List<SegmentedObject> sortedObjects) {
+        if (sortedObjects.isEmpty()) return 0;
+        if (sortedObjects.get(0).getIdx()>0) return 0;
+        for (int i = 0; i<sortedObjects.size()-1; ++i) {
+            if (sortedObjects.get(i+1).getIdx()-sortedObjects.get(i).getIdx()>1) return i+1;
+        }
+        return sortedObjects.size();
     }
 }

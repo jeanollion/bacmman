@@ -27,10 +27,7 @@ import bacmman.core.ProgressCallback;
 import bacmman.data_structure.dao.ImageDAOTrack;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.measurement.MeasurementKey;
-import bacmman.plugins.Hint;
-import bacmman.plugins.HintSimple;
-import bacmman.plugins.Measurement;
-import bacmman.plugins.Plugin;
+import bacmman.plugins.*;
 import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,7 +38,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.nio.file.Paths;
-import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
@@ -356,7 +353,7 @@ public class ConfigurationTreeGenerator {
         ));
         if (experiment!=null) {
             // configure call back for structures (update display)
-            experiment.getStructures().addNewInstanceConfiguration(s -> s.setParameterChangeCallBack(p -> treeModel.nodeChanged(p)));
+            experiment.getStructures().addNewInstanceConfiguration(s -> s.setParameterChangeCallback(p -> treeModel.nodeChanged(p)));
             // configure call back for position (delete position from DAO)
             Predicate<Position> erasePosition = p -> {
                 logger.debug("erase position: {}", p.getName());
@@ -373,6 +370,10 @@ public class ConfigurationTreeGenerator {
             experiment.getPositionParameter().addNewInstanceConfiguration(p -> p.setDeletePositionCallBack(erasePosition));
             // selections
             experiment.setSelectionSupplier(mDAO==null ? null : () -> mDAO.getSelectionDAO().getSelections().stream());
+        }
+        if (rootParameter instanceof ParameterChangeCallback) {
+            Consumer<Parameter> cb  = p -> {treeModel.nodeChanged(p);treeModel.nodeStructureChanged(p);};
+            ((ParameterChangeCallback)rootParameter).setParameterChangeCallback(cb);
         }
     }
 
@@ -402,6 +403,21 @@ public class ConfigurationTreeGenerator {
         }
     }
     public static void addToMenu(Parameter p, JMenu menu) {
+        addToMenu(p, menu, true);
+    }
+    protected static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu) {
+        if (checkSubMenu && (p instanceof ChoosableParameter || p instanceof ConditionalParameterAbstract)) {
+            addToMenuAsSubMenu(p, menu);
+            return;
+        }
+        if (p instanceof ChoosableParameter) {
+            addToMenuChoice(((ChoosableParameter)p), menu);
+            return;
+        }
+        else if (p instanceof ConditionalParameterAbstract) {
+            addToMenuCond((ConditionalParameterAbstract)p, menu);
+            return;
+        }
         Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
         if (p instanceof BoundedNumberParameter && UIElements.length==2) UIElements = new Object[]{UIElements[0]}; // do not insert slider
         String hint = p.getHintText();
@@ -418,15 +434,17 @@ public class ConfigurationTreeGenerator {
             }
         }
     }
-    public static JMenu addToMenuAsSubMenu(ChoosableParameter choice, JMenu menu) {
-        JMenu subMenu = new JMenu(choice.getName());
+
+    public static JMenu addToMenuAsSubMenu(Parameter parameter, JMenu menu) {
+        JMenu subMenu = new JMenu(parameter.getName());
         menu.add(subMenu);
-        addToMenu(choice, subMenu);
-        String hint = choice.getHintText();
+        addToMenu(parameter, subMenu, false);
+        String hint = parameter.getHintText();
         if (hint!=null && hint.length()>0) subMenu.setToolTipText(formatHint(hint, true));
         return subMenu;
     }
-    public static void addToMenu(ChoosableParameter choice, JMenu menu) {
+
+    protected static void addToMenuChoice(ChoosableParameter choice, JMenu menu) {
         ChoiceParameterUI choiceUI = new ChoiceParameterUI(choice, null);
         menu.addMenuListener(new MenuListener() {
             @Override
@@ -444,6 +462,32 @@ public class ConfigurationTreeGenerator {
             }
         });
         String hint = choice.getHintText();
+        if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
+    }
+    protected static void addToMenuCond(ConditionalParameterAbstract cond, JMenu menu) {
+        ChoiceParameterUI choiceUI = new ChoiceParameterUI(cond.getActionableParameter(), null);
+        menu.addMenuListener(new MenuListener() {
+            @Override
+            public void menuSelected(MenuEvent menuEvent) {
+                choiceUI.refreshArming();
+                ConfigurationTreeGenerator.addToMenu(choiceUI.getDisplayComponent(), menu);
+                List<Parameter> curParams= cond.getCurrentParameters();
+                if (curParams!=null && !curParams.isEmpty()) {
+                    JMenu subMenu = new JMenu("Parameters");
+                    curParams.forEach(p -> addToMenu(p, subMenu));
+                    menu.add(subMenu);
+                }
+            }
+            @Override
+            public void menuDeselected(MenuEvent menuEvent) {
+                menu.removeAll();
+            }
+            @Override
+            public void menuCanceled(MenuEvent menuEvent) {
+                menu.removeAll();
+            }
+        });
+        String hint = cond.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
     }
     private static JPanel addToMenu(String label, Component c, JMenu menu) {

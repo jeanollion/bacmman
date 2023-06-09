@@ -1,6 +1,5 @@
 package bacmman.processing;
 
-import bacmman.core.Core;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.SimpleBoundingBox;
@@ -10,40 +9,17 @@ import net.imglib2.RandomAccessible;
 import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.Img;
 import net.imglib2.interpolation.InterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.ClampingNLinearInterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
-import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.realtransform.RealViews;
 import net.imglib2.realtransform.Scale;
-import net.imglib2.type.numeric.NumericType;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.util.Intervals;
-import net.imglib2.view.ExtendedRandomAccessibleInterval;
 import net.imglib2.view.IntervalView;
 import net.imglib2.view.Views;
 
 import java.util.Arrays;
-import java.util.function.Supplier;
 import java.util.stream.IntStream;
 
 public class Resize {
-
-    public enum INTERPOLATION {
-        NEAREST(NearestNeighborInterpolatorFactory::new),
-        NLINEAR(NLinearInterpolatorFactory::new),
-        CLAMPING_NLINEAR(ClampingNLinearInterpolatorFactory::new),
-        LANCZOS3(()->new LanczosInterpolatorFactory(3, false)),
-        LANCZOS5(()->new LanczosInterpolatorFactory(5, false)),
-        LANCZOS7(()->new LanczosInterpolatorFactory(7, false));
-        private final Supplier<InterpolatorFactory> factory;
-        INTERPOLATION(Supplier<InterpolatorFactory> factory) {
-            this.factory=factory;
-        }
-        public InterpolatorFactory factory() {
-            return factory.get();
-        }
-    }
 
     /**
      *
@@ -75,7 +51,7 @@ public class Resize {
      * @param dimensions dimension of the final image order = (X, Y (Z)). If a dimension is negative, original will be cropped to that dimension if it is larger, or resampled if it is smaller
      * @return
      */
-    public static <T extends Image<T>> T resample(T input, INTERPOLATION interpolation, int... dimensions) {
+    public static <T extends Image<T>> T resample(T input, ImgLib2ImageWrapper.INTERPOLATION interpolation, int... dimensions) {
         return resample(input, interpolation.factory(), dimensions);
     }
     /**
@@ -85,7 +61,7 @@ public class Resize {
      * @return
      */
     public static <T extends Image<T>> T resample(T input, boolean binary, int... dimensions) {
-        return resample(input, binary?INTERPOLATION.NEAREST.factory():INTERPOLATION.LANCZOS5.factory(), dimensions);
+        return resample(input, binary? ImgLib2ImageWrapper.INTERPOLATION.NEAREST.factory(): ImgLib2ImageWrapper.INTERPOLATION.LANCZOS5.factory(), dimensions);
     }
     public static Image resampleBack(Image im, BoundingBox target, boolean binary, int... dimensions) {
         if (im.sameDimensions(target)) return im;
@@ -94,7 +70,7 @@ public class Resize {
             BoundingBox cropBB = new SimpleBoundingBox(0, dimensions[0]<0 && im.sizeX()<target.sizeX() ? target.sizeX()-1 : im.sizeX()-1, 0, dimensions.length>1 && dimensions[1]<0 && im.sizeY()<target.sizeY() ? target.sizeY()-1 : im.sizeY()-1, 0, dimensions.length>2 && dimensions[2]<0 && im.sizeZ()<target.sizeZ() ? target.sizeZ()-1 : im.sizeZ()-1);
             im = im.crop(cropBB);
         }
-        return resample(im, binary?INTERPOLATION.NEAREST:INTERPOLATION.LANCZOS5, target.sizeX(), target.sizeY(), target.sizeZ());
+        return resample(im, binary? ImgLib2ImageWrapper.INTERPOLATION.NEAREST: ImgLib2ImageWrapper.INTERPOLATION.LANCZOS5, target.sizeX(), target.sizeY(), target.sizeZ());
     }
 
 

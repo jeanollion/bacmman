@@ -22,7 +22,6 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
 import bacmman.configuration.parameters.TransformationPluginParameter;
-import bacmman.core.Core;
 import bacmman.core.ImageFieldFactory;
 import bacmman.core.OmeroGateway;
 import bacmman.core.ProgressCallback;
@@ -44,7 +43,7 @@ import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 import java.util.*;
 import java.util.Map.Entry;
 
-import bacmman.processing.matching.MaxOverlapMatcher;
+import bacmman.processing.matching.OverlapMatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.utils.MultipleException;
@@ -651,13 +650,12 @@ public class Processor {
         }
         // then if there are unmapped objects -> map by overlap
         if (!children.isEmpty() && !newRegions.isEmpty()) { // max overlap matching
-            MaxOverlapMatcher<Region> matcher = new MaxOverlapMatcher<>(MaxOverlapMatcher.regionOverlap(null, null));
-            Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> oldMaxOverlap = new HashMap<>();
-            Map<Region, MaxOverlapMatcher<Region>.Overlap<Region>> newMaxOverlap = new HashMap<>();
+            OverlapMatcher<Region> matcher = new OverlapMatcher<>(OverlapMatcher.regionOverlap(null, null));
+            Map<Region, OverlapMatcher<Region>.Overlap> oldMaxOverlap = new HashMap<>();
             List<Region> oldR = children.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
-            matcher.match(oldR, newRegions, oldMaxOverlap, newMaxOverlap);
+            matcher.addMaxOverlap(oldR, newRegions, oldMaxOverlap, null);
             for (SegmentedObject o : children) {
-                MaxOverlapMatcher<Region>.Overlap<Region> maxNew = oldMaxOverlap.remove(o.getRegion());
+                OverlapMatcher<Region>.Overlap maxNew = oldMaxOverlap.remove(o.getRegion());
                 if (maxNew==null) {
                     if (toRemove==null) toRemove= new ArrayList<>();
                     toRemove.add(o);
@@ -670,7 +668,7 @@ public class Processor {
         } else if (!children.isEmpty()) {
             toRemove=children;
         }
-        if (!newRegions.isEmpty()) { // create unmatched objects // TODO untested
+        if (!newRegions.isEmpty()) { // create unmatched objects
             Stream<SegmentedObject> s = parent.getChildren(structureIdx);
             List<SegmentedObject> newChildren = s==null ? new ArrayList<>(newRegions.size()) : s.collect(Collectors.toList());
             int startLabel = newChildren.stream().mapToInt(o->o.getRegion().getLabel()).max().orElse(0)+1;

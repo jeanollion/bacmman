@@ -124,7 +124,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
             if (!ParameterUtils.setContent(getChildren(), otherP.getChildren())) logger.warn("SCP: {}({}): different parameter length, they might not be well set: c:{}/src:{}", name, this.getClass().getSimpleName(), children.size(), otherP.children.size());
             bypassListeners=false;
         } else {
-            throw new IllegalArgumentException("wrong parameter type");
+            //throw new IllegalArgumentException("wrong parameter type");
         }
     }
     public static void transferStateArguments(ContainerParameterImpl source, ContainerParameterImpl dest) {

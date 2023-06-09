@@ -19,16 +19,13 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
-import bacmman.plugins.HistogramScaler;
+import bacmman.plugins.*;
 
 import javax.swing.tree.MutableTreeNode;
 
 import bacmman.plugins.plugins.processing_pipeline.ObjectClassOperation;
 import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
-import bacmman.plugins.ManualSegmenter;
-import bacmman.plugins.ObjectSplitter;
-import bacmman.plugins.ProcessingPipeline;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -39,7 +36,7 @@ import java.util.function.Consumer;
  * @author Jean Ollion
  */
 
-public class Structure extends ContainerParameterImpl<Structure> {
+public class Structure extends ContainerParameterImpl<Structure> implements ParameterChangeCallback<Structure> {
     static String parentTT = "Some object classes can be located within others on the images, for instance bacteria are inside microchannels and fluorescent spots are inside bacteria. Image processing takes this into account by segmenting and tracking a given object within an object of another class (called respectively <em>Segmentation Parent</em> and <em>Parent</em>). <br />Typically, the <em>Parent</em> class of Bacteria and Spots is Microchannels, the <em>Segmentation Parent</em> of Bacteria is Microchannels and the <em>Segmentation Parent</em> of Spots is Bacteria.";
     ParentObjectClassParameter parentStructure =  new ParentObjectClassParameter("Parent", -1, -1).setHint(parentTT);
     ParentObjectClassParameter segmentationParent =  new ParentObjectClassParameter("Segmentation Parent", -1, -1).setHint(parentTT);
@@ -121,9 +118,17 @@ public class Structure extends ContainerParameterImpl<Structure> {
     }
     // to update display
     Consumer<Parameter> parameterChangeCallBack;
-    public void setParameterChangeCallBack(Consumer<Parameter> parameterChangeCallBack) {
+    @Override
+    public Structure setParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
         this.parameterChangeCallBack=parameterChangeCallBack;
+        return this;
     }
+
+    @Override
+    public Consumer<Parameter> getParameterChangeCallback() {
+        return parameterChangeCallBack;
+    }
+
     public Structure() {
         this("");
     }

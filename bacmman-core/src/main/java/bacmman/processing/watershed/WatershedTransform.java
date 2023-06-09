@@ -265,7 +265,7 @@ public class WatershedTransform {
             long c = heap.pollFirst();
             Spot currentSpot = spots.get(heap.getPixelInt(segmentedMap, c));
             if (currentSpot ==null) {
-                logger.error("spot null @ v={} label: {}", heap.parse(c), heap.getPixelInt(segmentedMap, c));
+                logger.error("spot null @ v={} label: {}", heap.parse(c, null), heap.getPixelInt(segmentedMap, c));
                 throw new RuntimeException("NULL SPOT");
             }
             for (int i = 0; i<neigh.getSize(); ++i) {

@@ -43,7 +43,7 @@ import java.util.stream.Stream;
 public class InputImagesImpl implements InputImages {
     InputImage[][] imageCT;
     int defaultTimePoint;
-    int frameNumber;
+    int frameNumber, minFrame;
     int autofocusChannel=-1;
     Autofocus autofocusAlgo = null;
     Integer[] autofocusPlanes;
@@ -69,7 +69,7 @@ public class InputImagesImpl implements InputImages {
             imageCTDup[i] = new InputImage[imageCT[i].length];
             for (int j = 0; j<imageCT[i].length; ++j) imageCTDup[i][j] = imageCT[i][j].duplicate();
         }
-        return new InputImagesImpl(imageCTDup, defaultTimePoint, new Pair<>(autofocusChannel, autofocusAlgo));
+        return new InputImagesImpl(imageCTDup, defaultTimePoint, new Pair<>(autofocusChannel, autofocusAlgo)).setMinFrame(minFrame);
     }
     public InputImagesImpl duplicate(int frameMin, int frameMaxExcluded) {
         if (frameMin<0) throw new IllegalArgumentException("Frame min must be >=0");
@@ -87,7 +87,8 @@ public class InputImagesImpl implements InputImages {
                 }
             }
         }
-        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1-frameMin, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo));
+        return new InputImagesImpl(imageCTDup, Math.min(frameMaxExcluded-1-frameMin, Math.max(defaultTimePoint-frameMin, 0)), new Pair<>(autofocusChannel, autofocusAlgo))
+                .setMinFrame(minFrame+frameMin);
     }
 
     @Override public int getBestFocusPlane(int timePoint) {
@@ -100,6 +101,17 @@ public class InputImagesImpl implements InputImages {
         } else return -1;
     }
     @Override public int getFrameNumber() {return frameNumber;}
+
+    @Override
+    public int getMinFrame() {
+        return minFrame;
+    }
+
+    public InputImagesImpl setMinFrame(int minFrame) {
+        this.minFrame = minFrame;
+        return this;
+    }
+
     @Override public int getChannelNumber() {return imageCT.length;}
     @Override public int getDefaultTimePoint() {return defaultTimePoint;}
     @Override public int getSourceSizeZ(int channelIdx) {return imageCT[channelIdx][0].imageSources.getSizeZ(channelIdx);}

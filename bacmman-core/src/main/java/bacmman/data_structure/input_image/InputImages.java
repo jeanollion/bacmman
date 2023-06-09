@@ -47,6 +47,7 @@ public interface InputImages {
     public Image getImage(int channelIdx, int timePoint);
     public Image getRawPlane(int z, int channelIdx, int timePoint);
     public int getFrameNumber();
+    int getMinFrame();
     public int getChannelNumber();
     public int getDefaultTimePoint();
     public int getSourceSizeZ(int channelIdx);

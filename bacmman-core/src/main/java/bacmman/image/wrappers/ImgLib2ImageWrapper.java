@@ -26,8 +26,15 @@ import net.imglib2.RandomAccessibleInterval;
 import net.imglib2.img.ImagePlusAdapter;
 import net.imglib2.img.Img;
 import net.imglib2.img.display.imagej.ImageJFunctions;
+import net.imglib2.interpolation.InterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.ClampingNLinearInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.LanczosInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NLinearInterpolatorFactory;
+import net.imglib2.interpolation.randomaccess.NearestNeighborInterpolatorFactory;
 import net.imglib2.type.numeric.RealType;
 import net.imglib2.view.Views;
+
+import java.util.function.Supplier;
 
 /**
  *
@@ -42,6 +49,22 @@ public class ImgLib2ImageWrapper {
     
     public static <T extends RealType<T>> Img<T> getImage(Image image) {
         return ImagePlusAdapter.wrapReal(IJImageWrapper.getImagePlus(image));
+    }
+
+    public enum INTERPOLATION {
+        NEAREST(NearestNeighborInterpolatorFactory::new),
+        NLINEAR(NLinearInterpolatorFactory::new),
+        CLAMPING_NLINEAR(ClampingNLinearInterpolatorFactory::new),
+        LANCZOS3(()->new LanczosInterpolatorFactory(3, false)),
+        LANCZOS5(()->new LanczosInterpolatorFactory(5, false)),
+        LANCZOS7(()->new LanczosInterpolatorFactory(7, false));
+        private final Supplier<InterpolatorFactory> factory;
+        INTERPOLATION(Supplier<InterpolatorFactory> factory) {
+            this.factory=factory;
+        }
+        public InterpolatorFactory factory() {
+            return factory.get();
+        }
     }
 
     /*public static <T extends RealType<T>> Histogram1d<T> getHistogram(Img<T> img) {

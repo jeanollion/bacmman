@@ -33,7 +33,7 @@ import org.scijava.module.ModuleItem;
  * @author Jean Ollion
  */
 
-public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Parameter<P> {
+public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Parameter<P> { // let each subclass implement Listenable<IntervalParameter> if they fire listeners on set value.
     protected String name;
     private ContainerParameter parent;
     protected boolean isEmphasized;

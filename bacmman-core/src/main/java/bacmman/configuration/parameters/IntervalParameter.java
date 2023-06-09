@@ -6,7 +6,7 @@ import org.json.simple.JSONArray;
 import java.math.BigDecimal;
 import java.util.Arrays;
 
-public class IntervalParameter extends ParameterImpl<IntervalParameter> {
+public class IntervalParameter extends ParameterImpl<IntervalParameter> implements Listenable<IntervalParameter> {
     private Number lowerBound, upperBound;
     private Number[] values;
     private int decimalPlaces;

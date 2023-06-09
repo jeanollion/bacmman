@@ -341,8 +341,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public void setContentFrom(Parameter other) {
         if (other instanceof ListParameter) {
             ListParameter<? extends Parameter, ? extends ListParameter> otherLP = (ListParameter)other;
-            if (otherLP.getChildClass()!=this.getChildClass()) throw new IllegalArgumentException("setContentFrom: wrong parameter type : child class is:"+getChildClass() + " but should be: "+otherLP.getChildClass());
-            else {
+            if (otherLP.getChildClass()==this.getChildClass()) {
                 //this.unMutableIndex = otherLP.getUnMutableIndex();
                 //this.name=otherLP.getName();
                 if (children==null) children = new ArrayList<>();
@@ -361,9 +360,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
                     for (Consumer<T> conf : configs) otherLPI.addNewInstanceConfiguration(conf);
                 }
                 bypassListeners=false;
-            }
-            
-        } else throw new IllegalArgumentException("wrong parameter type");
+            } //else throw new IllegalArgumentException("setContentFrom: wrong parameter type : child class is:"+getChildClass() + " but should be: "+otherLP.getChildClass());
+        } //else throw new IllegalArgumentException("wrong parameter type");
     }
     
     public L setChildrenNumber(int number) {

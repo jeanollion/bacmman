@@ -4,22 +4,26 @@ import bacmman.data_structure.Region;
 import bacmman.data_structure.SegmentedObject;
 import bacmman.image.BoundingBox;
 import bacmman.image.Offset;
+import bacmman.utils.Utils;
 import org.jetbrains.annotations.NotNull;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.function.*;
 
-public class MaxOverlapMatcher<O> {
-    final ToDoubleBiFunction<O, O> intersectionFunction;
-    Predicate<Overlap<O>> filter;
+public class OverlapMatcher<O> {
+    public final static Logger logger = LoggerFactory.getLogger(OverlapMatcher.class);
+    final ToDoubleBiFunction<O, O> overlapFunction;
+    Predicate<Overlap> filter;
     /**
      *
-     * @param intersectionFunction function that computes overlap between two objects
+     * @param overlapFunction function that computes overlap between two objects
      */
-    public MaxOverlapMatcher(ToDoubleBiFunction<O, O> intersectionFunction) {
-        this.intersectionFunction= intersectionFunction;
+    public OverlapMatcher(ToDoubleBiFunction<O, O> overlapFunction) {
+        this.overlapFunction = overlapFunction;
     }
     public static ToDoubleBiFunction<SegmentedObject, SegmentedObject> segmentedObjectOverlap() {
         return (g, s) -> g.getRegion().getOverlapArea(s.getRegion());
@@ -34,19 +38,24 @@ public class MaxOverlapMatcher<O> {
                 BoundingBox.getIntersection(getBB.apply(g, gOff), getBB.apply(s, sOff)).getSizeXYZ();
     }
 
-    public static void filterLowOverlapSegmentedObject(MaxOverlapMatcher<SegmentedObject> matcher, double minJaccardIndex) {
-        matcher.addFilter( o -> o.jaccardIndex(ob -> ob.getRegion().size())>minJaccardIndex);
+    public static void filterLowOverlapProportionSegmentedObject(OverlapMatcher<SegmentedObject> matcher, double minOverlapProportion) {
+        matcher.addFilter( o -> o.overlap / Math.min(o.o1.getRegion().size(), o.o2.getRegion().size()) >minOverlapProportion);
     }
-    public static void filterLowOverlapRegion(MaxOverlapMatcher<Region> matcher, double minJaccardIndex) {
-        matcher.addFilter( o -> o.jaccardIndex(r -> r.size())>minJaccardIndex);
+    public static void filterLowOverlapProportionRegion(OverlapMatcher<Region> matcher, double minOverlapProportion) {
+        matcher.addFilter( o -> o.overlap / Math.min(o.o1.size(), o.o2.size()) >minOverlapProportion);
     }
+    public static void filterLowOverlap(OverlapMatcher<?> matcher, double minOverlap) {
+        matcher.addFilter( o -> o.overlap>minOverlap);
+    }
+
     /**
      *
      * @param filter only overlaps that verify this predicate will be kept
      * @return
      */
-    public MaxOverlapMatcher<O> addFilter(Predicate<Overlap<O>> filter) {
-        this.filter = filter;
+    public OverlapMatcher<O> addFilter(Predicate<Overlap> filter) {
+        if (this.filter==null) this.filter = filter;
+        else this.filter = this.filter.and(filter);
         return this;
     }
     /**
@@ -56,42 +65,42 @@ public class MaxOverlapMatcher<O> {
      * @param gToS map in which max overlap of each object of {@param gl} to all object of object of {@param sl}
      * @param sToG map in which max overlap of each object of {@param sl} to all object of object of {@param gl}
      */
-    public void match(List<O> gl, List<O> sl, Map<O, Overlap<O>> gToS, Map<O, Overlap<O>> sToG) {
-        List<Overlap<O>> overlaps = getOverlap(gl, sl);
+    public void addMaxOverlap(List<O> gl, List<O> sl, Map<O, Overlap> gToS, Map<O, Overlap> sToG) {
+        List<Overlap> overlaps = getOverlap(gl, sl);
         if (overlaps.isEmpty()) return;
         if (gToS!=null) {
             // for each g -> max overlap with S
             for (O g : gl) {
                 overlaps.stream().filter(o -> o.o1.equals(g))
-                        .max(Comparator.comparingDouble(o -> o.overlap))
-                        .ifPresent(maxO -> gToS.put(g, maxO));
+                    .max(Comparator.comparingDouble(o->o.overlap))
+                    .ifPresent(maxO -> gToS.put(g, maxO));
             }
         }
         if (sToG!=null) {
             // for each s-> max overlap with G
             for (O s : sl) {
                 overlaps.stream().filter(o -> o.o2.equals(s))
-                        .max(Comparator.comparingDouble(o -> o.overlap))
-                        .ifPresent(maxO -> sToG.put(s, new Overlap<O>(s, maxO.o1, maxO.overlap)));
+                    .max(Comparator.comparingDouble(o->o.overlap))
+                    .ifPresent(maxO -> sToG.put(s, maxO));
             }
         }
     }
 
-    public void match(List<O> gl, List<O> sl, SimpleWeightedGraph<O, DefaultWeightedEdge> graph) {
-        List<Overlap<O>> overlaps = getOverlap(gl, sl);
+    public void addMaxOverlap(List<O> gl, List<O> sl, SimpleWeightedGraph<O, DefaultWeightedEdge> graph) {
+        List<Overlap> overlaps = getOverlap(gl, sl);
         if (overlaps.isEmpty()) return;
-        Set<Overlap<O>> maxOverlaps = new HashSet<>();
+        Set<Overlap> maxOverlaps = new HashSet<>();
         // for each g-> max overlap with s
         for (O g : gl) {
             overlaps.stream().filter(o -> o.o1.equals(g))
-                    .max(Comparator.comparingDouble(o -> o.overlap))
-                    .ifPresent(maxOverlaps::add);
+                .max(Comparator.comparingDouble(o -> o.overlap))
+                .ifPresent(maxOverlaps::add);
         }
         // for each s-> max overlap with G
         for (O s : sl) {
             overlaps.stream().filter(o -> o.o2.equals(s))
-                    .max(Comparator.comparingDouble(o -> o.overlap))
-                    .ifPresent(maxOverlaps::add);
+                .max(Comparator.comparingDouble(o -> o.overlap))
+                .ifPresent(maxOverlaps::add);
         }
         maxOverlaps.stream().distinct().forEach(o -> {
             DefaultWeightedEdge e = graph.addEdge(o.o1, o.o2);
@@ -99,15 +108,14 @@ public class MaxOverlapMatcher<O> {
         });
     }
 
-
-    protected List<Overlap<O>> getOverlap(List<O> gl, List<O> sl) {
+    public List<Overlap> getOverlap(List<O> gl, List<O> sl) {
         if (gl==null || gl.isEmpty() || sl==null || sl.isEmpty()) return Collections.emptyList();
-        List<Overlap<O>> res = new ArrayList<>();
+        List<Overlap> res = new ArrayList<>();
         for (O g : gl) {
             for (O s:sl) {
-                double overlap = this.intersectionFunction.applyAsDouble(g, s);
+                double overlap = this.overlapFunction.applyAsDouble(g, s);
                 if (overlap!=0) {
-                    Overlap<O> o = new Overlap<>(g, s, overlap);
+                    Overlap o = new Overlap(g, s, overlap);
                     if (filter==null || filter.test(o)) res.add(o);
                 }
             }
@@ -115,7 +123,7 @@ public class MaxOverlapMatcher<O> {
         return res;
     }
 
-    public class Overlap<O> implements Comparable<Overlap<O>> {
+    public class Overlap implements Comparable<Overlap> {
         public final double overlap;
         public final O o1, o2;
         public Overlap(O o1, O o2, double overlap) {
@@ -128,8 +136,13 @@ public class MaxOverlapMatcher<O> {
         }
 
         @Override
-        public int compareTo(@NotNull Overlap<O> overlap) {
+        public int compareTo(@NotNull Overlap overlap) {
             return Double.compare(this.overlap, overlap.overlap);
+        }
+
+        @Override
+        public String toString() {
+            return o1 + "+" + o2 + " Overlap="+ Utils.format4(overlap);
         }
     }
 }

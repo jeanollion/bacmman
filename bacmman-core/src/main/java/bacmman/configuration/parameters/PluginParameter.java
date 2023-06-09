@@ -195,8 +195,8 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             if (newInstanceConfiguration !=null) newInstanceConfiguration.accept(instance);
             Parameter[] params = instance.getParameters();
             if (params !=null) {
-                ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
                 for (Parameter p : params) p.setParent(this);
+                ParameterUtils.setContent(Arrays.asList(params), pluginParameters);
             }
             return instance;
         };
@@ -261,7 +261,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
             }
             if (toInit) initChildList();
             bypassListeners=false;
-        } else throw new IllegalArgumentException("wrong parameter type");
+        } //else throw new IllegalArgumentException("wrong parameter type");
     }
 
     @Override

@@ -30,11 +30,11 @@ public class BooleanParameter extends AbstractChoiceParameter<Boolean, BooleanPa
     }
     
     public BooleanParameter(String name, boolean defaultValue) {
-        super(name, new String[]{"true", "false"}, defaultValue?"true":"false", s-> "true".equals(s), false);
+        super(name, new String[]{"true", "false"}, defaultValue?"true":"false", "true"::equals, false);
     }
     
     public BooleanParameter(String name, String trueLabel, String falseLabel, boolean defaultValue) {
-        super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, s-> trueLabel.equals(s), false);
+        super(name, new String[]{trueLabel, falseLabel}, defaultValue?trueLabel:falseLabel, trueLabel::equals, false);
         //if (listChoice.length!=2) throw new IllegalArgumentException("List choice should be of length 2");
     }
 

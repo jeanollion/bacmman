@@ -18,10 +18,8 @@
  */
 package bacmman.ui.gui.selection;
 
-import bacmman.data_structure.Selection;
-import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.SegmentedObjectUtils;
-import bacmman.data_structure.SelectionOperations;
+import bacmman.data_structure.*;
+import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 import bacmman.ui.GUI;
 
 import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
@@ -35,13 +33,9 @@ import bacmman.image.Image;
 import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import javax.swing.*;
@@ -319,6 +313,27 @@ public class SelectionUtils {
             });
         }
         menu.add(setOC);
+        JMenu dupObj = new JMenu("Duplicate Objects to...");
+        for (int i = 0; i<ocNames.length; ++i) {
+            final int ocIdx = i;
+            int parentOCIdx = GUI.getDBConnection().getExperiment().experimentStructure.getParentObjectClassIdx(ocIdx);
+            JMenuItem oc = new JMenuItem(ocNames[i]);
+            dupObj.add(oc);
+            oc.addActionListener((ActionEvent e) -> {
+
+                SegmentedObjectFactory factory = getFactory(ocIdx);
+                TrackLinkEditor editor = getEditor(ocIdx, null);
+                if (selectedValues.isEmpty()) return;
+                for (Selection s : selectedValues) {
+                    Set<SegmentedObject> source = s.getAllElements();
+                    Map<SegmentedObject, SegmentedObject> sourceMapParent = Duplicate.getSourceMapParents(source.stream().map(o -> o.getParent(parentOCIdx)), parentOCIdx, s.getStructureIdx());
+                    Map<SegmentedObject, SegmentedObject> sourceMapDup = Duplicate.duplicate(source.stream(), ocIdx, factory, editor);
+                    Duplicate.setParents(sourceMapDup,sourceMapParent, parentOCIdx, s.getStructureIdx(), true, factory);
+                }
+                if (readOnly) Utils.displayTemporaryMessage("Changes will not be stored as database could not be locked", 5000);
+            });
+        }
+        menu.add(dupObj);
 
         menu.add(new JSeparator());
         JMenuItem add = new JMenuItem("Add objects selected on active Kymograph");
@@ -546,6 +561,25 @@ public class SelectionUtils {
         for (Selection s : selections ) {
             s.removeChildrenOf(parents);
             dao.store(s);
+        }
+    }
+
+    private static SegmentedObjectFactory getFactory(int objectClassIdx) {
+        try {
+            Constructor<SegmentedObjectFactory> constructor = SegmentedObjectFactory.class.getDeclaredConstructor(int.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
+        }
+    }
+    private static TrackLinkEditor getEditor(int objectClassIdx, Set<SegmentedObject> modifiedObjects) {
+        try {
+            Constructor<TrackLinkEditor> constructor = TrackLinkEditor.class.getDeclaredConstructor(int.class, Set.class, boolean.class);
+            constructor.setAccessible(true);
+            return constructor.newInstance(objectClassIdx, modifiedObjects, true);
+        } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | InvocationTargetException e) {
+            throw new RuntimeException("Could not create track link editor", e);
         }
     }
 }
