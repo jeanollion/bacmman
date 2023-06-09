@@ -9,10 +9,11 @@ import bacmman.plugins.Hint;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 import bacmman.tf2.TensorWrapper;
+import bacmman.utils.HashMapGetCreate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.tensorflow.*;
-import org.tensorflow.ndarray.buffer.FloatDataBuffer;
+import org.tensorflow.ndarray.buffer.DataBuffer;
 import org.tensorflow.proto.framework.ConfigProto;
 import org.tensorflow.proto.framework.GPUOptions;
 import org.tensorflow.types.TFloat32;
@@ -173,7 +174,7 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         boolean[] flipXYZ = new boolean[flip.getChildCount()];
         for (int i = 0;i<flipXYZ.length; ++i) flipXYZ[i] = flip.getChildAt(i).getValue().intValue()==1;
         Image[][][] res = new Image[getNumOutputArrays()][nSamples][];
-        FloatDataBuffer[] bufferContainer = new FloatDataBuffer[1];
+        DataBufferContainer bufferContainer = new DataBufferContainer();
         long wrapTime = 0, predictTime = 0;
         int increment = (int)Math.ceil( nSamples / Math.ceil( (double)nSamples / batchSize) );
         for (int idx = 0; idx<nSamples; idx+=increment) {
@@ -239,8 +240,8 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         logger.debug("prediction: {}ms, image wrapping: {}ms", predictTime, wrapTime);
         return res;
     }
-    private void predict(Image[][][] inputNC, int idx, int idxMax, FloatDataBuffer[] bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
-        TFloat32[] input = Arrays.stream(inputNC).map(imNC ->  TensorWrapper.fromImagesNC(imNC, idx, idxMax, bufferContainer, flipXYZ)).toArray(TFloat32[]::new);
+    private void predict(Image[][][] inputNC, int idx, int idxMax, DataBufferContainer bufferContainer, Image[][][] outputONC, boolean... flipXYZ) {
+        Tensor[] input = IntStream.range(0, inputNC.length).mapToObj(i ->  TensorWrapper.fromImagesNC(inputNC[i], idx, idxMax, bufferContainer.getDataBufferContainer(i), flipXYZ)).toArray(Tensor[]::new);
         TFloat32[] output = predict(input);
         if (flipXYZ==null || flipXYZ.length==0) {
             for (int io = 0; io < outputNames.length; ++io) {
@@ -258,13 +259,20 @@ public class TF2engine implements DLengine, Hint, DLMetadataConfigurable {
         }
     }
 
-    private TFloat32[] predict(TFloat32[] input) {
+    private TFloat32[] predict(Tensor[] input) {
         assert input.length == inputNames.length;
         Map<String, Tensor> inputMap = new HashMap<>(inputNames.length);
         for (int i = 0; i<input.length; ++i) inputMap.put(inputNames[i], input[i]);
         Map<String, Tensor> output = model.call(inputMap);
-        for (TFloat32 t : input) t.close();
+        for (Tensor t : input) t.close();
         return Arrays.stream(outputNames).map(output::get).toArray(TFloat32[]::new);
+    }
+
+    static class DataBufferContainer {
+        Map<Integer, DataBuffer[]> buffersByInput = new HashMapGetCreate.HashMapGetCreateRedirected<>(i -> new DataBuffer[1]);
+        public DataBuffer[] getDataBufferContainer(int inputIdx) {
+            return buffersByInput.get(inputIdx);
+        }
     }
 
     @Override
