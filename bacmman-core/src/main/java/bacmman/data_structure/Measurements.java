@@ -183,6 +183,21 @@ public class Measurements implements Comparable<Measurements>, JSONSerializable{
         else values.put(key, value);
         modifications=true;
     }
+    public void addValue(String key, Number value) {
+        if (value == null || isNA(value)) return;
+        Object v = values.get(key);
+        if (v instanceof Number) {
+            if ( v instanceof Double || v instanceof Float || value instanceof Double || value instanceof Float ) {
+                if (v instanceof Float && value instanceof Float) value = ((Float) v).floatValue() + value.floatValue();
+                else value = ((Number) v).doubleValue() + value.doubleValue();
+            } else {
+                if (v instanceof Integer && value instanceof Integer) value = ((Integer) v).intValue() + value.intValue();
+                else value = ((Number) v).longValue() + value.longValue();
+            }
+        }
+        values.put(key, value);
+        modifications=true;
+    }
     private static boolean isNA(Number value) {
         return (value instanceof Double && ((Double)value).isNaN() ||  value instanceof Float && ((Float)value).isNaN());
     }

@@ -152,7 +152,7 @@ public class ImageFieldFactory {
                     Map<String, Object> metadata = reader.getSeriesMetadata(s);
                     writeMetadata(xp.getPath(), c.getName(), metadata);
                 }
-                logger.info("image {} imported successfully", image.getAbsolutePath());
+                logger.info("image {} imported successfully", image.getAbsolutePath());
             } else {
                 if (pcb!=null) pcb.log("WARNING: Invalid Image: "+image.getAbsolutePath()+" has: "+tc[1]+" channels instead of: "+xp.getChannelImageCount(false));
                 logger.warn("Invalid Image: {} has: {} channels instead of: {}", image.getAbsolutePath(), tc[1], xp.getChannelImageCount(false));
@@ -167,7 +167,17 @@ public class ImageFieldFactory {
         long t3 = System.currentTimeMillis();
         logger.debug("import image: {}, open reader: {}, getSTC: {}, create image containers: {}", t3-t0, t1-t0, t2-t1, t3-t2);
     }
-    
+    protected static boolean fileExistsExtensionCase(String name) {
+        File f = new File(name);
+        if (!f.exists()) { // try to switch extension case
+            f = new File(Utils.changeExtensionCase(name, true));
+            if (!f.exists()) {
+                f = new File(Utils.changeExtensionCase(name, false));
+                return f.exists();
+            }
+        }
+        return true;
+    }
     protected static void importImagesChannel(File input, Experiment xp, String[] channelKeywords, ArrayList<MultipleImageContainer> containersTC, boolean importMetadata, ProgressCallback pcb) {
         if (channelKeywords.length==0) return;
         if (!input.isDirectory()) return;
@@ -175,6 +185,7 @@ public class ImageFieldFactory {
         for (File dir : subDirs) importImagesChannel(dir, xp, channelKeywords, containersTC, importMetadata, pcb);// recursivity
         
         File[] file0 = input.listFiles((File dir, String name) -> name.contains(channelKeywords[0]) && !isIgnoredFile(name));
+        if (file0==null) return;
         logger.debug("import images in dir: {} number of candidates: {}", input.getAbsolutePath(), file0.length);
         for (File f : file0) {
             String[] allChannels = new String[channelKeywords.length];
@@ -182,8 +193,7 @@ public class ImageFieldFactory {
             boolean allFiles = true;
             for (int c = 1; c < channelKeywords.length; ++c) {
                 String name = Paths.get(input.getAbsolutePath(), f.getName().replace(channelKeywords[0], channelKeywords[c])).toString();
-                File channel = new File(name);
-                if (!channel.exists()) {
+                if (!fileExistsExtensionCase(name)) {
                     logger.warn("missing file: {}", name);
                     allFiles=false;
                     break;
@@ -266,8 +276,8 @@ public class ImageFieldFactory {
                 else {
                     if (timePointNumber==1 && stc[0][0]>1) timePointNumber = stc[0][0];
                     if (stc[0][0]!=timePointNumber && stc[0][0]!=1) {
-                        logger.warn("Invalid file: {}. Contains {} time points whereas file: {} contains: {} time points", imageC[c], stc[0][0], imageC[0], timePointNumber);
-                        if (pcb!=null) pcb.log("Invalid file: "+imageC[c]+". Contains "+stc[0][0]+" time points whereas file: "+imageC[0]+" contains: "+timePointNumber+" time points");
+                        logger.warn("Invalid file: {}. Contains {} time points whereas file: {} contains: {} time points", imageC[c], stc[0][0], imageC[0], timePointNumber);
+                        if (pcb!=null) pcb.log("Invalid file: "+imageC[c]+". Contains "+stc[0][0]+" time points whereas file: "+imageC[0]+" contains: "+timePointNumber+" time points");
                         return;
                     }
                     singleFile[c] = stc[0][0] == 1;

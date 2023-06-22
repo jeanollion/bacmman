@@ -1,16 +1,13 @@
 package bacmman.ui.gui.image_interaction;
 
-import bacmman.configuration.parameters.Parameter;
 import bacmman.data_structure.*;
 import bacmman.image.*;
-import bacmman.plugins.ManualSegmenter;
 import bacmman.processing.FillHoles2D;
 import bacmman.processing.Filters;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
 import bacmman.processing.neighborhood.Neighborhood;
 import bacmman.ui.ManualEdition;
 import bacmman.utils.ArrayUtil;
-import bacmman.utils.Pair;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import org.slf4j.Logger;
@@ -23,7 +20,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 public class FreeLineSegmenter {
     public final static Logger logger = LoggerFactory.getLogger(FreeLineSegmenter.class);
@@ -118,26 +114,12 @@ public class FreeLineSegmenter {
             factory.relabelChildren(parent, modified);
             modified.add(so);
         } else { // just ensure label is not existing
-            if (objects.stream().anyMatch(o -> o.getIdx() == so.getIdx())) {
-                Collections.sort(objects);
-                if (objects.get(0).getIdx()>0) factory.setIdx(so, 0);
-                else if (objects.size()==1){
-                     factory.setIdx(so, objects.get(0).getIdx()+1);
-                }  else {
-                    boolean m = false;
-                    for (int i = 1; i<objects.size(); ++i) {
-                        if (objects.get(i).getIdx()>objects.get(i-1).getIdx()+1) {
-                            factory.setIdx(so, objects.get(i-1).getIdx()+1);
-                            m = true;
-                        }
-                        if (!m) factory.setIdx(so, objects.get(objects.size()-1).getIdx()+1);
-                    }
-                }
-            }
+            int[] idxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(objects);
+            factory.setIdx(so, idxAndIP[0]);
             modified.add(so);
             ManualEdition.removeDuplicateIdxs(modified, factory);
-            objects.add(so);
-            Collections.sort(objects);
+            if (idxAndIP[0]>=0) objects.add(idxAndIP[1], so);
+            else objects.add(so);
             factory.setChildren(parent, objects);
         }
         saveToDB.accept(modified);

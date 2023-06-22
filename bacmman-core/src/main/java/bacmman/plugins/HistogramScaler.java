@@ -55,4 +55,5 @@ public interface HistogramScaler extends Plugin {
             return new Parameter[0];
         }
     }
+
 }

@@ -7,8 +7,9 @@ import bacmman.utils.geom.Vector;
 import java.awt.*;
 
 public interface OverlayDisplayer {
-    void displayContours(Region r, int frame, double size, Color color, boolean dashed);
+    void displayContours(Region r, int frame, double size, int smoothRadius, Color color, boolean dashed);
     void displayRegion(Region r, int frame, Color color);
     void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double size, Color color);
     void updateDisplay();
+    void hideLabileObjects();
 }

@@ -133,15 +133,11 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         }
         if (inputScaling.getChildCount()>max) inputScaling.setChildrenNumber(max);
         // As output parameter depend on input parameters, also re-init output parameters
-        int maxOut = outputInterpAndScaling==null? 0 : outputInterpAndScaling.getMaxChildCount();
-        if (maxOut!=0) {
-            setMaxOutputNumber(maxOut);
-        } else {
-            initOutput(false, this.noReverseScaling);
-            setConditionalParameter();
-        }
+        initOutput(this.singleOutput, this.noReverseScaling);
+        setConditionalParameter();
         return this;
     }
+
     public DLResizeAndScale setMinOutputNumber(int min) {
         outputInterpAndScaling.setUnmutableIndex(min-1);
         if (outputInterpAndScaling.getChildCount()<min) outputInterpAndScaling.setChildrenNumber(min);
@@ -167,7 +163,9 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
         return this;
     }
     public DLResizeAndScale setScaler(int inputIdx, HistogramScaler scaler) {
+        if (inputScaling.getChildCount()<=inputIdx) inputScaling.setChildrenNumber(inputIdx+1);
         inputScaling.getChildAt(inputIdx).setPlugin(scaler);
+        if (inputInterpAndScaling.getChildCount()<=inputIdx) inputInterpAndScaling.setChildrenNumber(inputIdx+1);
         inputInterpAndScaling.getChildAt(inputIdx).getParam2().setPlugin(scaler);
         return this;
     }
@@ -323,26 +321,30 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
     public Triplet<Image[][][], int[][][], Map<Integer, HistogramScaler>[]> getNetworkInput(Image[][][] inputINC) {
         switch (getMode()) {
             case SCALE_ONLY: {
-                if (inputINC.length != this.inputScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
+                int nInputs = this.inputScaling.getActivatedChildCount();
+                if (inputINC.length < nInputs) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), scaleImageByImage.getSelected());
-                    imINC[i] = res.v1;
-                    shapesIN[i] = res.v2;
-                    scalersI[i] = res.v3;
+                    if (i<nInputs) {
+                        int ii = i;
+                        Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleInput(inputINC[i], setScaleLogger(() -> inputScaling.getChildAt(ii).instantiatePlugin()), scaleImageByImage.getSelected());
+                        imINC[i] = res.v1;
+                        shapesIN[i] = res.v2;
+                        scalersI[i] = res.v3;
+                    } else imINC[i] = inputINC[i];
                 }
                 return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case RESAMPLE:
             default: {
-                if (inputINC.length != this.inputInterpAndScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputInterpAndScaling.getActivatedChildren()+" provided="+inputINC.length);
+                int nInputs = this.inputInterpAndScaling.getActivatedChildCount();
+                if (nInputs > inputINC.length) throw new IllegalArgumentException("Wrong input number: expected="+inputInterpAndScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Supplier<HistogramScaler>[] scalerSuppliersI = new Supplier[inputINC.length];
                 InterpolatorFactory[] interpolsI = new InterpolatorFactory[inputINC.length];
-                for (int i = 0; i < inputINC.length; ++i) {
+                for (int i = 0; i < nInputs; ++i) {
                     PairParameter<InterpolationParameter, PluginParameter<HistogramScaler>> params = inputInterpAndScaling.getChildAt(i);
                     interpolsI[i] = params.getParam1().getInterpolation();
                     scalerSuppliersI[i] = setScaleLogger(() -> params.getParam2().instantiatePlugin());
@@ -350,29 +352,37 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndResampleInput(inputINC[i], interpolsI[i], scalerSuppliersI[i], getTargetImageShape(inputINC[i], false), scaleImageByImage.getSelected());
-                    imINC[i] = res.v1;
-                    shapesIN[i] = res.v2;
-                    scalersI[i] = res.v3;
+                    if (i<nInputs) {
+                        Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndResampleInput(inputINC[i], interpolsI[i], scalerSuppliersI[i], getTargetImageShape(inputINC[i], false), scaleImageByImage.getSelected());
+                        imINC[i] = res.v1;
+                        shapesIN[i] = res.v2;
+                        scalersI[i] = res.v3;
+                    } else {
+                        imINC[i] = inputINC[i];
+                    }
                 }
                 return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case PAD: {
-                if (inputINC.length != this.inputScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
+                int nInputs = this.inputScaling.getActivatedChildCount();
+                if (inputINC.length < nInputs) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
                 int[][][] shapesIN = new int[inputINC.length][][];
                 for (int i = 0; i < inputINC.length; ++i) {
-                    int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), getTargetImageShape(inputINC[i], true), scaleImageByImage.getSelected());
-                    imINC[i] = res.v1;
-                    shapesIN[i] = res.v2;
-                    scalersI[i] = res.v3;
+                    if (i<nInputs) {
+                        int ii = i;
+                        Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndPadInput(inputINC[i], paddingMode.getSelectedEnum(), setScaleLogger(() -> inputScaling.getChildAt(ii).instantiatePlugin()), getTargetImageShape(inputINC[i], true), scaleImageByImage.getSelected());
+                        imINC[i] = res.v1;
+                        shapesIN[i] = res.v2;
+                        scalersI[i] = res.v3;
+                    } else imINC[i] = inputINC[i];
                 }
                 return new Triplet<>(imINC, shapesIN, scalersI);
             }
             case TILE: {
-                if (inputINC.length != this.inputScaling.getActivatedChildCount()) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
+                int nInputs = this.inputScaling.getActivatedChildCount();
+                if (inputINC.length < nInputs) throw new IllegalArgumentException("Wrong input number: expected="+inputScaling.getActivatedChildren()+" provided="+inputINC.length);
                 Resize.EXPAND_MODE padding = padTiles.getSelected() ? paddingMode.getSelectedEnum() : null;
                 Map<Integer, HistogramScaler>[] scalersI = new Map[inputINC.length];
                 Image[][][] imINC = new Image[inputINC.length][][];
@@ -380,11 +390,13 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
                 int[] tileShapeXYZ = ArrayUtil.reverse(tileShape.getArrayInt(), true);
                 int[] minOverlapXYZ = ArrayUtil.reverse(minOverlap.getArrayInt(), true);
                 for (int i = 0; i < inputINC.length; ++i) {
-                    int ii = i;
-                    Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, setScaleLogger(()->inputScaling.getChildAt(ii).instantiatePlugin()), tileShapeXYZ, minOverlapXYZ, scaleImageByImage.getSelected());
-                    imINC[i] = res.v1;
-                    shapesIN[i] = res.v2;
-                    scalersI[i] = res.v3;
+                    if (i<nInputs) {
+                        int ii = i;
+                        Triplet<Image[][], int[][], Map<Integer, HistogramScaler>> res = scaleAndTileInput(inputINC[i], padding, setScaleLogger(() -> inputScaling.getChildAt(ii).instantiatePlugin()), tileShapeXYZ, minOverlapXYZ, scaleImageByImage.getSelected());
+                        imINC[i] = res.v1;
+                        shapesIN[i] = res.v2;
+                        scalersI[i] = res.v3;
+                    } else imINC[i] = inputINC[i];
                 }
                 return new Triplet<>(imINC, shapesIN, scalersI);
             }

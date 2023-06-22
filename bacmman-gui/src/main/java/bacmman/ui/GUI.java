@@ -147,6 +147,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private NumberParameter localZoomArea = new BoundedNumberParameter("Local Zoom Area", 0, 35, 15, null);
     private NumberParameter localZoomScale = new BoundedNumberParameter("Local Zoom Scale", 1, 1, 0.5, null).setHint("In case of HiDPI screen, a zoom factor is applied to the display, set here this factor");
     private NumberParameter roiStrokeWidth = new BoundedNumberParameter("Roi Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed contours");
+    private NumberParameter arrowStrokeWidth = new BoundedNumberParameter("Arrow Stroke Width", 1, 1, 0.5, 5).setHint("Stoke width of displayed arrows");
+    private NumberParameter roiSmooth = new BoundedNumberParameter("Roi Smooth Radius", 0, 0, 0, null).setHint("Smooth Roi (smooth radius in pixels)");
+
     private BooleanParameter relabel = new BooleanParameter("Relabel objects", true).setHint("Ater manual curation, relabel all objects of the same parent to ensure continuous labels. This operation can be time consuming when many objects are present.");
     private BooleanParameter safeMode = new BooleanParameter("Safe Mode (undo)", false);
     private BooleanParameter importMetadata = new BooleanParameter("Import Image Metadata", false).setHint("When importing images, choose this option to extract image metadata in the folder ./SourceImageMetadata");
@@ -174,7 +177,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "  operating system. See\n" +
             "  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#um-requirements\n" +
             "  for the detailed requirements.");
-    private TextParameter tfSetAllowGrowth = new TextParameter("Set Allow Growth", "true", false, false).setHint("If true, the allocator does not pre-allocate the entire specified GPU memory region, instead starting small and growing as needed.");
+    private BooleanParameter tfSetAllowGrowth = new BooleanParameter("Set Allow Growth",  true).setHint("If true, the allocator does not pre-allocate the entire specified GPU memory region, instead starting small and growing as needed.");
     private TextParameter tfVisibleDeviceList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the 'visible'\n" +
             "  to 'virtual' mapping of GPU devices.  For example, if TensorFlow\n" +
             "  can see 8 GPU devices in the process, and one wanted to map\n" +
@@ -431,6 +434,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue());
         roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setRoiStrokeWidth(roiStrokeWidth.getValue().doubleValue()));
         ConfigurationTreeGenerator.addToMenu(roiStrokeWidth, roiMenu);
+        PropertyUtils.setPersistent(arrowStrokeWidth, "arrow_stroke_width");
+        ImageWindowManagerFactory.getImageManager().setArrowStrokeWidth(arrowStrokeWidth.getValue().doubleValue());
+        roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setArrowStrokeWidth(arrowStrokeWidth.getValue().doubleValue()));
+        ConfigurationTreeGenerator.addToMenu(arrowStrokeWidth, roiMenu);
+        PropertyUtils.setPersistent(roiSmooth, "roi_smooth_radius");
+        ImageWindowManagerFactory.getImageManager().setROISmoothRadius(roiSmooth.getValue().intValue());
+        roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setROISmoothRadius(roiSmooth.getValue().intValue()));
+        ConfigurationTreeGenerator.addToMenu(roiSmooth, roiMenu);
 
         // manual edition
         PropertyUtils.setPersistent(relabel, "manual_curation_relabel");
@@ -483,7 +494,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(tfPerProcessGpuMemoryFraction, tensorflowMenu);
         Runnable setTFProps = () -> {
             Core.getCore().tfPerProcessGpuMemoryFraction = tfPerProcessGpuMemoryFraction.getDoubleValue();
-            Core.getCore().tfSetAllowGrowth = !"false".equalsIgnoreCase(tfSetAllowGrowth.getValue());
+            Core.getCore().tfSetAllowGrowth = tfSetAllowGrowth.getSelected();
             Core.getCore().tfVisibleDeviceList = tfVisibleDeviceList.getValue();
             if (db!=null) db.getExperiment().getDLengineProvider().closeAllEngines();
         };
@@ -1172,7 +1183,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             iwm.displayTracks(image, i, tracks, true);
         }
     }
-    
+    public static void updateTrackTree() {
+        if (INSTANCE==null) return;
+        if (INSTANCE.trackTreeController!=null) INSTANCE.trackTreeController.updateTrackTree();
+    }
     public static void updateRoiDisplayForSelections(Image image, InteractiveImage i) {
         if (INSTANCE==null) return;
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
@@ -4995,9 +5009,15 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (this.testParentTrackJCB.getSelectedIndex()>=0) {
                 // set trim frame lower and upper bounds
                 SegmentedObject trackHead = getTestTrackHead();
-                List<SegmentedObject> parentTrack = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex()).getTrack(trackHead);
-                this.testFrameRange.setLowerBound(trackHead.getFrame());
-                this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size()-1).getFrame());
+                ObjectDAO dao = MasterDAO.getDao(db, testPositionJCB.getSelectedIndex());
+                if (dao!=null) {
+                    List<SegmentedObject> parentTrack = dao.getTrack(trackHead);
+                    this.testFrameRange.setLowerBound(trackHead.getFrame());
+                    this.testFrameRange.setUpperBound(parentTrack.get(parentTrack.size() - 1).getFrame());
+                } else {
+                    this.testFrameRange.setLowerBound(0);
+                    this.testFrameRange.setUpperBound(null);
+                }
             } else {
                 this.testFrameRange.setLowerBound(0);
                 this.testFrameRange.setUpperBound(null);

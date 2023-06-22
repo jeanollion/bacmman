@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.BiPredicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class SegmentedObjectEditor {
     public static final Logger logger = LoggerFactory.getLogger(SegmentedObjectEditor.class);
@@ -17,22 +18,23 @@ public class SegmentedObjectEditor {
     public static final BiPredicate<SegmentedObject, SegmentedObject> ALWAYS_MERGE = (s1, s2)->true;
     public static final BiPredicate<SegmentedObject, SegmentedObject> MERGE_TRACKS_BACT_SIZE_COND = (prev, next)-> next.getRegion().size()>prev.getRegion().size()  * 0.8;
 
-    public static  List<SegmentedObject> getNext(SegmentedObject o) { // TODO FLAW : if track accepts gaps next can be later.. look also in next parents ?
-        if (o.getNext()!=null) return new ArrayList<SegmentedObject>(){{add(o.getNext());}};
+    public static  Stream<SegmentedObject> getNext(SegmentedObject o) { // TODO FLAW : if track accepts gaps next can be later.. look also in next parents ?
+        if (o.getNext()!=null) return Stream.of(o.getNext());
         SegmentedObject nextParent = o.getParent().getNext();
-        if (nextParent==null) return Collections.EMPTY_LIST;
-        return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getPrevious())).collect(Collectors.toList());
+        if (nextParent==null) return Stream.empty();
+        return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getPrevious()));
     }
-    public static List<SegmentedObject> getPrevious(SegmentedObject o) { // TODO FLAW : if track accepts gaps previous can be before.. look also in previous parents ?
-        if (o.getPrevious()!=null) return new ArrayList<SegmentedObject>(){{add(o.getPrevious());}};
+
+    public static Stream<SegmentedObject> getPrevious(SegmentedObject o) { // TODO FLAW : if track accepts gaps previous can be before.. look also in previous parents ?
+        if (o.getPrevious()!=null) return Stream.of(o.getPrevious());
         SegmentedObject prevParent = o.getParent().getPrevious();
-        if (prevParent==null) return Collections.EMPTY_LIST;
-        return prevParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getNext())).collect(Collectors.toList());
+        if (prevParent==null) return Stream.empty();
+        return prevParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getNext()));
     }
     public static void unlinkObject(SegmentedObject o, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, TrackLinkEditor editor) {
         if (o==null) return;
-        for (SegmentedObject n : getNext(o) ) unlinkObjects(o, n, mergeTracks, editor);
-        for (SegmentedObject p : getPrevious(o) ) unlinkObjects(p, o, mergeTracks, editor);
+        getNext(o).forEach(n -> unlinkObjects(o, n, mergeTracks, editor));
+        getPrevious(o).forEach(p -> unlinkObjects(p, o, mergeTracks, editor));
         //o.resetTrackLinks(true, true);
         //logger.debug("unlinking: {}", o);
     }
@@ -46,11 +48,11 @@ public class SegmentedObjectEditor {
     public static void unlinkObjects(SegmentedObject prev, SegmentedObject next, BiPredicate<SegmentedObject, SegmentedObject> mergeTracks, TrackLinkEditor editor) {
         if (prev==null && next==null) return;
         if (prev==null)  {
-            for (SegmentedObject p : getPrevious(next) ) unlinkObjects(p, next, mergeTracks, editor);
+            getPrevious(next).forEach(p -> unlinkObjects(p, next, mergeTracks, editor));
             return;
         }
         if (next==null) {
-            for (SegmentedObject n :  getNext(prev)) unlinkObjects(prev, n, mergeTracks, editor);
+            getNext(prev).forEach(n -> unlinkObjects(prev, n, mergeTracks, editor));
             return;
         }
         if (next.getFrame()<prev.getFrame()) unlinkObjects(next, prev, mergeTracks, editor);
@@ -65,7 +67,7 @@ public class SegmentedObjectEditor {
             }
             // fix remaining links
             //logger.debug("unlinking: {} from {} ...", prev, next);
-            List<SegmentedObject> allNext = getNext(prev);
+            List<SegmentedObject> allNext = getNext(prev).collect(Collectors.toList());
             if (allNext.size()==1 && mergeTracks.test(prev, allNext.get(0))) { // set trackHead
                 unlinkObjects(prev, allNext.get(0), NERVE_MERGE, editor);
                 linkObjects(prev, allNext.get(0), true, editor);
@@ -79,9 +81,9 @@ public class SegmentedObjectEditor {
         else {
             boolean allowMerge = prev.getExperiment().getStructure(prev.getStructureIdx()).allowMerge();
             boolean allowSplit = prev.getExperiment().getStructure(prev.getStructureIdx()).allowSplit();
-            List<SegmentedObject> otherNexts = getNext(prev);
+            List<SegmentedObject> otherNexts = getNext(prev).collect(Collectors.toList());
             boolean nextAlreadyLinked = otherNexts.remove(next);
-            List<SegmentedObject> otherPrevs = getPrevious(next);
+            List<SegmentedObject> otherPrevs = getPrevious(next).collect(Collectors.toList());
             boolean prevAlreadyLinked = otherPrevs.remove(prev);
             boolean splitLink = !otherNexts.isEmpty();
             boolean mergeLink = !otherPrevs.isEmpty();
@@ -166,7 +168,7 @@ public class SegmentedObjectEditor {
         while(!queue.isEmpty()) {
             SegmentedObject o = queue.pollFirst();
             toDel.add(o);
-            List<SegmentedObject> next = getNext(o);
+            List<SegmentedObject> next = getNext(o).collect(Collectors.toList());
             toDel.addAll(next);
             queue.addAll(next);
         }
@@ -279,7 +281,7 @@ public class SegmentedObjectEditor {
         if (list.isEmpty()) return null;
         List<SegmentedObject> prev = null;
         for (SegmentedObject o : list) {
-            List<SegmentedObject> l = getPrevious(o);
+            List<SegmentedObject> l = getPrevious(o).collect(Collectors.toList());
             if (l.isEmpty()) continue;
             if (prev==null) prev = l;
             else {
@@ -294,7 +296,7 @@ public class SegmentedObjectEditor {
         if (list.isEmpty()) return null;
         List<SegmentedObject> next = null;
         for (SegmentedObject o : list) {
-            List<SegmentedObject> l = getNext(o);
+            List<SegmentedObject> l = getNext(o).collect(Collectors.toList());
             if (l.isEmpty()) continue;
             if (next==null) next = l;
             else {

@@ -87,7 +87,8 @@ public abstract class ImageWindowManager<I, U, V> {
         return trackColor.get(trackHead.getTrackHead());
         //return Palette.getColor(0, SegmentedObjectUtils.getIndexTree(trackHead.getTrackHead()));
     }
-    final static double TRACK_ARROW_STROKE_WIDTH = 3;
+    int ROI_SMOOTH_RADIUS = 0;
+    double TRACK_ARROW_STROKE_WIDTH = 3;
     double ROI_STROKE_WIDTH = 0.5;
     public static double TRACK_LINK_MIN_SIZE = 23;
     protected final HashMap<InteractiveImageKey, InteractiveImage> imageObjectInterfaces;
@@ -127,6 +128,12 @@ public abstract class ImageWindowManager<I, U, V> {
     }
     public void setRoiStrokeWidth(double width) {
         this.ROI_STROKE_WIDTH = width;
+    }
+    public void setArrowStrokeWidth(double width) {
+        this.TRACK_ARROW_STROKE_WIDTH = width;
+    }
+    public void setROISmoothRadius(int radius) {
+        this.ROI_SMOOTH_RADIUS = radius;
     }
     public int getDisplayImageLimit() {
         return displayedImageNumber;
@@ -874,6 +881,7 @@ public abstract class ImageWindowManager<I, U, V> {
         InteractiveImage i = getImageObjectInterface(image);
         if (i==null) return Collections.emptyList();
         if (i instanceof HyperStack && ((HyperStack)i).isDisplayAllObjects()) {
+            logger.debug("getSelected Labile object: hyperstack in display all objects mode");
             return Pair.unpairKeys(((HyperStack)i).getAllObjects());
         }
         Set<U> rois = displayedLabileObjectRois.get(image);

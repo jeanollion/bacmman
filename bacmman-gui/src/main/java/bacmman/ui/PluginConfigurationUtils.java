@@ -488,7 +488,7 @@ public class PluginConfigurationUtils {
 
                             }
                             Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
-                            ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate())); // duplicate all images so that further transformations are not shown
+                            ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate)); // duplicate all images so that further transformations are not shown
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
                         Transformation transfo = tpp.instantiatePlugin();
@@ -517,7 +517,7 @@ public class PluginConfigurationUtils {
                                 }
                             }
                             Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), outputChannels);
-                            if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
+                            if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate));
                             getImageManager().getDisplayer().showImage5D("after: "+tpp.getPluginName(), imagesTC);
                         }
                     }
@@ -593,7 +593,10 @@ public class PluginConfigurationUtils {
             int maxZ = stores.stream().filter(s->s.images.containsKey(name)).mapToInt(s->s.images.get(name).sizeZ()).max().getAsInt();
             Image im = stores.stream().filter(s->s.images.containsKey(name)).map(s->s.images.get(name)).findAny().get();
             Image image = ioi.generateEmptyImage(name, Image.createEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth), new SimpleBoundingBox(0, 0, 0, 0, 0, maxZ-1).getBlankMask((float)im.getScaleXY(), (float)im.getScaleZ()))).setName(name);
-            stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent)));
+            stores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
+                if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));
+                else Image.pasteImage(TypeConverter.cast(s.images.get(name), image), s.parent.getMask(), image, ioi.getObjectOffset(s.parent));
+            });
             images.add(image);
         });
         // get order for each image (all images are not contained in all stores) & store
@@ -615,7 +618,10 @@ public class PluginConfigurationUtils {
             ioi.setImageSupplier( (idx, oc, raw) -> {
                 Image image = ioi.generateEmptyImage("", (Image)Image.createEmptyImage(maxBitDepth));
                 List<TestDataStore> currentStores = parentMapStore.get(parents.get(idx));
-                if (currentStores!=null) currentStores.stream().filter(s->s.images.containsKey(name)).forEach(s-> Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent)));
+                if (currentStores!=null) currentStores.stream().filter(s->s.images.containsKey(name)).forEach(s-> {
+                    if (s.parent.getStructureIdx() == parentOCIdx) Image.pasteImage(TypeConverter.cast(s.images.get(name), image), image, ioi.getObjectOffset(s.parent));
+                    else Image.pasteImage(TypeConverter.cast(s.images.get(name), image), s.parent.getMask(), image, ioi.getObjectOffset(s.parent));
+                });
                 return image;
             });
             ioi.setIsSingleChannel(true);

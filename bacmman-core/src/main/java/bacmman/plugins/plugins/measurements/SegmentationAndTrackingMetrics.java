@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -34,7 +35,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setHint("Object class to compare to the ground truth");
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix to add to measurement keys");
     SimplePluginParameterList<PostFilterFeature> removeObjects = new SimplePluginParameterList<>("Filter Objects", "Filter", PostFilterFeature.class, new FeatureFilter(), false).setHint("Filters that select objects that should be included (e.g. object not in contact with edges");
-
+    BooleanParameter objectWise = new BooleanParameter("Obect-wise", false).setHint("If true, errors will be set in each object's measurement");
     enum FILTER_MODE {NO_FILTER, OVERLAP, OVERLAP_PROPORTION}
     EnumChoiceParameter<FILTER_MODE> filterMode = new EnumChoiceParameter<>("Filter", FILTER_MODE.values(), FILTER_MODE.OVERLAP_PROPORTION);
 
@@ -67,17 +68,25 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         int pClass = groundTruth.getParentObjectClassIdx();
         String prefix = this.prefix.getValue();
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        res.add(new MeasurementKeyObject(prefix+"Intersection", pClass));
-        res.add(new MeasurementKeyObject(prefix+"Union", pClass));
-        res.add(new MeasurementKeyObject(prefix+"TrackingErrors", pClass));
-        res.add(new MeasurementKeyObject(prefix+"NLinksGT", pClass));
-        res.add(new MeasurementKeyObject(prefix+"NGt", pClass));
-        res.add(new MeasurementKeyObject(prefix+"NLinksPrediction", pClass));
-        res.add(new MeasurementKeyObject(prefix+"NPrediction", pClass));
-        res.add(new MeasurementKeyObject(prefix+"FalsePositive", pClass));
-        res.add(new MeasurementKeyObject(prefix+"FalseNegative", pClass));
-        res.add(new MeasurementKeyObject(prefix+"OverSegmentation", pClass));
-        res.add(new MeasurementKeyObject(prefix+"UnderSegmentation", pClass));
+        res.add(new MeasurementKeyObject(prefix + "NLinksGT", pClass));
+        res.add(new MeasurementKeyObject(prefix + "NGt", pClass));
+        res.add(new MeasurementKeyObject(prefix + "NLinksPrediction", pClass));
+        res.add(new MeasurementKeyObject(prefix + "NPrediction", pClass));
+        res.add(new MeasurementKeyObject(prefix + "Intersection", pClass));
+        res.add(new MeasurementKeyObject(prefix + "Union", pClass));
+        res.add(new MeasurementKeyObject(prefix + "FalseNegative", pClass));
+        IntConsumer addMeas = c -> {
+            res.add(new MeasurementKeyObject(prefix + "TrackingErrors", c));
+            res.add(new MeasurementKeyObject(prefix + "FalsePositive", c));
+            res.add(new MeasurementKeyObject(prefix + "OverSegmentation", c));
+            res.add(new MeasurementKeyObject(prefix + "UnderSegmentationInter", c));
+            res.add(new MeasurementKeyObject(prefix + "UnderSegmentationIntra", c));
+        };
+        addMeas.accept(pClass);
+        if (objectWise.getSelected()) {
+            addMeas.accept(this.objectClass.getSelectedIndex());
+            res.add(new MeasurementKeyObject(prefix + "FalseNegative", groundTruth.getSelectedClassIdx()));
+        }
         return res;
     }
 
@@ -85,6 +94,8 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     public void performMeasurement(SegmentedObject parentTrackHead) {
         int gtIdx = groundTruth.getSelectedClassIdx();
         int sIdx = objectClass.getSelectedClassIdx();
+        String prefix = this.prefix.getValue();
+        boolean objectWise= this.objectWise.getSelected();
         List<SegmentedObject> parentTrack = SegmentedObjectUtils.getTrack(parentTrackHead);
         Map<Integer, List<SegmentedObject>> GbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), gtIdx));
         Map<Integer, List<SegmentedObject>> PbyF = SegmentedObjectUtils.splitByFrame(SegmentedObjectUtils.getAllChildrenAsStream(parentTrack.stream(), sIdx));
@@ -124,22 +135,39 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             Set<SegmentedObject> excludeGT = graph.groundTruthExcluded.get(parent.getFrame());
             Set<SegmentedObject> excludePred = graph.predictionExcluded.get(parent.getFrame());
             // segmentation errors
-            int fp=0, fn=0, over=0, under=0;
+            int fp=0, fn=0, over=0, underInter=0, underIntra=0;
             for (SegmentedObject g : graph.groundTruth.get(parent.getFrame())) {
                 if (excludeGT.contains(g)) continue;
                 Set<SegmentedObject> match = graph.getAllMatching(g, true).collect(toSet());
                 if (match.stream().anyMatch(excludePred::contains)) continue;
                 int n = match.size();
-                if (n==0) ++fn;
-                else if (n>1) over+=n-1;
+                if (n==0) {
+                    ++fn;
+                    if (objectWise) g.getMeasurements().setValue(prefix + "FalseNegative", 1);
+                } else if (n>1) {
+                    over+=n-1;
+                    if (objectWise) match.forEach(p -> p.getMeasurements().setValue(prefix + "OverSegmentation", n-1));
+                }
+
             }
             for (SegmentedObject p : graph.prediction.get(parent.getFrame())) {
                 if (excludePred.contains(p)) continue;
                 Set<SegmentedObject> match = graph.getAllMatching(p, false).collect(toSet());
                 if (match.stream().anyMatch(excludeGT::contains)) continue;
                 int n = match.size();
-                if (n==0) ++fp;
-                else if (n>1) under+=n-1;
+                if (n==0) {
+                    ++fp;
+                    if (objectWise) p.getMeasurements().setValue(prefix + "FalsePositive", 1);
+                } else if (n>1) { // distinguish between inter & intra
+                    boolean inter = match.stream().map(SegmentedObject::getTrackHead).distinct().count()>1;
+                    if (inter) {
+                        underInter+=n-1;
+                        if (objectWise) p.getMeasurements().setValue(prefix + "UnderSegmentationInter", n-1);
+                    } else {
+                        underIntra+=n-1;
+                        if (objectWise) p.getMeasurements().setValue(prefix + "UnderSegmentationIntra", n-1);
+                    }
+                }
             }
             Set<DefaultWeightedEdge> edges = graph.graphG2P.edgeSet().stream()
                     .filter(e -> {
@@ -155,15 +183,15 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             int linkErrors=0;
             List<SymetricalPair<Set<SegmentedObject>>> clusters = graph.getClusters(parent.getFrame());
             for (SymetricalPair<Set<SegmentedObject>> c : clusters ) {
-                linkErrors += graph.countLinkingErrors(c.key, c.value);
+                linkErrors += graph.countLinkingErrors(c.key, c.value, objectWise ? prefix : null);
             }
             int nLinksGT = graph.groundTruth.get(parent.getFrame())
-                    .stream().filter(o -> !excludeGT.contains(o)).mapToInt(o -> SegmentedObjectEditor.getPrevious(o).size()).sum();
+                    .stream().filter(o -> !excludeGT.contains(o)).mapToInt(o -> (int)SegmentedObjectEditor.getPrevious(o).count()).sum();
             int nGT = (int)graph.groundTruth.get(parent.getFrame()).stream().filter(o -> !excludeGT.contains(o)).count();
             int nLinksPred = graph.prediction.get(parent.getFrame())
-                    .stream().filter(o -> !excludePred.contains(o)).mapToInt(o -> SegmentedObjectEditor.getPrevious(o).size()).sum();
+                    .stream().filter(o -> !excludePred.contains(o)).mapToInt(o -> (int)SegmentedObjectEditor.getPrevious(o).count()).sum();
             int nPred = (int)graph.prediction.get(parent.getFrame()).stream().filter(o -> !excludePred.contains(o)).count();
-            String prefix = this.prefix.getValue();
+
             parent.getMeasurements().setValue(prefix + "Intersection", intersection);
             parent.getMeasurements().setValue(prefix + "Union", union);
             parent.getMeasurements().setValue(prefix + "TrackingErrors", linkErrors);
@@ -174,7 +202,8 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             parent.getMeasurements().setValue(prefix + "FalsePositive", fp);
             parent.getMeasurements().setValue(prefix + "FalseNegative", fn);
             parent.getMeasurements().setValue(prefix + "OverSegmentation", over);
-            parent.getMeasurements().setValue(prefix + "UnderSegmentation", under);
+            parent.getMeasurements().setValue(prefix + "UnderSegmentationInter", underInter);
+            parent.getMeasurements().setValue(prefix + "UnderSegmentationIntra", underIntra);
         });
     }
 
@@ -232,27 +261,38 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             return getAllMatching(o, groundTruth).allMatch(oo -> exclude(oo, !groundTruth));
         }
 
-        public int countLinkingErrorsWithoutSegmentationErrors(Stream<SegmentedObject> objects, boolean sourceIsGroundTruth) {
-            return (int)getClusters(objects, sourceIsGroundTruth).stream()
+        public int countLinkingErrorsWithoutSegmentationErrors(Stream<SegmentedObject> objects, boolean sourceIsGroundTruth, String prefix) {
+            return (int)getClusters(objects, sourceIsGroundTruth, false).stream()
                     .filter(c -> c.key.stream().noneMatch(o -> exclude(o, sourceIsGroundTruth)))
                     .filter(c -> c.value.stream().noneMatch(o -> exclude(o, !sourceIsGroundTruth)))
-                    //.peek(c -> logger.debug("TrackingErrorNext: {}={}", c.key, c.value))
+                    .peek(c -> {
+                        if (prefix!=null) {
+                            Set<SegmentedObject> pred = sourceIsGroundTruth ? c.value : c.key;
+                            pred.forEach(o -> o.getMeasurements().setValue(prefix + "TrackingErrors", 1));
+                            logger.debug("tracking error for cluster: {} -> {}", sourceIsGroundTruth ? c.key : c.value , pred);
+                        }
+                    })
                     .count();
         }
-
-        public int countLinkingErrors(Collection<SegmentedObject> groundTruth, Collection<SegmentedObject> predicted) {
-            Set<SegmentedObject> gPrev = groundTruth.stream().flatMap(gg -> SegmentedObjectEditor.getPrevious(gg).stream()).collect(toSet());
-            Set<SegmentedObject> pPrev = predicted.stream().flatMap(pp -> SegmentedObjectEditor.getPrevious(pp).stream()).collect(toSet());
+        static Stream<SegmentedObject> getPrevious(Stream<SegmentedObject> objects) {
+            return objects.flatMap(SegmentedObjectEditor::getPrevious);
+        }
+        static Stream<SegmentedObject> getNext(Stream<SegmentedObject> objects) {
+            return objects.flatMap(SegmentedObjectEditor::getNext);
+        }
+        public int countLinkingErrors(Collection<SegmentedObject> groundTruth, Collection<SegmentedObject> predicted, String prefix) {
+            Set<SegmentedObject> gPrev = getPrevious(groundTruth.stream()).collect(toSet());
+            Set<SegmentedObject> pPrev = getPrevious(predicted.stream()).collect(toSet());
             if (gPrev.isEmpty() && pPrev.isEmpty()) return 0;
             else if (gPrev.isEmpty()) {
-                return countLinkingErrorsWithoutSegmentationErrors(pPrev.stream(), false);
+                return countLinkingErrorsWithoutSegmentationErrors(pPrev.stream(), false, prefix);
             } else if (pPrev.isEmpty()) {
-                return countLinkingErrorsWithoutSegmentationErrors(gPrev.stream(), true);
+                return countLinkingErrorsWithoutSegmentationErrors(gPrev.stream(), true, prefix);
             } else {
                 Set<SegmentedObject> pMatch = getAllMatching(gPrev.stream(), true).collect(Collectors.toSet());
                 int count = countLinkingErrorsWithoutSegmentationErrors(Stream.concat(pMatch.stream(), pPrev.stream())
                         .filter(o -> !pMatch.contains(o) || !pPrev.contains(o)), // symmetrical difference (XOR)
-                        false);
+                        false, prefix);
                 if (count>0) {
                     logger.error("{} Track Error: cur {} -> {}, prev={} -> {}, match={}", count, groundTruth, predicted, gPrev, pPrev, pMatch);
                 }
@@ -260,33 +300,61 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             }
         }
         public List<SymetricalPair<Set<SegmentedObject>>> getClusters(int frame) {
-            return getClusters(groundTruth.get(frame).stream(), true);
+            return getClusters(groundTruth.get(frame).stream(), true, true);
         }
-        public List<SymetricalPair<Set<SegmentedObject>>> getClusters(Stream<SegmentedObject> source, boolean sourceIsGroundTruth) {
+        public List<SymetricalPair<Set<SegmentedObject>>> getClusters(Stream<SegmentedObject> source, boolean sourceIsGroundTruth, boolean growWithPrev) {
             Set<SegmentedObject> sourceVisited = new HashSet<>();
             List<SymetricalPair<Set<SegmentedObject>>> clusters = new ArrayList<>();
             source.forEach( s -> {
                 if (!sourceVisited.contains(s)) {
                     Set<SegmentedObject> tMatch = getAllMatching(s, sourceIsGroundTruth).collect(Collectors.toSet());
                     if (!tMatch.isEmpty()) {
-                        Set<SegmentedObject> sMatch = getAllMatching(tMatch.stream(), !sourceIsGroundTruth).collect(Collectors.toSet());
-                        if (sMatch.size() > 1) { // grow cluster
-                            Set<SegmentedObject> sNew = new HashSet<>(sMatch);
-                            sNew.remove(s);
-                            Set<SegmentedObject> tNew = getAllMatching(sNew.stream(), sourceIsGroundTruth).filter(o -> !tMatch.contains(o)).collect(Collectors.toSet());
-                            while (!tNew.isEmpty()) {
-                                tMatch.addAll(tNew);
-                                sNew = getAllMatching(tNew.stream(), !sourceIsGroundTruth).filter(o -> !sMatch.contains(o)).collect(Collectors.toSet());
-                                sMatch.addAll(sNew);
-                                tNew = getAllMatching(sNew.stream(), sourceIsGroundTruth).filter(o -> !tMatch.contains(o)).collect(Collectors.toSet());
-                            }
+                        Set<SegmentedObject> sMatch = growCluster(Arrays.asList(s), tMatch, sourceIsGroundTruth);
+                        if (!growWithPrev) {
+                            clusters.add(new SymetricalPair<>(sMatch, tMatch));
+                            sourceVisited.addAll(sMatch);
+                        } else { // now get previous and grow according to previous
+                            boolean prevInc = false;
+                            int increment = 0;
+                            do {
+                                Set<SegmentedObject> sPrev = getPrevious(sMatch.stream()).collect(toSet());
+                                Set<SegmentedObject> sPrevClust = growCluster(sPrev, null, sourceIsGroundTruth);
+                                if (sPrevClust.size() > sPrev.size()) { // cluster has grown @ previous frame : grow at current frame
+                                    Set<SegmentedObject> sNext = getNext(sPrevClust.stream()).collect(toSet());
+                                    Set<SegmentedObject> sNextClust = growCluster(sNext, null, sourceIsGroundTruth);
+                                    increment = sNextClust.size() - sMatch.size();
+                                    sMatch.addAll(sNextClust);
+                                    if (increment>0) {
+                                        prevInc=true;
+                                        logger.debug("increment: {} for cluster {}", increment, sMatch);
+                                    }
+                                } else increment = 0;
+                            } while (increment>0);
+                            tMatch = getAllMatching(sMatch.stream(), sourceIsGroundTruth).collect(Collectors.toSet());
+                            clusters.add(new SymetricalPair<>(sMatch, tMatch));
+                            if (prevInc) logger.debug("Cluster prevInc: {} -> {}", sMatch, tMatch);
+                            sourceVisited.addAll(sMatch);
                         }
-                        sourceVisited.addAll(sMatch);
-                        clusters.add(new SymetricalPair<>(sMatch, tMatch));
                     }
                 }
             });
             return clusters;
+        }
+        protected Set<SegmentedObject> growCluster(Collection<SegmentedObject> source, Set<SegmentedObject> target, boolean sourceIsGroundTruth) {
+            Set<SegmentedObject> targetSet = target==null ? getAllMatching(source.stream(), sourceIsGroundTruth).collect(Collectors.toSet()) : target;
+            Set<SegmentedObject> sMatch = getAllMatching(targetSet.stream(), !sourceIsGroundTruth).collect(Collectors.toSet());
+            if (sMatch.size() > source.size()) { // grow cluster
+                Set<SegmentedObject> sNew = new HashSet<>(sMatch);
+                sNew.removeAll(source);
+                Set<SegmentedObject> tNew = getAllMatching(sNew.stream(), sourceIsGroundTruth).filter(o -> !targetSet.contains(o)).collect(Collectors.toSet());
+                while (!tNew.isEmpty()) {
+                    targetSet.addAll(tNew);
+                    sNew = getAllMatching(tNew.stream(), !sourceIsGroundTruth).filter(o -> !sMatch.contains(o)).collect(Collectors.toSet());
+                    sMatch.addAll(sNew);
+                    tNew = getAllMatching(sNew.stream(), sourceIsGroundTruth).filter(o -> !targetSet.contains(o)).collect(Collectors.toSet());
+                }
+            }
+            return sMatch;
         }
 
         public void addIntersectionAndUnion(Collection<SegmentedObject> gL, Collection<SegmentedObject> pL, double[] IU) {
@@ -321,7 +389,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{groundTruth, objectClass, removeObjects, filterModeCond, prefix};
+        return new Parameter[]{groundTruth, objectClass, objectWise, removeObjects, filterModeCond, prefix};
     }
     // multithreaded interface
     boolean parallel = false;

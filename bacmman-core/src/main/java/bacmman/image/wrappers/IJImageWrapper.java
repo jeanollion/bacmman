@@ -24,6 +24,7 @@ import ij.ImageStack;
 import ij.measure.Calibration;
 
 import java.util.function.Function;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -142,14 +143,15 @@ public class IJImageWrapper {
 
     public static ImagePlus getImagePlus(Image[][] imageTC, double frameInterval) {
         TypeConverter.homogenizeBitDepth(imageTC);
-        int sizeZ = imageTC[0][0].sizeZ();
+        int sizeT = imageTC.length;
         int sizeC = imageTC[0].length;
-        ImageStack is = new ImageStack(imageTC[0][0].sizeX(), imageTC[0][0].sizeY(), sizeZ * imageTC.length * sizeC);
+        int sizeZ = IntStream.range(0, sizeC).map(c -> imageTC[0][c].sizeZ()).max().getAsInt();
+        ImageStack is = new ImageStack(imageTC[0][0].sizeX(), imageTC[0][0].sizeY(), sizeZ * sizeT * sizeC);
         int count = 1;
-        for (int t = 0; t < imageTC.length; ++t) {
+        for (int t = 0; t < sizeT; ++t) {
             for (int z = 0; z < sizeZ; ++z) {
-                for (int c = 0; c < imageTC[0].length; ++c) {
-                    is.setPixels(imageTC[t][c].getPixelArray()[z], count++);
+                for (int c = 0; c < sizeC; ++c) {
+                    is.setPixels(imageTC[t][c].getPixelArray()[imageTC[t][c].sizeZ()==1?0:z], count++);  // allow some channels to be 2D
                 }
             }
         }

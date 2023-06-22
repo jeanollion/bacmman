@@ -37,6 +37,23 @@ import java.util.stream.IntStream;
 public abstract class Image<I extends Image<I>> extends SimpleImageProperties<I> implements ImageMask<I> {
     public final static Logger logger = LoggerFactory.getLogger(Image.class);
 
+    public static void pasteImage(Image source, ImageMask sourceMask, Image dest, Offset offset) {
+        if (source.getClass() != dest.getClass()) {
+            throw new IllegalArgumentException("Paste Image: source and destination should be of the same type (source: " + source.getClass().getSimpleName() + " destination: " + dest.getClass().getSimpleName() + ")");
+        }
+        if (offset == null) {
+            offset = new MutableBoundingBox(0, 0, 0);
+        }
+        if (source.sizeX() + offset.xMin() > dest.sizeX() || source.sizeY() + offset.yMin() > dest.sizeY() || source.sizeZ() + offset.zMin() > dest.sizeZ()) {
+            throw new IllegalArgumentException("Paste Image: source (" + source.getBoundingBox().resetOffset() + ") does not fit in destination (" + dest.getBoundingBox().resetOffset() + ") offset: " + offset);
+        }
+        int oX = offset.xMin();
+        int oY = offset.yMin();
+        int oZ = offset.zMin();
+        ImageMask.loop(sourceMask, (x, y, z) -> {
+            dest.setPixel(x + oX, y + oY, z + oZ, source.getPixel(x, y, z));
+        });
+    }
     public static void pasteImage(Image source, Image dest, Offset offset) {
         if (source.getClass() != dest.getClass()) {
             throw new IllegalArgumentException("Paste Image: source and destination should be of the same type (source: " + source.getClass().getSimpleName() + " destination: " + dest.getClass().getSimpleName() + ")");

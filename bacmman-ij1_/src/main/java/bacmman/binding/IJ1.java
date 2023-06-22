@@ -24,15 +24,19 @@ import bacmman.ui.gui.image_interaction.IJImageDisplayer;
 import bacmman.ui.gui.image_interaction.IJImageWindowManager;
 import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
 import bacmman.ui.GUI;
-import ch.qos.logback.classic.Level;
-import ch.qos.logback.classic.Logger;
+import bacmman.utils.FileIO;
 import ij.IJ;
 import ij.ImageJ;
 import ij.plugin.PlugIn;
+
+import java.awt.*;
+import java.awt.image.IndexColorModel;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.swing.JFrame;
 import javax.swing.UIManager;
 import javax.swing.UIManager.LookAndFeelInfo;
@@ -68,8 +72,17 @@ public class IJ1 implements PlugIn {
         /*java.awt.EventQueue.invokeLater(() -> {
             new GUI().setVisible(true);
         });*/
-        new ImageJ();
+
+        installLUTs();
+        ImageJ ij = new ImageJ();
         new IJ1().run(null);
+    }
+
+    public static void installLUTs() {
+        IndexColorModel lut = IJImageWindowManager.getCM(Color.cyan, Color.yellow);
+        List<String> lutS = IntStream.range(0, 256).mapToObj(i -> lut.getRed(i)+ " "+ lut.getGreen(i) + " "+ lut.getBlue(i)).collect(Collectors.toList());
+        FileIO.writeToFile(IJ.getDirectory("luts")+"Cyan2Yellow.lut", lutS, s->s);
+        //logger.debug("LUT dir: {}", IJ.getDirectory("luts")+"Blues2Reds");
     }
 
     // IJ1 plugin method

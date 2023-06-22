@@ -73,6 +73,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
     NumberParameter gaussianThld = new NumberParameter<>("Seed Threshold", 2, 1.2).setEmphasized(true).setHint("Gaussian threshold for selection of watershed seeds.<br /> Higher values tend to increase false negative detections and decrease false positive detections.<br />Configuration hint: refer to <em>Gaussian</em> image displayed in test mode"); // was 1.6
     enum NORMALIZATION_MODE {NO_NORM, PER_CELL_CENTER_SCALE, PER_CELL_CENTER, PER_FRAME_CENTER}
     EnumChoiceParameter<NORMALIZATION_MODE> normMode = new EnumChoiceParameter<>("Intensity normalization", NORMALIZATION_MODE.values(), NORMALIZATION_MODE.PER_CELL_CENTER).setLegacyInitializationValue(NORMALIZATION_MODE.PER_CELL_CENTER_SCALE).setHint("Normalization of the input intensity, will influence the Threshold values<br /> Let I be the intensity of the signal, MEAN the mean of the background of I and SD the standard deviation of the background of I. Backgroun threshold within the cell is determined by applying BackgroundThresholder to I within the cell. PER_CELL_CENTER_SCALE: (default) I -> (I - MEAN) / SD . PER_CELL_CENTER: I -> I - MEAN");
+
     enum QUALITY_FORMULA {GL, G, L}
     EnumChoiceParameter<QUALITY_FORMULA> qualityFormula = new EnumChoiceParameter<>("Quality Formula", QUALITY_FORMULA.values(), QUALITY_FORMULA.G).setLegacyInitializationValue(QUALITY_FORMULA.GL).setHint("Formula for quality feature. <br />GL : sqrt(Gaussian x Laplacian). G: Gaussian. L: Laplacian. <br /> Gaussian (resp. Laplacian) correspond to the value of the Gaussian (resp Laplacian) transform at the center of the spot");
     enum WATERSHED_MAP {LAPLACIAN, GAUSSIAN}
@@ -197,16 +198,14 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
                 }
             }
         }
-        public Image getScaledInput() {
-            return ImageOperations.affineOperation2WithOffset(input, null, 1/ms[1], -ms[0]).setName("Scaled Input");
-        }
+
         protected ImageFloat[] getGaussianMap() {
             if (gauss==null) throw new RuntimeException("Gaussian map not initialized");
             if (!gaussScaled) {
-
                 for (int i = 0; i<gauss.length; ++i) {
                     if (!gauss[i].sameDimensions(input)) gauss[i] = gauss[i].cropWithOffset(input.getBoundingBox()); // map was computed on parent that differs from segmentation parent
-                    if (gaussianScale[i]>=0.5) ImageOperations.affineOperation2WithOffset(gauss[i], gauss[i], gaussianScale[i]/ms[1], -ms[0]);
+                    double mul = gaussianScale[i]<0.5 ? 1 : gaussianScale[i];
+                    ImageOperations.affineOperation2WithOffset(gauss[i], gauss[i], mul/ms[1], -ms[0]);
                 }
                 gaussScaled=true;
             }
@@ -539,7 +538,7 @@ public class SpotSegmenter implements Segmenter, TrackConfigurable<SpotSegmenter
 
         for (int i = 0; i<gaussScale.length; ++i) {
             final int ii = i;
-            Function<Image, Image> gaussF = f->gaussScale[ii]<0.5 ? f : ImageFeatures.gaussianSmooth(f, gaussScale[ii], false).setName("gaussian: "+gaussScale[ii]);
+            Function<Image, Image> gaussF = f->gaussScale[ii]<0.5 ? f.duplicate() : ImageFeatures.gaussianSmooth(f, gaussScale[ii], false).setName("gaussian: "+gaussScale[ii]);
             maps[i] = planeByPlane ? ImageOperations.applyPlaneByPlane(filteredSource, gaussF) : gaussF.apply(filteredSource);
         }
         for (int i = 0; i<scale.length; ++i) {

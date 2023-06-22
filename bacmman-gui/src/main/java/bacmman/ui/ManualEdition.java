@@ -30,10 +30,7 @@ import bacmman.data_structure.SegmentedObjectEditor;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentationAndTrackingProcessingPipeline;
-import bacmman.ui.gui.image_interaction.InteractiveImage;
-import bacmman.ui.gui.image_interaction.InteractiveImageKey;
-import bacmman.ui.gui.image_interaction.ImageWindowManager;
-import bacmman.ui.gui.image_interaction.ImageWindowManagerFactory;
+import bacmman.ui.gui.image_interaction.*;
 import bacmman.utils.geom.Point;
 
 import java.awt.Color;
@@ -51,7 +48,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.function.BiPredicate;
 
-import bacmman.ui.gui.image_interaction.FreeLineSplitter;
 import bacmman.plugins.TrackConfigurable.TrackConfigurer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -231,7 +227,7 @@ public class ManualEdition {
                             }
                         } else linkObjects(p, current.get(0), false, editor);
                     }
-                } else { // link closest object
+                } else { // link closest objects
                     if (existingUneditedLinks==null) existingUneditedLinks = new ArrayList<>();
                     map.put(prevParent.getFrame(), prev);
                     map.put(currentParent.getFrame(), current);
@@ -287,19 +283,19 @@ public class ManualEdition {
                 // check split links
                 if (p.key.equals(p.value.getPrevious()) && p.value.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null && Boolean.TRUE.equals(p.key.getAttribute(SegmentedObject.EDITED_LINK_NEXT))) {
                     // potential inconsistency: check that all next of prev have unedited prev links
-                    if (getNext(p.key).stream().allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null)) p.key.setAttribute(SegmentedObject.EDITED_LINK_NEXT, null);
+                    if (getNext(p.key).allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_PREV)==null)) p.key.setAttribute(SegmentedObject.EDITED_LINK_NEXT, null);
                 }
                 // check merge links
                 if (p.value.equals(p.key.getNext()) && p.key.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null && Boolean.TRUE.equals(p.value.getAttribute(SegmentedObject.EDITED_LINK_PREV))) {
                     // potential inconsistency: check that all prev of next have unedited links
-                    if (getPrevious(p.value).stream().allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null)) p.value.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
+                    if (getPrevious(p.value).allMatch(o->o.getAttribute(SegmentedObject.EDITED_LINK_NEXT)==null)) p.value.setAttribute(SegmentedObject.EDITED_LINK_PREV, null);
                 }
             });
             if (!allowMerge) {
-                allObjects.stream().filter(o -> o.getPrevious()==null).filter(o -> getPrevious(o).size()>=1).forEach(o -> o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
+                allObjects.stream().filter(o -> o.getPrevious()==null).filter(o -> getPrevious(o).findAny().isPresent()).forEach(o -> o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
             }
             if (!allowSplit) {
-                allObjects.stream().filter(o -> o.getNext()==null).filter(o -> getNext(o).size()>1).forEach(o -> o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
+                allObjects.stream().filter(o -> o.getNext()==null).filter(o -> getNext(o).count()>1).forEach(o -> o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
             }
         }
         //repairLinkInconsistencies(db, modifiedObjects, modifiedObjects);
@@ -565,8 +561,7 @@ public class ManualEdition {
         ProcessingPipeline pipeline =  xp.getStructure(structureIdx).getProcessingScheme();
         if (pipeline instanceof SegmentationAndTrackingProcessingPipeline) ((SegmentationAndTrackingProcessingPipeline)pipeline).getTrackPostFilters().removeAllElements(); // we remove track post filter so that they do not inlfuence mode
         ProcessingPipeline.PARENT_TRACK_MODE mode = ProcessingPipeline.parentTrackMode(pipeline);
-
-        TrackPreFilterSequence tpfWithPF = pipeline.getTrackPreFilters(true);
+        TrackPreFilterSequence tpfWithPF = pipeline != null ? pipeline.getTrackPreFilters(true) : new TrackPreFilterSequence("");
         parents = parents.filter(p -> p.getPreFilteredImage(structureIdx)==null);
         Map<SegmentedObject, List<SegmentedObject>> trackSegments = getTrackSegments(parents, mode);
         trackSegments.entrySet().removeIf(e -> e.getValue().stream().noneMatch(p -> p.getPreFilteredImage(structureIdx)==null));
@@ -618,6 +613,7 @@ public class ManualEdition {
                 track.parallelStream().forEach( objectToSplit -> { // create split object
                     if (test_) splitter.splitObject(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit.getParent(), objectToSplit.getStructureIdx(), objectToSplit.getRegion());
                     else {
+
                         SegmentedObject newObject = factory.split(objectToSplit.getParent().getPreFilteredImage(objectToSplit.getStructureIdx()), objectToSplit, splitter);
                         if (newObject == null) logger.warn("Object could not be split!");
                         else {
@@ -631,19 +627,45 @@ public class ManualEdition {
                 newObjects.addAll(newObjects_);
                 objectsToStore.addAll(objectsToStore_);
                 for (SegmentedObject objectToSplit : track) { // set links
-                    List<SegmentedObject> prevs = getPrevious(objectToSplit);
-                    for (SegmentedObject p : prevs) unlinkObjects(p, objectToSplit, ALWAYS_MERGE, editor);
-                    if (prevs.size()==1 && objectMapNew.get(prevs.get(0))!=null) prevs.add(objectMapNew.get(prevs.get(0))); // previous object has been split
-                    List<SegmentedObject> nexts = getNext(objectToSplit);
-                    for (SegmentedObject n : nexts) unlinkObjects(objectToSplit, n, ALWAYS_MERGE, editor);
-                    if (nexts.size()==1 && objectMapNew.get(nexts.get(0))!=null) nexts.add(objectMapNew.get(nexts.get(0))); // next object has been split
                     SegmentedObject newObject = objectMapNew.get(objectToSplit);
+                    List<SegmentedObject> prevs = getPrevious(objectToSplit).collect(Collectors.toList());
+                    prevs.stream().map(prev -> { // prev has been split
+                        SegmentedObject p = objectMapNew.get(prev);
+                        if (p!=null && !prevs.contains(p)) return p; // previous object has been split
+                        return null;
+                    }).filter(Objects::nonNull).collect(Collectors.toList()).forEach(prevs::add);
+                    if (newObject!=null) {
+                        getPrevious(newObject).forEach(prev -> {
+                            if (!prevs.contains(prev)) {
+                                prevs.add(prev);
+                                SegmentedObject p = objectMapNew.get(prev);
+                                if (p!=null && !prevs.contains(p)) prevs.add(p); // previous object has been split
+                            }
+                        });
+                    }
+                    List<SegmentedObject> nexts = getNext(objectToSplit).collect(Collectors.toList());
+                    nexts.stream().map(next -> {
+                        SegmentedObject n = objectMapNew.get(next);
+                        if (n!=null && !nexts.contains(n)) return n; // next object has been split
+                        return null;
+                    }).filter(Objects::nonNull).collect(Collectors.toList()).forEach(nexts::add);
+                    if (newObject!=null) {
+                        getNext(newObject).forEach(next -> {
+                            if (!nexts.contains(next)) {
+                                nexts.add(next);
+                                SegmentedObject n = objectMapNew.get(next);
+                                if (n!=null && !nexts.contains(n)) nexts.add(n); // next object has been split
+                            }
+                        });
+                    }
                     if (!prevs.isEmpty()) {
+                        //logger.debug("link prev of {} and {} -> {} ", objectToSplit, newObject, prevs);
                         prevs.add(objectToSplit);
                         if (newObject!=null) prevs.add(newObject);
                         modifyObjectLinks(prevs, false, false, merge, split, editor);
                     }
-                    if (!nexts.isEmpty()) {
+                    if (!nexts.isEmpty()) { // TODO this can be avoided when next is also split
+                        //logger.debug("link next of {} and {} -> {} ", objectToSplit, newObject, nexts);
                         nexts.add(objectToSplit);
                         if (newObject!=null) nexts.add(newObject);
                         modifyObjectLinks(nexts, false, false, merge, split, editor);

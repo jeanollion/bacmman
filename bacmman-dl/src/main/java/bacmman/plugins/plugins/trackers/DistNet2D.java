@@ -1019,14 +1019,14 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
 
         parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).forEach(o -> {
-            List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o);
+            List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o).collect(Collectors.toList());
             if (!allowMerge) {
                 if (prevs.size()>1) {
                     o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
                     prevs.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
                 }
             }
-            List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o);
+            List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o).collect(Collectors.toList());
             if ( (!allowSplit && nexts.size()>1) || (allowSplit && nexts.size()>2)) {
                 o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
                 nexts.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
@@ -1035,7 +1035,7 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
                 double growthrate;
                 if (prevs.size() == 1) {
                     SegmentedObject prev = prevs.get(0);
-                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prevs.get(0));
+                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prevs.get(0)).collect(Collectors.toList());
                     if (prevsNext.size()>1) { // compute size of all next objects
                         growthrate = prevsNext.stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(o)) {

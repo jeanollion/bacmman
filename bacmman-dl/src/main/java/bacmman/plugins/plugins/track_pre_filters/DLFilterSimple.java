@@ -5,6 +5,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.image.Image;
+import bacmman.image.ImageFloat;
 import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
@@ -14,7 +15,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.*;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformation, Filter, Hint, DLMetadataConfigurable { // TransformationApplyDirectly
@@ -24,13 +24,16 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
     BooleanParameter timelapse = new BooleanParameter("Timelapse", false).setHint("If true, input image are concatenated with previous (and next) frame(s)");
     BooleanParameter next = new BooleanParameter("Next", true).setHint("If true, input image are concatenated with previous and next frame(s)");
     BoundedNumberParameter nFrames = new BoundedNumberParameter("Frame Number", 0, 1, 1, null).setHint("Defines the neighborhood size in time axis: how many previous (and next) frames are concatenated to current frame");
-    BooleanParameter averagePredictions = new BooleanParameter("Average Prediction", true).setHint("If true, prediction are averaged with predictions from neighboring frames");
+    //BooleanParameter averagePredictions = new BooleanParameter("Average Prediction", false).setHint("If true, prediction are averaged with predictions from neighboring frames");
     ArrayNumberParameter frameSubsampling = new ArrayNumberParameter("Frame sub-sampling average", -1, new BoundedNumberParameter("Frame interval", 0, 2, 2, null)).setDistinct(true).setSorted(true).addValidationFunctionToChildren(n -> n.getIntValue() > 1);
     BoundedNumberParameter channel = new BoundedNumberParameter("Channel", 0, 0, 0, null).setHint("In case the model predicts several channel, set here the channel to be used");
-
-    ConditionalParameter<Boolean> timelapseCond = new ConditionalParameter<>(timelapse).setActionParameters(true, next, nFrames, averagePredictions, frameSubsampling);
-
-
+    BooleanParameter inputFrameIndex = new BooleanParameter("Input Frame Index", false)
+            .setHint("Set true to provide frame index to the dl model as second input (dl model must support this feature)");
+    public enum OOB_POLICY {MIRROR, BORDER, ZERO}
+    EnumChoiceParameter<OOB_POLICY> oobPolicy = new EnumChoiceParameter<>("Out-of-bounds policy", OOB_POLICY.values(), OOB_POLICY.MIRROR).setHint("How to replace an out-of-bound adjacent frame: MIRROR = use frame on the other side of the curent frame. BORDER = use closest frame. ZERO = ZERO padding");
+    ConditionalParameter<Boolean> timelapseCond = new ConditionalParameter<>(timelapse).setActionParameters(true, next, nFrames, oobPolicy, frameSubsampling);
+    static boolean testNoFrame = false;
+    static boolean testNoTL = false;
     @Override
     public ProcessingPipeline.PARENT_TRACK_MODE parentTrackMode() {
         return ProcessingPipeline.PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
@@ -65,15 +68,20 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
     @Override
     public void filter(int structureIdx, TreeMap<SegmentedObject, Image> preFilteredImages, boolean canModifyImages) {
         Image[] out;
+        boolean inputFrameIndex = this.inputFrameIndex.getSelected();
         if (!this.timelapse.getSelected()) {
-            Image[][][] in = new Image[][][]{preFilteredImages.values().stream().map(im -> new Image[]{im}).toArray(Image[][]::new)};
+            Image[][][] in = new Image[inputFrameIndex ? 2 : 1][][];
+            in[0] = preFilteredImages.values().stream().map(im -> new Image[]{im}).toArray(Image[][]::new);
+            if (inputFrameIndex) in[1] = preFilteredImages.keySet().stream().map(p -> new Image[]{asImage(p.getFrame())}).toArray(Image[][]::new);
             out = predict(in);
         } else {
             boolean[] noPrevParent = new boolean[preFilteredImages.size()];
             noPrevParent[0] = true;
             List<SegmentedObject> parentTrack = new ArrayList<>(preFilteredImages.keySet());
             for (int i = 1; i < noPrevParent.length; ++i) if (parentTrack.get(i - 1).getFrame() < parentTrack.get(i).getFrame() - 1) noPrevParent[i] = true;
-            out = predictTimelapse(preFilteredImages.values().toArray(new Image[0]), noPrevParent);
+            ToIntFunction<SegmentedObject> getFrame = testNoFrame ? p->0 : SegmentedObject::getFrame;
+            Image[] frames = inputFrameIndex ? preFilteredImages.keySet().stream().map(p -> asImage(getFrame.applyAsInt(p))).toArray(Image[]::new) : null;
+            out = predictTimelapse(preFilteredImages.values().toArray(new Image[0]), frames, noPrevParent);
         }
         int idx = 0;
         for (Map.Entry<SegmentedObject, Image> e : preFilteredImages.entrySet()) e.setValue(out[idx++]);
@@ -82,7 +90,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{dlEngine, dlResample, batchSize, channel, timelapseCond};
+        return new Parameter[]{dlEngine, inputFrameIndex, dlResample, batchSize, channel, timelapseCond};
     }
 
     @Override
@@ -91,25 +99,38 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
     }
 
     // transformation implementation
-      Image[] processedFrames;
-      @Override
-      public void computeConfigurationData(int channelIdx, InputImages inputImages) {
-          int nFrames = inputImages.singleFrameChannel(channelIdx) ? 1 : inputImages.getFrameNumber();
-          if (!this.timelapse.getSelected()) {
-              Image[][][] input = new Image[1][nFrames][1];
-              for (int t = 0; t < nFrames; ++t) input[0][t][0] = inputImages.getImage(channelIdx, t);
-              processedFrames = predict(input);
-          } else {
-              boolean[] noPrevParent = new boolean[inputImages.getFrameNumber()];
-              noPrevParent[0] = true;
-              Image[] input = IntStream.range(0, inputImages.getFrameNumber()).mapToObj(f -> inputImages.getImage(channelIdx, f)).toArray(Image[]::new);
-              processedFrames = predictTimelapse(input, noPrevParent);
-          }
-      }
+    Image[] processedFrames;
+    @Override
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+        int nFrames = inputImages.singleFrameChannel(channelIdx) ? 1 : inputImages.getFrameNumber();
+        int minFrame = inputImages.getMinFrame();
+        boolean inputFrameIndex = this.inputFrameIndex.getSelected();
+        if (!this.timelapse.getSelected()) {
+            Image[][][] input = new Image[inputFrameIndex? 2 : 1][nFrames][1];
+            for (int t = 0; t < nFrames; ++t) {
+                input[0][t][0] = inputImages.getImage(channelIdx, t);
+                if (inputFrameIndex) input[1][t][0] = asImage(t+minFrame);
+            }
+            processedFrames = predict(input);
+        } else {
+            boolean[] noPrevParent = new boolean[inputImages.getFrameNumber()];
+            noPrevParent[0] = true;
+            Image[] input = IntStream.range(0, inputImages.getFrameNumber()).mapToObj(f -> inputImages.getImage(channelIdx, f)).toArray(Image[]::new);
+            ToIntFunction<Integer> getFrame = testNoFrame ? f->0 : f -> f+minFrame;
+            Image[] frames = inputFrameIndex ? IntStream.range(0, inputImages.getFrameNumber()).mapToObj(f -> asImage(getFrame.applyAsInt(f))).toArray(Image[]::new) : null;
+            processedFrames = predictTimelapse(input, frames, noPrevParent);
+        }
+    }
 
-      @Override
-      public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber) {
-          return processedFrames!=null;
+    private static Image asImage(int frameIndex) {
+        ImageFloat res = new ImageFloat("index", 1, 1, 1);
+        res.setPixel(0, 0, 0, frameIndex);
+        return res;
+    }
+
+    @Override
+    public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber) {
+      return processedFrames!=null;
     }
 
     @Override
@@ -125,15 +146,31 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
         return true;
     }
 
-    protected static Image[][] getInputs(Image[] images, Image[] prev, boolean[] noPrevParent, boolean addNext, int nFrames, int idxMin, int idxMaxExcl, int frameInterval) {
+    protected static Image[][] getInputs(Image[] images, boolean[] noPrevParent, boolean addNext, int nFrames, int idxMin, int idxMaxExcl, int frameInterval, OOB_POLICY oobPolicy) {
         BiFunction<Integer, Integer, Image>[] getImage = new BiFunction[1];
         getImage[0] = (cur, i) -> {
-            if (i < 0) {
-                if (prev != null) {
-                    int idx = prev.length - i;
-                    return idx < 0 ? prev[0] : prev[idx];
-                } else return images[0];
-            } else if (i >= images.length) {
+            if (i < 0) { // OOB left
+                switch (oobPolicy) {
+                    case ZERO: {
+                        return Image.createEmptyImage("input frame", images[0], images[0]);
+                    }
+                    case MIRROR: {
+                        logger.debug("MIRROR OOB: cur {}, neigh {}, alt: {}", cur, i, cur + (cur-i));
+                        i = cur + (cur-i);
+                        if (i<images.length) return images[i];
+                    }
+                }
+                return images[0];
+            } else if (i >= images.length) { // OOB right
+                switch (oobPolicy) {
+                    case ZERO: {
+                        return Image.createEmptyImage("input frame", images[0], images[0]);
+                    }
+                    case MIRROR: {
+                        i = cur + (cur-i);
+                        if (i>=0) return images[i];
+                    }
+                }
                 return images[images.length - 1];
             }
             if (i < cur) {
@@ -143,7 +180,8 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
             }
             return images[i];
         };
-        IntFunction<Image[]> getImages = addNext ? i -> IntStream.rangeClosed(- nFrames, nFrames).mapToObj(n->getImage[0].apply(i, i + n * frameInterval)).toArray(Image[]::new) : i -> IntStream.rangeClosed(- nFrames, 0).mapToObj(n->getImage[0].apply(i, i + n * frameInterval)).toArray(Image[]::new);
+        ToIntFunction<Integer> getNeigh = testNoTL ? n -> 0 : n -> n * frameInterval;
+        IntFunction<Image[]> getImages = addNext ? i -> IntStream.rangeClosed(- nFrames, nFrames).mapToObj(n->getImage[0].apply(i, i + getNeigh.applyAsInt(n))).toArray(Image[]::new) : i -> IntStream.rangeClosed(- nFrames, 0).mapToObj(n->getImage[0].apply(i, i + getNeigh.applyAsInt(n))).toArray(Image[]::new);
         return IntStream.range(idxMin, idxMaxExcl).mapToObj(getImages).toArray(Image[][]::new);
     }
 
@@ -188,7 +226,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
             }
         }
 
-        void predict(DLengine engine, Image[] images, Image[] prev, boolean[] noPrev, int frameInterval) {
+        void predict(DLengine engine, Image[] images, Image[] frames, boolean[] noPrev, int frameInterval) {
             int idxLimMin = frameInterval > 1 ? frameInterval : 0;
             int idxLimMax = frameInterval > 1 ? next ? images.length - frameInterval : images.length : images.length;
             init(idxLimMax - idxLimMin);
@@ -196,9 +234,10 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
             for (int i = idxLimMin; i < idxLimMax; i += increment ) {
                 int idxMax = Math.min(i + batchSize.getIntValue(), idxLimMax);
-                Image[][] input = getInputs(images, i == 0 ? prev : null, noPrev, next, nFrames, i, idxMax, frameInterval);
+                Image[][] input = getInputs(images, noPrev, next, nFrames, i, idxMax, frameInterval, oobPolicy.getSelectedEnum());
+                Image[][] inputF = frames!=null ? getInputs(frames, noPrev, next, nFrames, i, idxMax, frameInterval, oobPolicy.getSelectedEnum()) : null;
                 logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
-                Image[][][] predictions = dlResample.predict(engine, input);
+                Image[][][] predictions = inputF == null ? dlResample.predict(engine, input) : dlResample.predict(engine, input, inputF);
                 appendPrediction(predictions, i - idxLimMin);
             }
         }
@@ -268,16 +307,16 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
         }
     }
 
-    private Image[] predictTimelapse(Image[] input, boolean[] noPrev) {
+    private Image[] predictTimelapse(Image[] input, Image[] frames, boolean[] noPrev) {
         boolean next = this.next.getSelected();
         long t0 = System.currentTimeMillis();
         DLengine engine = dlEngine.instantiatePlugin();
         engine.init();
         long t1 = System.currentTimeMillis();
         logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
-
-        PredictedChannels pred = new PredictedChannels(this.averagePredictions.getSelected(), this.next.getSelected(), this.nFrames.getIntValue());
-        pred.predict(engine, input, null, noPrev, 1);
+        boolean avg = false; //this.averagePredictions.getSelected()
+        PredictedChannels pred = new PredictedChannels(avg, this.next.getSelected(), this.nFrames.getIntValue());
+        pred.predict(engine, input, frames, noPrev, 1);
         long t2 = System.currentTimeMillis();
 
         logger.info("{} predictions made in {}ms", input.length, t2 - t1);
@@ -302,7 +341,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
                 for (int frameInterval : frameSubsampling) {
                     logger.debug("averaging with frame subsampled: {}", frameInterval);
                     PredictedChannels pred2 = new PredictedChannels(false, this.next.getSelected(), pred.nFrames);
-                    pred2.predict(engine, input, null, noPrev, frameInterval);
+                    pred2.predict(engine, input, frames, noPrev, frameInterval);
                     for (int frame = frameInterval; frame < pred2.filtered.length + frameInterval; ++frame) { // rest of half of the value is filtered with frame subsampling
                         double n = getNSubSampling.applyAsInt(frame);
                         ImageOperations.weightedSum(pred.filtered[frame], new double[]{1, 0.5 / n}, pred.filtered[frame], pred2.filtered[frame - frameInterval]);

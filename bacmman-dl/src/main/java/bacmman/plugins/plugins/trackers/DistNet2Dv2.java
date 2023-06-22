@@ -44,7 +44,6 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static bacmman.processing.track_post_processing.Track.getTrack;
-import static bacmman.utils.Palette.setTransparency;
 
 public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, Hint, DLMetadataConfigurable {
     public final static Logger logger = LoggerFactory.getLogger(DistNet2Dv2.class);
@@ -252,6 +251,8 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         if (stores != null) prediction.edm.forEach((o, im) -> stores.get(o).addIntermediateImage("edm", im));
         if (stores != null && prediction.centerDist != null) prediction.centerDist.forEach((o, im) -> stores.get(o).addIntermediateImage("Center Dist", im));
         if (new HashSet<>(parentTrack).size()<parentTrack.size()) throw new IllegalArgumentException("Duplicate Objects in parent track");
+        double sigma = Math.min(3, Math.max(1, objectThickness.getDoubleValue() / 4)); // sigma is limited in order to improve performances @ gaussian fit
+        double c = 1/(Math.sqrt(2 * Math.PI) * sigma);
 
         ThreadRunner.ThreadAction<SegmentedObject> ta = (p,idx) -> {
             Image edmI = prediction.edm.get(p);
@@ -267,14 +268,29 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             ImageByte localExtremaEDM = Filters.localExtrema(edmI, null, true, insideCellsM, Filters.getNeighborhood(seedRad, 0, centerDistI));
             //if (stores != null) stores.get(p).addIntermediateImage("EDM Seeds", localExtremaEDM);
             RegionPopulation pop = WatershedTransform.watershed(edmI, insideCellsM, localExtremaEDM, config);
-
+            if (stores!=null) {
+                Offset off = p.getBounds().reverseOffset();
+                List<Region> regions = pop.getRegions().stream().map(Region::duplicate).collect(Collectors.toList());
+                stores.get(p).addMisc("Display Segmentation First Step", sel -> {
+                    OverlayDisplayer disp = Core.getOverlayDisplayer();
+                    if (disp != null) {
+                        List<Region> rDup;
+                        if (!sel.isEmpty()) { // remove regions that do not overlap
+                            rDup =  new ArrayList<>(regions);
+                            List<Region> otherRegions = sel.stream().map(SegmentedObject::getRegion).collect(Collectors.toList());
+                            rDup.removeIf(r -> r.getContainer(otherRegions, null, off) == null);
+                        } else rDup = regions;
+                        rDup.forEach(r -> disp.displayContours(r, p.getFrame() - parentTrack.get(0).getFrame(), 0, 0, null, false));
+                        disp.hideLabileObjects();
+                        //disp.updateDisplay();
+                    }
+                });
+            }
             // center compute center map -> gaussian transform of predicted center dist map
             Image centerDistSmoothI = centerSmoothRad.getDoubleValue()==0 ? centerDistI : Filters.applyFilter(centerDistI, null, new Filters.Mean(insideCells), Filters.getNeighborhood(centerSmoothRad.getDoubleValue(), 0, centerDistI), false);
             if (stores != null && centerSmoothRad.getDoubleValue()>0) stores.get(p).addIntermediateImage("Center Dist Smooth", centerDistSmoothI);
             Image centerI = new ImageFloat("Center", centerDistSmoothI);
-            double sigma = Math.min(3, Math.max(1, objectThickness.getDoubleValue() / 4)); // sigma is limited in order to improve performances @ gaussian fit
-            double c = 1/(Math.sqrt(2 * Math.PI) * sigma);
-            BoundingBox.loop(centerDistSmoothI, (x, y, z)->{
+            BoundingBox.loop(centerDistSmoothI.getBoundingBox().resetOffset(), (x, y, z)->{
                 if (insideCellsM.insideMask(x, y, z)) {
                     centerI.setPixel(x, y, z, c * Math.exp(-0.5 * Math.pow(centerDistSmoothI.getPixel(x, y, z)/sigma, 2)) );
                 }
@@ -294,29 +310,15 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     .setMaxCenterDisplacement(Math.max(1.5, sigma))
                     .setCorrectInvalidEllipses(false);
             Map<Point, double[]> fit = GaussianFit.run(centerI, centerSeeds, gfConfig, null, false);
-            /*EllipticGaussian2D fun = new EllipticGaussian2D(true);
-            BiFunction<Region, double[], Region> setQuality = (r, params) -> {
-                double[] sum = new double[2];
-                double I = getCenterIntensity(r);
-                r.loop((x, y, z) -> {
-                    if (centerI.contains(x, y, z)) {
-                        double val = fun.val(new double[]{x, y}, params);
-                        sum[0] += Math.pow(val - centerI.getPixel(x, y, z) , 2) / (I * I);
-                        sum[1] ++;
-                    }
-                });
-                r.setQuality(1 - sum[0] / sum[1]);
-                return r;
-            };*/
-            List<Region> centers = fit.values().stream().map(params -> GaussianFit.spotMapper.apply(params, false, centerI)).collect(Collectors.toList());
-            //List<Region> centers = fit.values().stream().map(params -> GaussianFit.ellipse2DMapper.apply(params, false, centerI)).collect(Collectors.toList());
+            List<Region> centers = fit.values().stream().map(params -> GaussianFit.spotMapper.apply(params, false, (SimpleImageProperties)centerI.getProperties().resetOffset())).collect(Collectors.toList());
             // filter too small / large centers / partially outside cells
             double minR = Math.max(1, sigma - 0.5);
             double maxR = sigma + 1.5;
             double minOverlap = 0.8;
+            Offset off = p.getBounds();
             Region background = new Region(new PredicateMask(edmI, edmThreshold.getDoubleValue(), false, true), 1, true);
             Region wholeImage = new Region(p.getMask(), 1, true);
-            Map<Region, Double> centerSize = new HashMapGetCreate.HashMapGetCreateRedirected<>(r -> r.getOverlapArea(wholeImage)); // spots are sometimes outside image
+            Map<Region, Double> centerSize = new HashMapGetCreate.HashMapGetCreateRedirected<>(r -> r.getOverlapArea(wholeImage, off, null)); // spots are sometimes outside image
             centers.removeIf(r -> {
                 if (getCenterIntensity(r)<=0) return true;
                 if (r instanceof Ellipse2D) {
@@ -328,40 +330,42 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     if (s.getRadius()<minR || s.getRadius()>maxR) return true;
                 }
                 double overlapLimit = (1 - minOverlap) * centerSize.get(r);
-                if (r.getOverlapArea(background, null, null, overlapLimit) > overlapLimit ) return true; // remove spots that do not overlap enough with foreground
-                return false;
+                //logger.debug("center: {} size: {} overlap bg: {}", r, centerSize.get(r), r.getOverlapArea(background, off, null, overlapLimit));
+                return overlapLimit==0 || r.getOverlapArea(background, off, null, overlapLimit) > overlapLimit; // remove spots that do not overlap enough with foreground
             });
             //if (stores != null) stores.get(p).addIntermediateImage("Centers", new RegionPopulation(centers, centerI).getLabelMap());
-            //reduce over-segmentation: merge touching regions with criterion on center : center distance @ interface should be larger than distance to center
-            double minOverlapRegion = 0.25; // minimum overlap fraction to assign a
+
+            //reduce over-segmentation: merge touching regions with criterion on center: no center or too low center -> merge
+            double minOverlapRegion = 0.25; // minimum overlap fraction to assign a center to a (fragmented) region
             Map<Region, Set<Region>> regionMapCenters = pop.getRegions().stream().collect(Collectors.toMap(r->r, r->r.getOverlappingRegions(centers, null, null, (a, b) -> Math.max(1, minOverlapRegion * centerSize.get(b))))); // this is a week constraint as r might be fragmented and thus a center overlap partially several fragments.
             RegionCluster.mergeSort(pop, (e1, e2)->new Interface(e1, e2, regionMapCenters, edmI, mergeCriterion.getDoubleValue()));
 
             int minSize= minObjectSize.getIntValue();
             if (minSize>0) pop.filterAndMergeWithConnected(new RegionPopulation.Size().setMin(minSize+1));
-
             postFilters.filter(pop, objectClassIdx, p);
             factory.setChildObjects(p, pop);
-            p.getChildren(objectClassIdx).forEach(o -> { // set centers & save memory
+            if (!Offset.offsetNull(off)) regionMapCenters.values().stream().flatMap(Collection::stream).forEach(cc -> cc.translate(off).setIsAbsoluteLandmark(true)); // to absolute landmark
+            p.getChildren(objectClassIdx).forEach(o -> { // set centers & save memory // absolute offset
                 Set<Region> thisSeeds = regionMapCenters.get(o.getRegion());
                 if (thisSeeds!=null && !thisSeeds.isEmpty()) {
                     Region seed = thisSeeds.stream().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).get();
-                    if (o.getRegion().contains(seed.getCenter())) o.getRegion().setCenter(seed.getCenter());
-                    else { // intersection of seed and region with maximal centerI value
+                    if (o.getRegion().contains(seed.getCenter())) {
+                        o.getRegion().setCenter(seed.getCenter());
+                    } else { // intersection of seed and region with maximal centerI value
                         double overlap = seed.getOverlapArea(o.getRegion());
                         Set<Voxel> inter = seed.getIntersection(o.getRegion());
                         if (inter.isEmpty() || overlap==0) logger.debug("object: {} seed: {} overlap = {}, inter={}", o, seed, overlap, inter.size());
                         if (!inter.isEmpty()) {
                             Voxel center = seed.getIntersection(o.getRegion()).stream().max(Comparator.comparingDouble(v -> centerI.getPixel(v.x, v.y, v.z))).get();
                             o.getRegion().setCenter(Point.asPoint((Offset) center));
-                        } else o.getRegion().setCenter(o.getRegion().getGeomCenter(false));
+                        } else o.getRegion().setCenter(o.getRegion().getGeomCenter(false).duplicate());
                     }
-                } else { // point with maximal centerI value (closest to geom center in case of equality
+                } else { // point with maximal centerI value (closest to geom center in case of equality)
                     Point geomCenter = o.getRegion().getGeomCenter(false);
                     Point[] center = new Point[1];
                     double[] maxD = new double[]{Double.NEGATIVE_INFINITY};
                     o.getRegion().loop((x, y, z) -> {
-                        double d = centerI.getPixel(x, y, z);
+                        double d = centerI.getPixelWithOffset(x, y, z);
                         if (d>maxD[0] || d==maxD[0] && center[0].distSq(geomCenter)>new Point(x, y).distSq(geomCenter) ) {
                             maxD[0] = d;
                             center[0] = new Point(x, y);
@@ -369,47 +373,49 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     });
                     o.getRegion().setCenter(center[0]);
                 }
-
+                //o.getRegion().setCenter(Medoid.computeMedoid(o.getRegion()));
                 o.getRegion().clearVoxels();
                 Set<Region> curSeeds = regionMapCenters.get(o.getRegion());
-                if (curSeeds!=null) {
+                if (stores!=null && curSeeds!=null) {
                     List<Spot> curSeedsL = curSeeds.stream().map(s -> (Spot)s).collect(Collectors.toList());
-                    //o.setAttribute("Center Radius", Utils.toStringArray(curSeedsL.stream().map(e -> 0.25 * (e.getMajor() + e.getMinor())).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    //o.setAttribute("Center Major", Utils.toStringArray(curSeedsL.stream().map(Ellipse2D::getMajor).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    //o.setAttribute("Center Minor", Utils.toStringArray(curSeedsL.stream().map(Ellipse2D::getMinor).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    //o.setAttribute("Center Aspect Ratio", Utils.toStringArray(curSeedsL.stream().map(Ellipse2D::getAspectRatio).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    o.setAttribute("Center Radius", Utils.toStringArray(curSeedsL.stream().map(Spot::getRadius).toArray(Double[]::new), d -> Utils.format(d, 3)));
                     o.setAttribute("Center Intensity", Utils.toStringArray(curSeedsL.stream().map(Spot::getIntensity).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    o.setAttribute("Center Overlap", Utils.toStringArray(curSeedsL.stream().map(r -> r.getOverlapArea(o.getRegion(), null, null)).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    o.setAttribute("Center Size", Utils.toStringArray(curSeedsL.stream().map(centerSize::get).toArray(Double[]::new), d -> Utils.format(d, 3)));
-
+                    o.setAttribute("Center Coord", Utils.toStringArray(curSeedsL.stream().map(Spot::getCenter).toArray(Point[]::new)));
+                    //o.setAttribute("Center Overlap", Utils.toStringArray(curSeedsL.stream().map(r -> r.getOverlapArea(o.getRegion(), null, null)).toArray(Double[]::new), d -> Utils.format(d, 3)));
+                    //o.setAttribute("Center Size", Utils.toStringArray(curSeedsL.stream().map(centerSize::get).toArray(Double[]::new), d -> Utils.format(d, 3)));
                 }
 
             });
-            if (stores!=null) stores.get(p).addMisc("Display Center", sel -> {
-                if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
-                OverlayDisplayer disp = Core.getOverlayDisplayer();
-                if (disp != null) {
-                    sel.forEach(r -> {
-                        Spot center = new Spot(r.getRegion().getCenterOrGeomCenter(), sigma, 1, 1, r.getRegion().getLabel(), true, r.getScaleXY(), r.getScaleZ());
-                        //disp.displayRegion(center, r.getFrame() - parentTrack.get(0).getFrame(), colorMap.get(r));
-                        disp.displayContours(center, r.getFrame() - parentTrack.get(0).getFrame(), 0, colorMap.get(r), false);
-                    });
-                    disp.updateDisplay();
-                }
-            });
-            if (stores!=null) stores.get(p).addMisc("Display Contours", sel -> {
-                if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
-                OverlayDisplayer disp = Core.getOverlayDisplayer();
-                if (disp != null) {
-                    sel.forEach(r -> disp.displayContours(r.getRegion(), r.getFrame() - parentTrack.get(0).getFrame(), 0, colorMap.get(r), false));
-                    disp.updateDisplay();
-                }
-            });
+
             logger.debug("parent: {} done!", p);
         };
         ThreadRunner.execute(parentTrack, false, ta);
-        //parentTrack.forEach(p -> ta.run(p, 0));
+        if (stores!=null) {
+            for (SegmentedObject p : parentTrack) {
+                Offset off = p.getBounds().reverseOffset();
+                stores.get(p).addMisc("Display Center", sel -> {
+                    if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
+                    OverlayDisplayer disp = Core.getOverlayDisplayer();
+                    if (disp != null) {
+                        sel.forEach(r -> {
+                            Spot center = new Spot(r.getRegion().getCenterOrGeomCenter().duplicate(), sigma, 1, 1, r.getRegion().getLabel(), true, r.getScaleXY(), r.getScaleZ());
+                            //disp.displayRegion(center, r.getFrame() - parentTrack.get(0).getFrame(), colorMap.get(r));
+                            disp.displayContours(center.translate(off), r.getFrame() - parentTrack.get(0).getFrame(), 0, 0, colorMap.get(r), false);
+                        });
+                        disp.updateDisplay();
+                    }
+                });
+                stores.get(p).addMisc("Display Contours", sel -> {
+                    if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
+                    OverlayDisplayer disp = Core.getOverlayDisplayer();
+                    if (disp != null) {
+                        sel.forEach(r -> disp.displayContours(r.getRegion().duplicate().translate(off), r.getFrame() - parentTrack.get(0).getFrame(), 0, 0, colorMap.get(r), true));
+                        disp.hideLabileObjects();
+                        //disp.updateDisplay();
+                    }
+                });
+                stores.get(p).addMisc("Reset Colors", sel -> {colorMap.clear();});
+            }
+        }
     }
     static class LocalMax2 extends Filters.LocalMax {
 
@@ -582,7 +588,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
         // Look for merge links due to over segmentation at previous frame or under segmentation at current frame:
         // case 1 : previous has sibling with interrupted branch at this frame + falls better into growth rate
-        // case 2: idem as 1 but either division is happened before first frame or under-segmentation at current frame. look for candidates in contact + falls better into growth rate
+        // case 2: idem as 1 but either division is happened before first frame or under-segmentation at current frame or errors before. look for candidates in contact + falls better into growth rate
         // case 3 : one object has no prev (translated center falls between 2 divided objects)
 
         int searchDistLimit = mergeLinkDistanceThreshold.getIntValue();
@@ -594,69 +600,88 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         double[] growthRate = this.growthRateRange.getValuesAsDouble();
         DoublePredicate matchGr = gr -> gr>=growthRate[0] && gr<growthRate[1];
         ToDoubleFunction<Double> grDist = gr -> matchGr.test(gr) ? Math.min(gr-growthRate[0], growthRate[1]-gr) : Math.min(Math.abs(growthRate[0]-gr), Math.abs(gr-growthRate[1]));
+        Map<SegmentedObject, Point> medoid = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> Medoid.computeMedoid(o.getRegion()));
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
             List<SegmentedObject> cur = objectsF.get(f);
             if (prev==null || prev.isEmpty() || cur==null || cur.isEmpty()) continue;
             Set<SegmentedObject> prevWithoutNext = prev.stream().filter( p -> graph.getAllNexts(p).isEmpty()).collect(Collectors.toSet());
+            Map<SegmentedObject, List<SegmentedObject>> prevMapNextCandidate = new HashMapGetCreate.HashMapGetCreateRedirected<>(new HashMapGetCreate.ListFactory<>());
+            Map<SymetricalPair<SegmentedObject>, Double> distMap = new HashMap();
             for (SegmentedObject c : cur) {
                 double dy = dyMap.get(c);
                 double dx = dxMap.get(c);
-                Point centerTrans = c.getRegion().getCenter().duplicate().translateRev(new Vector(dx, dy));
+                //Point centerTrans = c.getRegion().getCenter().duplicate().translateRev(new Vector(dx, dy));
+                Point centerTrans = medoid.get(c).duplicate().translateRev(new Vector(dx, dy));
                 List<SegmentedObject> toLink = null;
                 SegmentedObject cPrev = graph.getPrevious(c);
                 if (cPrev!=null) { // case 1 / 2
-                    List<SegmentedObject> divSiblings = getDivSiblings(cPrev, graph); // case 1
+                    /*List<SegmentedObject> divSiblings = getDivSiblings(cPrev, graph); // case 1
                     Stream<SegmentedObject> candidates;
                     SegmentedObject prevTrackHead = graph.getTrackHead(cPrev);
-                    if (divSiblings.isEmpty() && prevTrackHead.getFrame() == minFrame) { // case 2
+                    if (divSiblings.isEmpty()) { // case 2  // && prevTrackHead.getFrame() == minFrame
                         candidates = prevWithoutNext.stream()
-                            .filter(o2 -> graph.getTrackHead(o2).getFrame() == minFrame) // candidate trackhead should be at minFrame
+                            //.filter(o2 -> graph.getTrackHead(o2).getFrame() == minFrame) // candidate trackhead should be at minFrame
                             .filter(o2 -> contactFilter.test(cPrev, o2));
-                        /*List<SegmentedObject> cand = candidates.collect(Collectors.toList());
-                        logger.debug("object: {} prev: {} prev in contact {}", c, cPrev, cand);
-                        candidates = cand.stream();*/
                     } else {
                         candidates = divSiblings.stream().filter(prevWithoutNext::contains);
-                    }
-                    toLink = candidates
-                            //.peek(p -> logger.debug("cur: {} prev candidate: {} distance: {}", c, p, getDistanceToObject(centerTrans, p, searchDistLimit * 2)))
-                            .filter(o -> getDistanceToObject(centerTrans, o, searchDistLimit) <= searchDistLimit)
+                    }*/
+                    toLink = prevWithoutNext.stream()
+                            /*.peek(o -> {
+                                double d = getDistanceToObject(centerTrans, o, searchDistLimit * 2);
+                                if (d<=searchDistLimit * 2) logger.debug("CASE1/2 cur: {} -> {} center={} trans={} prev candidate: {} -> {} distance: {}", c, c.getBounds(), medoid.get(c), centerTrans, o, o.getBounds(), d);
+                            })*/
+                            .filter(o -> {
+                                double d = getDistanceToObject(centerTrans, o, searchDistLimit);
+                                if (d<=searchDistLimit) {
+                                    distMap.put(new SymetricalPair<>(o, c), d);
+                                    return true;
+                                } else return false;
+                            })
                             .collect(Collectors.toList());
                     //if (!divSiblings.isEmpty()) logger.debug("object: {} prev: {} div siblings {} with no next: {} to link: {}", c, cPrev, divSiblings, divSiblings.stream().filter(prevWithoutNext::contains).collect(Collectors.toList()), toLink);
                     // check that it improves growth rate criterion
-                    double cSize = c.getRegion().size();
+                    /*double cSize = c.getRegion().size();
                     double pSize = cPrev.getRegion().size();
                     double newPSize = pSize + toLink.stream().mapToDouble(p->p.getRegion().size()).sum();
                     double gr1 = cSize / pSize;
                     double gr2 = cSize / newPSize;
                     if (matchGr.test(gr1)) {
-                        if (matchGr.test(gr2)) {
-                            if (grDist.applyAsDouble(gr2)<grDist.applyAsDouble(gr1)) {
-                                logger.debug("growth rate check both inside range");
-                                toLink.clear(); // both fall within range but gr2 is closer to an edge
-                            }
-                        }
-                        else toLink.clear();
+                        if (!matchGr.test(gr2)) toLink.clear();
                     } else {
                         if (!matchGr.test(gr2) && grDist.applyAsDouble(gr2)>grDist.applyAsDouble(gr1)) {
-                            logger.debug("growth rate check both outside range");
+                            logger.debug("growth rate check both outside range: without link {} (dist={}) with link {} (dist={})", gr1, grDist.applyAsDouble(gr1), gr2, grDist.applyAsDouble(gr2));
                             toLink.clear(); // both outside range but gr2 is worse
                         }
-                    }
+                    }*/
                 } else if (noPrevThld>0 && noPrevMap.get(c)<noPrevThld) { // case 3
-                    toLink = prevWithoutNext.stream().filter(o -> getDistanceToObject(centerTrans, o, searchDistLimit)<=searchDistLimit)
+                    toLink = prevWithoutNext.stream()
+                            //.peek(o -> logger.debug("CASE3 cur: {} -> {} ({}) prev candidate: {} -> {} ({}) distance: {}", c, centerTrans, c.getBounds(), o, o.getRegion().getCenter(), o.getBounds(), getDistanceToObject(centerTrans, o, searchDistLimit * 2)))
+                            .filter(o -> {
+                                double d = getDistanceToObject(centerTrans, o, searchDistLimit);
+                                if (d<=searchDistLimit) {
+                                    distMap.put(new SymetricalPair<>(o, c), d);
+                                    return true;
+                                } else return false;
+                            })
                             .collect(Collectors.toList());
                     //logger.debug("object: {} no prev. candidates: {}", c, toLink);
                 }
                 if (toLink!=null && !toLink.isEmpty()) {
                     if (cPrev!=null) toLink.removeIf(p -> p.equals(cPrev));
-                    toLink.forEach(p -> {
-                        graph.addEdge(p, c);
-                        prevWithoutNext.remove(p);
-                    });
+                    toLink.forEach(p -> prevMapNextCandidate.get(p).add(c));
                 }
             }
+            prevMapNextCandidate.forEach( (p, cList) -> {
+                if (cList.size()>1) { // retain only the closests
+                    SegmentedObject closest = cList.stream().min(Comparator.comparingDouble(o -> distMap.get(new SymetricalPair<>(p, o)))).get();
+                    double d = distMap.get(new SymetricalPair<>(p, closest));
+                    cList.removeIf(o -> distMap.get(new SymetricalPair<>(p, o))>d);
+                }
+                cList.forEach( next -> graph.addEdge(p, next));
+                prevWithoutNext.remove(p);
+                logger.debug("adding merge link: {} (c={}) -> {}", p, p.getRegion().getGeomCenter(false), cList);
+            });
         }
         logger.debug("After adding merge links: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
 
@@ -712,16 +737,17 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         Set<SymetricalPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor);
         if (stores!=null) {
             parentTrack.forEach(p -> {
+                Offset off = p.getBounds().reverseOffset();
                 stores.get(p).addMisc("Display Previous Contours", sel -> {
                     if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
                     OverlayDisplayer disp = Core.getOverlayDisplayer();
                     if (disp != null) {
                         Map<SegmentedObject, List<SegmentedObject>> prevMapNext = sel.stream().map(SegmentedObject::getPrevious)
-                                .filter(Objects::nonNull).distinct().filter(o -> SegmentedObjectEditor.getNext(o).size()>1)
-                                .collect(Collectors.toMap(o->o, SegmentedObjectEditor::getNext));
+                                .filter(Objects::nonNull).distinct().filter(o -> SegmentedObjectEditor.getNext(o).count()>1)
+                                .collect(Collectors.toMap(o->o, o->SegmentedObjectEditor.getNext(o).collect(Collectors.toList())));
                         sel.forEach( o -> {
                             SegmentedObjectEditor.getPrevious(o)
-                                .forEach(prev -> disp.displayContours(prev.getRegion(), o.getFrame() - parentTrack.get(0).getFrame(), 0, prevMapNext.containsKey(p) ? colorMap.get(p) : colorMap.get(o), true));
+                                .forEach(prev -> disp.displayContours(prev.getRegion().duplicate().translate(off), o.getFrame() - parentTrack.get(0).getFrame(), 0, 0, prevMapNext.containsKey(p) ? colorMap.get(p) : colorMap.get(o), false));
                         });
                         disp.updateDisplay();
                     }
@@ -731,7 +757,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     OverlayDisplayer disp = Core.getOverlayDisplayer();
                     if (disp != null) {
                         sel.forEach(o -> {
-                            Point start = o.getRegion().getCenterOrGeomCenter();
+                            Point start = o.getRegion().getCenterOrGeomCenter().duplicate().translate(off);
                             Vector vector = new Vector(dxMap.get(o), dyMap.get(o)).reverse();
                             disp.displayArrow(start, vector, o.getFrame() - parentTrack.get(0).getFrame(), false, true, 0, colorMap.get(o));
                         });
@@ -802,11 +828,17 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     }
 
     static int getDistanceToObject(Point start, SegmentedObject object, int limit) {
-        if (BoundingBox.distanceSq2D(start, object.getBounds())>limit*limit) return limit+1;
+        if (BoundingBox.outterDistanceSq2D(start, object.getBounds())>limit*limit) return limit+1;
+        Predicate<Point> test = point -> BoundingBox.isIncluded2D(point, object.getBounds()) && object.getRegion().contains(point.asVoxel());
+        if (limit<1) {
+            if (test.test(start)) return 0;
+            else return limit+1;
+        }
         Vector v = Vector.vector2D(start, object.getRegion().getCenter()).normalize();
         Point p = start.duplicate().translate(v);
+
         int distance = 1;
-        while( distance<=limit && ! BoundingBox.isIncluded2D(p, object.getBounds()) && !object.getRegion().contains(p.asVoxel())) {
+        while( distance<=limit && !test.test(p)) {
             p.translate(v);
             ++distance;
         }
@@ -821,14 +853,14 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         double[] growthRateRange = this.growthRateRange.getValuesAsDouble();
 
         parentTrack.stream().flatMap(p -> p.getChildren(objectClassIdx)).forEach(o -> {
-            List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o);
+            List<SegmentedObject> prevs = SegmentedObjectEditor.getPrevious(o).collect(Collectors.toList());
             if (!allowMerge) {
                 if (prevs.size()>1) {
                     o.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true);
                     prevs.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true));
                 }
             }
-            List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o);
+            List<SegmentedObject> nexts = SegmentedObjectEditor.getNext(o).collect(Collectors.toList());
             if ( (!allowSplit && nexts.size()>1) || (allowSplit && nexts.size()>2)) {
                 o.setAttribute(SegmentedObject.TRACK_ERROR_NEXT, true);
                 nexts.forEach(oo->oo.setAttribute(SegmentedObject.TRACK_ERROR_PREV, true));
@@ -837,7 +869,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 double growthrate;
                 if (prevs.size() == 1) {
                     SegmentedObject prev = prevs.get(0);
-                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prevs.get(0));
+                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prevs.get(0)).collect(Collectors.toList());
                     if (prevsNext.size()>1) { // compute size of all next objects
                         growthrate = prevsNext.stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(o)) {
@@ -1038,10 +1070,11 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
             return images[i];
         };
+        IntUnaryOperator getInc = inputWindow>1 ? i -> i<=1 ? i : frameInterval*(i-1)+1 : i -> frameInterval * i;
         if (addNext) {
             return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> StreamConcatenation.concat(
-                IntStream.range(0, inputWindow).map(j->inputWindow-j).mapToObj(j->getImage[0].apply(i, i - (inputWindow>1 && j==1 ? 1 : frameInterval*j) )),
-                IntStream.rangeClosed(0, inputWindow).mapToObj(j->getImage[0].apply(i, i + (inputWindow>1 && j==1 ? 1 : frameInterval*j)))
+                IntStream.range(0, inputWindow).map(j->inputWindow-j).mapToObj(j->getImage[0].apply(i, i - getInc.applyAsInt(j) )),
+                IntStream.rangeClosed(0, inputWindow).mapToObj(j->getImage[0].apply(i, i + getInc.applyAsInt(j) ))
             ).toArray(Image[]::new)).toArray(Image[][]::new);
         } else {
             return IntStream.range(idxMin, idxMaxExcl).mapToObj(i -> IntStream.rangeClosed(0, inputWindow).map(j->inputWindow-j).mapToObj(j->getImage[0].apply(i, i-frameInterval*j)).toArray(Image[]::new)).toArray(Image[][]::new);
@@ -1296,7 +1329,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 countCur = tmi.edgeCount();
             }
             if (ok) {
-                logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
+                //logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
                 tmi.setTrackLinks(map, editor, false, false);
                 nextTracks.forEach(n -> n.getPrevious().clear());
                 prevTracks.forEach(p -> p.getNext().clear());
@@ -1322,6 +1355,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                         }
                     });
                 });
+                logger.debug("Track Assigner: {} with {} result: {}", prevTracks, nextTracks, Utils.toStringList(prevTracks, t -> t+"->"+Utils.toStringList(t.getNext())));
             } else {
                 logger.debug("Could not assign");
             }

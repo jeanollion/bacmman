@@ -25,19 +25,8 @@ public class TrackLinkEditor {
     public void resetTrackLinks(SegmentedObject object, boolean prev, boolean next, boolean propagateTrackHead) {
         if (editableObjectClassIdx>=0 && editableObjectClassIdx!=object.getStructureIdx()) throw new IllegalArgumentException("This object is not editable");
         object.resetTrackLinks(prev, next, propagateTrackHead, modifiedObjects);
-        if (object.getParent()!=null) { // merging / division : current object has no prev/next
-            if (prev && object.getParent().getPrevious()!=null) {  // in case there is a merging link
-                Stream<SegmentedObject> prevs = object.getParent().getPrevious().getChildren(editableObjectClassIdx);
-                if (prevs!=null) prevs.filter(o -> object.equals(o.getNext())).forEach(o->resetTrackLinks(o, false, true, false));
-            }
-            if (next && object.getParent().getNext()!=null) { // in case there is a division link
-                Stream<SegmentedObject> nexts = object.getParent().getNext().getChildren(editableObjectClassIdx);
-                if (nexts!=null) nexts
-                        .peek(o -> {if (o==null) logger.error("object: {} has null children for OC: {}", object.getParent().getNext(), editableObjectClassIdx);})
-                        .filter(o -> object.equals(o.getPrevious())).forEach(o->resetTrackLinks(o, true, false, false));
-            }
-        }
-
+        if (prev) SegmentedObjectEditor.getPrevious(object).forEach(p -> p.resetTrackLinks(false, true, false, modifiedObjects));
+        if (next) SegmentedObjectEditor.getNext(object).forEach(n -> n.resetTrackLinks(true, false, false, modifiedObjects));
     }
     public void setTrackLinks(SegmentedObject prev, SegmentedObject next, boolean setPrev, boolean setNext, boolean propagateTrackHead) {
         setTrackLinks(prev, next, setPrev, setNext, true, propagateTrackHead);

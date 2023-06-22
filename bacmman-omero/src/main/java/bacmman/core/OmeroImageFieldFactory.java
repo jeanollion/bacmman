@@ -30,6 +30,7 @@ import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.function.Function;
@@ -107,9 +108,11 @@ public class OmeroImageFieldFactory {
             boolean allFiles = true;
             for (int c = 1; c < channelKeywords.length; ++c) {
                 String name = i0.getFileName().replace(channelKeywords[0], channelKeywords[c]);
-                OmeroImageMetadata ic = images.stream().filter(i -> i.getFileName().equals(name)).findAny().orElse(null);
+                String nameL = Utils.changeExtensionCase(name, true);
+                String nameU = Utils.changeExtensionCase(name, false);
+                OmeroImageMetadata ic = images.stream().filter(i -> i.getFileName().equals(name) || i.getFileName().equals(nameL) || i.getFileName().equals(nameU)).findAny().orElse(null);
                 if (ic==null) {
-                    logger.warn("missing file: {}", name);
+                    logger.warn("missing file: {} (or {} or {})", name, nameL, nameU);
                     allFiles=false;
                     break;
                 } else allChannels[c] = ic;

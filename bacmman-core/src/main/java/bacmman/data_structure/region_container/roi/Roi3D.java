@@ -7,6 +7,7 @@ import bacmman.image.wrappers.IJImageWrapper;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.gui.Overlay;
+import ij.gui.PolygonRoi;
 import ij.gui.Roi;
 import ij.process.FloatPolygon;
 import ij.process.ImageProcessor;
@@ -17,7 +18,10 @@ import java.awt.*;
 import java.util.HashMap;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.function.ToDoubleBiFunction;
+import java.util.function.ToIntBiFunction;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -53,6 +57,43 @@ public class Roi3D extends HashMap<Integer, Roi> {
         ImageByte res = (ImageByte) IJImageWrapper.wrap(new ImagePlus("MASK", stack));
         res.setCalibration(new SimpleImageProperties(bounds, scaleXY, scaleZ)).translate(bounds);
         return res;
+    }
+
+    public Roi3D smooth(int radius) {
+        if (radius == 0) return this;
+        Set<Integer> frames = keySet().stream().filter(f -> f>=0).collect(Collectors.toSet());
+        frames.forEach(f -> {
+            FloatPolygon fp = get(f).getInterpolatedPolygon();
+            if (fp.npoints>2) {
+                ToIntBiFunction<Integer, Integer> get_neigh = (center, d) -> {
+                    int res = center + d;
+                    if (res < 0) res = fp.npoints + res;
+                    else if (res >= fp.npoints) res = res - fp.npoints;
+                    return res;
+                };
+                // limit smooth radius for small rois
+                int rad = Math.min(radius, (fp.npoints-1) / 2);
+                int size =  Math.min((int)Math.ceil(2 * rad), (fp.npoints-1) / 2);
+                rad = Math.min(rad, (int)Math.ceil(size/2.));
+
+                double[] ker = new double[size];
+                double expCoeff = -1. / (2 * rad * rad);
+                for (int i = 0; i < ker.length; ++i) ker[i] = Math.exp(i * i * expCoeff);
+                double sum = DoubleStream.of(ker).sum() * 2 - ker[0]; // half kernel
+                for (int i = 0; i < ker.length; ++i) ker[i] /= sum;
+                ToDoubleBiFunction<Integer, float[]> convolve = (i, array) -> (float) IntStream.range(0, size).mapToDouble(n -> n == 0 ? ker[0] * array[i] : ker[n] * (array[get_neigh.applyAsInt(i, n)] + array[get_neigh.applyAsInt(i, -n)])).sum();
+
+                float[] xPoints = new float[fp.npoints];
+                float[] yPoints = new float[fp.npoints];
+                for (int i = 0; i < fp.npoints; ++i) {
+                    xPoints[i] = (float)convolve.applyAsDouble(i, fp.xpoints);
+                    yPoints[i] = (float)convolve.applyAsDouble(i, fp.ypoints);
+                }
+                Roi r = new PolygonRoi(xPoints, yPoints, xPoints.length, Roi.POLYGON);
+                put(f, r);
+            }
+        });
+        return this;
     }
 
     public Roi3D setLocDelta(int locdx, int locdy) {

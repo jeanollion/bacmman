@@ -1063,8 +1063,17 @@ public class Utils {
     }
     public static String getExtension(String s) {
         int idx = s.indexOf(".");
-        if (idx > 0) return s.substring(idx+1, s.length());
+        if (idx > 0) return s.substring(idx+1);
         return "";
+    }
+
+    public static String changeExtensionCase(String s, boolean toLower) {
+        int idx = s.indexOf(".");
+        if (idx > 0) {
+            String ext = s.substring(idx);
+            s = s.substring(0, idx) + (toLower ? ext.toLowerCase() : ext.toUpperCase());
+        }
+        return s;
     }
     
     public static String getVersion(Object o) {

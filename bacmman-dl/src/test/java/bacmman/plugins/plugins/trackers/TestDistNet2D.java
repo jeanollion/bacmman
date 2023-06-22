@@ -53,7 +53,7 @@ public class TestDistNet2D {
         tracker.solveMerge.setSelected(false);
         tracker.track(0, rootTrack, editor);
         bacts.forEach( (f, bs) -> {
-            bs.forEach( b -> logger.debug("{} <- {} -> {}", SegmentedObjectEditor.getPrevious(b), b, SegmentedObjectEditor.getNext(b)) );
+            bs.forEach( b -> logger.debug("{} <- {} -> {}", SegmentedObjectEditor.getPrevious(b).collect(Collectors.toList()), b, SegmentedObjectEditor.getNext(b).collect(Collectors.toList())) );
         });
     }
 

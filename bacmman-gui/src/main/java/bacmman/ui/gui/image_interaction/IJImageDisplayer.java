@@ -408,16 +408,17 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         }
     }
     @Override
-    public void displayContours(Region region, int frame, double strokeWidth, Color color, boolean dashed) {
+    public void displayContours(Region region, int frame, double strokeWidth, int smoothRadius, Color color, boolean dashed) {
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
         if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
+        if (smoothRadius<=0) smoothRadius = ImageWindowManagerFactory.getImageManager().ROI_SMOOTH_RADIUS;
         Roi3D roi = region.getRoi();
         if (roi == null) {
             region.createRoi();
             roi = region.getRoi();
         }
-        roi = roi.duplicate();
+        roi = roi.duplicate().smooth(smoothRadius);
         setFrameAndZ(roi, frame, getCurrentImage());
         for (Roi r : roi.values()) {
             r.setStrokeWidth(strokeWidth); // also sets scaleStrokeWidth = True
@@ -425,6 +426,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
                 BasicStroke stroke = new BasicStroke((float)strokeWidth, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 10, new float[]{9}, 0);
                 r.setStroke(stroke);
             }
+            if (color == null) color = ImageWindowManager.getColor();
             r.setStrokeColor(color);
             o.add(r);
         }
@@ -451,7 +453,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
     public void displayArrow(Point start, Vector direction, int frame, boolean arrowStart, boolean arrowEnd, double strokeWidth, Color color) {
         Overlay o = getCurrentImageOverlay();
         if (o==null) return;
-        if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().ROI_STROKE_WIDTH;
+        if (strokeWidth<=0) strokeWidth = ImageWindowManagerFactory.getImageManager().TRACK_ARROW_STROKE_WIDTH;
         Point end = start.duplicate().translate(direction);
         if (arrowStart && !arrowEnd) {
             Point temp = start;
@@ -461,7 +463,7 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
         Arrow arrow = new Arrow(start.getDoublePosition(0), start.getDoublePosition(1), end.getDoublePosition(0), end.getDoublePosition(1));
         arrow.enableSubPixelResolution();
         arrow.setStrokeWidth(strokeWidth);
-        arrow.setHeadSize(strokeWidth * 1.1);
+        arrow.setHeadSize(Math.max(strokeWidth * 1.1, 1.1));
         arrow.setStrokeColor(color);
         if (arrowStart && arrowEnd) arrow.setDoubleHeaded(true);
         Roi3D roi = new Roi3D(1);
@@ -484,5 +486,15 @@ public class IJImageDisplayer implements ImageDisplayer<ImagePlus> , OverlayDisp
             ip.draw();
             logger.debug("updating display for image: {}", ip.getTitle());
         }
+    }
+
+    @Override
+    public void hideLabileObjects() {
+        Image im = getCurrentImage2();
+        if (im!=null) {
+            ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
+            iwm.hideLabileObjects(im);
+        }
+
     }
 }

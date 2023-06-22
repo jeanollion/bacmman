@@ -19,6 +19,7 @@
 package bacmman.ui.gui.selection;
 
 import bacmman.data_structure.*;
+import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
 import bacmman.ui.GUI;
 
@@ -196,6 +197,7 @@ public class SelectionUtils {
             if (s.isActive(1)) addObjects1++;
         }
         final SelectionDAO dao = GUI.getDBConnection().getSelectionDAO();
+        final MasterDAO db = GUI.getDBConnection();
         boolean readOnly= GUI.getDBConnection().isConfigurationReadOnly();
         if (selectedValues.size()==1) {
             final JCheckBoxMenuItem showImage = new JCheckBoxMenuItem("Display Selection as an Image");
@@ -326,9 +328,19 @@ public class SelectionUtils {
                 if (selectedValues.isEmpty()) return;
                 for (Selection s : selectedValues) {
                     Set<SegmentedObject> source = s.getAllElements();
+                    logger.debug("Will duplicates {} elements from oc {} to oc {} (parent: {})", source.size(), s.getStructureIdx(), ocIdx, parentOCIdx);
                     Map<SegmentedObject, SegmentedObject> sourceMapParent = Duplicate.getSourceMapParents(source.stream().map(o -> o.getParent(parentOCIdx)), parentOCIdx, s.getStructureIdx());
                     Map<SegmentedObject, SegmentedObject> sourceMapDup = Duplicate.duplicate(source.stream(), ocIdx, factory, editor);
                     Duplicate.setParents(sourceMapDup,sourceMapParent, parentOCIdx, s.getStructureIdx(), true, factory);
+                    // save to DB
+                    sourceMapDup.values().stream().collect(Collectors.groupingBy(SegmentedObject::getPositionName)).forEach((p, toSave) -> {
+                        ObjectDAO oDAO = db.getDao(p);
+                        oDAO.store(toSave);
+                    });
+                    // update display
+                    ImageWindowManagerFactory.getImageManager().resetObjects(null, ocIdx);
+                    GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.updateTrackTree();
                 }
                 if (readOnly) Utils.displayTemporaryMessage("Changes will not be stored as database could not be locked", 5000);
             });
@@ -519,7 +531,7 @@ public class SelectionUtils {
 
     public static void addCurrentObjectsToSelections(Collection<Selection> selections, SelectionDAO dao) {
         if (selections.isEmpty()) return;
-        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         for (Selection s : selections ) {
             int[] structureIdx = s.getStructureIdx()==-2 ? new int[0] : new int[]{s.getStructureIdx()};
             List<SegmentedObject> objects = new ArrayList<>(sel);
@@ -530,7 +542,7 @@ public class SelectionUtils {
     }
 
     public static void removeCurrentObjectsFromSelections(Collection<Selection> selections, SelectionDAO dao) {
-        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
+        List<SegmentedObject> sel = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjectsOrTracks(null);
         for (Selection s : selections ) {
             if (s.getStructureIdx()==-2) continue;
             List<SegmentedObject> currentList = new ArrayList<>(sel);

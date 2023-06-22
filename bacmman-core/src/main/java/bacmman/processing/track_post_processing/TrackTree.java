@@ -30,30 +30,31 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
         return values().stream().filter(Track::split).filter(t -> t.getFirstFrame() >= from.getFirstFrame() && !t.equals(from) && !seen.contains(t)).findFirst().orElse(null);
     }
 
-    public Collection<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    /*public Collection<TrackTree> split(Track t1, Track t2, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         boolean change = split(t1, t2, false, sm, assigner, factory, editor) || split(t1, t2, true, sm, assigner, factory, editor);
         if (change) {
             TrackTreePopulation newPop = new TrackTreePopulation(this);
             return newPop.trees;
         }
         return null;
-    }
+    }*/
 
-    protected boolean split(Track t1, Track t2, boolean next, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+    /*protected boolean split(Track t1, Track t2, boolean next, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
         Track toSplit = t1.getCommonTrack(t2, next, false);
-        boolean split = false;
-        while(toSplit!=null) {
-            if (toSplit.getSplitRegions()==null) toSplit.setSplitRegions(sm);
-            Track newTrack = Track.splitTrack(toSplit, assigner, factory, editor);
-            if (newTrack!=null) {
-                split = true;
-                toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
-                newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
-                put(newTrack.head(), newTrack);
-                toSplit = toSplit.getCommonTrack(newTrack, next, true); // also search in linked tracks because simplify track will not merge if newTrack or toSplit have several next/previous
-            } else return split;
+        return split(toSplit, next, sm, assigner, factory, editor);
+    }*/
+
+
+    public Track split(Track toSplit, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
+        if (toSplit.getSplitRegions()==null) toSplit.setSplitRegions(sm);
+        Track newTrack = Track.splitTrack(toSplit, assigner, factory, editor);
+        if (newTrack!=null) {
+            toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
+            if (get(toSplit.head())==null) throw new RuntimeException("Track is absent after simplify"+toSplit);
+            newTrack = newTrack.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
+            if (newTrack.belongTo(this)) put(newTrack.head(), newTrack);
         }
-        return split;
+        return newTrack;
     }
 
     @Override

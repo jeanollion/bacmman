@@ -182,17 +182,18 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
         } else { // group by parent & store
             Map<SegmentedObject, List<SegmentedObject>> parentMapDup = sourceMapDup.entrySet().stream()
                     .collect(Collectors.groupingBy(e -> sourceMapParent.get(e.getKey()), Utils.collectToList(Map.Entry::getValue)));
-            BiFunction<SegmentedObject, List<SegmentedObject>, List<SegmentedObject>> mapper = append ? (p, newC) -> {
-                List<SegmentedObject> existing = p.getChildren(factory.getEditableObjectClassIdx()).sorted().collect(Collectors.toList());
-                if (existing.isEmpty()) return newC;
-                newC.forEach(o -> {
-                    int i = getInsertionPoint(existing);
-                    factory.setIdx(o, i==0 ? 0 : existing.get(i-1).getIdx()+1);
-                    if (i==existing.size()) existing.add(o);
-                    else existing.add(i, o);
-                });
-                return existing;
-            } : (p, newC)->newC;
+            BiFunction<SegmentedObject, List<SegmentedObject>, List<SegmentedObject>> mapper = append ?
+                (p, newC) -> { // append mode
+                    List<SegmentedObject> existing = p.getChildren(factory.getEditableObjectClassIdx()).sorted().collect(Collectors.toList());
+                    if (existing.isEmpty()) return newC;
+                    newC.forEach(o -> {
+                        int i = getInsertionPoint(existing);
+                        factory.setIdx(o, i==0 ? 0 : existing.get(i-1).getIdx()+1);
+                        if (i==existing.size()) existing.add(o);
+                        else existing.add(i, o);
+                    });
+                    return existing;
+                } : (p, newC)->newC; // overwrite mode
             parentMapDup.forEach((key, value) -> factory.setChildren(key, mapper.apply(key, value).stream().sorted(Comparator.comparingInt(SegmentedObject::getIdx)).collect(Collectors.toList())));
         }
 

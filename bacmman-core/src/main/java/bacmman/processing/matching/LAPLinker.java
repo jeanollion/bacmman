@@ -363,8 +363,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     public static class DefaultRegionSpotFactory implements SpotFactory<SpotImpl> {
         @Override
         public SpotImpl toSpot(Region o, int frame) {
-            Point center = o.getCenter();
-            if (center==null) center = o.getGeomCenter(true);
+            Point center = o.getCenterOrGeomCenter();
             SpotImpl s = new SpotImpl(center.get(0), center.get(1), center.getWithDimCheck(2), 1, 1);
             s.getFeatures().put(Spot.FRAME, (double)frame);
             return s;

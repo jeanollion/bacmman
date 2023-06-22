@@ -152,7 +152,7 @@ public class ExtractDatasetUtil {
             boolean saveLabels = true;
             for (int channel : channels) {
                 String outputName = ds + "/" + position + "/" + channelNames[channel];
-                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName(""+fIdx)).map(extract).collect(Collectors.toList());
+                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName(getLabel(fIdx+inputImages.getMinFrame()))).map(extract).collect(Collectors.toList());
                 if (t.getExtractRawZAxis().equals(Task.ExtractZAxis.BATCH)) {
                     logger.debug("before ZToBatch: {}", images.size());
                     Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());
@@ -207,7 +207,10 @@ public class ExtractDatasetUtil {
     }
 
     public static String getLabel(SegmentedObject e) {
-        return Selection.indicesString(e.getTrackHead()) + "_f" + String.format("%05d", e.getFrame());
+        return Selection.indicesString(e.getTrackHead()) + "_" + getLabel(e.getFrame());
+    }
+    public static String getLabel(int frame) {
+        return "f" + String.format("%05d", frame);
     }
     public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int... dimensions) {
         Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElements().stream().parallel() : () -> parentSel.getElements(position).stream().parallel();

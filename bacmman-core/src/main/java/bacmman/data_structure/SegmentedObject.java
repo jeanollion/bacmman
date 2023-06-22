@@ -745,10 +745,13 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         flushImages();
         // second object is added to parent and returned
         if (pop.getRegions().size()>2) pop.mergeWithConnected(pop.getRegions().subList(2, pop.getRegions().size()), true);
-        SegmentedObject res = new SegmentedObject(timePoint, structureIdx, idx+1, pop.getRegions().get(1).setLabel(idx+2), getParent());
-        getParent().getDirectChildren(structureIdx).add(getParent().getDirectChildren(structureIdx).indexOf(this)+1, res);
+        int[] otherIdxAndIP = SegmentedObjectFactory.getUnusedIndexAndInsertionPoint(getParent().getDirectChildren(structureIdx));
+        SegmentedObject res = new SegmentedObject(timePoint, structureIdx, otherIdxAndIP[0], pop.getRegions().get(1), getParent());
+        if (otherIdxAndIP[1]>=0) getParent().getDirectChildren(structureIdx).add(otherIdxAndIP[1], res);
+        else getParent().getDirectChildren(structureIdx).add(res);
         setAttribute(EDITED_SEGMENTATION, true);
         res.setAttribute(EDITED_SEGMENTATION, true);
+        logger.debug("split object: {} -> {} c={} & {} -> {} c={}", this, this.getBounds(), this.region.getCenterOrGeomCenter(), res, res.getBounds(), res.region.getCenterOrGeomCenter());
         return res;
     }
     public boolean hasRegion() {return region !=null;}

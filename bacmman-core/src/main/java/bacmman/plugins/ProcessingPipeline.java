@@ -68,6 +68,7 @@ public interface ProcessingPipeline<T extends ProcessingPipeline> extends Plugin
     }
 
     static PARENT_TRACK_MODE parentTrackMode(ProcessingPipeline ps) {
+        if (ps == null) return PARENT_TRACK_MODE.MULTIPLE_INTERVALS;
         BiFunction<PARENT_TRACK_MODE, PARENT_TRACK_MODE, PARENT_TRACK_MODE> compare = (m1, m2) -> {
             if (m1.value<=m2.value) return m1;
             else return m2;

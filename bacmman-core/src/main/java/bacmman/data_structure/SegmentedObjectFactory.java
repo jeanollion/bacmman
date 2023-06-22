@@ -4,6 +4,7 @@ import bacmman.image.Image;
 import bacmman.plugins.ObjectSplitter;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 
 public class SegmentedObjectFactory {
@@ -65,6 +66,21 @@ public class SegmentedObjectFactory {
             if (relabelChildren && objects.length > 0) {
                 relabelChildren(parent);
             }
+        }
+    }
+
+    public static int[] getUnusedIndexAndInsertionPoint(List<SegmentedObject> objects) {
+        Collections.sort(objects);
+        if (objects.get(0).getIdx()>0) return new int[]{0, 0};
+        else if (objects.size()==1){
+            return new int[]{objects.get(0).getIdx()+1, -1};
+        }  else {
+            for (int i = 1; i<objects.size(); ++i) {
+                if (objects.get(i).getIdx()>objects.get(i-1).getIdx()+1) {
+                    return new int[]{objects.get(i-1).getIdx()+1, i};
+                }
+            }
+            return new int[]{objects.get(objects.size()-1).getIdx()+1, -1};
         }
     }
 }

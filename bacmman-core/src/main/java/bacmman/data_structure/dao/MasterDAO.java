@@ -19,6 +19,7 @@
 package bacmman.data_structure.dao;
 
 import bacmman.configuration.experiment.Experiment;
+import bacmman.configuration.experiment.Position;
 import bacmman.core.ProgressCallback;
 
 import java.nio.file.Path;
@@ -79,7 +80,9 @@ public interface MasterDAO {
     boolean getSafeMode();
     // static methods
     public static ObjectDAO getDao(MasterDAO db, int positionIdx) {
-        String p = db.getExperiment().getPosition(positionIdx).getName();
+        Position pos = db.getExperiment().getPosition(positionIdx);
+        if (pos == null ) return null;
+        String p = pos.getName();
         return db.getDao(p);
     }
     MasterDAO setLogger(ProgressLogger logger);

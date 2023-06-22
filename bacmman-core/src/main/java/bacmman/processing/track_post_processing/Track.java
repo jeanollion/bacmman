@@ -190,9 +190,8 @@ public class Track {
         Map<SegmentedObject, Track> tracks = allTracks.values().stream().map(Track::new).collect(Collectors.toMap(Track::head, t->t));
         for (Track t : tracks.values()) {
             Set<SegmentedObject> nexts = additionalNexts.getOrDefault(t.tail(), Collections.emptyList()).stream().map(p -> p.value).collect(Collectors.toSet());
-            SegmentedObject n = t.tail().getNext();
-            if (!nexts.isEmpty()) logger.debug("Track: {} next: {}, additional nexts: {}", t, n, nexts);
-            if (n!=null) nexts.add(n);
+            boolean addLink = !nexts.isEmpty();
+            SegmentedObjectEditor.getNext(t.tail()).forEach(nexts::add);
             for (SegmentedObject next : nexts) {
                 Track nextT = tracks.get(next.getTrackHead());
                 if (nextT != null) {
@@ -211,8 +210,7 @@ public class Track {
                 }
             }
             Set<SegmentedObject> prevs = additionalPrevs.getOrDefault(t.head(), Collections.emptyList()).stream().map(p -> p.key).collect(Collectors.toSet());
-            SegmentedObject p = t.head().getPrevious();
-            if (p!=null) prevs.add(p);
+            SegmentedObjectEditor.getPrevious(t.head()).forEach(prevs::add);
             for (SegmentedObject prev : prevs) {
                 Track prevT = tracks.get(prev.getTrackHead());
                 if (prevT != null) {
@@ -220,6 +218,7 @@ public class Track {
                     prevT.addNext(t);
                 }
             }
+            if (addLink) logger.debug("Track with additional links: {} next: {}, prev: {}", t, nexts, prevs);
         }
         logger.debug("{} tracks found", tracks.size());
         return tracks;
@@ -230,7 +229,7 @@ public class Track {
         if (regions==null) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
         Triplet<Region, Region, Double> impossible=regions.stream().filter(t -> t.v1==null || t.v2==null || Double.isInfinite(t.v3)).findAny().orElse(null);
         if (impossible!=null) {
-            logger.debug("cannot split track: {} (center: {})", track.head(), track.head().getRegion().getGeomCenter(false));
+            logger.debug("cannot split track: {} (center: {}, null region ? {} value: {})", track, track.head().getRegion().getGeomCenter(false), impossible.v1==null || impossible.v2 == null, impossible.v3);
             return null;
         }
         SegmentedObject head1 = track.head();
@@ -262,15 +261,15 @@ public class Track {
         // set previous track
         Set<Track> allPrevNext = track.getPrevious().stream().flatMap(p -> p.getNext().stream()).collect(Collectors.toSet());
         allPrevNext.add(track2);
-        //logger.debug("before assign prev: all previous: {}, all prev's next: {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(allPrevNext, Track::head));
+        logger.debug("before assign prev: all previous: {}, all prev's next: {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(allPrevNext, Track::head));
         assigner.assignTracks(new ArrayList<>(track.getPrevious()), allPrevNext, trackEditor);
-        //logger.debug("after assign prev: {} + {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(track2.getPrevious(), Track::head));
+        logger.debug("after assign prev: {} + {}", Utils.toStringList(track.getPrevious(), Track::head), Utils.toStringList(track2.getPrevious(), Track::head));
         // set next tracks
         Set<Track> allNextPrev = track.getNext().stream().flatMap(n -> n.getPrevious().stream()).collect(Collectors.toSet());
         allNextPrev.add(track2);
-        //logger.debug("before assign next: all next: {} all next's prev: {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(allNextPrev, Track::head));
+        logger.debug("before assign next: all next: {} all next's prev: {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(allNextPrev, Track::head));
         assigner.assignTracks(allNextPrev, new ArrayList<>(track.getNext()), trackEditor);
-        //logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(track2.getNext(), Track::head));
+        logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(track2.getNext(), Track::head));
         track.splitRegions = null;
         return track2;
     }
