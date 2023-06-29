@@ -118,7 +118,7 @@ public class FreeLineSegmenter {
             factory.setIdx(so, idxAndIP[0]);
             modified.add(so);
             ManualEdition.removeDuplicateIdxs(modified, factory);
-            if (idxAndIP[0]>=0) objects.add(idxAndIP[1], so);
+            if (idxAndIP[1]>=0) objects.add(idxAndIP[1], so);
             else objects.add(so);
             factory.setChildren(parent, objects);
         }

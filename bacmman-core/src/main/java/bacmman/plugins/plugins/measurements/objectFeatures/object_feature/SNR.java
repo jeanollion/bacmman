@@ -19,7 +19,6 @@
 package bacmman.plugins.plugins.measurements.objectFeatures.object_feature;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -35,7 +34,6 @@ import bacmman.utils.SymetricalPair;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -127,7 +125,7 @@ public class SNR extends IntensityMeasurement implements Hint {
         // assign parents to children by inclusion
         HashMapGetCreate<Region, List<SymetricalPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory());
         for (Region o : foregroundPopulation.getRegions()) {
-            Region p = o.getContainer(backgroundObjects, foregroundOffset, null); // parents are in absolute offset
+            Region p = o.getMostOverlappingRegion(backgroundObjects, foregroundOffset, null); // parents are in absolute offset
             if (p!=null) {
                 Region oDil = o;
                 if (dilRad>0)  {

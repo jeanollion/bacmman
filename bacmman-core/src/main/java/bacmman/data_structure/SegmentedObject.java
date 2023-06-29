@@ -92,8 +92,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         this.structureIdx = structureIdx;
         this.idx = idx;
         this.parent=parent;
-        this.parentId=parent.getId();
-        if (this.parent!=null) this.dao=parent.dao;
+        if (this.parent!=null) {
+            this.parentId=parent.getId();
+            this.dao=parent.dao;
+        }
         setRegionAttributesToAttributes();
     }
     

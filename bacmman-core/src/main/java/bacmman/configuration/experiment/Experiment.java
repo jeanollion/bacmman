@@ -278,7 +278,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
     }
     
     public Position getPosition(int fieldIdx) {
-        if (fieldIdx >= positions.getChildCount()) return null;
+        if (fieldIdx<0 || fieldIdx >= positions.getChildCount()) return null;
         return positions.getChildAt(fieldIdx);
     }
     

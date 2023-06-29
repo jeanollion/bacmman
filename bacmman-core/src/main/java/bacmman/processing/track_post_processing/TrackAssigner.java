@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static bacmman.processing.track_post_processing.Track.getTrack;
@@ -17,7 +18,10 @@ public interface TrackAssigner {
     public final static Logger logger = LoggerFactory.getLogger(TrackAssigner.class);
     void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor);
     class TrackAssignerDistance implements TrackAssigner {
-
+        final double dMax;
+        public TrackAssignerDistance(double dMax) {
+            this.dMax = dMax;
+        }
         @Override
         public void assignTracks(Collection<Track> prevTracks, Collection<Track> nextTracks, TrackLinkEditor editor) {
             if (prevTracks.isEmpty()) {
@@ -61,9 +65,12 @@ public interface TrackAssigner {
                 map.put(nextFrame, nextTracks.stream().map(Track::head).collect(Collectors.toList()));
                 LAPLinker<LAPLinker.SpotImpl> tmi = new LAPLinker<>(LAPLinker.defaultFactory());
                 tmi.addObjects(map);
-                double dMax = Math.sqrt(Double.MAX_VALUE) / 100; // not Double.MAX_VALUE -> crash because squared..
                 boolean ok = tmi.processFTF(dMax, prevFrame, nextFrame);
-                tmi.processSegments(dMax, 1, true, true);
+                Predicate<SegmentedObject> hasNoNext = so -> tmi.getAllNexts(tmi.graphObjectMapper.getGraphObject(so.getRegion())).isEmpty();
+                Predicate<SegmentedObject> hasNoPrev = so -> tmi.getAllPrevious(tmi.graphObjectMapper.getGraphObject(so.getRegion())).isEmpty();
+                while(map.get(prevFrame).stream().anyMatch(hasNoNext) || map.get(nextFrame).stream().anyMatch(hasNoPrev)) {
+                    tmi.processSegments(dMax, 0, true, true);
+                }
                 if (ok) {
                     //logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
                     tmi.setTrackLinks(map, editor, false, false);

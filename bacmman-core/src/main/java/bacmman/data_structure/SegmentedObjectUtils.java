@@ -100,7 +100,7 @@ public class SegmentedObjectUtils {
     public static SegmentedObject getContainer(Region children, Stream<SegmentedObject> potentialContainers, Offset offset) {
         if (children==null) return null;
         Map<Region, SegmentedObject> soOMap = potentialContainers.collect(Collectors.toMap(SegmentedObject::getRegion, o->o));
-        Region parentObject = children.getContainer(soOMap.keySet(), offset, null); 
+        Region parentObject = children.getMostOverlappingRegion(soOMap.keySet(), offset, null);
         return soOMap.get(parentObject);
     }
     

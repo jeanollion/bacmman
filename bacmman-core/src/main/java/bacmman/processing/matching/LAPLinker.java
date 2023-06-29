@@ -83,7 +83,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
 
     public void addObject(Region o, int frame) {
         S s = factory.toSpot(o, frame);
-        if (s==null) return; // in case no parent or parent's spine could not be created
+        if (s==null) return;
         graphObjectMapper.add(o, s);
         collection.add(s, frame);
     }
@@ -104,7 +104,9 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
     }
 
     public void  addObjects(Map<Integer, ? extends Collection<SegmentedObject>> objectsF) {
-        StreamConcatenation.concatNestedCollections(objectsF.values()).forEach(o->addObject(o.getRegion(), o.getFrame()));
+        for (Collection<SegmentedObject> c : objectsF.values()) {
+            c.forEach( o -> addObject(o.getRegion(), o.getFrame()));
+        }
     }
 
     public boolean processFTF(double distanceThreshold) {
@@ -168,7 +170,9 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
             //Set<Spot> linkedSpots = graph.vertexSet();
             unlinkedSpots = new HashSet<>(Sets.difference(new HashSet<>(graphObjectMapper.graphObjects()), linkedSpots));
         }
-        for (S s : unlinkedSpots) graph.addVertex(s);
+        for (S s : unlinkedSpots) {
+            graph.addVertex(s);
+        }
         // Prepare settings object
         final Map< String, Object > slSettings = new HashMap<>();
 
@@ -188,8 +192,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         slSettings.put( KEY_ALTERNATIVE_LINKING_COST_FACTOR, 1.05 );
         slSettings.put( KEY_CUTOFF_PERCENTILE, 1.0 );
         // Solve.
-        final SparseLAPSegmentTracker<S> segmentLinker = new SparseLAPSegmentTracker<S>( graph, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
-        //final bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker segmentLinker = new bacmman.processing.matching.trackmate.tracking.sparselap.SparseLAPSegmentTracker( graph, slSettings);
+        final SparseLAPSegmentTracker<S> segmentLinker = new SparseLAPSegmentTracker<>( graph, slSettings, distanceThreshold * 1.05); // alternativeDistance was : distanceThreshold * 1.05
         segmentLinker.setNumThreads(numThreads);
         final Logger.SlaveLogger slLogger = new Logger.SlaveLogger( internalLogger, 0.5, 0.5 );
         segmentLinker.setLogger( slLogger );
@@ -364,7 +367,7 @@ public class LAPLinker<S extends Spot<S>> extends ObjectGraph<S> {
         @Override
         public SpotImpl toSpot(Region o, int frame) {
             Point center = o.getCenterOrGeomCenter();
-            SpotImpl s = new SpotImpl(center.get(0), center.get(1), center.getWithDimCheck(2), 1, 1);
+            SpotImpl s = new SpotImpl(center.get(0), center.get(1), center.getWithDimCheck(2), 1, 1); //, frame+"-"+o.getLabel() // human-readable name
             s.getFeatures().put(Spot.FRAME, (double)frame);
             return s;
         }

@@ -1392,7 +1392,8 @@ public class DistNet2D implements TrackerSegmenter, TestableProcessingPlugin, Hi
         boolean solveMerge= this.solveMerge.getSelected();
         if (!solveSplit && !solveMerge) return;
         TrackTreePopulation trackPop = new TrackTreePopulation(parentTrack, objectClassIdx, additionalLinks);
-        TrackAssigner assigner = new TrackAssigner.TrackAssignerDistance();
+        double dMax = parentTrack.stream().map(SegmentedObject::getBounds).mapToDouble(bds -> Math.sqrt(bds.sizeX()*bds.sizeX() + bds.sizeY()*bds.sizeY())).max().orElse(Double.NaN);
+        TrackAssigner assigner = new TrackAssigner.TrackAssignerDistance(dMax);
         if (solveMerge) trackPop.solveMergeEvents(gapBetweenTracks(), dividing, sm, assigner, factory, editor);
         if (solveSplit) trackPop.solveSplitEvents(gapBetweenTracks(), dividing, sm, assigner, factory, editor);
         parentTrack.forEach(p -> p.getChildren(objectClassIdx).forEach(o -> { // save memory

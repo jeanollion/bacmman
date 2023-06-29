@@ -190,7 +190,7 @@ public class JaqamanSegmentCostMatrixCreator<S extends Spot<S>> implements CostM
 		 * (gap-closing) then the segment middles (merging).
 		 */
 
-		final ExecutorService executorGCM = Executors.newFixedThreadPool( 1 );
+		final ExecutorService executorGCM = Executors.newFixedThreadPool( numThreads );
 		for ( final S source : segmentEnds )
 		{
 			executorGCM.submit( new Runnable()
@@ -259,6 +259,7 @@ public class JaqamanSegmentCostMatrixCreator<S extends Spot<S>> implements CostM
 								sources.add( source );
 								targets.add( target );
 								linkCosts.add( cost );
+								//logger.debug("adding merge candidate: {}->{} cost={}", source, target, cost);
 							}
 						}
 					}

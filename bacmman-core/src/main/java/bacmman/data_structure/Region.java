@@ -936,17 +936,17 @@ public class Region {
     }
     /**
      * 
-     * @param containerCandidates
+     * @param otherRegions
      * @param offset offset to add to this region so that it would be in absolute landmark
-     * @param containerOffset  offset to add to the container regions so that they would be in absolute landmark
+     * @param otherOffset  offset to add to the container regions so that they would be in absolute landmark
      * @return the container with the most intersection
      */
-    public Region getContainer(Collection<Region> containerCandidates, Offset offset, Offset containerOffset) {
-        if (containerCandidates.isEmpty()) return null;
+    public Region getMostOverlappingRegion(Collection<Region> otherRegions, Offset offset, Offset otherOffset) {
+        if (otherRegions.isEmpty()) return null;
         Region currentParent=null;
         double currentIntersection=-1;
-        for (Region p : containerCandidates) {
-            double inter = getOverlapArea(p, offset, containerOffset);
+        for (Region p : otherRegions) {
+            double inter = getOverlapArea(p, offset, otherOffset);
             if (inter>0) {
                 if (currentParent==null) {
                     currentParent = p;

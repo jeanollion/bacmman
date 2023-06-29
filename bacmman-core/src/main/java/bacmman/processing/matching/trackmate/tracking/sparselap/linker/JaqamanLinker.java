@@ -5,6 +5,7 @@ import bacmman.processing.matching.trackmate.Logger;
 import net.imglib2.algorithm.BenchmarkAlgorithm;
 import net.imglib2.algorithm.OutputAlgorithm;
 import net.imglib2.util.Util;
+import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -21,6 +22,7 @@ import java.util.*;
  */
 public class JaqamanLinker< K extends Comparable< K >, J extends Comparable< J > > extends BenchmarkAlgorithm implements OutputAlgorithm< Map< K, J > >
 {
+	public static final org.slf4j.Logger mainLogger = LoggerFactory.getLogger(JaqamanLinker.class);
 	private Map< K, J > assignments;
 
 	private Map< K, Double > costs;
@@ -178,7 +180,6 @@ public class JaqamanLinker< K extends Comparable< K >, J extends Comparable< J >
 			errorMessage = solver.getErrorMessage();
 			return false;
 		}
-
 		final int[] assgn = solver.getResult();
 		assignments = new HashMap< >();
 		costs = new HashMap< >();

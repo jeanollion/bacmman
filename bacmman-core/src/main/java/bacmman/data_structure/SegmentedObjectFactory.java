@@ -70,6 +70,7 @@ public class SegmentedObjectFactory {
     }
 
     public static int[] getUnusedIndexAndInsertionPoint(List<SegmentedObject> objects) {
+        if (objects.isEmpty()) return new int[]{0, 0};
         Collections.sort(objects);
         if (objects.get(0).getIdx()>0) return new int[]{0, 0};
         else if (objects.size()==1){

@@ -64,6 +64,18 @@ import java.awt.Frame;
  * @author Jean Ollion
  */
 public class Utils {
+    public static <T, U> Collector<T, ?, Set<U>> collectToSet(Function<T, U> mapper) {
+        return Collector.of(HashSet::new, (l, e)->l.add(mapper.apply(e)), (left, right) -> {
+            left.addAll(right);
+            return left;
+        });
+    }
+    public static <T, U> Collector<T, ?, Set<U>> collectToSet(Function<T, U> mapper, Predicate<U> filter) {
+        return Collector.of(HashSet::new, (l, e)->{U u = mapper.apply(e); if (filter.test(u)) l.add(u);}, (left, right) -> {
+            left.addAll(right);
+            return left;
+        });
+    }
     public static <T, U> Collector<T, ?, List<U>> collectToList(Function<T, U> mapper) {
         return Collector.of(ArrayList::new, (l, e)->l.add(mapper.apply(e)), (left, right) -> {
             left.addAll(right);

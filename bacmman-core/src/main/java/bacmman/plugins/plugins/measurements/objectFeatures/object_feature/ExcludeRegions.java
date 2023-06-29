@@ -13,7 +13,6 @@ import bacmman.plugins.object_feature.IntensityMeasurementCore;
 import bacmman.plugins.object_feature.ObjectFeatureWithCore;
 import bacmman.processing.Filters;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Pair;
 
 import java.util.HashMap;
 import java.util.List;
@@ -43,7 +42,7 @@ public class ExcludeRegions implements ObjectFeature, ObjectFeatureWithCore {
             List<Region> objects = childPopulation.getRegions();
             Map<Region, List<Region>> objectMapExcluded = HashMapGetCreate.getRedirectedMap(objects.size(), new HashMapGetCreate.ListFactory(), HashMapGetCreate.Syncronization.NO_SYNC);
             for (Region o : excludePopulation.getRegions()) {
-                Region p = o.getContainer(objects, null, null); // parents are in absolute offset
+                Region p = o.getMostOverlappingRegion(objects, null, null); // parents are in absolute offset
                 if (p != null) {
                     Region oDil = o;
                     if (dilRad > 0) {
