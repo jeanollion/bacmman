@@ -481,7 +481,7 @@ public class SegmentedObjectUtils {
                     dupToSourceMap.put(pDup.getId(), current.getParent());
                     pDup.dao=newDAO;
                 }
-                pDup.addChildren(currentDup, currentDup.structureIdx); // also set parent
+                pDup.addChild(currentDup, currentDup.structureIdx); // also set parent
                 current = current.getParent();
                 currentDup = pDup;
             }

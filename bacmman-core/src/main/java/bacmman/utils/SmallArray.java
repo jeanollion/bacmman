@@ -21,6 +21,7 @@ package bacmman.utils;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  *
@@ -45,6 +46,11 @@ public class SmallArray<T> {
         if (array==null) return null;
         else if (array.length<=idx) return null;
         else return (T)array[idx];
+    }
+    public T getOrDefault(int idx, Supplier<T> defaultValueSupplier) {
+        extend(idx+1);
+        if (array[idx]==null) array[idx] = defaultValueSupplier.get();
+        return (T)array[idx];
     }
     public T getAndExtend(int idx) {
         if (array==null) {

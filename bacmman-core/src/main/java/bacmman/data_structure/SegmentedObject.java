@@ -367,15 +367,17 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         if (children!=null) children.forEach(o -> o.setParent(this));
     }
 
-    void addChildren(SegmentedObject child, int structureIdx) {
-        List<SegmentedObject> children = this.childrenSM.get(structureIdx);
-        if (children==null) {
-            children = new ArrayList<>();
-            this.childrenSM.set(children, structureIdx);
-        }
+    void addChild(SegmentedObject child, int structureIdx) {
+        List<SegmentedObject> children = this.childrenSM.getOrDefault(structureIdx, ArrayList::new);
         children.add(child);
-        children.sort(SegmentedObject::compareTo);
         child.setParent(this);
+        children.sort(SegmentedObject::compareTo);
+    }
+
+    void addChildren(Stream<SegmentedObject> children, int structureIdx) {
+        List<SegmentedObject> existingChildren = this.childrenSM.getOrDefault(structureIdx, ArrayList::new);
+        children.peek(c -> c.setParent(this)).forEach(existingChildren::add);
+        existingChildren.sort(SegmentedObject::compareTo);
     }
     
     List<SegmentedObject> setChildrenObjects(RegionPopulation population, int structureIdx, boolean relabel) {
@@ -701,6 +703,10 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
             flushImages();
             regionContainer = null;
         }
+        // update children
+        for (int cOCIdx : getExperimentStructure().getAllDirectChildStructuresAsArray(structureIdx)) {
+            if (other.childrenSM.has(cOCIdx)) addChildren(other.childrenSM.get(cOCIdx).stream(), cOCIdx);
+        }
         if (attributes) {
             // update links
             SegmentedObject prev = other.getPrevious();
@@ -753,6 +759,18 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
         else getParent().getDirectChildren(structureIdx).add(res);
         setAttribute(EDITED_SEGMENTATION, true);
         res.setAttribute(EDITED_SEGMENTATION, true);
+        // assign childer
+        for (int cOCIdx : getExperimentStructure().getAllDirectChildStructuresAsArray(structureIdx)) {
+            if (childrenSM.has(cOCIdx) && !childrenSM.get(cOCIdx).isEmpty()) {
+                List<Region> parents = Arrays.asList(this.region, res.region);
+                List<SegmentedObject> children = childrenSM.get(cOCIdx);
+                List<SegmentedObject> resChildren = children.stream().filter(c -> c.getRegion().getMostOverlappingRegion(parents, null, null).equals(res.region)).collect(Collectors.toList());
+                if (!resChildren.isEmpty()) {
+                    children.removeAll(resChildren);
+                    res.setChildren(resChildren, cOCIdx);
+                }
+            }
+        }
         logger.debug("split object: {} -> {} c={} & {} -> {} c={}", this, this.getBounds(), this.region.getCenterOrGeomCenter(), res, res.getBounds(), res.region.getCenterOrGeomCenter());
         return res;
     }

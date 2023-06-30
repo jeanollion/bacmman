@@ -205,6 +205,8 @@ public class SegmentedObjectEditor {
 
     public static  List<SegmentedObject> mergeObjects(MasterDAO db, Collection<SegmentedObject> objects, SegmentedObjectFactory factory, TrackLinkEditor editor, boolean relabel) {
         if (objects.isEmpty()) return Collections.EMPTY_LIST;
+        int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
+        int[] childOCIdx = db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
         Map<String, List<SegmentedObject>> objectsByPosition = SegmentedObjectUtils.splitByPosition(objects);
         List<SegmentedObject> allNewObjects = new ArrayList<>();
         boolean allowMerge = db.getExperiment().getStructure(factory.getEditableObjectClassIdx()).allowMerge();
@@ -264,6 +266,11 @@ public class SegmentedObjectEditor {
             });
             mergeOperations.entrySet().parallelStream().forEach(en -> en.getValue().forEach(m -> en.getKey().merge(m, false, true)));
             mergeOperations.keySet().forEach(SegmentedObject::resetMeasurements);
+            if (childOCIdx.length>0) {
+                List<SegmentedObject> modifiedChildren = new ArrayList<>();
+                for (int cOCIdx : childOCIdx) mergeOperations.values().stream().flatMap(mList->mList.stream().filter(m->m.hasChildren(cOCIdx)).flatMap(m -> m.getChildren(cOCIdx))).forEach(modifiedChildren::add);
+                dao.store(modifiedChildren);
+            }
             dao.delete(toRemove, true, true, false); // relabel already performed before
             toRemove.forEach(editor.getModifiedObjects()::remove);
             dao.store(editor.getModifiedObjects());

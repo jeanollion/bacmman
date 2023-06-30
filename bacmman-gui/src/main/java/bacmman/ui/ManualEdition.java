@@ -578,6 +578,7 @@ public class ManualEdition {
     }
     public static void splitObjects(MasterDAO db, Collection<SegmentedObject> objects, boolean relabel, boolean test, ObjectSplitter defaultSplitter, boolean updateDisplay) {
         int structureIdx = SegmentedObjectUtils.keepOnlyObjectsFromSameStructureIdx(objects);
+        int[] directChildrenOC = db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(structureIdx);
         if (objects.isEmpty()) return;
         boolean test_ = db==null ? true : test;
         if (!canEdit(objects.stream(), db)) return;
@@ -670,7 +671,10 @@ public class ManualEdition {
                         if (newObject!=null) nexts.add(newObject);
                         modifyObjectLinks(nexts, false, false, merge, split, editor);
                     }
-                    if (newObject!=null) objectsToStore.add(newObject);
+                    if (newObject!=null) {
+                        objectsToStore.add(newObject);
+                        for (int cOCIdx : directChildrenOC) newObject.getChildren(cOCIdx).forEach(objectsToStore::add);
+                    }
                     objectsToStore.add(objectToSplit);
                 }
             }
