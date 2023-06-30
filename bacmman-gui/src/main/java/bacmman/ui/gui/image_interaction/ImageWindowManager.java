@@ -882,7 +882,7 @@ public abstract class ImageWindowManager<I, U, V> {
         if (i==null) return Collections.emptyList();
         if (i instanceof HyperStack && ((HyperStack)i).isDisplayAllObjects()) {
             logger.debug("getSelected Labile object: hyperstack in display all objects mode");
-            return Pair.unpairKeys(((HyperStack)i).getAllObjects());
+            return ((HyperStack)i).getAllObjects().map(o->o.key).collect(Collectors.toList());
         }
         Set<U> rois = displayedLabileObjectRois.get(image);
         if (rois!=null) {

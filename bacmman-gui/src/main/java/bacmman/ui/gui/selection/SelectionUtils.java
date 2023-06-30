@@ -18,6 +18,8 @@
  */
 package bacmman.ui.gui.selection;
 
+import bacmman.configuration.parameters.BooleanParameter;
+import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
@@ -25,6 +27,8 @@ import bacmman.ui.GUI;
 
 import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
+import bacmman.ui.PropertyUtils;
+import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.image_interaction.*;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.SelectionDAO;
@@ -430,57 +434,170 @@ public class SelectionUtils {
         });
         menu.add(duplicate);
         if (selectedValues.size()!=1) duplicate.setEnabled(false);
-        JMenu setOpMenu = new JMenu("Set Operations");
+
+        // operations
+        JMenu OpMenu = new JMenu("Set Operations");
+        menu.add(OpMenu);
+        JMenuItem union = new JMenuItem("Union");
+        union.addActionListener((ActionEvent e) -> {
+            String name = JOptionPane.showInputDialog("Union Selection name:");
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                Selection unionSel = SelectionOperations.union(name, selectedValues);
+                unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
+                GUI.getInstance().populateSelections();
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            }
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        union.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        OpMenu.add(union);
+
+        JMenuItem intersection = new JMenuItem("Intersection");
+        intersection.addActionListener((ActionEvent e) -> {
+            String name = JOptionPane.showInputDialog("Union Selection name:");
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                Selection interSel = SelectionOperations.intersection(name, selectedValues);
+                interSel.getMasterDAO().getSelectionDAO().store(interSel);
+                GUI.getInstance().populateSelections();
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            }
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        intersection.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        OpMenu.add(intersection);
+
+        JMenu diffMenu = new JMenu("Remove all from");
+        List<Selection> selDiff = allSelections.stream()
+                .filter(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())
+                .filter(s->!selectedValues.contains(s))
+                .collect(Collectors.toList());
+        for (Selection sel : selDiff) {
+            JMenuItem diff = new JMenuItem(sel.getName());
+            diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
+                SelectionOperations.removeAll(s, sel);
+                s.getMasterDAO().getSelectionDAO().store(s);
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().populateSelections();
+                GUI.getInstance().resetSelectionHighlight();
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            }));
+            diffMenu.add(diff);
+        }
+        diffMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        OpMenu.add(diffMenu);
+
+        // filters
+        JMenu filterMenu = new JMenu("Filters");
+        menu.add(filterMenu);
+
+        JMenu trimMenu = new JMenu("Trim By");
+        List<Selection> selTrim = allSelections.stream()
+                .filter(s->!selectedValues.contains(s))
+                .collect(Collectors.toList());
+        for (Selection sel : selTrim) {
+            JMenuItem trim = new JMenuItem(sel.getName());
+            trim.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
+                SelectionOperations.trimBy(s, sel);
+                s.getMasterDAO().getSelectionDAO().store(s);
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().populateSelections();
+                GUI.getInstance().resetSelectionHighlight();
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            }));
+            trimMenu.add(trim);
+        }
+        trimMenu.setEnabled(selectedValues.size()>=1);
+        filterMenu.add(trimMenu);
+
+        JMenu edgeContactMenu = new JMenu("Edge Contact");
+        filterMenu.add(edgeContactMenu);
+        BooleanParameter keepTouching = new BooleanParameter("Keep Contact", false);
+        PropertyUtils.setPersistent(keepTouching, "filter_edge_keep");
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(keepTouching, edgeContactMenu);
+        JMenu edgeContactOCMenu = new JMenu("Perform Filter");
         if (selectedValues.size()>=1) {
-            JMenuItem union = new JMenuItem("Union");
-            union.addActionListener((ActionEvent e) -> {
-                String name = JOptionPane.showInputDialog("Union Selection name:");
-                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                    Selection unionSel = SelectionOperations.union(name, selectedValues);
-                    unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
-                    GUI.getInstance().populateSelections();
+            for (int ocIdx = -1; ocIdx<db.getExperiment().getStructureCount(); ocIdx++) {
+                if (ocIdx == selectedValues.get(0).getStructureIdx()) continue;
+                int OCIdx = ocIdx;
+                JMenuItem filter = new JMenuItem(ocIdx==-1 ? "ViewField" : db.getExperiment().getStructure(ocIdx).getName());
+                filter.addActionListener((ActionEvent e) -> {
+                    for (Selection s : selectedValues) {
+                        SelectionOperations.edgeContactFilter(s, OCIdx, keepTouching.getSelected());
+                        s.getMasterDAO().getSelectionDAO().store(s);
+                    }
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                }
-                GUI.updateRoiDisplayForSelections(null, null);
-                GUI.getInstance().resetSelectionHighlight();
-            });
-            setOpMenu.add(union);
-        }
-        if (selectedValues.size()>1) {
-            JMenuItem union = new JMenuItem("Intersection");
-            union.addActionListener((ActionEvent e) -> {
-                String name = JOptionPane.showInputDialog("Union Selection name:");
-                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
-                    Selection interSel = SelectionOperations.intersection(name, selectedValues);
-                    interSel.getMasterDAO().getSelectionDAO().store(interSel);
-                    GUI.getInstance().populateSelections();
-                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                }
-                GUI.updateRoiDisplayForSelections(null, null);
-                GUI.getInstance().resetSelectionHighlight();
-            });
-            setOpMenu.add(union);
-        }
-        if (selectedValues.size()>=1 && selectedValues.stream().allMatch(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())) {
-            JMenu diffMenu = new JMenu("Remove all from");
-            List<Selection> selDiff = allSelections.stream()
-                    .filter(s->s.getStructureIdx()==selectedValues.get(0).getStructureIdx())
-                    .filter(s->!selectedValues.contains(s))
-                    .collect(Collectors.toList());
-            for (Selection sel : selDiff) {
-                JMenuItem diff = new JMenuItem(sel.getName());
-                diff.addActionListener((ActionEvent e) -> selectedValues.forEach(s->{
-                    SelectionOperations.removeAll(s, sel);
-                    s.getMasterDAO().getSelectionDAO().store(s);
                     GUI.updateRoiDisplayForSelections(null, null);
                     GUI.getInstance().resetSelectionHighlight();
-                    if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
-                }));
-                diffMenu.add(diff);
+                });
+                edgeContactOCMenu.add(filter);
             }
-            setOpMenu.add(diffMenu);
         }
-        menu.add(setOpMenu);
+
+        edgeContactOCMenu.setEnabled(selectedValues.size()>=1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+        edgeContactMenu.add(edgeContactOCMenu);
+
+        JMenu shortTrackMenu = new JMenu("Short Tracks");
+        filterMenu.add(shortTrackMenu);
+        BooleanParameter keepShort = new BooleanParameter("Keep Short Tracks", true);
+        BoundedNumberParameter trackLength = new BoundedNumberParameter("Track Length Threshold", 0, 2, 1, null);
+        PropertyUtils.setPersistent(keepShort, "filter_size_keep");
+        PropertyUtils.setPersistent(trackLength, "filter_size_length");
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(keepShort, shortTrackMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(trackLength, shortTrackMenu);
+        JMenuItem shortTrackFilter = new JMenuItem("Perform Filter");
+        shortTrackFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.trackLengthFilter(s, trackLength.getIntValue(), keepShort.getSelected());
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        shortTrackFilter.setEnabled(!selectedValues.isEmpty());
+        shortTrackMenu.add(shortTrackFilter);
+
+        JMenuItem trackEndFilter = new JMenuItem("Track Ends");
+        trackEndFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.trackEndsFilter(s);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        trackEndFilter.setEnabled(!selectedValues.isEmpty());
+        filterMenu.add(trackEndFilter);
+
+        JMenuItem trackMergeFilter = new JMenuItem("Merge");
+        trackMergeFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.trackConnectionFilter(s, true);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        trackMergeFilter.setEnabled(!selectedValues.isEmpty());
+        filterMenu.add(trackMergeFilter);
+
+        JMenuItem trackDivisionFilter = new JMenuItem("Division");
+        trackDivisionFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.trackConnectionFilter(s, false);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        trackDivisionFilter.setEnabled(!selectedValues.isEmpty());
+        filterMenu.add(trackDivisionFilter);
+
         JMenu getParentSelection = new JMenu("Create Parent/Child Selection");
         List<String> ocNamesWithRoot = new ArrayList<>(Arrays.asList(ocNames));
         ocNamesWithRoot.add(0, "Viewfield");

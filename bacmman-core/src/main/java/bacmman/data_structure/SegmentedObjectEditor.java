@@ -20,6 +20,7 @@ public class SegmentedObjectEditor {
 
     public static  Stream<SegmentedObject> getNext(SegmentedObject o) { // TODO FLAW : if track accepts gaps next can be later.. look also in next parents ?
         if (o.getNext()!=null) return Stream.of(o.getNext());
+        if (o.isRoot()) return Stream.empty();
         SegmentedObject nextParent = o.getParent().getNext();
         if (nextParent==null) return Stream.empty();
         return nextParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getPrevious()));
@@ -27,6 +28,7 @@ public class SegmentedObjectEditor {
 
     public static Stream<SegmentedObject> getPrevious(SegmentedObject o) { // TODO FLAW : if track accepts gaps previous can be before.. look also in previous parents ?
         if (o.getPrevious()!=null) return Stream.of(o.getPrevious());
+        if (o.isRoot()) return Stream.empty();
         SegmentedObject prevParent = o.getParent().getPrevious();
         if (prevParent==null) return Stream.empty();
         return prevParent.getChildren(o.getStructureIdx()).filter(e -> o.equals(e.getNext()));

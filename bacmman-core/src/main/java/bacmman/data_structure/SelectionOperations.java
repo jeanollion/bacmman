@@ -2,6 +2,7 @@ package bacmman.data_structure;
 
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BoundingBox;
+import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.EdgeContact;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
@@ -56,6 +57,73 @@ public class SelectionOperations {
             Arrays.stream(selections)
                     .filter(s -> s.getStructureIdx() == sel.getStructureIdx() && s.getAllPositions().contains(pos))
                     .forEach(s -> sel.removeAll(pos, s.getElementStrings(pos)));
+        }
+    }
+
+    public static void trimBy(Selection sel, Selection container) {
+        if (sel.getStructureIdx()==-2) return;
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            Map<Integer, List<Region>> containers = container.getElements(pos).stream().collect(Collectors.groupingBy(SegmentedObject::getFrame, Utils.collectToList(SegmentedObject::getRegion)));
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream().filter(e -> e.getRegion().getMostOverlappingRegion(containers.get(e.getFrame()),null, null)==null).collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
+    public static void edgeContactFilter(Selection sel, int edgeOCIdx, boolean keepContact) {
+        if (sel.getStructureIdx()<=-1) return;
+        Predicate<SegmentedObject> filter = o -> {
+            SegmentedObject parent = o.getParent(edgeOCIdx);
+            RegionPopulation.ContactBorder contact = new RegionPopulation.ContactBorder(0, parent.getMask(), new RegionPopulation.Border(true, true, true, true, !o.is2D() && !parent.is2D(), !o.is2D() && !parent.is2D()));
+            return keepContact != contact.contact(o.getRegion());
+        };
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(filter)
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
+    public static void trackLengthFilter(Selection sel, int length, boolean keepShort) {
+        if (sel.getStructureIdx()==-2) return;
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream().filter(Objects::nonNull).map(SegmentedObject::getTrackHead).distinct()
+                    .map(SegmentedObjectUtils::getTrack).filter(t -> keepShort ? t.size()>length : t.size()<length)
+                    .flatMap(Collection::stream).collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
+    public static void trackEndsFilter(Selection sel) {
+        if (sel.getStructureIdx()==-2) return;
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(t -> !SegmentedObjectEditor.getNext(t.getParent()).findAny().isPresent() || SegmentedObjectEditor.getNext(t).findAny().isPresent())
+                    .filter(t -> !SegmentedObjectEditor.getPrevious(t.getParent()).findAny().isPresent() || SegmentedObjectEditor.getPrevious(t).findAny().isPresent())
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
+    public static void trackConnectionFilter(Selection sel, boolean merge) {
+        if (sel.getStructureIdx()==-2) return;
+        Predicate<SegmentedObject> filter = merge ? o -> {
+            SegmentedObject next = o.getNext();
+            if (next==null) return true;
+            return !(next.getPrevious()==null && SegmentedObjectEditor.getPrevious(next).count()>1);
+        } : o -> {
+            SegmentedObject prev = o.getPrevious();
+            if (prev==null) return true;
+            return !(prev.getNext()==null && SegmentedObjectEditor.getNext(prev).count()>1);
+        };
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(filter)
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
         }
     }
 

@@ -19,15 +19,13 @@
 package bacmman.ui.gui.image_interaction;
 
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.BiFunction;
-import java.util.function.Supplier;
+import java.util.stream.Stream;
 
 import bacmman.utils.Pair;
 
@@ -93,6 +91,8 @@ public abstract class InteractiveImage {
     public abstract Image generateImage(int structureIdx, boolean executeInBackground);
     public int getChildStructureIdx() {return childStructureIdx;}
     public abstract List<Pair<SegmentedObject, BoundingBox>> getObjects();
+    public abstract Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects();
+
     public List<Pair<SegmentedObject, BoundingBox>> pairWithOffset(Collection<SegmentedObject> objects) {
         List<Pair<SegmentedObject, BoundingBox>> res = new ArrayList<>(objects.size());
         for (SegmentedObject o : objects) {

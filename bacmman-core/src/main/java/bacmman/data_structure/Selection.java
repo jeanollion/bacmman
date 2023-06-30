@@ -432,9 +432,11 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
     public boolean removeElement(SegmentedObject elementToRemove) {
         Set<SegmentedObject> list = getElements(elementToRemove.getPositionName());
         if (list!=null) {
-            list.remove(elementToRemove);
-            Collection<String> els = get(elementToRemove.getPositionName(), false);
-            if (els!=null) els.remove(indicesString(elementToRemove));
+            boolean remove = list.remove(elementToRemove);
+            if (remove) {
+                Collection<String> els = get(elementToRemove.getPositionName(), false);
+                if (els != null) els.remove(indicesString(elementToRemove));
+            }
         }
         return false;
     }

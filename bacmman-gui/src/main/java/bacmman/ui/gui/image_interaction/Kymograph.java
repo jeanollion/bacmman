@@ -37,6 +37,7 @@ import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 import java.util.function.Predicate;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -240,5 +241,8 @@ public abstract class Kymograph extends InteractiveImage {
         for (SimpleInteractiveImage m : trackObjects) res.addAll(m.getObjects());
         return res;
     }
-    
+    @Override
+    public Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
+        return Arrays.stream(trackObjects).flatMap(SimpleInteractiveImage::getAllObjects);
+    }
 }

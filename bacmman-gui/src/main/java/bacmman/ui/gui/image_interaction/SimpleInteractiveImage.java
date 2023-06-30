@@ -108,8 +108,19 @@ public class SimpleInteractiveImage extends InteractiveImage {
                 if (objects ==null) reloadObjects();
             }
         }
-        if (objects==null) return Collections.EMPTY_LIST;
-        return IntStream.range(0, offsets.length).mapToObj(i->new Pair<>(objects.get(i), offsets[i])).collect(Collectors.toList());
+        if (objects==null) return Collections.emptyList();
+        return getAllObjects().collect(Collectors.toList());
+    }
+
+    @Override
+    public Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
+        if (objects == null) {
+            synchronized (lock) {
+                if (objects == null) reloadObjects();
+            }
+        }
+        if (objects==null) return Stream.empty();
+        return IntStream.range(0, offsets.length).mapToObj(i->new Pair<>(objects.get(i), offsets[i]));
     }
 
     @Override

@@ -942,7 +942,7 @@ public class Region {
      * @return the container with the most intersection
      */
     public Region getMostOverlappingRegion(Collection<Region> otherRegions, Offset offset, Offset otherOffset) {
-        if (otherRegions.isEmpty()) return null;
+        if (otherRegions==null || otherRegions.isEmpty()) return null;
         Region currentParent=null;
         double currentIntersection=-1;
         for (Region p : otherRegions) {

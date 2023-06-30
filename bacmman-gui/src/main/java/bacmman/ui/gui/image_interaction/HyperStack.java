@@ -25,17 +25,16 @@ import bacmman.image.io.KymographFactory;
 import bacmman.processing.Resize;
 import bacmman.ui.GUI;
 import bacmman.utils.Pair;
-import bacmman.utils.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  *
@@ -125,8 +124,8 @@ public class HyperStack extends Kymograph {
         return trackObjects[idx].getObjects();
     }
 
-    public List<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
-        return IntStream.range(0, trackObjects.length).mapToObj(i -> trackObjects[i].getObjects()).flatMap(Collection::stream).collect(Collectors.toList());
+    public Stream<Pair<SegmentedObject, BoundingBox>> getAllObjects() {
+        return IntStream.range(0, trackObjects.length).mapToObj(i -> trackObjects[i].getObjects()).flatMap(Collection::stream);
     }
 
     @Override public InteractiveImageKey getKey() {

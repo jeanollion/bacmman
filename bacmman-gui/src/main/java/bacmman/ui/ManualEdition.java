@@ -920,10 +920,11 @@ public class ManualEdition {
         List<SegmentedObject> selList = ImageWindowManagerFactory.getImageManager().getSelectedLabileObjects(null);
         if (!canEdit(selList.stream(), db)) return;
         if (!selList.isEmpty()) {
-            SegmentedObject first = Collections.min(selList, (o1, o2) -> Integer.compare(o1.getFrame(), o2.getFrame()));
-            List<SegmentedObject> toDelete = Pair.unpairKeys(ImageWindowManagerFactory.getImageManager().getCurrentImageObjectInterface().getObjects());
-            if (after) toDelete.removeIf(o -> o.getFrame()<first.getFrame());
-            else toDelete.removeIf(o -> o.getFrame()>first.getFrame());
+            SegmentedObject first = Collections.min(selList, Comparator.comparingInt(SegmentedObject::getFrame));
+            List<SegmentedObject> toDelete = ImageWindowManagerFactory.getImageManager()
+                    .getCurrentImageObjectInterface().getAllObjects().map(o -> o.key)
+                    .filter(after ? o -> o.getFrame()>=first.getFrame() : o -> o.getFrame()<=first.getFrame())
+                    .collect(Collectors.toList());
             deleteObjects(db, toDelete, ALWAYS_MERGE, true, true);
         }
     }
