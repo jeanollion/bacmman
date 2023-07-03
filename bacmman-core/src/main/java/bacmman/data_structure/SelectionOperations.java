@@ -204,9 +204,9 @@ public class SelectionOperations {
         return p.get(idx);
     }
 
-    public static Collection<Pair<SegmentedObject, BoundingBox>> filterPairs(List<Pair<SegmentedObject, BoundingBox>> objects, Collection<String> indices) {
+    public static Collection<Pair<SegmentedObject, BoundingBox>> filterPairs(Stream<Pair<SegmentedObject, BoundingBox>> objects, Collection<String> indices) {
         //Utils.removeDuplicates(objects, o->Selection.indicesString(o.key)); // remove duplicate labels. should not occur
-        Map<String, Pair<SegmentedObject, BoundingBox>> map = objects.stream().collect(Collectors.toMap(o->Selection.indicesString(o.key), o->o));
+        Map<String, Pair<SegmentedObject, BoundingBox>> map = objects.collect(Collectors.toMap(o->Selection.indicesString(o.key), o->o));
         map.keySet().retainAll(indices);
         return map.values();
     }

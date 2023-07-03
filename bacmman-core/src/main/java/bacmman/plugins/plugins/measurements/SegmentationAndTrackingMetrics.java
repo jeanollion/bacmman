@@ -20,9 +20,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.*;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.IntConsumer;
+import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -35,13 +33,14 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     ObjectClassParameter objectClass = new ObjectClassParameter("Object class", -1, false, false).setHint("Object class to compare to the ground truth");
     TextParameter prefix = new TextParameter("Prefix", "", false).setHint("Prefix to add to measurement keys");
     SimplePluginParameterList<PostFilterFeature> removeObjects = new SimplePluginParameterList<>("Filter Objects", "Filter", PostFilterFeature.class, new FeatureFilter(), false).setHint("Filters that select objects that should be included (e.g. object not in contact with edges");
-    BooleanParameter objectWise = new BooleanParameter("Obect-wise", false).setHint("If true, errors will be set in each object's measurement");
-    enum FILTER_MODE {NO_FILTER, OVERLAP, OVERLAP_PROPORTION}
-    EnumChoiceParameter<FILTER_MODE> filterMode = new EnumChoiceParameter<>("Filter", FILTER_MODE.values(), FILTER_MODE.OVERLAP_PROPORTION);
+    BooleanParameter objectWise = new BooleanParameter("Per Object", false).setHint("If true, errors will be set in each segmented object's measurement");
+    ArrayNumberParameter mitosisFrameTolerance = new ArrayNumberParameter("Mitosis Frame Tolerance", -1, new BoundedNumberParameter("Frame Number", 0, 0, 0, null)).setHint("During assessment of track matching, this parameter (i) adds a tolerance to mitosis detection: for two division events to be considered matching (one in the ground truth and one in the object class to be compared), they are allowed to be separated by no more than i frames");
+    enum MATCHING_MODE {NO_FILTER, OVERLAP, OVERLAP_PROPORTION}
+    EnumChoiceParameter<MATCHING_MODE> matchingMode = new EnumChoiceParameter<>("Matching mode", MATCHING_MODE.values(), MATCHING_MODE.OVERLAP_PROPORTION);
 
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5,1, 0, null).setEmphasized(true).setHint("Min absolute overlap (in pixels) to consider a match between two objects");
     BoundedNumberParameter minOverlapProp = new BoundedNumberParameter("Min Overlap", 5,0.25, 0, 1).setEmphasized(true).setHint("Min overlap proportion to consider a match between two objects.");
-    ConditionalParameter<FILTER_MODE> filterModeCond = new ConditionalParameter<>(filterMode).setActionParameters(FILTER_MODE.OVERLAP, minOverlap).setActionParameters(FILTER_MODE.OVERLAP_PROPORTION, minOverlapProp);
+    ConditionalParameter<MATCHING_MODE> matchingModeCond = new ConditionalParameter<>(matchingMode).setActionParameters(MATCHING_MODE.OVERLAP, minOverlap).setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION, minOverlapProp);
     @Override
     public String getHintText() {
         return "Computes metrics to evaluate segmentation and tracking precision of an object class ( P = ∪(Pᵢ) ) relatively to a ground truth object class ( G = ∪(Gᵢ) ). Metrics are computed per frame. Objects of P are matching with objects of G if the overlap is higher that the user-defined threshold." +
@@ -65,16 +64,16 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
 
     @Override
     public List<MeasurementKey> getMeasurementKeys() {
-        int pClass = groundTruth.getParentObjectClassIdx();
+        int parentClass = groundTruth.getParentObjectClassIdx();
         String prefix = this.prefix.getValue();
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        res.add(new MeasurementKeyObject(prefix + "NLinksGT", pClass));
-        res.add(new MeasurementKeyObject(prefix + "NGt", pClass));
-        res.add(new MeasurementKeyObject(prefix + "NLinksPrediction", pClass));
-        res.add(new MeasurementKeyObject(prefix + "NPrediction", pClass));
-        res.add(new MeasurementKeyObject(prefix + "Intersection", pClass));
-        res.add(new MeasurementKeyObject(prefix + "Union", pClass));
-        res.add(new MeasurementKeyObject(prefix + "FalseNegative", pClass));
+        res.add(new MeasurementKeyObject(prefix + "NLinksGT", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "NGt", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "NLinksPrediction", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "NPrediction", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "Intersection", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "Union", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "FalseNegative", parentClass));
         IntConsumer addMeas = c -> {
             res.add(new MeasurementKeyObject(prefix + "TrackingErrors", c));
             res.add(new MeasurementKeyObject(prefix + "FalsePositive", c));
@@ -82,10 +81,18 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             res.add(new MeasurementKeyObject(prefix + "UnderSegmentationInter", c));
             res.add(new MeasurementKeyObject(prefix + "UnderSegmentationIntra", c));
         };
-        addMeas.accept(pClass);
+        addMeas.accept(parentClass);
         if (objectWise.getSelected()) {
             addMeas.accept(this.objectClass.getSelectedIndex());
             res.add(new MeasurementKeyObject(prefix + "FalseNegative", groundTruth.getSelectedClassIdx()));
+        }
+        int[] tol = mitosisFrameTolerance.getArrayInt();
+        if (tol.length>0) {
+            for (int i : tol) {
+                res.add(new MeasurementKeyObject(prefix + "CompleteTrackNumber_"+i, parentClass));
+                if (objectWise.getSelected()) res.add(new MeasurementKeyObject(prefix + "CompleteTrack_"+i, groundTruth.getSelectedClassIdx()));
+            }
+            res.add(new MeasurementKeyObject(prefix + "TrackNumber", parentClass));
         }
         return res;
     }
@@ -119,7 +126,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         }
         // compute all overlaps between regions and put non null overlap in a map
         OverlapMatcher<SegmentedObject> matcher = new OverlapMatcher<>(OverlapMatcher.segmentedObjectOverlap());
-        switch (filterMode.getSelectedEnum()) {
+        switch (matchingMode.getSelectedEnum()) {
             case OVERLAP: {
                 OverlapMatcher.filterLowOverlap(matcher, minOverlap.getDoubleValue());
                 break;
@@ -205,6 +212,69 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             parent.getMeasurements().setValue(prefix + "UnderSegmentationInter", underInter);
             parent.getMeasurements().setValue(prefix + "UnderSegmentationIntra", underIntra);
         });
+
+        int[] tol = mitosisFrameTolerance.getArrayInt();
+        SegmentedObject parentTH = parentTrack.get(0);
+        Comparator<SegmentedObject> comp = Comparator.comparing(SegmentedObject::getTrackHead);
+        BiFunction<SegmentedObject, Integer, List<SegmentedObject>> getMatching = (gt, i) -> {
+            List<SegmentedObject> predL = graph.getAllMatching(gt, true).sorted(comp).collect(Collectors.toList());
+            List<SegmentedObject> gtL = graph.getAllMatching(predL.stream(), false).collect(Collectors.toList());
+            int curFrame = gt.getFrame();
+            if (predL.size() == 1) {
+                if (gtL.size() == 1) return predL;
+                else if (gtL.size() == 2) { // over-segmentation : test if GT divided before
+                    SegmentedObject prev = gtL.get(0).getPrevious();
+                    SegmentedObject otherPrev = gtL.get(1).getPrevious();
+                    if (prev == null) { // only accept if start of movie (assume division before start of movie)
+                        return (otherPrev == null && curFrame - parentTH.getFrame() <= i) ? predL : null;
+                    } else { // only accept if gt come from same lineage + tolerance constraint
+                        return curFrame - prev.getFrame() <= i && prev.equals(otherPrev) ? predL : null;
+                    }
+                } else return null;
+            } else if (predL.size() == 2) { // under-segmentation : test if pred divided before
+                if (gtL.size() != 1) return null;
+                SegmentedObject prev = predL.get(0).getPrevious();
+                SegmentedObject otherPrev = predL.get(1).getPrevious();
+                if (prev == null) { // only accept if start of movie (assume division before start of movie)
+                    return (otherPrev == null && curFrame - parentTH.getFrame() <= i) ? predL : null;
+                } else { // only accept if pred come from same lineage + tolerance constraint
+                    return (curFrame - prev.getFrame() <= i) && prev.equals(otherPrev) ? predL : null;
+                }
+            } else return null;
+        };
+        BiPredicate<List<SegmentedObject>, Integer> trackMatch = (gtTrack, i) -> {
+            List<SegmentedObject> prevMatch = null;
+            for (int j = 0; j<gtTrack.size(); ++j) {
+                List<SegmentedObject> curMatch = getMatching.apply(gtTrack.get(j), i);
+                if (curMatch == null) return false;
+                if (j > 0) { // test lineage between curMatch & prevMatch
+                    if (prevMatch.size() == 1 && curMatch.size() == 2) prevMatch.add(prevMatch.get(0));
+                    if (prevMatch.size() == curMatch.size()) {
+                        for (int k = 0; k<prevMatch.size(); ++k) {
+                            if (!prevMatch.get(k).equals(curMatch.get(k).getPrevious())) return false;
+                        }
+                    } else return false;
+                }
+                prevMatch = curMatch;
+            }
+            return true;
+        };
+        if (tol.length>0) {
+            List<List<SegmentedObject>> gtTracks = SegmentedObjectUtils.getAllTracks(parentTrack, gtIdx, false, false).values().stream()
+                    .filter( t -> t.stream().noneMatch( o -> GbyFExcluded.get(o.getFrame()).contains(o) ) ) // exclude tracks with at least one excluded object
+                    .collect(Collectors.toList());
+
+            parentTH.getMeasurements().setValue(prefix + "TrackNumber", gtTracks.size());
+            for (int i : tol) {
+                int matching = (int)gtTracks.stream().filter( t -> {
+                    boolean m = trackMatch.test(t, i);
+                    if (objectWise) t.get(0).getMeasurements().setValue(prefix + "CompleteTrack_"+i, m);
+                    return m;
+                }).count();
+                parentTH.getMeasurements().setValue(prefix + "CompleteTrackNumber_"+i, matching);
+            }
+        }
+
     }
 
     public static class ObjectGraph {
@@ -389,7 +459,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{groundTruth, objectClass, objectWise, removeObjects, filterModeCond, prefix};
+        return new Parameter[]{groundTruth, objectClass, matchingModeCond, removeObjects, objectWise, mitosisFrameTolerance, prefix};
     }
     // multithreaded interface
     boolean parallel = false;

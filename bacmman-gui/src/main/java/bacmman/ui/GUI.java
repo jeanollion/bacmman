@@ -1217,7 +1217,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (db!=null) closeExperiment();
         //long t0 = System.currentTimeMillis();
         if (hostnameOrDir==null) {
-            hostnameOrDir = getHostNameOrDir(dbName);
+            hostnameOrDir = getHostNameOrDir();
             if (hostnameOrDir==null) return;
         } else {
             String curWorkingDir = workingDirectory.getText();
@@ -1225,9 +1225,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 workingDirectory.setText(Paths.get(hostnameOrDir).getParent().toAbsolutePath().toString());
                 populateDatasetTree();
             }
-            this.setSelectedExperiment(dbName);
         }
-        db = MasterDAOFactory.createDAO(dbName, hostnameOrDir);
+        DatasetTree.DatasetTreeNode n = dsTree.getDatasetNode(dbName);
+        if (n==null) return;
+        this.setSelectedExperiment(dbName);
+
+        db = MasterDAOFactory.createDAO(n.getName(), n.getFile().getAbsolutePath());
         if (db==null) {
             if (configurationLibrary!=null) configurationLibrary.setDB(null);
             logger.warn("no config found in dataset {} @ {}", dbName, hostnameOrDir);
@@ -3098,32 +3101,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         pack();
     }// </editor-fold>//GEN-END:initComponents
 
-    
-    private String getCurrentHostNameOrDir() {
-        return getHostNameOrDir(getSelectedExperiment());
-    }
-    private String getHostNameOrDir(String xpName) {
-        String host = this.workingDirectory.getText();
+    private String getHostNameOrDir() {
         if (this.localFileSystemDatabaseRadioButton.isSelected()) {
-            if (xpName==null) return null;
-            File f = dsTree.getFileForDataset(xpName);
-            if (f!=null) {
-                if (!f.exists()) {
-                    setMessage("Folder: "+f.toString()+ " doesn't exist anymore");
-                    return null; // folder doesn't exist anymore
-                }
-                host = f.getAbsolutePath();
-                logger.debug("xp: {} dir {}", xpName, host, f.getAbsolutePath());
-            } else {
-                /*
-                f = new File(host, xpName);
-                f.mkdirs();
-                logger.debug("create dir for xp: {} -> {} (is Dir: {})", xpName, f.getAbsolutePath(), f.isDirectory());
-                host = f.getAbsolutePath();
-                */
-            }
-        }
-        return host;
+            return this.workingDirectory.getText();
+        } else return null;
     }
     public void navigateToNextImage(boolean next) {
         if (trackTreeController==null) this.loadObjectTrees();
@@ -3349,7 +3330,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         }
         return newDBDir.getAbsolutePath();
     }
-    private Pair<String, File> promptNewDatasetPath() {
+    private Triplet<String, String, File> promptNewDatasetPath() {
         String defaultRelPath = "";
         String currentDataset = getSelectedExperiment();
         if (currentDataset==null || dsTree.getFileForDataset(currentDataset)==null) {
@@ -3361,19 +3342,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         } else defaultRelPath = dsTree.getRelativePath(currentDataset);
         String relativePath = JOptionPane.showInputDialog("New dataset name or relative path (relative to working directory):", defaultRelPath);
         if (relativePath == null) return null;
-        Pair<String, File> relPath = dsTree.parseRelativePath(relativePath);
+        Triplet<String, String, File> relPath = dsTree.parseRelativePath(relativePath);
         if (relPath == null) return null;
-        String name = ExperimentSearchUtils.addPrefix(relPath.key, currentDBPrefix);
+        String name = ExperimentSearchUtils.addPrefix(relPath.v1, currentDBPrefix);
         if (!Utils.isValid(name, false)) {
             setMessage("Name should not contain special characters");
             logger.error("Name should not contain special characters");
             return null;
-        } else if (dsTree.datasetNameExists(name)) {
+        } else if (dsTree.getDatasetNode(relativePath)!=null) {
             setMessage("dataset name already exists");
             logger.error("dataset name already exists");
             return null;
         }
-        relPath.key = name;
+        relPath.v1 = name;
         return relPath;
     }
     private void refreshExperimentListMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshExperimentListMenuItemActionPerformed
@@ -3382,38 +3363,40 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_refreshExperimentListMenuItemActionPerformed
 
     private void setSelectedExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_setSelectedExperimentMenuItemActionPerformed
-        String dbName = getSelectedExperiment();
-        if (dbName==null || (this.db!=null && db.getDBName().equals(dbName))) closeExperiment();
+        DatasetTree.DatasetTreeNode n = dsTree.getSelectedDatasetIfOnlyOneSelected();
+        if (n==null || (this.db!=null && db.getDir().toFile().equals(n.getFile()))) {
+            closeExperiment();
+        }
         else {
-            openExperiment(dbName, null, false);
-            if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dbName);
+            openExperiment(n.getRelativePath(), null, false);
+            if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath());
         }
     }//GEN-LAST:event_setSelectedExperimentMenuItemActionPerformed
 
     private boolean newXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_newXPMenuItemActionPerformed
-        Pair<String, File> relPath = promptNewDatasetPath();
+        Triplet<String, String, File> relPath = promptNewDatasetPath();
         if (relPath==null) return false;
         else {
             String adress = null;
             if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) { // create directory
-                adress = createSubdir(relPath.value, relPath.key);
+                adress = createSubdir(relPath.v3, relPath.v1);
                 logger.debug("new dataset dir: {}", adress);
                 if (adress==null) return false;
             }
-            MasterDAO db2 = MasterDAOFactory.createDAO(relPath.key, adress);
+            MasterDAO db2 = MasterDAOFactory.createDAO(relPath.v1, adress);
             if (!db2.setConfigurationReadOnly(false)) {
-                this.setMessage("Could not modify dataset "+relPath.key+" @ "+  adress);
+                this.setMessage("Could not modify dataset "+relPath.v1+" @ "+  adress);
                 return false;
             }
-            Experiment xp2 = new Experiment(relPath.key);
+            Experiment xp2 = new Experiment(relPath.v1);
             xp2.setPath(db2.getDir());
             xp2.setOutputDirectory("Output");
             db2.setExperiment(xp2);
             db2.unlockConfiguration();
             db2.clearCache();
             populateDatasetTree();
-            openExperiment(relPath.key, null, false);
-            if (this.db!=null) setSelectedExperiment(relPath.key);
+            openExperiment(relPath.v2, null, false);
+            if (this.db!=null) setSelectedExperiment(relPath.v2);
             return db!=null;
         }
     }//GEN-LAST:event_newXPMenuItemActionPerformed
@@ -3424,7 +3407,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (Utils.promptBoolean( "Delete Selected Dataset"+(xps.size()>1?"s":"")+" (all data will be lost)", this)) {
             if (db!=null && xps.contains(db.getDBName())) closeExperiment();
             for (String xpName : xps) {
-                MasterDAO mDAO = MasterDAOFactory.createDAO(xpName, getHostNameOrDir(xpName));
+                MasterDAO mDAO = MasterDAOFactory.createDAO(xpName, getHostNameOrDir());
                 mDAO.setConfigurationReadOnly(false);
                 mDAO.eraseAll();
             }
@@ -3433,25 +3416,26 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_deleteXPMenuItemActionPerformed
 
     private void duplicateXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_duplicateXPMenuItemActionPerformed
-        Pair<String, File> relPath = promptNewDatasetPath();
+        Triplet<String, String, File> relPath = promptNewDatasetPath();
         if (relPath==null) return;
         else {
-            String currentDataset = getSelectedExperiment();
+            DatasetTree.DatasetTreeNode currentDataset = dsTree.getSelectedDatasetIfOnlyOneSelected();
+            if (currentDataset == null) return;
             closeExperiment();
-            MasterDAO db1 = MasterDAOFactory.createDAO(currentDataset, dsTree.getFileForDataset(currentDataset).getAbsolutePath());
+            MasterDAO db1 = MasterDAOFactory.createDAO(currentDataset.getName(), currentDataset.getFile().getAbsolutePath());
             String adress = null;
             if (MasterDAOFactory.getCurrentType().equals(MasterDAOFactory.DAOType.DBMap)) { // create directory
-                adress = createSubdir(relPath.value, relPath.key);
+                adress = createSubdir(relPath.v3, relPath.v1);
                 logger.debug("duplicate dataset dir: {}", adress);
                 if (adress==null) return;
             }
-            MasterDAO db2 = MasterDAOFactory.createDAO(relPath.key, adress);
+            MasterDAO db2 = MasterDAOFactory.createDAO(relPath.v1, adress);
             if (!db2.setConfigurationReadOnly(false)) {
-                this.setMessage("Could not modify dataset "+relPath.key+" @ "+  adress);
+                this.setMessage("Could not modify dataset "+relPath.v1+" @ "+  adress);
                 return;
             }
             Experiment xp2 = db1.getExperiment().duplicateWithoutPositions();
-            xp2.setName(relPath.key);
+            xp2.setName(relPath.v1);
             xp2.setOutputDirectory(Paths.get(adress,"Output").toString());
             xp2.setOutputImageDirectory(xp2.getOutputDirectory());
             db2.setExperiment(xp2);
@@ -3460,8 +3444,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             db2.unlockConfiguration();
             db1.clearCache();
             populateDatasetTree();
-            openExperiment(relPath.key, null, false);
-            if (this.db!=null) setSelectedExperiment(relPath.key);
+            openExperiment(relPath.v2, null, false);
+            if (this.db!=null) setSelectedExperiment(relPath.v2);
         }
     }//GEN-LAST:event_duplicateXPMenuItemActionPerformed
 
@@ -3617,108 +3601,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }//GEN-LAST:event_importConfigurationForSelectedStructuresMenuItemActionPerformed
 
     private void importNewExperimentMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importNewExperimentMenuItemActionPerformed
-        /*String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_DATA_DIR);
-        String dir = promptDir("Select folder containing dataset or datasets", defDir, false);
-        if (dir==null) return;
-        File directory = new File(dir);
-        List<String> dbNames = dsTree.getDatasetNames();
-        Map<String, File> allXps = ExperimentSearchUtils.listExperiments(directory.getAbsolutePath(), false, null);
-        //Map<String, File> allXps = ImportExportJSON.listExperiments(directory.getAbsolutePath());
-        if (allXps.size()==1) {
-            String name = JOptionPane.showInputDialog("New Dataset name:");
-            if (name==null) return;
-            name = ExperimentSearchUtils.addPrefix(name, currentDBPrefix);
-            if (!Utils.isValid(name, false)) {
-                logger.error("Name should not contain special characters");
-                return;
-            } else {
-                File f = allXps.values().iterator().next();
-                allXps.clear();
-                allXps.put(name, f);
-            }
-        }
-        Set<String> xpNotPresent = new HashSet<>(allXps.keySet());
-        xpNotPresent.removeAll(dbNames);
-        Set<String> xpsToImport = allXps.keySet();
-        if (xpNotPresent.size()!=allXps.size()) {
-            List<String> xpPresent = new ArrayList<>(allXps.keySet());
-            xpPresent.retainAll(dbNames);
-            Object[] options = {"Overwrite existig datasets (data loss)", "Ignore existing datasets"};
-            int n = JOptionPane.showOptionDialog(this, "Some datasets found in the directory are already present: "+Utils.toStringList(xpPresent), "Import Whole Dataset", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
-            if (n==1) xpsToImport = xpNotPresent;
-        }
-        closeExperiment();
-        // TODO : test! 
-        List<String> xpList = new ArrayList<>(xpsToImport);
-        DefaultWorker.WorkerTask t= (int i) -> {
-            GUI.getInstance().setRunning(true);
-            ProgressCallback pcb = ProgressCallback.get(this);
-            String xp =xpList.get(i);
-            File zip = allXps.get(xp);
-            MasterDAO mDAO = MasterDAOFactory.createDAO(xp, getHostNameOrDir(xp));
-            mDAO.setConfigurationReadOnly(false);
-            mDAO.lockPositions();
-            mDAO.deleteAllObjects();
-            ImportExportJSON.importFromFile(zip.getAbsolutePath(), mDAO, true, false, false, false, false, ProgressCallback.get(this));
-            mDAO.lockPositions();
-            pcb.log("Will import data from file: "+zip.getAbsolutePath());
-            boolean error = false;
-            try {
-                ImportExportJSON.importFromZip(zip.getAbsolutePath(), mDAO, false, importSelectionsMenuItem.isSelected(), importObjectsMenuItem.isSelected(), importPPImagesMenuItem.isSelected(), importTrackImagesMenuItem.isSelected(), pcb);
-            } catch (Exception e) {
-                logger.error("Error while importing", e);
-                log("error while importing");
-                return "";
-            }
-            pcb.log("Data imported from file: "+zip.getAbsolutePath());
-            mDAO.clearCache();
-            mDAO.unlockConfiguration();
-            mDAO.unlockPositions();
-            return "";
-        };
-        DefaultWorker.execute(t, 1);
 
-        populateDatasetTree();
-        PropertyUtils.set(PropertyUtils.LAST_IO_DATA_DIR, dir);*/
     }//GEN-LAST:event_importNewExperimentMenuItemActionPerformed
 
     private void importConfigurationMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_importConfigurationMenuItemActionPerformed
-        /*
-        String defDir = PropertyUtils.get(PropertyUtils.LAST_IO_CONFIG_DIR, this.workingDirectory.getText());
-        File f = Utils.chooseFile("Select configuration file or exported zip containing configuration file", defDir, FileChooser.FileChooserOption.FILES_ONLY, this);
-        if (f==null) return;
-        if (!Utils.promptBoolean("This will erase configutation on "+(db==null ? "all selected" : "current ")+" xp", this)) return;
-        if (db!=null) {
-            PreProcessingChain oldppTemplate = db.getExperiment().getPreProcessingTemplate().duplicate();
-            ImportExportJSON.importConfigurationFromFile(f.getAbsolutePath(), db, ProgressCallback.get(this));
-            if (db.getExperiment().getPositionCount()>0 && !db.getExperiment().getPreProcessingTemplate().sameContent(oldppTemplate)) {
-                if (Utils.promptBoolean("Also copy pre-processing chain to all positions?", this)) {
-                    for (Position p : db.getExperiment().getPositions()) p.getPreProcessingChain().setContentFrom(db.getExperiment().getPreProcessingTemplate());
-                }
-            }
-            db.updateExperiment();
-            updateConfigurationTree();
-        } else {
-            boolean overwritePos= Utils.promptBoolean("Also copy pre-processing chain to all positions?", this);
-            for (String xp : dsTree.getSelectedDatasetNames()) {
-                MasterDAO mDAO = new Task(xp).getDB();
-                mDAO.setConfigurationReadOnly(false);
-                if (mDAO==null) {
-                    this.setMessage("Could not open dataset: "+xp);
-                    continue;
-                }
-                PreProcessingChain oldppTemplate = mDAO.getExperiment().getPreProcessingTemplate().duplicate();
-                ImportExportJSON.importConfigurationFromFile(f.getAbsolutePath(), mDAO, ProgressCallback.get(this));
-                if (mDAO.getExperiment().getPositionCount()>0 && !mDAO.getExperiment().getPreProcessingTemplate().sameContent(oldppTemplate)) {
-                    if (overwritePos) {
-                        for (Position p : mDAO.getExperiment().getPositions()) p.getPreProcessingChain().setContentFrom(mDAO.getExperiment().getPreProcessingTemplate());
-                    }
-                }
-                mDAO.updateExperiment();
-                mDAO.unlockConfiguration();
-            }
-        }
-        PropertyUtils.set(PropertyUtils.LAST_IO_CONFIG_DIR, f.getAbsolutePath());*/
+
     }//GEN-LAST:event_importConfigurationMenuItemActionPerformed
     
     private Task getCurrentTask(String dbName) {
@@ -3894,7 +3781,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (this.localFileSystemDatabaseRadioButton.isSelected()) {
             closeExperiment();
             for (String xp : dsTree.getSelectedDatasetNames()) {
-                DBMapMasterDAO dao = (DBMapMasterDAO)MasterDAOFactory.createDAO(xp, this.getHostNameOrDir(xp));
+                DBMapMasterDAO dao = (DBMapMasterDAO)MasterDAOFactory.createDAO(xp, getHostNameOrDir());
                 dao.lockPositions();
                 GUI.log("Compacting Dataset: "+xp);
                 dao.compact();
@@ -4298,24 +4185,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action setXP = new AbstractAction("Set selected Experiment to selected Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    String xp = dsTree.getSelectedDatasetNameIfOnlyOneSelected();
+                    DatasetTree.DatasetTreeNode xp = dsTree.getSelectedDatasetIfOnlyOneSelected();
+                    if (xp==null) return;
                     String dir = workingDirectory.getText();
-                    Map<Integer, Task> indexSelJobMap = ((List<Task>)actionPoolList.getSelectedValuesList()).stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
+                    Map<Integer, Task> indexSelJobMap = actionPoolList.getSelectedValuesList().stream().collect(Collectors.toMap(o->actionPoolListModel.indexOf(o), o->o));
                     for (Entry<Integer, Task> en : indexSelJobMap.entrySet()) {
                         Task t = en.getValue();
-                        // look for dir in current directory
-                        String d = ExperimentSearchUtils.searchLocalDirForDB(xp, dir);
-                        if (d==null) log("Error: Could not find directory of XP: "+xp);
-                        else {
-                            t.setDBName(xp).setDir(d);
-                            if (!t.isValid()) log("Error: task: "+en.getValue()+" is not valid with this experiment");
-                            
-                        }
+                        t.setDBName(xp.getName()).setDir(xp.getFile().getAbsolutePath());
+                        if (!t.isValid()) log("Error: task: "+en.getValue()+" is not valid with this experiment");
                     }
                 }
             };
             menu.add(setXP);
-            setXP.setEnabled(dsTree.getSelectedDatasetNameIfOnlyOneSelected()!=null && !sel.isEmpty());
+            setXP.setEnabled(dsTree.getSelectedDatasetRelPathIfOnlyOneSelected()!=null && !sel.isEmpty());
             Action runAll = new AbstractAction("Run All Tasks") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -4430,7 +4312,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             log("Config file should en in .zip, .json or .txt");
             return;
         }
-        List<String> dbNames = dsTree.getDatasetNames();
         Experiment xp = FileIO.readFisrtFromFile(config, s->JSONUtils.parse(Experiment.class, s));
         if (xp==null) return;
         if (!newXPMenuItemActionPerformed(evt)) return;
@@ -4545,7 +4426,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (sel!=null) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
             else setSelectedExperimentMenuItem.setText("--");
         } else {
-            if (sel!=null && !sel.equals(db.getDBName())) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
+            DatasetTree.DatasetTreeNode n = dsTree.getDatasetNode(sel);
+            if (n!=null && !n.getFile().equals(db.getDir().toFile())) setSelectedExperimentMenuItem.setText("Open Dataset: "+sel);
             else setSelectedExperimentMenuItem.setText("Close Dataset: "+db.getDBName());
         }
     }//GEN-LAST:event_datasetListValueChanged
@@ -4738,20 +4620,20 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void datasetListMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_datasetListMouseClicked
         if (this.running) return;
         if (SwingUtilities.isLeftMouseButton(evt)) { // open experiment on double click
-            if (evt.getClickCount()==2 && dsTree.getSelectedDatasetNameIfOnlyOneSelected()!=null) {
+            if (evt.getClickCount()==2 && dsTree.getSelectedDatasetRelPathIfOnlyOneSelected()!=null) {
                 String dbName = getSelectedExperiment();
                 if (dbName!=null && (db==null || !db.getDBName().equals(dbName))) { // only open other experiment
                     openExperiment(dbName, null, false);
-                    if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dbName);
+                    if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath());
                 }
             }
         }
         if (SwingUtilities.isRightMouseButton(evt)) {
             JPopupMenu menu = new JPopupMenu();
-            String selectedDataset = dsTree.getSelectedDatasetNameIfOnlyOneSelected();
+            DatasetTree.DatasetTreeNode selectedDataset = dsTree.getSelectedDatasetIfOnlyOneSelected();
             List<String> selectedDatasets = dsTree.getSelectedDatasetNames();
-            String openDataset = db!=null ? db.getDBName() : null;
-            boolean openMode = selectedDataset==null || !selectedDataset.equals(openDataset);
+            File openDatasetDir = db!=null ? db.getDir().toFile() : null;
+            boolean openMode = selectedDataset==null || !selectedDataset.getFile().equals(openDatasetDir);
             Action openDatasetA = new AbstractAction(openMode ? "Open Dataset" : "Close Dataset") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -4759,7 +4641,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             menu.add(openDatasetA);
-            openDatasetA.setEnabled((openMode && selectedDataset!=null) || (!openMode && openDataset!=null) );
+            openDatasetA.setEnabled((openMode && selectedDataset!=null) || (!openMode && openDatasetDir!=null) );
             Action newDataset = new AbstractAction("New Dataset") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
@@ -4941,7 +4823,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         dsTree.setWorkingDirectory(workingDirectory.getText(), ProgressCallback.get(this));
     }
     private String getSelectedExperiment() {
-        return dsTree.getSelectedDatasetNameIfOnlyOneSelected();
+        return dsTree.getSelectedDatasetRelPathIfOnlyOneSelected();
     }
 
     private void setSelectedExperiment(String datasetName) {

@@ -99,11 +99,11 @@ public class ExperimentSearchUtils {
         }
         return configs;
     }
-    public static void addConfig(File f, Map<String, File> configs, Set<Pair<String, File>> duplicated) {
-        renameFromTxtToJSON(f); // TODO retro-compatibility rename txt to json
-        File[] dbs = f.listFiles(subF -> subF.getName().endsWith("_config.json")); 
-        if (dbs==null) return;
+    public static boolean addConfig(File f, Map<String, File> configs, Set<Pair<String, File>> duplicated) {
+        File[] dbs = f.listFiles(subF -> subF.isFile() && subF.getName().endsWith("_config.json"));
+        if (dbs==null || dbs.length==0) return false;
         for (File c : dbs) addConfigFile(c, configs, duplicated);
+        return true;
     }
     private static void addConfigFile(File c, Map<String, File> configs, Set<Pair<String, File>> duplicated) {
         String dbName = removeConfig(c.getName());
@@ -112,11 +112,7 @@ public class ExperimentSearchUtils {
             duplicated.add(new Pair<>(dbName, configs.get(dbName)));
         } else configs.put(dbName, c.getParentFile());
     }
-    private static void renameFromTxtToJSON(File f) {
-        File[] dbsTXT = f.listFiles(subF -> subF.getName().endsWith("_config.txt"));
-        if (dbsTXT==null) return; 
-        for (File c : dbsTXT) c.renameTo(new File(c.getAbsolutePath().replace("_config.txt", "_config.json")));
-    }
+
     private static String removeConfig(String name) {
         return name.substring(0, name.indexOf("_config.json"));
     }

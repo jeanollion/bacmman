@@ -234,6 +234,10 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         for (String f : positions) res.addAll(getElements(f));
         return res;
     }
+
+    public Stream<SegmentedObject> getElementsAsStream(Stream<String> positions) {
+        return positions.flatMap(p -> getElements(p).stream());
+    }
         
     protected Collection<String> get(String fieldName, boolean createIfNull) {
         Object indiciesList = elements.get(fieldName);

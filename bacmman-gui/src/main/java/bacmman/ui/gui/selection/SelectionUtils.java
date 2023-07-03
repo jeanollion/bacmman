@@ -87,9 +87,9 @@ public class SelectionUtils {
             // need to get objects from all frames of selection
             HyperStack h = (HyperStack)i;
             Stream<Integer> frames = indices.stream().map(idx -> Selection.parseIndices(idx)[0]).distinct();
-            List<Pair<SegmentedObject, BoundingBox>> objects = frames.flatMap(frame -> h.getObjects(frame).stream()).collect(Collectors.toList());
+            Stream<Pair<SegmentedObject, BoundingBox>> objects = frames.flatMap(frame -> h.getObjects(frame).stream());
             return SelectionOperations.filterPairs(objects, indices);
-        } else return SelectionOperations.filterPairs(i.getObjects(), indices);
+        } else return SelectionOperations.filterPairs(i.getObjects().stream(), indices);
     }
 
     public static InteractiveImage fixIOI(InteractiveImage i, int structureIdx) {
@@ -105,7 +105,7 @@ public class SelectionUtils {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
         i = fixIOI(i, s.getStructureIdx());
         if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects().stream(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
             //Set<StructureObject> objects = s.getElements(StructureObjectUtils.getPositions(i.getParents()));
             //logger.debug("disp objects: #positions: {}, #objects: {}", StructureObjectUtils.getPositions(i.getParents()).size(), objects.size() );
             if (objects!=null) {
@@ -120,7 +120,7 @@ public class SelectionUtils {
         i = fixIOI(i, s.getStructureIdx());
         if (i!=null) {
             //Set<StructureObject> objects = s.getElements(StructureObjectUtils.getPositions(i.getParents()));
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
+            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects().stream(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
             if (objects!=null) {
                 iwm.hideObjects(null, objects, false);
                 //iwm.hideObjects(null, i.pairWithOffset(objects), false);
@@ -129,25 +129,21 @@ public class SelectionUtils {
     }
     public static void displayTracks(Selection s, InteractiveImage i) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        i = fixIOI(i, s.getStructureIdx());
-        if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
-            List<SegmentedObject> tracks = Pair.unpairKeys(objects);
-            tracks.removeIf(o->!o.isTrackHead());
-            if (tracks.isEmpty()) return;
-            for (SegmentedObject trackHead : tracks) {
+        InteractiveImage ii = fixIOI(i, s.getStructureIdx());
+        if (ii!=null) {
+            Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(ii.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+            ii.getObjects().stream().map(o -> o.key).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains).forEach( trackHead -> {
                 List<SegmentedObject> track = SegmentedObjectUtils.getTrack(trackHead);
-                iwm.displayTrack(null, i, i.pairWithOffset(track), s.getColor(true), false);
-            }
+                iwm.displayTrack(null, ii, ii.pairWithOffset(track), s.getColor(true), false);
+            });
         }
     }
     public static void hideTracks(Selection s, InteractiveImage i) {
         ImageWindowManager iwm = ImageWindowManagerFactory.getImageManager();
-        i = fixIOI(i, s.getStructureIdx());
-        if (i!=null) {
-            Collection<Pair<SegmentedObject, BoundingBox>> objects = SelectionOperations.filterPairs(i.getObjects(), s.getElementStrings(SegmentedObjectUtils.getPositions(i.getParents())));
-            List<SegmentedObject> tracks = Pair.unpairKeys(objects);
-            tracks.removeIf(o->!o.isTrackHead());
+        InteractiveImage ii = fixIOI(i, s.getStructureIdx());
+        if (ii!=null) {
+            Set<SegmentedObject> selTH = s.getElementsAsStream(SegmentedObjectUtils.getPositions(ii.getParents()).stream()).map(SegmentedObject::getTrackHead).collect(Collectors.toSet());
+            List<SegmentedObject> tracks = ii.getObjects().stream().map(o -> o.key).map(SegmentedObject::getTrackHead).distinct().filter(selTH::contains).collect(Collectors.toList());
             if (tracks.isEmpty()) return;
             iwm.hideTracks(null, i, tracks, false);
         }
