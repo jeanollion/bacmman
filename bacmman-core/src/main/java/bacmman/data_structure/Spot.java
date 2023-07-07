@@ -270,7 +270,7 @@ public class Spot extends Region implements Analytical {
     }
 
     @Override
-    public Set<Voxel> getIntersection(Region other) {
+    public Set<Voxel> getIntersectionVoxelSet(Region other) {
         return Analytical.getIntersection(this, other);
     }
     public double getOverlapArea2D(Spot other, Offset offset, Offset otherOffset) {

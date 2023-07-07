@@ -18,12 +18,12 @@
  */
 package bacmman.configuration.parameters.ui;
 
-import bacmman.configuration.parameters.Deactivatable;
-import bacmman.configuration.parameters.ListParameter;
-import bacmman.configuration.parameters.Parameter;
+import bacmman.configuration.parameters.*;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
-import bacmman.configuration.parameters.ListElementErasable;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.awt.Component;
 import java.awt.event.ActionEvent;
 import javax.swing.AbstractAction;
@@ -37,6 +37,7 @@ import javax.swing.tree.TreeNode;
  * @author Jean Ollion
  */
 public class SimpleListParameterUI implements ListParameterUI {
+    public static final Logger logger = LoggerFactory.getLogger(SimpleListParameterUI.class);
     ListParameter list;
     Object[] actions;
     ConfigurationTreeModel model;
@@ -56,8 +57,10 @@ public class SimpleListParameterUI implements ListParameterUI {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     Parameter p = list.createChildInstance();
-                    model.insertNodeInto(p, list);
-                    model.expandNode(p);
+                    if (model !=null) {
+                        model.insertNodeInto(p, list);
+                        model.expandNode(p);
+                    } else list.insert(p, list.getChildCount());
                 }
             }
         );
@@ -75,11 +78,12 @@ public class SimpleListParameterUI implements ListParameterUI {
                         while (list.getChildCount()>0) {
                             child = list.getChildAt(0);
                             ((ListElementErasable)child).eraseData();
-                            model.removeNodeFromParent((MutableTreeNode)child);
+                            if (model !=null) model.removeNodeFromParent((MutableTreeNode)child);
+                            else list.remove(0);
                         }
                     } else {
                         list.removeAllElements();
-                        model.nodeStructureChanged(list);
+                        if (model !=null) model.nodeStructureChanged(list);
                     }
                     
                 }
@@ -95,7 +99,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
                         list.setActivatedAll(false);
-                        model.nodeStructureChanged(list);
+                        if (model !=null) model.nodeStructureChanged(list);
                     }
                 }
             );
@@ -106,7 +110,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                     @Override
                     public void actionPerformed(ActionEvent ae) {
                         list.setActivatedAll(true);
-                        model.nodeStructureChanged(list);
+                        if (model !=null) model.nodeStructureChanged(list);
                     }
                 }
             );
@@ -125,7 +129,8 @@ public class SimpleListParameterUI implements ListParameterUI {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     Parameter p = list.createChildInstance();
-                    model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
+                    if (model !=null) model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
+                    else list.insert(p, mutable?idx+1:unMutableIdx+1);
                 }
             }
         );
@@ -136,7 +141,8 @@ public class SimpleListParameterUI implements ListParameterUI {
                     public void actionPerformed(ActionEvent ae) {
                         Parameter p = list.createChildInstance();
                         p.setContentFrom(child);
-                        model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
+                        if (model !=null) model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
+                        else list.insert(p, mutable?idx+1:unMutableIdx+1);
                     }
                 }
         );
@@ -147,8 +153,9 @@ public class SimpleListParameterUI implements ListParameterUI {
                     if (child instanceof ListElementErasable) {
                         if (!Utils.promptBoolean("Delete selected Element ? (all data will be lost)", null)) return;
                         ((ListElementErasable)child).eraseData();
-                    } 
-                    model.removeNodeFromParent(child);
+                    }
+                    if (model !=null) model.removeNodeFromParent(child);
+                    else list.remove(child);
                 }
             }
         );
@@ -157,7 +164,14 @@ public class SimpleListParameterUI implements ListParameterUI {
             new AbstractAction(childActionNames[3]) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
-                    model.moveUp(list, child);
+                    if (model !=null) model.moveUp(list, child);
+                    else {
+                        int idx = list.getIndex(child);
+                        if (idx>0) {
+                            list.remove(idx);
+                            list.insert(child, idx-1);
+                        }
+                    }
                 }
             }
         );
@@ -166,7 +180,14 @@ public class SimpleListParameterUI implements ListParameterUI {
             new AbstractAction(childActionNames[4]) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
-                    model.moveDown(list, child);
+                    if (model !=null) model.moveDown(list, child);
+                    else {
+                        int idx = list.getIndex(child);
+                        if (idx>=0 && idx<list.getChildCount()) {
+                            list.remove(idx);
+                            list.insert(child, idx+1);
+                        }
+                    }
                 }
             }
         );
@@ -194,7 +215,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             ((Deactivatable)child).setActivated(false);
-                            model.nodeChanged(child);
+                            if (model !=null) model.nodeChanged(child);
                         }
                     }
             );
@@ -204,7 +225,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
                             ((Deactivatable)child).setActivated(true);
-                            model.nodeChanged(child);
+                            if (model !=null) model.nodeChanged(child);
                         }
                     }
             );

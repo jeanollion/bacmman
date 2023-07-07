@@ -19,7 +19,6 @@
 package bacmman.core;
 
 import bacmman.data_structure.Selection;
-import bacmman.measurement.SelectionExtractor;
 import bacmman.ui.GUI;
 
 import java.net.InetAddress;
@@ -35,7 +34,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import py4j.CallbackClient;
 import py4j.GatewayServer;
-import py4j.Py4JNetworkException;
 
 import javax.net.ServerSocketFactory;
 import javax.swing.*;
@@ -80,7 +78,7 @@ public class PythonGateway {
     }
 
     public void setExperimentToGUI(String xpName) {
-        GUI.getInstance().openExperiment(xpName, null, false);
+        GUI.getInstance().openDataset(xpName, null, false);
     }
 
     /**
@@ -114,7 +112,7 @@ public class PythonGateway {
                 logger.info("Connection to {}....", dbRelPath);
                 String dir = ExperimentSearchUtils.searchForLocalDir(dbRelPath);
                 if (dir == null) throw new IllegalArgumentException("Could find dataset:" + dbRelPath);
-                GUI.getInstance().openExperiment(dbRelPath, dir, false);
+                GUI.getInstance().openDataset(dbRelPath, dir, false);
                 if (GUI.getDBConnection().isConfigurationReadOnly()) {
                     String outputFile = Paths.get(GUI.getDBConnection().getExperiment().getOutputDirectory(), "Selections", res.getName() + ".csv").toString();
                     //SelectionExtractor.extractSelections(GUI.getDBConnection(), new ArrayList<Selection>(){{add(res);}}, outputFile);

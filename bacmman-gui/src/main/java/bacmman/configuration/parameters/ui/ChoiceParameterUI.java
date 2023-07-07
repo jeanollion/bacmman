@@ -18,7 +18,6 @@
  */
 package bacmman.configuration.parameters.ui;
 
-import static bacmman.ui.GUI.logger;
 
 import bacmman.configuration.parameters.*;
 import bacmman.plugins.HintSimple;
@@ -27,22 +26,24 @@ import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
 import bacmman.plugins.Hint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static bacmman.plugins.Hint.formatHint;
 
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import javax.swing.AbstractAction;
-import javax.swing.JMenu;
-import javax.swing.JMenuItem;
-import javax.swing.JSeparator;
+import javax.swing.*;
 
 /**
  *
  * @author Jean Ollion
  */
 public class ChoiceParameterUI implements ArmableUI {
+    public static final Logger logger = LoggerFactory.getLogger(ChoiceParameterUI.class);
     public static int MAX_MENU_ITEMS = 30;
     ChoosableParameter choice;
     ConditionalParameterAbstract cond;
@@ -50,12 +51,13 @@ public class ChoiceParameterUI implements ArmableUI {
     JMenuItem[] actionChoice;
     List allActions;
     int inc;
+    // stay open menu item
 
     public ChoiceParameterUI(ChoosableParameter choice_, ConfigurationTreeModel model) {
-        this(choice_, null, model);
+        this(choice_, null, model, null);
     } 
     
-    public ChoiceParameterUI(ChoosableParameter choice_, String subMenuTitle, ConfigurationTreeModel model) {
+    public ChoiceParameterUI(ChoosableParameter choice_, String subMenuTitle, ConfigurationTreeModel model, Runnable showMenuStayOpen) {
         this.choice = choice_;
         inc = choice.isAllowNoSelection() ? 1 : 0;
         if (choice instanceof ActionableParameter) cond = ((ActionableParameter)choice).getConditionalParameter();
@@ -70,7 +72,7 @@ public class ChoiceParameterUI implements ArmableUI {
         } else choices=choice.getChoiceList();
         this.actionChoice = new JMenuItem[choices.length];
         for (int i = 0; i < actionChoice.length; i++) {
-            actionChoice[i] = new JMenuItem(choices[i]);
+            actionChoice[i] = showMenuStayOpen!=null ? new StayOpenMenuItem(choices[i], showMenuStayOpen) : new JMenuItem(choices[i]);
             actionChoice[i].setAction(
                 new AbstractAction(choices[i]) {
                     @Override
@@ -138,4 +140,33 @@ public class ChoiceParameterUI implements ArmableUI {
 
     public Object[] getDisplayComponent() {return allActions.toArray();}
 
+    // stay open menu item
+    public String getSelectedItems() {
+        for (JMenuItem i : actionChoice) {
+            if (i.isArmed()) return i.getText();
+        }
+        return null;
+    }
+    public void updateSelectedItemsToParameter() {
+        choice.setSelectedItem(getSelectedItems() );
+        //choice.fireListeners();
+        if (model!=null) model.nodeChanged(choice);
+    }
+    /*public void addMenuListener(JPopupMenu menu, int X, int Y, Component parent) {
+        //logger.debug("menu set!");
+        menu.addPopupMenuListener(new PopupMenuListener() {
+
+            public void popupMenuWillBecomeVisible(PopupMenuEvent e) {
+                updateUIFromParameter();
+            }
+
+            public void popupMenuWillBecomeInvisible(PopupMenuEvent e) {
+                updateSelectedItemsToParameter();
+            }
+
+            public void popupMenuCanceled(PopupMenuEvent e) {
+                updateSelectedItemsToParameter();
+            }
+        });
+    }*/
 }

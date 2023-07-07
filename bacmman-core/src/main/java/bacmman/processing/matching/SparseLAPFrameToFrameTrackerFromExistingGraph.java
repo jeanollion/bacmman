@@ -184,17 +184,17 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph<S extends Spot<S>> ex
 		final double costThreshold = maxDist * maxDist;
 		final double alternativeCostFactor = ( Double ) settings.get( KEY_ALTERNATIVE_LINKING_COST_FACTOR );
 		// Instantiate graph
-                final boolean graphWasNull;
-                final HashMapGetCreate<Integer, List<S>> spotsFromGraph;
+		final boolean graphWasNull;
+		final HashMapGetCreate<Integer, List<S>> spotsFromGraph;
 		if (graph==null) {
-                    graph = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
-                    graphWasNull=true;
-                    spotsFromGraph = null;
-                } else {
-                    graphWasNull = false;
-                    spotsFromGraph = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
-                    for (S s : graph.vertexSet()) spotsFromGraph.getAndCreateIfNecessary(s.getFeature(Spot.FRAME).intValue()).add(s);
-                }
+			graph = new SimpleWeightedGraph<>(DefaultWeightedEdge.class);
+			graphWasNull=true;
+			spotsFromGraph = null;
+		} else {
+			graphWasNull = false;
+			spotsFromGraph = new HashMapGetCreate<>(new HashMapGetCreate.ListFactory<>());
+			for (S s : graph.vertexSet()) spotsFromGraph.getAndCreateIfNecessary(s.getFeature(Spot.FRAME).intValue()).add(s);
+		}
 
 		// Prepare threads
 		final Thread[] threads = SimpleMultiThreading.newThreads( numThreads );
@@ -235,14 +235,14 @@ public class SparseLAPFrameToFrameTrackerFromExistingGraph<S extends Spot<S>> ex
 							targets.add( iterator.next() );
 						}
                                                 
-                                                // remove spots that have already been linked between the two time points or gaps (fwd for sources & bckwrd for targets)
-                                                if (!graphWasNull) {
-                                                    sources.addAll(spotsFromGraph.getAndCreateIfNecessary(frame0));
-                                                    targets.addAll(spotsFromGraph.getAndCreateIfNecessary(frame1));
-                                                    Utils.removeDuplicates(sources, false);
-                                                    Utils.removeDuplicates(targets, false);
-                                                    removeLinkedSpots(sources, targets, frame1);
-                                                }
+						// remove spots that have already been linked between the two time points or gaps (fwd for sources & bckwrd for targets)
+						if (!graphWasNull) {
+							sources.addAll(spotsFromGraph.getAndCreateIfNecessary(frame0));
+							targets.addAll(spotsFromGraph.getAndCreateIfNecessary(frame1));
+							Utils.removeDuplicates(sources, false);
+							Utils.removeDuplicates(targets, false);
+							removeLinkedSpots(sources, targets, frame1);
+						}
                                                 
 						if ( sources.isEmpty() || targets.isEmpty() )
 						{

@@ -357,10 +357,10 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                         o.getRegion().setCenter(seed.getCenter());
                     } else { // intersection of seed and region with maximal centerI value
                         double overlap = seed.getOverlapArea(o.getRegion());
-                        Set<Voxel> inter = seed.getIntersection(o.getRegion());
+                        Set<Voxel> inter = seed.getIntersectionVoxelSet(o.getRegion());
                         if (inter.isEmpty() || overlap==0) logger.debug("object: {} seed: {} overlap = {}, inter={}", o, seed, overlap, inter.size());
                         if (!inter.isEmpty()) {
-                            Voxel center = seed.getIntersection(o.getRegion()).stream().max(Comparator.comparingDouble(v -> centerI.getPixel(v.x, v.y, v.z))).get();
+                            Voxel center = seed.getIntersectionVoxelSet(o.getRegion()).stream().max(Comparator.comparingDouble(v -> centerI.getPixel(v.x, v.y, v.z))).get();
                             o.getRegion().setCenter(Point.asPoint((Offset) center));
                         } else o.getRegion().setCenter(o.getRegion().getGeomCenter(false).duplicate());
                     }

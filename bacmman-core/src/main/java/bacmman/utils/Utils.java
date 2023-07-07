@@ -1124,8 +1124,9 @@ public class Utils {
 
 
     public static String format(Number n, int digits) {
-        if (n instanceof Integer) {
-            return n.toString();
+        if (n instanceof Integer || n instanceof Long) {
+            if (Math.abs(n.intValue())<=1000) return n.toString();
+            else return String.format(java.util.Locale.US, "%."+digits+"E", n.doubleValue());
         } else {
             double abs = Math.abs(n.doubleValue());
             if (Double.isInfinite(abs) || Double.isNaN(abs)) return Measurements.NA_STRING; // NAN ?
@@ -1134,20 +1135,6 @@ public class Utils {
                 return String.format(java.util.Locale.US, "%."+ digits+ "E", n);
             } else {
                 return String.format(java.util.Locale.US, "%."+ digits+"f", n);
-            }
-        }
-    }
-    public static String format4(Number n) {
-        if (n instanceof Integer || n instanceof Long) {
-            if (Math.abs(n.intValue())<=1000) return n.toString();
-            else return String.format(java.util.Locale.US, "%.4E", n.doubleValue());
-        } else {
-            double abs = Math.abs(n.doubleValue());
-            if (Double.isInfinite(abs) || Double.isNaN(abs)) return Measurements.NA_STRING; // NAN ? 
-            if (abs > 1000 || (abs<0.1 && ((int)(abs*10000))/10000!=abs)) {
-                return String.format(java.util.Locale.US, "%.4E", n);
-            } else {
-                return String.format(java.util.Locale.US, "%.4f", n);
             }
         }
     }

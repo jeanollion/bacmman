@@ -7,6 +7,7 @@ import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleGraph;
 import org.jgrapht.util.SupplierUtil;
+import org.slf4j.LoggerFactory;
 
 import java.util.Comparator;
 import java.util.List;
@@ -16,7 +17,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SimpleTrackGraph<E> extends SimpleGraph<SegmentedObject, E> {
-
+    public static final org.slf4j.Logger logger = LoggerFactory.getLogger(SimpleTrackGraph.class);
     public static SimpleTrackGraph<DefaultEdge> createUnweightedGraph() {
         return new SimpleTrackGraph<>(DefaultEdge.class, false);
     }
@@ -27,30 +28,43 @@ public class SimpleTrackGraph<E> extends SimpleGraph<SegmentedObject, E> {
         super(null, SupplierUtil.createSupplier(edgeClass), weighted);
     }
 
-    public SimpleTrackGraph populateGraph(Stream<SegmentedObject> objects) {
+    public SimpleTrackGraph<E> populateGraph(Stream<SegmentedObject> objects) {
+        return populateGraph(objects, true, true);
+    }
+
+    public SimpleTrackGraph<E> populateGraph(Stream<SegmentedObject> objects, boolean prev, boolean next) {
         objects.forEach(o -> {
             addVertex(o);
-            SegmentedObject prev = o.getPrevious();
-            if (prev!=null) {
-                addVertex(prev);
-                addEdge(prev, o);
+            if (prev) {
+                SegmentedObject p = o.getPrevious();
+                if (p != null) {
+                    addVertex(p);
+                    addEdge(p, o);
+                }
             }
-            SegmentedObject next = o.getNext();
-            if (next!=null) {
-                addVertex(next);
-                addEdge(o, next);
+            if (next) {
+                SegmentedObject n = o.getNext();
+                if (n != null) {
+                    addVertex(n);
+                    addEdge(o, n);
+                }
             }
         });
         return this;
     }
     @Override
     public E addEdge(SegmentedObject sourceVertex, SegmentedObject targetVertex) {
-        if (sourceVertex.getFrame()>=targetVertex.getFrame()) throw new IllegalArgumentException("Cannot add track link if source frame is after target frame");
+        if (sourceVertex.getFrame()>=targetVertex.getFrame()) {
+            logger.error("Cannot add link if source frame {} is after target frame: {}", sourceVertex, targetVertex);
+            throw new IllegalArgumentException("Cannot add track link if source frame is after target frame");
+        }
+        addVertex(sourceVertex);
+        addVertex(targetVertex);
         return super.addEdge(sourceVertex, targetVertex);
     }
     public E addWeightedEdge(SegmentedObject sourceVertex, SegmentedObject targetVertex, double weight) {
         if (sourceVertex.getFrame()>=targetVertex.getFrame()) throw new IllegalArgumentException("Cannot add track link if source frame is after target frame");
-        E edge =  super.addEdge(sourceVertex, targetVertex);
+        E edge =  addEdge(sourceVertex, targetVertex);
         if (edge!=null) setEdgeWeight(edge, weight);
         else {
             // edge already present -> set max weight
@@ -68,16 +82,26 @@ public class SimpleTrackGraph<E> extends SimpleGraph<SegmentedObject, E> {
         return super.addEdge(sourceVertex, targetVertex, edge);
     }
     public Stream<E> getPreviousEdges(SegmentedObject v) {
+        if (!containsVertex(v)) return Stream.empty();
         return edgesOf(v).stream().filter(e->getEdgeTarget(e)==v);
     }
     public Stream<E> getNextEdges(SegmentedObject v) {
+        if (!containsVertex(v)) return Stream.empty();
         return edgesOf(v).stream().filter(e->getEdgeSource(e)==v);
     }
     public Stream<SegmentedObject> getPreviousObjects(SegmentedObject v) {
+        if (!containsVertex(v)) return Stream.empty();
         return edgesOf(v).stream().filter(e->getEdgeTarget(e)==v).map(this::getEdgeSource);
     }
     public Stream<SegmentedObject> getNextObjects(SegmentedObject v) {
+        if (!containsVertex(v)) return Stream.empty();
         return edgesOf(v).stream().filter(e->getEdgeSource(e)==v).map(this::getEdgeTarget);
+    }
+    public Stream<SegmentedObject> getNextObjects(Stream<SegmentedObject> objects) {
+        return objects.flatMap(this::getNextObjects);
+    }
+    public Stream<SegmentedObject> getPreviousObjects(Stream<SegmentedObject> objects) {
+        return objects.flatMap(this::getPreviousObjects);
     }
     public Stream<E> getPreviousEdges(Stream<SegmentedObject> objects) {
         return objects.flatMap(this::getPreviousEdges);

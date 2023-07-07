@@ -1213,7 +1213,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         });
     }
 
-    public void openExperiment(String dbName, String hostnameOrDir, boolean readOnly) {
+    public void openDataset(String dbName, String hostnameOrDir, boolean readOnly) {
         if (db!=null) closeExperiment();
         //long t0 = System.currentTimeMillis();
         if (hostnameOrDir==null) {
@@ -3368,7 +3368,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             closeExperiment();
         }
         else {
-            openExperiment(n.getRelativePath(), null, false);
+            openDataset(n.getRelativePath(), null, false);
             if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath());
         }
     }//GEN-LAST:event_setSelectedExperimentMenuItemActionPerformed
@@ -3395,19 +3395,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             db2.unlockConfiguration();
             db2.clearCache();
             populateDatasetTree();
-            openExperiment(relPath.v2, null, false);
+            openDataset(relPath.v2, null, false);
             if (this.db!=null) setSelectedExperiment(relPath.v2);
             return db!=null;
         }
     }//GEN-LAST:event_newXPMenuItemActionPerformed
 
     private void deleteXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_deleteXPMenuItemActionPerformed
-        List<String> xps = dsTree.getSelectedDatasetNames();
+        List<DatasetTree.DatasetTreeNode> xps = dsTree.getSelectedDatasetNames();
         if (xps==null || xps.isEmpty()) return;
         if (Utils.promptBoolean( "Delete Selected Dataset"+(xps.size()>1?"s":"")+" (all data will be lost)", this)) {
-            if (db!=null && xps.contains(db.getDBName())) closeExperiment();
-            for (String xpName : xps) {
-                MasterDAO mDAO = MasterDAOFactory.createDAO(xpName, getHostNameOrDir());
+            if (db!=null && xps.stream().map(DatasetTree.DatasetTreeNode::getFile).anyMatch(f->f.equals(db.getDir().toFile()))) closeExperiment();
+            for (DatasetTree.DatasetTreeNode n : xps) {
+                MasterDAO mDAO = MasterDAOFactory.createDAO(n.getName(), n.getFile().getAbsolutePath());
                 mDAO.setConfigurationReadOnly(false);
                 mDAO.eraseAll();
             }
@@ -3444,7 +3444,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             db2.unlockConfiguration();
             db1.clearCache();
             populateDatasetTree();
-            openExperiment(relPath.v2, null, false);
+            openDataset(relPath.v2, null, false);
             if (this.db!=null) setSelectedExperiment(relPath.v2);
         }
     }//GEN-LAST:event_duplicateXPMenuItemActionPerformed
@@ -3608,7 +3608,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     }//GEN-LAST:event_importConfigurationMenuItemActionPerformed
     
-    private Task getCurrentTask(String dbName) {
+    private Task getCurrentTask(String dbName, String dir) {
         
         boolean preProcess=false;
         boolean segmentAndTrack = false;
@@ -3638,8 +3638,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 t.setExtractByPosition(extractByPosition.getSelected());
             }
         } else if (dbName!=null) {
-            
-            t = new Task(dbName);
+            t = new Task(dbName, dir);
             if (extract && t.getDB()!=null) {
                 int[] selectedStructures = ArrayUtil.generateIntegerArray(t.getDB().getExperiment().getStructureCount());
                 for (int sIdx : selectedStructures) t.addExtractMeasurementDir(t.getDB().getDir().toFile().getAbsolutePath(), sIdx);
@@ -3658,7 +3657,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         logger.debug("will run ... unsaved changes in config: {}", db==null? false : db.experimentChangedFromFile());
         promptSaveUnsavedChanges();
         
-        Task t = getCurrentTask(null);
+        Task t = getCurrentTask(null, null);
         if (t==null) {
             log("Could not define task");
             return;
@@ -3757,11 +3756,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         MeasurementExtractor.extractMeasurementObjects(db, file, getSelectedPositions(true), null, keys);
     }
     private void runActionAllXPMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_runActionAllXPMenuItemActionPerformed
-        List<String> xps = dsTree.getSelectedDatasetNames();
+        List<DatasetTree.DatasetTreeNode> xps = dsTree.getSelectedDatasetNames();
         if (xps.isEmpty()) return;
         closeExperiment();
         List<Task> tasks = new ArrayList<>(xps.size());
-        for (String xp : xps) tasks.add(getCurrentTask(xp));
+        for (DatasetTree.DatasetTreeNode xp : xps) tasks.add(getCurrentTask(xp.getName(), xp.getFile().getAbsolutePath()));
         Task.executeTasks(tasks, getUserInterface(), getPreProcessingMemoryThreshold());
     }//GEN-LAST:event_runActionAllXPMenuItemActionPerformed
 
@@ -3780,8 +3779,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void compactLocalDBMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_compactLocalDBMenuItemActionPerformed
         if (this.localFileSystemDatabaseRadioButton.isSelected()) {
             closeExperiment();
-            for (String xp : dsTree.getSelectedDatasetNames()) {
-                DBMapMasterDAO dao = (DBMapMasterDAO)MasterDAOFactory.createDAO(xp, getHostNameOrDir());
+            for (DatasetTree.DatasetTreeNode xp : dsTree.getSelectedDatasetNames()) {
+                DBMapMasterDAO dao = (DBMapMasterDAO)MasterDAOFactory.createDAO(xp.getName(), xp.getFile().getAbsolutePath());
                 dao.lockPositions();
                 GUI.log("Compacting Dataset: "+xp);
                 dao.compact();
@@ -4007,7 +4006,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             Action addCurrentTask = new AbstractAction("Add Current Task to List") {
                 @Override
                 public void actionPerformed(ActionEvent e) {
-                    Task t = getCurrentTask(null);
+                    Task t = getCurrentTask(null, null);
                     if (t!=null) {
                         if (db!=null) t.setDBName(db.getDBName()).setDir(db.getDir().toFile().getAbsolutePath());
                         actionPoolListModel.addElement(t);
@@ -4056,12 +4055,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     Predicate<Selection> filter = segTrack ? s -> s.getStructureIdx()==parentStructure[0] : s->true;
                     List<String> allowedSelections = db.getSelectionDAO().getSelections().stream().filter(filter).map(Selection::getName).collect(Collectors.toList());
                     JMenu selMenu = new JMenu("Add current Task on Selection");
+                    selMenu.setEnabled(db!=null);
                     menu.add(selMenu);
                     for (String s : allowedSelections) {
                         Action selAction = new AbstractAction(s) {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Task t = getCurrentTask(null);
+                                Task t = getCurrentTask(null, null);
                                 if (t!=null) {
                                     t.setDBName(db.getDBName()).setDir(db.getDir().toFile().getAbsolutePath());
                                     t.setSelection(s);
@@ -4623,7 +4623,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             if (evt.getClickCount()==2 && dsTree.getSelectedDatasetRelPathIfOnlyOneSelected()!=null) {
                 String dbName = getSelectedExperiment();
                 if (dbName!=null && (db==null || !db.getDBName().equals(dbName))) { // only open other experiment
-                    openExperiment(dbName, null, false);
+                    openDataset(dbName, null, false);
                     if (db!=null) PropertyUtils.set(PropertyUtils.LAST_SELECTED_EXPERIMENT, dsTree.getSelectedDatasetIfOnlyOneSelected().getRelativePath());
                 }
             }
@@ -4631,7 +4631,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (SwingUtilities.isRightMouseButton(evt)) {
             JPopupMenu menu = new JPopupMenu();
             DatasetTree.DatasetTreeNode selectedDataset = dsTree.getSelectedDatasetIfOnlyOneSelected();
-            List<String> selectedDatasets = dsTree.getSelectedDatasetNames();
+            List<DatasetTree.DatasetTreeNode> selectedDatasets = dsTree.getSelectedDatasetNames();
             File openDatasetDir = db!=null ? db.getDir().toFile() : null;
             boolean openMode = selectedDataset==null || !selectedDataset.getFile().equals(openDatasetDir);
             Action openDatasetA = new AbstractAction(openMode ? "Open Dataset" : "Close Dataset") {

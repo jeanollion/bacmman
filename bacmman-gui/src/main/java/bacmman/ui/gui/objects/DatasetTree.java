@@ -242,10 +242,10 @@ public class DatasetTree {
         else return n;
     }
 
-    public List<String> getSelectedDatasetNames() {
+    public List<DatasetTreeNode> getSelectedDatasetNames() {
         TreePath[] sel = tree.getSelectionPaths();
         if (sel==null || sel.length==0) return Collections.emptyList();
-        return Arrays.stream(sel).map(s -> (DatasetTreeNode)s.getLastPathComponent()).filter(n->!n.isFolder).map(n->n.name).collect(Collectors.toList());
+        return Arrays.stream(sel).map(s -> (DatasetTreeNode)s.getLastPathComponent()).filter(n->!n.isFolder).collect(Collectors.toList());
     }
 
     public void setSelectedDataset(String dataset) {

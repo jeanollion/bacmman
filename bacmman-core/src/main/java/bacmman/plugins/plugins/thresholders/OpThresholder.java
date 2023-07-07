@@ -92,7 +92,7 @@ public class OpThresholder  { //implements ThresholderHisto, SimpleThresholder
         cond.addListener(p->{
             ConditionalParameter<String> cond = (ConditionalParameter)p;
             String m = cond.getActionableParameter().getValue();
-            if (cond.getActionParameters(m)==null) cond.setActionParameters(m, OpHelpers.getParameters(allOps.get(m)));
+            if (cond.getParameters(m)==null) cond.setActionParameters(m, OpHelpers.getParameters(allOps.get(m)));
         });
         
     }

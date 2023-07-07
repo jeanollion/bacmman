@@ -142,7 +142,7 @@ public class OverlapMatcher<O> {
 
         @Override
         public String toString() {
-            return o1 + "+" + o2 + " Overlap="+ Utils.format4(overlap);
+            return o1 + "+" + o2 + " Overlap="+ Utils.format(overlap, 3);
         }
     }
 }

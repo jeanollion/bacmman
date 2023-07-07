@@ -1,5 +1,6 @@
 package bacmman.data_structure;
 
+import bacmman.configuration.parameters.MeasurementFilterParameter;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.image.BoundingBox;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.EdgeContact;
@@ -127,6 +128,16 @@ public class SelectionOperations {
         }
     }
 
+    public static void filter(Selection sel, Predicate<SegmentedObject> filter) {
+        if (sel.getStructureIdx()==-2) return;
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(so -> !filter.test(so))
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
     public static List<String> getElements(List<Selection> selections, String fieldName) {
         if (selections==null || selections.isEmpty()) return Collections.EMPTY_LIST;
         selections.removeIf(s -> s.getStructureIdx()!=selections.get(0).getStructureIdx());

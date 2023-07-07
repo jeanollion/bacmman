@@ -152,7 +152,8 @@ public class DBMapMasterDAO implements MasterDAO {
         Utils.deleteDirectory(outputPath);
         Utils.deleteDirectory(outputImagePath);
         deleteExperiment();
-        configDir.toFile().delete();// deletes XP directory only if void.
+        boolean del = configDir.toFile().delete(); // deletes XP directory only if void.
+        logger.debug("deleted config dir: {}", del);
     }
     
     private File getConfigFile(String dbName) {

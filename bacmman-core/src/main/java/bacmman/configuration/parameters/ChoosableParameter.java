@@ -22,7 +22,7 @@ package bacmman.configuration.parameters;
  *
  * @author Jean Ollion
  */
-public interface ChoosableParameter<P extends Parameter<P>> extends Parameter<P>, Listenable<P> {
+public interface ChoosableParameter<P extends Parameter<P>> extends Parameter<P> {
     /**
      * Set {@param item} as selected
      * Should also fire listeners

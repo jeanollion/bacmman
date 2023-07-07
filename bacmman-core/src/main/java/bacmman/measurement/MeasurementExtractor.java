@@ -48,7 +48,7 @@ public class MeasurementExtractor {
     int structureIdx;
     MasterDAO db;
     public static Function<Number, String> numberFormater = (Number n) -> { // precision
-        return Utils.format4(n);
+        return Utils.format(n,5);
     };
     public MeasurementExtractor(MasterDAO db, int structureIdx) {
         this.db=db;

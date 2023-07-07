@@ -20,6 +20,8 @@ package bacmman.ui.gui.selection;
 
 import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
+import bacmman.configuration.parameters.MeasurementFilterParameter;
+import bacmman.configuration.parameters.SimpleListParameter;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
@@ -171,8 +173,10 @@ public class SelectionUtils {
                     if (!list.isSelectedIndex(row)) list.setSelectedIndex(row);
                     //logger.debug("right button on row: {}, ctrl {} ctrl", row, ctrl);
                     if (list.isSelectedIndex(row)) {
-                        JPopupMenu menu = generateMenu(list);
-                        menu.show(list, e.getX(), e.getY());
+                        JPopupMenu[] menu = new JPopupMenu[1];
+                        Runnable showMenu = () -> menu[0].show(list, e.getX(), e.getY());
+                        menu[0] = generateMenu(list, showMenu);
+                        showMenu.run();
                     }
                 }
                 GUI.setNavigationButtonNames(list.getSelectedIndex()>=0);
@@ -180,7 +184,7 @@ public class SelectionUtils {
         });
     }
     
-    private static JPopupMenu generateMenu(final JList list) {
+    private static JPopupMenu generateMenu(final JList list, Runnable showMenu) {
         JPopupMenu menu = new JPopupMenu("");
         final List<Selection> selectedValues = list.getSelectedValuesList();
         final List<Selection> allSelections = Utils.asList(list.getModel());
@@ -525,6 +529,7 @@ public class SelectionUtils {
                     }
                     if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
                     GUI.updateRoiDisplayForSelections(null, null);
+                    GUI.getInstance().populateSelections();
                     GUI.getInstance().resetSelectionHighlight();
                 });
                 edgeContactOCMenu.add(filter);
@@ -550,6 +555,7 @@ public class SelectionUtils {
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
         shortTrackFilter.setEnabled(!selectedValues.isEmpty());
@@ -563,6 +569,7 @@ public class SelectionUtils {
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
         trackEndFilter.setEnabled(!selectedValues.isEmpty());
@@ -576,6 +583,7 @@ public class SelectionUtils {
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
         trackMergeFilter.setEnabled(!selectedValues.isEmpty());
@@ -589,11 +597,43 @@ public class SelectionUtils {
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
             GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().populateSelections();
             GUI.getInstance().resetSelectionHighlight();
         });
         trackDivisionFilter.setEnabled(!selectedValues.isEmpty());
         filterMenu.add(trackDivisionFilter);
 
+        // measurement filters
+        JMenu measurementMenu = new JMenu("Measurement Filters");
+        menu.add(measurementMenu);
+        int selOcIdx = selectedValues.isEmpty()?-1:selectedValues.get(0).getStructureIdx();
+        SimpleListParameter<MeasurementFilterParameter> filters = new SimpleListParameter<>("MeasurementFilters", new MeasurementFilterParameter(selOcIdx, false));
+        filters.setParent(db.getExperiment());
+        PropertyUtils.setPersistent(filters, "measurement_filters");
+        filters.getActivatedChildren().forEach(f -> {
+            JMenu measFilterMenu = new JMenu(f.toString());
+            JMenuItem filter = new JMenuItem("Perform Filter...");
+            filter.addActionListener((ActionEvent e) -> {
+                for (Selection s : selectedValues) {
+                    SelectionOperations.filter(s, f.getFilter());
+                    s.getMasterDAO().getSelectionDAO().store(s);
+                }
+                if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().populateSelections();
+                GUI.getInstance().resetSelectionHighlight();
+            });
+            ConfigurationTreeGenerator.addToMenuCond(f, measFilterMenu, null, null, filter);
+            measurementMenu.add(measFilterMenu);
+        });
+        JMenuItem addFilter = new JMenuItem("Add Filter...");
+        addFilter.addActionListener((ActionEvent e) -> {
+            filters.insert(filters.createChildInstance());
+        });
+        measurementMenu.add(addFilter);
+        measurementMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
+
+        //
         JMenu getParentSelection = new JMenu("Create Parent/Child Selection");
         List<String> ocNamesWithRoot = new ArrayList<>(Arrays.asList(ocNames));
         ocNamesWithRoot.add(0, "Viewfield");

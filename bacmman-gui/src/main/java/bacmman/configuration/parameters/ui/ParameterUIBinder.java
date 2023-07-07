@@ -28,7 +28,7 @@ public class ParameterUIBinder {
         }
         if (p instanceof PluginParameter) {
             PluginParameter pp = (PluginParameter)p;
-            ChoiceParameterUI ui =  new ChoiceParameterUI(pp, "Modules", model);
+            ChoiceParameterUI ui =  new ChoiceParameterUI(pp, "Modules", model, null);
             if (pp.isOnePluginSet()) {
                 // get structureIdx
                 Structure s = bacmman.configuration.parameters.ParameterUtils.getFirstParameterFromParents(Structure.class, pp, false);
@@ -68,7 +68,7 @@ public class ParameterUIBinder {
         }
         if (p instanceof CustomParameter) {
             CustomParameter u = (CustomParameter)p;
-            ChoiceParameterUI ui =  new ChoiceParameterUI(u, "Parameters", model);
+            ChoiceParameterUI ui =  new ChoiceParameterUI(u, "Parameters", model, null);
             return ui;
         }
         if (p instanceof AbstractChoiceParameter) return new ChoiceParameterUI((AbstractChoiceParameter)p, model);

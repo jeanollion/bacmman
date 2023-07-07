@@ -299,7 +299,7 @@ public class Ellipse2D extends Region implements Analytical {
     }
 
     @Override
-    public Set<Voxel> getIntersection(Region other) {
+    public Set<Voxel> getIntersectionVoxelSet(Region other) {
         return Analytical.getIntersection(this, other);
     }
 

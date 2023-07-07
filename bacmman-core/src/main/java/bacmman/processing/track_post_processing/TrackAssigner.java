@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static bacmman.processing.track_post_processing.Track.getTrack;
 
@@ -63,15 +64,8 @@ public interface TrackAssigner {
                 Map<Integer, List<SegmentedObject>> map = new HashMap<>();
                 map.put(prevFrame, prevTracks.stream().map(Track::tail).collect(Collectors.toList()));
                 map.put(nextFrame, nextTracks.stream().map(Track::head).collect(Collectors.toList()));
-                LAPLinker<LAPLinker.SpotImpl> tmi = new LAPLinker<>(LAPLinker.defaultFactory());
-                tmi.addObjects(map);
-                boolean ok = tmi.processFTF(dMax, prevFrame, nextFrame);
-                Predicate<SegmentedObject> hasNoNext = so -> tmi.getAllNexts(tmi.graphObjectMapper.getGraphObject(so.getRegion())).isEmpty();
-                Predicate<SegmentedObject> hasNoPrev = so -> tmi.getAllPrevious(tmi.graphObjectMapper.getGraphObject(so.getRegion())).isEmpty();
-                while(map.get(prevFrame).stream().anyMatch(hasNoNext) || map.get(nextFrame).stream().anyMatch(hasNoPrev)) {
-                    tmi.processSegments(dMax, 0, true, true);
-                }
-                if (ok) {
+                LAPLinker<LAPLinker.SpotImpl> tmi = assign(dMax, map, prevFrame, nextFrame);
+                if (tmi!=null) {
                     //logger.debug("assign: number of edges {}, number of objects: {}", tmi.edgeCount(), tmi.graphObjectMapper.graphObjects().size());
                     tmi.setTrackLinks(map, editor, false, false);
                     nextTracks.forEach(n -> n.getPrevious().clear());
@@ -103,5 +97,21 @@ public interface TrackAssigner {
                 }
             }
         }
+    }
+
+    static LAPLinker<LAPLinker.SpotImpl> assign(double dMax, Map<Integer, List<SegmentedObject>> map,  int prevFrame, int nextFrame) {
+        //logger.error("assign {} to {}", map.get(prevFrame), map.get(nextFrame));
+        LAPLinker<LAPLinker.SpotImpl> tmi = new LAPLinker<>(LAPLinker.defaultFactory());
+        tmi.addObjects(map);
+        boolean ok = tmi.processFTF(dMax, prevFrame, nextFrame);
+        //logger.debug("assign FTF: {} -> {}", map.get(nextFrame), map.get(nextFrame).stream().map(o->tmi.getAllPrevious(tmi.graphObjectMapper.getGraphObject(o.getRegion())).stream().map(oo -> tmi.getSegmentedObject(map.get(prevFrame), oo)).collect(Collectors.toList())).collect(Collectors.toList()));
+        if (!ok) return null;
+        Predicate<SegmentedObject> hasNoNext = so -> tmi.getAllNexts(tmi.graphObjectMapper.getGraphObject(so.getRegion())).isEmpty();
+        Predicate<SegmentedObject> hasNoPrev = so -> tmi.getAllPrevious(tmi.graphObjectMapper.getGraphObject(so.getRegion())).isEmpty();
+        while(map.get(prevFrame).stream().anyMatch(hasNoNext) || map.get(nextFrame).stream().anyMatch(hasNoPrev)) {
+            tmi.processSegments(dMax, 0, true, true);
+            //logger.debug("assign SEG: {} -> {}", map.get(nextFrame), map.get(nextFrame).stream().map(o->tmi.getAllPrevious(tmi.graphObjectMapper.getGraphObject(o.getRegion())).stream().map(oo -> tmi.getSegmentedObject(map.get(prevFrame), oo)).collect(Collectors.toList())).collect(Collectors.toList()));
+        }
+        return tmi;
     }
 }

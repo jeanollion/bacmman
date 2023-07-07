@@ -61,7 +61,7 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
 
     private static void modifyBoundingBox(SegmentedObject parent, MutableBoundingBox toModify, BoundingBox parentBounds, ConditionalParameter<METHOD> axisParameter, int axisNumber) {
         METHOD method = ((EnumChoiceParameter<METHOD>)axisParameter.getActionableParameter()).getSelectedEnum();
-        List<Parameter> parameters = axisParameter.getActionParameters(method);
+        List<Parameter> parameters = axisParameter.getParameters(method);
         switch (method) {
             case NO_MODIFICATION:
             default:

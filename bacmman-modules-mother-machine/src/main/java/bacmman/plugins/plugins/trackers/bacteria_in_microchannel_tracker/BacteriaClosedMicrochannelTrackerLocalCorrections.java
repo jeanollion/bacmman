@@ -1236,7 +1236,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
             else name = "Step: "+snapshotIdx;
         }
         List<SegmentedObject> newParents = new ArrayList<>(parentsByF.size());
-        for (SegmentedObject p : parentsByF.values()) newParents.add(factory.duplicate(p,true, false, true));
+        for (SegmentedObject p : parentsByF.values()) newParents.add(factory.duplicate(p, p.getStructureIdx(),true, false, true));
         Collections.sort(newParents);
         SegmentedObjectUtils.setTrackLinks(newParents);
         stepParents.put(name, newParents);

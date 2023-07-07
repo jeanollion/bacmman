@@ -126,26 +126,9 @@ public class Duplicate extends SegmentationAndTrackingProcessingPipeline<Duplica
     }
 
     public static Map<SegmentedObject, SegmentedObject> duplicate(Stream<SegmentedObject> sourceStream, int targetObjectClassIdx, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        Map<SegmentedObject, SegmentedObject> sourceMapDup = sourceStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s,true, true, false)));
+        Map<SegmentedObject, SegmentedObject> sourceMapDup = sourceStream.collect(Collectors.toMap(s->s, s->factory.duplicate(s, targetObjectClassIdx,true, true, false)));
 
         // set trackHead, next & prev ids + structureIdx
-
-        // first set structureIdx because editor requires same structureIdx
-        Field sIdx;
-        try {
-            sIdx = SegmentedObject.class.getDeclaredField("structureIdx");
-            sIdx.setAccessible(true);
-        } catch (NoSuchFieldException | SecurityException e) {
-            throw new RuntimeException(e);
-
-        }
-        sourceMapDup.entrySet().stream().forEach(e->{
-            try { //using reflexion
-                sIdx.set(e.getValue(), targetObjectClassIdx);
-            } catch(IllegalAccessException | IllegalArgumentException ex) {
-                throw new RuntimeException(ex);
-            }
-        });
         if (editor!=null) {
             sourceMapDup.values().forEach(o -> editor.resetTrackLinks(o, true, true, false));
             // copy track links

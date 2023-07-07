@@ -28,6 +28,7 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReaderFile;
 import java.io.File;
 import java.io.FileFilter;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -429,16 +430,20 @@ public class ImageFieldFactory {
                 }
                 if (ok) {
                     logger.debug("creating container...");
-                    containersTC.add(
-                        new MultipleImageContainerPositionChannelFrame(
-                            input.getAbsolutePath(), 
-                            extension,
-                            posSep.length()>0 ? positionFiles.getKey() : "",
-                            frameSep, 
-                            channelKeywords, 
-                            frameNumber,
-                            positionFiles.getKey()
-                        ));
+                    try {
+                        containersTC.add(
+                            new MultipleImageContainerPositionChannelFrame(
+                                input.getAbsolutePath(),
+                                extension,
+                                posSep.length()>0 ? positionFiles.getKey() : "",
+                                frameSep,
+                                channelKeywords,
+                                frameNumber,
+                                positionFiles.getKey()
+                            ));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     logger.debug("container created");
                     if (importMetadata) {
                         for (int c = 0; c<channelKeywords.length; ++c) {

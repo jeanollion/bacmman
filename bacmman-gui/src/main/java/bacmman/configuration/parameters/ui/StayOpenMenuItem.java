@@ -30,7 +30,7 @@ import javax.swing.event.ChangeListener;
  */
 public class StayOpenMenuItem extends JMenuItem {
     private static MenuElement[] path;
-    MultipleChoiceParameterUI parent;
+    final Runnable showMenu;
     {
         getModel().addChangeListener(new ChangeListener() {
 
@@ -43,13 +43,13 @@ public class StayOpenMenuItem extends JMenuItem {
         });
     }
   
-  public StayOpenMenuItem(String text, MultipleChoiceParameterUI parent) {
-      this.parent=parent;
+  public StayOpenMenuItem(String text, Runnable showMenu) {
+      this.showMenu=showMenu;
   }
   @Override
   public void doClick(int pressTime) {
     super.doClick(pressTime);
-    parent.showMenu();
+    showMenu.run();
     MenuSelectionManager.defaultManager().setSelectedPath(path);
   }
 }

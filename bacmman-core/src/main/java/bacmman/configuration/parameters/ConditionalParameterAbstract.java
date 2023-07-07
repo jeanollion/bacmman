@@ -28,15 +28,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 /**
  *
  * @author Jean Ollion
  */
 
-public abstract class ConditionalParameterAbstract<V, T extends ConditionalParameterAbstract<V, T>> extends ContainerParameterImpl<T> implements ParameterWithLegacyInitialization<T, V> {
+public abstract class ConditionalParameterAbstract<V, T extends ConditionalParameterAbstract<V, T>> extends ContainerParameterImpl<T> implements ParameterWithLegacyInitialization<T, V>, Listenable<T> {
     ActionableParameter<V, ? extends ActionableParameter<V, ?>> action;
     HashMap<V, List<Parameter>> parameters;
+    HashMap<V, Supplier<List<Parameter>>> parameterSupplier = new HashMap<>();
     List<Parameter> defaultParameters;
     V currentValue;
 
@@ -82,6 +84,10 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         action.setConditionalParameter(this);
         setActionValue(action.getValue());
     }
+    public T setActionParameterSupplier(V actionValue, Supplier<List<Parameter>> parameterSupplier) {
+        this.parameterSupplier.put(actionValue, parameterSupplier);
+        return (T)this;
+    }
     public T setActionParameters(V actionValue, Parameter... parameters) {
         return setActionParameters(actionValue, parameters, false);
     }
@@ -93,9 +99,22 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     public V getActionValue() {
         return this.currentValue;
     }
-    public List<Parameter> getActionParameters(V actionValue) {
+    public List<Parameter> getParameters(V actionValue) {
+        List<Parameter> params = getOrCreateParameters(actionValue);
+        if (params==null) return defaultParameters;
+        else return params;
+    }
+
+    protected List<Parameter> getOrCreateParameters(V actionValue) {
         if (parameters.containsKey(actionValue)) return parameters.get(actionValue);
-        else return defaultParameters;
+        else if (parameterSupplier.containsKey(actionValue)) {
+            parameters.put(actionValue, parameterSupplier.get(actionValue).get());
+            return parameters.get(actionValue);
+        } else return null;
+    }
+
+    public List<Parameter> getCurrentParameters() {
+        return getParameters(currentValue);
     }
 
     public T setActionParameters(V actionValue, List<Parameter> parameters, boolean setContentFromAlreadyPresent) {
@@ -157,17 +176,17 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
             action.setContentFrom(otherC.action);
             action.setConditionalParameter(this);
             V currentAction = otherC.currentValue;
-            List<Parameter> currentParameters = currentAction==null? null : otherC.getParameters(currentAction);
             Map<V, List<Parameter>> otherParams = otherC.parameters;
             for (Entry<V, List<Parameter>> e : otherParams.entrySet()) {
                 if (e.getKey().equals(currentAction)) continue; // current action at the end, in case that parameters are used
-                ParameterUtils.setContent(parameters.get(e.getKey()), e.getValue());
+                ParameterUtils.setContent(getOrCreateParameters(e.getKey()), e.getValue());
             }
             if (otherC.defaultParameters!=null && defaultParameters!=null) {
                 ParameterUtils.setContent(defaultParameters, otherC.defaultParameters);
             } else this.defaultParameters=null;
+            List<Parameter> currentParameters = currentAction==null? null : otherC.getOrCreateParameters(currentAction);
             if (currentAction!=null && currentParameters!=null) { // set current action @ the end
-                ParameterUtils.setContent(parameters.get(currentAction), currentParameters);
+                ParameterUtils.setContent(getOrCreateParameters(currentAction), currentParameters);
             }
             setActionValue(action.getValue());
             bypassListeners=false;
@@ -180,20 +199,9 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         if (actionValue==null) return;
         currentValue = actionValue;
         if (!action.getValue().equals(actionValue)) this.action.setValue(actionValue); // avoid loop
-        fireListeners();
         initChildList();
+        fireListeners(); // TODO : was before initChildList before
         //logger.debug("setActionValue: {} value: {}, class: {}, children: {}, allActions: {}",this.hashCode(), actionValue, actionValue.getClass().getSimpleName(), getCurrentParameters()==null ? "null" : getCurrentParameters().size(), this.parameters.keySet());
-    }
-
-    public List<Parameter> getParameters(V actionValue) {
-        List<Parameter> p = this.parameters.get(actionValue);
-        if (p==null) return defaultParameters;
-        else return p;
-    }
-
-    public List<Parameter> getCurrentParameters() {
-        if (parameters.containsKey(currentValue)) return parameters.get(currentValue);
-        else return defaultParameters;
     }
 
     @Override
@@ -221,5 +229,12 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
     public T setLegacyInitializationValue(V value) {
         if (action instanceof ParameterWithLegacyInitialization) ((ParameterWithLegacyInitialization<?, V>) action).setLegacyInitializationValue(value);
         return (T)this;
+    }
+
+    @Override
+    public T duplicate() {
+        ConditionalParameterAbstract res = super.duplicate();
+        res.parameterSupplier.putAll(parameterSupplier);
+        return (T)res;
     }
 }

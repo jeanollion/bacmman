@@ -12,10 +12,9 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class ObjectGraph<S extends GraphObject<S>> {
-
-
     public static final org.slf4j.Logger logger = LoggerFactory.getLogger(ObjectGraph.class);
     protected SimpleWeightedGraph< S, DefaultWeightedEdge> graph;
     public final GraphObjectMapper<S>  graphObjectMapper;
@@ -31,6 +30,26 @@ public class ObjectGraph<S extends GraphObject<S>> {
     protected SimpleWeightedGraph< S, DefaultWeightedEdge> getGraph() {
         if (graph==null) graph = new SimpleWeightedGraph<>( DefaultWeightedEdge.class );
         return graph;
+    }
+    public <E> SimpleTrackGraph<E> getSegmentedObjectGraph(Map<Integer, List<SegmentedObject>> objectsByF, boolean weighted) {
+        SimpleTrackGraph<E> res = weighted ? (SimpleTrackGraph<E>)SimpleTrackGraph.createWeightedGraph() : (SimpleTrackGraph<E>)SimpleTrackGraph.createUnweightedGraph();
+        objectsByF.values().stream().flatMap(Collection::stream).forEach(res::addVertex);
+        objectsByF.forEach( (f, l ) -> {
+            l.forEach( tO -> {
+                S t = graphObjectMapper.getGraphObject(tO.getRegion());
+                if (graph.containsVertex(t)) {
+                    getAllEdges(t, true, false).forEach( e -> {
+                        S s = graph.getEdgeSource(e);
+                        SegmentedObject sO = getSegmentedObject(objectsByF.get(s.getFrame()), s);
+                        if (sO!=null) {
+                            if (weighted) res.addWeightedEdge(sO, tO, graph.getEdgeWeight(e));
+                            else res.addEdge(sO, tO);
+                        }
+                    });
+                }
+            });
+        });
+        return res;
     }
     public void removeObject(Region o, int frame) {
         S s = graphObjectMapper.remove(o);
@@ -162,10 +181,10 @@ public class ObjectGraph<S extends GraphObject<S>> {
             }
         }
     }
-    public Set<DefaultWeightedEdge> getAllEdges(S s, boolean previous, boolean next) {
-        Set<DefaultWeightedEdge> set = graph.edgesOf(s);
-        if (!previous) set.removeIf(e -> graph.getEdgeTarget(e).equals(s));
-        if (!next) set.removeIf(e -> graph.getEdgeSource(e).equals(s));
+    public Stream<DefaultWeightedEdge> getAllEdges(S s, boolean previous, boolean next) {
+        Stream<DefaultWeightedEdge> set = graph.edgesOf(s).stream();
+        if (!previous) set = set.filter(e -> !graph.getEdgeTarget(e).equals(s));
+        if (!next) set = set.filter(e -> !graph.getEdgeSource(e).equals(s));
         return set;
     }
 
@@ -265,11 +284,11 @@ public class ObjectGraph<S extends GraphObject<S>> {
     }
     public List<S> getAllPrevious(S t) {
         if (!graph.containsVertex(t)) return Collections.emptyList();
-        return graph.edgesOf(t).stream().map(e->graph.getEdgeSource(e)).filter(e->!e.equals(t)).collect(Collectors.toList());
+        return graph.edgesOf(t).stream().filter(e->graph.getEdgeTarget(e).equals(t)).map(e->graph.getEdgeSource(e)).collect(Collectors.toList());
     }
     public List<S> getAllNexts(S t) {
         if (!graph.containsVertex(t)) return Collections.emptyList();
-        return graph.edgesOf(t).stream().map(e->graph.getEdgeTarget(e)).filter(e->!e.equals(t)).collect(Collectors.toList());
+        return graph.edgesOf(t).stream().filter(e->graph.getEdgeSource(e).equals(t)).map(e->graph.getEdgeTarget(e)).collect(Collectors.toList());
     }
     public S getNext(S s) {
         List<S> nexts = getAllNexts(s);

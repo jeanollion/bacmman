@@ -846,8 +846,8 @@ public class Region {
         }
     }
     
-    public Set<Voxel> getIntersection(Region other) { // TODO: version without voxels
-        if (other instanceof Analytical) return other.getIntersection(this); // spot version is more efficient
+    public Set<Voxel> getIntersectionVoxelSet(Region other) { // TODO: version without voxels
+        if (other instanceof Analytical) return other.getIntersectionVoxelSet(this); // spot version is more efficient
         if (!boundsIntersect(other)) return Collections.emptySet();
         if (other.is2D()!=is2D()) { // should not take into account z for intersection -> cast to voxel2D (even for the 2D object to enshure voxel2D), and return voxels from the 3D objects
             Set s1 = Sets.newHashSet(Utils.transform(getVoxels(), Voxel::toVoxel2D));
@@ -870,6 +870,38 @@ public class Region {
                 return res;
             }
         }
+    }
+
+    public ImageMask getIntersectionMask(Region other) {
+        BoundingBox otherBounds =  new SimpleBoundingBox(other.getBounds());
+        BoundingBox thisBounds = new SimpleBoundingBox(getBounds());
+        final boolean inter2D = is2D() || other.is2D();
+        if (inter2D) {
+            if (!intersect2D(thisBounds, otherBounds)) return null;
+        } else {
+            if (!BoundingBox.intersect(thisBounds, otherBounds)) return null;
+        }
+
+        final ImageMask mask = is2D() && !other.is2D() ? new ImageMask2D(getMask()) : getMask();
+        final ImageMask otherMask = other.is2D() && !is2D() ? new ImageMask2D(other.getMask()) : other.getMask();
+        BoundingBox inter = inter2D ? (is2D() ? getIntersection2D(otherBounds, thisBounds):getIntersection2D(thisBounds, otherBounds)) : BoundingBox.getIntersection(thisBounds, otherBounds);
+        ImageByte resMask = new ImageByte("inter", new SimpleImageProperties(inter, getScaleXY(), getScaleZ()));
+        //logger.debug("off: {}, otherOff: {}, is2D: {} other Is2D: {}, inter: {}", thisBounds, otherBounds, is2D(), other.is2D(), inter);
+
+        final int offX = thisBounds.xMin();
+        final int offY = thisBounds.yMin();
+        final int offZ = thisBounds.zMin();
+        final int otherOffX = otherBounds.xMin();
+        final int otherOffY = otherBounds.yMin();
+        final int otherOffZ = otherBounds.zMin();
+        BoundingBox.LoopPredicate intersect = (x, y, z) -> mask.insideMask(x - offX, y - offY, z - offZ) && otherMask.insideMask(x - otherOffX, y - otherOffY, z - otherOffZ);
+        BoundingBox.loop(inter, (x, y, z) -> resMask.setPixelWithOffset(x, y, z, 1), intersect);
+        return resMask;
+    }
+
+    public Region getIntersection(Region other) {
+        ImageMask mask = getIntersectionMask(other);
+        return new Region(mask, 1, is2D() && other.is2D());
     }
 
     public boolean boundsIntersect(Region other) {

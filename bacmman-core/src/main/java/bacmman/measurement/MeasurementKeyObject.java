@@ -34,4 +34,5 @@ public class MeasurementKeyObject extends MeasurementKey {
     public int getStoreStructureIdx() {
         return structureIdx;
     }
+
 }

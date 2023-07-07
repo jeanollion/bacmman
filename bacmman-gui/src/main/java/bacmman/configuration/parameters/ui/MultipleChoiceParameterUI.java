@@ -58,7 +58,7 @@ public class MultipleChoiceParameterUI implements ParameterUI {
         listJsp.setMinimumSize(new Dimension(100, 300));
         updateUIFromParameter();
         menuItems = new JMenuItem[2];
-        menuItems[0] = new StayOpenMenuItem("Select All", this);
+        menuItems[0] = new StayOpenMenuItem("Select All", this::showMenu);
         menuItems[0].setAction(
             new AbstractAction("Select All") {
                 @Override

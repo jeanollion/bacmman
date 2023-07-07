@@ -36,21 +36,21 @@ public class TestOverlapRegions {
 
         // intersect spot - voxels
         Set<Voxel> inter2D = new HashSet<>(other2D.subList(0, 3));
-        assertEquals("intersect spot2D - o 2D", inter2D, s2D.getIntersection(o2D));
+        assertEquals("intersect spot2D - o 2D", inter2D, s2D.getIntersectionVoxelSet(o2D));
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 1), new Voxel(2, 3, 1), new Voxel(2, 2, -1), new Voxel(2, 3, -1)));
-        assertEquals("intersect spot3D - o 2D", inter2D, o2D.getIntersection(s3D));
+        assertEquals("intersect spot3D - o 2D", inter2D, o2D.getIntersectionVoxelSet(s3D));
         inter2D = new HashSet<>();
         inter2D.addAll(Arrays.asList(new Voxel(3, 2, 0), new Voxel(2, 2, 0)));
-        assertEquals("intersect spot2D - o 2D(z1)", inter2D, o2D1.getIntersection(s2D));
+        assertEquals("intersect spot2D - o 2D(z1)", inter2D, o2D1.getIntersectionVoxelSet(s2D));
         inter2D = new HashSet<>();
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 0), new Voxel(3, 2, 0), new Voxel(2, 2, 1), new Voxel(2, 2, -1)));
-        assertEquals("intersect spot3D - o 2D(z1)", inter2D, o2D1.getIntersection(s3D));
+        assertEquals("intersect spot3D - o 2D(z1)", inter2D, o2D1.getIntersectionVoxelSet(s3D));
         inter2D = new HashSet<>(other2D.subList(0, 3));
         inter2D.addAll(other2D1);
-        assertEquals("intersect spot2D - o 3D", inter2D, s2D.getIntersection(o3D));
+        assertEquals("intersect spot2D - o 3D", inter2D, s2D.getIntersectionVoxelSet(o3D));
         Set<Voxel> inter3D = new HashSet<>(other2D.subList(0, 3));
         inter3D.add(new Voxel(2, 2, 1));
-        assertEquals("intersect spot3D - o 3D", inter3D, o3D.getIntersection(s3D));
+        assertEquals("intersect spot3D - o 3D", inter3D, o3D.getIntersectionVoxelSet(s3D));
 
 
         // intersect spot - mask
@@ -58,17 +58,17 @@ public class TestOverlapRegions {
         o2D1.clearVoxels();
         o3D.clearVoxels();
         inter2D = new HashSet<>(other2D.subList(0, 3));
-        assertEquals("intersect spot2D - mask 2D", inter2D, s2D.getIntersection(o2D));
+        assertEquals("intersect spot2D - mask 2D", inter2D, s2D.getIntersectionVoxelSet(o2D));
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 1), new Voxel(2, 3, 1), new Voxel(2, 2, -1), new Voxel(2, 3, -1)));
-        assertEquals("intersect spot3D - mask 2D", inter2D, o2D.getIntersection(s3D));
+        assertEquals("intersect spot3D - mask 2D", inter2D, o2D.getIntersectionVoxelSet(s3D));
         //assertEquals("intersect spot2D - mask 2D(z1)", Collections.emptySet(), o2D1.getIntersection(s2D));
         inter2D = new HashSet<>();
         inter2D.addAll(Arrays.asList(new Voxel(2, 2, 0), new Voxel(3, 2, 0), new Voxel(2, 2, 1), new Voxel(2, 2, -1)));
-        assertEquals("intersect spot3D - mask 2D(z1)", inter2D, o2D1.getIntersection(s3D));
+        assertEquals("intersect spot3D - mask 2D(z1)", inter2D, o2D1.getIntersectionVoxelSet(s3D));
         inter2D = new HashSet<>(other2D.subList(0, 3));
         inter2D.addAll(other2D1);
-        assertEquals("intersect spot2D - mask 3D", inter2D, s2D.getIntersection(o3D));
-        assertEquals("intersect spot3D - mask3D", inter3D, o3D.getIntersection(s3D));
+        assertEquals("intersect spot2D - mask 3D", inter2D, s2D.getIntersectionVoxelSet(o3D));
+        assertEquals("intersect spot3D - mask3D", inter3D, o3D.getIntersectionVoxelSet(s3D));
 
     }
 }

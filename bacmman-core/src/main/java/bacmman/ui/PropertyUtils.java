@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.Properties;
+import java.util.function.Consumer;
 import javax.swing.*;
 
 /**
@@ -255,7 +256,6 @@ public class PropertyUtils {
         }
         return idxSel;
     }
-
     public static void setPersistent(Listenable parameter, String key) {
         if (parameter instanceof NumberParameter) {
             NumberParameter np = (NumberParameter)parameter;    
@@ -276,19 +276,35 @@ public class PropertyUtils {
                 PropertyUtils.set(key, p.getValue());
             });
         } else if (parameter instanceof JSONSerializable) {
-            JSONSerializable jp = ((JSONSerializable)parameter);
+            setPersistentJSON(parameter, key, null);
+        } else logger.debug("persistence on parameter not supported yet: {} of class {}", parameter.toString(), parameter.getClass());
+    }
+
+    protected static void setPersistentJSON(Listenable parameter, String key, Consumer<Parameter> listener) {
+        Consumer<Parameter> consumer;
+        if (listener == null) {
+            JSONSerializable jp = ((JSONSerializable) parameter);
             String jsonString = get(key, "");
-            if (jsonString.length()>0) {
+            if (jsonString.length() > 0) {
                 try {
                     Object o = new JSONParser().parse(jsonString);
                     jp.initFromJSONEntry(o);
                 } catch (ParseException ex) {
-                    logger.info("Persistence error for "+key+": could not parse: "+jsonString, ex);
+                    logger.info("Persistence error for " + key + ": could not parse: " + jsonString, ex);
                 }
             }
-            parameter.addListener(p -> {
-                PropertyUtils.set(key, ((JSONSerializable)p).toJSONEntry().toString());
+            consumer = p -> PropertyUtils.set(key, jp.toJSONEntry().toString()); // here we want the consumer to be applied on jp and not on sub parameters
+
+        } else consumer = listener;
+        parameter.addListener(consumer);
+        if (parameter instanceof ContainerParameter) {
+            ((ContainerParameter)parameter).getChildren().stream().filter(p -> p instanceof Listenable).forEach( p -> {
+                setPersistentJSON((Listenable) p, key, consumer);
             });
-        } else logger.debug("persistence on parameter not supported yet: {} of class {}", parameter.toString(), parameter.getClass());
+        }
+        if (parameter instanceof ConditionalParameterAbstract) {
+            Parameter action = ((ConditionalParameterAbstract)parameter).getActionableParameter();
+            if (action instanceof Listenable) setPersistentJSON((Listenable)action, key, consumer);
+        }
     }
 }
