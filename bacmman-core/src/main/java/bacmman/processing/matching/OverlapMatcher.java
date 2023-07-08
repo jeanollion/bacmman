@@ -37,7 +37,10 @@ public class OverlapMatcher<O> {
         return (g, s) -> g.is2D() ? BoundingBox.getIntersection2D(getBB.apply(g, gOff), getBB.apply(s, sOff)).getSizeXY() :
                 BoundingBox.getIntersection(getBB.apply(g, gOff), getBB.apply(s, sOff)).getSizeXYZ();
     }
-
+    public static void filterLowOverlapAbsoluteAndProportionSegmentedObject(OverlapMatcher<SegmentedObject> matcher, double minOverlapProportion, double minOverlapAbsolute, boolean or) {
+        if (or) matcher.addFilter( o -> o.overlap>minOverlapAbsolute || o.overlap / Math.min(o.o1.getRegion().size(), o.o2.getRegion().size()) >minOverlapProportion);
+        else matcher.addFilter( o -> o.overlap>minOverlapAbsolute && o.overlap / Math.min(o.o1.getRegion().size(), o.o2.getRegion().size()) >minOverlapProportion);
+    }
     public static void filterLowOverlapProportionSegmentedObject(OverlapMatcher<SegmentedObject> matcher, double minOverlapProportion) {
         matcher.addFilter( o -> o.overlap / Math.min(o.o1.getRegion().size(), o.o2.getRegion().size()) >minOverlapProportion);
     }

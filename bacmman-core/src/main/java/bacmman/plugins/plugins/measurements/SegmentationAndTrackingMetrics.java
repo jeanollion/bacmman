@@ -15,7 +15,6 @@ import bacmman.processing.matching.OverlapMatcher;
 import bacmman.processing.matching.SimpleTrackGraph;
 import bacmman.processing.track_post_processing.TrackAssigner;
 import bacmman.utils.HashMapGetCreate;
-import bacmman.utils.Pair;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
 import org.eclipse.collections.impl.factory.Sets;
@@ -32,8 +31,6 @@ import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toSet;
 
 public class SegmentationAndTrackingMetrics implements MultiThreaded, Measurement, Hint {
@@ -44,12 +41,16 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     SimplePluginParameterList<PostFilterFeature> removeObjects = new SimplePluginParameterList<>("Filter Objects", "Filter", PostFilterFeature.class, new FeatureFilter(), false).setHint("Filters that select objects that should be included (e.g. object not in contact with edges");
     BooleanParameter objectWise = new BooleanParameter("Per Object", false).setHint("If true, errors will be set in each segmented object's measurement");
     ArrayNumberParameter mitosisFrameTolerance = new ArrayNumberParameter("Mitosis Frame Tolerance", -1, new BoundedNumberParameter("Frame Number", 0, 0, 0, null)).setHint("During assessment of track matching, this parameter (i) adds a tolerance to mitosis detection: for two division events to be considered matching (one in the ground truth and one in the object class to be compared), they are allowed to be separated by no more than i frames");
-    enum MATCHING_MODE {OVERLAP, OVERLAP_PROPORTION}
+    enum MATCHING_MODE {OVERLAP_ABSOLUTE, OVERLAP_PROPORTION, OVERLAP_PROPORTION_OR_ABSOLUTE, OVERLAP_PROPORTION_AND_ABSOLUTE}
     EnumChoiceParameter<MATCHING_MODE> matchingMode = new EnumChoiceParameter<>("Matching mode", MATCHING_MODE.values(), MATCHING_MODE.OVERLAP_PROPORTION);
 
     BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5,1, 0, null).setEmphasized(true).setHint("Min absolute overlap (in pixels) to consider a match between two objects");
     BoundedNumberParameter minOverlapProp = new BoundedNumberParameter("Min Overlap", 5,0.25, 0, 1).setEmphasized(true).setHint("Min overlap proportion to consider a match between two objects.");
-    ConditionalParameter<MATCHING_MODE> matchingModeCond = new ConditionalParameter<>(matchingMode).setActionParameters(MATCHING_MODE.OVERLAP, minOverlap).setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION, minOverlapProp);
+    ConditionalParameter<MATCHING_MODE> matchingModeCond = new ConditionalParameter<>(matchingMode)
+            .setActionParameters(MATCHING_MODE.OVERLAP_ABSOLUTE, minOverlap)
+            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION, minOverlapProp)
+            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION_OR_ABSOLUTE, minOverlap, minOverlapProp)
+            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION_AND_ABSOLUTE, minOverlap, minOverlapProp);
     @Override
     public String getHintText() {
         return "Computes metrics to evaluate segmentation and tracking precision of an object class ( P = ∪(Pᵢ) ) relatively to a ground truth object class ( G = ∪(Gᵢ) ). Metrics are computed per frame. Objects of P are matching with objects of G if the overlap is higher that the user-defined threshold." +
@@ -140,12 +141,20 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         // compute all overlaps between regions and put non null overlap in a map
         OverlapMatcher<SegmentedObject> matcher = new OverlapMatcher<>(OverlapMatcher.segmentedObjectOverlap());
         switch (matchingMode.getSelectedEnum()) {
-            case OVERLAP: {
+            case OVERLAP_ABSOLUTE: {
                 OverlapMatcher.filterLowOverlap(matcher, minOverlap.getDoubleValue());
                 break;
             }
             case OVERLAP_PROPORTION: {
                 OverlapMatcher.filterLowOverlapProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue());
+                break;
+            }
+            case OVERLAP_PROPORTION_AND_ABSOLUTE: {
+                OverlapMatcher.filterLowOverlapAbsoluteAndProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue(), minOverlap.getDoubleValue(), false);
+                break;
+            }
+            case OVERLAP_PROPORTION_OR_ABSOLUTE: {
+                OverlapMatcher.filterLowOverlapAbsoluteAndProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue(), minOverlap.getDoubleValue(), true);
                 break;
             }
         }
@@ -513,7 +522,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         ObjectGraph correctedMatchGraph = matchGraph.duplicate(frame-1, frame);
         ToDoubleBiFunction<SegmentedObject, SegmentedObject> getOverlap;
         switch (matchingMode.getSelectedEnum()) {
-            case OVERLAP:
+            case OVERLAP_ABSOLUTE:
                 getOverlap = (gt, pred) -> pred.getRegion().size();
                 break;
             case OVERLAP_PROPORTION:
@@ -525,7 +534,6 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         int predOCIdx = objectClass.getSelectedClassIdx();
         int[] fp_fn_total_Links = new int[3];
         // handle under-segmentation by splitting
-        //Set<SegmentedObject> intermediateCells = new HashSet<>(); // cells created in the process of splitting
         SegmentedObjectFactory factory = getFactory(gtOCIdx);
         Function<SegmentedObject, List<SegmentedObject>> splitPred = pred -> {
             List<SegmentedObject> gtL = correctedMatchGraph.getAllMatching(pred, false).collect(Collectors.toList());
@@ -542,7 +550,6 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     Region inter = pred.getRegion().getIntersection(gt.getRegion());
                     logger.debug("Split: {} create inter: size {} / {} = {}. Overlap = {}", pred, pred.getRegion().size(), gt.getRegion().size(), inter.size(), correctedMatchGraph.getOverlap(gt, pred));
                     SegmentedObject interSO = new SegmentedObject(pred.getFrame(), pred.getStructureIdx(), pred.getIdx(), inter, pred.getParent());
-                    //intermediateCells.add(interSO);
                     correctedMatchGraph.prediction.get(pred.getFrame()).add(interSO);
                     correctedMatchGraph.addEdge(gt, interSO, getOverlap.applyAsDouble(gt, interSO));
                     return interSO;
@@ -565,6 +572,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             } else logger.error("Could not assign: {} + {}", predPrev, predNext);
         };
         // split at frame
+        Set<DefaultEdge> splitEdges = new HashSet<>(); // record split edges to remove those not corresponding to errors after
         new ArrayList<>(predGraph.vertexSet()).stream().filter(o -> o.getFrame()==frame)
             .forEach(predNext -> {
                 List<SegmentedObject> predNextSplit = splitPred.apply(predNext);
@@ -574,8 +582,8 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     predGraph.removeVertex(predNext);
                     predNextSplit.forEach(predGraph::addVertex);
                     if (predPrev.size() == 1) {
-                        predNextSplit.forEach(cur -> predGraph.addEdge(predPrev.get(0), cur));
-                        logger.debug("split next: {} -> {} prev={}", predNext, predNextSplit, predPrev);
+                        predNextSplit.forEach(cur -> splitEdges.add(predGraph.addEdge(predPrev.get(0), cur)));
+                        //logger.debug("split next: {} -> {} prev={}", predNext, predNextSplit, predPrev);
                     } else if (predPrev.size()>1) { // assign by minimizing distances
                         assign.accept(predPrev, predNextSplit);
                     }
@@ -592,7 +600,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     predGraph.removeVertex(predPrev);
                     predPrevSplit.forEach(predGraph::addVertex);
                     if (predNext.size() == 1) {
-                        predPrevSplit.forEach(prev -> predGraph.addEdge(prev, predNext.get(0)));
+                        predPrevSplit.forEach(prev -> splitEdges.add(predGraph.addEdge(prev, predNext.get(0))));
                         logger.debug("split prev: {} -> {} next={}", predPrev, predPrevSplit, predNext);
                     } else if (predNext.size()>1) { // assign by minimizing distances
                         assign.accept(predPrevSplit, predNext);
@@ -601,6 +609,8 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             }
         );
         // handle over-segmentation by merging
+        Set<SegmentedObject> mergedNext = new HashSet<>();
+        Set<SegmentedObject> mergedPrev = new HashSet<>();
         // merge at previous frame
         gtGraph.vertexSet().stream().filter(o -> o.getFrame() == frame - 1)
             .forEach(gtPrev -> {
@@ -609,9 +619,17 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     predPrev.forEach(p -> correctedMatchGraph.removeVertex(p, false));
                     SegmentedObject gtPredPrev = factory.duplicate(gtPrev, predOCIdx, true, false, false);
                     correctedMatchGraph.addEdge(gtPrev, gtPredPrev, getOverlap.applyAsDouble(gtPrev, gtPredPrev));
-                    List<SegmentedObject> predNext = predGraph.getNextObjects(predPrev.stream()).collect(Collectors.toList());
-                    predPrev.forEach(predGraph::removeVertex);
+                    List<Set<SegmentedObject>> allPredNext = predPrev.stream().map(pp -> predGraph.getNextObjects(pp).collect(Collectors.toSet())).collect(Collectors.toList());
+                    Set<SegmentedObject> predNext = allPredNext.stream().flatMap(Collection::stream).collect(Collectors.toSet());
+                    predPrev.forEach(pp -> {
+                        predGraph.getNextEdges(pp).filter(splitEdges::contains).forEach(e -> { // keep track of split edges
+                            splitEdges.remove(e);
+                            splitEdges.add(predGraph.addEdge(gtPredPrev, predGraph.getEdgeTarget(e)));
+                        });
+                        predGraph.removeVertex(pp);
+                    });
                     predNext.forEach(n -> predGraph.addEdge(gtPredPrev, n));
+                    mergedPrev.add(gtPrev);
                 }
             }
         );
@@ -623,9 +641,17 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     predNext.forEach(p -> correctedMatchGraph.removeVertex(p, false));
                     SegmentedObject gtPredNext = factory.duplicate(gtNext, predOCIdx, true, false, false);
                     correctedMatchGraph.addEdge(gtNext, gtPredNext, getOverlap.applyAsDouble(gtNext, gtPredNext));
-                    List<SegmentedObject> predPrev = predGraph.getPreviousObjects(predNext.stream()).collect(Collectors.toList());
-                    predNext.forEach(predGraph::removeVertex);
+                    List<Set<SegmentedObject>> allPredPrev = predNext.stream().map(pn -> predGraph.getPreviousObjects(pn).collect(Collectors.toSet())).collect(Collectors.toList());
+                    Set<SegmentedObject> predPrev = allPredPrev.stream().flatMap(Collection::stream).collect(Collectors.toSet());
+                    predNext.forEach(pn -> { // update split links
+                        predGraph.getPreviousEdges(pn).filter(splitEdges::contains).forEach(e -> { // keep track of split edges
+                            splitEdges.remove(e);
+                            splitEdges.add(predGraph.addEdge(predGraph.getEdgeSource(e), gtPredNext));
+                        });
+                        predGraph.removeVertex(pn);
+                    });
                     predPrev.forEach(p -> predGraph.addEdge(p, gtPredNext));
+                    mergedNext.add(gtNext);
                 }
             }
         );
@@ -639,57 +665,137 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             } else if (gtL.size()==1) return gtL.get(0);
             else return null;
         };
-        Utils.TriConsumer<SegmentedObject, Integer,  Boolean> addLinkError = (so, n, fp) -> {
-            if (matchGraph.exclude(so, so.getStructureIdx() == gtOCIdx) || matchGraph.excludeMatching(so, so.getStructureIdx() == gtOCIdx)) return;
-            fp_fn_total_Links[fp ? 0 : 1]+=n;
+        Utils.TriConsumer<SegmentedObject, List<SegmentedObject>,  Boolean> addLinkError = (o, errors, isFP) -> {
+            if (matchGraph.exclude(o, o.getStructureIdx() == gtOCIdx) || matchGraph.excludeMatching(o, o.getStructureIdx() == gtOCIdx)) return;
+            fp_fn_total_Links[isFP ? 0 : 1]+=errors.size();
             if (prefix==null) return;
-            String key = prefix + (fp? "FalsePositiveLink" : "FalseNegativeLink");
-            if (so.getStructureIdx() == gtOCIdx) {
-                SegmentedObject soPred = matchGraph.getMostOverlapping(so, true); // most or all ?
-                if (soPred == null && fp) return;
-                else if (soPred != null) so = soPred; // if null and !fp -> will add measurement to groundTruth
+            String key = prefix + (isFP? "FalsePositiveLink" : "FalseNegativeLink");
+            if (o.getStructureIdx() == gtOCIdx) {
+                if (isFP) {
+                    List<SegmentedObject> oPred = matchGraph.getAllMatching(o, true).collect(Collectors.toList());
+                    if (oPred.isEmpty()) return;
+                    else if (oPred.size() == 1) o = oPred.get(0);
+                    else { // assign each error to each object
+                        SegmentedObject mainPred = matchGraph.getMostOverlapping(o, true);
+                        for (SegmentedObject e : errors) {
+                            if (e.getStructureIdx() == gtOCIdx) {
+                                Set<SegmentedObject> ePred = matchGraph.getAllMatching(e, true).collect(Collectors.toSet());
+                                if (ePred.isEmpty()) {
+                                    mainPred.getMeasurements().addValue(key, 1); // assign to most overlapping
+                                } else {
+                                    oPred.forEach(oP -> {
+                                        if (SegmentedObjectEditor.getPrevious(oP).anyMatch(ePred::contains)) oP.getMeasurements().addValue(key, 1);
+                                    });
+                                }
+                            } else {
+                                oPred.forEach(oP -> {
+                                    if (SegmentedObjectEditor.getPrevious(oP).anyMatch(e::equals)) oP.getMeasurements().addValue(key, 1);
+                                });
+                            }
+                        }
+                        return;
+                    }
+                } else {
+                    SegmentedObject oPred = matchGraph.getMostOverlapping(o, true);
+                    logger.debug("assign FN error: oGT={} oPred={} errors: {}", o, oPred, errors);
+                    if (oPred != null) o = oPred;
+                }
             }
-            so.getMeasurements().addValue(key, n);
+            o.getMeasurements().addValue(key, errors.size());
         };
+        // replace pred by GT + remove propagated link by splitting
         new ArrayList<>(predGraph.vertexSet()).stream().filter(o -> o.getFrame()==frame)
             .forEach(next -> {
                 SegmentedObject nextGT = getGT.apply(next);
+
+                // remove split edges that were propagated (only necessary @ next frame)
+                List<DefaultEdge> toRemove = new ArrayList<>();
+                List<SegmentedObject> prev = predGraph.getPreviousEdges(next).map(e -> {
+                    SegmentedObject p = predGraph.getEdgeSource(e);
+                    if (splitEdges.contains(e)) { // only keep if present in gtGraph
+                        SegmentedObject pGt = correctedMatchGraph.getMostOverlapping(p, false);
+                        if (pGt!=null && !gtGraph.containsEdge(pGt, nextGT)) {
+                            toRemove.add(e);
+                            logger.debug("remove propagated link {}->{}", pGt, nextGT);
+                            return null;
+                        }
+                    }
+                    return p;
+                }).filter(Objects::nonNull).collect(Collectors.toList());
+                toRemove.forEach(predGraph::removeEdge);
+
                 boolean replace = !next.equals(nextGT);
-                List<SegmentedObject> prev = predGraph.getPreviousObjects(next).collect(Collectors.toList());
+                if (!replace) logger.debug("next {} was already replaced", nextGT);
                 if (replace) predGraph.removeVertex(next);
                 if (nextGT==null) { // false positive
-                    addLinkError.accept(next, prev.size(), true);
+                    addLinkError.accept(next, prev, true);
                 } else {
                     prev.forEach( p -> predGraph.addEdge(p, nextGT));
                 }
             });
         new ArrayList<>(predGraph.vertexSet()).stream().filter(o -> o.getFrame()==frame-1)
-                .forEach(prev -> {
-                    SegmentedObject prevGT = getGT.apply(prev);
-                    boolean replace = !prev.equals(prevGT);
-                    List<SegmentedObject> next = predGraph.getNextObjects(prev).collect(Collectors.toList());
-                    if (replace) predGraph.removeVertex(prev);
-                    if (prevGT==null) { // false positive
-                        next.forEach(n -> addLinkError.accept(n, 1, true));
-                    } else {
-                        next.forEach(n -> predGraph.addEdge(prevGT, n));
-                    }
-                });
+            .forEach(prev -> {
+                SegmentedObject prevGT = getGT.apply(prev);
+                boolean replace = !prev.equals(prevGT);
+                List<SegmentedObject> next = predGraph.getNextObjects(prev).collect(Collectors.toList());
+                if (replace) predGraph.removeVertex(prev);
+                if (prevGT==null) { // false positive
+                    next.forEach(n -> addLinkError.accept(n, Arrays.asList(prev), true));
+                } else {
+                    next.forEach(n -> predGraph.addEdge(prevGT, n));
+                }
+            });
         // now that graphs predGraphs and gtGraphs have same vertices, simply count differences
         gtGraph.vertexSet().stream().filter(o -> o.getFrame() == frame).forEach(next -> {
             Set<SegmentedObject> gtPrev = gtGraph.getPreviousObjects(next).collect(Collectors.toSet());
             Set<SegmentedObject> predGtPrev = predGraph.getPreviousObjects(next).collect(Collectors.toSet());
-            int fn = (int)gtPrev.stream().filter(o -> !predGtPrev.contains(o)).count();
-            int fp = (int)predGtPrev.stream().filter(o -> !gtPrev.contains(o)).count();
-            if (fn>0) {
-                addLinkError.accept(next, fn, false);
-                logger.debug("false negatives for {}={}={} {}, prev: {} gtPrev: {}", next,matchGraph.getMostOverlapping(next, true), fn, gtPrev.stream().filter(o -> !predGtPrev.contains(o)).collect(Collectors.toList()), predGtPrev, gtPrev);
+            List<SegmentedObject> fn = gtPrev.stream().filter(o -> !predGtPrev.contains(o)).collect(Collectors.toList());
+            List<SegmentedObject> fp = predGtPrev.stream().filter(o -> !gtPrev.contains(o)).collect(Collectors.toList());
+            if (mergedNext.contains(next) && !gtPrev.isEmpty()) { // next has be merged -> check if some links have been added by merging
+                matchGraph.getAllMatching(next, true)
+                    .filter(n ->
+                        SegmentedObjectEditor.getPrevious(n)
+                        .flatMap(o -> matchGraph.getAllMatching(o, false))
+                        .noneMatch(gtPrev::contains))
+                    .forEach(n -> {
+                        addLinkError.accept(n, Arrays.asList(n), false);
+                        logger.debug("MERGE FN NEXT: {} ( from {} )", n, next);
+                    }
+                );
             }
-            if (fp>0) {
+            if (!fn.isEmpty()) {
+                addLinkError.accept(next, fn, false);
+                logger.debug("false negatives for {}<=>{} -> {}, prev: {} gtPrev: {}", next,matchGraph.getAllMatching(next, true).collect(Collectors.toList()), fn, predGtPrev, gtPrev);
+            }
+            if (!fp.isEmpty()) {
                 addLinkError.accept(next, fp, true);
-                logger.debug("false positives for {}={}={} {}, prev: {}, gtPrev: {}", next,matchGraph.getMostOverlapping(next, true), fp, predGtPrev.stream().filter(o -> !gtPrev.contains(o)).collect(Collectors.toList()), predGtPrev, gtPrev);
+                logger.debug("false positives for {}<=>{} -> {}, prev: {}, gtPrev: {}", next,matchGraph.getAllMatching(next, true).collect(Collectors.toList()), fp, predGtPrev, gtPrev);
             }
             fp_fn_total_Links[2] += gtPrev.size();
+        });
+        gtGraph.vertexSet().stream().filter(o -> o.getFrame() == frame-1).forEach(prev -> {
+            Set<SegmentedObject> gtNext = gtGraph.getNextObjects(prev).collect(Collectors.toSet());
+            Set<SegmentedObject> predNexts = matchGraph.getAllMatching(gtNext.stream(), true).collect(toSet());
+            UnaryOperator<SegmentedObject> getClosest;
+            if (predNexts.isEmpty()) {
+                if (gtNext.size()==1) getClosest = o -> gtNext.iterator().next();
+                else getClosest = p -> gtNext.stream().min(Comparator.comparingDouble(o -> o.getRegion().getCenterOrGeomCenter().distSq(p.getRegion().getCenterOrGeomCenter()))).get();
+            } else {
+                if (predNexts.size()==1) getClosest = o -> predNexts.iterator().next();
+                else getClosest = p -> predNexts.stream().min(Comparator.comparingDouble(o -> o.getRegion().getCenterOrGeomCenter().distSq(p.getRegion().getCenterOrGeomCenter()))).get();
+            }
+            if (mergedPrev.contains(prev) && !gtNext.isEmpty()) { // prev has be merged -> check if some links have been added by merging
+                matchGraph.getAllMatching(prev, true)
+                    .filter(p ->
+                        SegmentedObjectEditor.getNext(p)
+                        .flatMap(o -> matchGraph.getAllMatching(o, false))
+                        .noneMatch(gtNext::contains))
+                    .forEach(p -> {
+                        addLinkError.accept(getClosest.apply(p), Arrays.asList(p), false); // assign error to closest object as no link allow to define who to assign link
+                        logger.debug("MERGE FN PREV: {} ( from {} )", p, prev);
+                    }
+                );
+            }
         });
         return fp_fn_total_Links;
     }
