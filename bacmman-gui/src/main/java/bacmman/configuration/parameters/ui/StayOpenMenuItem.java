@@ -18,9 +18,10 @@
  */
 package bacmman.configuration.parameters.ui;
 
-import javax.swing.JMenuItem;
-import javax.swing.MenuElement;
-import javax.swing.MenuSelectionManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 
@@ -29,8 +30,10 @@ import javax.swing.event.ChangeListener;
  * @author Jean Ollion
  */
 public class StayOpenMenuItem extends JMenuItem {
+    public static final Logger logger = LoggerFactory.getLogger(ParameterUIBinder.class);
     private static MenuElement[] path;
-    final Runnable showMenu;
+    JMenu menu;
+    Runnable showMenu;
     {
         getModel().addChangeListener(new ChangeListener() {
 
@@ -38,18 +41,22 @@ public class StayOpenMenuItem extends JMenuItem {
             public void stateChanged(ChangeEvent e) {
                 if (getModel().isArmed() && isShowing()) {
                     path = MenuSelectionManager.defaultManager().getSelectedPath();
+                    //logger.debug("stay open menu item {} -> path {}", StayOpenMenuItem.this.getText(), path);
                 }
             }
         });
     }
+
   
-  public StayOpenMenuItem(String text, Runnable showMenu) {
-      this.showMenu=showMenu;
-  }
-  @Override
-  public void doClick(int pressTime) {
-    super.doClick(pressTime);
-    showMenu.run();
-    MenuSelectionManager.defaultManager().setSelectedPath(path);
-  }
+    public StayOpenMenuItem(String text, Runnable showMenu) {
+        super(text);
+        this.showMenu=showMenu;
+    }
+
+    @Override
+    public void doClick(int pressTime) {
+        super.doClick(0);
+        if (showMenu!=null) showMenu.run();
+        MenuSelectionManager.defaultManager().setSelectedPath(path);
+    }
 }

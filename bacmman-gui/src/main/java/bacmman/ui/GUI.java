@@ -4330,13 +4330,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
     private void createSelectionButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_createSelectionButtonActionPerformed
         if (!checkConnection()) return;
-        String name = JOptionPane.showInputDialog("New Selection name:");
-        if (!SelectionUtils.validSelectionName(db, name)) return;
-        Selection sel = new Selection(name, db);
         if (this.db.getSelectionDAO()==null) {
             logger.error("No selection DAO. Output Directory set ? ");
+            setMessage("No selection DAO. Output Directory set ? ");
             return;
         }
+        String name = JOptionPane.showInputDialog("New Selection name:");
+        if (!SelectionUtils.validSelectionName(db, name, false, true)) return;
+        Selection sel = new Selection(name, db);
         this.db.getSelectionDAO().store(sel);
         populateSelections();
         if (db.isConfigurationReadOnly()) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);

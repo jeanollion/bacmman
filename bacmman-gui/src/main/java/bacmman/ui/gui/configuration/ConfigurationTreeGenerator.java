@@ -417,7 +417,7 @@ public class ConfigurationTreeGenerator {
         else if (p instanceof ConditionalParameterAbstract) {
             addToMenuCond((ConditionalParameterAbstract)p, menu, null, showMenu, otherMenuItems);
         } else if (p instanceof ListParameter) {
-            addToMenuList((ListParameter)p, menu, otherMenuItems);
+            addToMenuList((ListParameter)p, menu, showMenu, null, otherMenuItems);
         } else {
             Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
             if (p instanceof BoundedNumberParameter && UIElements.length == 2)
@@ -483,7 +483,7 @@ public class ConfigurationTreeGenerator {
                 List<Parameter> curParams= cond.getCurrentParameters();
                 if (curParams!=null && !curParams.isEmpty()) {
                     JMenu subMenu = new JMenu("Parameters");
-                    curParams.forEach(p -> addToMenu(p, subMenu));
+                    curParams.forEach(p -> addToMenu(p, subMenu, true, showMenu));
                     menu.add(subMenu);
                 }
                 if (otherMenuItem!=null && otherMenuItem.length>0) {
@@ -503,13 +503,27 @@ public class ConfigurationTreeGenerator {
         String hint = cond.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
     }
-    public static void addToMenuList(ListParameter<Parameter, ?> list, JMenu menu, Object... otherMenuItem) {
-        ListParameterUI listUI = new SimpleListParameterUI(list, null);
+    public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Object... otherMenuItem) {
+        addToMenuList(list, menu, null, null, otherMenuItem);
+    }
+    public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Runnable showMenu, Object[][] childOtherMenuItem, Object[] otherMenuItem) {
+        ListParameterUI listUI = new SimpleListParameterUI(list, null, showMenu);
         menu.addMenuListener(new MenuListener() {
             @Override
             public void menuSelected(MenuEvent menuEvent) {
-                for (Parameter p : list.getChildren()) {
-                    addToMenuAsSubMenu(p, menu, null, listUI.getChildDisplayComponent(p));
+                List<? extends Parameter> children = list.getChildren();
+                for (int i =0; i<children.size();++i) {
+                    Object[] other = listUI.getChildDisplayComponent(children.get(i));
+                    if (childOtherMenuItem!=null && i<childOtherMenuItem.length) {
+                        if (other!=null) {
+                            Object[] other2 = new Object[other.length + childOtherMenuItem[i].length +1];
+                            System.arraycopy(other, 0, other2, 0, other.length);
+                            other2[other.length] = new JSeparator();
+                            System.arraycopy(childOtherMenuItem[i], 0, other2, other.length +1 , childOtherMenuItem[i].length);
+                            other = other2;
+                        } else other = childOtherMenuItem[i];
+                    }
+                    addToMenuAsSubMenu(children.get(i), menu, showMenu, other);
                 }
                 if (!list.getChildren().isEmpty()) menu.addSeparator();
                 ConfigurationTreeGenerator.addToMenu(listUI.getDisplayComponent(), menu);

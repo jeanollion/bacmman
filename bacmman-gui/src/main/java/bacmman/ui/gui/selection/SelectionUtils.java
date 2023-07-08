@@ -22,6 +22,7 @@ import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.MeasurementFilterParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
+import bacmman.configuration.parameters.ui.StayOpenMenuItem;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
@@ -58,19 +59,28 @@ import org.slf4j.LoggerFactory;
  */
 public class SelectionUtils {
     public static final Logger logger = LoggerFactory.getLogger(SelectionUtils.class);
-    public static boolean validSelectionName(MasterDAO db, String name) {
+    public static boolean validSelectionName(MasterDAO db, String name, boolean ignoreDuplicate, boolean prompteOverwriteDuplicate) {
         if (!Utils.isValid(name, false)) {
-            logger.error("Name should not contain special characters");
+            logger.error("Selection name should not contain special characters");
+            if (GUI.hasInstance()) GUI.getInstance().setMessage("Selection name should not contain special characters");
             return false;
         }
-        List<String> structures = Arrays.asList(db.getExperiment().experimentStructure.getObjectClassesAsString());
-        if (structures.contains(name)) {
-            logger.error("Name should not be a Structure's name");
-            return false;
+        if (ignoreDuplicate) return true;
+        boolean exists = SelectionUtils.selectionNameExists(db, name);
+        if (exists) {
+            if (prompteOverwriteDuplicate) {
+                if (Utils.promptBoolean("Selection name already exists. Overwrite ?", GUI.getInstance()))
+                    db.getSelectionDAO().delete(name);
+                else return false;
+            } else return false;
         }
+        return true;
+    }
+
+    public static boolean selectionNameExists(MasterDAO db, String name) {
         if (db.getSelectionDAO()==null) return false;
         List<Selection> sel = db.getSelectionDAO().getSelections();
-        return !Utils.transform(sel, Selection::getName).contains(name);
+        return Utils.transform(sel, Selection::getName).contains(name);
     }
     
     public static List<SegmentedObject> getSegmentedObjects(InteractiveImage i, List<Selection> selections) {
@@ -424,13 +434,13 @@ public class SelectionUtils {
         duplicate.addActionListener((ActionEvent e) -> {
             if (selectedValues.isEmpty()) return;
             String name = JOptionPane.showInputDialog("Duplicate Selection name:");
-            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
                 Selection dup = selectedValues.get(0).duplicate(name);
                 dup.getMasterDAO().getSelectionDAO().store(dup);
                 GUI.getInstance().populateSelections();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                list.updateUI();
             }
-            list.updateUI();
         });
         menu.add(duplicate);
         if (selectedValues.size()!=1) duplicate.setEnabled(false);
@@ -441,14 +451,14 @@ public class SelectionUtils {
         JMenuItem union = new JMenuItem("Union");
         union.addActionListener((ActionEvent e) -> {
             String name = JOptionPane.showInputDialog("Union Selection name:");
-            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
                 Selection unionSel = SelectionOperations.union(name, selectedValues);
                 unionSel.getMasterDAO().getSelectionDAO().store(unionSel);
                 GUI.getInstance().populateSelections();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
             }
-            GUI.updateRoiDisplayForSelections(null, null);
-            GUI.getInstance().resetSelectionHighlight();
         });
         union.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
         OpMenu.add(union);
@@ -456,14 +466,14 @@ public class SelectionUtils {
         JMenuItem intersection = new JMenuItem("Intersection");
         intersection.addActionListener((ActionEvent e) -> {
             String name = JOptionPane.showInputDialog("Union Selection name:");
-            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+            if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
                 Selection interSel = SelectionOperations.intersection(name, selectedValues);
                 interSel.getMasterDAO().getSelectionDAO().store(interSel);
                 GUI.getInstance().populateSelections();
                 if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+                GUI.updateRoiDisplayForSelections(null, null);
+                GUI.getInstance().resetSelectionHighlight();
             }
-            GUI.updateRoiDisplayForSelections(null, null);
-            GUI.getInstance().resetSelectionHighlight();
         });
         intersection.setEnabled(selectedValues.size()>1 && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
         OpMenu.add(intersection);
@@ -610,8 +620,7 @@ public class SelectionUtils {
         SimpleListParameter<MeasurementFilterParameter> filters = new SimpleListParameter<>("MeasurementFilters", new MeasurementFilterParameter(selOcIdx, false));
         filters.setParent(db.getExperiment());
         PropertyUtils.setPersistent(filters, "measurement_filters");
-        filters.getActivatedChildren().forEach(f -> {
-            JMenu measFilterMenu = new JMenu(f.toString());
+        Object[][] performFilter = filters.getChildren().stream().map(f -> {
             JMenuItem filter = new JMenuItem("Perform Filter...");
             filter.addActionListener((ActionEvent e) -> {
                 for (Selection s : selectedValues) {
@@ -623,14 +632,9 @@ public class SelectionUtils {
                 GUI.getInstance().populateSelections();
                 GUI.getInstance().resetSelectionHighlight();
             });
-            ConfigurationTreeGenerator.addToMenuCond(f, measFilterMenu, null, null, filter);
-            measurementMenu.add(measFilterMenu);
-        });
-        JMenuItem addFilter = new JMenuItem("Add Filter...");
-        addFilter.addActionListener((ActionEvent e) -> {
-            filters.insert(filters.createChildInstance());
-        });
-        measurementMenu.add(addFilter);
+            return new Object[]{filter};
+        }).toArray(Object[][]::new);
+        ConfigurationTreeGenerator.addToMenuList(filters, measurementMenu, showMenu, performFilter, new Object[0]);
         measurementMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
 
         //
@@ -644,7 +648,7 @@ public class SelectionUtils {
             oc.addActionListener((ActionEvent e) -> {
                 if (selectedValues.isEmpty()) return;
                 String name = JOptionPane.showInputDialog("Selection name:");
-                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name)) {
+                if (SelectionUtils.validSelectionName(selectedValues.get(0).getMasterDAO(), name, false, true)) {
                     Set<SegmentedObject> res = new HashSet<>();
                     for (Selection s : selectedValues) {
                         if (s.getMasterDAO().getExperiment().experimentStructure.isChildOf(ocIdx, s.getStructureIdx()))

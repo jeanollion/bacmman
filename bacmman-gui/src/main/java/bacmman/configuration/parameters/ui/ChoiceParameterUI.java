@@ -57,7 +57,7 @@ public class ChoiceParameterUI implements ArmableUI {
         this(choice_, null, model, null);
     } 
     
-    public ChoiceParameterUI(ChoosableParameter choice_, String subMenuTitle, ConfigurationTreeModel model, Runnable showMenuStayOpen) {
+    public ChoiceParameterUI(ChoosableParameter choice_, String subMenuTitle, ConfigurationTreeModel model, Runnable showMenu) {
         this.choice = choice_;
         inc = choice.isAllowNoSelection() ? 1 : 0;
         if (choice instanceof ActionableParameter) cond = ((ActionableParameter)choice).getConditionalParameter();
@@ -72,7 +72,7 @@ public class ChoiceParameterUI implements ArmableUI {
         } else choices=choice.getChoiceList();
         this.actionChoice = new JMenuItem[choices.length];
         for (int i = 0; i < actionChoice.length; i++) {
-            actionChoice[i] = showMenuStayOpen!=null ? new StayOpenMenuItem(choices[i], showMenuStayOpen) : new JMenuItem(choices[i]);
+            actionChoice[i] = showMenu !=null ? new StayOpenMenuItem(choices[i], showMenu) : new JMenuItem(choices[i]);
             actionChoice[i].setAction(
                 new AbstractAction(choices[i]) {
                     @Override
