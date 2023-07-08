@@ -44,8 +44,8 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     enum MATCHING_MODE {OVERLAP_ABSOLUTE, OVERLAP_PROPORTION, OVERLAP_PROPORTION_OR_ABSOLUTE, OVERLAP_PROPORTION_AND_ABSOLUTE}
     EnumChoiceParameter<MATCHING_MODE> matchingMode = new EnumChoiceParameter<>("Matching mode", MATCHING_MODE.values(), MATCHING_MODE.OVERLAP_PROPORTION);
 
-    BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Overlap", 5,1, 0, null).setEmphasized(true).setHint("Min absolute overlap (in pixels) to consider a match between two objects");
-    BoundedNumberParameter minOverlapProp = new BoundedNumberParameter("Min Overlap", 5,0.25, 0, 1).setEmphasized(true).setHint("Min overlap proportion to consider a match between two objects.");
+    BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Absolute Overlap", 5,1, 0, null).setEmphasized(true).setHint("Min absolute overlap value (in pixels) to consider a match between ground truth and selected object class.");
+    BoundedNumberParameter minOverlapProp = new BoundedNumberParameter("Min Overlap Proportion", 5,0.25, 0, 1).setEmphasized(true).setHint("Min overlap proportion to consider a match between ground truth and selected object class.");
     ConditionalParameter<MATCHING_MODE> matchingModeCond = new ConditionalParameter<>(matchingMode)
             .setActionParameters(MATCHING_MODE.OVERLAP_ABSOLUTE, minOverlap)
             .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION, minOverlapProp)
@@ -178,22 +178,24 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 }
 
             }
-            for (SegmentedObject p : graph.prediction.get(parent.getFrame())) {
-                if (excludePred.contains(p)) continue;
-                Set<SegmentedObject> match = graph.getAllMatching(p, false).collect(toSet());
-                if (match.stream().anyMatch(excludeGT::contains)) continue;
-                int n = match.size();
-                if (n==0) {
-                    ++fp;
-                    if (objectWise) p.getMeasurements().setValue(prefix + "FalsePositive", 1);
-                } else if (n>1) { // distinguish between inter & intra
-                    boolean inter = match.stream().map(SegmentedObject::getTrackHead).distinct().count()>1;
-                    if (inter) {
-                        underInter+=n-1;
-                        if (objectWise) p.getMeasurements().setValue(prefix + "UnderSegmentationInter", n-1);
-                    } else {
-                        underIntra+=n-1;
-                        if (objectWise) p.getMeasurements().setValue(prefix + "UnderSegmentationIntra", n-1);
+            if (graph.prediction.containsKey(parent.getFrame())) {
+                for (SegmentedObject p : graph.prediction.get(parent.getFrame())) {
+                    if (excludePred.contains(p)) continue;
+                    Set<SegmentedObject> match = graph.getAllMatching(p, false).collect(toSet());
+                    if (match.stream().anyMatch(excludeGT::contains)) continue;
+                    int n = match.size();
+                    if (n == 0) {
+                        ++fp;
+                        if (objectWise) p.getMeasurements().setValue(prefix + "FalsePositive", 1);
+                    } else if (n > 1) { // distinguish between inter & intra
+                        boolean inter = match.stream().map(SegmentedObject::getTrackHead).distinct().count() > 1;
+                        if (inter) {
+                            underInter += n - 1;
+                            if (objectWise) p.getMeasurements().setValue(prefix + "UnderSegmentationInter", n - 1);
+                        } else {
+                            underIntra += n - 1;
+                            if (objectWise) p.getMeasurements().setValue(prefix + "UnderSegmentationIntra", n - 1);
+                        }
                     }
                 }
             }
@@ -208,27 +210,17 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             double union = edges.stream().mapToDouble(e -> graph.graphG2P.getEdgeTarget(e).getRegion().size() + graph.graphG2P.getEdgeSource(e).getRegion().size()).sum() - intersection;
 
             // tracking errors
-            /*int linkErrors=0;
-            List<SymetricalPair<Set<SegmentedObject>>> clusters = graph.getClusters(parent.getFrame());
-            for (SymetricalPair<Set<SegmentedObject>> c : clusters ) {
-                linkErrors += graph.countLinkingErrors(c.key, c.value, objectWise ? prefix : null);
-            }*/
             int[] fp_fn_total = getTrackingErrors(graph, parent.getFrame(), objectWise ? prefix : null);
-            //int nLinksGT = graph.groundTruth.get(parent.getFrame()).stream().filter(o -> !excludeGT.contains(o)).mapToInt(o -> (int)SegmentedObjectEditor.getPrevious(o).count()).sum();
             int nGT = (int)graph.groundTruth.get(parent.getFrame()).stream().filter(o -> !excludeGT.contains(o)).count();
-            //int nLinksPred = graph.prediction.get(parent.getFrame()).stream().filter(o -> !excludePred.contains(o)).mapToInt(o -> (int)SegmentedObjectEditor.getPrevious(o).count()).sum();
             int nPred = (int)graph.prediction.get(parent.getFrame()).stream().filter(o -> !excludePred.contains(o)).count();
 
             parent.getMeasurements().setValue(prefix + "Intersection", intersection);
             parent.getMeasurements().setValue(prefix + "Union", union);
-            //parent.getMeasurements().setValue(prefix + "TrackingErrors", linkErrors);
             parent.getMeasurements().setValue(prefix + "FalsePositiveLink", fp_fn_total[0]);
             parent.getMeasurements().setValue(prefix + "FalseNegativeLink", fp_fn_total[1]);
             parent.getMeasurements().setValue(prefix + "TotalLink", fp_fn_total[2]);
             parent.getMeasurements().setValue(prefix + "NGt", nGT);
             parent.getMeasurements().setValue(prefix + "NPrediction", nPred);
-            //parent.getMeasurements().setValue(prefix + "NLinksGT", nLinksGT);
-            //parent.getMeasurements().setValue(prefix + "NLinksPrediction", nLinksPred);
             parent.getMeasurements().setValue(prefix + "FalsePositive", fp);
             parent.getMeasurements().setValue(prefix + "FalseNegative", fn);
             parent.getMeasurements().setValue(prefix + "OverSegmentation", over);
