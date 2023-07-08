@@ -456,7 +456,7 @@ public class ConfigurationTreeGenerator {
             public void menuSelected(MenuEvent menuEvent) {
                 choiceUI.refreshArming();
                 ConfigurationTreeGenerator.addToMenu(choiceUI.getDisplayComponent(), menu);
-                if (otherMenuItem!=null && otherMenuItem.length>1) {
+                if (otherMenuItem!=null && otherMenuItem.length>0) {
                     menu.addSeparator();
                     addToMenu(otherMenuItem, menu);
                 }
@@ -486,7 +486,7 @@ public class ConfigurationTreeGenerator {
                     curParams.forEach(p -> addToMenu(p, subMenu));
                     menu.add(subMenu);
                 }
-                if (otherMenuItem!=null && otherMenuItem.length>1) {
+                if (otherMenuItem!=null && otherMenuItem.length>0) {
                     menu.addSeparator();
                     addToMenu(otherMenuItem, menu);
                 }
@@ -511,8 +511,9 @@ public class ConfigurationTreeGenerator {
                 for (Parameter p : list.getChildren()) {
                     addToMenuAsSubMenu(p, menu, null, listUI.getChildDisplayComponent(p));
                 }
+                if (!list.getChildren().isEmpty()) menu.addSeparator();
                 ConfigurationTreeGenerator.addToMenu(listUI.getDisplayComponent(), menu);
-                if (otherMenuItem!=null && otherMenuItem.length>1) {
+                if (otherMenuItem!=null && otherMenuItem.length>0) {
                     menu.addSeparator();
                     addToMenu(otherMenuItem, menu);
                 }
