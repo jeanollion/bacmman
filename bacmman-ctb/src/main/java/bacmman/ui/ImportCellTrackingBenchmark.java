@@ -21,6 +21,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.IntFunction;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -39,19 +40,26 @@ public class ImportCellTrackingBenchmark {
             logger.warn("No position found in directory");
             return;
         }
+        if (mDAO.getExperiment().getChannelImages().getChildCount()!=1) {
+            if (pcb!=null) pcb.log("Experiment must have 1 single channel");
+            logger.warn("Experiment must have 1 single channel");
+            return;
+        }
         Experiment.IMPORT_METHOD importMethod = mDAO.getExperiment().getImportImageMethod();
         mDAO.getExperiment().setImportImageMethod(Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION);
         String posSep = mDAO.getExperiment().getImportImagePositionSeparator();
         mDAO.getExperiment().setImportImagePositionSeparator("");
         String fSep = mDAO.getExperiment().getImportImageFrameSeparator();
         mDAO.getExperiment().setImportImageFrameSeparator("t");
+        String chanKW = mDAO.getExperiment().getChannelImages().getChildAt(0).getImportImageChannelKeyword();
+        mDAO.getExperiment().getChannelImages().getChildAt(0).setImportImageChannelKeyword("");
         if (pcb!=null) pcb.incrementTaskNumber(2 * allDir.length);
         for (File resDir : allDir) {
             String posName = resDir.getName().replace(suffix, "");
             File rawDir = Paths.get(resDir.getParent(), posName).toFile();
-            if (!rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
             boolean exists = mDAO.getExperiment().getPositions().stream().map(ContainerParameterImpl::getName).anyMatch(p->p.equals(posName));
-            Processor.importFiles(mDAO.getExperiment(), true, false, pcb, rawDir.getAbsolutePath());
+            if (!exists && !rawDir.exists()) throw new IOException("No directories for input images for "+resDir);
+            if (!exists) Processor.importFiles(mDAO.getExperiment(), true, false, pcb, rawDir.getAbsolutePath());
             if (!rawOnly) {
                 if (trainingSet) resDir = Paths.get(resDir.getAbsolutePath(), "TRA").toFile();
                 if (overwriteObjects || !exists)
@@ -60,10 +68,11 @@ public class ImportCellTrackingBenchmark {
             else if (pcb!=null) pcb.incrementProgress();
             mDAO.updateExperiment();
         }
-        if (!posSep.equals("") || fSep.equals("t") || !importMethod.equals(Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION)) {
+        if (!posSep.equals("") || fSep.equals("t") || !importMethod.equals(Experiment.IMPORT_METHOD.ONE_FILE_PER_CHANNEL_FRAME_POSITION) || !"".equals(chanKW)) {
             mDAO.getExperiment().setImportImagePositionSeparator(posSep);
             mDAO.getExperiment().setImportImageFrameSeparator(fSep);
             mDAO.getExperiment().setImportImageMethod(importMethod);
+            mDAO.getExperiment().getChannelImages().getChildAt(0).setImportImageChannelKeyword(chanKW);
             mDAO.updateExperiment();
         }
     }
@@ -83,17 +92,19 @@ public class ImportCellTrackingBenchmark {
         SegmentedObjectFactory factory = getFactory(objectClassIdx);
         File[] images = dir.listFiles((f, n) -> n.startsWith(prefix) && n.endsWith(".tif"));
         if (images==null) throw new IOException("No masks found");
+        ToIntFunction<String> getFrame = name -> Integer.parseInt(name.replace(prefix, "").replace(".tif",""));
+        int minFrame = Arrays.stream(images).mapToInt(im -> getFrame.applyAsInt(im.getName())).min().getAsInt();
         List<SegmentedObject> roots = Processor.getOrCreateRootTrack(dao);
         dao.deleteChildren(roots, objectClassIdx);
         Map<Integer, SegmentedObject> parentTrack = roots.stream().collect(Collectors.toMap(SegmentedObject::getFrame, o->o));
         for (File im : images) { // segmentation
-            int frame = Integer.parseInt(im.getName().replace(prefix, "").replace(".tif",""));
+            int frame = getFrame.applyAsInt(im.getName()) ;
             Image mask = ImageReaderFile.openIJTif(im.getPath());
-            SegmentedObject parent = parentTrack.get(frame);
+            SegmentedObject parent = parentTrack.get(frame - minFrame);
             RegionPopulation pop = seg.runSegmenter(mask, 0, parent);
             factory.setChildObjects(parent, pop, false);
         }
-        BiFunction<Integer, Integer, SegmentedObject> getObject = (id, frame) -> parentTrack.get(frame).getChildren(objectClassIdx).filter(c -> c.getRegion().getLabel() == id).findAny().orElse(null);
+        BiFunction<Integer, Integer, SegmentedObject> getObject = (id, frame) -> parentTrack.get(frame-minFrame).getChildren(objectClassIdx).filter(c -> c.getRegion().getLabel() == id).findAny().orElse(null);
         IntFunction<SegmentedObject> getTrackHead = id -> getObject.apply(id, tracks.get(id)[1]);
         tracks.forEach((id, idStartStopParent) -> {
             SegmentedObject prev = getObject.apply(id, idStartStopParent[1]);
