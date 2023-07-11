@@ -136,7 +136,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private ConfigurationTreeGenerator testConfigurationTreeGenerator;
     
     // enable/disable components
-    private NumberParameter openImageLimit = new BoundedNumberParameter("Limit", 0, 5, 0, null);
+    private NumberParameter openImageLimit = new BoundedNumberParameter("Open Image Limit", 0, 5, 0, null);
     private ChoiceParameter interactiveImageType = new ChoiceParameter("Default Interactive Image Type", new String[]{"AUTOMATIC", "KYMOGRAPH", "HYPERSTACK"}, "AUTOMATIC", false).setHint("Default Interactive image type, for testing. Automatic: determines with the aspect ratio of the parent image: for rather square images will be opened as hyperstacks");
     private ChoiceParameter hyperstackMode = new ChoiceParameter("Default Hyperstack Mode", new String[]{"HYPERSTACK", "IMAGE5D"}, "HYPERSTACK", false).setHint("If IMAGE5D is chosen, hyperstack will be open using the image 5D plugin, allowing to display color image. Note that with this mode the whole image needs to be loaded in memory");
     private BooleanParameter displayTrackEdges = new BooleanParameter("Hyperstack: display track edges", true);
@@ -338,7 +338,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistent(testModeJCB, "test_mode", "Simplified");
 
         PropertyUtils.setPersistent(extractByPosition, "measurementnt_by_position");
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(extractByPosition, measurementOptionMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(extractByPosition, measurementOptionMenu, optionMenu);
 
         // db
         PropertyUtils.setPersistent(dbStartSize, "db_size_start");
@@ -367,7 +367,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistent(openImageLimit, "limit_disp_images");
         ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue());
         openImageLimit.addListener(p->ImageWindowManagerFactory.getImageManager().setDisplayImageLimit(openImageLimit.getValue().intValue()));
-        ConfigurationTreeGenerator.addToMenu(openImageLimit, openImageNumberLimitMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(openImageLimit, interactiveImageMenu);
 
         // interactive image type
         PropertyUtils.setPersistent(interactiveImageType, "interactive_type");
@@ -382,7 +382,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         };
         setDefInteractiveType.accept(interactiveImageType);
         interactiveImageType.addListener(setDefInteractiveType);
-        ConfigurationTreeGenerator.addToMenu(interactiveImageType, defaultInteractiveImageMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(interactiveImageType, interactiveImageMenu, miscMenu);
 
         // extracted dataset compression factor
         PropertyUtils.setPersistent(extractDSCompression, "extract_DS_compression");
@@ -399,19 +399,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         };
         setHyperstackMode.accept(hyperstackMode);
         hyperstackMode.addListener(setHyperstackMode);
-        ConfigurationTreeGenerator.addToMenu(hyperstackMode, hyperstackModeImageMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(hyperstackMode, interactiveImageMenu, miscMenu);
         // display track edges
         PropertyUtils.setPersistent(displayTrackEdges, "hyperstack_disp_edges");
         Consumer<BooleanParameter> setDispTrackEdges = b -> ImageWindowManager.displayTrackEdges = b.getSelected();
         setDispTrackEdges.accept(displayTrackEdges);
         displayTrackEdges.addListener(setDispTrackEdges);
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(displayTrackEdges, roiMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(displayTrackEdges, roiMenu, miscMenu);
         // display manual corrections
         PropertyUtils.setPersistent(displayCorrections, "disp_manual_corrections");
         Consumer<BooleanParameter> setDispCorrections = b -> ImageWindowManager.displayCorrections = b.getSelected();
         setDispTrackEdges.accept(displayCorrections);
         displayCorrections.addListener(setDispCorrections);
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(displayCorrections, roiMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(displayCorrections, roiMenu, miscMenu);
 
 
         // kymograph interval
@@ -490,7 +490,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistent(tfVisibleDeviceList, PropertyUtils.TF_DEVICES);
 
         ConfigurationTreeGenerator.addToMenu(tfVisibleDeviceList, tensorflowMenu);
-        ConfigurationTreeGenerator.addToMenu(tfSetAllowGrowth, tensorflowMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(tfSetAllowGrowth, tensorflowMenu, optionMenu);
         ConfigurationTreeGenerator.addToMenu(tfPerProcessGpuMemoryFraction, tensorflowMenu);
         Runnable setTFProps = () -> {
             Core.getCore().tfPerProcessGpuMemoryFraction = tfPerProcessGpuMemoryFraction.getDoubleValue();
@@ -527,12 +527,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         PropertyUtils.setPersistent(exportModeTrainCTC, "ctc_export_mode");
         PropertyUtils.setPersistent(exportDuplicateCTC, "ctc_merge_duplicate");
         ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(exportModeTrainCTC, CTCMenu);
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(exportDuplicateCTC, CTCMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(exportModeTrainCTC, CTCMenu, importMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(exportDuplicateCTC, CTCMenu, importMenu);
 
         // metadata
         PropertyUtils.setPersistent(importMetadata, "import_image_metadata");
-        ConfigurationTreeGenerator.addToMenuAsSubMenu(importMetadata, optionMenu);
+        ConfigurationTreeGenerator.addToMenuAsSubMenu(importMetadata, optionMenu, optionMenu);
 
         // PSF
         JMenu psfMenu = PSFCommand.getPSFMenu(()->this.getSelectedSelections(false), ()-> db.getDir().toString());
@@ -1840,14 +1840,12 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         jMenu1 = new javax.swing.JMenu();
         clearTrackImagesMenuItem = new javax.swing.JMenuItem();
         clearPPImageMenuItem = new javax.swing.JMenuItem();
-        openImageNumberLimitMenu = new javax.swing.JMenu();
         localZoomMenu = new javax.swing.JMenu();
         tensorflowMenu = new javax.swing.JMenu();
         roiMenu = new javax.swing.JMenu();
         manualCuration = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
-        defaultInteractiveImageMenu = new javax.swing.JMenu();
-        hyperstackModeImageMenu = new javax.swing.JMenu();
+        interactiveImageMenu = new javax.swing.JMenu();
         extractDSCompressionMenu = new javax.swing.JMenu();
         kymographMenu = new javax.swing.JMenu();
         pyGatewayMenu = new javax.swing.JMenu();
@@ -2995,9 +2993,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         miscMenu.add(jMenu1);
 
-        openImageNumberLimitMenu.setText("Number of open Images Limit");
-        miscMenu.add(openImageNumberLimitMenu);
-
         localZoomMenu.setText("Local Zoom");
         miscMenu.add(localZoomMenu);
 
@@ -3007,11 +3002,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         manualCuration.setText("Manual Curation");
         miscMenu.add(manualCuration);
 
-        defaultInteractiveImageMenu.setText("Default Interactive Image Type");
-        miscMenu.add(defaultInteractiveImageMenu);
-
-        hyperstackModeImageMenu.setText("Default Hyperstack Type");
-        miscMenu.add(hyperstackModeImageMenu);
+        interactiveImageMenu.setText("Interactive Image Options");
+        miscMenu.add(interactiveImageMenu);
 
         extractDSCompressionMenu.setText("Extracted Dataset");
         optionMenu.add(extractDSCompressionMenu);
@@ -5121,8 +5113,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenu measurementOptionMenu, measurementModeMenu;
     private javax.swing.JPopupMenu.Separator jSeparator1;
-    private javax.swing.JMenu defaultInteractiveImageMenu;
-    private javax.swing.JMenu hyperstackModeImageMenu;
+    private javax.swing.JMenu interactiveImageMenu;
     private javax.swing.JMenu extractDSCompressionMenu;
     private javax.swing.JMenu kymographMenu;
     private javax.swing.JMenu pyGatewayMenu;
@@ -5159,7 +5150,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem newXPFromTemplateMenuItem;
     private javax.swing.JMenuItem newXPMenuItem;
     private javax.swing.JButton nextTrackErrorButton;
-    private javax.swing.JMenu openImageNumberLimitMenu;
     private javax.swing.JMenu optionMenu;
     private javax.swing.JButton previousTrackErrorButton;
     private javax.swing.JMenuItem printShortcutMenuItem;

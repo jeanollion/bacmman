@@ -406,18 +406,18 @@ public class ConfigurationTreeGenerator {
         addToMenu(p, menu, true);
     }
     public static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu) {
-        addToMenu(p, menu, checkSubMenu, null);
+        addToMenu(p, menu, checkSubMenu, null, null);
     }
-    public static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu, Runnable showMenu, Object... otherMenuItems) {
+    public static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItems) {
         if (checkSubMenu && (p instanceof ChoosableParameter || p instanceof ConditionalParameterAbstract || p instanceof ListParameter)) {
             addToMenuAsSubMenu(p, menu, showMenu, otherMenuItems);
         } else if (p instanceof ChoosableParameter) {
-            addToMenuChoice(((ChoosableParameter)p), menu, showMenu, otherMenuItems);
+            addToMenuChoice(((ChoosableParameter)p), menu, showMenu, updateOnSelect, otherMenuItems);
         }
         else if (p instanceof ConditionalParameterAbstract) {
-            addToMenuCond((ConditionalParameterAbstract)p, menu, null, showMenu, otherMenuItems);
+            addToMenuCond((ConditionalParameterAbstract)p, menu, null, showMenu, updateOnSelect, otherMenuItems);
         } else if (p instanceof ListParameter) {
-            addToMenuList((ListParameter)p, menu, showMenu, null, otherMenuItems);
+            addToMenuList((ListParameter)p, menu, showMenu, updateOnSelect, null, otherMenuItems);
         } else {
             Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
             if (p instanceof BoundedNumberParameter && UIElements.length == 2)
@@ -440,26 +440,31 @@ public class ConfigurationTreeGenerator {
     public static JMenu addToMenuAsSubMenu(Parameter parameter, JMenu menu) {
         return addToMenuAsSubMenu(parameter, menu, null);
     }
+    public static JMenu addToMenuAsSubMenu(Parameter parameter, JMenu menu, JMenu mainMenu) {
+        return addToMenuAsSubMenu(parameter, menu, mainMenu!=null ? ()->mainMenu.setPopupMenuVisible(true):null);
+    }
     public static JMenu addToMenuAsSubMenu(Parameter parameter, JMenu menu, Runnable showMenu, Object... otherItems) {
         JMenu subMenu = new JMenu(parameter.toString());
         menu.add(subMenu);
-        addToMenu(parameter, subMenu, false, showMenu, otherItems);
+        addToMenu(parameter, subMenu, false, showMenu, ()->subMenu.setText(parameter.toString()), otherItems);
         String hint = parameter.getHintText();
         if (hint!=null && hint.length()>0) subMenu.setToolTipText(formatHint(hint, true));
         return subMenu;
     }
 
-    protected static void addToMenuChoice(ChoosableParameter choice, JMenu menu, Runnable showMenu, Object... otherMenuItem) {
-        ChoiceParameterUI choiceUI = new ChoiceParameterUI(choice, null, null, showMenu);
+    protected static void addToMenuChoice(ChoosableParameter choice, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
+        ChoiceParameterUI[] choiceUI = new ChoiceParameterUI[1];
+        choiceUI[0] = new ChoiceParameterUI(choice, null, null, showMenu);
         menu.addMenuListener(new MenuListener() {
             @Override
             public void menuSelected(MenuEvent menuEvent) {
-                choiceUI.refreshArming();
-                ConfigurationTreeGenerator.addToMenu(choiceUI.getDisplayComponent(), menu);
+                choiceUI[0].refreshArming();
+                ConfigurationTreeGenerator.addToMenu(choiceUI[0].getDisplayComponent(), menu);
                 if (otherMenuItem!=null && otherMenuItem.length>0) {
                     menu.addSeparator();
                     addToMenu(otherMenuItem, menu);
                 }
+                if (updateOnSelect!=null) updateOnSelect.run();
             }
             @Override
             public void menuDeselected(MenuEvent menuEvent) {
@@ -473,7 +478,7 @@ public class ConfigurationTreeGenerator {
         String hint = choice.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
     }
-    public static void addToMenuCond(ConditionalParameterAbstract cond, JMenu menu, String actionMenuTitle, Runnable showMenu, Object... otherMenuItem) {
+    public static void addToMenuCond(ConditionalParameterAbstract cond, JMenu menu, String actionMenuTitle, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItem) {
         ChoiceParameterUI choiceUI = new ChoiceParameterUI(cond.getActionableParameter(), actionMenuTitle==null?"MODE":actionMenuTitle, null, showMenu);
         menu.addMenuListener(new MenuListener() {
             @Override
@@ -483,13 +488,14 @@ public class ConfigurationTreeGenerator {
                 List<Parameter> curParams= cond.getCurrentParameters();
                 if (curParams!=null && !curParams.isEmpty()) {
                     JMenu subMenu = new JMenu("Parameters");
-                    curParams.forEach(p -> addToMenu(p, subMenu, true, showMenu));
+                    curParams.forEach(p -> addToMenu(p, subMenu, true, showMenu, updateOnSelect));
                     menu.add(subMenu);
                 }
                 if (otherMenuItem!=null && otherMenuItem.length>0) {
                     menu.addSeparator();
                     addToMenu(otherMenuItem, menu);
                 }
+                if (updateOnSelect!=null) updateOnSelect.run();
             }
             @Override
             public void menuDeselected(MenuEvent menuEvent) {
@@ -504,9 +510,9 @@ public class ConfigurationTreeGenerator {
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
     }
     public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Object... otherMenuItem) {
-        addToMenuList(list, menu, null, null, otherMenuItem);
+        addToMenuList(list, menu, null, null, null, otherMenuItem);
     }
-    public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Runnable showMenu, Object[][] childOtherMenuItem, Object[] otherMenuItem) {
+    public static void addToMenuList(ListParameter<? extends Parameter, ?> list, JMenu menu, Runnable showMenu, Runnable updateOnSelect, Object[][] childOtherMenuItem, Object[] otherMenuItem) {
         ListParameterUI listUI = new SimpleListParameterUI(list, null, showMenu);
         menu.addMenuListener(new MenuListener() {
             @Override
@@ -531,6 +537,7 @@ public class ConfigurationTreeGenerator {
                     menu.addSeparator();
                     addToMenu(otherMenuItem, menu);
                 }
+                if (updateOnSelect!=null) updateOnSelect.run();
             }
             @Override
             public void menuDeselected(MenuEvent menuEvent) {
