@@ -81,15 +81,16 @@ public class ExportCellTrackingBenchmark {
         boolean silverTruth = exportMode.equals(CTB_IO_MODE.SILVER_TRUTH);
         boolean exportRaw = !exportMode.equals(CTB_IO_MODE.RESULTS);
         int padding = parentTrack.size()>=1000 ? 4 : 3;
-        IntFunction<String> getLabel = f -> Utils.formatInteger(padding, f);
+        int parentOC = parentTrack.get(0).getStructureIdx();
+        int minFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).min().getAsInt();
+        int maxFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
+        IntFunction<String> getLabel = f -> Utils.formatInteger(padding, f - minFrame);
         if (exportRaw) {
             Utils.emptyDirectory(new File(rawDir));
             parentTrack.forEach(r -> ImageWriter.writeToFile(r.getRawImage(objectClassIdx), Paths.get(rawDir, "t"+getLabel.apply(r.getFrame())).toString(), ImageFormat.TIF));
             if (rawOnly) return;
         }
         int[] counter=new int[]{0};
-        int parentOC = parentTrack.get(0).getStructureIdx();
-        int maxFrame = parentTrack.stream().mapToInt(SegmentedObject::getFrame).max().getAsInt();
         Map<SegmentedObject, Integer> getTrackLabel = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> ++counter[0]);
         // FOI specs
         Map<SegmentedObject, List<SegmentedObject>> allTracks = SegmentedObjectUtils.getAllTracks(parentTrack, objectClassIdx);
@@ -153,8 +154,8 @@ public class ExportCellTrackingBenchmark {
                     .sorted(Comparator.comparingInt(e-> getTrackLabel.get(e.getKey())))
                     .forEach(e -> {
                         int label = getTrackLabel.get(e.getKey());
-                        int startFrame = e.getKey().getFrame(); // TODO check if works when first frame is not ZERO otherwise remove offset.
-                        int endFrame = Math.min(maxFrame, e.getValue().get(e.getValue().size()-1).getFrame());
+                        int startFrame = e.getKey().getFrame() - minFrame;
+                        int endFrame = Math.min(maxFrame, e.getValue().get(e.getValue().size()-1).getFrame())  - minFrame;
                         IntConsumer write = parentLabel -> {
                             try {
                                 FileIO.write(raf, label + " " + startFrame + " " + endFrame + " " + parentLabel, !firstLine[0]);
