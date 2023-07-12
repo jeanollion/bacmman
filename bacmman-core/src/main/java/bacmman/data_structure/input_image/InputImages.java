@@ -26,6 +26,7 @@ import static bacmman.image.Image.logger;
 
 import bacmman.processing.ImageOperations;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -44,8 +45,20 @@ import java.util.stream.IntStream;
  * @author Jean Ollion
  */
 public interface InputImages {
-    public Image getImage(int channelIdx, int timePoint);
-    public Image getRawPlane(int z, int channelIdx, int timePoint);
+    public static Image getImage(InputImages images , int channelIdx, int timePoint, IOException[] exceptionContainer) {
+        try {
+            return images.getImage(channelIdx, timePoint);
+        } catch (IOException e) {
+            if (exceptionContainer!=null) {
+                synchronized (exceptionContainer) {
+                    exceptionContainer[0] = e;
+                }
+            }
+            return null;
+        }
+    }
+    public Image getImage(int channelIdx, int timePoint) throws IOException;
+    public Image getRawPlane(int z, int channelIdx, int timePoint) throws IOException ;
     public int getFrameNumber();
     int getMinFrame();
     public int getChannelNumber();
@@ -59,10 +72,21 @@ public interface InputImages {
         if(channelIdx<0 || channelIdx>=images.getChannelNumber()) throw new IllegalArgumentException("invalid channel idx: "+channelIdx+" max idx: "+(images.getChannelNumber()-1));
         Function<Integer, Image> fun;
         if (!ensure2D) {
-            fun  = f -> images.getImage(channelIdx, f);
+            fun  = f -> {
+                try {
+                    return images.getImage(channelIdx, f);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            };
         } else {
             fun = f -> {
-                Image<? extends Image> image = images.getImage(channelIdx, f);
+                Image<? extends Image> image = null;
+                try {
+                    image = images.getImage(channelIdx, f);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 if (image.sizeZ()>1) {
                     int plane = images.getBestFocusPlane(f);
                     if (plane<0) throw new RuntimeException("SaturateHistogramHyperFluoBacteria can only be run on 2D images AND no autofocus algorithm was set");
@@ -75,7 +99,7 @@ public interface InputImages {
         return res.toArray(new Image[0]);
     }
     
-    public static Image getAverageFrame(InputImages images, int channelIdx, int frame,  int numberOfFramesToAverage) {
+    public static Image getAverageFrame(InputImages images, int channelIdx, int frame,  int numberOfFramesToAverage) throws IOException{
         if (numberOfFramesToAverage<=1) return images.getImage(channelIdx, frame);
         List<Image> imagesToAv = new ArrayList<>(numberOfFramesToAverage);
         int fMin = Math.max(0, frame-numberOfFramesToAverage/2);

@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -122,7 +123,7 @@ public class ExtractDatasetUtil {
             write_histogram(outputPath.toFile(), selectionNames, ds, channelName, dimensions);
         });
     }
-    public static void runTaskRaw(Task t) {
+    public static void runTaskRaw(Task t) throws IOException  {
         logger.debug("extracting raw dataset 2...");
         String outputFile = t.getExtractRawDSFile();
         Path outputPath = Paths.get(outputFile);
@@ -152,7 +153,10 @@ public class ExtractDatasetUtil {
             boolean saveLabels = true;
             for (int channel : channels) {
                 String outputName = ds + "/" + position + "/" + channelNames[channel];
-                List<Image> images = frames.stream().map(fIdx -> inputImages.getImage(channel, fIdx).setName(getLabel(fIdx+inputImages.getMinFrame()))).map(extract).collect(Collectors.toList());
+                List<Image> images= new ArrayList<>(frames.size());
+                for (int fIdx : frames) {
+                    images.add(extract.apply(inputImages.getImage(channel, fIdx).setName(getLabel(fIdx+inputImages.getMinFrame()))));
+                }
                 if (t.getExtractRawZAxis().equals(Task.ExtractZAxis.BATCH)) {
                     logger.debug("before ZToBatch: {}", images.size());
                     Stream<Image> s = images.stream().flatMap(i -> i.splitZPlanes().stream());

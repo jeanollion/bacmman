@@ -27,6 +27,7 @@ import bacmman.data_structure.dao.BasicObjectDAO;
 import bacmman.data_structure.region_container.RegionContainer;
 import bacmman.image.*;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -887,7 +888,12 @@ public class SegmentedObject implements Comparable<SegmentedObject>, GraphObject
                             if (getPosition().singleFrame(structureIdx) && !isTrackHead && trackHead!=null) { // getImage from trackHead
                                 rawImagesC.set(trackHead.getRawImage(structureIdx), channelIdx);
                             } else {
-                                Image im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint);
+                                Image im = null;
+                                try {
+                                    im = getPosition().getImageDAO().openPreProcessedImage(channelIdx, getPosition().singleFrame(structureIdx) ? 0 : timePoint);
+                                } catch (IOException e) {
+
+                                }
                                 rawImagesC.set(im, channelIdx);
                                 if (im==null) logger.error("Could not find preProcessed Image for: {}", this);
                             }

@@ -29,6 +29,8 @@ import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReaderFile;
 import bacmman.image.io.ImageWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.function.IntPredicate;
 
@@ -63,7 +65,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     }
 
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint) {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws FileNotFoundException {
         if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
@@ -74,12 +76,11 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             //logger.debug("Opening pre-processed image:  channel: {} timePoint: {} position: {}, in {}ms path : {}", channelImageIdx, timePoint, microscopyFieldName, t1-t0, path);
             return im;
         } else {
-            logger.trace("pre-processed image: {} not found", path);
-            return null;
+            throw new FileNotFoundException(path);
         }
     }
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws FileNotFoundException {
         if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
@@ -87,12 +88,11 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             logger.trace("Opening pre-processed image:  channel: {} timePoint: {} fieldName: {} bounds: {}", channelImageIdx, timePoint, microscopyFieldName, bounds);
             return ImageReaderFile.openImage(path, new ImageIOCoordinates(bounds));
         } else {
-            logger.error("pre-processed image: {} not found", path);
-            return null;
+            throw new FileNotFoundException(path);
         }
     }
     @Override
-    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) {
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws FileNotFoundException {
         if (isSingleFrameChannel.test(channelImageIdx)) timePoint = 0;
         String path = getPreProcessedImagePath(channelImageIdx, timePoint);
         File f = new File(path);
@@ -100,8 +100,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             //logger.debug("Opening pre-processed plane:  channel: {} timePoint: {} fieldName: {} z: {}", channelImageIdx, timePoint, microscopyFieldName, z);
             return ImageReaderFile.openImage(path, new ImageIOCoordinates(new SimpleBoundingBox(0, -1, 0, -1, z, z)));
         } else {
-            logger.error("pre-processed image: {} not found", path);
-            return null;
+            throw new FileNotFoundException(path);
         }
     }
     @Override
@@ -112,7 +111,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
     }
 
     @Override
-    public BlankMask getPreProcessedImageProperties(int channelIdx) {
+    public BlankMask getPreProcessedImageProperties(int channelIdx) throws FileNotFoundException{
         String path = getPreProcessedImagePath(channelIdx, 0);
         File f = new File(path);
         if (f.exists()) {
@@ -122,8 +121,7 @@ public class LocalTIFImageDAO implements ImageDAO, ImageDAOTrack {
             //logger.debug("image info for: {}, sX={}, sY={}, sZ={}, T={} C={}", microscopyFieldName, STCXYZ[0][2], STCXYZ[0][3], STCXYZ[0][4], STCXYZ[0][0], STCXYZ[0][1]);
             return new BlankMask( STCXYZ[0][2], STCXYZ[0][3], STCXYZ[0][4], 0, 0, 0, (float)scale[0], (float)scale[1]);
         } else {
-            //logger.debug("getPreProcessedImageProperties: pre-processed image {} not found", path);
-            return null;
+            throw new FileNotFoundException(path);
         }
     }
 

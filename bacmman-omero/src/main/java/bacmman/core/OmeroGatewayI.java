@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.HashMap;
@@ -71,8 +72,8 @@ public class OmeroGatewayI implements OmeroGateway {
                 logger.debug("current connection information: {}, {}, pwd:{}, is GUI: {}", hostname, username, password==null? "null" : password.length(), bacmmanLogger.isGUI());
                 if (!gateway.isConnected() && bacmmanLogger!=null && bacmmanLogger.isGUI()) promptCredentials(serverPasswords, (s, u, p)-> {
                     setCredentials(s, u, p);
-                    connect();
-                    if (!isConnected()) bacmmanLogger.setMessage("Could not connect to Omero Server");
+                    if (validCredentials()) connect();
+                    if (!isConnected() && (s!=null || u!=null || p!=null) ) bacmmanLogger.setMessage("Could not connect to Omero Server");
                 });
                 // TODO also prompt from Terminal
             }
@@ -200,9 +201,9 @@ public class OmeroGatewayI implements OmeroGateway {
     }
 
     @Override
-    public ImageReader createReader(long imageID) {
-        connectIfNecessary();
-        //logger.debug("creating reader for ID: {}, connected ? {}", imageID, isConnected());
+    public ImageReader createReader(long imageID) throws IOException {
+        boolean connected = connectIfNecessary();
+        if (!connected) throw new IOException("Could not connect to Omero server");
         return new ImageReaderOmero(imageID, this);
     }
 

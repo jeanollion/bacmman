@@ -33,6 +33,8 @@ import bacmman.plugins.Plugin;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
+
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -267,15 +269,18 @@ public class CropMicrochannelsPhase2D extends CropMicroChannels implements Hint,
     }
 
     @Override
-    protected void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx) {
+    protected void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx) throws IOException {
         boolean stabFromDown = false;
 
         int maxSizeY = allBounds.values().stream().mapToInt(b->b.sizeY()).max().getAsInt();
+        IOException[] ex = new IOException[1];
         int sY = allBounds.entrySet().stream().mapToInt(b-> {
-            int yMinNull = getYmin(inputImages.getImage(channelIdx, b.getKey()), b.getValue().xMin(), b.getValue().xMax()); // limit sizeY so that no null pixels (due to rotation) is present in the image & not out-of-bounds
+            Image im = InputImages.getImage(inputImages,channelIdx, b.getKey(), ex);
+            int yMinNull = getYmin( im , b.getValue().xMin(), b.getValue().xMax()); // limit sizeY so that no null pixels (due to rotation) is present in the image & not out-of-bounds
             logger.debug("yMinnull: {}", yMinNull);
             return b.getValue().yMax() - Math.max(b.getValue().yMax()-(maxSizeY-1), yMinNull)+1;
         }).min().getAsInt();
+        if (ex[0]!=null) throw ex[0];
         logger.info("max size Y: {} uniformized sizeY: {}", maxSizeY, sY);
         logger.info("all bounds: {}", allBounds.entrySet().stream().filter(e->e.getKey()%100==0).sorted(Comparator.comparingInt(Map.Entry::getKey)).map(e->new Pair(e.getKey(), e.getValue())).collect(Collectors.toList()));
         if (!landmarkUpperPeak.getSelected()) allBounds.values().stream().filter(bb->bb.sizeY()!=sY).forEach(bb-> bb.setyMin(bb.yMax()-(sY-1)));

@@ -4371,7 +4371,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 }
             };
             DefaultWorker.executeSingleTask(() -> {
-                openPP.setEnabled(singlePosition && db.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
+                try {
+                    openPP.setEnabled(singlePosition && db.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
+                } catch (IOException e) {
+                    openPP.setEnabled(false);
+                }
             }, null);
             menu.add(openPP);
             menu.add(new JSeparator());

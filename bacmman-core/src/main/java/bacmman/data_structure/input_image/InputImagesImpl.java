@@ -27,6 +27,8 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.Pair;
 import bacmman.utils.ThreadRunner;
 import bacmman.utils.Utils;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -94,7 +96,12 @@ public class InputImagesImpl implements InputImages {
     @Override public int getBestFocusPlane(int timePoint) {
         if (autofocusChannel>=0 && autofocusAlgo!=null) {
             if (autofocusPlanes[timePoint]==null) {
-                Image im = this.getImage(autofocusChannel, timePoint);
+                Image im = null;
+                try {
+                    im = this.getImage(autofocusChannel, timePoint);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 autofocusPlanes[timePoint] = autofocusAlgo.getBestFocusPlane(im, null);
             } 
             return autofocusPlanes[timePoint];
@@ -134,7 +141,7 @@ public class InputImagesImpl implements InputImages {
             }
             c=c2;
         }
-        if (imageCT[c][t]==null || imageCT[c][t].imageSources==null || imageCT.length<=c || imageCT[c].length<=t) return Double.NaN;
+        if (imageCT.length<=c || imageCT[c][t]==null || imageCT[c][t].imageSources==null  || imageCT[c].length<=t) return Double.NaN;
         return imageCT[c][t].imageSources.getCalibratedTimePoint(t, c, z);
     }
     @Override public boolean singleFrameChannel(int channelIdx) {
@@ -157,12 +164,12 @@ public class InputImagesImpl implements InputImages {
         }
     }
 
-    @Override public Image getImage(int channelIdx, int timePoint) { 
+    @Override public Image getImage(int channelIdx, int timePoint) throws IOException {
         if (imageCT[channelIdx].length==1) timePoint = 0;
         if (freeMemoryFrameWindow>0 && timePoint > freeMemoryFrameWindow) freeMemory(timePoint - freeMemoryFrameWindow);
         return imageCT[channelIdx][timePoint].getImage();
     }
-    @Override public Image getRawPlane(int z, int channelIdx, int timePoint) {
+    @Override public Image getRawPlane(int z, int channelIdx, int timePoint) throws IOException  {
         if (imageCT[channelIdx].length==1) timePoint = 0;
         return imageCT[channelIdx][timePoint].getRawPlane(z);
     }
@@ -173,10 +180,10 @@ public class InputImagesImpl implements InputImages {
     public void flush(int channelIdx, int timePoint) {
         imageCT[channelIdx][timePoint].flush();
     }
-    public Image[][] getImagesTC() {
+    public Image[][] getImagesTC() throws IOException {
         return getImagesTC(0, this.getFrameNumber());
     }
-    public Image[][] getImagesTC(int frameMin, int frameMaxExcluded, int... channels) {
+    public Image[][] getImagesTC(int frameMin, int frameMaxExcluded, int... channels) throws IOException {
         if (channels==null || channels.length==0) channels = ArrayUtil.generateIntegerArray(this.getChannelNumber());
         if (frameMin>=this.getFrameNumber()) {
             frameMin=this.getFrameNumber()-1;
@@ -192,10 +199,16 @@ public class InputImagesImpl implements InputImages {
         for (int channelIdx : channels) {
             final int c = cIdx;
             final int fMin = frameMin;
+            IOException[] ex = new IOException[1];
             IntStream.range(fMin, frameMaxExcluded).parallel().forEach( f-> {
-                imagesTC[f-fMin][c] = getImage(channelIdx, f).setName("Channel: "+channelIdx+" Frame: "+f);
+                try {
+                    imagesTC[f-fMin][c] = getImage(channelIdx, f).setName("Channel: "+channelIdx+" Frame: "+f);
+                } catch (IOException e) {
+                    if (ex[0] == null) ex[0] = e;
+                }
                 if (imagesTC[f-fMin][c]==null) throw new RuntimeException("could not open image: channel:" +channelIdx + " frame: "+f);
             });
+            if (ex[0]!=null) throw ex[0];
             ++cIdx;
         }
         return imagesTC;
@@ -214,7 +227,11 @@ public class InputImagesImpl implements InputImages {
             InputImage[] imageF = imageCT[c];
             Consumer<Integer> ex = f -> {
                 if (!tempCheckPoint || ((imageF[f].imageOpened() || imageF[f].hasHighMemoryTransformations() || imageF[f].hasApplyDirectlyTransformations()) && (imageF[f].modified() || imageF[f].hasTransformations()))) {
-                    imageF[f].getImage();
+                    try {
+                        imageF[f].getImage();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
                     imageF[f].saveImage(tempCheckPoint);
                 }
                 if (close) imageF[f].flush();

@@ -28,6 +28,7 @@ import static bacmman.image.BoundingBox.loop;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +67,7 @@ public class RemoveHotPixels implements ConfigurableTransformation, TestableOper
     @Override
     public boolean highMemory() {return false;}
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages)   { 
+    public void computeConfigurationData(int channelIdx, InputImages inputImages)   throws IOException {
         configMapF = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
         Image median = new ImageFloat("", inputImages.getImage(channelIdx, 0));
         Neighborhood n =  new EllipsoidalNeighborhood(1.5, true); // excludes center pixel // only on same plane

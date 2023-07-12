@@ -840,13 +840,19 @@ public class Task implements ProgressCallback{
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
             logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
-            Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllField, preProcessingMemoryThreshold, this);
-            boolean createRoot = segmentAndTrack || trackOnly || generateTrackImages;
-            if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
-            db.getExperiment().getPosition(position).flushImages(true, true); 
-            System.gc();
-            incrementProgress();
-            publishMemoryUsage("After PreProcessing:");
+            try {
+                Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllField, preProcessingMemoryThreshold, this);
+                boolean createRoot = segmentAndTrack || trackOnly || generateTrackImages;
+                if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                db.getExperiment().getPosition(position).flushImages(true, true);
+                System.gc();
+                incrementProgress();
+                publishMemoryUsage("After PreProcessing:");
+            }
+
         }
         
         if ((segmentAndTrack || trackOnly)) {

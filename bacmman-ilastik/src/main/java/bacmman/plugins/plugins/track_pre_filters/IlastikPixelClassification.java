@@ -77,7 +77,7 @@ public class IlastikPixelClassification implements TrackPreFilter, Filter, Confi
     }
 
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) { // TODO mini batch
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException { // TODO mini batch
         if (project.needsToDownloadModel()) project.getModelFile();
         int nFrames = inputImages.getFrameNumber();
         Image[] input = new Image[nFrames];

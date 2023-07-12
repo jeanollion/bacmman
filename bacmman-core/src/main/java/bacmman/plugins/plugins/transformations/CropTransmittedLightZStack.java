@@ -10,6 +10,7 @@ import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -30,7 +31,7 @@ public class CropTransmittedLightZStack implements ConfigurableTransformation, M
     }
 
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages)  throws IOException {
         frameIndices = new HashMap<>();
         for (int f = 0; f<inputImages.getFrameNumber(); ++f) frameIndices.put(f, getFrames(inputImages.getImage(channelIdx, f)));
     }

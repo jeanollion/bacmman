@@ -25,6 +25,8 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.ImageMask;
 import bacmman.processing.ImageOperations;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -52,12 +54,14 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
     }
     
     @Override
-    public void computeConfigurationData(final int channelIdx, final InputImages inputImages)  {
+    public void computeConfigurationData(final int channelIdx, final InputImages inputImages)  throws IOException {
         final double scale = gradientScale.getValue().doubleValue();
         final Integer[] conf = new Integer[inputImages.getFrameNumber()];
         if (inputImages.getSourceSizeZ(channelIdx)>1) {
+            IOException[] ioe = new IOException[1];
             Consumer<Integer> ex = t -> {
-                Image image = inputImages.getImage(channelIdx, t);
+                Image image = InputImages.getImage(inputImages, channelIdx, t, ioe);
+                if (image == null) return;
                 if (image.sizeZ()>1) {
                     List<Image> planes = image.splitZPlanes();
                     SimpleThresholder thlder = signalExclusionThreshold.instantiatePlugin();
@@ -66,6 +70,7 @@ public class SelectBestFocusPlane implements ConfigurableTransformation, Multich
                 }
             };
             ThreadRunner.parallelExecutionBySegments(ex, 0, inputImages.getFrameNumber(), 100);
+            if (ioe[0]!=null) throw ioe[0];
         }
         bestFocusPlaneIdxT.addAll(Arrays.asList(conf));
     }

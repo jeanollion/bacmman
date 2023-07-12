@@ -35,6 +35,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.awt.event.ActionEvent;
+import java.io.IOException;
 import java.util.*;
 import javax.swing.AbstractAction;
 import javax.swing.JMenu;
@@ -285,7 +286,11 @@ public class RootTrackNode implements TrackNodeInterface, UIContainer {
                 }
             );
             DefaultWorker.executeSingleTask(() -> {
-                openPreprocessedAllFrames.setEnabled(generator.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
+                try {
+                    openPreprocessedAllFrames.setEnabled(generator.getExperiment().getPosition(position).getImageDAO().getPreProcessedImageProperties(0)!=null);
+                } catch (IOException e) {
+                    openPreprocessedAllFrames.setEnabled(false);
+                }
             }, null);
             kymographSubMenu = new JMenu("Open Kymograph");
             actions[2] = kymographSubMenu;

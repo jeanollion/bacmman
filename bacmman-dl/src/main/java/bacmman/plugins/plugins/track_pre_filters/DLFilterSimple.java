@@ -10,6 +10,7 @@ import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -101,7 +102,7 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
     // transformation implementation
     Image[] processedFrames;
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages)  throws IOException  {
         int nFrames = inputImages.singleFrameChannel(channelIdx) ? 1 : inputImages.getFrameNumber();
         int minFrame = inputImages.getMinFrame();
         boolean inputFrameIndex = this.inputFrameIndex.getSelected();
@@ -115,7 +116,10 @@ public class DLFilterSimple implements TrackPreFilter, ConfigurableTransformatio
         } else {
             boolean[] noPrevParent = new boolean[inputImages.getFrameNumber()];
             noPrevParent[0] = true;
-            Image[] input = IntStream.range(0, inputImages.getFrameNumber()).mapToObj(f -> inputImages.getImage(channelIdx, f)).toArray(Image[]::new);
+            Image[] input = new Image[inputImages.getFrameNumber()];
+            for (int i = 0; i<input.length; ++i) {
+                input[i] = inputImages.getImage(channelIdx, i);
+            }
             ToIntFunction<Integer> getFrame = testNoFrame ? f->0 : f -> f+minFrame;
             Image[] frames = inputFrameIndex ? IntStream.range(0, inputImages.getFrameNumber()).mapToObj(f -> asImage(getFrame.applyAsInt(f))).toArray(Image[]::new) : null;
             processedFrames = predictTimelapse(input, frames, noPrevParent);

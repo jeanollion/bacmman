@@ -30,6 +30,7 @@ import bacmman.data_structure.SegmentedObject;
 import static bacmman.data_structure.SegmentedObjectUtils.setTrackLinks;
 import bacmman.image.BlankMask;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -135,9 +136,12 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
                 if (imageDAO==null) imageDAO = new LocalTIFImageDAO(getName(), getExperiment().getOutputImageDirectory(), this::singleFrameChannel);
             }
         }
-        if (allowByPass && this.getPreProcessingChain().isEmpty() && imageDAO.getPreProcessedImageProperties(0)==null)  {
-            //logger.debug("will return bypass dao");
-            return new BypassImageDAO(this);
+        if (allowByPass && this.getPreProcessingChain().isEmpty())  {
+            try {
+                if (imageDAO.getPreProcessedImageProperties(0)==null) return new BypassImageDAO(this);
+            } catch (IOException e) {
+                return new BypassImageDAO(this);
+            }
         }
         return imageDAO;
     }
@@ -194,7 +198,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         }
     }
     
-    public BlankMask getMask() {
+    public BlankMask getMask() throws IOException {
         BlankMask mask = getImageDAO().getPreProcessedImageProperties(0).resetOffset();
         if (mask==null) return null;
         if (mask.sizeZ()>1) mask = new BlankMask(mask.sizeX(), mask.sizeY(), 1);
@@ -202,7 +206,7 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
         return mask;
     }
     
-    public ArrayList<SegmentedObject> createRootObjects(ObjectDAO dao) {
+    public ArrayList<SegmentedObject> createRootObjects(ObjectDAO dao) throws IOException {
         int frameNumber = getFrameNumber(false);
         ArrayList<SegmentedObject> res = new ArrayList<>(frameNumber);
         BlankMask mask = getMask();
@@ -223,7 +227,13 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             final int cIdx = channelIdx;
             if (structureIndices==null) continue; // no structure associated to channel
             rootTrack.stream().filter(root -> inputImages.imageOpened(cIdx, root.getFrame())).forEach(root-> {
-                structureIndices.forEach((s) -> accessor.setRawImage(root, s, inputImages.getImage(cIdx, root.getFrame())));
+                structureIndices.forEach((s) -> {
+                    try {
+                        accessor.setRawImage(root, s, inputImages.getImage(cIdx, root.getFrame()));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
             });
         }
     }
@@ -271,12 +281,14 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
             synchronized (channelMapSizeZ) {
                 if (channelMapSizeZ.containsKey(channelIdx)) return channelMapSizeZ.get(channelIdx);
                 else {
-                    BlankMask props = getImageDAO().getPreProcessedImageProperties(channelIdx);
-                    if (props==null) return 1; // default
-                    else {
-                        channelMapSizeZ.put(channelIdx, props.sizeZ());
-                        return props.sizeZ();
+                    BlankMask props = null;
+                    try {
+                        props = getImageDAO().getPreProcessedImageProperties(channelIdx);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
                     }
+                    channelMapSizeZ.put(channelIdx, props.sizeZ());
+                    return props.sizeZ();
                 }
             }
         }

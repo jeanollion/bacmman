@@ -19,6 +19,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -99,7 +100,7 @@ public class BackgroundAndShadingCorrection implements ConfigurableTransformatio
         return res;
     }
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         if (correctFlatField.getSelected()) {
             String[] path = flatField.getSelectedFilePath();
             Image refImage = inputImages.getImage(channelIdx, 0);

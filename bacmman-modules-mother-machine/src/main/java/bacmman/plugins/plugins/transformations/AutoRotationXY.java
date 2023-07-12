@@ -26,6 +26,8 @@ import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.TypeConverter;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -126,7 +128,7 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
     List<Image> sinogram1Test, sinogram2Test;
     
     @Override 
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {     
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         if (testMode.testExpert()) {
             sinogram1Test = new ArrayList<>();
             sinogram2Test = new ArrayList<>();
@@ -135,8 +137,8 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
         List<Integer> frames;
         if (fn<=1) frames = new ArrayList<Integer>(1){{add(inputImages.getDefaultTimePoint());}};
         else frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, fn); // TODO not necessary for phase contrast
-        
-        List<Double> angles = frames.stream().map(f -> { // sequential no need to segment indices
+        List<Double> angles = new ArrayList<>(frames.size());
+        for (int f:  frames) { // sequential no need to segment indices
             Image<? extends Image> image = inputImages.getImage(channelIdx, f);
             image = prefilters.filter(image);
             if (image.sizeZ()>1) {
@@ -144,8 +146,8 @@ public class AutoRotationXY implements MultichannelTransformation, ConfigurableT
                 if (plane<0) throw new RuntimeException("Autorotation can only be run on 2D images AND no autofocus algorithm was set");
                 image = image.splitZPlanes().get(plane);
             }
-            return getAngle(image);
-        }).collect(Collectors.toList());
+            angles.add(getAngle(image));
+        }
         if (testMode.testExpert()) {
             Core.showImage(Image.mergeZPlanes(sinogram1Test).setName("Sinogram: first search"));
             Core.showImage(Image.mergeZPlanes(sinogram2Test).setName("Sinogram: second search"));

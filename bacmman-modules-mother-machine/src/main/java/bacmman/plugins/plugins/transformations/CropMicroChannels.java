@@ -28,6 +28,7 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.plugins.ConfigurableTransformation;
 
+import java.io.IOException;
 import java.util.*;
 
 import bacmman.plugins.MultichannelTransformation;
@@ -65,7 +66,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
         return this;
     }
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException  {
         cropBounds=null;
         bounds = null;
         if (channelIdx<0) throw new IllegalArgumentException("Channel no configured");
@@ -96,7 +97,13 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
             default :
                 frames =  InputImages.chooseNImagesWithSignal(inputImages, channelIdx, framesN);
         }
-        List<Image> images = ThreadRunner.parallelExecutionBySegmentsFunction(f->inputImages.getImage(channelIdx, f), frames, 100);
+        List<Image> images = ThreadRunner.parallelExecutionBySegmentsFunction(f-> {
+            try {
+                return inputImages.getImage(channelIdx, f);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }, frames, 100);
         Function<Integer, MutableBoundingBox> getBds = i -> {
             Image<? extends Image> im = images.get(i);
             if (im.sizeZ()>1) {
@@ -146,7 +153,7 @@ public abstract class CropMicroChannels implements ConfigurableTransformation, M
 
         if (framesN!=1) this.setTestMode(test); // restore initial value
     }
-    protected abstract void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx);
+    protected abstract void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx)  throws IOException;
     
     protected void uniformizeX(Map<Integer, MutableBoundingBox> allBounds) {
         int sizeX = allBounds.values().stream().mapToInt(b->b.sizeX()).min().getAsInt();

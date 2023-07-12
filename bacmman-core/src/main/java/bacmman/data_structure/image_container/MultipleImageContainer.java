@@ -26,6 +26,7 @@ import bacmman.utils.JSONSerializable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -41,9 +42,9 @@ public abstract class MultipleImageContainer implements JSONSerializable {
     public abstract int getFrameNumber();
     public abstract int getChannelNumber();
     public abstract int getSizeZ(int channel);
-    public abstract Image getImage(int timePoint, int channel);
-    public abstract Image getPlane(int z, int timePoint, int channel);
-    public abstract Image getImage(int timePoint, int channel, BoundingBox bounds);
+    public abstract Image getImage(int timePoint, int channel) throws IOException;
+    public abstract Image getPlane(int z, int timePoint, int channel) throws IOException;
+    public abstract Image getImage(int timePoint, int channel, BoundingBox bounds) throws IOException;
     public abstract void flush();
     public abstract String getName();
     public float getScaleXY() {return (float)scaleXY;}

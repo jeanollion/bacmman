@@ -24,6 +24,8 @@ import bacmman.data_structure.image_container.MultipleImageContainer;
 import bacmman.image.BlankMask;
 import bacmman.image.Image;
 
+import java.awt.image.ImagingOpException;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -97,7 +99,7 @@ public class InputImage {
         }
         return false;
     }
-    public Image getImage() {
+    public Image getImage() throws IOException {
         if (image == null && requiresInputImage()) {
             synchronized (this) {
                 if (image==null) {
@@ -114,7 +116,7 @@ public class InputImage {
         applyTransformations();
         return image;
     }
-    public Image getRawPlane(int z) {
+    public Image getRawPlane(int z) throws IOException {
         if (image!=null && !transformationHaveBeenApplied) return image.getZPlane(z);
         Image plane = imageSources.getPlane(z, inputFrame, inputChannelIdx);
         if (!Double.isNaN(scaleXY)) plane.setCalibration(scaleXY, scaleZ);

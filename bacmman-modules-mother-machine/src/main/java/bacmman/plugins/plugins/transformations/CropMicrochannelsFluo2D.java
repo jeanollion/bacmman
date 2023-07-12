@@ -34,6 +34,7 @@ import bacmman.image.MutableBoundingBox;
 import bacmman.image.Image;
 import bacmman.image.ImageInteger;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -105,7 +106,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         return this;
     }
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         // compute one threshold for all images
         List<Image> allImages = Arrays.asList(InputImages.getImageForChannel(inputImages, channelIdx, false));
         ThresholderHisto thlder = thresholder.instantiatePlugin();
@@ -190,7 +191,7 @@ public class CropMicrochannelsFluo2D extends CropMicroChannels implements Hint, 
         
     }
     @Override
-    protected void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx) {
+    protected void uniformizeBoundingBoxes(Map<Integer, MutableBoundingBox> allBounds, InputImages inputImages, int channelIdx)  throws IOException {
         // reference point = top -> all y start are conserved
         int imageSizeY = inputImages.getImage(channelIdx, inputImages.getDefaultTimePoint()).sizeY();
         int maxSizeY = allBounds.values().stream().mapToInt(b->b.sizeY()).max().getAsInt();

@@ -40,6 +40,7 @@ import bacmman.measurement.MeasurementKey;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.Map.Entry;
 
@@ -123,12 +124,16 @@ public class Processor {
         }
     }
     
-    public static void preProcessImages(Position position, ObjectDAO dao, boolean deleteObjects, double memoryLimit, ProgressCallback pcb)  {
+    public static void preProcessImages(Position position, ObjectDAO dao, boolean deleteObjects, double memoryLimit, ProgressCallback pcb) throws IOException {
         if (!dao.getPositionName().equals(position.getName())) throw new IllegalArgumentException("field name should be equal");
         InputImagesImpl images = position.getInputImages();
-        if (images==null || images.getImage(0, images.getDefaultTimePoint())==null) {
-            if (pcb!=null) pcb.log("Error: no input images found for position: "+position.getName());
-            throw new RuntimeException("No images found for position");
+        try {
+            if (images==null || images.getImage(0, images.getDefaultTimePoint())==null) {
+                if (pcb!=null) pcb.log("Error: no input images found for position: "+position.getName());
+                throw new RuntimeException("No images found for position");
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
         images.deleteFromDAO(); // eraseAll images if existing in imageDAO
         for (int s =0; s<dao.getExperiment().getStructureCount(); ++s) {
@@ -144,7 +149,7 @@ public class Processor {
         if (deleteObjects) dao.deleteAllObjects();
     }
     
-    public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb)  {
+    public static void setTransformations(Position position, double memoryLimit, ProgressCallback pcb) throws IOException {
         InputImagesImpl images = position.getInputImages();
         PreProcessingChain ppc = position.getPreProcessingChain();
         if (pcb!=null) {
@@ -178,7 +183,11 @@ public class Processor {
     public static List<SegmentedObject> getOrCreateRootTrack(ObjectDAO dao) {
         List<SegmentedObject> res = dao.getRoots();
         if (res==null || res.isEmpty()) {
-            res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
+            try {
+                res = dao.getExperiment().getPosition(dao.getPositionName()).createRootObjects(dao);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             if (res!=null && !res.isEmpty()) {
                 dao.setRoots(res); // also stores
             }

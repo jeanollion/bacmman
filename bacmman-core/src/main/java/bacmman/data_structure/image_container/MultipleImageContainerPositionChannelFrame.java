@@ -302,8 +302,11 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     }
     protected ImageReader getReader(int c, int f) throws IOException {
         if (singleFrame(c)) f = 0;
-        if (fromOmero()) return omeroGateway==null ? null : omeroGateway.createReader(getImageID(c, f));
-        else return new ImageReaderFile(getFileMap().get(c).get(f));
+        if (fromOmero()) {
+            ImageReader r = omeroGateway==null ? null : omeroGateway.createReader(getImageID(c, f));
+            if (r==null) throw new IOException("Could not connect to Omero server");
+            return r;
+        } else return new ImageReaderFile(getFileMap().get(c).get(f));
     }
 
     @Override
@@ -322,7 +325,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     }
 
     @Override
-    public Image getImage(int frame, int channel) {
+    public Image getImage(int frame, int channel) throws IOException {
         if (singleFrame(channel)) frame = 0;
         boolean invertTZ = false;
         if (invertTZ_CT!=null) {
@@ -335,8 +338,8 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
                 Image i = r.openImage(new ImageIOCoordinates());
                 r.closeReader();
                 return i;
-            } catch (Exception ignored) {
-                return null;
+            } catch (Exception e) {
+                throw new IOException(e);
             }
         } else {
             if (fileCT == null) {
@@ -355,7 +358,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     
     
     @Override
-    public Image getImage(int frame, int channel, BoundingBox bounds) {
+    public Image getImage(int frame, int channel, BoundingBox bounds) throws IOException {
         if (singleFrame(channel)) frame = 0;
         ImageIOCoordinates coords = new ImageIOCoordinates(0, 0, 0, bounds);
         boolean invertTZ = false;
@@ -364,22 +367,16 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
             if (inv!=null) invertTZ = inv;
         }
         if (fromOmero()) {
+            ImageReader r = null;
             try {
-                ImageReader r = getReader(channel, frame).setInvertTZ(invertTZ);
+                r = getReader(channel, frame).setInvertTZ(invertTZ);
                 Image i = r.openImage(coords);
-                r.closeReader();
                 return i;
-            } catch (Exception ignored) {
-                return null;
+            } finally {
+                if (r!=null) r.closeReader();
             }
         } else {
-            if (fileCT == null) {
-                try {
-                    getFileMap();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            if (fileCT == null) getFileMap();
             int f = frame;
             boolean inv = invertTZ;
             return bufferPool.apply( b -> ImageReaderFile.openImage(fileCT.get(channel).get(f), coords, inv, b));
@@ -387,7 +384,7 @@ public class MultipleImageContainerPositionChannelFrame extends MultipleImageCon
     }
 
     @Override
-    public Image getPlane(int z, int timePoint, int channel) {
+    public Image getPlane(int z, int timePoint, int channel) throws IOException {
         return getImage(timePoint, channel, new SimpleBoundingBox(0, -1, 0, -1, z, z));
     }
 

@@ -25,6 +25,8 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.image.io.ImageIOCoordinates;
 import bacmman.image.io.ImageReader;
 import bacmman.image.io.ImageReaderFile;
+
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -133,7 +135,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     }
     protected MultipleImageContainerChannelSerie() {super(1, 1);} // only for JSON initialization
     
-    public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int[] channelIndices, int[] channelModulo, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ, boolean[] invertTZbyC, List<ImageIOCoordinates.RGB> rgbC) {
+    public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int[] channelIndices, int[] channelModulo, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ, boolean[] invertTZbyC, List<ImageIOCoordinates.RGB> rgbC){
         this(name, imagePathC, channelIndices, channelModulo, frameNumber, singleFrameC, sizeZC, scaleXY, scaleZ,invertTZ, invertTZbyC, rgbC, null);
     }
     public MultipleImageContainerChannelSerie(String name, String[] imagePathC, int[] channelIndices, int[] channelModulo, int frameNumber, boolean[] singleFrameC, int[] sizeZC, double scaleXY, double scaleZ, boolean invertTZ, boolean[] invertTZbyC, List<ImageIOCoordinates.RGB> rgbC, Map<String, Double> timePointCZT) {
@@ -164,7 +166,12 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     private void initTimePointMap() {
         timePointCZT = new HashMap<>();
         for (int c = 0; c<filePathC.length; ++c) {
-            ImageReader r = this.getReader(c);
+            ImageReader r = null;
+            try {
+                r = this.getReader(c);
+            } catch (IOException e) {
+                continue;
+            }
             if (r==null) continue;
             for (int z = 0; z<sizeZC[c]; ++z) {
                 for (int t = 0; t<timePointNumber; ++t) {
@@ -245,12 +252,13 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         return c;
     }
     
-    protected synchronized ImageReader getReader(int channelIdx) {
+    protected synchronized ImageReader getReader(int channelIdx) throws IOException {
         if (getImageReaders()[channelIdx]==null) {
             synchronized(this) {
                 if (getImageReaders()[channelIdx]==null) {
                     if (fromOmero()) {
                         reader[channelIdx] = omeroGateway==null ? null : omeroGateway.createReader(getOmeroID(channelIdx));
+                        if (reader[channelIdx]==null) throw new IOException("Could not connect to Omero Server");
                     }
                     else reader[channelIdx] = new ImageReaderFile(filePathC[channelIdx]);
                     if ((invertTZ || invertTZbyC[channelIdx]) && reader[channelIdx]!=null) reader[channelIdx].setInvertTZ(true);
@@ -270,7 +278,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     }
     
     @Override
-    public Image getImage(int timePoint, int channel) {
+    public Image getImage(int timePoint, int channel) throws IOException {
         if (singleFrame(channel)) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);
         if (bounds!=null) ioCoordinates.setBounds(bounds);
@@ -288,6 +296,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
             return singleFrameImages[channel];
         } else {
             ImageReader r= getReader(channel);
+            if (r==null) return null;
             synchronized(r) {
                 Image image = getReader(channel).openImage(ioCoordinates);
                 return image;
@@ -295,7 +304,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
         }
     }
     @Override
-    public Image getPlane(int z, int timePoint, int channel) {
+    public Image getPlane(int z, int timePoint, int channel) throws IOException {
         if (singleFrame(channel)) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);
         if (bounds!=null) ioCoordinates.setBounds(bounds.duplicate().setzMin(z).setzMax(z));
@@ -312,7 +321,7 @@ public class MultipleImageContainerChannelSerie extends MultipleImageContainer {
     }
     
     @Override
-    public synchronized Image getImage(int timePoint, int channel, BoundingBox bounds) {
+    public synchronized Image getImage(int timePoint, int channel, BoundingBox bounds) throws IOException {
         
         if (this.timePointNumber==1) timePoint=0;
         ImageIOCoordinates ioCoordinates = getImageIOCoordinates(timePoint, channel);

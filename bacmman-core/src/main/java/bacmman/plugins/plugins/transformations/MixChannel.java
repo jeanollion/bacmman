@@ -9,6 +9,7 @@ import bacmman.image.Image;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.scalers.ModePercentileScaler;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.BiConsumer;
@@ -86,7 +87,12 @@ public class MixChannel implements ConfigurableTransformation, TransformationApp
 
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        Image otherImage = ii.getImage(otherChannel.getSelectedIndex(), timePoint);
+        Image otherImage = null;
+        try {
+            otherImage = ii.getImage(otherChannel.getSelectedIndex(), timePoint);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         //logger.debug("mix channels @ chan: {}+{} tp: {}, bds: {} other bds: {}", channelIdx, otherChannel.getSelectedIndex(), timePoint, image.getBoundingBox(), otherImage.getBoundingBox());
         if (!scalePerFrame.getSelected()) {
             if (otherScalerInstance!=null) otherImage = otherScalerInstance.scale(otherImage);

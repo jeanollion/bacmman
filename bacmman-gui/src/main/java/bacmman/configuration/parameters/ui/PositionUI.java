@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
+import java.io.IOException;
 
 public class PositionUI implements ParameterUI {
     public static final Logger logger = LoggerFactory.getLogger(PositionUI.class);
@@ -52,7 +53,11 @@ public class PositionUI implements ParameterUI {
                                             }
         );
         DefaultWorker.executeSingleTask(() -> {
-            openPreprocessedAllFrames.setEnabled(p.getImageDAO().getPreProcessedImageProperties(0)!=null);
+            try {
+                openPreprocessedAllFrames.setEnabled(p.getImageDAO().getPreProcessedImageProperties(0)!=null);
+            } catch (IOException e) {
+                openPreprocessedAllFrames.setEnabled(false);
+            }
         }, null);
     }
     public Object[] getDisplayComponent() {

@@ -21,6 +21,8 @@ package bacmman.plugins;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.Image;
 
+import java.io.IOException;
+
 /**
  *
  * @author Jean Ollion
@@ -31,7 +33,7 @@ public interface ConfigurableTransformation extends Transformation {
      * @param channelIdx
      * @param inputImages 
      */
-    public void computeConfigurationData(int channelIdx, InputImages inputImages);
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException;
     public boolean isConfigured(int totalChannelNumber, int totalTimePointNumber);
     boolean highMemory();
 }

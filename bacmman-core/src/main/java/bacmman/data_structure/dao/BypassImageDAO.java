@@ -6,6 +6,8 @@ import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 
+import java.io.IOException;
+
 public class BypassImageDAO implements ImageDAO {
     InputImagesImpl inputImages;
     final Position p;
@@ -32,7 +34,7 @@ public class BypassImageDAO implements ImageDAO {
     }
 
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint) {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException {
         InputImagesImpl ii = getInputImages();
         Image res = ii.getImage(channelImageIdx, timePoint);
         ii.flush(channelImageIdx, timePoint);
@@ -40,19 +42,19 @@ public class BypassImageDAO implements ImageDAO {
     }
 
     @Override
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) {
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException {
         Image im = openPreProcessedImage(channelImageIdx, timePoint);
         return im.crop(bounds);
     }
 
     @Override
-    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) {
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException {
         InputImagesImpl ii = getInputImages();
         return ii.getRawPlane(z, channelImageIdx, timePoint);
     }
 
     @Override
-    public BlankMask getPreProcessedImageProperties(int channelImageIdx) {
+    public BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException {
         return new BlankMask(openPreProcessedImage(channelImageIdx, 0));
     }
 

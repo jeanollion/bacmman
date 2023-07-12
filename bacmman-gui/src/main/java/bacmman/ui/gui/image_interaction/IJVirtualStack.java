@@ -43,6 +43,7 @@ import sc.fiji.i5d.cal.ChannelDisplayProperties;
 
 import java.awt.*;
 import java.awt.image.ColorModel;
+import java.io.IOException;
 import java.util.*;
 import java.util.List;
 import java.util.function.*;
@@ -147,11 +148,23 @@ public class IJVirtualStack extends VirtualStack {
         Position f = xp.getPosition(position);
         int channels = xp.getChannelImageCount(preProcessed);
         int frames = f.getFrameNumber(false);
-        Function<int[], Image> imageOpenerCT  = preProcessed ? (fcz) -> f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]) : (fcz) -> f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
+        Function<int[], Image> imageOpenerCT  = preProcessed ? (fcz) -> {
+            try {
+                return f.getImageDAO().openPreProcessedImagePlane(fcz[2], fcz[1], fcz[0]);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } : (fcz) -> {
+            try {
+                return f.getInputImages().getRawPlane(fcz[2], fcz[1], fcz[0]);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        };
         Image[] planes0 = IntStream.range(0, channels).mapToObj(c -> imageOpenerCT.apply(new int[]{0, c, 0})).toArray(Image[]::new);
         int maxBitDepth = IntStream.range(0, channels).map(c -> planes0[c].getBitDepth()).max().getAsInt();
         Function<int[], Image> imageOpenerCT2 = fcz -> fcz[0]==0 && fcz[2]==0 ? planes0[fcz[1]] : imageOpenerCT.apply(fcz);
-        if (Arrays.stream(planes0).anyMatch(p -> p==null)) {
+        if (Arrays.stream(planes0).anyMatch(Objects::isNull)) {
             GUI.log("Missing "+(preProcessed ? "preprocessed " : "input")+" images found for position: "+position);
             return;
         }
@@ -161,7 +174,13 @@ public class IJVirtualStack extends VirtualStack {
             return;
         }
         // case of reference image with only one Z -> duplicate
-        IntUnaryOperator getSizeZC = preProcessed ? c -> f.getImageDAO().getPreProcessedImageProperties(c).sizeZ() : c -> f.getInputImages().getSourceSizeZ(c);
+        IntUnaryOperator getSizeZC = preProcessed ? c -> {
+            try {
+                return f.getImageDAO().getPreProcessedImageProperties(c).sizeZ();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } : c -> f.getInputImages().getSourceSizeZ(c);
         int[] sizeZC = IntStream.range(0, channels).map(getSizeZC).toArray();
         int maxZIdx = ArrayUtil.max(sizeZC);
         int maxZ = sizeZC[maxZIdx];

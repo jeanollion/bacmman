@@ -34,6 +34,7 @@ import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageLabeller;
 import bacmman.processing.ImageOperations;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -107,9 +108,10 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
     }
     List<Image> upperObjectsTest, lowerObjectsTest;
     @Override
-    public void computeConfigurationData(int channelIdx, InputImages inputImages) {
+    public void computeConfigurationData(int channelIdx, InputImages inputImages) throws IOException {
         flip=null;
         AutoFlipMethod m = AutoFlipMethod.getMethod(method.getSelectedItem());
+        IOException[] ioe = new IOException[1];
         switch(m) {
             case FLUO: {
                 if (testMode.testExpert()) {
@@ -118,8 +120,10 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 }
                 // rough segmentation and get side where cells are better aligned
                 List<Integer> frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, 200);
+
                 Function<Integer, Boolean> ex = f->{
-                    Image<? extends Image> image = inputImages.getImage(channelIdx, f);
+                    Image<? extends Image> image = InputImages.getImage(inputImages,channelIdx, f, ioe);
+                    if (image==null) return false;
                     if (image.sizeZ()>1) {
                         int plane = inputImages.getBestFocusPlane(f);
                         if (plane<0) throw new RuntimeException("AutoFlip can only be run on 2D images AND no autofocus algorithm was set");
@@ -128,6 +132,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     return isFlipFluo(image);
                 };
                 List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50);
+                if (ioe[0]!=null) throw ioe[0];
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
                 if (testMode.testExpert()) {
@@ -144,7 +149,8 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                 // compares signal in upper half & lower half -> signal should be in upper half
                 List<Integer> frames = InputImages.chooseNImagesWithSignal(inputImages, channelIdx, 20);
                 Function<Integer, Boolean> ex = f->{
-                    Image<? extends Image> image = inputImages.getImage(channelIdx, f);
+                    Image<? extends Image> image = InputImages.getImage(inputImages,channelIdx, f, ioe);
+                    if (image==null) return false;
                     if (image.sizeZ()>1) {
                         int plane = inputImages.getBestFocusPlane(f);
                         if (plane<0) throw new RuntimeException("AutoFlip can only be run on 2D images AND no autofocus algorithm was set");
@@ -153,6 +159,7 @@ public class AutoFlipY implements ConfigurableTransformation, MultichannelTransf
                     return isFlipFluoUpperHalf(image);
                 };
                 List<Boolean> flips = ThreadRunner.parallelExecutionBySegmentsFunction(ex, frames, 50);
+                if (ioe[0]!=null) throw ioe[0];
                 long countFlip = flips.stream().filter(b->b!=null && b).count();
                 long countNoFlip = flips.stream().filter(b->b!=null && !b).count();
 

@@ -40,6 +40,7 @@ import bacmman.plugins.TestableProcessingPlugin.TestDataStore;
 import bacmman.utils.*;
 
 import java.awt.event.ActionEvent;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
@@ -487,7 +488,12 @@ public class PluginConfigurationUtils {
                                 }
 
                             }
-                            Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
+                            Image[][] imagesTC = new Image[0][];
+                            try {
+                                imagesTC = images.getImagesTC(0, images.getFrameNumber(), channels);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
                             ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate)); // duplicate all images so that further transformations are not shown
                             getImageManager().getDisplayer().showImage5D("before: "+tpp.getPluginName(), imagesTC);
                         }
@@ -516,7 +522,12 @@ public class PluginConfigurationUtils {
                                     else outputChannels = new int[]{tpp.getInputChannel()}; 
                                 }
                             }
-                            Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), outputChannels);
+                            Image[][] imagesTC = new Image[0][];
+                            try {
+                                imagesTC = images.getImagesTC(0, images.getFrameNumber(), outputChannels);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
                             if (i!=transfoIdx) ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, Image::duplicate));
                             getImageManager().getDisplayer().showImage5D("after: "+tpp.getPluginName(), imagesTC);
                         }
@@ -569,12 +580,23 @@ public class PluginConfigurationUtils {
 
                 logger.debug("Test Transfo: adding transformation: {} of class: {} to field: {}, input channel:{}, output channel: {}, isConfigured?: {}", transfo, transfo.getClass(), position.getName(), input, output);
                 if (transfo instanceof TestableOperation) ((TestableOperation)transfo).setTestMode(testMode);
-                if (transfo instanceof ConfigurableTransformation) ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
+                if (transfo instanceof ConfigurableTransformation) {
+                    try {
+                        ((ConfigurableTransformation)transfo).computeConfigurationData(tpp.getInputChannel(), images);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
                       
                 //tpp.setConfigurationData(transfo.getConfigurationData());
                 images.addTransformation(input, output, transfo);
 
-                Image[][] imagesTC = images.getImagesTC(0, images.getFrameNumber(), ArrayUtil.generateIntegerArray(images.getChannelNumber()));
+                Image[][] imagesTC = new Image[0][];
+                try {
+                    imagesTC = images.getImagesTC(0, images.getFrameNumber(), ArrayUtil.generateIntegerArray(images.getChannelNumber()));
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 //ArrayUtil.apply(imagesTC, a -> ArrayUtil.apply(a, im -> im.duplicate()));
                 getImageManager().getDisplayer().showImage5D("after: "+tpp.getPluginName(), imagesTC);
             }

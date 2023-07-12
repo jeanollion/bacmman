@@ -6,6 +6,7 @@ import bacmman.image.Image;
 import bacmman.plugins.*;
 import bacmman.processing.ImageOperations;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -31,7 +32,11 @@ public class CopyTo implements ConfigurableTransformation, MultichannelTransform
 
     @Override
     public Image applyTransformation(int channelIdx, int timePoint, Image image) {
-        return dup.apply(ii.getImage(inputChannelIdx, timePoint));
+        try {
+            return dup.apply(ii.getImage(inputChannelIdx, timePoint));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override

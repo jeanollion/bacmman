@@ -22,6 +22,8 @@ import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 
+import java.io.IOException;
+
 /**
  *
  * @author Jean Ollion
@@ -29,10 +31,10 @@ import bacmman.image.Image;
 public interface ImageDAO {
     public void flush();
     public String getImageExtension();
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint);
-    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds);
-    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint);
-    public BlankMask getPreProcessedImageProperties(int channelImageIdx);
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint) throws IOException;
+    public Image openPreProcessedImage(int channelImageIdx, int timePoint, BoundingBox bounds) throws IOException;
+    public Image openPreProcessedImagePlane(int z, int channelImageIdx, int timePoint) throws IOException;
+    public BlankMask getPreProcessedImageProperties(int channelImageIdx) throws IOException;
     public void writePreProcessedImage(Image image, int channelImageIdx, int timePoint);
     public void deletePreProcessedImage(int channelImageIdx, int timePoint);
     

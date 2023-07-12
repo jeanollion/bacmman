@@ -38,6 +38,8 @@ import bacmman.image.wrappers.IJImageWrapper;
 import bacmman.image.Image;
 import bacmman.image.ImageFloat;
 import bacmman.image.TypeConverter;
+
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -107,7 +109,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
     }
     
     @Override
-    public void computeConfigurationData(final int channelIdx, final InputImages inputImages) {
+    public void computeConfigurationData(final int channelIdx, final InputImages inputImages) throws IOException {
         if (debug) testMode = TEST_MODE.TEST_EXPERT;
         long tStart = System.currentTimeMillis();
         final int tRef = inputImages.getDefaultTimePoint();
@@ -141,7 +143,12 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
                 }
             }
             logger.debug("transMax: {}, transMin: {}", addTransMax, addTransMin);
-            MutableBoundingBox bds = inputImages.getImage(0, tRef).getBoundingBox().resetOffset();
+            MutableBoundingBox bds = null;
+            try {
+                bds = inputImages.getImage(0, tRef).getBoundingBox().resetOffset();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
             // bb translated (int)(tXY-addTrans)
             int xLeft = (int)Math.round(minDX-addTransMax[0]);
             xLeft = xLeft<0 ? -Math.min(0, cropBB.xMin()+xLeft) : cropBB.xMin();
@@ -163,7 +170,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         logger.debug("ImageStabilizerXY: total estimation time: {}, reference timePoint: {}", tEnd-tStart, tRef);
     }
 
-    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel, boolean allowInterpolation, boolean crop) {
+    public static Image[] stabilize(Image[] images, int segmentLength, int pyramidLevel, boolean allowInterpolation, boolean crop) throws IOException{
         InputImages ii = new SimpleInputImages(images);
         ImageStabilizerXY stab = new ImageStabilizerXY();
         stab.segmentLength.setValue(segmentLength);
@@ -192,7 +199,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         }
         return res;
     }
-    private void ccdSegments(final int channelIdx, final InputImages inputImages, int segmentLength, int tRef, final Double[][] translationTXYArray, final int maxIterations, final double tolerance, MutableBoundingBox cropBB) {
+    private void ccdSegments(final int channelIdx, final InputImages inputImages, int segmentLength, int tRef, final Double[][] translationTXYArray, final int maxIterations, final double tolerance, MutableBoundingBox cropBB) throws IOException {
         if (segmentLength<2) segmentLength = 2;
         int nSegments = (int)(0.5 +(double)(inputImages.getFrameNumber()-1) / (double)segmentLength) ;
         if (nSegments<1) nSegments=1;
@@ -209,7 +216,13 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         if (testMode.testExpert())logger.debug("im to ref map: {}", mapImageToRef);
         MutableBoundingBox refBB = cropBB==null ? inputImages.getImage(channelIdx, tRef).getBoundingBox().resetOffset() : cropBB;
         // process each segment
-        final HashMapGetCreate<Integer, FloatProcessor> processorMap = new HashMapGetCreate<>(i-> getFloatProcessor(cropBB==null ? inputImages.getImage(channelIdx, i) : inputImages.getImage(channelIdx, i).crop(cropBB), false));
+        final HashMapGetCreate<Integer, FloatProcessor> processorMap = new HashMapGetCreate<>(i-> {
+            try {
+                return getFloatProcessor(cropBB==null ? inputImages.getImage(channelIdx, i) : inputImages.getImage(channelIdx, i).crop(cropBB), false);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
         BiFunction<Integer, Bucket, Bucket> r = (imageRefIdx, bucket) -> {
             if (bucket.imageRefIdx!=imageRefIdx) { // only compute gradient if reference image is different
                 ImageStabilizerCore.gradient(bucket.pyramid[1][0], processorMap.getAndCreateIfNecessarySync(imageRefIdx));
@@ -245,7 +258,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         }
     }
     
-    private void ccdSegmentTemplateUpdate(final int channelIdx, final InputImages inputImages, final int tStart, final int tEnd, final int tRef, final Double[][] translationTXYArray, final int maxIterations, final double tolerance) {
+    private void ccdSegmentTemplateUpdate(final int channelIdx, final InputImages inputImages, final int tStart, final int tEnd, final int tRef, final Double[][] translationTXYArray, final int maxIterations, final double tolerance)  throws IOException {
         
         final Image imageRef = inputImages.getImage(channelIdx, tRef);
         FloatProcessor ipFloatRef = getFloatProcessor(imageRef, true);
@@ -282,7 +295,7 @@ public class ImageStabilizerXY implements ConfigurableTransformation, Multichann
         return res;
     }
     
-    private Double[] performCorrectionWithTemplateUpdate(int channelIdx, InputImages inputImages, int t, FloatProcessor ipFloatRef, ImageProcessor[][] pyramids,  FloatProcessor trans, int maxIterations, double tolerance, double alpha, Double[] estimateShift) {
+    private Double[] performCorrectionWithTemplateUpdate(int channelIdx, InputImages inputImages, int t, FloatProcessor ipFloatRef, ImageProcessor[][] pyramids,  FloatProcessor trans, int maxIterations, double tolerance, double alpha, Double[] estimateShift) throws IOException {
         long t0 = System.currentTimeMillis();
         FloatProcessor currentTime = getFloatProcessor(inputImages.getImage(channelIdx, t), false);
         long tStart = System.currentTimeMillis();
