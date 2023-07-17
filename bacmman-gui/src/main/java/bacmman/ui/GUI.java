@@ -436,11 +436,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         ConfigurationTreeGenerator.addToMenu(roiStrokeWidth, roiMenu);
         PropertyUtils.setPersistent(arrowStrokeWidth, "arrow_stroke_width");
         ImageWindowManagerFactory.getImageManager().setArrowStrokeWidth(arrowStrokeWidth.getValue().doubleValue());
-        roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setArrowStrokeWidth(arrowStrokeWidth.getValue().doubleValue()));
+        arrowStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setArrowStrokeWidth(arrowStrokeWidth.getValue().doubleValue()));
         ConfigurationTreeGenerator.addToMenu(arrowStrokeWidth, roiMenu);
         PropertyUtils.setPersistent(roiSmooth, "roi_smooth_radius");
         ImageWindowManagerFactory.getImageManager().setROISmoothRadius(roiSmooth.getValue().intValue());
-        roiStrokeWidth.addListener(p->ImageWindowManagerFactory.getImageManager().setROISmoothRadius(roiSmooth.getValue().intValue()));
+        roiSmooth.addListener(p->ImageWindowManagerFactory.getImageManager().setROISmoothRadius(roiSmooth.getValue().intValue()));
         ConfigurationTreeGenerator.addToMenu(roiSmooth, roiMenu);
 
         // manual edition
@@ -4993,7 +4993,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         int parentObjectClassIdx = db.getExperiment().experimentStructure.getParentObjectClassIdx(testObjectClassIdx);
         int[] path = db.getExperiment().experimentStructure.getPathToRoot(parentObjectClassIdx);
         String sel = Utils.getSelectedString(testParentTrackJCB);
-        return Selection.getObject(Selection.parseIndices(sel), path, db.getDao(position).getRoots());
+        return Selection.getObject(Selection.parseIndices(sel), path, Processor.getOrCreateRootTrack(db.getDao(position)));
     }
     public List<SegmentedObject> getTestParents() {
         if (db==null) return null;

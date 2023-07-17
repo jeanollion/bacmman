@@ -14,6 +14,7 @@ import bacmman.processing.matching.LAPLinker;
 import bacmman.processing.matching.OverlapMatcher;
 import bacmman.processing.matching.SimpleTrackGraph;
 import bacmman.processing.track_post_processing.TrackAssigner;
+import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
@@ -44,13 +45,16 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
     enum MATCHING_MODE {OVERLAP_ABSOLUTE, OVERLAP_PROPORTION, OVERLAP_PROPORTION_OR_ABSOLUTE, OVERLAP_PROPORTION_AND_ABSOLUTE}
     EnumChoiceParameter<MATCHING_MODE> matchingMode = new EnumChoiceParameter<>("Matching mode", MATCHING_MODE.values(), MATCHING_MODE.OVERLAP_PROPORTION);
 
-    BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Absolute Overlap", 5,1, 0, null).setEmphasized(true).setHint("Min absolute overlap value (in pixels) to consider a match between ground truth and selected object class.");
-    BoundedNumberParameter minOverlapProp = new BoundedNumberParameter("Min Overlap Proportion", 5,0.25, 0, 1).setEmphasized(true).setHint("Min overlap proportion to consider a match between ground truth and selected object class.");
+    BoundedNumberParameter minOverlap = new BoundedNumberParameter("Min Absolute Overlap", 5,-1, 0, null).setEmphasized(true).setHint("Min absolute overlap value (in pixels) to consider a match between ground truth and selected object class.");
+    BoundedNumberParameter sizeProportion = new BoundedNumberParameter("Cell Size Proportion", 5,0.5, 0, 1).setEmphasized(true).setHint("Cell Size Proportion to define overlap. Reference value is the median ground truth size");
+    BooleanParameter useCellSizeProportion = new BooleanParameter("Value", "Cell Size Proportion", "Constant Value", true);
+    ConditionalParameter<Boolean> useCellSizeProportionCond = new ConditionalParameter<>(useCellSizeProportion).setActionParameters(true, sizeProportion).setActionParameters(false, minOverlap);
+    BoundedNumberParameter minOverlapProp = new BoundedNumberParameter("Min Overlap Proportion", 5,0.5, 0, 1).setEmphasized(true).setHint("Min overlap proportion to consider a match between ground truth and selected object class.");
     ConditionalParameter<MATCHING_MODE> matchingModeCond = new ConditionalParameter<>(matchingMode)
-            .setActionParameters(MATCHING_MODE.OVERLAP_ABSOLUTE, minOverlap)
+            .setActionParameters(MATCHING_MODE.OVERLAP_ABSOLUTE, useCellSizeProportionCond)
             .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION, minOverlapProp)
-            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION_OR_ABSOLUTE, minOverlap, minOverlapProp)
-            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION_AND_ABSOLUTE, minOverlap, minOverlapProp);
+            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION_OR_ABSOLUTE, useCellSizeProportionCond, minOverlapProp)
+            .setActionParameters(MATCHING_MODE.OVERLAP_PROPORTION_AND_ABSOLUTE, useCellSizeProportionCond, minOverlapProp);
     @Override
     public String getHintText() {
         return "Computes metrics to evaluate segmentation and tracking precision of an object class ( P = ∪(Pᵢ) ) relatively to a ground truth object class ( G = ∪(Gᵢ) ). Metrics are computed per frame. Objects of P are matching with objects of G if the overlap is higher that the user-defined threshold." +
@@ -77,16 +81,13 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         int parentClass = groundTruth.getParentObjectClassIdx();
         String prefix = this.prefix.getValue();
         ArrayList<MeasurementKey> res = new ArrayList<>();
-        //res.add(new MeasurementKeyObject(prefix + "NLinksGT", parentClass));
-        res.add(new MeasurementKeyObject(prefix + "NGt", parentClass));
-        res.add(new MeasurementKeyObject(prefix + "TotalLink", parentClass));
-        //res.add(new MeasurementKeyObject(prefix + "NLinksPrediction", parentClass));
-        res.add(new MeasurementKeyObject(prefix + "NPrediction", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "GtCount", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "GtLinkCount", parentClass));
+        res.add(new MeasurementKeyObject(prefix + "PredictionCount", parentClass));
         res.add(new MeasurementKeyObject(prefix + "Intersection", parentClass));
         res.add(new MeasurementKeyObject(prefix + "Union", parentClass));
         res.add(new MeasurementKeyObject(prefix + "FalseNegative", parentClass));
         IntConsumer addMeas = c -> {
-            //res.add(new MeasurementKeyObject(prefix + "TrackingErrors", c));
             res.add(new MeasurementKeyObject(prefix + "FalsePositiveLink", c));
             res.add(new MeasurementKeyObject(prefix + "FalseNegativeLink", c));
             res.add(new MeasurementKeyObject(prefix + "FalsePositive", c));
@@ -138,11 +139,18 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             GbyFExcluded = new HashMapGetCreate.HashMapGetCreateRedirected<>(i->Collections.emptySet());
             PbyFExcluded = new HashMapGetCreate.HashMapGetCreateRedirected<>(i->Collections.emptySet());
         }
+        DoubleSupplier absoluteOverlapValue = useCellSizeProportion.getSelected() ? () -> {
+            double[] sizes = parentTrack.stream().flatMap(p -> p.getChildren(groundTruth.getSelectedClassIdx()))
+                    .filter(o -> !GbyFExcluded.get(o.getFrame()).contains(o)).mapToDouble(o -> o.getRegion().size()).toArray();
+            double medianSize = ArrayUtil.median(sizes);
+            logger.debug("Overlap absolute value: {} median size: {}", sizeProportion.getDoubleValue() * medianSize, medianSize);
+            return sizeProportion.getDoubleValue() * medianSize;
+        } : () -> minOverlap.getDoubleValue();
         // compute all overlaps between regions and put non null overlap in a map
         OverlapMatcher<SegmentedObject> matcher = new OverlapMatcher<>(OverlapMatcher.segmentedObjectOverlap());
         switch (matchingMode.getSelectedEnum()) {
             case OVERLAP_ABSOLUTE: {
-                OverlapMatcher.filterLowOverlap(matcher, minOverlap.getDoubleValue());
+                OverlapMatcher.filterLowOverlap(matcher, absoluteOverlapValue.getAsDouble());
                 break;
             }
             case OVERLAP_PROPORTION: {
@@ -150,11 +158,11 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 break;
             }
             case OVERLAP_PROPORTION_AND_ABSOLUTE: {
-                OverlapMatcher.filterLowOverlapAbsoluteAndProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue(), minOverlap.getDoubleValue(), false);
+                OverlapMatcher.filterLowOverlapAbsoluteAndProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue(), absoluteOverlapValue.getAsDouble(), false);
                 break;
             }
             case OVERLAP_PROPORTION_OR_ABSOLUTE: {
-                OverlapMatcher.filterLowOverlapAbsoluteAndProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue(), minOverlap.getDoubleValue(), true);
+                OverlapMatcher.filterLowOverlapAbsoluteAndProportionSegmentedObject(matcher, minOverlapProp.getDoubleValue(), absoluteOverlapValue.getAsDouble(), true);
                 break;
             }
         }
@@ -164,19 +172,21 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             Set<SegmentedObject> excludePred = graph.predictionExcluded.get(parent.getFrame());
             // segmentation errors
             int fp=0, fn=0, over=0, underInter=0, underIntra=0;
-            for (SegmentedObject g : graph.groundTruth.get(parent.getFrame())) {
-                if (excludeGT.contains(g)) continue;
-                Set<SegmentedObject> match = graph.getAllMatching(g, true).collect(toSet());
-                if (match.stream().anyMatch(excludePred::contains)) continue;
-                int n = match.size();
-                if (n==0) {
-                    ++fn;
-                    if (objectWise) g.getMeasurements().setValue(prefix + "FalseNegative", 1);
-                } else if (n>1) {
-                    over+=n-1;
-                    if (objectWise) match.forEach(p -> p.getMeasurements().setValue(prefix + "OverSegmentation", n-1));
+            if (graph.groundTruth.containsKey(parent.getFrame())) {
+                for (SegmentedObject g : graph.groundTruth.get(parent.getFrame())) {
+                    if (excludeGT.contains(g)) continue;
+                    Set<SegmentedObject> match = graph.getAllMatching(g, true).collect(toSet());
+                    if (match.stream().anyMatch(excludePred::contains)) continue;
+                    int n = match.size();
+                    if (n == 0) {
+                        ++fn;
+                        if (objectWise) g.getMeasurements().setValue(prefix + "FalseNegative", 1);
+                    } else if (n > 1) {
+                        over += n - 1;
+                        if (objectWise)
+                            match.forEach(p -> p.getMeasurements().setValue(prefix + "OverSegmentation", n - 1));
+                    }
                 }
-
             }
             if (graph.prediction.containsKey(parent.getFrame())) {
                 for (SegmentedObject p : graph.prediction.get(parent.getFrame())) {
@@ -211,16 +221,16 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
 
             // tracking errors
             int[] fp_fn_total = getTrackingErrors(graph, parent.getFrame(), objectWise ? prefix : null);
-            int nGT = (int)graph.groundTruth.get(parent.getFrame()).stream().filter(o -> !excludeGT.contains(o)).count();
-            int nPred = (int)graph.prediction.get(parent.getFrame()).stream().filter(o -> !excludePred.contains(o)).count();
+            int nGT = graph.groundTruth.containsKey(parent.getFrame()) ? (int)graph.groundTruth.get(parent.getFrame()).stream().filter(o -> !excludeGT.contains(o)).count() : 0;
+            int nPred = graph.prediction.containsKey(parent.getFrame()) ? (int)graph.prediction.get(parent.getFrame()).stream().filter(o -> !excludePred.contains(o)).count() : 0;
 
             parent.getMeasurements().setValue(prefix + "Intersection", intersection);
             parent.getMeasurements().setValue(prefix + "Union", union);
             parent.getMeasurements().setValue(prefix + "FalsePositiveLink", fp_fn_total[0]);
             parent.getMeasurements().setValue(prefix + "FalseNegativeLink", fp_fn_total[1]);
-            parent.getMeasurements().setValue(prefix + "TotalLink", fp_fn_total[2]);
-            parent.getMeasurements().setValue(prefix + "NGt", nGT);
-            parent.getMeasurements().setValue(prefix + "NPrediction", nPred);
+            parent.getMeasurements().setValue(prefix + "GtLinkCount", fp_fn_total[2]);
+            parent.getMeasurements().setValue(prefix + "GtCount", nGT);
+            parent.getMeasurements().setValue(prefix + "PredictionCount", nPred);
             parent.getMeasurements().setValue(prefix + "FalsePositive", fp);
             parent.getMeasurements().setValue(prefix + "FalseNegative", fn);
             parent.getMeasurements().setValue(prefix + "OverSegmentation", over);
@@ -563,7 +573,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 logger.debug("assign: {} -> {}", predNext, predNext.stream().map(v->assignGraph.getPreviousObjects(v).collect(Collectors.toList())).collect(Collectors.toList()));
             } else logger.error("Could not assign: {} + {}", predPrev, predNext);
         };
-        // split at frame
+        // split at current frame
         Set<DefaultEdge> splitEdges = new HashSet<>(); // record split edges to remove those not corresponding to errors after
         new ArrayList<>(predGraph.vertexSet()).stream().filter(o -> o.getFrame()==frame)
             .forEach(predNext -> {
@@ -699,7 +709,6 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         new ArrayList<>(predGraph.vertexSet()).stream().filter(o -> o.getFrame()==frame)
             .forEach(next -> {
                 SegmentedObject nextGT = getGT.apply(next);
-
                 // remove split edges that were propagated (only necessary @ next frame)
                 List<DefaultEdge> toRemove = new ArrayList<>();
                 List<SegmentedObject> prev = predGraph.getPreviousEdges(next).map(e -> {
@@ -743,12 +752,9 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             Set<SegmentedObject> predGtPrev = predGraph.getPreviousObjects(next).collect(Collectors.toSet());
             List<SegmentedObject> fn = gtPrev.stream().filter(o -> !predGtPrev.contains(o)).collect(Collectors.toList());
             List<SegmentedObject> fp = predGtPrev.stream().filter(o -> !gtPrev.contains(o)).collect(Collectors.toList());
-            if (mergedNext.contains(next) && !gtPrev.isEmpty()) { // next has be merged -> check if some links have been added by merging
+            if (mergedNext.contains(next) && !gtPrev.isEmpty()) { // predicted object that were merged but had false negative links
                 matchGraph.getAllMatching(next, true)
-                    .filter(n ->
-                        SegmentedObjectEditor.getPrevious(n)
-                        .flatMap(o -> matchGraph.getAllMatching(o, false))
-                        .noneMatch(gtPrev::contains))
+                    .filter(n -> !SegmentedObjectEditor.getPrevious(n).findAny().isPresent())
                     .forEach(n -> {
                         addLinkError.accept(n, Arrays.asList(n), false);
                         logger.debug("MERGE FN NEXT: {} ( from {} )", n, next);
@@ -776,12 +782,9 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                 if (predNexts.size()==1) getClosest = o -> predNexts.iterator().next();
                 else getClosest = p -> predNexts.stream().min(Comparator.comparingDouble(o -> o.getRegion().getCenterOrGeomCenter().distSq(p.getRegion().getCenterOrGeomCenter()))).get();
             }
-            if (mergedPrev.contains(prev) && !gtNext.isEmpty()) { // prev has be merged -> check if some links have been added by merging
+            if (mergedPrev.contains(prev) && !gtNext.isEmpty()) { // predicted object that were merged but had false negative links
                 matchGraph.getAllMatching(prev, true)
-                    .filter(p ->
-                        SegmentedObjectEditor.getNext(p)
-                        .flatMap(o -> matchGraph.getAllMatching(o, false))
-                        .noneMatch(gtNext::contains))
+                    .filter(p -> !SegmentedObjectEditor.getNext(p).findAny().isPresent())
                     .forEach(p -> {
                         addLinkError.accept(getClosest.apply(p), Arrays.asList(p), false); // assign error to closest object as no link allow to define who to assign link
                         logger.debug("MERGE FN PREV: {} ( from {} )", p, prev);

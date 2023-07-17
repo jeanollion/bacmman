@@ -634,7 +634,7 @@ public class SelectionUtils {
             });
             return new Object[]{filter};
         }).toArray(Object[][]::new);
-        ConfigurationTreeGenerator.addToMenuList(filters, measurementMenu, showMenu, performFilter, new Object[0]);
+        ConfigurationTreeGenerator.addToMenuList(filters, measurementMenu, showMenu, null, performFilter, new Object[0]);
         measurementMenu.setEnabled(!selectedValues.isEmpty() && Utils.objectsAllHaveSameProperty(selectedValues, Selection::getStructureIdx));
 
         //
