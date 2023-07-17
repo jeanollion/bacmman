@@ -323,7 +323,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             Region wholeImage = new Region(p.getMask(), 1, true);
             Map<Region, Double> centerSize = new HashMapGetCreate.HashMapGetCreateRedirected<>(r -> r.getOverlapArea(wholeImage, off, null)); // spots are sometimes outside image
             centers.removeIf(r -> {
-                if (getCenterIntensity(r)<=0) return true;
+                if (Double.isNaN(getCenterIntensity(r)) || getCenterIntensity(r)<=0) return true;
                 if (r instanceof Ellipse2D) {
                     Ellipse2D e = (Ellipse2D) r;
                     if (e.getMinor()/2<minR) return true;
@@ -478,6 +478,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         public boolean checkFusion() {
             Set<Region> centers1 = regionMapCenter.get(e1);
             Set<Region> centers2 = regionMapCenter.get(e2);
+            //logger.debug("check fusion: {} + {} center {} + {}", e1.getCenterOrGeomCenter(), e2.getCenterOrGeomCenter(), centers1.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().orElse(-1), centers2.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().orElse(-1));
             if (centers1.isEmpty() || centers2.isEmpty()) return true; // either no seed or same seed
             double I1 = centers1.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().getAsDouble();
             double I2 = centers2.stream().mapToDouble(DistNet2Dv2::getCenterIntensity).max().getAsDouble();
