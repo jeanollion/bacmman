@@ -71,7 +71,10 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     // tracking
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
     BoundedNumberParameter divProbaThld = new BoundedNumberParameter("Division Probability", 5, 0.75, 0, 1).setEmphasized(true).setHint("Thresholds applied on the predicted probability that an object is the result of a cell division: above the threshold, cell is considered as result of a division (mitosis). Zero means division probability is not used");
-    BoundedNumberParameter mergeLinkDistanceThreshold = new BoundedNumberParameter("Link Distance Tolerance", 0, 5, 0, null).setEmphasized(true).setHint("Two objects are linked if the center of one object translated by the predicted displacement falls into an object at the previous frame. This parameter allows a tolerance in case the center do not fall into any object at the previous frame");//.setHint("In case of over-segmentation at previous frame or under-segmentation at next-frame: only o_{f-1} is linked to o_{f}. If this parameter is >0, object to be linked to o_{f} will be searched among objects at f-1 that come from same division as o_{f-1} and have no link to an object at f. Center of o_{f} translated by the predicted distance");
+    BoundedNumberParameter linkDistanceTolerance = new BoundedNumberParameter("Link Distance Tolerance", 0, 3, 0, null).setEmphasized(true).setHint("Two objects are linked if the center of one object translated by the predicted displacement falls into an object at the previous frame. This parameter allows a tolerance (in pixel units) in case the center do not fall into any object at the previous frame");
+
+    BoundedNumberParameter mergeLinkDistanceThreshold = new BoundedNumberParameter("Merge Link Distance Tolerance", 0, 10, 0, null).setEmphasized(true).setHint("In case a previous object has no next : create a merge link in case translated center falls into the previous object with this tolerance");//.setHint("In case of over-segmentation at previous frame or under-segmentation at next-frame: only o_{f-1} is linked to o_{f}. If this parameter is >0, object to be linked to o_{f} will be searched among objects at f-1 that come from same division as o_{f-1} and have no link to an object at f. Center of o_{f} translated by the predicted distance");
+    BooleanParameter mergeLinkContact = new BooleanParameter("Merge Link Contact").setHint("Allow to create merge links when a previous cells is in contact with an unlinked cell (contact is defined by the contact criterion parameter)");
     BoundedNumberParameter noPrevThreshold = new BoundedNumberParameter("No Previous Probability", 5, 0.75, 0, 1).setEmphasized(true);
 
     enum CONTACT_CRITERION {BACTERIA_POLE, CONTOUR_DISTANCE, NO_CONTACT}
@@ -100,7 +103,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 15, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, frameWindow, inputWindow, next, frameSubsampling).setEmphasized(true);
     GroupParameter segmentation = new GroupParameter("Segmentation", centerSmoothRad, edmThreshold, objectThickness, mergeCriterion, minObjectSize, manualCurationMargin).setEmphasized(true);
-    GroupParameter tracking = new GroupParameter("Tracking", growthRateRange, divProbaThld, mergeLinkDistanceThreshold, noPrevThreshold, contactCriterionCond, trackPostProcessingCond).setEmphasized(true);
+    GroupParameter tracking = new GroupParameter("Tracking", growthRateRange, divProbaThld, noPrevThreshold, linkDistanceTolerance, mergeLinkDistanceThreshold, mergeLinkContact, contactCriterionCond, trackPostProcessingCond).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     // for test display
@@ -587,21 +590,21 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
             List<SegmentedObject> cur = objectsF.get(f);
-            assign(prev, cur, graph, dxMap, dyMap, stores!=null);
+            assign(prev, cur, graph, dxMap, dyMap, linkDistanceTolerance.getIntValue(), stores!=null);
         }
 
         logger.debug("After linking: edges: {} (total number of objects: {})", graph.edgeCount(), graph.graphObjectMapper.graphObjects().size());
         // Look for merge links due to over segmentation at previous frame or under segmentation at current frame:
-        // case 1 : previous has sibling with interrupted branch at this frame + falls better into growth rate
-        // case 2: idem as 1 but either division is happened before first frame or under-segmentation at current frame or errors before. look for candidates in contact + falls better into growth rate
-        // case 3 : one object has no prev (translated center falls between 2 divided objects)
+        // case 1 : previous has unlinked cells in contact (and this is allowed )
+        // case 2: cell has a previous cell: candidates are previous unlinked cells in which translated center falls with the tolerance
+        // case 3 : idem 2 but check the no prev criterion on cell
 
         int searchDistLimit = mergeLinkDistanceThreshold.getIntValue();
+        boolean mergeLinkContact = this.mergeLinkContact.getSelected();
         double noPrevThld = noPrevThreshold.getDoubleValue();
-        double mergeDistThld = this.contactDistThld.getDoubleValue();
+        double contactThld = this.contactDistThld.getDoubleValue();
         Map<Region, Object>[] contourMap = new Map[1];
-        ToDoubleBiFunction<Region, Region> contactFun = contact(mergeDistThld, contourMap, true);
-        BiPredicate<SegmentedObject, SegmentedObject> contactFilter = (prev, prevCandidate) -> contactFun.applyAsDouble(prev.getRegion(), prevCandidate.getRegion())<=mergeDistThld;
+        ToDoubleBiFunction<Region, Region> contactFun = contact(contactThld, contourMap, true);
         /*double[] growthRate = this.growthRateRange.getValuesAsDouble();
         DoublePredicate matchGr = gr -> gr>=growthRate[0] && gr<growthRate[1];
         ToDoubleFunction<Double> grDist = gr -> matchGr.test(gr) ? Math.min(gr-growthRate[0], growthRate[1]-gr) : Math.min(Math.abs(growthRate[0]-gr), Math.abs(gr-growthRate[1]));*/
@@ -621,6 +624,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 List<SegmentedObject> toLink = null;
                 SegmentedObject cPrev = graph.getPrevious(c);
                 if (cPrev!=null) { // case 1 / 2
+
                     /*List<SegmentedObject> divSiblings = getDivSiblings(cPrev, graph); // case 1
                     Stream<SegmentedObject> candidates;
                     SegmentedObject prevTrackHead = graph.getTrackHead(cPrev);
@@ -637,8 +641,15 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                                 if (d<=searchDistLimit * 2) logger.debug("CASE1/2 cur: {} -> {} center={} trans={} prev candidate: {} -> {} distance: {}", c, c.getBounds(), medoid.get(c), centerTrans, o, o.getBounds(), d);
                             })*/
                             .filter(o -> {
+                                if (mergeLinkContact) { // case 1
+                                    double contact = contactFun.applyAsDouble(cPrev.getRegion(), o.getRegion());
+                                    if (contact <= contactThld) {
+                                        distMap.put(new SymetricalPair<>(o, c), contact);
+                                        return true;
+                                    }
+                                }
                                 double d = getDistanceToObject(centerTrans, o, searchDistLimit);
-                                if (d<=searchDistLimit) {
+                                if (d<=searchDistLimit) { // case 2
                                     distMap.put(new SymetricalPair<>(o, c), d);
                                     return true;
                                 } else return false;
@@ -836,7 +847,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             else return d*d;
         }
     }
-    static void assign(List<SegmentedObject> prev, List<SegmentedObject> cur, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Double> dxMap, Map<SegmentedObject, Double> dyMap, boolean verbose) {
+    static void assign(List<SegmentedObject> prev, List<SegmentedObject> cur, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Double> dxMap, Map<SegmentedObject, Double> dyMap, int linkTolerance, boolean verbose) {
         if (prev==null || prev.isEmpty() || cur==null || cur.isEmpty()) return;
         for (SegmentedObject c : cur) {
             double dy = dyMap.get(c);
@@ -851,6 +862,18 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds()))
                     .filter(o -> o.getRegion().contains(centerTransV))
                     .findAny().orElse(null);
+            if (p == null && linkTolerance>0) {
+                Map<SegmentedObject, Integer> distance = new HashMap<>();
+                p = prev.stream()
+                    .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds(), linkTolerance))
+                    .filter(o -> {
+                        int d = getDistanceToObject(centerTrans, o, linkTolerance);
+                        if (d<=linkTolerance) {
+                            distance.put(o, d);
+                            return true;
+                        } else return false;
+                    }).min(Comparator.comparingInt(distance::get)).orElse(null);
+            }
             if (p != null) graph.addEdge(p, c);
         }
     }
