@@ -20,13 +20,12 @@ package bacmman.plugins.plugins.segmenters;
 
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.NumberParameter;
-import bacmman.configuration.parameters.PreFilterSequence;
 import bacmman.core.Core;
 import bacmman.processing.EDT;
 import bacmman.processing.Filters;
 import bacmman.processing.RegionFactory;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -38,17 +37,13 @@ import bacmman.image.TypeConverter;
 import bacmman.plugins.ManualSegmenter;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.Hint;
-import bacmman.plugins.plugins.pre_filters.ImageFeature;
-import bacmman.plugins.plugins.pre_filters.StandardDeviation;
 
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import bacmman.plugins.TrackConfigurable;
-import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.geom.Point;
 
 /**
@@ -137,7 +132,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         res.filter(new RegionPopulation.Thickness().setX(2).setY(2)); // remove thin objects
         //res.filter(new RegionPopulation.Size().setMin(minSize.getValue().intValue())); // remove small objects
         
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         
         if (stores!=null) {
             int pSIdx = parent.getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
@@ -208,7 +203,7 @@ public abstract class BacteriaIntensitySegmenter<T extends BacteriaIntensitySegm
         if (verboseManualSeg) logger.debug("before filter seeds: {} objects", pop.getRegions().size());
         pop.filter(o-> seedObjects.stream().map(so->so.getVoxels().iterator().next()).anyMatch(o::contains)); // keep only objects that contain seeds
         if (verboseManualSeg) logger.debug("after filter seeds: {} objects", pop.getRegions().size());
-        pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
 
         if (verboseManualSeg) {
             //Image manualSeeds = new ImageByte("seeds from: "+input.getName(), input);

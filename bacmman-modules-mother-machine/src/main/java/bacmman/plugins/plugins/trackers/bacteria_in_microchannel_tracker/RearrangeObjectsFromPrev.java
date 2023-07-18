@@ -20,7 +20,7 @@ package bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker;
 
 import bacmman.data_structure.Region;
 import bacmman.plugins.Plugin;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 
@@ -169,7 +169,7 @@ public class RearrangeObjectsFromPrev extends ObjectModifier {
     
     public void sortAndRelabel() {
         List<Region> allObjects = getObjects(frameMax);
-        Collections.sort(allObjects, ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
+        Collections.sort(allObjects, ObjectOrderTracker.getComparatorRegion(ObjectOrderTracker.IndexingOrder.YXZ));
         for (int i = 0; i<allObjects.size(); ++i) allObjects.get(i).setLabel(i+1);
     }
     

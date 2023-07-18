@@ -8,7 +8,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.RegionFactory;
 import bacmman.processing.ResizeUtils;
 import bacmman.processing.clustering.RegionCluster;
@@ -81,7 +81,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         res.filter(object -> object.size()>minSize && (minMaxProba < minProba || BasicMeasurements.getMaxValue(object, proba)>=minMaxProba));
         // sort objects along largest dimension (for microchannels)
         if (input.sizeY()>input.sizeX()) {
-            res.getRegions().sort(ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
+            res.getRegions().sort(ObjectOrderTracker.getComparatorRegion(ObjectOrderTracker.IndexingOrder.YXZ));
             res.relabel(false);
         }
         return res;
@@ -172,7 +172,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         mask = PredicateMask.and(mask, segmentationMask);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
         RegionPopulation res = WatershedTransform.watershed(probaMap, mask, seedObjects, config);
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         return res;
     }
 
@@ -186,7 +186,7 @@ public class ProbabilityMapSegmenter implements Segmenter, SegmenterSplitAndMerg
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (object.isAbsoluteLandMark()) res.translate(parent.getBounds(), true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain
         return res;

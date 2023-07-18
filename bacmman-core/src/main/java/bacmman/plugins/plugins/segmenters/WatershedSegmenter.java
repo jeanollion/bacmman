@@ -26,7 +26,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.Percentile;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.clustering.RegionCluster;
@@ -194,7 +194,7 @@ public class WatershedSegmenter implements Segmenter, SegmenterSplitAndMerge, Ob
         ImageInteger mask = object.isAbsoluteLandMark() ? object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox()) :object.getMaskAsImageInteger().cropWithOffset(input.getBoundingBox().resetOffset()); // extend mask to get the same size as the image
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (object.isAbsoluteLandMark()) res.translate(parent.getBounds(), true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain
         return res;

@@ -31,7 +31,7 @@ import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.TestableProcessingPlugin;
 import bacmman.plugins.ThresholderHisto;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
@@ -52,7 +52,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
-import java.util.stream.Stream;
 
 
 /**
@@ -423,7 +422,7 @@ public class BacteriaPhaseContrast extends BacteriaIntensitySegmenter<BacteriaPh
         //res =  localThreshold(input, res, parent, structureIdx, true); 
         if (object.isAbsoluteLandMark()) res.translate(parent.getBounds(), true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         return res;
     }
     // track parametrization

@@ -5,9 +5,7 @@ import bacmman.image.SimpleBoundingBox;
 import bacmman.utils.JSONUtils;
 import org.json.simple.JSONArray;
 
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 
 public class BoundingBoxParameter extends ContainerParameterImpl<BoundingBoxParameter> {
@@ -15,13 +13,22 @@ public class BoundingBoxParameter extends ContainerParameterImpl<BoundingBoxPara
     BoundedNumberParameter yMin = new BoundedNumberParameter("Y Min", 0, 0, 0, null).setEmphasized(true);
     BoundedNumberParameter zMin = new BoundedNumberParameter("Z Min", 0, 0, 0, null).setEmphasized(true);
     BoundedNumberParameter xLength = new BoundedNumberParameter("X Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along X axis. 0 means maximal possible length");
-    BoundedNumberParameter yLength = new BoundedNumberParameter("Y Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along Y axis. 0 means maximal possible length");;
-    BoundedNumberParameter zLength = new BoundedNumberParameter("Z Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along Z axis. 0 means maximal possible length");;
+    BoundedNumberParameter yLength = new BoundedNumberParameter("Y Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along Y axis. 0 means maximal possible length");
+    BoundedNumberParameter zLength = new BoundedNumberParameter("Z Length", 0, 0, 0, null).setEmphasized(true).setHint("Length (pixel) along Z axis. 0 means maximal possible length");
+    BoundedNumberParameter fMin = new BoundedNumberParameter("F Min", 0, 0, 0, null).setEmphasized(true).setHint("Min Frame");
+    BoundedNumberParameter fLength = new BoundedNumberParameter("F Length", 0, 0, 0, null).setEmphasized(true).setHint("Length of Frame interval");
+    BooleanParameter frameConstraint = new BooleanParameter("Frame Constraint", false);
+
+    ConditionalParameter<Boolean> frameConstraintCond = new ConditionalParameter<>(frameConstraint).setActionParameters(true, fMin, fLength);
     protected List<Parameter> parameters;
 
     public BoundingBoxParameter(String name) {
+        this(name, false);
+    }
+    public BoundingBoxParameter(String name, boolean time) {
         super(name);
-        setParameters(xMin, xLength, yMin, yLength, zMin, zLength);
+        if (time) setParameters(xMin, xLength, yMin, yLength, zMin, zLength, frameConstraintCond);
+        else setParameters(xMin, xLength, yMin, yLength, zMin, zLength);
     }
     public SimpleBoundingBox getBoundingBox(BoundingBox parentBounds) {
         int xMin = this.xMin.getIntValue();
@@ -36,6 +43,16 @@ public class BoundingBoxParameter extends ContainerParameterImpl<BoundingBoxPara
         return new SimpleBoundingBox(xMin, xMin+xLength-1, yMin, yMin+yLength-1, zMin, zMin+zLength-1);
     }
 
+    public int [] getTimeWindow(int maxFrame) {
+        if (parameters.contains(frameConstraintCond) && frameConstraint.getSelected()) return new int[] {fMin.getIntValue(), fLength.getIntValue()==0 ? maxFrame : fMin.getIntValue() + fLength.getIntValue() -1 };
+        else return null;
+    }
+
+    public boolean withinFrameWindow(int frame) {
+        if (!parameters.contains(frameConstraintCond) || !frameConstraint.getSelected()) return true;
+        if (frame< fMin.getIntValue()) return false;
+        return fLength.getIntValue() <= 0 || frame < fMin.getIntValue() + fLength.getIntValue();
+    }
     private void setParameters(Parameter... parameters) {
         this.parameters = Arrays.asList(parameters);
         initChildList();
@@ -48,14 +65,18 @@ public class BoundingBoxParameter extends ContainerParameterImpl<BoundingBoxPara
 
     @Override
     public BoundingBoxParameter duplicate() {
-        BoundingBoxParameter res =  new BoundingBoxParameter(name);
+        BoundingBoxParameter res =  new BoundingBoxParameter(name, parameters.contains(frameConstraintCond));
         res.setContentFrom(this);
         transferStateArguments(this, res);
         return res;
     }
     @Override
     public String toString() {
-        return name + ": " + "x=["+xMin.getIntValue()+"; "+ (xLength.getIntValue()==0 ? "?": xMin.getIntValue()+xLength.getIntValue()-1)+"]" + " y=["+yMin.getIntValue()+"; "+ (yLength.getIntValue()==0 ? "?": yMin.getIntValue()+yLength.getIntValue()-1)+"]" + ( (zMin.getIntValue()==0 && zLength.getIntValue()==0)?"": " z=["+zMin.getIntValue()+"; "+ (zLength.getIntValue()==0 ? "?": zMin.getIntValue()+zLength.getIntValue()-1)+"]" );
+        String res = name + ": " + "X=["+xMin.getIntValue()+"; "+ (xLength.getIntValue()==0 ? "?": xMin.getIntValue()+xLength.getIntValue()-1)+"]" + " Y=["+yMin.getIntValue()+"; "+ (yLength.getIntValue()==0 ? "?": yMin.getIntValue()+yLength.getIntValue()-1)+"]" + ( (zMin.getIntValue()==0 && zLength.getIntValue()==0)?"": " Z=["+zMin.getIntValue()+"; "+ (zLength.getIntValue()==0 ? "?": zMin.getIntValue()+zLength.getIntValue()-1)+"]" );
+        if (parameters.contains(frameConstraintCond) && frameConstraint.getSelected()) {
+            res += " F=["+ fMin.getIntValue()+"; "+(fLength.getIntValue()==0 ? "?" : fMin.getIntValue() + fLength.getIntValue() -1 )+"]";
+        }
+        return res;
     }
 
     @Override

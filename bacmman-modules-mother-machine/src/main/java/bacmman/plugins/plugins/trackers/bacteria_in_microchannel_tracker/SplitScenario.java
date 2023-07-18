@@ -20,7 +20,7 @@ package bacmman.plugins.plugins.trackers.bacteria_in_microchannel_tracker;
 
 import bacmman.data_structure.Region;
 import bacmman.plugins.Plugin;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.utils.Pair;
 
 import java.util.ArrayList;
@@ -78,7 +78,7 @@ public class SplitScenario extends CorrectionScenario {
 
         @Override
         protected void applyScenario() {
-            Collections.sort(splitObjects, ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ)); // sort by increasing Y position
+            Collections.sort(splitObjects, ObjectOrderTracker.getComparatorRegion(ObjectOrderTracker.IndexingOrder.YXZ)); // sort by increasing Y position
             int idx = tracker.populations.get(frameMin).indexOf(o);
             if (idx<0) throw new RuntimeException("Error SplitScenario object not found");
             tracker.populations.get(frameMin).remove(idx);

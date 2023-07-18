@@ -11,7 +11,7 @@ import bacmman.plugins.*;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.LocalSNR;
 import bacmman.plugins.plugins.measurements.objectFeatures.object_feature.SNR;
 import bacmman.plugins.plugins.scalers.MinMaxScaler;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.ImageFeatures;
 import bacmman.processing.ImageOperations;
 import bacmman.processing.ResizeUtils;
@@ -90,7 +90,7 @@ public class SpotProbabilityMapSegmenter implements Segmenter, TrackConfigurable
         res.filter(object -> !Double.isNaN(object.getQuality()) && object.getQuality()>=qualityThreshold);
         // sort objects along largest dimension
         if (input.sizeY()>input.sizeX()) {
-            res.getRegions().sort(ObjectIdxTracker.getComparatorRegion(ObjectIdxTracker.IndexingOrder.YXZ));
+            res.getRegions().sort(ObjectOrderTracker.getComparatorRegion(ObjectOrderTracker.IndexingOrder.YXZ));
             res.relabel(false);
         }
         return res;

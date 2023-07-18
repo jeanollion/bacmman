@@ -308,7 +308,7 @@ public class MicrochannelTracker implements TrackerSegmenter, Hint, HintSimple {
         });
         for (SegmentedObject p : parentTrack) {
             List<SegmentedObject> children = factory.getChildren(p);
-            Collections.sort(children, ObjectIdxTracker.getComparator(ObjectIdxTracker.IndexingOrder.XYZ));
+            Collections.sort(children, ObjectOrderTracker.getComparator(ObjectOrderTracker.IndexingOrder.XYZ));
             for (SegmentedObject c : children) {
                 int idx = trackHeadIdxMap.getAndCreateIfNecessary(c.getTrackHead());
                 if (idx!=c.getIdx()) factory.setIdx(c, idx);

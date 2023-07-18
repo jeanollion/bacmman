@@ -5,6 +5,7 @@ import bacmman.plugins.HistogramScaler;
 import org.json.simple.JSONObject;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     SimpleListParameter<DLModelInputParameter> inputs = new SimpleListParameter<>("Input layers", 0, new DLModelInputParameter("input")).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setHint("Description of input tensor(s)");
@@ -71,6 +72,20 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
                 .filter(p -> valueClass.getSimpleName().equals(p.getParameterClassName()))
                 .map(p -> p.getCurrentParameter(true)).findFirst().orElse(null);
         return res;
+    }
+
+    public <P extends Parameter> P getOtherParameter(Class<P> valueClass, String... keyCandidates) {
+        for (String k : keyCandidates) {
+            P p = getOtherParameter(k, valueClass);
+            if (p != null) return p;
+        }
+        if (keyCandidates == null || keyCandidates.length == 0) {
+            List<P> res = miscParameters.getChildren().stream()
+                    .filter(p -> valueClass.getSimpleName().equals(p.getParameterClassName()))
+                    .map(p -> p.getCurrentParameter(true)).map(p -> (P)p).collect(Collectors.toList());
+            if (res.size() == 1) return res.get(0);
+        }
+        return null;
     }
 
     public class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {

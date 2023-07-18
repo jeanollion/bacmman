@@ -291,7 +291,7 @@ public class NestedSpotTracker implements TrackerSegmenter, TestableProcessingPl
             for (SegmentedObject p : parentTrack) {
                 List<SegmentedObject> children = factory.getChildren(p);
                 if (children != null) {
-                    Collections.sort(children, ObjectIdxTracker.getComparator(ObjectIdxTracker.IndexingOrder.YXZ));
+                    Collections.sort(children, ObjectOrderTracker.getComparator(ObjectOrderTracker.IndexingOrder.YXZ));
                     factory.relabelChildren(p);
                 }
             }

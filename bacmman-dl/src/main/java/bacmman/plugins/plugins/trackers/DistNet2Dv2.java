@@ -528,9 +528,12 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     }
     @Override
     public void configureFromMetadata(DLModelMetadata metadata) {
+        BooleanParameter metaNext = metadata.getOtherParameter(BooleanParameter.class, "Predict Next", "Next");
+        if (metaNext!=null) next.setSelected(metaNext.getSelected());
         if (!metadata.getInputs().isEmpty()) {
             DLModelMetadata.DLModelInputParameter input = metadata.getInputs().get(0);
-            this.next.setSelected(input.getChannelNumber() == 3);
+            this.frameWindow.setValue(next.getSelected()? (input.getChannelNumber() -1) / 2 : input.getChannelNumber());
+
         }
     }
 

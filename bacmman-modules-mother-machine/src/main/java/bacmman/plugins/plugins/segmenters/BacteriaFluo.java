@@ -23,7 +23,6 @@ import bacmman.core.Core;
 import bacmman.data_structure.Region;
 import bacmman.data_structure.RegionPopulation;
 import bacmman.data_structure.SegmentedObject;
-import bacmman.data_structure.Voxel;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.SimpleThresholder;
@@ -33,7 +32,7 @@ import bacmman.processing.split_merge.SplitAndMergeEdge;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.plugins.thresholders.BackgroundFit;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.Utils;
 import ij.process.AutoThresholder;
@@ -319,7 +318,7 @@ public class BacteriaFluo extends BacteriaIntensitySegmenter<BacteriaFluo> imple
         }
         if (stores!=null) splitAndMerge.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = splitAndMerge.splitAndMerge(mask, MIN_SIZE_PROPAGATION, splitAndMerge.objectNumberLimitCondition(2));
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         //res =  localThreshold(input, res, parent, structureIdx, true); 
         if (object.isAbsoluteLandMark()) res.translate(parent.getBounds(), true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain

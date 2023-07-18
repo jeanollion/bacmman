@@ -46,7 +46,7 @@ import org.junit.rules.TemporaryFolder;
 import bacmman.plugins.PluginFactory;
 import bacmman.plugins.Segmenter;
 import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.dummy_plugins.DummySegmenter;
 import static bacmman.utils.Utils.toStringArray;
 
@@ -126,8 +126,8 @@ public class TestDataStructure {
         // set-up processing scheme
         PluginFactory.findPlugins("bacmman.dummy_plugins");
         PluginFactory.findPlugins("bacmman.plugins.plugins");
-        microChannel.setProcessingPipeline(new SegmentThenTrack(new DummySegmenter(true, 2), new ObjectIdxTracker()));
-        bacteries.setProcessingPipeline(new SegmentThenTrack(new DummySegmenter(true, 3), new ObjectIdxTracker()));
+        microChannel.setProcessingPipeline(new SegmentThenTrack(new DummySegmenter(true, 2), new ObjectOrderTracker()));
+        bacteries.setProcessingPipeline(new SegmentThenTrack(new DummySegmenter(true, 3), new ObjectOrderTracker()));
         Segmenter seg = ((SegmentThenTrack)microChannel.getProcessingScheme()).getSegmenter();
         assertTrue("segmenter set", seg instanceof DummySegmenter);
         assertEquals("segmenter set (2)", 2, ((NumberParameter)seg.getParameters()[0]).getValue().intValue());

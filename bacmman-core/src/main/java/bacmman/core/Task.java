@@ -750,15 +750,15 @@ public class Task implements ProgressCallback{
                 db.deleteAllObjects();
             }
         }
-        boolean deleteAllField = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll && canDeleteAll;
-        logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllField);
+        boolean deleteAllPosition = needToDeleteObjects && selection==null && structures.length==db.getExperiment().getStructureCount() && !deleteAll && canDeleteAll;
+        logger.info("Run task: db: {} preProcess: {}, segmentAndTrack: {}, trackOnly: {}, runMeasurements: {}, need to delete objects: {}, delete all: {}, delete all by field: {}", dbName, preProcess, segmentAndTrack, trackOnly, measurements, needToDeleteObjects, deleteAll, deleteAllPosition);
         if (this.taskCounter==null) this.taskCounter = new int[]{0, this.countSubtasks()};
         publish("number of subtasks: "+countSubtasks());
         if (preProcess || segmentAndTrack || trackOnly || generateTrackImages || measurements) {
             try {
                 for (String position : positionsToProcess) {
                     try {
-                        process(position, deleteAllField, selection, preProcessingMemoryThreshold);
+                        process(position, deleteAllPosition, selection, preProcessingMemoryThreshold);
                     } catch (MultipleException e) {
                         errors.addExceptions(e.getExceptions());
                     } catch (Throwable e) {
@@ -834,14 +834,14 @@ public class Task implements ProgressCallback{
         }
     }
 
-    private void process(String position, boolean deleteAllField, Selection selection, double preProcessingMemoryThreshold) {
+    private void process(String position, boolean deleteAllPosition, Selection selection, double preProcessingMemoryThreshold) {
         publish("Position: "+position);
-        if (deleteAllField) db.getDao(position).deleteAllObjects();
+        if (deleteAllPosition) db.getDao(position).deleteAllObjects();
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
             logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
             try {
-                Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllField, preProcessingMemoryThreshold, this);
+                Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllPosition, preProcessingMemoryThreshold, this);
                 boolean createRoot = segmentAndTrack || trackOnly || generateTrackImages;
                 if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
             } catch (IOException e) {
@@ -856,8 +856,11 @@ public class Task implements ProgressCallback{
         }
         
         if ((segmentAndTrack || trackOnly)) {
-            logger.info("Processing: DB: {}, Position: {}", dbName, position);
-            if (selection==null) deleteObjects(db.getDao(position), structures);
+            logger.info("Processing: DB: {}, Position: {}", dbName, position);
+            if (selection==null) {
+                int[] structuresToDelete = IntStream.of(structures).filter(s -> db.getExperiment().getStructure(s).getProcessingPipelineParameter().isOnePluginSet()).toArray();
+                deleteObjects(db.getDao(position), structuresToDelete);
+            }
             List<SegmentedObject> root = getOrCreateRootTrack(db.getDao(position));
             for (int s : structures) { // TODO take code from processor
                 publish("Processing structure: "+s);

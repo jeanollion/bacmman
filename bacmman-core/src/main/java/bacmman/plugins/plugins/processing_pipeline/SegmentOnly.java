@@ -94,7 +94,8 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         int segParentStructureIdx = parentTrack.get(0).getExperimentStructure().getSegmentationParentObjectClassIdx(structureIdx);
         boolean subSegmentation = segParentStructureIdx>parentStructureIdx;
         boolean singleFrame = parentTrack.get(0).getExperimentStructure().singleFrame(parentTrack.get(0).getPositionName(), structureIdx); // will segment only on first frame
-
+        boolean relabel = !SegmenterNoRelabel.class.isAssignableFrom(segmenter.getSelectedPluginClass());
+        logger.debug("RELABEL: {} class assignable {} class: {}, instanceof {}", relabel, SegmenterNoRelabel.class.isAssignableFrom(segmenter.getPluginType()), segmenter.getPluginType(), segmenter.instantiatePlugin() instanceof SegmenterNoRelabel);
         boolean parallel = !(segmenter.instantiatePlugin() instanceof DisableParallelExecution); // TODO why this does not work ? !DisableParallelExecution.class.isAssignableFrom(segmenter.getPluginType());
         //logger.debug("PARALLEL EXECUTION: {}, seg type: {}, segName {}, instance of disable: {}", parallel, segmenter.getPluginType(), segmenter.getPluginName(), segmenter.instantiatePlugin() instanceof DisableParallelExecution);
         // segment in direct parents
@@ -161,7 +162,7 @@ public class SegmentOnly extends SegmentationProcessingPipeline<SegmentOnly> imp
         } else {
            for (int i = 0; i<pops.size(); ++i) {
                pops.set(i, postFilters.filter(pops.get(i), structureIdx, allParents.get(i)));
-               factory.setChildObjects(allParents.get(i), pops.get(i));
+               factory.setChildObjects(allParents.get(i), pops.get(i), relabel);
            }
            if (singleFrame) {
                if (pops.size()>1) logger.error("Segmentation of structure: {} from track: {}, single frame but several populations", structureIdx, parentTrack.get(0));

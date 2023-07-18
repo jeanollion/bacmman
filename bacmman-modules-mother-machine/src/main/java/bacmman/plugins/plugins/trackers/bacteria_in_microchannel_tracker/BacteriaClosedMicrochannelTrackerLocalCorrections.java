@@ -23,7 +23,7 @@ import bacmman.data_structure.*;
 import bacmman.measurement.GeometricalMeasurements;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.processing_pipeline.SegmentOnly;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.SlidingOperator;
@@ -530,7 +530,7 @@ public class BacteriaClosedMicrochannelTrackerLocalCorrections implements Tracke
             if (list!=null) {
                 // ensure objects are sorted along Y axis. necessary in case objects where modified manually
                 if (factory==null) factory = getFactory(this.structureIdx); // in case track only mode // todo : very bad !
-                list.sort(ObjectIdxTracker.getComparator(ObjectIdxTracker.IndexingOrder.YXZ));
+                list.sort(ObjectOrderTracker.getComparator(ObjectOrderTracker.IndexingOrder.YXZ));
                 factory.setChildren(parent, list);
                 factory.relabelChildren(parent);
 

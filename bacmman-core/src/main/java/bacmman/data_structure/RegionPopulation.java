@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 import bacmman.plugins.ObjectFeature;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker.IndexingOrder;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker.IndexingOrder;
 import bacmman.processing.watershed.WatershedTransform;
 import bacmman.processing.neighborhood.DisplacementNeighborhood;
 import bacmman.processing.neighborhood.EllipsoidalNeighborhood;
@@ -752,6 +752,7 @@ public class RegionPopulation {
     }
     
     private static int compareCenters(double[] o1, double[] o2, IndexingOrder order) {
+        if (order.equals(IndexingOrder.IDX)) throw new RuntimeException("Invalid order");
         if (o1[order.i1] != o2[order.i1]) {
             return Double.compare(o1[order.i1], o2[order.i1]);
         } else if (o1[order.i2] != o2[order.i2]) {

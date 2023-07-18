@@ -25,7 +25,7 @@ import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.manual_segmentation.WatershedObjectSplitter;
 import bacmman.plugins.plugins.thresholders.BackgroundThresholder;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.*;
 import bacmman.processing.gaussian_fit.GaussianFit;
 import bacmman.processing.neighborhood.Neighborhood;
@@ -240,7 +240,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         segmentedSpots.removeIf(s->s.getRadius()>maxSigma.getValue().doubleValue());
 
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
-        pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         return pop;
     }
     public static void removeCloseSpots(List<Region> regions, double minDist) {
@@ -321,7 +321,7 @@ public class SpotDetector implements Segmenter, TrackConfigurable<SpotDetector>,
         allObjects.addAll(seedObjects);
         List<Spot> segmentedSpots = fitAndSetQuality(radialSymmetryMap, smooth, fitImage, allObjects, seedObjects, typicalSigma.getValue().doubleValue());
         RegionPopulation pop = new RegionPopulation(segmentedSpots, smooth);
-        pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (verboseManualSeg) {
             Image seedMap = new ImageByte("seeds from: "+input.getName(), input);
             for (Point p : seedObjects) seedMap.setPixel(p.getIntPosition(0), p.getIntPosition(1), p.getIntPosition(2), 1);

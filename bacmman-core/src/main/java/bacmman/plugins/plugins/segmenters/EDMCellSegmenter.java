@@ -7,7 +7,7 @@ import bacmman.data_structure.SegmentedObject;
 import bacmman.image.*;
 import bacmman.measurement.BasicMeasurements;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.RegionFactory;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
@@ -119,7 +119,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         mask = PredicateMask.and(mask, segmentationMask);
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(true);
         RegionPopulation res = WatershedTransform.watershed(input, mask, seedObjects, config);
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         return res;
     }
 
@@ -133,7 +133,7 @@ public class EDMCellSegmenter<I extends InterfaceRegionImpl<I> & RegionCluster.I
         ImageMask mask = new MaskView(object.getMask(), object.isAbsoluteLandMark() ? input.getBoundingBox() : input.getBoundingBox().resetOffset());
         if (smVerbose && stores!=null) sm.setTestMode(TestableProcessingPlugin.getAddTestImageConsumer(stores, parent));
         RegionPopulation res = sm.splitAndMerge(mask, 10, sm.objectNumberLimitCondition(2));
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         if (object.isAbsoluteLandMark()) res.translate(input, true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain
         return res;

@@ -27,7 +27,7 @@ import bacmman.data_structure.Voxel;
 import bacmman.image.*;
 import bacmman.plugins.*;
 import bacmman.plugins.plugins.thresholders.IJAutoThresholder;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.EDT;
 import bacmman.processing.Filters;
 import bacmman.processing.ImageFeatures;
@@ -141,7 +141,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
             imageDisp.accept(EdgeDetector.generateRegionValueMap(pop, input).setName("Region Values after merge and remove thin objects"));
         }
 
-        pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
 
         if (stores!=null) {
             int pSIdx = parent.getExperimentStructure().getParentObjectClassIdx(objectClassIdx);
@@ -224,7 +224,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
         //res =  localThreshold(input, res, parent, structureIdx, true); 
         if (object.isAbsoluteLandMark()) res.translate(parent.getBounds(), true);
         if (res.getRegions().size()>2) RegionCluster.mergeUntil(res, 2, 0); // merge most connected until 2 objects remain
-        res.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        res.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         return res;
     }
 
@@ -290,7 +290,7 @@ public abstract class BacteriaHessian<T extends BacteriaHessian<T>> extends Segm
         if (verboseManualSeg) logger.debug("before filter seeds: {} objects", pop.getRegions().size());
         pop.filter(o-> seedObjects.stream().map(so->so.getVoxels().iterator().next()).anyMatch(o::contains)); // keep only objects that contain seeds
         if (verboseManualSeg) logger.debug("after filter seeds: {} objects", pop.getRegions().size());
-        pop.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        pop.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
 
         if (verboseManualSeg) {
             //Image manualSeeds = new ImageByte("seeds from: "+input.getName(), input);

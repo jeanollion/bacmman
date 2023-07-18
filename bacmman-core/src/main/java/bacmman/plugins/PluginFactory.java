@@ -52,7 +52,7 @@ public class PluginFactory {
     private final static TreeMap<String, Class> PLUGIN_NAMES_MAP_CLASS = new TreeMap<>();
     private final static Map<Class, String> CLASS_MAP_PLUGIN_NAME = new HashMap<>();
     private final static Logger logger = LoggerFactory.getLogger(PluginFactory.class);
-    private final static Map<String, String> OLD_NAMES_MAP_NEW = new HashMap<String, String>(){{put("DLObjetClassifier", "DLObjectClassifier"); put("UnetSegmenter", "ProbabilityMapSegmenter"); put("BacteriaEDM", "EDMCellSegmenter"); put("BinaryMax", "Dilate"); put("BorderContact", "EdgeContact"); put("StatisticsAtBorder", "ContourFeature"); put("RemoveDeadPixels", "RemoveHotPixels"); put("FitRegionsToEdges", "FitMicrochannelsToEdges");}};
+    private final static Map<String, String> OLD_NAMES_MAP_NEW = new HashMap<String, String>(){{put("ObjectIdxTracker", "ObjectOrderTracker"); put("DLObjetClassifier", "DLObjectClassifier"); put("UnetSegmenter", "ProbabilityMapSegmenter"); put("BacteriaEDM", "EDMCellSegmenter"); put("BinaryMax", "Dilate"); put("BorderContact", "EdgeContact"); put("StatisticsAtBorder", "ContourFeature"); put("RemoveDeadPixels", "RemoveHotPixels"); put("FitRegionsToEdges", "FitMicrochannelsToEdges");}};
     public static void importIJ1Plugins() {
         Hashtable<String, String> table = ij.Menus.getCommands();
         if (table==null) {
@@ -259,7 +259,7 @@ public class PluginFactory {
             try {
                 Class c = loader.loadClass(className);
                 if (Plugin.class.isAssignableFrom(c)) {
-                    if (Plugin.class.isAssignableFrom(c)) PLUGIN_NAMES_MAP_CLASS.put(command, c);
+                    PLUGIN_NAMES_MAP_CLASS.put(command, c);
                 }
             } catch (ClassNotFoundException ex) {
                 logger.warn("test class IJ", ex);
@@ -315,9 +315,7 @@ public class PluginFactory {
     }
 
     public static <T extends Plugin> List<String> getPluginNames(Class<T> clazz) {
-        List<String> res= PLUGIN_NAMES_MAP_CLASS.entrySet().stream().filter((e) -> (clazz.isAssignableFrom(e.getValue()))).map(e->e.getKey()).collect(Collectors.toList());
-        Collections.sort(res);
-        return res;
+        return PLUGIN_NAMES_MAP_CLASS.entrySet().stream().filter((e) -> (clazz.isAssignableFrom(e.getValue()))).map(Map.Entry::getKey).sorted().collect(Collectors.toList());
     }
     public static <T extends Plugin> String getPluginName(Class<T> clazz) {
         return CLASS_MAP_PLUGIN_NAME.get(clazz);

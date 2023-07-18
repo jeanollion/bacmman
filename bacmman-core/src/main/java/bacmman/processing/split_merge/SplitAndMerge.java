@@ -29,7 +29,7 @@ import bacmman.processing.clustering.ClusterCollection;
 import bacmman.processing.clustering.FusionCriterion;
 import bacmman.processing.clustering.InterfaceRegionImpl;
 import bacmman.processing.clustering.RegionCluster;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 import bacmman.processing.watershed.WatershedTransform;
 
 import java.util.ArrayList;
@@ -202,7 +202,7 @@ public abstract class SplitAndMerge<I extends InterfaceRegionImpl<I>> { //& Regi
         WatershedTransform.WatershedConfiguration config = new WatershedTransform.WatershedConfiguration().decreasingPropagation(!increasingPropagation);
         if (minSizePropagation>1) config.fusionCriterion(new WatershedTransform.SizeFusionCriterion(minSizePropagation));
         RegionPopulation popWS = WatershedTransform.watershed(getWatershedMap(), segmentationMask, seeds, config);
-        if (addTestImage!=null) popWS.sortBySpatialOrder(ObjectIdxTracker.IndexingOrder.YXZ);
+        if (addTestImage!=null) popWS.sortBySpatialOrder(ObjectOrderTracker.IndexingOrder.YXZ);
         return popWS;
     }
     public RegionCluster<I> getInterfaces(RegionPopulation population, boolean lowConnectivity) {

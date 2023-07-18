@@ -6,15 +6,16 @@ import bacmman.image.BlankMask;
 import bacmman.image.BoundingBox;
 import bacmman.image.Image;
 import bacmman.plugins.*;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-public class ManualRectangle implements Segmenter, TrackerSegmenter, Hint {
+public class ManualRectangle implements SegmenterNoRelabel, TrackerSegmenter, Hint {
 
-    SimpleListParameter<BoundingBoxParameter> objects = new SimpleListParameter<>("Objects", 0, new BoundingBoxParameter("Bounds")).setEmphasized(true);
+    SimpleListParameter<BoundingBoxParameter> objects = new SimpleListParameter<>("Objects", 0, new BoundingBoxParameter("Bounds", true)).setEmphasized(true);
 
     @Override
     public String getHintText() {
@@ -28,9 +29,10 @@ public class ManualRectangle implements Segmenter, TrackerSegmenter, Hint {
 
     @Override
     public RegionPopulation runSegmenter(Image input, int objectClassIdx, SegmentedObject parent) {
-        List<BoundingBox> bounds = objects.getActivatedChildren().stream().map(bds -> bds.getBoundingBox(parent.getBounds())).collect(Collectors.toList());
+        List<BoundingBox> bounds = objects.getActivatedChildren().stream()
+                .map(bds -> bds.withinFrameWindow(parent.getFrame()) ? bds.getBoundingBox(parent.getBounds()) : null).collect(Collectors.toList());
         boolean is2D = parent.is2D();
-        List<Region> regions = IntStream.range(0, bounds.size()).mapToObj(i -> new Region(new BlankMask(bounds.get(i), parent.getScaleXY(), parent.getScaleZ()), i, is2D)).collect(Collectors.toList());
+        List<Region> regions = IntStream.range(0, bounds.size()).mapToObj(i -> bounds.get(i)==null ? null : new Region(new BlankMask(bounds.get(i), parent.getScaleXY(), parent.getScaleZ()), i+1, is2D)).filter(Objects::nonNull).collect(Collectors.toList());
         return new RegionPopulation(regions, parent.getMaskProperties());
     }
 
@@ -41,7 +43,7 @@ public class ManualRectangle implements Segmenter, TrackerSegmenter, Hint {
 
     @Override
     public void track(int structureIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
-        Tracker tracker = new ObjectIdxTracker();
+        Tracker tracker = new ObjectOrderTracker();
         tracker.track(structureIdx, parentTrack, editor);
     }
 
@@ -52,7 +54,7 @@ public class ManualRectangle implements Segmenter, TrackerSegmenter, Hint {
             postFilters.filter(children, objectClassIdx, p);
             factory.setChildObjects(p, children);
         });
-        Tracker tracker = new ObjectIdxTracker();
+        Tracker tracker = new ObjectOrderTracker();
         tracker.track(objectClassIdx, parentTrack, editor);
     }
 

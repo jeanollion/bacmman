@@ -22,7 +22,6 @@ import static bacmman.test_utils.GenerateSyntheticData.generateImages;
 import static bacmman.test_utils.TestUtils.logger;
 
 import bacmman.data_structure.*;
-import bacmman.core.Task;
 import bacmman.configuration.experiment.ChannelImage;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
@@ -32,20 +31,17 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.dao.ObjectDAO;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-import bacmman.utils.Utils;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -54,7 +50,7 @@ import bacmman.plugins.plugins.measurements.ObjectInclusionCount;
 import bacmman.plugins.plugins.processing_pipeline.SegmentThenTrack;
 import bacmman.plugins.plugins.segmenters.SimpleThresholder;
 import bacmman.plugins.plugins.thresholders.ConstantValue;
-import bacmman.plugins.plugins.trackers.ObjectIdxTracker;
+import bacmman.plugins.plugins.trackers.ObjectOrderTracker;
 
 
 /**
@@ -126,8 +122,8 @@ public class DeleteFromDAOTest {
 
         // processing chains
         PluginFactory.findPlugins("bacmman.plugins.plugins");
-        microChannel.setProcessingPipeline(new SegmentThenTrack(new SimpleThresholder(new ConstantValue(1)), new ObjectIdxTracker()));
-        bacteria.setProcessingPipeline(new SegmentThenTrack(new SimpleThresholder(new ConstantValue(1)), new ObjectIdxTracker()));
+        microChannel.setProcessingPipeline(new SegmentThenTrack(new SimpleThresholder(new ConstantValue(1)), new ObjectOrderTracker()));
+        bacteria.setProcessingPipeline(new SegmentThenTrack(new SimpleThresholder(new ConstantValue(1)), new ObjectOrderTracker()));
 
         // set up I/O directory & create fields
         File inputImage = testFolder.newFolder();
