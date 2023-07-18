@@ -20,7 +20,7 @@ public class Track {
     public final static Logger logger = LoggerFactory.getLogger(Track.class);
     final List<Track> previous, next; // no hashset because hash of Tracks can change with merge
     final List<SegmentedObject> objects;
-    List<Triplet<Region,Region,Double>> splitRegions;
+    Map<SegmentedObject, Triplet<Region,Region,Double>> splitRegions = new HashMap<>();
     public Track(Collection<SegmentedObject> objects) {
         if (objects instanceof ArrayList) this.objects = (List<SegmentedObject>)(objects);
         else this.objects = new ArrayList<>(objects);
@@ -41,11 +41,15 @@ public class Track {
         this.next = new ArrayList<>();
     }
     public Track setSplitRegions(SplitAndMerge sm) {
-        splitRegions = Utils.parallel(objects.stream(), parallel).map(sm::computeSplitCost).collect(Collectors.toList());
+        Map<SegmentedObject, Triplet<Region, Region, Double>> existingSR = splitRegions;
+        splitRegions = Utils.parallel(objects.stream(), parallel).collect(Collectors.toMap(Function.identity(), o->{
+            if (existingSR.containsKey(o)) return existingSR.get(o);
+            else return sm.computeSplitCost(o);
+        }));
         return this;
     }
     public Track eraseSplitRegions() {
-        splitRegions = null;
+        splitRegions.clear();
         return this;
     }
     public Track getCommonTrack(Track other, boolean next, boolean searchInLinkedTracks) {
@@ -66,7 +70,7 @@ public class Track {
         }
         return res;
     }
-    public List<Triplet<Region,Region,Double>> getSplitRegions() {
+    public Map<SegmentedObject, Triplet<Region,Region,Double>> getSplitRegions() {
         return splitRegions;
     }
     public List<Track> getPrevious() {
@@ -225,9 +229,9 @@ public class Track {
     }
 
     public static Track splitTrack(Track track, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor trackEditor) {
-        List<Triplet<Region, Region, Double>> regions = track.getSplitRegions();
-        if (regions==null) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
-        Triplet<Region, Region, Double> impossible=regions.stream().filter(t -> t.v1==null || t.v2==null || Double.isInfinite(t.v3)).findAny().orElse(null);
+        Map<SegmentedObject, Triplet<Region, Region, Double>> regions = track.getSplitRegions();
+        if (regions.size() != track.objects.size()) throw new IllegalArgumentException("call to SplitTrack but no regions have been set");
+        Triplet<Region, Region, Double> impossible=regions.values().stream().filter(t -> t.v1==null || t.v2==null || Double.isInfinite(t.v3)).findAny().orElse(null);
         if (impossible!=null) {
             logger.debug("cannot split track: {} (center: {}, null region ? {} value: {})", track, track.head().getRegion().getGeomCenter(false), impossible.v1==null || impossible.v2 == null, impossible.v3);
             return null;
@@ -236,8 +240,8 @@ public class Track {
         SegmentedObject head2 = factory.duplicate(head1, head1.getStructureIdx(), true, false, false);
         factory.addToParent(head1.getParent(),true, head2); // will set a new idx to head2
         logger.debug("splitting track: {} -> {}", track, head2);
-        factory.setRegion(head1, regions.get(0).v1);
-        factory.setRegion(head2, regions.get(0).v2);
+        factory.setRegion(head1, regions.get(head1).v1);
+        factory.setRegion(head2, regions.get(head1).v2);
         if (!head2.isTrackHead()) {
             logger.error("Split Track error: head: {}, track head: {}, new head: {}, track head: {}", head1, head1.getTrackHead(), head2, head2.getTrackHead());
             throw new IllegalArgumentException("Invalid track to split (track head)");
@@ -245,7 +249,7 @@ public class Track {
         Track track2 = new Track(new ArrayList<SegmentedObject>(){{add(head2);}});
         //logger.debug("setting regions: {} + {}", regions.get(0).v1.getGeomCenter(false), regions.get(0).v2.getGeomCenter(false));
         for (int i = 1; i< track.length(); ++i) { // populate track
-            Pair<Region, Region> r = regions.get(i).extractAB();
+            Pair<Region, Region> r = regions.get(track.objects.get(i)).extractAB();
             SegmentedObject prev = track.objects.get(i-1);
             boolean matchInOrder = matchOrder(new Pair<>(prev.getRegion(), track2.tail().getRegion()), r);
             //logger.debug("setting regions: {} + {}", match.key.getGeomCenter(false), match.value.getGeomCenter(false));
@@ -270,7 +274,7 @@ public class Track {
         logger.debug("before assign next: all next: {} all next's prev: {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(allNextPrev, Track::head));
         assigner.assignTracks(allNextPrev, new ArrayList<>(track.getNext()), trackEditor);
         logger.debug("after assign next: {} + {}", Utils.toStringList(track.getNext(), Track::head), Utils.toStringList(track2.getNext(), Track::head));
-        track.splitRegions = null;
+        track.splitRegions.clear();
         return track2;
     }
 
@@ -300,9 +304,10 @@ public class Track {
 
         // merge regions
         Utils.parallel(track1.objects.stream(), parallel).forEach(o1 -> {
-            SegmentedObject o2 =  track2.getObject(o1.getFrame());
+            SegmentedObject o2 = track2.getObject(o1.getFrame());
             if (o2!=null) {
-                o1.getRegion().setMask(Region.merge(true, o1.getRegion(), o2.getRegion()).getMask());
+                track1.splitRegions.put(o1, new Triplet<>(o1.getRegion(), o2.getRegion(), 0d));
+                factory.setRegion(o1, Region.merge(true, o1.getRegion(), o2.getRegion()));
                 factory.removeFromParent(o2);
             }
         });
@@ -332,7 +337,6 @@ public class Track {
             p.addNext(track1);
             track1.addPrevious(p);
         });
-        track1.splitRegions = null; // TODO record regions at this step
         return track1;
     }
 
@@ -357,10 +361,7 @@ public class Track {
             n.addPrevious(track1);
             track1.addNext(n);
         });
-        if (track1.splitRegions!=null) {
-            if (track2.splitRegions!=null) track1.splitRegions.addAll(track2.splitRegions);
-            else track1.splitRegions = null;
-        }
+        track1.splitRegions.putAll(track2.splitRegions);
         return track1;
     }
 

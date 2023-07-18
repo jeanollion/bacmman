@@ -252,7 +252,7 @@ public class Spot extends Region implements Analytical {
 
     }
     private static BoundingBox getBounds(Point center, double radius, double zAspectRatio, boolean is2D) {
-        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.get(2)-(is2D?0:radius*zAspectRatio)), (int)Math.ceil(center.get(2)+(is2D?0:radius*zAspectRatio)));
+        return new SimpleBoundingBox((int)Math.floor(center.get(0)-radius), (int)Math.ceil(center.get(0)+radius), (int)Math.floor(center.get(1)-radius), (int)Math.ceil(center.get(1)+radius), (int)Math.floor(center.getWithDimCheck(2)-(is2D?0:radius*zAspectRatio)), (int)Math.ceil(center.getWithDimCheck(2)+(is2D?0:radius*zAspectRatio)));
     }
     public <T extends BoundingBox<T>> BoundingBox<T> getBounds() {
         if (bounds==null) {

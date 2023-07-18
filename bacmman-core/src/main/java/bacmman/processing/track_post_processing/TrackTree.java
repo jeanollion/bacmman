@@ -46,7 +46,7 @@ public class TrackTree extends TreeMap<SegmentedObject, Track> {
 
 
     public Track split(Track toSplit, SplitAndMerge sm, TrackAssigner assigner, SegmentedObjectFactory factory, TrackLinkEditor editor) {
-        if (toSplit.getSplitRegions()==null) toSplit.setSplitRegions(sm);
+        toSplit.setSplitRegions(sm);
         Track newTrack = Track.splitTrack(toSplit, assigner, factory, editor);
         if (newTrack!=null) {
             toSplit = toSplit.simplifyTrack(editor, toRemove -> remove(toRemove.head()));
