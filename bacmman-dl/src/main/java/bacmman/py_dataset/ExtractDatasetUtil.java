@@ -7,6 +7,7 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.utils.HashMapGetCreate;
@@ -67,6 +68,7 @@ public class ExtractDatasetUtil {
                 boolean saveLabels = true;
                 for (FeatureExtractor.Feature feature : features) {
                     boolean oneEntryPerInstance = feature.getFeatureExtractor() instanceof FeatureExtractorOneEntryPerInstance;
+                    boolean configurable = feature.getFeatureExtractor() instanceof FeatureExtractorConfigurable;
                     logger.debug("feature: {} ({}), selection filter: {}", feature.getName(), feature.getFeatureExtractor().getClass().getSimpleName(), feature.getSelectionFilter());
                     Function<SegmentedObject, Image> extractFunction;
                     Selection parentSelection;
@@ -108,6 +110,7 @@ public class ExtractDatasetUtil {
                         parentSelection = sel;
                     }
                     if (!parentSelection.isEmpty()) {
+                        if (configurable) ((FeatureExtractorConfigurable)feature.getFeatureExtractor()).configure(parentSelection.getAllElementsAsStream(), feature.getObjectClass());
                         extractFunction = e -> feature.getFeatureExtractor().extractFeature(e, feature.getObjectClass(), curResamplePops, dimensions);
                         boolean ZtoBatch = feature.getFeatureExtractor().getExtractZDim() == Task.ExtractZAxis.BATCH;
                         extractFeature(outputPath, outputName + feature.getName(), parentSelection, position, extractFunction, ZtoBatch, SCALE_MODE.NO_SCALE, feature.getFeatureExtractor().interpolation(), null, oneEntryPerInstance, compression, saveLabels, saveLabels, dimensions);
@@ -217,7 +220,7 @@ public class ExtractDatasetUtil {
         return "f" + String.format("%05d", frame);
     }
     public static void extractFeature(Path outputPath, String dsName, Selection parentSel, String position, Function<SegmentedObject, Image> feature, boolean zToBatch, SCALE_MODE scaleMode, InterpolatorFactory interpolation, Map<String, Object> metadata, boolean oneEntryPerInstance, int compression, boolean saveLabels, boolean saveDimensions, int... dimensions) {
-        Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElements().stream().parallel() : () -> parentSel.getElements(position).stream().parallel();
+        Supplier<Stream<SegmentedObject>> streamSupplier = position==null ? () -> parentSel.getAllElementsAsStream().parallel() : () -> parentSel.getElementsAsStream(Stream.of(position)).parallel();
 
         List<Image> images = streamSupplier.get().map(e -> { //skip(1).
             Image im = feature.apply(e);

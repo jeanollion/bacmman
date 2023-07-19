@@ -126,11 +126,14 @@ public class TypeConverter {
     }
 
     public static Image convert(Image image, int targetBitdepth, Image output, boolean forceCopy) {
-        assert output==null || output.getBitDepth()==targetBitdepth;
+        if (output!=null && output.getBitDepth()!=targetBitdepth) throw new RuntimeException("Incompatible output and bitdepth");
         switch (targetBitdepth) {
             case 8: return toByte(image, (ImageByte)output, forceCopy);
             case 16: return toShort(image, (ImageShort)output, forceCopy);
-            case 32: return toFloat(image, (ImageFloat)output, forceCopy);
+            case 32: {
+                if (output instanceof ImageInt) return toInt(image, (ImageInt)output);
+                return toFloat(image, (ImageFloat)output, forceCopy);
+            }
             default: throw new IllegalArgumentException("invalid bitdepth");
         }
     }

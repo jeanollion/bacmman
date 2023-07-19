@@ -2,6 +2,7 @@ package bacmman.py_dataset;
 
 import bacmman.core.ProgressCallback;
 import bacmman.image.Image;
+import bacmman.image.ImageInteger;
 import bacmman.processing.ImageOperations;
 import bacmman.utils.ArrayUtil;
 import ch.systemsx.cisd.base.mdarray.*;
@@ -46,7 +47,7 @@ public class HDF5IO {
         long[] blockIdx = { 0, 0, 0, 0 };
 
         //double[] elSize = getElementSizeUm(imp);
-        BIT_DEPTH type = getBitDepth(imp);
+        DTYPE type = getBitDepth(imp);
         MDAbstractArray data = getArray(writer, dsName, dims, blockDims, type, compressionLevel);
         Object dataFlat = data.getAsFlatArray();
 
@@ -69,7 +70,7 @@ public class HDF5IO {
         int[] blockDims = { 1, H, W };
         long[] blockIdx = { 0, 0, 0 };
 
-        BIT_DEPTH type = getBitDepth(image);
+        DTYPE type = getBitDepth(image);
         MDAbstractArray data = getArray(writer, dsName, dims, blockDims, type, compressionLevel);
         Object dataFlat = data.getAsFlatArray();
         for (int z = 0; z < Z; ++z, ++blockIdx[0]) {
@@ -77,24 +78,27 @@ public class HDF5IO {
             writeSlice(writer, image, data, dataFlat, dsName, type, blockIdx, z);
         }
     }
-    public enum BIT_DEPTH{BYTE, SHORT, FLOAT}
-    public static BIT_DEPTH getBitDepth(ImagePlus imp) {
+    public enum DTYPE {BYTE, SHORT, FLOAT, INT32}
+    public static DTYPE getBitDepth(ImagePlus imp) {
         switch (imp.getBitDepth()) {
-            case 8: return BIT_DEPTH.BYTE;
-            case 16: return BIT_DEPTH.SHORT;
-            case 32: return BIT_DEPTH.FLOAT;
+            case 8: return DTYPE.BYTE;
+            case 16: return DTYPE.SHORT;
+            case 32: return DTYPE.FLOAT;
             default: throw new IllegalArgumentException("Bit depth not supported");
         }
     }
-    public static BIT_DEPTH getBitDepth(Image image) {
+    public static DTYPE getBitDepth(Image image) {
         switch (image.getBitDepth()) {
-            case 8: return BIT_DEPTH.BYTE;
-            case 16: return BIT_DEPTH.SHORT;
-            case 32: return BIT_DEPTH.FLOAT;
+            case 8: return DTYPE.BYTE;
+            case 16: return DTYPE.SHORT;
+            case 32: {
+                if (image instanceof ImageInteger) return DTYPE.INT32;
+                else return DTYPE.FLOAT;
+            }
             default: throw new IllegalArgumentException("Bit depth not supported");
         }
     }
-    private static MDAbstractArray getArray(IHDF5Writer writer, String dsName, long[] dims, int[] blockDims, BIT_DEPTH type, int compressionLevel) {
+    private static MDAbstractArray getArray(IHDF5Writer writer, String dsName, long[] dims, int[] blockDims, DTYPE type, int compressionLevel) {
         switch (type) {
             case FLOAT:
             default:
@@ -106,6 +110,9 @@ public class HDF5IO {
             case BYTE:
                 writer.uint8().createMDArray(dsName, dims, blockDims, HDF5IntStorageFeatures.createDeflationUnsignedDelete(compressionLevel));
                 return new MDByteArray(blockDims);
+            case INT32:
+                writer.int32().createMDArray(dsName, dims, blockDims, HDF5IntStorageFeatures.createDeflationUnsignedDelete(compressionLevel));
+                return new MDIntArray(blockDims);
         }
     }
     public static void save3DImage(ImagePlus imp, IHDF5Writer writer, String dsName, int compressionLevel, ProgressCallback pr) {
@@ -121,7 +128,7 @@ public class HDF5IO {
         //double[] elSize = getElementSizeUm(imp);
 
         //if (pr != null) pr.init(imp.getImageStackSize());
-        BIT_DEPTH type = getBitDepth(imp);
+        DTYPE type = getBitDepth(imp);
         MDAbstractArray data = getArray(writer, dsName, dims, blockDims, type, compressionLevel);
         Object dataFlat = data.getAsFlatArray();
         for (int t = 0; t < T; ++t) {
@@ -137,7 +144,7 @@ public class HDF5IO {
         }
         //writer.float64().setArrayAttr(dsName, "element_size_um", elSize);
     }
-    private static void writeSlice(IHDF5Writer writer, ImagePlus imp, MDAbstractArray data, Object dataFlat, String dsName, BIT_DEPTH type, long[] blockIdx, int sliceSize, int c, int z, int t) {
+    private static void writeSlice(IHDF5Writer writer, ImagePlus imp, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int sliceSize, int c, int z, int t) {
         int stackIndex = imp.getStackIndex(c + 1, z + 1, t + 1);
         System.arraycopy(imp.getImageStack().getPixels(stackIndex), 0, dataFlat, 0, sliceSize);
         switch (type){
@@ -150,9 +157,12 @@ public class HDF5IO {
             case BYTE:
                 writer.uint8().writeMDArrayBlock(dsName, (MDByteArray)data, blockIdx);
                 break;
+            case INT32:
+                writer.int32().writeMDArrayBlock(dsName, (MDIntArray)data, blockIdx);
+                break;
         }
     }
-    private static void writeSlice(IHDF5Writer writer, Image image, MDAbstractArray data, Object dataFlat, String dsName, BIT_DEPTH type, long[] blockIdx, int z) {
+    private static void writeSlice(IHDF5Writer writer, Image image, MDAbstractArray data, Object dataFlat, String dsName, DTYPE type, long[] blockIdx, int z) {
         System.arraycopy(image.getPixelArray()[z], 0, dataFlat, 0, image.getSizeXY());
         switch (type){
             case FLOAT:
@@ -164,6 +174,9 @@ public class HDF5IO {
             case BYTE:
                 writer.uint8().writeMDArrayBlock(dsName, (MDByteArray)data, blockIdx);
                 break;
+            case INT32:
+                writer.int32().writeMDArrayBlock(dsName, (MDIntArray)data, blockIdx);
+                break;
         }
     }
     public static IHDF5Reader getReader(File file) {
@@ -173,23 +186,24 @@ public class HDF5IO {
     public static List<String> getNames(IHDF5Reader reader) {
         return reader.getGroupMembers("/");
     }
-    public static BIT_DEPTH getBitDepth(HDF5DataSetInformation dsInfo) {
+    public static DTYPE getBitDepth(HDF5DataSetInformation dsInfo) {
         int elementSize = dsInfo.getTypeInformation().getElementSize();
         switch (elementSize) {
-            case 4: return BIT_DEPTH.FLOAT;
+            case 4:
+                if (dsInfo.getTypeInformation().getRawDataClass().equals(HDF5DataClass.INTEGER)) return DTYPE.INT32;
+                else return DTYPE.FLOAT;
             case 2:
-                if (!dsInfo.getTypeInformation().isSigned()) return BIT_DEPTH.SHORT;
+                if (!dsInfo.getTypeInformation().isSigned()) return DTYPE.SHORT;
                 else throw new IllegalArgumentException("Signed 16bit not supported");
             case 1:
-                if (!dsInfo.getTypeInformation().isSigned()) return BIT_DEPTH.BYTE;
+                if (!dsInfo.getTypeInformation().isSigned()) return DTYPE.BYTE;
                 else throw new IllegalArgumentException("Signed 8bit not supported");
             default: throw new IllegalArgumentException("Data type not supported");
-
         }
     }
     public static ImagePlus readDataset(IHDF5Reader reader, String dsName) {
         HDF5DataSetInformation dsInfo = reader.object().getDataSetInformation(dsName);
-        BIT_DEPTH type = getBitDepth(dsInfo);
+        DTYPE type = getBitDepth(dsInfo);
         int nDims    = dsInfo.getDimensions().length - 2;
         int nFrames  = (int)dsInfo.getDimensions()[0];
         int nChannels = (int)dsInfo.getDimensions()[1];
@@ -224,7 +238,7 @@ public class HDF5IO {
         imp.setOpenAsHyperStack(true);
         return imp;
     }
-    private static Object readSlice(IHDF5Reader reader, String dsName, int[] blockDims, long[] blockIdx, BIT_DEPTH type) {
+    private static Object readSlice(IHDF5Reader reader, String dsName, int[] blockDims, long[] blockIdx, DTYPE type) {
         switch (type) {
             case FLOAT:
                 return reader.float32().readMDArrayBlock( dsName, blockDims, blockIdx).getAsFlatArray();
@@ -232,6 +246,8 @@ public class HDF5IO {
                 return reader.uint16().readMDArrayBlock( dsName, blockDims, blockIdx).getAsFlatArray();
             case BYTE:
                 return reader.uint8().readMDArrayBlock( dsName, blockDims, blockIdx).getAsFlatArray();
+            case INT32:
+                return reader.int32().readMDArrayBlock( dsName, blockDims, blockIdx).getAsFlatArray();
             default:
                 throw new IllegalArgumentException("Unsupported datatype");
         }
@@ -247,7 +263,7 @@ public class HDF5IO {
         IHDF5Writer writer = getWriter(outFile, append);
         Image sample = images.get(0);
         if (images.stream().anyMatch(i -> !i.sameDimensions(sample) || i.getBitDepth()!=sample.getBitDepth())) throw new IllegalArgumentException("At least 2 images have different dimensions or bitdepth");
-        BIT_DEPTH type = getBitDepth(sample);
+        DTYPE type = getBitDepth(sample);
         long[] dims, blockIdx;
         int[] blockDims;
         if (sample.sizeZ()>1) {
@@ -301,7 +317,7 @@ public class HDF5IO {
     }
     public static Image[] readPyDataset(IHDF5Reader reader, String dsName, boolean extractLabels, int... imageIdx) {
         HDF5DataSetInformation dsInfo = reader.object().getDataSetInformation(dsName);
-        BIT_DEPTH type = getBitDepth(dsInfo);
+        DTYPE type = getBitDepth(dsInfo);
         int nDims    = dsInfo.getDimensions().length - 1;
         int nImages  = (int)dsInfo.getDimensions()[0];
         int nZ    = (nDims == 2) ? 1 : (int)dsInfo.getDimensions()[1];

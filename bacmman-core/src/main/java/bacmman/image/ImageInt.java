@@ -313,5 +313,5 @@ public class ImageInt extends ImageInteger<ImageInt> {
         }
     }
     
-    @Override public int getBitDepth() {return 64;}
+    @Override public int getBitDepth() {return 32;}
 }

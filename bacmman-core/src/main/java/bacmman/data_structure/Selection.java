@@ -214,6 +214,10 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
         for (String f : elements.keySet()) res.addAll(getElements(f));
         return res;
     }
+
+    public Stream<SegmentedObject> getAllElementsAsStream() {
+        return getElementsAsStream(elements.keySet().stream());
+    }
     
     public Set<SegmentedObject> getElements(String position) {
         Set<SegmentedObject> res =  retrievedElements.get(position);
