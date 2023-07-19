@@ -104,10 +104,10 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
         int[] tol = mitosisFrameTolerance.getArrayInt();
         if (tol.length>0) {
             for (int i : tol) {
-                res.add(new MeasurementKeyObject(prefix + "CompleteTrackNumber_"+i, parentClass));
+                res.add(new MeasurementKeyObject(prefix + "CompleteTrackCount_"+i, parentClass));
                 if (objectWise.getSelected()) res.add(new MeasurementKeyObject(prefix + "CompleteTrack_"+i, groundTruth.getSelectedClassIdx()));
             }
-            res.add(new MeasurementKeyObject(prefix + "TrackNumber", parentClass));
+            res.add(new MeasurementKeyObject(prefix + "TrackCount", parentClass));
         }
         return res;
     }
@@ -289,14 +289,14 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     .filter( t -> t.stream().noneMatch( o -> GbyFExcluded.get(o.getFrame()).contains(o) ) ) // exclude tracks with at least one excluded object
                     .collect(Collectors.toList());
 
-            parentTH.getMeasurements().setValue(prefix + "TrackNumber", gtTracks.size());
+            parentTH.getMeasurements().setValue(prefix + "TrackCount", gtTracks.size());
             for (int i : tol) {
                 int matching = (int)gtTracks.stream().filter( t -> {
                     boolean m = trackMatch.test(t, i);
                     if (objectWise) t.get(0).getMeasurements().setValue(prefix + "CompleteTrack_"+i, m);
                     return m;
                 }).count();
-                parentTH.getMeasurements().setValue(prefix + "CompleteTrackNumber_"+i, matching);
+                parentTH.getMeasurements().setValue(prefix + "CompleteTrackCount_"+i, matching);
             }
         }
     }
@@ -746,11 +746,14 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
                     next.forEach(n -> predGraph.addEdge(prevGT, n));
                 }
             });
-        // now that graphs predGraphs and gtGraphs have same vertices, simply count differences
+        // now that graphs predGraphs and gtGraphs have same vertices, count differences
         gtGraph.vertexSet().stream().filter(o -> o.getFrame() == frame).forEach(next -> {
             Set<SegmentedObject> gtPrev = gtGraph.getPreviousObjects(next).collect(Collectors.toSet());
             Set<SegmentedObject> predGtPrev = predGraph.getPreviousObjects(next).collect(Collectors.toSet());
-            List<SegmentedObject> fn = gtPrev.stream().filter(o -> !predGtPrev.contains(o)).collect(Collectors.toList());
+            List<SegmentedObject> fn = gtPrev.stream()
+                    .filter(o -> !predGtPrev.contains(o))
+                    .filter(o -> matchGraph.getAllMatching(o, true).findAny().isPresent()) // exclude segmentation false negatives
+                    .collect(Collectors.toList());
             List<SegmentedObject> fp = predGtPrev.stream().filter(o -> !gtPrev.contains(o)).collect(Collectors.toList());
             if (mergedNext.contains(next) && !gtPrev.isEmpty()) { // predicted object that were merged but had false negative links
                 matchGraph.getAllMatching(next, true)
