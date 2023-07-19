@@ -177,6 +177,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             prevPrediction = prediction;
         }
         if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, assigner, editor, factory);
+        fixLinks(objectClassIdx, parentTrack, editor);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
     }
@@ -248,6 +249,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             prevPrediction = prediction;
         }
         if (!incrementalPostProcessing) postFilterTracking(objectClassIdx, parentTrack, allAdditionalLinks, prevPrediction, divMap, assigner, editor, factory);
+        fixLinks(objectClassIdx, parentTrack, editor);
         setTrackingAttributes(objectClassIdx, parentTrack);
         logContainers.forEach(c -> c.accept("PP_")); // run log after post-processing as labels can change
     }
@@ -907,7 +909,21 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         }
         return distance;
     }
-
+    // fix links that are only in one way. they come from complex links unsupported by bacmman data structure.
+    public void fixLinks(int objectClassIdx, List<SegmentedObject> parentTrack, TrackLinkEditor editor) {
+        parentTrack.stream().sorted().forEach(p -> {
+            p.getChildren(objectClassIdx).forEach(c -> {
+                SegmentedObject prev = c.getPrevious();
+                if (prev != null && prev.getNext() == null && SegmentedObjectEditor.getNext(prev).count()==1) {
+                    editor.setTrackLinks(prev, c, true, true, true);
+                }
+                SegmentedObject next = c.getNext();
+                if (next != null && next.getPrevious() == null && SegmentedObjectEditor.getPrevious(next).count()==1) {
+                    editor.setTrackLinks(c, next, true, true, true);
+                }
+            });
+        });
+    }
     public void setTrackingAttributes(int objectClassIdx, List<SegmentedObject> parentTrack) {
         boolean allowMerge = parentTrack.get(0).getExperimentStructure().allowMerge(objectClassIdx);
         boolean allowSplit = parentTrack.get(0).getExperimentStructure().allowSplit(objectClassIdx);
@@ -932,7 +948,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 double growthrate;
                 if (prevs.size() == 1) {
                     SegmentedObject prev = prevs.get(0);
-                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prevs.get(0)).collect(Collectors.toList());
+                    List<SegmentedObject> prevsNext = SegmentedObjectEditor.getNext(prev).collect(Collectors.toList());
                     if (prevsNext.size()>1) { // compute size of all next objects
                         growthrate = prevsNext.stream().mapToDouble(sizeMap::get).sum() / sizeMap.get(prev);
                     } else if (touchBorder.test(prev) || touchBorder.test(o)) {
