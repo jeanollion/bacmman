@@ -60,6 +60,7 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
     public static double getOptimalScale(double... minAndMax) {
         double min = minAndMax[0];
         double max = minAndMax.length>1 ? minAndMax[1] : min;
+        if (min < 0) throw new IllegalArgumentException("Minimum should be positive");
         if (max <= 0) throw new IllegalArgumentException("Maximum should be strictly positive");
         return 255. / max;
     }

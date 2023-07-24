@@ -286,9 +286,17 @@ public class ObjectGraph<S extends GraphObject<S>> {
         if (!graph.containsVertex(t)) return Collections.emptyList();
         return graph.edgesOf(t).stream().filter(e->graph.getEdgeTarget(e).equals(t)).map(e->graph.getEdgeSource(e)).collect(Collectors.toList());
     }
+    public Stream<S> getAllPreviousAsStream(S t) {
+        if (!graph.containsVertex(t)) return Stream.empty();
+        return graph.edgesOf(t).stream().filter(e->graph.getEdgeTarget(e).equals(t)).map(e->graph.getEdgeSource(e));
+    }
     public List<S> getAllNexts(S t) {
         if (!graph.containsVertex(t)) return Collections.emptyList();
         return graph.edgesOf(t).stream().filter(e->graph.getEdgeSource(e).equals(t)).map(e->graph.getEdgeTarget(e)).collect(Collectors.toList());
+    }
+    public Stream<S> getAllNextsAsStream(S t) {
+        if (!graph.containsVertex(t)) return Stream.empty();
+        return graph.edgesOf(t).stream().filter(e->graph.getEdgeSource(e).equals(t)).map(e->graph.getEdgeTarget(e));
     }
     public S getNext(S s) {
         List<S> nexts = getAllNexts(s);
