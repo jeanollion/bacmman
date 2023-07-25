@@ -66,16 +66,16 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
 
     BoundedNumberParameter edmThreshold = new BoundedNumberParameter("EDM Threshold", 5, 0, 0, null).setEmphasized(false).setHint("Threshold applied on predicted EDM to define foreground areas");
     BoundedNumberParameter objectThickness = new BoundedNumberParameter("Object Thickness", 5, 8, 3, null).setEmphasized(true).setHint("Minimal thickness of objects to segment. Increase this parameter to reduce over-segmentation and false positives");
-    BoundedNumberParameter mergeCriterion = new BoundedNumberParameter("Merge Criterion", 5, 0.25, 1e-5, 1).setEmphasized(false).setHint("Increase to reduce over-segmentation");
-    BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(false).setHint("Objects under this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
+    BoundedNumberParameter mergeCriterion = new BoundedNumberParameter("Merge Criterion", 5, 0.25, 1e-5, 1).setEmphasized(false).setHint("Increase to reduce over-segmentation.  <br />When two objects are in contact, the intensity of their center is compared. If the ratio (max/min) is below this threshold, objects are merged.");
+    BoundedNumberParameter minObjectSize = new BoundedNumberParameter("Min Object Size", 1, 10, 0, null).setEmphasized(false).setHint("Objects below this size (in pixels) will be merged to a connected neighbor or removed if there are no connected neighbor");
     // tracking
     IntervalParameter growthRateRange = new IntervalParameter("Growth Rate range", 3, 0.1, 2, 0.8, 1.5).setEmphasized(true).setHint("if the size ratio of the next bacteria / size of current bacteria is outside this range an error will be set at the link");
-    BoundedNumberParameter divProbaThld = new BoundedNumberParameter("Division Probability", 5, 0.75, 0, 1).setEmphasized(true).setHint("Thresholds applied on the predicted probability that an object is the result of a cell division: above the threshold, cell is considered as result of a division (mitosis). Zero means division probability is not used");
+    BoundedNumberParameter divProbaThld = new BoundedNumberParameter("Division Probability", 5, 0.75, 0, 1).setEmphasized(false).setHint("Thresholds applied on the predicted probability that an object is the result of a cell division: above the threshold, cell is considered as dividing (mitosis). Zero means division probability is not used");
     BoundedNumberParameter linkDistanceTolerance = new BoundedNumberParameter("Link Distance Tolerance", 0, 3, 0, null).setEmphasized(true).setHint("Two objects are linked if the center of one object translated by the predicted displacement falls into an object at the previous frame. This parameter allows a tolerance (in pixel units) in case the center do not fall into any object at the previous frame");
 
     BoundedNumberParameter mergeLinkDistanceThreshold = new BoundedNumberParameter("Merge Link Distance Tolerance", 0, 10, 0, null).setEmphasized(true).setHint("In case a previous object has no next : create a merge link in case translated center falls into the previous object with this tolerance");//.setHint("In case of over-segmentation at previous frame or under-segmentation at next-frame: only o_{f-1} is linked to o_{f}. If this parameter is >0, object to be linked to o_{f} will be searched among objects at f-1 that come from same division as o_{f-1} and have no link to an object at f. Center of o_{f} translated by the predicted distance");
     BooleanParameter mergeLinkContact = new BooleanParameter("Merge Link Contact").setHint("Allow to create merge links when a previous cells is in contact with an unlinked cell (contact is defined by the contact criterion parameter)");
-    BoundedNumberParameter noLinkThreshold = new BoundedNumberParameter("No Link Probability", 5, 0.75, 0, 1).setEmphasized(true).setHint("Probability threshold applied on no prev / no next predicted probability map, to define whether an object has no next / no prev link");
+    BoundedNumberParameter noLinkProbaThld = new BoundedNumberParameter("No Link Probability", 5, 0.75, 0, 1).setEmphasized(false).setHint("Probability threshold applied on no prev / no next predicted probability map, to define whether an object has no next / no prev link");
 
     enum CONTACT_CRITERION {BACTERIA_POLE, CONTOUR_DISTANCE, NO_CONTACT}
     EnumChoiceParameter<CONTACT_CRITERION> contactCriterion = new EnumChoiceParameter<>("Contact Criterion", CONTACT_CRITERION.values(), CONTACT_CRITERION.BACTERIA_POLE).setHint("Criterion for contact between two cells. Contact is used to solve over/under segmentation events, and can be use to handle cell division.<ul><li>CONTOUR_DISTANCE: edge-edges distance</li><li>BACTERIA_POLE: pole-pole distance</li></ul>");
@@ -103,7 +103,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
     BoundedNumberParameter manualCurationMargin = new BoundedNumberParameter("Margin for manual curation", 0, 15, 0,  null).setHint("Semi-automatic Segmentation / Split requires prediction of EDM, which is performed in a minimal area. This parameter allows to add the margin (in pixel) around the minimal area in other to avoid side effects at prediction.");
     GroupParameter prediction = new GroupParameter("Prediction", dlEngine, dlResizeAndScale, batchSize, frameWindow, inputWindow, next, frameSubsampling).setEmphasized(true);
     GroupParameter segmentation = new GroupParameter("Segmentation", centerSmoothRad, edmThreshold, objectThickness, mergeCriterion, minObjectSize, manualCurationMargin).setEmphasized(true);
-    GroupParameter tracking = new GroupParameter("Tracking", growthRateRange, divProbaThld, noLinkThreshold, linkDistanceTolerance, mergeLinkDistanceThreshold, mergeLinkContact, contactCriterionCond, trackPostProcessingCond).setEmphasized(true);
+    GroupParameter tracking = new GroupParameter("Tracking", growthRateRange, divProbaThld, noLinkProbaThld, linkDistanceTolerance, contactCriterionCond, trackPostProcessingCond).setEmphasized(true);
     Parameter[] parameters = new Parameter[]{prediction, segmentation, tracking};
 
     // for test display
@@ -627,7 +627,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         long t0 = System.currentTimeMillis();
         ObjectGraph<SegmentedObject> graph = new ObjectGraph<>(new GraphObjectMapper.SegmentedObjectMapper(), true);
         objectsF.values().forEach(l -> l.forEach(o -> graph.graphObjectMapper.add(o.getRegion(), o)));
-        double noNeighThld = noLinkThreshold.getDoubleValue();
+        double noNeighThld = noLinkProbaThld.getDoubleValue();
         Predicate<SegmentedObject> noNext = s -> noNextMap.get(s)>noNeighThld;
         Predicate<SegmentedObject> noPrev = s -> noPrevMap.get(s)>noNeighThld;
         Map<SegmentedObject, Set<Voxel>> contour = new HashMapGetCreate.HashMapGetCreateRedirected<>(o -> o.getRegion().getContour());
@@ -706,7 +706,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         int searchDistLimit = mergeLinkDistanceThreshold.getIntValue();
         boolean mergeLinkContact = this.mergeLinkContact.getSelected();
         if (searchDistLimit <= 0 && !mergeLinkContact) return;
-        double noPrevThld = noLinkThreshold.getDoubleValue();
+        double noPrevThld = noLinkProbaThld.getDoubleValue();
         double contactThld = this.contactDistThld.getDoubleValue();
         Map<Region, Object>[] contourMap = new Map[1];
         ToDoubleBiFunction<Region, Region> contactFun = contact(contactThld, contourMap, true);
@@ -788,7 +788,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
 
     protected void matchUnlinkedCells(int minFrame, int maxFrame, Map<Integer, List<SegmentedObject>> objectsF, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Double> dxMap, Map<SegmentedObject, Double> dyMap, Map<SegmentedObject, Double> noPrevMap) {
         int searchDistLimit = mergeLinkDistanceThreshold.getIntValue();
-        double noPrevThld = noLinkThreshold.getDoubleValue();
+        double noPrevThld = noLinkProbaThld.getDoubleValue();
         Map<Integer, Map<SymetricalPair<SegmentedObject>, Double>> candidatesByFrame = new HashMap<>();
         for (int f = minFrame+1; f<=maxFrame; ++f) {
             List<SegmentedObject> prev= objectsF.get(f-1);
