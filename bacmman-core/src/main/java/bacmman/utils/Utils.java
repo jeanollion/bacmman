@@ -288,6 +288,10 @@ public class Utils {
     public static String formatInteger(int paddingSize, int number) {
         return String.format(Locale.US, "%0" + paddingSize + "d", number);
     }
+
+    public static int nDigits(int maxValue) {
+        return (int)(Math.log10(maxValue)+1);
+    }
     
     public static String formatDoubleScientific(int significantDigits, double number) {
         String f = "0.";
