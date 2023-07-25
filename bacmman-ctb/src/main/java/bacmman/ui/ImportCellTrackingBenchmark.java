@@ -105,7 +105,7 @@ public class ImportCellTrackingBenchmark {
             factory.setChildObjects(parent, pop, false);
         }
         BiFunction<Integer, Integer, SegmentedObject> getObject = (id, frame) -> parentTrack.get(frame-minFrame).getChildren(objectClassIdx).filter(c -> c.getRegion().getLabel() == id).findAny().orElse(null);
-        IntFunction<SegmentedObject> getTrackHead = id -> getObject.apply(id, tracks.get(id)[1]);
+        IntFunction<SegmentedObject> getTrackHead = id -> tracks.get(id)==null? null : getObject.apply(id, tracks.get(id)[1]);
         tracks.forEach((id, idStartStopParent) -> {
             SegmentedObject prev = getObject.apply(id, idStartStopParent[1]);
             if (prev == null) pcb.log("Error (track head import): object "+id+" @ frame: "+idStartStopParent[1]+" not found");

@@ -292,7 +292,11 @@ public class Utils {
     public static int nDigits(int maxValue) {
         return (int)(Math.log10(maxValue)+1);
     }
-    
+
+    public static String formatInteger(int maxValue, int minPaddingSize, int number) {
+        return formatInteger(Math.max(minPaddingSize, nDigits(maxValue)), number);
+    }
+
     public static String formatDoubleScientific(int significantDigits, double number) {
         String f = "0.";
         for (int i = 0; i<significantDigits; ++i) f+="#";
