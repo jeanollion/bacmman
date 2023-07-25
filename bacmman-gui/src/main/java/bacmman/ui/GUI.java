@@ -200,6 +200,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     for more information.");
 
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
+    private NumberParameter subsamplingCTC = new BoundedNumberParameter("Temporal subsampling", 0, 1, 1, null).setHint("1=no sub-sampling, 2= 1 frame out of 2 etc...");
     private EnumChoiceParameter<CTB_IO_MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", CTB_IO_MODE.values(), CTB_IO_MODE.RESULTS);
     private BooleanParameter exportDuplicateCTC = new BooleanParameter("Merge Links", "Duplicate Entries", "Smallest Label", false).setHint("In case of merge link (one cell has several distinct cells, this option allows to write one entry per link or to choose the link to the track of smallest label");
     final private List<Component> relatedToXPSet;
@@ -524,9 +525,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         // ctc
         PropertyUtils.setPersistent(marginCTC, "ctc_margin");
+        PropertyUtils.setPersistent(subsamplingCTC, "ctc_subsampling");
         PropertyUtils.setPersistent(exportModeTrainCTC, "ctc_export_mode");
         PropertyUtils.setPersistent(exportDuplicateCTC, "ctc_merge_duplicate");
         ConfigurationTreeGenerator.addToMenu(marginCTC, CTCMenu);
+        ConfigurationTreeGenerator.addToMenu(subsamplingCTC, CTCMenu);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(exportModeTrainCTC, CTCMenu, importMenu);
         ConfigurationTreeGenerator.addToMenuAsSubMenu(exportDuplicateCTC, CTCMenu, importMenu);
 
@@ -1003,7 +1006,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
                 if (dir != null) {
                     logger.debug("Will export OC: {} to : {}", ocs, dir);
-                    ExportCellTrackingBenchmark.exportPositions(db, dir, ocs[0], getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
+                    ExportCellTrackingBenchmark.exportPositions(db, dir, ocs[0], getSelectedPositions(true), marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected(), subsamplingCTC.getIntValue());
                 }
             }
         });
@@ -1019,7 +1022,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 String dir = promptDir("Select Output Directory", db.getDir().toString(), true);
                 List<String> sel = getSelectedSelections(true).stream().map(Selection::getName).collect(Collectors.toList());
                 if (dir != null) {
-                    ExportCellTrackingBenchmark.exportSelections(db, dir, ocs[0], sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected());
+                    ExportCellTrackingBenchmark.exportSelections(db, dir, ocs[0], sel, marginCTC.getIntValue(), exportModeTrainCTC.getSelectedEnum(), exportDuplicateCTC.getSelected(), subsamplingCTC.getIntValue());
                 }
             }
         });

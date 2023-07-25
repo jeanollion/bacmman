@@ -131,7 +131,7 @@ public class ImageFieldFactory {
         long t2 = System.currentTimeMillis();
         int s = 0;
         String end = "";
-        int digits=(int)(Math.log10(stc.length)+1);
+        int digits=Utils.nDigits(stc.length);
         for (int[] tc : stc) {
             if (stc.length>1) end = sep+Utils.formatInteger(digits, s);
             else end = Utils.removeExtension(image.getName());
