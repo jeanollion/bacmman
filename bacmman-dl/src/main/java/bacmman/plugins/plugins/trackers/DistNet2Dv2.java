@@ -891,7 +891,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             else return d*d;
         }
     }
-    static void assign(List<SegmentedObject> source, List<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Double> dxMap, Map<SegmentedObject, Double> dyMap, int linkTolerance, Map<SegmentedObject, Set<Voxel>> contour, boolean nextToPrev, Predicate<SegmentedObject> noTarget, boolean onlyUnlinked, boolean verbose) {
+    static void assign(List<SegmentedObject> source, List<SegmentedObject> target, ObjectGraph<SegmentedObject> graph, Map<SegmentedObject, Double> dxMap, Map<SegmentedObject, Double> dyMap, int linkDistTolerance, Map<SegmentedObject, Set<Voxel>> contour, boolean nextToPrev, Predicate<SegmentedObject> noTarget, boolean onlyUnlinked, boolean verbose) {
         if (target==null || target.isEmpty() || source==null || source.isEmpty()) return;
         for (SegmentedObject s : source) {
             if (onlyUnlinked) {
@@ -903,6 +903,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             }
             double dy = dyMap.get(s);
             double dx = dxMap.get(s);
+            if (Math.sqrt(dy*dy + dx*dx)<1 && noTarget.test(s)) continue;
             Point centerTrans = s.getRegion().getCenter().duplicate().translateRev(new Vector(dx, dy));
             Voxel centerTransV = centerTrans.asVoxel();
             if (verbose) {
@@ -910,16 +911,16 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 s.setAttribute("Center Translated", centerTrans);
             }
             SegmentedObject t;
-            if (linkTolerance>0 && !noTarget.test(s)) {
+            if (linkDistTolerance>0) {
                 Map<SegmentedObject, Double> distance = new HashMap<>();
                 t = target.stream()
-                    .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds(), linkTolerance))
+                    .filter(o -> BoundingBox.isIncluded2D(centerTrans, o.getBounds(), linkDistTolerance))
                     .filter(o -> {
                         //int d = getDistanceToObject(centerTrans, o, linkTolerance);
                         double d = Math.sqrt(contour.get(o).stream().mapToDouble(v -> centerTrans.distSq((RealLocalizable)v)).min().getAsDouble());
-                        if (d<=linkTolerance) {
+                        if (d<=linkDistTolerance) {
                             distance.put(o, d);
-                            logger.debug("assign with link tolerance: {} -> {} dist = {}", s, o, d);
+                            //logger.debug("assign with link tolerance: {} -> {} dist = {}", s, o, d);
                             return true;
                         } else return false;
                     }).min(Comparator.comparingDouble(distance::get)).orElse(null);
