@@ -64,7 +64,7 @@ public class ExportCellTrackingBenchmark {
             ObjectDAO dao = mDAO.getDao(p);
             List<SegmentedObject> roots = dao.getRoots();
             for (List<SegmentedObject> pTrack : SegmentedObjectUtils.getAllTracks(roots, parentTrack).values()) {
-                File dirP = Paths.get(dir, Utils.formatInteger(mDAO.getExperiment().getPositionCount(), 2, count++) + (subsampling>1 ? "" : "_sub"+Utils.formatInteger(2, subsampling)) ).toFile();
+                File dirP = Paths.get(dir, Utils.formatInteger(mDAO.getExperiment().getPositionCount(), 2, count++) + (subsampling<=1 ? "" : "_sub"+Utils.formatInteger(2, subsampling)) ).toFile();
                 export(pTrack, dirP.toString(), objectClassIdx, margin, exportMode, duplicateForMergeLinks, subsampling, -1);
             }
         }
