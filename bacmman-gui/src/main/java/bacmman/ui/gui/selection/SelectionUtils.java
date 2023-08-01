@@ -613,6 +613,20 @@ public class SelectionUtils {
         trackDivisionFilter.setEnabled(!selectedValues.isEmpty());
         filterMenu.add(trackDivisionFilter);
 
+        JMenuItem nonEmptyFilter = new JMenuItem("Non Empty");
+        nonEmptyFilter.addActionListener((ActionEvent e) -> {
+            for (Selection s : selectedValues) {
+                SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure);
+                s.getMasterDAO().getSelectionDAO().store(s);
+            }
+            if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);
+            GUI.updateRoiDisplayForSelections(null, null);
+            GUI.getInstance().populateSelections();
+            GUI.getInstance().resetSelectionHighlight();
+        });
+        nonEmptyFilter.setEnabled(!selectedValues.isEmpty());
+        filterMenu.add(nonEmptyFilter);
+
         // measurement filters
         JMenu measurementMenu = new JMenu("Measurement Filters");
         menu.add(measurementMenu);

@@ -52,6 +52,7 @@ public class ExtractDataset extends JDialog {
         setModal(true);
         getRootPane().setDefaultButton(buttonOK);
         this.mDAO = mDAO;
+        boolean singleOC = mDAO.getExperiment().getStructureCount() == 1;
         selectionModel = new DefaultListModel<>();
         this.selectionList.setModel(selectionModel);
         this.selectionList.setCellRenderer(new SelectionRenderer());
@@ -69,6 +70,7 @@ public class ExtractDataset extends JDialog {
                     return list.getActivatedChildren().stream().filter(g -> !g.equals(parent)).map(g -> (TextParameter) g.getChildAt(0)).noneMatch(tx -> tx.getValue().equals(t.getValue()));
                 });
         ObjectClassParameter defOC = new ObjectClassParameter("Object class").setHint("Object class of the extracted features. Must be an (indirect) children class of the selected selections");
+        if (singleOC) defOC.setSelectedClassIdx(0);
         PluginParameter<FeatureExtractor> defFeature = new PluginParameter<>("Feature", FeatureExtractor.class, false).setHint("Choose a feature to extract");
         SelectionParameter selectionParameter = new SelectionParameter("Subset", true).setHint("Optional: choose a selection to subset objects (objects not contained in the selection will be ignored)");
         defFeature.addListener(type -> {

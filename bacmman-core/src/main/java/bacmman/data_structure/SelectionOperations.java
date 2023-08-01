@@ -108,6 +108,23 @@ public class SelectionOperations {
         }
     }
 
+    public static void nonEmptyFilter(Selection sel, ExperimentStructure xp) {
+        int[] children = xp.getAllDirectChildStructuresAsArray(sel.objectClassIdx);
+        Predicate<SegmentedObject> filter = o -> {
+            for (int cOC : children) {
+                if (o.getChildren(cOC).findAny().isPresent()) return false;
+            }
+            return true;
+        };
+        for (String pos:new ArrayList<>(sel.getAllPositions())) {
+            List<SegmentedObject> toRemove = sel.getElements(pos).stream()
+                    .filter(Objects::nonNull)
+                    .filter(filter)
+                    .collect(Collectors.toList());
+            sel.removeElements(toRemove);
+        }
+    }
+
     public static void trackConnectionFilter(Selection sel, boolean merge) {
         if (sel.getStructureIdx()==-2) return;
         Predicate<SegmentedObject> filter = merge ? o -> {

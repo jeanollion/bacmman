@@ -4714,6 +4714,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private void testFrameRangeLabelMouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_testFrameRangeLabelMouseClicked
         if (SwingUtilities.isRightMouseButton(evt)) {
             // display popupmenu to edit frame range
+            testFramePanel.updateUI();
             JPopupMenu menu = new JPopupMenu();
             ParameterUI ui = ParameterUIBinder.getUI(this.testFrameRange, null, null);
             ConfigurationTreeGenerator.addToMenu(ui.getDisplayComponent(), menu);
