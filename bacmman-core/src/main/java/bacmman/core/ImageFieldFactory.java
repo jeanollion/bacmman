@@ -401,12 +401,12 @@ public class ImageFieldFactory {
                         List<File> sortedFiles = channelFiles.getValue().stream().sorted(fileComp).collect(Collectors.toList());
                         filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, sortedFiles::get));
                     }
-                    fileByChannelAndTimePoint.put(channelFiles.getKey(), filesByTimePoint);
                     int minTimePoint = filesByTimePoint.keySet().stream().mapToInt(i->i).min().orElse(0);
                     if (minTimePoint == 1) { // should be zero-based
                         filesByTimePoint = filesByTimePoint.entrySet().stream().collect(Collectors.toMap(e -> e.getKey()-1, Entry::getValue));
                         minTimePoint = 0;
                     }
+                    fileByChannelAndTimePoint.put(channelFiles.getKey(), filesByTimePoint);
                     logger.debug("files grouped. checking continuity...");
                     List<Integer> tpList = filesByTimePoint.keySet().stream().sorted().collect(Collectors.toList());
                     int maxFrameNumberSuccessive=1;
@@ -439,7 +439,7 @@ public class ImageFieldFactory {
                             new MultipleImageContainerPositionChannelFrame(
                                 input.getAbsolutePath(),
                                 extension,
-                                posSep.length()>0 ? positionFiles.getKey() : "",
+                                !posSep.isEmpty() ? positionFiles.getKey() : "",
                                 frameSep,
                                 channelKeywords,
                                 frameNumber,
