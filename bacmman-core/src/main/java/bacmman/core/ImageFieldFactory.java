@@ -95,7 +95,7 @@ public class ImageFieldFactory {
         if (!dir.exists()) dir.mkdirs(); // for image metadata
         String outputFile = Paths.get(dir.getAbsolutePath(), fileName+".txt").toAbsolutePath().toString();
         List<Map.Entry<String, Object>> entries = new ArrayList<>(metadata.entrySet());
-        Collections.sort(entries, Comparator.comparing(Map.Entry::getKey));
+        entries.sort(Entry.comparingByKey());
         FileIO.writeToFile(outputFile, entries, e -> e.getKey()+"="+e.getValue().toString());
     }
     protected static void importImagesSingleFile(File f, Experiment xp, ArrayList<MultipleImageContainer> containersTC, boolean importMetadata, ProgressCallback pcb) {
@@ -402,15 +402,19 @@ public class ImageFieldFactory {
                         filesByTimePoint = IntStream.range(0, sortedFiles.size()).boxed().collect(Collectors.toMap(i->i, sortedFiles::get));
                     }
                     fileByChannelAndTimePoint.put(channelFiles.getKey(), filesByTimePoint);
+                    int minTimePoint = filesByTimePoint.keySet().stream().mapToInt(i->i).min().orElse(0);
+                    if (minTimePoint == 1) { // should be zero-based
+                        filesByTimePoint = filesByTimePoint.entrySet().stream().collect(Collectors.toMap(e -> e.getKey()-1, Entry::getValue));
+                        minTimePoint = 0;
+                    }
                     logger.debug("files grouped. checking continuity...");
-                    List<Integer> tpList = new ArrayList<>(new TreeMap<>(filesByTimePoint).keySet());
-                    int minTimePoint = tpList.get(0);
+                    List<Integer> tpList = filesByTimePoint.keySet().stream().sorted().collect(Collectors.toList());
                     int maxFrameNumberSuccessive=1;
                     while(maxFrameNumberSuccessive<tpList.size() && tpList.get(maxFrameNumberSuccessive-1)+1==tpList.get(maxFrameNumberSuccessive)) {++maxFrameNumberSuccessive;}
                     int maxTimePoint = tpList.get(tpList.size()-1);
-                    int theoframeNumberCurrentChannel = maxTimePoint-minTimePoint+1;
+                    int frameNumberCurrentChannel = maxTimePoint-minTimePoint+1;
                     
-                    if (theoframeNumberCurrentChannel != maxFrameNumberSuccessive) {
+                    if (frameNumberCurrentChannel != maxFrameNumberSuccessive) {
                         logger.warn("Dir: {} Position: {}, missing time points for channel: {}, 1st: {}, last: {}, count: {}, max successive: {}", input.getAbsolutePath(), positionFiles.getKey(), channelFiles.getKey(), minTimePoint, maxTimePoint, filesByTimePoint.size(), maxFrameNumberSuccessive);
                         //ok = false;
                         //break;
