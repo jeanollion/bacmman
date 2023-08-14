@@ -19,7 +19,7 @@ public class PreviousLinks implements FeatureExtractorConfigurable, Hint {
     int maxLinkNumber = -1;
     @Override
     public void configure(Stream<SegmentedObject> parentTrack, int objectClassIdx) {
-        maxLinkNumber = parentTrack.mapToInt(p -> (int)p.getChildren(objectClassIdx).flatMap(SegmentedObjectEditor::getPrevious).count()).max().orElse(0);
+        maxLinkNumber = Math.max(1, parentTrack.mapToInt(p -> p.getChildren(objectClassIdx).mapToInt(c -> (int)Math.max(1, SegmentedObjectEditor.getPrevious(c).count())).sum()).max().orElse(1));
     }
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {

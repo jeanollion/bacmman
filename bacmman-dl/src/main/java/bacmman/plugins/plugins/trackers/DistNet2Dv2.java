@@ -401,7 +401,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                 if (stores!=null && curSeeds!=null) {
                     List<Spot> curSeedsL = curSeeds.stream().map(s -> (Spot)s).collect(Collectors.toList());
                     o.setAttribute("Center Intensity", Utils.toStringArray(curSeedsL.stream().map(Spot::getIntensity).toArray(Double[]::new), d -> Utils.format(d, 3)));
-                    o.setAttribute("Center Coord", Utils.toStringArray(curSeedsL.stream().map(Spot::getCenter).toArray(Point[]::new)));
+                    o.setAttribute("Center Coord", Utils.toStringArray(curSeedsL.stream().map(Spot::getCenter).toArray(Point<?>[]::new)));
                     //o.setAttribute("Center Overlap", Utils.toStringArray(curSeedsL.stream().map(r -> r.getOverlapArea(o.getRegion(), null, null)).toArray(Double[]::new), d -> Utils.format(d, 3)));
                     //o.setAttribute("Center Size", Utils.toStringArray(curSeedsL.stream().map(centerSize::get).toArray(Double[]::new), d -> Utils.format(d, 3)));
                 }

@@ -111,7 +111,7 @@ public class SNR extends IntensityMeasurement implements Hint {
             int offZ = raw.zMin();
             backgroundObjects = backgroundObjects.stream().map(b -> {
                 ImageInteger plane = b.getMaskAsImageInteger();
-                ImageInteger mask = Image.mergeZPlanes(IntStream.range(0, nZ).mapToObj(i -> plane).collect(Collectors.toList()));
+                ImageInteger<?> mask = Image.mergeZPlanes(IntStream.range(0, nZ).mapToObj(i -> plane).collect(Collectors.toList()));
                 mask.translate(0, 0, offZ);
                 Region res = new Region(mask, b.getLabel(), false).setIsAbsoluteLandmark(b.isAbsoluteLandMark());
                 //logger.debug("inflate background: {} -> {} size: {} -> {}", b.getBounds(), res.getBounds(), b.size(), res.size());
@@ -123,7 +123,7 @@ public class SNR extends IntensityMeasurement implements Hint {
         double dilRad = this.dilateExcluded.getScaleXY();
         double dilRadZ = this.dilateExcluded.getScaleZ(parent.getScaleXY(), parent.getScaleZ());
         // assign parents to children by inclusion
-        HashMapGetCreate<Region, List<SymetricalPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory());
+        HashMapGetCreate<Region, List<SymetricalPair<Region>>> backgroundMapForeground = new HashMapGetCreate<>(backgroundObjects.size(), new HashMapGetCreate.ListFactory<>());
         for (Region o : foregroundPopulation.getRegions()) {
             Region p = o.getMostOverlappingRegion(backgroundObjects, foregroundOffset, null); // parents are in absolute offset
             if (p!=null) {
