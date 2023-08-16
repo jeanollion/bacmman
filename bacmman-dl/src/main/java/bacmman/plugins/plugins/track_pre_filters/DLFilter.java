@@ -8,12 +8,15 @@ import bacmman.image.ImageInteger;
 import bacmman.image.TypeConverter;
 import bacmman.plugins.*;
 import bacmman.processing.ResizeUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 
 public class DLFilter implements TrackPreFilter, Hint, DLMetadataConfigurable {
+    static Logger logger = LoggerFactory.getLogger(DLFilter.class);
     PluginParameter<DLengine> dlEngine = new PluginParameter<>("DLEngine", DLengine.class, false).setEmphasized(true).setNewInstanceConfiguration(dle -> dle.setInputNumber(1).setOutputNumber(1)).setHint("Choose a deep learning engine");
     enum INPUT_TYPE {RAW, BINARY_MASK}
     EnumChoiceParameter<INPUT_TYPE> type = new EnumChoiceParameter<>("Input Type", INPUT_TYPE.values(), INPUT_TYPE.BINARY_MASK);

@@ -344,7 +344,7 @@ public class ConfigurationTreeGenerator {
                     if (p==null) return false;
                     if (!(p.getLastPathComponent() instanceof ListParameter)) return false;
                     ListParameter dest= (ListParameter)p.getLastPathComponent();
-                    if (!dest.allowMoveChildren()) return false;
+                    if (!dest.allowMoveChildren() || dest.allowModifications()) return false;
                     if (!(sourceP.getLastPathComponent() instanceof ListParameter)) return false;
                     ListParameter source= (ListParameter)sourceP.getLastPathComponent();
                     //return true;

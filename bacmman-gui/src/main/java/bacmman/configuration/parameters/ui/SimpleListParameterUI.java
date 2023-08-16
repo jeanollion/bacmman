@@ -21,6 +21,7 @@ package bacmman.configuration.parameters.ui;
 import bacmman.configuration.parameters.*;
 import bacmman.ui.gui.configuration.ConfigurationTreeModel;
 import bacmman.utils.Utils;
+import org.checkerframework.checker.units.qual.C;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,77 +54,84 @@ public class SimpleListParameterUI implements ListParameterUI {
     public SimpleListParameterUI(ListParameter list_, ConfigurationTreeModel model, Runnable showMenu) {
         this.list = list_;
         this.model= model;
-        this.actions = new Object[list.isDeactivatable()?5:2];
-        this.newJMenuItem = showMenu==null ? JMenuItem::new : n -> new StayOpenMenuItem(n, showMenu);
-        JMenuItem action = newJMenuItem.apply(actionNames[0]);
-        actions[0] = action;
-        action.setAction(
-            new AbstractAction(actionNames[0]) {
-                @Override
-                public void actionPerformed(ActionEvent ae) {
-                    Parameter p = list.createChildInstance();
-                    if (model !=null) {
-                        model.insertNodeInto(p, list);
-                        model.expandNode(p);
-                    } else list.insert(p, list.getChildCount());
-                }
-            }
-        );
-        if (list.getMaxChildCount()>0 && list.getChildCount()==list.getMaxChildCount()) action.setEnabled(false);
-        action = newJMenuItem.apply(actionNames[1]);
-        actions[1]=action;
-        action.setAction(new AbstractAction(actionNames[1]) {
-                @Override
-                public void actionPerformed(ActionEvent ae) {
-                    if (list.getChildCount()==0) return;
-                    TreeNode child = list.getChildAt(0);
-                    // 
-                    if ((child instanceof ListElementErasable)) {
-                        if (!Utils.promptBoolean("Delete selected Elements? (all data will be lost)", null)) return;
-                        while (list.getChildCount()>0) {
-                            child = list.getChildAt(0);
-                            ((ListElementErasable)child).eraseData();
-                            if (model !=null) model.removeNodeFromParent((MutableTreeNode)child);
-                            else list.remove(0);
+        this.newJMenuItem = showMenu == null ? JMenuItem::new : n -> new StayOpenMenuItem(n, showMenu);
+        if (!list.allowModifications()) {
+            this.actions = new Object[0];
+        } else {
+            this.actions = new Object[list.isDeactivatable() ? 5 : 2];
+
+            JMenuItem action = newJMenuItem.apply(actionNames[0]);
+            actions[0] = action;
+            action.setAction(
+                    new AbstractAction(actionNames[0]) {
+                        @Override
+                        public void actionPerformed(ActionEvent ae) {
+                            Parameter p = list.createChildInstance();
+                            if (model != null) {
+                                model.insertNodeInto(p, list);
+                                model.expandNode(p);
+                            } else list.insert(p, list.getChildCount());
                         }
-                    } else {
-                        list.removeAllElements();
-                        if (model !=null) model.nodeStructureChanged(list);
                     }
-                    
-                }
+            );
+            if (list.getMaxChildCount() > 0 && list.getChildCount() == list.getMaxChildCount())
+                action.setEnabled(false);
+            action = newJMenuItem.apply(actionNames[1]);
+            actions[1] = action;
+            action.setAction(new AbstractAction(actionNames[1]) {
+                                 @Override
+                                 public void actionPerformed(ActionEvent ae) {
+                                     if (list.getChildCount() == 0) return;
+                                     TreeNode child = list.getChildAt(0);
+                                     //
+                                     if ((child instanceof ListElementErasable)) {
+                                         if (!Utils.promptBoolean("Delete selected Elements? (all data will be lost)", null)) return;
+                                         while (list.getChildCount() > 0) {
+                                             child = list.getChildAt(0);
+                                             ((ListElementErasable) child).eraseData();
+                                             if (model != null) model.removeNodeFromParent((MutableTreeNode) child);
+                                             else list.remove(0);
+                                         }
+                                     } else {
+                                         list.removeAllElements();
+                                         if (model != null) model.nodeStructureChanged(list);
+                                     }
+
+                                 }
+                             }
+            );
+            if (list.getUnMutableIndex() >= 0) action.setEnabled(false);
+            if (list.isDeactivatable()) {
+                actions[2] = new JSeparator();
+                action = newJMenuItem.apply(deactivatableNames[0]);
+                actions[3] = action;
+                action.setAction(
+                        new AbstractAction(deactivatableNames[0]) {
+                            @Override
+                            public void actionPerformed(ActionEvent ae) {
+                                list.setActivatedAll(false);
+                                if (model != null) model.nodeStructureChanged(list);
+                            }
+                        }
+                );
+                action = newJMenuItem.apply(deactivatableNames[1]);
+                actions[4] = action;
+                action.setAction(
+                        new AbstractAction(deactivatableNames[1]) {
+                            @Override
+                            public void actionPerformed(ActionEvent ae) {
+                                list.setActivatedAll(true);
+                                if (model != null) model.nodeStructureChanged(list);
+                            }
+                        }
+                );
             }
-        );
-        if (list.getUnMutableIndex()>=0) action.setEnabled(false);
-        if (list.isDeactivatable()) {
-            actions[2]=new JSeparator();
-            action = newJMenuItem.apply(deactivatableNames[0]);
-            actions[3]=action;
-            action.setAction(
-                new AbstractAction(deactivatableNames[0]) {
-                    @Override
-                    public void actionPerformed(ActionEvent ae) {
-                        list.setActivatedAll(false);
-                        if (model !=null) model.nodeStructureChanged(list);
-                    }
-                }
-            );
-            action = newJMenuItem.apply(deactivatableNames[1]);
-            actions[4]=action;
-            action.setAction(
-                new AbstractAction(deactivatableNames[1]) {
-                    @Override
-                    public void actionPerformed(ActionEvent ae) {
-                        list.setActivatedAll(true);
-                        if (model !=null) model.nodeStructureChanged(list);
-                    }
-                }
-            );
         }
     }
     public Object[] getDisplayComponent() {return actions;}
     
     public Component[] getChildDisplayComponent(final Parameter child) {
+        if (!list.allowModifications()) return new Component[0];
         final int unMutableIdx = list.getUnMutableIndex();
         final int idx = list.getIndex(child);
         final boolean mutable = idx>unMutableIdx;

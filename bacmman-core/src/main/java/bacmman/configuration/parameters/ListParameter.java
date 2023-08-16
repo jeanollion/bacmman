@@ -41,5 +41,6 @@ public interface ListParameter<T extends Parameter, L extends ListParameter<T, L
     List<T> getActivatedChildren();
     T getChildByName(String name);
     boolean allowMoveChildren();
+    boolean allowModifications();
     boolean isEmpty();
 }

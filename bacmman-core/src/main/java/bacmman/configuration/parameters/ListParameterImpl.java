@@ -55,6 +55,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     protected Boolean isEmphasized;
     protected BiFunction<L, Integer, String> newInstanceNameFunction;
     boolean allowMoveChildren = true;
+    boolean allowModifications=true;
     protected Predicate<L> additionalValidation = l -> true;
     protected Predicate<T> childrenValidation = l -> true;
     protected boolean allowDeactivate = true;
@@ -65,6 +66,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
         dest.setAllowDeactivable(source.allowDeactivate);
         dest.setAllowMoveChildren(source.allowMoveChildren);
+        dest.setAllowMoveChildren(source.allowModifications);
         dest.setUnmutableIndex(source.unMutableIndex);
         dest.setMaxChildCount(source.maxChildCount);
         dest.setNewInstanceNameFunction(source.newInstanceNameFunction);
@@ -89,6 +91,12 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         this.allowMoveChildren=allow;
         return (L)this;
     }
+
+    public L setAllowModifications(boolean allow) {
+        this.allowModifications=allow;
+        return (L)this;
+    }
+
     @Override
     public int getMaxChildCount() {
         return this.maxChildCount;
@@ -101,6 +109,12 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public boolean allowMoveChildren() {
         return allowMoveChildren;
     }
+
+    @Override
+    public boolean allowModifications() {
+        return allowModifications;
+    }
+
     @Override
     public JSONAware toJSONEntry() {
         JSONObject res= new JSONObject();

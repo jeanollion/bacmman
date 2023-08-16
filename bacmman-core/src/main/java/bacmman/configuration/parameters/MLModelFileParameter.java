@@ -12,12 +12,12 @@ import java.nio.file.Paths;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
+import static bacmman.configuration.parameters.DLMetadataConfigurable.configureParentsAndSiblings;
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 
 public class MLModelFileParameter extends ContainerParameterImpl<MLModelFileParameter> {
     FileChooser modelFile = new FileChooser("Model file", FileChooser.FileChooserOption.DIRECTORIES_ONLY, false).setSelectedFilePath("../../DLModels").setEmphasized(true).setHint("Deep learning with Tensorflow: Select the folder containing the saved model (.pb file)<br/>Ilastik: select project file (.ilp)");
     TextParameter id = new TextParameter("Model ID").setEmphasized(true).setHint("Enter Stored Model ID (or URL)");
-    Consumer<DLModelMetadata> metadataConsumer;
     LargeFileGist lf;
     Predicate<String> validDirectory;
     public static Predicate<String> containsTensorflowModel = p -> {
@@ -50,10 +50,6 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
     public String getSelectedPath() {
         return modelFile.getFirstSelectedFilePath();
     }
-    public MLModelFileParameter setMetadataConsumer(Consumer<DLModelMetadata> consumer) {
-        metadataConsumer = consumer;
-        return this;
-    }
 
     public String getID() {
         if (id.getValue().startsWith(GIST_BASE_URL)) {
@@ -80,6 +76,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
         } else return f;
     }
     public void configureFromMetadata(String modelID, DLModelMetadata metadata) {
+        logger.debug("configuring MLMOdelFileParameer from metadata");
         lf = null;
         String oldID = id.getValue();
         id.setValue(modelID);
@@ -89,17 +86,7 @@ public class MLModelFileParameter extends ContainerParameterImpl<MLModelFilePara
             File f = new File(path);
             if (f.exists() && validDirectory!=null && validDirectory.test(path)) modelFile.setSelectedFilePath(f.getParent());
         }
-        if (metadataConsumer!=null) metadataConsumer.accept(metadata);
-        if (getParent()!=null) {
-            ContainerParameter parent = getParent();
-            DLMetadataConfigurable.configure(metadata, parent.getChildren()); // siblings -> other parameters of the DLEngine
-            DLMetadataConfigurable.configure(metadata, parent);
-            if (parent.getParent()!=null) {
-                ContainerParameter grandParent = (ContainerParameter)parent.getParent();
-                DLMetadataConfigurable.configure(metadata, grandParent.getChildren());  // uncles-aunts -> siblings of the DLEngine parameter
-                DLMetadataConfigurable.configure(metadata, grandParent);
-            }
-        }
+        configureParentsAndSiblings(metadata, this);
     }
     public LargeFileGist getLargeFileGist() throws IOException {
         if (lf==null) {

@@ -221,6 +221,7 @@ public class DLResizeAndScale extends ConditionalParameterAbstract<DLResizeAndSc
             targetShape.setValue(inputs.get(0).getShape());
             tileShape.setValue(inputs.get(0).getShape());
         } else {
+            getActionableParameter().setValue(MODE.PAD);
             targetShape.setValue(inputs.get(0).is3D() ? new int[]{0,0,0}: new int[]{0,0});
         }
         inputInterpAndScaling.setChildrenNumber(inputs.size());
