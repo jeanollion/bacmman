@@ -784,7 +784,7 @@ public class Task implements ProgressCallback{
                 logger.debug("engines closed!");
             }
         }
-        logger.debug("extracting meas...");
+        if (!extractMeasurementDir.isEmpty()) logger.debug("extracting meas...");
         for (Pair<String, int[]> e  : this.extractMeasurementDir) extractMeasurements(e.key==null?db.getDir().toFile().getAbsolutePath():e.key, e.value, positionsToProcess);
         //if (exportData) exportData();
 
@@ -839,12 +839,13 @@ public class Task implements ProgressCallback{
         if (deleteAllPosition) db.getDao(position).deleteAllObjects();
         if (preProcess) {
             publish("Pre-Processing: DB: "+dbName+", Position: "+position);
-            logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
+            logger.info("Pre-Processing: DB: {}, Position: {}", dbName, position);
             try {
                 Processor.preProcessImages(db.getExperiment().getPosition(position), db.getDao(position), !deleteAllPosition, preProcessingMemoryThreshold, this);
-                boolean createRoot = segmentAndTrack || trackOnly || generateTrackImages;
+                boolean createRoot = true; //segmentAndTrack || trackOnly || generateTrackImages;
                 if (createRoot) Processor.getOrCreateRootTrack(db.getDao(position)); // will set opened pre-processed images to root -> no need to open them once again in further steps
             } catch (IOException e) {
+                if (db.getExperiment().getPosition(position).getInputImages()!=null) db.getExperiment().getPosition(position).getInputImages().deleteFromDAO(); // erase pre-processed images that where temporarily saved
                 throw new RuntimeException(e);
             } finally {
                 db.getExperiment().getPosition(position).flushImages(true, true);

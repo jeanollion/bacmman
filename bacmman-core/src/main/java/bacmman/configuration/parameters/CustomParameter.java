@@ -6,10 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.reflect.InvocationTargetException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -53,7 +50,7 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
 
     @Override
     public String toString() {
-        String k = key.getValue().length()==0 ? "Key" : key.getValue();
+        String k = key.getValue().isEmpty() ? "Key" : key.getValue();
         String v = currentParameter==null ? "" : currentParameter.toString().replace("Value", "");
         return k+v;
     }
@@ -127,8 +124,8 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     @Override
     public Object toJSONEntry() {
         JSONObject res = new JSONObject();
-        res.put("parameterClass", currentParameter.getClass().getSimpleName());
         res.put("key", key.toJSONEntry());
+        if (selectedParameter != null) res.put("parameterClass", selectedParameter);
         if (currentParameter!=null) res.put("parameters", currentParameter.toJSONEntry());
         return res;
     }
@@ -137,9 +134,30 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     public void initFromJSONEntry(Object jsonEntry) {
         if (jsonEntry instanceof JSONObject) {
             JSONObject jsonO = (JSONObject) jsonEntry;
-            if (jsonO.get("parameterClass") instanceof String) setSelectedItem((String)jsonO.get("parameterClass"));
-            if (currentParameter!=null && jsonO.containsKey("parameters")) currentParameter.initFromJSONEntry(jsonO.get("parameters"));
+            if (jsonO.getOrDefault("parameterClass", null) instanceof String) {
+                setSelectedItem((String)jsonO.get("parameterClass"));
+            } else setSelectedItem(null);
+            if (currentParameter!=null && jsonO.containsKey("parameters")) {
+                currentParameter.initFromJSONEntry(jsonO.get("parameters"));
+            }
             if (jsonO.get("key")!=null) key.initFromJSONEntry(jsonO.get("key"));
         }
     }
+
+    @Override
+    public void setContentFrom(Parameter other) {
+        if (other instanceof CustomParameter) {
+            bypassListeners=true;
+            CustomParameter otherP = (CustomParameter) other;
+            this.key.setContentFrom(otherP.key);
+            if (otherP.selectedParameter != null) {
+                setSelectedItem(otherP.selectedParameter);
+                if (currentParameter!=null && otherP.currentParameter!=null) currentParameter.setContentFrom(otherP.currentParameter);
+            } else setSelectedItem(null);
+            bypassListeners=false;
+        } else {
+            //throw new IllegalArgumentException("wrong parameter type");
+        }
+    }
+
 }
