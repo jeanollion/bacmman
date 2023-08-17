@@ -4010,6 +4010,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             menu.add(addCurrentTask);
             addCurrentTask.setEnabled(db!=null);
+            JMenu datasetMenu = new JMenu("Extract Dataset");
+            menu.add(datasetMenu);
 
             Action addExtractDBTask = new AbstractAction("Add new dataset extraction Task to List") {
                 @Override
@@ -4018,7 +4020,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
-            menu.add(addExtractDBTask);
+            datasetMenu.add(addExtractDBTask);
             addExtractDBTask.setEnabled(db!=null);
 
             Action addExtractRawDBTask = new AbstractAction("Add new raw dataset extraction Task to List") {
@@ -4028,8 +4030,58 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     if (t!=null) actionPoolListModel.addElement(t);
                 }
             };
-            menu.add(addExtractRawDBTask);
+            datasetMenu.add(addExtractRawDBTask);
             addExtractRawDBTask.setEnabled(db!=null);
+
+            Action addExtractDiSTNetTask = new AbstractAction("Add new DiSTNet dataset extraction Task to List") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDir().toString(), false);
+                    if (outputFile==null) return;
+                    try {
+                        Task t = ExtractDataset.getDiSTNetDatasetTask(db, getSelectedStructures(true), selectionList.getSelectedValuesList(), getSelectedPositions(false), outputFile);
+                        if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
+                        if (t != null) actionPoolListModel.addElement(t);
+                    } catch(IllegalArgumentException ex) {
+                        GUI.log(ex.getMessage());
+                    }
+                }
+            };
+            datasetMenu.add(addExtractDiSTNetTask);
+            addExtractDiSTNetTask.setEnabled(db!=null);
+
+            Action addExtractPixMClassTask = new AbstractAction("Add new PixMCLass dataset extraction Task to List") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDir().toString(), false);
+                    if (outputFile==null) return;
+                    try {
+                        Task t = ExtractDataset.getPixMClassDatasetTask(db, getSelectedStructures(true), selectionList.getSelectedValuesList(), getSelectedPositions(false), outputFile);
+                        if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
+                        if (t != null) actionPoolListModel.addElement(t);
+                    } catch(IllegalArgumentException ex) {
+                        GUI.log(ex.getMessage());
+                    }
+                }
+            };
+            datasetMenu.add(addExtractPixMClassTask);
+            addExtractPixMClassTask.setEnabled(db!=null);
+
+            Action addExtractDenoisingTask = new AbstractAction("Add new Denoising dataset extraction Task to List") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDir().toString(), false);
+                    if (outputFile==null) return;
+                    try {
+                        Task t = ExtractRawDataset.getDenoisingDatasetTask(db, getSelectedStructures(true), getSelectedPositions(true), outputFile);
+                        if (t != null) actionPoolListModel.addElement(t);
+                    } catch(IllegalArgumentException ex) {
+                        GUI.log(ex.getMessage());
+                    }
+                }
+            };
+            datasetMenu.add(addExtractDenoisingTask);
+            addExtractDenoisingTask.setEnabled(db!=null);
 
             if (db!=null && db.getExperiment()!=null) {
                 // task on a selection

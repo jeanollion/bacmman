@@ -6,6 +6,9 @@ import bacmman.data_structure.dao.MasterDAO;
 import bacmman.data_structure.input_image.InputImages;
 import bacmman.image.BoundingBox;
 import bacmman.image.SimpleBoundingBox;
+import bacmman.plugins.FeatureExtractor;
+import bacmman.plugins.plugins.feature_extractor.MultiClass;
+import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import com.intellij.uiDesigner.core.GridConstraints;
@@ -230,6 +233,21 @@ public class ExtractRawDataset extends JDialog {
         dialog.pack();
         dialog.setVisible(true);
         return dialog.resultingTask;
+    }
+
+    public static Task getDenoisingDatasetTask(MasterDAO mDAO, int[] objectClasses, List<String> position, String outputFile) throws IllegalArgumentException {
+        if (objectClasses.length!=1) throw new IllegalArgumentException("Select a single object classes");
+        int channelIdx = mDAO.getExperiment().experimentStructure.getChannelIdx(objectClasses[0]);
+        if (position.isEmpty()) throw new IllegalArgumentException("Select at least one position");
+        Map<String, List<Integer>> positionMapFrames = position.stream().collect(Collectors.toMap(p -> p, p -> IntStream.range(0, mDAO.getExperiment().getPosition(p).getInputImages().getFrameNumber()).boxed().collect(Collectors.toList()) ));
+
+        Task resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        features.add(new FeatureExtractor.Feature( new RawImage(), objectClasses[0] ));
+        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
+
+        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), Task.ExtractZAxis.BATCH, 0,  positionMapFrames, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 0);
+        return resultingTask;
     }
 
     private void onCancel() {

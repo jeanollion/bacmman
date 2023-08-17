@@ -3,13 +3,20 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.configuration.parameters.*;
 import bacmman.core.Task;
 import bacmman.data_structure.Selection;
+import bacmman.data_structure.SelectionOperations;
 import bacmman.data_structure.dao.MasterDAO;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
+import bacmman.plugins.plugins.feature_extractor.Labels;
+import bacmman.plugins.plugins.feature_extractor.MultiClass;
+import bacmman.plugins.plugins.feature_extractor.PreviousLinks;
+import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.selection.SelectionRenderer;
+import bacmman.ui.gui.selection.SelectionUtils;
 import bacmman.utils.Triplet;
+import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -20,7 +27,7 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.awt.event.*;
-import java.util.Collections;
+import java.util.*;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -210,6 +217,52 @@ public class ExtractDataset extends JDialog {
         dialog.setVisible(true);
         //System.exit(0);
         return dialog.resultingTask;
+    }
+
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int[] objectClass, List<String> selections, List<String> position, String outputFile) throws IllegalArgumentException {
+        if (objectClass.length!=1) throw new IllegalArgumentException("Select a single object class");
+        int oc = objectClass[0];
+        int parentOC = mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(oc);
+        if (selections.isEmpty()) {
+            if (position.isEmpty()) throw new IllegalArgumentException("When no selections are selected, select at least one position");
+            Selection s = SelectionUtils.createSelection("DiSTNet_dataset", position, parentOC, mDAO);
+            selections = Arrays.asList(s.getName());
+            mDAO.getSelectionDAO().store(s);
+        }
+        Task resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        features.add(new FeatureExtractor.Feature( new RawImage(), oc ));
+        features.add(new FeatureExtractor.Feature( new Labels(), oc ));
+        features.add(new FeatureExtractor.Feature( new PreviousLinks(), oc ));
+
+        int[] dims = new int[]{0, 0};
+        int[] eraseContoursOC = new int[0];
+        resultingTask.setExtractDS(outputFile, selections, features, dims, eraseContoursOC, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 0);
+        return resultingTask;
+    }
+
+    public static Task getPixMClassDatasetTask(MasterDAO mDAO, int[] objectClasses, List<String> selections, List<String> position, String outputFile) throws IllegalArgumentException {
+        if (objectClasses.length!=2 && objectClasses.length!=3) throw new IllegalArgumentException("Select 2 or 3 object classes: background, foreground (and contours)");
+        if (!Utils.objectsAllHaveSameProperty(Arrays.stream(objectClasses).boxed().collect(Collectors.toList()), mDAO.getExperiment().experimentStructure::getParentObjectClassIdx)) {
+            throw new IllegalArgumentException("All selected object classes must have same parent object class");
+        }
+        int parentOC = mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(objectClasses[0]);
+        if (selections.isEmpty()) {
+            if (position.isEmpty()) throw new IllegalArgumentException("When no selections are selected, select at least one position");
+            Selection s = SelectionUtils.createSelection("PixMClass_dataset", position, parentOC, mDAO);
+            SelectionOperations.nonEmptyFilter(s, mDAO.getExperiment().experimentStructure);
+            mDAO.getSelectionDAO().store(s);
+            selections = Arrays.asList(s.getName());
+        }
+        Task resultingTask = new Task(mDAO.getDBName(), mDAO.getDir().toFile().getAbsolutePath());
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        features.add(new FeatureExtractor.Feature( new RawImage(), objectClasses[0] ));
+        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
+
+        int[] dims = new int[]{0, 0};
+        int[] eraseContoursOC = new int[0];
+        resultingTask.setExtractDS(outputFile, selections, features, dims, eraseContoursOC, GUI.hasInstance() ? GUI.getInstance().getExtractedDSCompressionFactor() : 0);
+        return resultingTask;
     }
 
     private void onCancel() {

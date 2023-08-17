@@ -26,6 +26,13 @@ public class MultiClass implements FeatureExtractor {
             .setHint("Choose how to handle Z-axis: <ul><li>Image3D: treated as 3rd space dimension.</li><li>CHANNEL: Z axis will be considered as channel axis. In case the tensor has several channels, the channel defined in <em>Channel Index</em> parameter will be used</li><li>SINGLE_PLANE: a single plane is extracted, defined in <em>Plane Index</em> parameter</li><li>MIDDLE_PLANE: the middle plane is extracted</li><li>BATCH: tensor are treated as 2D images </li></ul>");;
 
     ObjectClassParameter classes = new ObjectClassParameter("Classes", -1, false, true).setEmphasized(true).setHint("Select class to be extracted. A label will be assigned to each class in the defined order");
+
+    public MultiClass() {}
+
+    public MultiClass(int[] objectClasses) {
+        classes.setSelectedIndices(objectClasses);
+    }
+
     @Override
     public Image extractFeature(SegmentedObject parent, int objectClassIdx, Map<Integer, Map<SegmentedObject, RegionPopulation>> resampledPopulations, int[] resampleDimensions) {
         List<ImageMask> images = IntStream.of(classes.getSelectedIndices()).mapToObj(oc -> resampledPopulations.get(oc).get(parent).getLabelMap()).collect(Collectors.toList());

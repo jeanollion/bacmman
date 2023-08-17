@@ -20,8 +20,14 @@ public interface FeatureExtractor extends Plugin {
         final FeatureExtractor featureExtractor;
         final int objectClass;
 
+        public Feature(FeatureExtractor featureExtractor, int objectClass) {
+            this(featureExtractor.defaultName(), featureExtractor, objectClass, null);
+        }
+        public Feature(FeatureExtractor featureExtractor, int objectClass, String selectionFilter) {
+            this(featureExtractor.defaultName(), featureExtractor, objectClass, selectionFilter);
+        }
         public Feature(String name, FeatureExtractor featureExtractor, int objectClass, String selectionFilter) {
-            this.name = name;
+            this.name = name == null ? featureExtractor.defaultName() : name;
             this.featureExtractor = featureExtractor;
             this.objectClass = objectClass;
             this.selectionFilter = selectionFilter;
