@@ -65,7 +65,7 @@ public class OmeroImageFieldFactory {
             case ONE_FILE_PER_CHANNEL_FRAME_POSITION:
                 {
                     String[] keyWords = xp.getChannelImages().getChildren().stream().map(ChannelImage::getImportImageChannelKeyword).toArray(String[]::new);
-                    logger.debug("channel keywords: {}", keyWords);
+                    logger.debug("channel keywords: {}", (Object) keyWords);
                     long countBlank = Arrays.stream(keyWords).filter(""::equals).count();
                     if (countBlank>1) {
                         if (pcb!=null) pcb.log("When Experiment has several channels, one must specify channel keyword for this import method");
@@ -201,7 +201,7 @@ public class OmeroImageFieldFactory {
                     int[] sizeZC = new int[sortedFilesByChannel.size()];
                     Map<String, Boolean> invertTZ_CT = new HashMap<>();
                     int cIdx = 0;
-                    for (String c : sortedFilesByChannel.keySet()) {
+                    for (String c : channelKeywords) {
                         fileIDsCT.add(sortedFilesByChannel.get(c).stream().map(i -> String.valueOf(i.getFileId())).collect(Collectors.toList()));
                         Experiment.AXIS_INTERPRETATION ax = axisInterpretationByC.get(cIdx).equals(Experiment.AXIS_INTERPRETATION.AUTOMATIC) ? axisInterpretation : axisInterpretationByC.get(cIdx);
                         List<OmeroImageMetadata> files = sortedFilesByChannel.get(c);
