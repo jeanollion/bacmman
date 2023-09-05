@@ -472,7 +472,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected void setConfigurationFile(boolean load) {
         if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
-        pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, true);
+        pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, Utils.isUnix());
         Path jConfigPath = Paths.get(currentWorkingDirectory, "training_jconfiguration.json");
         boolean canLoad = jConfigPath.toFile().isFile();
         javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, Utils.isUnix());
