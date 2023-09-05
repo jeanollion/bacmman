@@ -9,8 +9,12 @@ import bacmman.image.*;
 import bacmman.plugins.FeatureExtractor;
 import bacmman.plugins.FeatureExtractorConfigurable;
 import bacmman.plugins.FeatureExtractorOneEntryPerInstance;
+import bacmman.plugins.plugins.feature_extractor.Labels;
+import bacmman.plugins.plugins.feature_extractor.MultiClass;
+import bacmman.plugins.plugins.feature_extractor.PreviousLinks;
 import bacmman.plugins.plugins.feature_extractor.RawImage;
 import bacmman.utils.HashMapGetCreate;
+import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Writer;
 import net.imglib2.interpolation.InterpolatorFactory;
 import org.slf4j.Logger;
@@ -337,5 +341,57 @@ public class ExtractDatasetUtil {
         } else HDF5IO.savePyDataset(images, outputPath.toFile(), true, dsName, compression, saveLabels, originalDimensions, metadata ); // TODO : compression level as option
     }
 
+    public static Task getPixMClassDatasetTask(MasterDAO mDAO, int[] channelIndices, int[] objectClasses, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
+        if (objectClasses.length!=2 && objectClasses.length!=3) throw new IllegalArgumentException("Select 2 or 3 object classes: background, foreground (and contours)");
+        if (!Utils.objectsAllHaveSameProperty(Arrays.stream(objectClasses).boxed().collect(Collectors.toList()), mDAO.getExperiment().experimentStructure::getParentObjectClassIdx)) {
+            throw new IllegalArgumentException("All selected object classes must have same parent object class");
+        }
+
+
+        Task resultingTask = new Task(mDAO);
+        List<FeatureExtractor.Feature> features = new ArrayList<>();
+        ExperimentStructure xp = mDAO.getExperiment().experimentStructure;
+        List<String> channelNames = IntStream.of(channelIndices).mapToObj(c -> xp.getChannelNames()[c]).collect(Collectors.toList());
+        for (int c : channelIndices) features.add(new FeatureExtractor.Feature( channelIndices.length == 1 ? new RawImage().defaultName() : channelNames.get(c), new RawImage(), c ));
+        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
+
+        int[] dims = new int[]{0, 0};
+        int[] eraseContoursOC = new int[0];
+        resultingTask.setExtractDS(outputFile, selections, features, dims, eraseContoursOC, compression);
+        return resultingTask;
+    }
+
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
+        Task resultingTask = new Task(mDAO);
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        features.add(new FeatureExtractor.Feature( new RawImage(), objectClass ));
+        features.add(new FeatureExtractor.Feature( new Labels(), objectClass ));
+        features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass ));
+
+        int[] dims = new int[]{0, 0};
+        int[] eraseContoursOC = new int[0];
+        resultingTask.setExtractDS(outputFile, selections, features, dims, eraseContoursOC, compression);
+        return resultingTask;
+    }
+
+    public static Task getDenoisingDatasetTask(MasterDAO mDAO, int[] objectClasses, List<String> position, String outputFile, int compression) throws IllegalArgumentException {
+        if (objectClasses.length!=1) throw new IllegalArgumentException("Select a single object classes");
+        int channelIdx = mDAO.getExperiment().experimentStructure.getChannelIdx(objectClasses[0]);
+        if (position.isEmpty()) throw new IllegalArgumentException("Select at least one position");
+        Map<String, List<Integer>> positionMapFrames = position.stream().collect(Collectors.toMap(p -> p, p -> IntStream.range(0, mDAO.getExperiment().getPosition(p).getInputImages().getFrameNumber()).boxed().collect(Collectors.toList()) ));
+
+        Task resultingTask = new Task(mDAO);
+        List<FeatureExtractor.Feature> features = new ArrayList<>(3);
+        features.add(new FeatureExtractor.Feature( new RawImage(), objectClasses[0] ));
+        features.add(new FeatureExtractor.Feature( new MultiClass(objectClasses), objectClasses[0] ));
+
+        resultingTask.setExtractRawDS(outputFile, new int[]{channelIdx}, new SimpleBoundingBox(0, 0,0, 0, 0, 0), Task.ExtractZAxis.BATCH, 0,  positionMapFrames, compression);
+        return resultingTask;
+    }
+
     public enum SCALE_MODE {NO_SCALE, MAX_MIN_BYTE_SAFE_FLOAT, MAX_MIN_BYTE, MAX_MIN_SHORT, TO_SHORT, TO_FLOAT}
+
+    // templates
+
+
 }

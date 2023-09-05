@@ -30,27 +30,29 @@ import bacmman.utils.JSONUtils;
  * @author Jean Ollion
  */
 public class GroupParameter extends ContainerParameterImpl<GroupParameter> {
-    protected List<Parameter> parameters;
-    
     public GroupParameter(String name, Parameter... parameters) {
         super(name);
-        this.parameters = Arrays.asList(parameters);
+        this.children = Arrays.asList(parameters);
         initChildList();
     }
     public GroupParameter(String name, Collection<Parameter> parameters) {
         super(name);
-        this.parameters = new ArrayList<>(parameters);
+        this.children = new ArrayList<>(parameters);
         initChildList();
+    }
+
+    protected GroupParameter(String name) {
+        super(name);
     }
     
     @Override
     protected void initChildList() {
-        super.initChildren(parameters);
+        super.initChildren(children);
     }
     
     @Override
     public GroupParameter duplicate() {
-        List<Parameter> dup = ParameterUtils.duplicateList(parameters);
+        List<Parameter> dup = ParameterUtils.duplicateList(children);
         GroupParameter res =  new GroupParameter(name, dup);
         transferStateArguments(this, res);
         return res;
@@ -62,14 +64,14 @@ public class GroupParameter extends ContainerParameterImpl<GroupParameter> {
 
     @Override
     public JSONArray toJSONEntry() {
-        return JSONUtils.toJSONArrayMap(parameters);
+        return JSONUtils.toJSONArrayMap(children);
     }
 
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
         if (jsonEntry==null) return;
-        if (JSONUtils.isJSONArrayMap(jsonEntry)) JSONUtils.fromJSONArrayMap(parameters, (JSONArray)jsonEntry);
-        else JSONUtils.fromJSON(parameters, (JSONArray)jsonEntry);
+        if (JSONUtils.isJSONArrayMap(jsonEntry)) JSONUtils.fromJSONArrayMap(children, (JSONArray)jsonEntry);
+        else JSONUtils.fromJSON(children, (JSONArray)jsonEntry);
     }
     
 }

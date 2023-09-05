@@ -6,10 +6,16 @@ import org.json.simple.JSONObject;
 
 import java.util.List;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
-    SimpleListParameter<DLModelInputParameter> inputs = new SimpleListParameter<>("Input layers", 0, new DLModelInputParameter("input")).setNewInstanceNameFunction((s, i)->"input #"+i).setChildrenNumber(1).setHint("Description of input tensor(s)");
-    SimpleListParameter<DLModelOutputParameter> outputs = new SimpleListParameter<>("Output layers", 0, new DLModelOutputParameter("output")).setNewInstanceNameFunction((s, i)->"output #"+i).setChildrenNumber(1).setHint("Description of output tensor(s)");;
+    SimpleListParameter<DLModelInputParameter> inputs = new SimpleListParameter<>("Input layers", 0, new DLModelInputParameter("input"))
+            .setNewInstanceNameFunction((s, i)->"input #"+i)
+            .addchildrenPropertyValidation(DLModelInputParameter::is3D, true)
+            .setChildrenNumber(1).setHint("Description of input tensor(s)");
+    SimpleListParameter<DLModelOutputParameter> outputs = new SimpleListParameter<>("Output layers", 0, new DLModelOutputParameter("output")).setNewInstanceNameFunction((s, i)->"output #"+i)
+            .setChildrenNumber(1).setHint("Description of output tensor(s)")
+            .addNewInstanceConfiguration(o -> o.scalerIndex.addValidationFunction(s -> s.getIntValue() < inputs.getChildCount()));
     ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Contraction Factor").setHint("Size ratio between the smallest tensor in the network and the input tensor. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis").addValidationFunction(a -> inputs.getChildren().stream().mapToInt(c-> c.is3D()?3:2).max().orElse(2) == a.getChildCount());
     TextParameter exportLibrary = new TextParameter("Export Library", "", true).setHint("DL Library the model was exported with");
     SimpleListParameter<CustomParameter<Parameter>> miscParameters = new SimpleListParameter<>("Other Parameters", -1, new CustomParameter<>("Parameter", Parameter.class, ObjectClassOrChannelParameter.class::isAssignableFrom));
@@ -47,6 +53,47 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         exportLibrary.initFromJSONEntry(jsonO.get("library"));
         if (jsonO.containsKey("contraction")) contraction.initFromJSONEntry(jsonO.get("contraction"));
         if (jsonO.containsKey("otherParameters")) miscParameters.initFromJSONEntry(jsonO.get("otherParameters"));
+    }
+    public DLModelMetadata setInputs(DLModelInputParameter... inputs) {
+        this.inputs.removeAllElements();
+        return addInputs(inputs);
+    }
+    public DLModelMetadata addInputs(DLModelInputParameter... inputs) {
+        this.inputs.insert(inputs);
+        return this;
+    }
+    public DLModelMetadata setOutputs(DLModelOutputParameter... outputs) {
+        this.outputs.removeAllElements();
+        return addOutputs(outputs);
+    }
+    public DLModelMetadata addOutputs(DLModelOutputParameter... outputs) {
+        this.outputs.insert(outputs);
+        return this;
+    }
+    public DLModelMetadata setContraction(int... contraction) {
+        if (contraction.length == 1) {
+            int c = contraction[0];
+            contraction = new int[inputs.isEmpty() ? 2 : (inputs.getChildAt(0).is3D() ? 3 : 2)];
+            for (int i = 0; i<contraction.length; ++i) contraction[i] = c;
+        }
+        this.contraction.setValue(contraction);
+        return this;
+    }
+    public DLModelMetadata setExportLibrary(String lib) {
+        this.exportLibrary.setValue(lib);
+        return this;
+    }
+
+    public DLModelMetadata addMiscParameters(CustomParameter<Parameter>... parameters) {
+        this.miscParameters.insert(parameters);
+        return this;
+    }
+    public DLModelMetadata addMiscParameters(Parameter... parameters) {
+        for (Parameter p : parameters) {
+            CustomParameter cp = new CustomParameter<>(p);
+            this.miscParameters.insert(cp);
+        }
+        return this;
     }
 
     public List<DLModelInputParameter> getInputs() {
@@ -88,7 +135,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         return null;
     }
 
-    public class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {
+    public static class DLModelInputParameter extends ContainerParameterImpl<DLModelInputParameter> {
         PluginParameter<HistogramScaler> scaler = new PluginParameter<>("Intensity Scaling", HistogramScaler.class, true).setEmphasized(true).setHint("Defines scaling applied to histogram of input images before prediction");
         BoundedNumberParameter chanelNumber = new BoundedNumberParameter("Channel Number", 0, 1, 1, null).setEmphasized(true).setHint("Number of channel of input tensor");
         BooleanParameter fixedSize = new BooleanParameter("Fixed Size").setEmphasized(true).setHint("Whether the input must a a pre-defined size or not");
@@ -103,6 +150,43 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
                 shape.setChildrenNumber(dim);
             });
         }
+        public DLModelInputParameter setScaling(HistogramScaler scaler) {
+            this.scaler.setPlugin(scaler);
+            return this;
+        }
+        public DLModelInputParameter setChannelNumber(int channelNumber) {
+            this.chanelNumber.setValue(channelNumber);
+            return this;
+        }
+
+        public DLModelInputParameter setIs3D(boolean is3D) {
+            this.is3D.setSelected(is3D);
+            return this;
+        }
+
+        public DLModelInputParameter setShape(int... shape) {
+            boolean fixedSize = shape == null || shape.length == 0;
+            if (!fixedSize) {
+                int[] distinct = IntStream.of(shape).distinct().toArray();
+                fixedSize = !(distinct.length == 1 && distinct[0]<=0);
+            }
+            if (!fixedSize) {
+                this.fixedSize.setSelected(false);
+                if (is3D.getSelected()) this.shape.setValue(0, 0, 0);
+                else this.shape.setValue(0,0);
+            } else {
+                if (shape.length == 1) {
+                    int s = shape[0];
+                    shape = new int[is3D.getSelected()?3:2];
+                    for (int i = 0; i<shape.length; ++i) shape[i] = s;
+                }
+                this.fixedSize.setSelected(true);
+                this.shape.setValue(shape);
+                this.is3D.setSelected(shape.length == 3);
+            }
+            return this;
+        }
+
         public PluginParameter<HistogramScaler> getScaling() {return scaler;}
         public int getChannelNumber() {return chanelNumber.getValue().intValue();}
         public boolean fixedSize() {return fixedSize.getSelected();}
@@ -146,12 +230,11 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         }
     }
 
-    public class DLModelOutputParameter extends ContainerParameterImpl<DLModelOutputParameter> {
+    public static class DLModelOutputParameter extends ContainerParameterImpl<DLModelOutputParameter> {
         BoundedNumberParameter scalerIndex = new BoundedNumberParameter("Scaler index", 0, -1, -1, null).setEmphasized(true).setHint("Index of input scaler used to rescale back the image intensity. -1 no reverse scaling");
 
         public DLModelOutputParameter(String name) {
             super(name);
-            scalerIndex.addValidationFunction(s -> s.getIntValue() < inputs.getChildCount());
         }
 
         public int getReverseScalingIndex() {return scalerIndex.getIntValue();}

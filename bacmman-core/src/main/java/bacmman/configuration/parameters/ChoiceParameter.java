@@ -26,7 +26,7 @@ import java.util.function.Function;
  * @author Jean Ollion
  */
 
-public class ChoiceParameter extends AbstractChoiceParameter<String, ChoiceParameter>  {
+public class ChoiceParameter extends AbstractChoiceParameterFixedChoiceList<String, ChoiceParameter>  {
     
     public ChoiceParameter(String name, String[] listChoice, String selectedItem, boolean allowNoSelection) {
         super(name, listChoice, selectedItem, Function.identity(), allowNoSelection);

@@ -27,6 +27,9 @@ import java.util.List;
 import javax.swing.tree.MutableTreeNode;
 import javax.swing.tree.TreeNode;
 import bacmman.utils.Utils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
+
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -36,7 +39,7 @@ import java.util.function.Predicate;
  * @param <P>
  */
 
-public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<Parameter, P>, InvisibleNode {
+public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>> implements ContainerParameter<Parameter, P>, InvisibleNode, PythonConfiguration {
     protected String name;
     protected MutableTreeNode parent;
     protected List<Parameter> children;
@@ -79,15 +82,13 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
     }
     protected void initChildren(List<Parameter> parameters) {
         if (parameters==null) {
-            children = new ArrayList<Parameter>(0);
+            children = new ArrayList<>(0);
         } else {
-            //children = new ArrayList<Parameter>(parameters.size());
             children=parameters;
             int idx = 0;
             for (Parameter p : parameters) {
                 if (p!=null) p.setParent(this);
                 else logger.warn("SCP: {} initChildren error: param null: {}, name: {}, type: {}", this.hashCode(), idx, name, getClass().getSimpleName());
-                
                 //if (p instanceof SimpleContainerParameter) ((SimpleContainerParameter)p).initChildList(); -> cf postLoad
                 idx++;
             }
@@ -296,5 +297,23 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
         if (!filterIsActive) return getChildCount();
         if (children == null) return 0;
         return (int)children.stream().filter(p->p.isEmphasized()).count();
+    }
+
+    // python configuration
+    @Override
+    public Object getPythonConfiguration() {
+        JSONObject json = new JSONObject();
+        for (Parameter p : getChildren()) {
+            if (p instanceof PythonConfiguration) {
+                PythonConfiguration pp = (PythonConfiguration) p;
+                json.put(pp.getPythonConfigurationKey(), pp.getPythonConfiguration());
+            } else json.put(PythonConfiguration.toSnakeCase(p.getName()), p.toJSONEntry());
+        }
+        return json;
+    }
+
+    @Override
+    public String getPythonConfigurationKey() {
+        return PythonConfiguration.toSnakeCase(this.getName());
     }
 }

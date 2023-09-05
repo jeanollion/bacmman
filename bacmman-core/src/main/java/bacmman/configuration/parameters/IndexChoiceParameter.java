@@ -23,6 +23,7 @@ import org.json.simple.JSONArray;
 import bacmman.utils.Utils;
 
 import java.util.Arrays;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -61,6 +62,11 @@ public abstract class IndexChoiceParameter<P extends IndexChoiceParameter<P>> ex
         if (!super.isValid()) return false;
         return allowNoSelection || getSelectedIndex()>=0;
     }
+
+    public P unique() {
+        return addValidationFunction(cp -> cp.getSelectedIndices().length == IntStream.of(cp.getSelectedIndices()).distinct().count());
+    }
+
     public <T extends IndexChoiceParameter> T setAllowNoSelection(boolean allowNoSelection) {
         this.allowNoSelection= allowNoSelection;
         return (T)this;

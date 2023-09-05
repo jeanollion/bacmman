@@ -26,6 +26,10 @@ public class ParameterUIBinder {
             if (icp.isMultipleSelection()) return new MultipleChoiceParameterUI(icp, model);
             else return new ChoiceParameterUI(icp, model);
         }
+        if (p instanceof AbstractChoiceParameterMultiple) {
+            AbstractChoiceParameterMultiple cp = (AbstractChoiceParameterMultiple) p;
+            return cp.isMultipleSelection() ? new MultipleChoiceParameterUI(cp, model) : new ChoiceParameterUI(cp, model);
+        }
         if (p instanceof PluginParameter) {
             PluginParameter pp = (PluginParameter)p;
             ChoiceParameterUI ui =  new ChoiceParameterUI(pp, "Modules", model, null);

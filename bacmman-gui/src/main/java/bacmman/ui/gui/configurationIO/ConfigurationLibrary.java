@@ -478,7 +478,7 @@ public class ConfigurationLibrary {
         deleteRemote.setToolTipText(formatHint("If a configuration is selected: deletes the configuration on the remote server. If a folder is selected: delete all configuration files contained in the folder on the remote server.<br />A password must be provided to perform this action", true));
         remoteSelectorJSP.setToolTipText(formatHint("Select the configuration file to edit. First level of the tree corresponds to the folders. If no password is provided, only the public configuration files of the account are listed", true));
         localConfigJSP.setToolTipText(formatHint("Configuration tree of the current dataset. Differences with the selected remote configuration are displayed in blue (particular case: processing pipeline of each position is compared to the remote processing pipeline template)", true));
-        remoteConfigJSP.setToolTipText(formatHint("Configuration tree of the selected remote file. Differences with the configuration of the local current dataset are are displayed in blue", true));
+        remoteConfigJSP.setToolTipText(formatHint("Configuration tree of the selected remote file. Differences with the configuration of the local current dataset are are displayed in blue. <br/>Modifications in this tree are not taken into account: to modify this configuration, modify the local one and click <em>Update Remote</em>", true));
     }
 
     public void updateLocalSelector() {
@@ -509,6 +509,7 @@ public class ConfigurationLibrary {
             }
         }
         //ConfigurationTreeModel.SaveExpandState expState = localConfig == null || !localConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(localConfig.getTree());
+        if (localConfig != null) localConfig.unRegister();
         localConfig = new ConfigurationTreeGenerator(xp, root, v -> {
         }, (s, l) -> {
         }, s -> {
@@ -714,6 +715,8 @@ public class ConfigurationLibrary {
     }
 
     public void close() {
+        if (remoteConfig != null) remoteConfig.unRegister();
+        if (localConfig != null) localConfig.unRegister();
         if (onClose != null) onClose.run();
         if (dia != null) dia.dispose();
     }
@@ -837,6 +840,7 @@ public class ConfigurationLibrary {
                         break;
                 }
                 //ConfigurationTreeModel.SaveExpandState expState = remoteConfig == null || !remoteConfig.getRoot().equals(root) ? null : new ConfigurationTreeModel.SaveExpandState(remoteConfig.getTree());
+                if (remoteConfig != null) remoteConfig.unRegister();
                 remoteConfig = new ConfigurationTreeGenerator(xp, root, v -> {
                 }, (s, l) -> {
                 }, s -> {

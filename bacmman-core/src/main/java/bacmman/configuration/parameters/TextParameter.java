@@ -54,7 +54,7 @@ public class TextParameter extends ParameterImpl<TextParameter> implements Liste
     @Override
     public boolean isValid() {
         if (!super.isValid()) return false;
-        if (!allowBlank && this.value.length()==0) return false;
+        if (!allowBlank && this.value.isEmpty()) return false;
         return !(!allowSpecialCharacters && containsIllegalCharacters(value));
     }
 

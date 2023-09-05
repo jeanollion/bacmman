@@ -233,6 +233,9 @@ public class FileIO {
             }
             return res;
         }
+        public String read() {
+            return readLines().stream().collect(Collectors.joining("\n"));
+        }
         public void close() {
             unlock();
             try {
@@ -260,6 +263,10 @@ public class FileIO {
                     
                 }
             }
+        }
+
+        public File getFile() {
+            return f;
         }
     }
     public static class ZipWriter {

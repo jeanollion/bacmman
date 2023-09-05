@@ -40,6 +40,7 @@ import java.util.jar.JarFile;
 import java.util.stream.Collectors;
 
 import bacmman.utils.Utils;
+import net.imagej.ops.Ops;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -131,8 +132,7 @@ public class PluginFactory {
         while (CL_class != java.lang.ClassLoader.class) {
             CL_class = CL_class.getSuperclass();
         }
-        java.lang.reflect.Field ClassLoader_classes_field = CL_class
-                .getDeclaredField("classes");
+        java.lang.reflect.Field ClassLoader_classes_field = CL_class.getDeclaredField("classes");
         ClassLoader_classes_field.setAccessible(true);
         Vector classes = (Vector) ClassLoader_classes_field.get(CL);
         return classes.iterator();
@@ -141,8 +141,7 @@ public class PluginFactory {
     // from : http://www.dzone.com/snippets/get-all-classes-within-package
     public static List<Class> getClasses(String packageName) throws ClassNotFoundException, IOException {
         ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        assert classLoader != null;
-        
+        if (classLoader == null) throw new RuntimeException("Cannot get classes with null class loader");
         if (packageName==null) { //look in classes that are already loaded
             List<Class> classes = new ArrayList<>();
             while (classLoader != null) {
@@ -159,11 +158,8 @@ public class PluginFactory {
             }
             return classes;
         } else {
-        
             String path = packageName.replace('.', '/');
-
             Enumeration<URL> resources = classLoader.getResources(path);
-
             List<File> dirs = new ArrayList<>();
             List<String> pathToJars = new ArrayList<>();
             while (resources.hasMoreElements()) {

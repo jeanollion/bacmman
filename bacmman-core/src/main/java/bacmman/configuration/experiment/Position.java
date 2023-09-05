@@ -19,7 +19,6 @@
 package bacmman.configuration.experiment;
 
 import bacmman.configuration.parameters.*;
-import bacmman.core.Core;
 import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.data_structure.dao.*;
 import bacmman.data_structure.input_image.InputImage;
@@ -35,7 +34,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 
 import java.util.Map;
@@ -377,7 +375,4 @@ public class Position extends ContainerParameterImpl<Position> implements ListEl
     public void setDeletePositionCallBack(Predicate<Position> deletePositionCallBack) {
         this.deletePositionCallBack=deletePositionCallBack;
     }
-    
-
-    
 }

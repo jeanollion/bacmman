@@ -21,6 +21,7 @@ package bacmman.ui.gui.configuration;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Position;
 import bacmman.configuration.experiment.PreProcessingChain;
+import bacmman.configuration.experiment.Structure;
 import bacmman.configuration.parameters.*;
 import bacmman.configuration.parameters.ui.*;
 import bacmman.core.ProgressCallback;
@@ -38,7 +39,6 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.nio.file.Paths;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.*;
@@ -76,19 +76,49 @@ public class ConfigurationTreeGenerator {
     private final ProgressCallback pcb;
     private boolean expertMode = true;
     private boolean showRootHandle = true;
+    private boolean rootVisible = true;
+    final Consumer<Parameter> parameterChangeCallback = p -> {if (treeModel!=null) treeModel.nodeChanged(p);};
+    final Consumer<Structure> structureNewInstanceConfiguration = s -> s.addParameterChangeCallback(parameterChangeCallback);
+
     public ConfigurationTreeGenerator(Experiment xp, ContainerParameter root, Consumer<Boolean> xpIsValidCallBack, BiConsumer<String, List<String>> setModules, Consumer<String> setHint, MasterDAO mDAO, ProgressCallback pcb) {
         if (root == null) throw new IllegalArgumentException("Root cannot be null");
         rootParameter = root;
-        experiment = xp;
+        setExperiment(xp);
         this.xpIsValidCallBack = xpIsValidCallBack;
         this.mDAO=mDAO;
         this.pcb = pcb;
         this.setHint=setHint;
         this.setModules = setModules;
     }
+
+    public MasterDAO getMasterDAO() {return mDAO;}
+    public Experiment getExperiment() {return experiment;}
+
+    public void unRegister() {
+        if (experiment !=null) {
+            experiment.getStructures().removeNewInstanceConfiguration(structureNewInstanceConfiguration);
+            experiment.getStructures().getChildren().forEach(c -> c.removeParameterChangeCallback(parameterChangeCallback));
+        }
+    }
+
+    public ConfigurationTreeGenerator setExperiment(Experiment xp) {
+        if (xp!=null && xp.equals(this.experiment)) return this;
+        else if (xp == null) unRegister();
+        this.experiment = xp;
+        if (experiment!=null) {
+            // configure call back for structures (update display)
+            experiment.getStructures().addNewInstanceConfiguration(structureNewInstanceConfiguration);
+        }
+        return this;
+    }
     public ConfigurationTreeGenerator showRootHandle(boolean show) {
         this.showRootHandle= show;
         if (tree!=null) tree.setShowsRootHandles(show);
+        return this;
+    }
+    public ConfigurationTreeGenerator rootVisible(boolean show) {
+        this.rootVisible = show;
+        if (tree!=null) tree.setRootVisible(show);
         return this;
     }
     public void setExpertMode(boolean expertMode) {
@@ -119,20 +149,29 @@ public class ConfigurationTreeGenerator {
         };
     }
     public void expandAll() {
-        if (treeModel==null || tree==null) return;
+        if (tree == null) getTree();
         setNodeExpandedState(rootParameter, true);
         tree.updateUI();
     }
-    public void setNodeExpandedState(Parameter node, boolean expanded) {
-        logger.debug("expand: {}", node);
+    public void expandAll(int levelLimit) {
+        if (tree == null) getTree();
+        setNodeExpandedState(rootParameter, true, levelLimit+1);
+        tree.updateUI();
+    }
+    public void setNodeExpandedState(Parameter node, boolean expanded, int levelLimit) {
+        if (levelLimit==0) return;
         List list = Collections.list(node.children());
-        for (Object c : list) setNodeExpandedState((Parameter)c, expanded);
-        if (!expanded && node==rootParameter) return;
-        TreePath path = new TreePath(node.getParameterPath().toArray());
-        if (expanded) tree.expandPath(path);
-        else tree.collapsePath(path);
+        for (Object c : list) setNodeExpandedState((Parameter)c, expanded, levelLimit-1);
+        if (expanded || !rootParameter.equals(node)) {
+            TreePath path = new TreePath(node.getParameterPath().toArray());
+            if (expanded) tree.expandPath(path);
+            else tree.collapsePath(path);
+        }
     }
 
+    public void setNodeExpandedState(Parameter node, boolean expanded) {
+        setNodeExpandedState(node, expanded, -1);
+    }
 
     public JTree getTree() {
         if (tree==null) generateTree();
@@ -234,7 +273,7 @@ public class ConfigurationTreeGenerator {
 
         treeModel.setJTree(tree);
         tree.setShowsRootHandles(showRootHandle);
-        tree.setRootVisible(!(rootParameter instanceof Experiment));
+        tree.setRootVisible(!(rootParameter instanceof Experiment) && rootVisible);
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.CONTIGUOUS_TREE_SELECTION);
         DefaultTreeCellRenderer renderer = new TransparentTreeCellRenderer(()->expertMode, p -> { // compare tree
             Predicate<Parameter> isPositionListPredicate = pp->pp instanceof ListParameter && pp.getName().equals("Pre-Processing for all Positions");
@@ -351,29 +390,10 @@ public class ConfigurationTreeGenerator {
                     return source.getChildClass().equals(dest.getChildClass());
                 }
         ));
-        if (experiment!=null) {
-            // configure call back for structures (update display)
-            experiment.getStructures().addNewInstanceConfiguration(s -> s.setParameterChangeCallback(p -> treeModel.nodeChanged(p)));
-            // configure call back for position (delete position from DAO)
-            Predicate<Position> erasePosition = p -> {
-                logger.debug("erase position: {}", p.getName());
-                if (mDAO != null) {
-                    mDAO.getDao(p.getName()).deleteAllObjects();
-                    mDAO.unlockPositions(p.getName());
-                }
-                if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
-                for (int s = 0; s < experiment.getStructureCount(); ++s)
-                    if (p.getImageDAO() instanceof ImageDAOTrack) ((ImageDAOTrack) p.getImageDAO()).deleteTrackImages(s);
-                Utils.deleteDirectory(Paths.get(experiment.getOutputDirectory() , p.getName()).toString());
-                return true;
-            };
-            experiment.getPositionParameter().addNewInstanceConfiguration(p -> p.setDeletePositionCallBack(erasePosition));
-            // selections
-            experiment.setSelectionSupplier(mDAO==null ? null : () -> mDAO.getSelectionDAO().getSelections().stream());
-        }
+
         if (rootParameter instanceof ParameterChangeCallback) {
             Consumer<Parameter> cb  = p -> {treeModel.nodeChanged(p);treeModel.nodeStructureChanged(p);};
-            ((ParameterChangeCallback)rootParameter).setParameterChangeCallback(cb);
+            ((ParameterChangeCallback)rootParameter).addParameterChangeCallback(cb);
         }
     }
 

@@ -201,16 +201,20 @@ public class PropertyUtils {
         item.setSelectedItem(PropertyUtils.get(key, defaultValue));
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} jcb persistSel {}", key, item.getSelectedItem());PropertyUtils.set(key, (String)item.getSelectedItem()); });
     }
-    public static void setPersistent(JTextField item, String key, String defaultValue, boolean multiple) {
+    public static ActionListener setPersistent(JTextField item, String key, String defaultValue, boolean multiple) {
         item.setText(PropertyUtils.get(key, defaultValue));
+        ActionListener res;
         for (ActionListener al : item.getActionListeners()) al.actionPerformed(null); // perform action after having set default value
-        if (!multiple) item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} persistSel {}", key, item.getText());PropertyUtils.set(key, item.getText()); });
-        else {
-            item.addActionListener((java.awt.event.ActionEvent evt) -> {
-                logger.debug("item: {} persistSelMultiple {}", key, item.getText());
+        if (!multiple) {
+            res = (java.awt.event.ActionEvent evt) -> PropertyUtils.set(key, item.getText());
+            item.addActionListener(res);
+        }
+        else { // TODO each entry is a sub menu that allows to delete
+            res = (java.awt.event.ActionEvent evt) -> {
                 PropertyUtils.set(key, item.getText());
                 PropertyUtils.addFirstStringToList(key, item.getText());
-            });
+            };
+            item.addActionListener(res);
             item.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent evt) {
@@ -223,14 +227,20 @@ public class PropertyUtils {
                             Action setRecent = new AbstractAction(s) {
                                 @Override
                                 public void actionPerformed(ActionEvent e) {
-                                    item.setText(s);
-                                    for (ActionListener al : item.getActionListeners()) al.actionPerformed(e);
+                                    if (checkMod(e.getModifiers(), ActionEvent.CTRL_MASK)) {
+                                        List<String> recent = PropertyUtils.getStrings(key);
+                                        recent.remove(s);
+                                        PropertyUtils.setStrings(key, recent);
+                                    } else {
+                                        item.setText(s);
+                                        for (ActionListener al : item.getActionListeners()) al.actionPerformed(e);
+                                    }
                                 }
                             };
                             recentFiles.add(setRecent);
                         }
                         if (recent.isEmpty()) recentFiles.setEnabled(false);
-                        Action delRecent = new AbstractAction("Delete recent list") {
+                        Action delRecent = new AbstractAction("Delete recent list (ctrl + click to delete one item)") {
                             @Override
                             public void actionPerformed(ActionEvent e) {
                                 PropertyUtils.setStrings(key, null);
@@ -241,7 +251,12 @@ public class PropertyUtils {
                     }
                 }
             });
+
         }
+        return res;
+    }
+    private static boolean checkMod(int modifiers, int mask) {
+        return ((modifiers & mask) == mask);
     }
     public static int setPersistent(ButtonGroup group, String key, int defaultSelectedIdx) {
         Enumeration<AbstractButton> enume = group.getElements();

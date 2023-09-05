@@ -63,6 +63,7 @@ public class Core {
     private static Runnable freeDisplayerMemory;
     private static OmeroGateway omeroGateway;
     private static GithubGateway githubGateway;
+    private static DockerGateway dockerGateway;
     public String tfVisibleDeviceList="";
     public boolean tfSetAllowGrowth=false;
     public double tfPerProcessGpuMemoryFraction=1;
@@ -81,6 +82,7 @@ public class Core {
         PluginFactory.findPlugins("bacmman.plugins.plugins", false);
         PluginFactory.importIJ1Plugins();
         createOmeroGateway();
+        createDockerGateway();
         githubGateway = new GithubGateway();
         initTF2();
     }
@@ -103,7 +105,7 @@ public class Core {
     }
 
     public static void setUserLogger(ProgressLogger plogger) {
-        progressLogger =plogger;
+        progressLogger = plogger;
         if (omeroGateway!=null) omeroGateway.setLogger(plogger);
     }
     public static ProgressLogger getProgressLogger() {return progressLogger;};
@@ -132,6 +134,9 @@ public class Core {
     public static void freeDisplayMemory() {
         if (freeDisplayerMemory!=null) freeDisplayerMemory.run();
     }
+    public DockerGateway getDockerGateway() {
+        return dockerGateway;
+    }
     public OmeroGateway getOmeroGateway() {
         return omeroGateway;
     }
@@ -145,7 +150,18 @@ public class Core {
             omeroGateway = impl.get(0).getDeclaredConstructor().newInstance();
             logger.debug("omero gateway created with class: {}", impl.get(0));
         } catch (NoClassDefFoundError | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
-            logger.debug("error while instantiating omero gateway", e);
+            logger.error("error while instantiating omero gateway", e);
+        }
+    }
+
+    private static void createDockerGateway() {
+        List<Class<DockerGateway>> impl = findImplementation("bacmman.core", DockerGateway.class);
+        if (impl.isEmpty()) return;
+        try {
+            dockerGateway = impl.get(0).getDeclaredConstructor().newInstance();
+            logger.debug("docker gateway created with class: {}", impl.get(0));
+        } catch (NoClassDefFoundError | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
+            logger.error("error while instantiating docker gateway", e);
         }
     }
 
@@ -156,7 +172,7 @@ public class Core {
                 if (interfaceClass.isAssignableFrom(c) && !Modifier.isAbstract( c.getModifiers()) ) result.add(c);
             }
         } catch (ClassNotFoundException | IOException ex) {
-            logger.warn("find plugins", ex);
+            logger.debug("find plugins", ex);
         }
         return result;
     }

@@ -22,13 +22,16 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static bacmman.github.gist.GistDLModel.BASE_URL;
 import static bacmman.ui.gui.Utils.getDisplayedImage;
 
 public class DLModelsLibrary {
@@ -41,7 +44,7 @@ public class DLModelsLibrary {
     private JScrollPane DLModelsJSP;
     private JPanel contentPane;
     private JPanel credentialPane;
-    private JButton removeButton;
+    private JButton deleteButton;
     private JButton updateButton;
     private JPanel actionPanel;
     private JButton duplicateButton;
@@ -53,15 +56,15 @@ public class DLModelsLibrary {
     boolean loggedIn = false;
     DLModelGistTreeGenerator tree;
     private static final Logger logger = LoggerFactory.getLogger(DLModelsLibrary.class);
-    String currentDirectory;
+    String workingDirectory;
     ProgressLogger pcb;
     BiConsumer<String, DLModelMetadata> configureParameterCallback;
     JDialog dia;
     Runnable onClose;
 
-    public DLModelsLibrary(GithubGateway gateway, String currentDirectory, Runnable onClose, ProgressLogger pcb) {
+    public DLModelsLibrary(GithubGateway gateway, String workingDirectory, Runnable onClose, ProgressLogger pcb) {
         this.gateway = gateway;
-        this.currentDirectory = currentDirectory;
+        this.workingDirectory = workingDirectory;
         this.pcb = pcb;
         this.onClose = onClose;
         if (pcb instanceof JFrame) displayingFrame = (JFrame) pcb;
@@ -108,7 +111,8 @@ public class DLModelsLibrary {
             String currentFolder = tree.getSelectedFolder();
             SaveDLModelGist form = new SaveDLModelGist(gateway);
             if (currentFolder != null) form.setFolder(currentFolder);
-            form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
+
             form.display(displayingFrame, "Store dl model");
             if (form.canceled) return;
             // check that name does not already exists
@@ -131,22 +135,24 @@ public class DLModelsLibrary {
             updateGistDisplay();
             tree.setSelectedGist(toSave);
         });
-        removeButton.addActionListener(e -> {
-            if (tree == null || !loggedIn) return;
-            GistDLModel gist = tree.getSelectedGist();
-            if (gist == null) {
-                String folder = tree.getSelectedFolder();
-                if (folder == null) return;
-                if (!Utils.promptBoolean("Delete all model files from selected folder ? ", actionPanel)) return;
-                gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {
-                    gists.remove(g);
-                    g.delete(getAuth());
-                });
-                tree.removeFolder(folder);
-            } else {
-                gist.delete(getAuth());
-                gists.remove(gist);
-                tree.removeGist(gist);
+
+        deleteButton.addActionListener(e -> {
+            deleteSelectedGists(true);
+        });
+        deleteButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action del = new AbstractAction("Delete Selected Models and keep associated Files") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            deleteSelectedGists(false);
+                        }
+                    };
+                    menu.add(del);
+                    menu.show(deleteButton, evt.getX(), evt.getY());
+                }
             }
         });
         updateButton.addActionListener(e -> {
@@ -160,7 +166,7 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible()).disableVisibleField();
-            form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
             form.display(displayingFrame, "Update model...");
             if (form.canceled) return;
             gist.setDescription(form.description());
@@ -180,7 +186,7 @@ public class DLModelsLibrary {
                     .setURL(gist.getModelURL())
                     .setMetadata(gist.getMetadata())
                     .setVisible(gist.isVisible());
-            form.setAuthAndDefaultDirectory(getAuth(), currentDirectory, pcb);
+            form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
             form.display(displayingFrame, "Duplicate model...");
             if (form.canceled) return;
             // check that name does not already exists
@@ -226,7 +232,7 @@ public class DLModelsLibrary {
                                             .setURL(gist.getModelURL())
                                             .setMetadata(gist.getMetadata())
                                             .setVisible(gist.isVisible());
-                                    form.setAuthAndDefaultDirectory(auth2, currentDirectory, pcb);
+                                    form.setAuthAndDefaultDirectory(auth2, workingDirectory, pcb);
                                     form.display(displayingFrame, "Duplicate model to another account...");
                                     if (form.canceled) return;
                                     if (!Utils.isValid(form.name(), false)) {
@@ -334,8 +340,99 @@ public class DLModelsLibrary {
         });
     }
 
+    public DLModelsLibrary setProgressLogger(ProgressLogger progressLogger) {
+        this.pcb = progressLogger;
+        return this;
+    }
+
+    public DLModelsLibrary setWorkingDirectory(String workingDirectory) {
+        this.workingDirectory = workingDirectory;
+        return this;
+    }
+
     public void setConfigureParameterCallback(BiConsumer<String, DLModelMetadata> callback) {
         this.configureParameterCallback = callback;
+    }
+
+    public void deleteSelectedGists(boolean deleteFile) {
+        if (tree == null || !loggedIn) return;
+        GistDLModel gist = tree.getSelectedGist();
+        if (gist == null) {
+            String folder = tree.getSelectedFolder();
+            if (folder == null) return;
+            if (!Utils.promptBoolean("Delete all model files from selected folder ? ", actionPanel)) return;
+            gists.stream().filter(g -> folder.equals(g.folder)).collect(Collectors.toList()).forEach(g -> {
+                gists.remove(g);
+                g.delete(getAuth(), deleteFile);
+            });
+            tree.removeFolder(folder);
+        } else {
+            gist.delete(getAuth(), deleteFile);
+            gists.remove(gist);
+            tree.removeGist(gist);
+        }
+    }
+
+    public void uploadModel(UserAuth modelAuth, DLModelMetadata metadata, File model) {
+        if (tree == null || !loggedIn) return;
+        GistDLModel gist = tree.getSelectedGist();
+        SaveDLModelGist form = new SaveDLModelGist(gateway);
+        if (gist != null) {
+            form.setFolder(gist.folder).disableFolderField()
+                    .setName(gist.name).disableNameField()
+                    .setDescription(gist.getDescription())
+                    .setVisible(gist.isVisible()).disableVisibleField();
+            if (metadata == null) form.setMetadata(gist.getMetadata());
+        } else {
+            String folder = tree.getSelectedFolder();
+            if (folder != null) form.setFolder(folder);
+        }
+        if (metadata != null) form.setMetadata(metadata);
+        form.setAuthAndDefaultDirectory(getAuth(), workingDirectory, pcb);
+        if (gist != null && gist.getModelID() != null && !gist.getModelID().isEmpty()) {
+            String url = BASE_URL + "/gists/" + gist.getModelID();
+            boolean del = JSONQuery.delete(url, modelAuth);
+            if (!del) form.setURL(gist.getModelID());
+            logger.debug("Old gist: {} was deleted: {}", url, del);
+        }
+        logger.debug("uploading new gist...");
+        form.uploadFile(model, modelAuth, true);
+        form.display(displayingFrame, gist == null ? "Upload model..." : "Update model...");
+        if (form.canceled) return;
+
+        if (gist == null) {
+            if (!Utils.isValid(form.name(), false)) {
+                if (pcb != null) {
+                    pcb.setMessage("Invalid name (no special chars allowed except underscores)");
+                    pcb.setMessage("Uploaded Model URL : " + form.url());
+                }
+                return;
+            }
+            if (!Utils.isValid(form.folder(), false) || form.folder().contains("_")) {
+                if (pcb != null) {
+                    pcb.setMessage("Invalid folder name (no special chars allowed)");
+                    pcb.setMessage("Uploaded Model URL : " + form.url());
+                }
+                return;
+            }
+            boolean exists = gists.stream().anyMatch(g -> g.folder.equals(form.folder()) && g.name.equals(form.name()));
+            if (exists) {
+                if (pcb != null) {
+                    pcb.setMessage("Model already exists.");
+                    pcb.setMessage("Uploaded Model URL : " + form.url());
+                }
+                return;
+            }
+            gist = new GistDLModel(form.folder(), form.name(), form.description(), form.url(), form.metadata()).setVisible(form.visible());
+            gist.createNewGist(getAuth());
+            gists.add(gist);
+            updateGistDisplay();
+            tree.setSelectedGist(gist);
+        } else {
+            gist.setDescription(form.description());
+            gist.setContent(form.url(), form.metadata());
+            gist.uploadIfNecessary(getAuth());
+        }
     }
 
     private void updateGistDisplay() {
@@ -343,7 +440,7 @@ public class DLModelsLibrary {
         GistDLModel lastSel = tree == null ? null : tree.getSelectedGist();
         Stream expState = tree == null ? null : tree.getExpandedState();
         if (tree != null) tree.flush();
-        tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons, currentDirectory, this::getAuth, pcb);
+        tree = new DLModelGistTreeGenerator(gists, this::updateEnableButtons, workingDirectory, this::getAuth, pcb);
         DLModelsJSP.setViewportView(tree.getTree());
         if (lastSel != null) tree.setSelectedGist(lastSel);
         tree.setExpandedState(expState);
@@ -354,7 +451,7 @@ public class DLModelsLibrary {
         boolean folderSel = tree != null && tree.getSelectedFolder() != null;
         newButton.setEnabled(loggedIn);
         duplicateButton.setEnabled(loggedIn && gistSel);
-        removeButton.setEnabled(loggedIn && (gistSel || folderSel));
+        deleteButton.setEnabled(loggedIn && (gistSel || folderSel));
         updateButton.setEnabled(loggedIn && gistSel);
         setThumbnailButton.setEnabled(loggedIn && gistSel);
         configureParameterButton.setEnabled(gistSel && configureParameterCallback != null);
@@ -471,10 +568,10 @@ public class DLModelsLibrary {
         newButton.setText("New");
         newButton.setToolTipText("Store a new model");
         actionPanel.add(newButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
-        removeButton = new JButton();
-        removeButton.setText("Remove");
-        removeButton.setToolTipText("Remove selected model");
-        actionPanel.add(removeButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        deleteButton = new JButton();
+        deleteButton.setText("Delete");
+        deleteButton.setToolTipText("Delete selected model");
+        actionPanel.add(deleteButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         duplicateButton = new JButton();
         duplicateButton.setText("Duplicate");
         duplicateButton.setToolTipText("Duplicate selected model. Right click: duplicate to another account");

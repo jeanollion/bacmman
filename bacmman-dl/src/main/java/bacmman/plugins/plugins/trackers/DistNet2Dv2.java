@@ -29,7 +29,6 @@ import bacmman.utils.*;
 import bacmman.utils.geom.Point;
 import bacmman.utils.geom.Vector;
 import net.imglib2.RealLocalizable;
-import org.eclipse.collections.impl.factory.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -41,6 +40,7 @@ import java.util.List;
 import java.util.function.*;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static bacmman.processing.track_post_processing.Track.getTrack;
 
@@ -503,7 +503,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             double ratio = I1>=I2 ? I2/I1 : I1/I2;
             if (ratio < fusionCriterion) return true;
             // case: one spot in shared
-            Region inter = Sets.intersect(centers1, centers2).stream().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).orElse(null);
+            Region inter = Stream.concat(centers1.stream(), centers2.stream()).distinct().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).orElse(null);
             if (inter!=null) { // when seed is shared -> merge, except if intersection is not significant compared to two different seeds
                 Region c1 = centers1.stream().max(Comparator.comparingDouble(DistNet2Dv2::getCenterIntensity)).get();
                 if (c1.equals(inter)) return true;

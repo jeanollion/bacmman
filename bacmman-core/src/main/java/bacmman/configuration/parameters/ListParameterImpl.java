@@ -32,7 +32,9 @@ import org.json.simple.JSONObject;
 import bacmman.utils.Utils;
 import java.util.Arrays;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * 
@@ -41,7 +43,7 @@ import java.util.function.Predicate;
  * @param <L>
  */
 
-public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L> {
+public abstract class ListParameterImpl<T extends Parameter, L extends ListParameterImpl<T, L>> implements ListParameter<T,L>, Listenable<L>, PythonConfiguration {
 
     protected String name;
     protected ContainerParameter parent;
@@ -80,7 +82,17 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         additionalValidation = additionalValidation.and(isValid);
         return (L)this;
     }
-    
+
+    public L unique(Function<T, Object> mapper) {
+        return addchildrenPropertyValidation(mapper, false);
+    }
+    public L addchildrenPropertyValidation(Function<T, Object> mapper, boolean equals) {
+        return addValidationFunctionToChildren( c -> {
+            Stream<Object> otherProp = ((L)c.getParent()).getActivatedChildren().stream().filter(cc -> !cc.equals(c)).map(mapper);
+            if (equals) return otherProp.allMatch(o -> o.equals(mapper.apply(c)));
+            else return otherProp.noneMatch(o -> o.equals(mapper.apply(c)));
+        } );
+    }
     public L addValidationFunctionToChildren(Predicate<T> isValid) {
         childrenValidation = childrenValidation.and(isValid);
         children.forEach( t -> t.addValidationFunction(isValid)); // add only the new validation function because previous ones were added before
@@ -117,11 +129,12 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
 
     @Override
     public JSONAware toJSONEntry() {
-        JSONObject res= new JSONObject();
+        //JSONObject res= new JSONObject();
         JSONArray list= new JSONArray();
         for (T p : children) list.add(p.toJSONEntry());
-        res.put("list", list);
-        return res;
+        return list;
+        //res.put("list", list);
+        //return res;
     }
 
     @Override
@@ -129,9 +142,8 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         synchronized(this) {
             this.bypassListeners = true;
             removeAllElements();
-            if (json instanceof JSONObject && ((JSONObject)json).containsKey("list")) {
-                JSONObject jsonO = (JSONObject)json;
-                JSONArray list = (JSONArray)jsonO.get("list");
+            if (json instanceof JSONArray || (json instanceof JSONObject && ((JSONObject)json).containsKey("list") )) {
+                JSONArray list = json instanceof JSONArray ? (JSONArray)json : (JSONArray)((JSONObject)json).get("list");
                 for (Object o : list) {
                     T newI = createChildInstance();
                     newI.setParent(this);
@@ -254,6 +266,10 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     public boolean isDeactivatable() {
         if (!allowDeactivate) return false;
         return Deactivatable.class.isAssignableFrom(this.getChildClass());
+    }
+    @Override
+    public boolean allowDeactivate() {
+        return allowDeactivate;
     }
     
     @Override
@@ -569,9 +585,29 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         else this.listeners=new ArrayList<>(listeners);
     }
     List<Consumer<T>> configs = new ArrayList<>();
-    public void addNewInstanceConfiguration(Consumer<T> configuration) {
+    public L addNewInstanceConfiguration(Consumer<T> configuration) {
         configs.add(configuration);
         // also run for existing children
         for (T c : getChildren()) configuration.accept(c);
+        return (L)this;
+    }
+    public boolean removeNewInstanceConfiguration(Consumer<T> configuration) {
+        return configs.remove(configuration);
+    }
+
+    // python configuration
+    @Override
+    public Object getPythonConfiguration() {
+        JSONArray json = new JSONArray();
+        for (T p : getChildren()) {
+            if (p instanceof PythonConfiguration) json.add(((PythonConfiguration) p).getPythonConfiguration());
+            else json.add(p.toJSONEntry());
+        }
+        return json;
+    }
+
+    @Override
+    public String getPythonConfigurationKey() {
+        return PythonConfiguration.toSnakeCase(this.getName());
     }
 }

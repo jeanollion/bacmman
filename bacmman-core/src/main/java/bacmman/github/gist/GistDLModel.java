@@ -179,7 +179,10 @@ public class GistDLModel implements Hint {
         else logger.error("Could not create configuration file");
         if (getThumbnail()!=null) uploadThumbnail(auth);
     }
-    public boolean delete(UserAuth auth) {
+    public boolean delete(UserAuth auth, boolean deleteFile) {
+        if (deleteFile) {
+            JSONQuery.delete(BASE_URL+"/gists/"+getModelID(), auth);
+        }
         return JSONQuery.delete(BASE_URL+"/gists/"+id, auth);
     }
     private String getFileName() {
@@ -242,11 +245,7 @@ public class GistDLModel implements Hint {
     }
     public String getModelID() {
         String url = getModelURL();
-        if (url.startsWith(GIST_BASE_URL)) {
-            url.replace(GIST_BASE_URL, "");
-            return url;
-        }
-        return "";
+        return url.replace(GIST_BASE_URL, "");
     }
     public String getModelURL() {
         getContent();

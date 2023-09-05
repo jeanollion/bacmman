@@ -24,6 +24,15 @@ public class CustomParameter<P extends Parameter> extends ContainerParameterImpl
     Class<P> clazz;
     Predicate<Class<P>> excludeClasses;
 
+    public CustomParameter(P parameter) {
+        this(parameter, (Class<P>)parameter.getClass());
+    }
+    public CustomParameter(P parameter, Class<P> clazz) {
+        this(parameter.getName(), clazz, c -> false);
+        this.key.setValue(parameter.getName());
+        this.currentParameter = parameter;
+        this.selectedParameter = parameterChoice.entrySet().stream().filter(e -> e.getValue().equals(clazz)).map(Map.Entry::getKey).findFirst().orElse(parameter.getClass().getName());
+    }
     public CustomParameter(String name, Class<P> clazz) {
         this(name, clazz, c -> false);
     }

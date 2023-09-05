@@ -106,6 +106,7 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
 
     @Override
     public Object toJSONEntry() {
+        if (decimalPlaces == 0) return getLongValue();
         return value;
     }
 

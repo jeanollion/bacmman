@@ -338,6 +338,7 @@ public class DBMapMasterDAO implements MasterDAO {
                         boolean modified = checkOutputDirectories(false);
                         modified = checkOutputDirectories(true) || modified;
                         if (modified) updateExperiment();
+                        MasterDAO.configureExperiment(this, xp);
                     }
                 } else return xp;
             }

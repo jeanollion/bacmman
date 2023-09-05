@@ -23,6 +23,7 @@ import bacmman.configuration.experiment.Structure;
 
 import java.util.function.Consumer;
 import java.util.function.ToIntFunction;
+import java.util.stream.IntStream;
 
 /**
  *
@@ -30,7 +31,6 @@ import java.util.function.ToIntFunction;
  * @param <T>
  */
 public abstract class ObjectClassOrChannelParameter<T extends ObjectClassOrChannelParameter<T>> extends IndexChoiceParameter<T> {
-    protected Experiment xp;
     Consumer<T> autoConfiguration;
     
     public ObjectClassOrChannelParameter(String name) {
@@ -77,13 +77,13 @@ public abstract class ObjectClassOrChannelParameter<T extends ObjectClassOrChann
             return sIdx;
         };
     }
+
     protected void autoConfiguration() {
         if (autoConfiguration!=null) autoConfiguration.accept((T)this);
     }
     
     protected Experiment getXP() {
-        if (xp==null) xp= ParameterUtils.getExperiment(this);
-        return xp;
+        return ParameterUtils.getExperiment(this);
     }
     
     public void setSelectedClassIdx(int structureIdx) {

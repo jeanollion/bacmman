@@ -18,7 +18,6 @@ import bacmman.utils.ArrayUtil;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.SymetricalPair;
 import bacmman.utils.Utils;
-import org.eclipse.collections.impl.factory.Sets;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
@@ -314,7 +313,7 @@ public class SegmentationAndTrackingMetrics implements MultiThreaded, Measuremen
             groundTruth.values().stream().flatMap(Collection::stream).forEach(graphG2P::addVertex);
             prediction.values().stream().flatMap(Collection::stream).forEach(graphG2P::addVertex);
             Consumer<OverlapMatcher<SegmentedObject>.Overlap> storeOverlap = o -> addEdge(o.o1, o.o2, o.overlap);
-            Stream<OverlapMatcher<SegmentedObject>.Overlap> overlaps = Utils.parallel(Sets.union(groundTruth.keySet(), prediction.keySet()).stream(), parallel).flatMap(f -> {
+            Stream<OverlapMatcher<SegmentedObject>.Overlap> overlaps = Utils.parallel(Stream.concat(groundTruth.keySet().stream(), prediction.keySet().stream()).distinct(), parallel).flatMap(f -> {
                 List<SegmentedObject> G = groundTruth.get(f);
                 List<SegmentedObject> P = prediction.get(f);
                 if (G==null && P==null) return Stream.empty();

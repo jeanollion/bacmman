@@ -23,12 +23,14 @@ import bacmman.configuration.experiment.Position;
 import bacmman.core.ProgressCallback;
 
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.function.Predicate;
 
 import bacmman.data_structure.SegmentedObjectAccessor;
 import bacmman.ui.logger.ProgressLogger;
@@ -88,7 +90,7 @@ public interface MasterDAO {
     MasterDAO setLogger(ProgressLogger logger);
     ProgressLogger getLogger();
     
-    public static boolean compareDAOContent(MasterDAO dao1, MasterDAO dao2, boolean config, boolean positions, boolean selections, ProgressCallback pcb) {
+    static boolean compareDAOContent(MasterDAO dao1, MasterDAO dao2, boolean config, boolean positions, boolean selections, ProgressCallback pcb) {
         boolean sameContent = true;
         if (config) {
             boolean same = dao1.getExperiment().sameContent(dao2.getExperiment());
@@ -129,5 +131,20 @@ public interface MasterDAO {
         }
         return sameContent;
     }
-    
+    static Predicate<Position> getDeletePositionCallback(MasterDAO mDAO, Experiment xp) {
+         return p -> {
+            logger.debug("erase position: {}", p.getName());
+             mDAO.getDao(p.getName()).deleteAllObjects();
+             mDAO.unlockPositions(p.getName());
+            if (p.getInputImages() != null) p.getInputImages().deleteFromDAO();
+            for (int s = 0; s < xp.getStructureCount(); ++s)
+                if (p.getImageDAO() instanceof ImageDAOTrack) ((ImageDAOTrack) p.getImageDAO()).deleteTrackImages(s);
+            Utils.deleteDirectory(Paths.get(xp.getOutputDirectory() , p.getName()).toString());
+            return true;
+        };
+    }
+    static void configureExperiment(MasterDAO mDAO, Experiment xp) {
+        xp.setSelectionSupplier(() -> mDAO.getSelectionDAO().getSelections().stream()); // selections
+        xp.getPositionParameter().addNewInstanceConfiguration( p -> p.setDeletePositionCallBack(getDeletePositionCallback(mDAO, xp)) );
+    }
 }

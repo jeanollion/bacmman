@@ -23,7 +23,7 @@ package bacmman.configuration.parameters;
  * ChoiceParameter with two elements, 1st = true, 2nd = false
  * @author Jean Ollion
  */
-public class BooleanParameter extends AbstractChoiceParameter<Boolean, BooleanParameter> {
+public class BooleanParameter extends AbstractChoiceParameterFixedChoiceList<Boolean, BooleanParameter> {
     
     public BooleanParameter(String name) {
         this(name, false);

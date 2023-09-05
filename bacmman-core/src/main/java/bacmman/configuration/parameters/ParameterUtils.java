@@ -245,11 +245,7 @@ public class ParameterUtils {
             return res;
         }
     }
-    
-    // Configuration by hints
-    public static ParameterChangeCallback getParameterCallback(Parameter parameter) {
-        return (ParameterChangeCallback)getFirstParameterFromParents(p->(p instanceof ParameterChangeCallback) && ((ParameterChangeCallback)p).getParameterChangeCallback()!=null, parameter, false );
-    }
+
     public static <T> T getFirstParameterFromParents(Class<T> clazz, Parameter parameter, boolean lookInIndirectParents) {
         if (parameter==null) return null;
         Predicate<Parameter> test = p -> p==null ? false : clazz.isAssignableFrom(p.getClass());

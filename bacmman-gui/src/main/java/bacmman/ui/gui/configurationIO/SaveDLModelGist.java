@@ -3,7 +3,6 @@ package bacmman.ui.gui.configurationIO;
 import bacmman.configuration.parameters.FileChooser;
 import bacmman.core.DefaultWorker;
 import bacmman.core.GithubGateway;
-import bacmman.core.ProgressCallback;
 import bacmman.github.gist.*;
 import bacmman.ui.GUI;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
@@ -12,7 +11,6 @@ import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
-import org.json.simple.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,7 +22,6 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.function.Consumer;
 
 import static bacmman.github.gist.GistDLModel.BASE_URL;
@@ -49,6 +46,7 @@ public class SaveDLModelGist {
     private JScrollPane metadataScrollPane;
     private JPanel modelPanel;
     private JButton uploadButton;
+    private JButton deleteFromServer;
     boolean canceled = false;
     private DLModelMetadata metadata = new DLModelMetadata();
     private ConfigurationTreeGenerator metadataTG;
@@ -57,6 +55,8 @@ public class SaveDLModelGist {
     private ProgressLogger pcb;
     Pair<String, DefaultWorker> uploader;
     GithubGateway gateway;
+    JDialog dia;
+
     public SaveDLModelGist(GithubGateway gateway) {
         KeyAdapter ke = new KeyAdapter() {
             public void keyTyped(KeyEvent e) {
@@ -71,9 +71,38 @@ public class SaveDLModelGist {
         this.gateway = gateway;
     }
 
+    public void uploadFile(File file, UserAuth auth, boolean background) {
+        try {
+            uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", auth, background, id -> {
+                setURL(GIST_BASE_URL + id);
+                GUI.log("Model stored @ id = " + id);
+                uploader = null;
+            }, pcb);
+        } catch (IOException ex) {
+            if (pcb != null) pcb.setMessage("Could not store file:" + ex.getMessage());
+            logger.error("Error storing model file", ex);
+        }
+    }
+    public void promptDeleteExisting(UserAuth auth) {
+        if (!url.getText().isEmpty()) {
+            if (Utils.promptBoolean("A model file is already linked to this configuration, remove it from server ?", dia)) {
+                deleteFile(auth);
+            }
+        }
+    }
+    public boolean deleteFile(UserAuth auth) {
+        String url = BASE_URL + "/gists/" + id();
+        boolean del = JSONQuery.delete(url, auth);
+        logger.debug("deleted gist: {} -> {}", url, del);
+        if (del) {
+            this.url.setText("");
+            this.deleteFromServer.setEnabled(false);
+        }
+        return del;
+    }
 
     public void display(JFrame parent, String title) {
-        JDialog dia = new Dial(parent, title);
+        dia = new Dial(parent, title);
         dia.setVisible(true);
     }
 
@@ -139,11 +168,18 @@ public class SaveDLModelGist {
         urlPanel.setBorder(BorderFactory.createTitledBorder(null, "URL", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         url = new JTextField();
         urlPanel.add(url, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        final JPanel panel1 = new JPanel();
+        panel1.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
+        modelPanel.add(panel1, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         uploadButton = new JButton();
         uploadButton.setEnabled(false);
         uploadButton.setText("Upload From Disk");
         uploadButton.setToolTipText("Upload the selected file as a github gist, on the connected github account.  If the selected file is a directory it will be zipped first.");
-        modelPanel.add(uploadButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, 1, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        panel1.add(uploadButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, 1, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        deleteFromServer = new JButton();
+        deleteFromServer.setEnabled(false);
+        deleteFromServer.setText("Delete From Server");
+        panel1.add(deleteFromServer, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**
@@ -185,20 +221,11 @@ public class SaveDLModelGist {
             Consumer<UserAuth> uploadFile = a -> {
                 File file = Utils.chooseFile("Select Model Folder/File to upload", defaultDirectory, FileChooser.FileChooserOption.FILE_OR_DIRECTORY, parent);
                 if (file != null) {
-                    try {
-                        uploader = LargeFileGist.storeFile(file, false, description(), "dl_model", a, true, id -> {
-                            setURL(GIST_BASE_URL + id);
-                            GUI.log("Model stored @ id = " + id);
-                            uploader = null;
-                        }, pcb);
-                    } catch (IOException ex) {
-                        if (pcb != null) pcb.setMessage("Could not store file:" + ex.getMessage());
-                        logger.error("Error storing model file", ex);
-                    }
+                    uploadFile(file, a, true);
                 }
             };
-
             uploadButton.addActionListener(e -> {
+                promptDeleteExisting(auth);
                 uploadFile.accept(auth);
             });
             uploadButton.addMouseListener(new MouseAdapter() {
@@ -213,6 +240,7 @@ public class SaveDLModelGist {
                                 if (cred != null) {
                                     try {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                        promptDeleteExisting(auth2);
                                         uploadFile.accept(auth2);
                                     } catch (IllegalArgumentException ex) {
                                         if (pcb != null)
@@ -223,6 +251,34 @@ public class SaveDLModelGist {
                         };
                         menu.add(upOther);
                         menu.show(uploadButton, evt.getX(), evt.getY());
+                    }
+                }
+            });
+            deleteFromServer.addActionListener(al -> {
+                deleteFile(auth);
+            });
+            deleteFromServer.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mousePressed(MouseEvent evt) {
+                    if (SwingUtilities.isRightMouseButton(evt)) {
+                        JPopupMenu menu = new JPopupMenu();
+                        Action delOther = new AbstractAction("Delete Model from another account") {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, false);
+                                if (cred != null) {
+                                    try {
+                                        TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
+                                        deleteFile(auth2);
+                                    } catch (IllegalArgumentException ex) {
+                                        if (pcb != null)
+                                            pcb.setMessage("Could not load token for username: " + cred.key + " Wrong password ? Or no token was stored yet?");
+                                    }
+                                }
+                            }
+                        };
+                        menu.add(delOther);
+                        menu.show(deleteFromServer, evt.getX(), evt.getY());
                     }
                 }
             });
@@ -272,8 +328,9 @@ public class SaveDLModelGist {
     public void setEnableButton() {
         boolean enabled = Utils.isValid(name.getText(), true)
                 && Utils.isValid(folder.getText(), false) && !folder.getText().contains("_")
-                && url.getText().length() > 0;
+                && !url.getText().isEmpty();
         OK.setEnabled(enabled);
+        deleteFromServer.setEnabled(!url.getText().isEmpty());
     }
 
     public SaveDLModelGist setAuthAndDefaultDirectory(UserAuth auth, String defaultDir, ProgressLogger pcb) {
@@ -321,6 +378,7 @@ public class SaveDLModelGist {
 
     public SaveDLModelGist setURL(String url) {
         this.url.setText(url);
+        this.deleteFromServer.setEnabled(url != null && !url.isEmpty());
         return this;
     }
 
@@ -348,6 +406,10 @@ public class SaveDLModelGist {
 
     public String url() {
         return url.getText();
+    }
+    public String id() {
+        String url = url();
+        return url.replace(GIST_BASE_URL, "");
     }
 
     public DLModelMetadata metadata() {

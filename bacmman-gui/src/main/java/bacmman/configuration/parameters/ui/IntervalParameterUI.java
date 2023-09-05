@@ -31,6 +31,7 @@ import java.awt.*;
 import java.awt.event.FocusEvent;
 import java.awt.event.FocusListener;
 import java.math.BigDecimal;
+import java.util.Map;
 
 /**
  *
@@ -74,15 +75,29 @@ public class IntervalParameterUI implements ParameterUI {
                         parameter.setValue(d, ii); // only set if different
                         updateNode();
                     }*/
+                    Map<Integer, Number> additionalBounds = parameter.getAdditionalBounds();
                     double low = ii==0 ? parameter.getLowerBound().doubleValue() : vs[ii-1];
                     double high = ii==vs.length-1 ? parameter.getUpperBound().doubleValue() : vs[ii+1];
-                    if (d >=low && d<=high) { // valid value
-                        if (vs[ii] != d) {
-                            number[ii].setNumber(d);
-                            parameter.setValue(d, ii); // only set if different
-                            updateNode();
+                    if (d >=low && d<=high) { // within bounds
+                        if (vs[ii] != d) { // only set if different
+                            // also check bounds
+                            double leftBound = additionalBounds.getOrDefault(ii-1, Double.NEGATIVE_INFINITY).doubleValue();
+                            double rightBound = additionalBounds.getOrDefault(ii, Double.POSITIVE_INFINITY).doubleValue();
+                            boolean set = true;
+                            if (d < leftBound) {
+                                if (Double.isFinite(leftBound)) d = leftBound;
+                                else set = false;
+                            }
+                            if (d > rightBound) {
+                                if (Double.isFinite(rightBound)) d = rightBound;
+                                else set = false;
+                            }
+                            if (set) {
+                                number[ii].setNumber(d);
+                                parameter.setValue(d, ii);
+                                updateNode();
+                            }
                         }
-
                     } else if (d<low) slider[ii].setValue(getSliderValue(low));
                     else slider[ii].setValue(getSliderValue(high));
                 });

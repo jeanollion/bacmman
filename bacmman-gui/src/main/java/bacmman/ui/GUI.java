@@ -33,6 +33,8 @@ import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
 import bacmman.plugins.PluginFactory;
+import bacmman.py_dataset.ExtractDatasetUtil;
+import bacmman.ui.gui.DockerTrainingWindow;
 import bacmman.ui.gui.JListReorderDragAndDrop;
 import bacmman.ui.gui.PSFCommand;
 import bacmman.ui.gui.configurationIO.*;
@@ -931,11 +933,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         onlineDLModelLibraryMenuItem.setText("Online DL Model library");
         onlineDLModelLibraryMenuItem.addActionListener(e -> {
-            if (dlModelLibrary!=null) dlModelLibrary.toFront();
-            else {
-                dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
-                dlModelLibrary.display(this);
-            }
+            displayOnlineDLModelLibrary();
         });
         this.importMenu.add(onlineDLModelLibraryMenuItem);
 
@@ -1027,11 +1025,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         CTCMenu.add(exportSelCTCMenuItem);
+        this.importMenu.add(CTCMenu);
         try { // check if ctb module is present
             if (getClasses("bacmman.ui").stream().anyMatch(c->c.getSimpleName().equals("ExportCellTrackingBenchmark"))) {
-                this.importMenu.add(CTCMenu);
-            }
-        } catch (IOException | ClassNotFoundException e) { }
+                CTCMenu.setEnabled(true);
+            } else CTCMenu.setEnabled(false);
+        } catch (IOException | ClassNotFoundException e) {
+            CTCMenu.setEnabled(false);
+        }
 
         // sample datasets
         sampleDatasetMenu.setText("Sample Datasets");
@@ -1157,6 +1158,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     public double getPreProcessingMemoryThreshold() {return this.memoryThreshold.getValue().doubleValue();}
     public int getExtractedDSCompressionFactor() {return this.extractDSCompression.getIntValue();}
+    public String getWorkingDirectory() {return this.getHostNameOrDir();}
     //public StructureObjectTreeGenerator getObjectTree() {return this.objectTreeGenerator;}
     public TrackTreeController getTrackTrees() {return this.trackTreeController;}
     
@@ -1291,6 +1293,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     }
     Consumer<String> moduleSelectionCallBack;
     public void updateConfigurationTree() {
+        if (configurationTreeGenerator!=null) configurationTreeGenerator.unRegister();
         if (db==null) {
             configurationTreeGenerator=null;
             configurationJSP.setViewportView(null);
@@ -1550,7 +1553,14 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         //if (INSTANCE==null) INSTANCE=new GUI();
         return INSTANCE;
     }
-    
+    public DLModelsLibrary displayOnlineDLModelLibrary() {
+        if (dlModelLibrary!=null) dlModelLibrary.toFront();
+        else {
+            dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
+            dlModelLibrary.display(this);
+        }
+        return dlModelLibrary;
+    }
     public static boolean hasInstance() {
         return INSTANCE!=null;
     }
@@ -2741,6 +2751,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         runMenu.add(extractSelectionMenuItem);
+
+        JMenuItem runDockerTrainer = new JMenuItem("Train Neural Network");
+        runDockerTrainer.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                DockerTrainingWindow win = new DockerTrainingWindow(Core.getCore().getDockerGateway());
+                win.display(null);
+            }
+        });
+        runDockerTrainer.setEnabled(Core.getCore().getDockerGateway()!=null);
+        runMenu.add(runDockerTrainer);
 
         mainMenu.add(runMenu);
 
@@ -4039,7 +4059,24 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDir().toString(), false);
                     if (outputFile==null) return;
                     try {
-                        Task t = ExtractDataset.getDiSTNetDatasetTask(db, getSelectedStructures(true), selectionList.getSelectedValuesList(), getSelectedPositions(false), outputFile);
+                        int[] oc = getSelectedStructures(true);
+                        if (oc.length!=1) {
+                            setMessage("Select only one object class");
+                            return;
+                        }
+                        List<String> selectedSelections = selectionList.getSelectedValuesList();
+                        if (selectedSelections.isEmpty()) {
+                            int parentOC = db.getExperiment().experimentStructure.getParentObjectClassIdx(oc[0]);
+                            List<String> selectedPositions = getSelectedPositions(false);
+                            if (selectedPositions.isEmpty()) {
+                                setMessage("When no selections are selected, select at least one position");
+                                return;
+                            }
+                            Selection s = SelectionOperations.createSelection("DiSTNet_dataset", selectedPositions, parentOC, db);
+                            db.getSelectionDAO().store(s);
+                            selectedSelections = Collections.singletonList(s.getName());
+                        }
+                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], selectedSelections, outputFile, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {
@@ -4056,7 +4093,22 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDir().toString(), false);
                     if (outputFile==null) return;
                     try {
-                        Task t = ExtractDataset.getPixMClassDatasetTask(db, getSelectedStructures(true), selectionList.getSelectedValuesList(), getSelectedPositions(false), outputFile);
+                        int[] selOC = getSelectedStructures(true);
+                        List<String> selectedSelections = selectionList.getSelectedValuesList();
+                        if (selectedSelections.isEmpty()) {
+                            List<String> selectedPositions = getSelectedPositions(false);
+                            if (selectedPositions.isEmpty()) {
+                                setMessage("When no selections are selected, select at least one position");
+                                return;
+                            }
+                            int parentOC = db.getExperiment().experimentStructure.getParentObjectClassIdx(selOC[0]);
+                            Selection s = SelectionOperations.createSelection("PixMClass_dataset", selectedPositions, parentOC, db);
+                            SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure);
+                            db.getSelectionDAO().store(s);
+                            selectedSelections = Collections.singletonList(s.getName());
+                        }
+                        int[] channelIdx=  new int[]{db.getExperiment().experimentStructure.getChannelIdx(selOC[0])};
+                        Task t = ExtractDatasetUtil.getPixMClassDatasetTask(db, channelIdx, selOC, selectedSelections, outputFile, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {
@@ -4073,7 +4125,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     String outputFile = promptDir("Choose file to extract dataset to (file ending in .h5 in existing directory, will be created if not existing)", db.getDir().toString(), false);
                     if (outputFile==null) return;
                     try {
-                        Task t = ExtractRawDataset.getDenoisingDatasetTask(db, getSelectedStructures(true), getSelectedPositions(true), outputFile);
+                        Task t = ExtractDatasetUtil.getDenoisingDatasetTask(db, getSelectedStructures(true), getSelectedPositions(true), outputFile, getExtractedDSCompressionFactor());
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {
                         GUI.log(ex.getMessage());
@@ -4988,6 +5040,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         boolean pp = this.testStepJCB.getSelectedIndex()==0;
         int objectClassIdx = this.testObjectClassJCB.getSelectedIndex();
         int positionIdx = this.testPositionJCB.getSelectedIndex();
+        if (configurationTreeGenerator!=null) configurationTreeGenerator.unRegister();
         if (db==null || (!pp && objectClassIdx<0) || (pp && positionIdx<0)) {
             testConfigurationTreeGenerator=null;
             testConfigurationJSP.setViewportView(null);

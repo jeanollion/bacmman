@@ -42,6 +42,12 @@ import org.slf4j.LoggerFactory;
  */
 public class JSONUtils {
     public final static org.slf4j.Logger logger = LoggerFactory.getLogger(JSONUtils.class);
+    public static String toJSONString(Object jsonObjectOrArray) {
+        if (jsonObjectOrArray instanceof JSONObject) return ((JSONObject)jsonObjectOrArray).toJSONString();
+        else if (jsonObjectOrArray instanceof JSONArray) return ((JSONArray)jsonObjectOrArray).toJSONString();
+        else if (jsonObjectOrArray instanceof String) return (String)jsonObjectOrArray;
+        else throw new IllegalArgumentException("Object is not JSONObject or JSONArray");
+    }
     public static JSONObject toJSONObject(Map<String, ?> map) {
         JSONObject res=  new JSONObject();
         for (Map.Entry<String, ?> e : map.entrySet()) res.put(e.getKey(), toJSONEntry(e.getValue()));

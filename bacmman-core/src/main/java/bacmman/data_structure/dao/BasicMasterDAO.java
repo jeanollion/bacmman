@@ -36,13 +36,14 @@ public class BasicMasterDAO implements MasterDAO {
     Experiment xp;
     private final SegmentedObjectAccessor accessor;
     public BasicMasterDAO(SegmentedObjectAccessor accessor) {
-        this.DAOs = new HashMap<String, BasicObjectDAO>();
+        this.DAOs = new HashMap<>();
         this.accessor=accessor;
     }
     
     public BasicMasterDAO(Experiment xp, SegmentedObjectAccessor accessor) {
         this(accessor);
         this.xp=xp;
+        MasterDAO.configureExperiment(this, xp);
     }
 
     @Override

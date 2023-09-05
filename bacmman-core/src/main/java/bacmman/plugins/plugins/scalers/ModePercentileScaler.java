@@ -25,6 +25,11 @@ public class ModePercentileScaler implements HistogramScaler, Hint {
     protected void log(double[] scaleCenter) {
         if (scaleLogger!=null) scaleLogger.accept("ModePercentile Scaler : mode="+scaleCenter[1]+", percentile="+(scaleCenter[1]+ 1./scaleCenter[0]) + ", scale="+scaleCenter[0]);
     }
+    public ModePercentileScaler setPercentile(double percentile) {
+        if (percentile>1 || percentile<0) throw new IllegalArgumentException("value must be in [0, 1]");
+        this.percentile.setValue(percentile);
+        return this;
+    }
     @Override
     public void setHistogram(Histogram histogram) {
         this.histogram = histogram;

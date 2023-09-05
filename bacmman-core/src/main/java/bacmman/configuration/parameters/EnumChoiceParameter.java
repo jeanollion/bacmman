@@ -28,7 +28,7 @@ import java.util.function.Function;
  * @author Jean Ollion
  */
 
-public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameter<E, EnumChoiceParameter<E>>  {
+public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameterFixedChoiceList<E, EnumChoiceParameter<E>>  {
     final E[] enumChoiceList;
     final Function<E, String> toString;
     public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, Function<E, String> toString) {

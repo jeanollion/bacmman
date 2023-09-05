@@ -28,9 +28,9 @@ public interface ChoosableParameter<P extends Parameter<P>> extends Parameter<P>
      * Should also fire listeners
      * @param item 
      */
-    public void setSelectedItem(String item);
-    public String[] getChoiceList();
-    public int getSelectedIndex();
-    public boolean isAllowNoSelection();
-    public String getNoSelectionString();
+    void setSelectedItem(String item);
+    String[] getChoiceList();
+    int getSelectedIndex();
+    boolean isAllowNoSelection();
+    String getNoSelectionString();
 }

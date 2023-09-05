@@ -55,56 +55,59 @@ public class SimpleListParameterUI implements ListParameterUI {
         this.list = list_;
         this.model= model;
         this.newJMenuItem = showMenu == null ? JMenuItem::new : n -> new StayOpenMenuItem(n, showMenu);
-        if (!list.allowModifications()) {
+        if (!list.allowModifications() && !list.isDeactivatable()) {
             this.actions = new Object[0];
         } else {
-            this.actions = new Object[list.isDeactivatable() ? 5 : 2];
-
-            JMenuItem action = newJMenuItem.apply(actionNames[0]);
-            actions[0] = action;
-            action.setAction(
-                    new AbstractAction(actionNames[0]) {
-                        @Override
-                        public void actionPerformed(ActionEvent ae) {
-                            Parameter p = list.createChildInstance();
-                            if (model != null) {
-                                model.insertNodeInto(p, list);
-                                model.expandNode(p);
-                            } else list.insert(p, list.getChildCount());
+            this.actions = new Object[list.isDeactivatable() ? (list.allowModifications() ? 5 : 2) : 2];
+            int idx = 0;
+            if (list.allowModifications()) {
+                JMenuItem action = newJMenuItem.apply(actionNames[0]);
+                actions[0] = action;
+                action.setAction(
+                        new AbstractAction(actionNames[0]) {
+                            @Override
+                            public void actionPerformed(ActionEvent ae) {
+                                Parameter p = list.createChildInstance();
+                                if (model != null) {
+                                    model.insertNodeInto(p, list);
+                                    model.expandNode(p);
+                                } else list.insert(p, list.getChildCount());
+                            }
                         }
-                    }
-            );
-            if (list.getMaxChildCount() > 0 && list.getChildCount() == list.getMaxChildCount())
-                action.setEnabled(false);
-            action = newJMenuItem.apply(actionNames[1]);
-            actions[1] = action;
-            action.setAction(new AbstractAction(actionNames[1]) {
-                                 @Override
-                                 public void actionPerformed(ActionEvent ae) {
-                                     if (list.getChildCount() == 0) return;
-                                     TreeNode child = list.getChildAt(0);
-                                     //
-                                     if ((child instanceof ListElementErasable)) {
-                                         if (!Utils.promptBoolean("Delete selected Elements? (all data will be lost)", null)) return;
-                                         while (list.getChildCount() > 0) {
-                                             child = list.getChildAt(0);
-                                             ((ListElementErasable) child).eraseData();
-                                             if (model != null) model.removeNodeFromParent((MutableTreeNode) child);
-                                             else list.remove(0);
+                );
+                if (list.getMaxChildCount() > 0 && list.getChildCount() == list.getMaxChildCount())
+                    action.setEnabled(false);
+                action = newJMenuItem.apply(actionNames[1]);
+                actions[1] = action;
+                action.setAction(new AbstractAction(actionNames[1]) {
+                                     @Override
+                                     public void actionPerformed(ActionEvent ae) {
+                                         if (list.getChildCount() == 0) return;
+                                         TreeNode child = list.getChildAt(0);
+                                         //
+                                         if ((child instanceof ListElementErasable)) {
+                                             if (!Utils.promptBoolean("Delete selected Elements? (all data will be lost)", null)) return;
+                                             while (list.getChildCount() > 0) {
+                                                 child = list.getChildAt(0);
+                                                 ((ListElementErasable) child).eraseData();
+                                                 if (model != null) model.removeNodeFromParent((MutableTreeNode) child);
+                                                 else list.remove(0);
+                                             }
+                                         } else {
+                                             list.removeAllElements();
+                                             if (model != null) model.nodeStructureChanged(list);
                                          }
-                                     } else {
-                                         list.removeAllElements();
-                                         if (model != null) model.nodeStructureChanged(list);
-                                     }
 
+                                     }
                                  }
-                             }
-            );
-            if (list.getUnMutableIndex() >= 0) action.setEnabled(false);
+                );
+                if (list.getUnMutableIndex() >= 0) action.setEnabled(false);
+                if (list.isDeactivatable()) actions[2] = new JSeparator();
+                idx = 3;
+            }
             if (list.isDeactivatable()) {
-                actions[2] = new JSeparator();
-                action = newJMenuItem.apply(deactivatableNames[0]);
-                actions[3] = action;
+                JMenuItem action = newJMenuItem.apply(deactivatableNames[0]);
+                actions[idx] = action;
                 action.setAction(
                         new AbstractAction(deactivatableNames[0]) {
                             @Override
@@ -115,7 +118,7 @@ public class SimpleListParameterUI implements ListParameterUI {
                         }
                 );
                 action = newJMenuItem.apply(deactivatableNames[1]);
-                actions[4] = action;
+                actions[idx+1] = action;
                 action.setAction(
                         new AbstractAction(deactivatableNames[1]) {
                             @Override
@@ -131,109 +134,113 @@ public class SimpleListParameterUI implements ListParameterUI {
     public Object[] getDisplayComponent() {return actions;}
     
     public Component[] getChildDisplayComponent(final Parameter child) {
-        if (!list.allowModifications()) return new Component[0];
+        boolean deactivatable = child instanceof Deactivatable && list.allowDeactivate();
+        if (!list.allowModifications() && !deactivatable) return new Component[0];
         final int unMutableIdx = list.getUnMutableIndex();
         final int idx = list.getIndex(child);
         final boolean mutable = idx>unMutableIdx;
-        Component[] childActions = new Component[list.isDeactivatable()?8:5];
-        childActions[0] = newJMenuItem.apply(childActionNames[0]);
-        ((JMenuItem)childActions[0]).setAction(
-            new AbstractAction(childActionNames[0]) {
-                @Override
-                public void actionPerformed(ActionEvent ae) {
-                    Parameter p = list.createChildInstance();
-                    if (model !=null) model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
-                    else list.insert(p, mutable?idx+1:unMutableIdx+1);
-                }
-            }
-        );
-        childActions[1] = newJMenuItem.apply(childActionNames[1]);
-        ((JMenuItem)childActions[1]).setAction(
-                new AbstractAction(childActionNames[1]) {
-                    @Override
-                    public void actionPerformed(ActionEvent ae) {
-                        Parameter p = list.createChildInstance();
-                        p.setContentFrom(child);
-                        if (model !=null) model.insertNodeInto(p, list, mutable?idx+1:unMutableIdx+1);
-                        else list.insert(p, mutable?idx+1:unMutableIdx+1);
+        Component[] childActions = new Component[deactivatable? (list.allowModifications() ? 8 : 2) : 5];
+        int actionIdx = 0;
+        if (list.allowModifications()) {
+            childActions[0] = newJMenuItem.apply(childActionNames[0]);
+            ((JMenuItem) childActions[0]).setAction(
+                    new AbstractAction(childActionNames[0]) {
+                        @Override
+                        public void actionPerformed(ActionEvent ae) {
+                            Parameter p = list.createChildInstance();
+                            if (model != null) model.insertNodeInto(p, list, mutable ? idx + 1 : unMutableIdx + 1);
+                            else list.insert(p, mutable ? idx + 1 : unMutableIdx + 1);
+                        }
                     }
-                }
-        );
-        childActions[2] = newJMenuItem.apply(childActionNames[2]);
-        ((JMenuItem)childActions[2]).setAction(new AbstractAction(childActionNames[2]) {
+            );
+            childActions[1] = newJMenuItem.apply(childActionNames[1]);
+            ((JMenuItem) childActions[1]).setAction(
+                    new AbstractAction(childActionNames[1]) {
+                        @Override
+                        public void actionPerformed(ActionEvent ae) {
+                            Parameter p = list.createChildInstance();
+                            p.setContentFrom(child);
+                            if (model != null) model.insertNodeInto(p, list, mutable ? idx + 1 : unMutableIdx + 1);
+                            else list.insert(p, mutable ? idx + 1 : unMutableIdx + 1);
+                        }
+                    }
+            );
+            childActions[2] = newJMenuItem.apply(childActionNames[2]);
+            ((JMenuItem) childActions[2]).setAction(new AbstractAction(childActionNames[2]) {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
                     if (child instanceof ListElementErasable) {
                         if (!Utils.promptBoolean("Delete selected Element ? (all data will be lost)", null)) return;
-                        ((ListElementErasable)child).eraseData();
+                        ((ListElementErasable) child).eraseData();
                     }
-                    if (model !=null) model.removeNodeFromParent(child);
+                    if (model != null) model.removeNodeFromParent(child);
                     else list.remove(child);
                 }
             }
-        );
-        childActions[3] = newJMenuItem.apply(childActionNames[3]);
-        ((JMenuItem)childActions[3]).setAction(
-            new AbstractAction(childActionNames[3]) {
-                @Override
-                public void actionPerformed(ActionEvent ae) {
-                    if (model !=null) model.moveUp(list, child);
-                    else {
-                        int idx = list.getIndex(child);
-                        if (idx>0) {
-                            list.remove(idx);
-                            list.insert(child, idx-1);
-                        }
-                    }
-                }
-            }
-        );
-        childActions[4] = newJMenuItem.apply(childActionNames[4]);
-        ((JMenuItem)childActions[4]).setAction(
-            new AbstractAction(childActionNames[4]) {
-                @Override
-                public void actionPerformed(ActionEvent ae) {
-                    if (model !=null) model.moveDown(list, child);
-                    else {
-                        int idx = list.getIndex(child);
-                        if (idx>=0 && idx<list.getChildCount()) {
-                            list.remove(idx);
-                            list.insert(child, idx+1);
-                        }
-                    }
-                }
-            }
-        );
-        if (list.getMaxChildCount()>0 && list.getChildCount()==list.getMaxChildCount()) {
-            childActions[0].setEnabled(false); // add
-            childActions[1].setEnabled(false); // duplicate
-        }
-        if (!mutable) {
-            childActions[2].setEnabled(false); // delete
-            childActions[3].setEnabled(false); // move up
-            childActions[4].setEnabled(false); // move down
-        } else if (!list.allowMoveChildren()) {
-            childActions[3].setEnabled(false); // move up
-            childActions[4].setEnabled(false); // move down
-        }
-        if (idx==unMutableIdx+1) childActions[3].setEnabled(false);  // move up
-        if (idx==0) childActions[3].setEnabled(false);  // move up
-        if (idx==list.getChildCount()-1) childActions[4].setEnabled(false); // move down
-        
-        if (list.isDeactivatable()) {
-            childActions[5]=new JSeparator();
-            childActions[6] = newJMenuItem.apply(childDeactivatableNames[0]);
-            ((JMenuItem)childActions[6]).setAction(
-                    new AbstractAction(childDeactivatableNames[0]) {
-                        @Override
-                        public void actionPerformed(ActionEvent ae) {
-                            ((Deactivatable)child).setActivated(false);
-                            if (model !=null) model.nodeChanged(child);
-                        }
-                    }
             );
-            childActions[7] = newJMenuItem.apply(childDeactivatableNames[1]);
-            ((JMenuItem)childActions[7]).setAction(
+            childActions[3] = newJMenuItem.apply(childActionNames[3]);
+            ((JMenuItem) childActions[3]).setAction(
+                new AbstractAction(childActionNames[3]) {
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        if (model != null) model.moveUp(list, child);
+                        else {
+                            int idx = list.getIndex(child);
+                            if (idx > 0) {
+                                list.remove(idx);
+                                list.insert(child, idx - 1);
+                            }
+                        }
+                    }
+                }
+            );
+            childActions[4] = newJMenuItem.apply(childActionNames[4]);
+            ((JMenuItem) childActions[4]).setAction(
+                new AbstractAction(childActionNames[4]) {
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        if (model != null) model.moveDown(list, child);
+                        else {
+                            int idx = list.getIndex(child);
+                            if (idx >= 0 && idx < list.getChildCount()) {
+                                list.remove(idx);
+                                list.insert(child, idx + 1);
+                            }
+                        }
+                    }
+                }
+            );
+            if (list.getMaxChildCount() > 0 && list.getChildCount() == list.getMaxChildCount()) {
+                childActions[0].setEnabled(false); // add
+                childActions[1].setEnabled(false); // duplicate
+            }
+            if (!mutable) {
+                childActions[2].setEnabled(false); // delete
+                childActions[3].setEnabled(false); // move up
+                childActions[4].setEnabled(false); // move down
+            } else if (!list.allowMoveChildren()) {
+                childActions[3].setEnabled(false); // move up
+                childActions[4].setEnabled(false); // move down
+            }
+            if (idx == unMutableIdx + 1) childActions[3].setEnabled(false);  // move up
+            if (idx == 0) childActions[3].setEnabled(false);  // move up
+            if (idx == list.getChildCount() - 1) childActions[4].setEnabled(false); // move down
+            if (deactivatable) childActions[5]=new JSeparator();
+            actionIdx = 6;
+        }
+        if (deactivatable) {
+            childActions[actionIdx] = newJMenuItem.apply(childDeactivatableNames[0]);
+            ((JMenuItem)childActions[actionIdx]).setAction(
+                new AbstractAction(childDeactivatableNames[0]) {
+                    @Override
+                    public void actionPerformed(ActionEvent ae) {
+                        ((Deactivatable)child).setActivated(false);
+                        if (model !=null) model.nodeChanged(child);
+                    }
+                }
+            );
+            childActions[actionIdx+1] = newJMenuItem.apply(childDeactivatableNames[1]);
+            ((JMenuItem)childActions[actionIdx+1]).setAction(
                     new AbstractAction(childDeactivatableNames[1]) {
                         @Override
                         public void actionPerformed(ActionEvent ae) {
@@ -242,16 +249,14 @@ public class SimpleListParameterUI implements ListParameterUI {
                         }
                     }
             );
-            if (((Deactivatable)child).isActivated()) childActions[7].setEnabled(false); // activate
-            else childActions[6].setEnabled(false); // desactivate
+            if (((Deactivatable)child).isActivated()) childActions[actionIdx+1].setEnabled(false); // activate
+            else childActions[actionIdx].setEnabled(false); // deactivate
             if (!mutable) {
-                childActions[6].setEnabled(false);
-                childActions[7].setEnabled(false);
+                childActions[actionIdx].setEnabled(false);
+                childActions[actionIdx+1].setEnabled(false);
             }
         }
-        
-        
-        
+
         return childActions;
     }
     

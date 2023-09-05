@@ -67,7 +67,7 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
                 JSONArray params =  jsonO.get("params") instanceof JSONArray ? (JSONArray) jsonO.get("params") :  (JSONArray)((JSONObject)jsonO.get("params")).get(currentValue);
                 JSONUtils.fromJSONArrayMap(getCurrentParameters(), params);
             }
-        } else if (json instanceof String && action instanceof AbstractChoiceParameter && Arrays.asList(((AbstractChoiceParameter)action).listChoice).contains((String)json)) { // only action
+        } else if (json instanceof String && action instanceof AbstractChoiceParameter && Arrays.asList(((AbstractChoiceParameter)action).getChoiceList()).contains((String)json)) { // only action
             action.initFromJSONEntry(json);
         } else throw new IllegalArgumentException("JSON Entry is not JSONObject");
     }

@@ -5,23 +5,34 @@ import org.json.simple.JSONArray;
 
 import java.math.BigDecimal;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class IntervalParameter extends ParameterImpl<IntervalParameter> implements Listenable<IntervalParameter> {
     private Number lowerBound, upperBound;
     private Number[] values;
     private int decimalPlaces;
-
+    Map<Integer, Number> additionalBounds;
     public IntervalParameter(String name, int decimalPlaces, Number lowerBound, Number upperBound, Number... values) {
         super(name);
         if (lowerBound!=null && upperBound!=null && compare(lowerBound, upperBound)>0) throw new IllegalArgumentException("lower bound should be inferior to upper bound");
         if (values.length==0) throw new IllegalArgumentException("value number should be >=1");
-        Arrays.sort(values);
-        this.values = Arrays.stream(values).map(v->v.doubleValue()).toArray(l->new Number[l]);
+        this.values = Arrays.stream(values).map(Number::doubleValue).sorted().toArray(Number[]::new);
         if (lowerBound!=null) this.lowerBound=lowerBound.doubleValue();
         if (upperBound!=null) this.upperBound=upperBound.doubleValue();
         this.decimalPlaces = decimalPlaces;
     }
 
+    public IntervalParameter addRightBound(int index, Number bound) {
+        if (additionalBounds == null ) additionalBounds = new HashMap<>();
+        additionalBounds.put(index, bound);
+        return this;
+    }
+    public Map<Integer, Number> getAdditionalBounds() {
+        if (additionalBounds == null) return Collections.EMPTY_MAP;
+        else return additionalBounds;
+    }
     @Override
     public boolean sameContent(Parameter other) {
         if (other instanceof IntervalParameter) {

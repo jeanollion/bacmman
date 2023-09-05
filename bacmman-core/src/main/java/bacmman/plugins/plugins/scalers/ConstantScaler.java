@@ -1,5 +1,6 @@
 package bacmman.plugins.plugins.scalers;
 
+import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.NumberParameter;
 import bacmman.configuration.parameters.Parameter;
 import bacmman.image.Histogram;
@@ -15,6 +16,8 @@ public class ConstantScaler implements HistogramScaler, Hint {
     boolean transformInputImage = false;
     NumberParameter scale = (NumberParameter)new NumberParameter("Scale factor", 5, 1).addValidationFunction(n->((NumberParameter)n).getValue().doubleValue()!=0).setEmphasized(true);
     NumberParameter center = (NumberParameter)new NumberParameter("Center", 5, 0).setEmphasized(true);
+    BooleanParameter saturate = new BooleanParameter("Saturate", false).setEmphasized(false).setHint("If true, values under min percentile and values over max percentile are set to 0 and 1 respectively");
+
     @Override
     public void setHistogram(Histogram histogram) {
 
@@ -24,7 +27,11 @@ public class ConstantScaler implements HistogramScaler, Hint {
 
     @Override
     public Image scale(Image image) {
-        return ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
+        image = ImageOperations.affineOperation2(image, transformInputImage? TypeConverter.toFloatingPoint(image, false, false):null, 1./scale.getValue().doubleValue(), -center.getValue().doubleValue());
+        if (saturate.getSelected()) {
+            ImageOperations.applyFunction(image, v -> Math.max(0, Math.min(1, v)), true);
+        }
+        return image;
     }
 
     @Override
@@ -45,7 +52,7 @@ public class ConstantScaler implements HistogramScaler, Hint {
 
     @Override
     public Parameter[] getParameters() {
-        return new Parameter[]{scale, center};
+        return new Parameter[]{scale, center, saturate};
     }
 
     @Override

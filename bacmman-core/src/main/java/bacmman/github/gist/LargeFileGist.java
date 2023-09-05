@@ -2,10 +2,7 @@ package bacmman.github.gist;
 
 import bacmman.core.DefaultWorker;
 import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.Pair;
-import bacmman.utils.Utils;
-import bacmman.utils.ZipUtils;
+import bacmman.utils.*;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -14,6 +11,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.*;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
@@ -64,6 +63,42 @@ public class LargeFileGist {
     public String getFileName() {
         if (fullFileName.endsWith(".zip")) return fullFileName.substring(0, fullFileName.length()-4);
         else return fullFileName;
+    }
+    public static List<File> downloadGist(String id, String dir) throws IOException {
+        Map<String, String> files = downloadGist(id);
+        return files.entrySet().stream().map(e -> {
+            Path path = Paths.get(dir, e.getKey());
+            FileIO.TextFile file = new FileIO.TextFile(path.toString(), true, true);
+            file.write(e.getValue(), false);
+            file.close();
+            return path.toFile();
+        }).collect(Collectors.toList());
+    }
+    public static Map<String, String> downloadGist(String id) throws IOException {
+        if (id.startsWith(GIST_BASE_URL)) id=id.replace(GIST_BASE_URL, "");
+        String response = new JSONQuery(BASE_URL + "/gists/" + id).method(JSONQuery.METHOD.GET).fetch();
+        Map<String, String> res = new HashMap<>();
+        if (response != null) {
+            try {
+                JSONObject json = (JSONObject)new JSONParser().parse(response);
+                Object files = json.get("files");
+                if (files!=null) {
+                    JSONObject allFiles = (JSONObject) files;
+                    Stream<Object> s = allFiles.values().stream();
+                    s.forEach( f -> {
+                        JSONObject fJson = (JSONObject)f;
+                        String content = null;
+                        if (fJson.containsKey("content") && !(Boolean)fJson.getOrDefault("truncated", false)) content =  (String)fJson.get("content");
+                        else content = new JSONQuery((String) fJson.get("raw_url"), JSONQuery.REQUEST_PROPERTY_GITHUB_BASE64).fetchSilently();
+                        String fileName = (String) fJson.get("filename");
+                        res.put(fileName, content);
+                    });
+                }
+            } catch (ParseException e) {
+                throw new IOException(e);
+            }
+        } else throw new IOException("GIST not found");
+        return res;
     }
     protected void setGistData(JSONObject gist, UserAuth auth) throws IOException {
         description = (String)gist.get("description");
@@ -183,7 +218,7 @@ public class LargeFileGist {
         Runnable actualCallback = willUnzip ? (callback==null ? unzipCallback : () -> {
             unzipCallback.run();
             callback.accept(actualOutputFile);
-        }) : () -> callback.accept(actualOutputFile);
+        }) : ( callback==null ? () -> {} : () ->  callback.accept(actualOutputFile) );
 
         DefaultWorker.WorkerTask task = i -> {
             byte[] chunk = null;
@@ -200,7 +235,7 @@ public class LargeFileGist {
         if (background) DefaultWorker.execute(task, chunkNames.size(), pcb).appendEndOfWork(actualCallback);
         else {
             DefaultWorker.executeInForeground(task, chunkNames.size());
-            if (actualCallback!=null) actualCallback.run();
+            actualCallback.run();
         }
         return actualOutputFile;
     }

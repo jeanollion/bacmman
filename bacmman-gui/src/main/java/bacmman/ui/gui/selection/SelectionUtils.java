@@ -22,7 +22,6 @@ import bacmman.configuration.parameters.BooleanParameter;
 import bacmman.configuration.parameters.BoundedNumberParameter;
 import bacmman.configuration.parameters.MeasurementFilterParameter;
 import bacmman.configuration.parameters.SimpleListParameter;
-import bacmman.configuration.parameters.ui.StayOpenMenuItem;
 import bacmman.data_structure.*;
 import bacmman.data_structure.dao.ObjectDAO;
 import bacmman.plugins.plugins.processing_pipeline.Duplicate;
@@ -60,13 +59,6 @@ import org.slf4j.LoggerFactory;
 public class SelectionUtils {
     public static final Logger logger = LoggerFactory.getLogger(SelectionUtils.class);
 
-    public static Selection createSelection(String name, List<String> position, int objectClass, MasterDAO dao) {
-        Selection s = dao.getSelectionDAO().getOrCreate(name, true);
-        s.setObjectClassIdx(objectClass);
-        Set<SegmentedObject> objectsToAdd = position.stream().flatMap(p -> dao.getDao(p).getRoots().stream().flatMap(r -> r.getChildren(objectClass))).collect(Collectors.toSet());
-        s.addElements(objectsToAdd);
-        return s;
-    }
     public static boolean validSelectionName(MasterDAO db, String name, boolean ignoreDuplicate, boolean prompteOverwriteDuplicate) {
         if (!Utils.isValid(name, false)) {
             logger.error("Selection name should not contain special characters");

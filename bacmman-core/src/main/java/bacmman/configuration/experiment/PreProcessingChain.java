@@ -21,6 +21,8 @@ package bacmman.configuration.experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.plugins.ConfigurableTransformation;
 import bacmman.plugins.MultichannelTransformation;
+
+import java.util.ArrayList;
 import java.util.List;
 
 import bacmman.plugins.ParameterChangeCallback;
@@ -149,15 +151,18 @@ public class PreProcessingChain extends ContainerParameterImpl<PreProcessingChai
     public TransformationPluginParameter<Transformation> addTransformation(int inputChannel, int[] outputChannel, Transformation transformation) {
         return addTransformation(this.transformations.getChildCount(), inputChannel, outputChannel, transformation);
     }
-    Consumer<Parameter> parameterChangeCallBack;
+    // to update display
+    List<Consumer<Parameter>> parameterChangeCallBack;
     @Override
-    public PreProcessingChain setParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
-        this.parameterChangeCallBack=parameterChangeCallBack;
+    public PreProcessingChain addParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        if (this.parameterChangeCallBack == null) this.parameterChangeCallBack = new ArrayList<>();
+        this.parameterChangeCallBack.add(parameterChangeCallBack);
         return this;
     }
 
     @Override
-    public Consumer<Parameter> getParameterChangeCallback() {
-        return parameterChangeCallBack;
+    public boolean removeParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        if (this.parameterChangeCallBack ==null) return false;
+        return this.parameterChangeCallBack.remove(parameterChangeCallBack);
     }
 }

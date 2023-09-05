@@ -88,7 +88,7 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
                 });
             })
             .setHint("Measurements to be performed after processing. Measurements will be extracted in several data tables, each one corresponding to a single object class (e.g. microchannels or bacteria or spots). For each measurement, the table in which it will be written and the name of the corresponding column are indicated in the Help window. If the user defines two measurements with the same name in the same data table, the measurements will not be performed and invalid measurements are displayed in red.");
-    SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowModifications(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
+    SimpleListParameter<Position> positions= new SimpleListParameter<>("Pre-Processing for all Positions", -1 , Position.class).setAllowModifications(false).setAllowDeactivable(false).setHint("Positions of the dataset. Pre-processing is defined for each position. Right-click menu allows to overwrite pre-processing to other position.<br />Element that appear in blue differ from the template");
     PreProcessingChain template = new PreProcessingChain("Pre-Processing template", true).setHint("List of pre-processing operations that will be set by default to positions at import. <br />For each position those operations can be edited (either from the <em>Positions</em> branch in the <em>Configuration tab</em> or from the <em>Configuration Test</em> tab)");
     
     protected FileChooser imagePath = new FileChooser("Output Image Path", FileChooserOption.DIRECTORIES_ONLY, false).setHint("Directory where preprocessed images will be stored");
@@ -556,15 +556,18 @@ public class Experiment extends ContainerParameterImpl<Experiment> implements Pa
             else return null;
         }*/
     }
-    Consumer<Parameter> parameterChangeCallBack;
+    // to update display
+    List<Consumer<Parameter>> parameterChangeCallBack;
     @Override
-    public Experiment setParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
-        this.parameterChangeCallBack=parameterChangeCallBack;
+    public Experiment addParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        if (this.parameterChangeCallBack == null) this.parameterChangeCallBack = new ArrayList<>();
+        this.parameterChangeCallBack.add(parameterChangeCallBack);
         return this;
     }
 
     @Override
-    public Consumer<Parameter> getParameterChangeCallback() {
-        return parameterChangeCallBack;
+    public boolean removeParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        if (this.parameterChangeCallBack ==null) return false;
+        return this.parameterChangeCallBack.remove(parameterChangeCallBack);
     }
 }

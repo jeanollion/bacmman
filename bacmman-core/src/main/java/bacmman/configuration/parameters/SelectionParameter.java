@@ -20,10 +20,12 @@ package bacmman.configuration.parameters;
 
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.experiment.Structure;
+import bacmman.data_structure.SegmentedObject;
 import bacmman.data_structure.Selection;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -36,19 +38,16 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class SelectionParameter extends ParameterImpl<SelectionParameter> implements ChoosableParameter<SelectionParameter> {
-    protected String selectionName = null;
-    protected Experiment xp;
+public class SelectionParameter extends AbstractChoiceParameterMultiple<String, SelectionParameter> {
     protected Supplier<Stream<Selection>> selectionSupplier;
     protected Predicate<Selection> selectionFilter;
-    protected boolean allowNoSelection;
-    public SelectionParameter(String name) {
-        this(name, false);
+
+    public SelectionParameter(String name, boolean allowMultiple) {
+        this(name, false, allowMultiple);
     }
 
-    public SelectionParameter(String name, boolean allowNoSelection) {
-        super(name);
-        this.allowNoSelection = allowNoSelection;
+    public SelectionParameter(String name, boolean allowNoSelection ,boolean allowMultiple) {
+        super(name, s->s, allowNoSelection, allowMultiple);
     }
     public SelectionParameter setSelectionFilter(Predicate<Selection> filter) {
         this.selectionFilter = filter;
@@ -60,48 +59,26 @@ public class SelectionParameter extends ParameterImpl<SelectionParameter> implem
         return this;
     }
 
-    @Override
-    public void setContentFrom(Parameter other) {
-        if (other instanceof SelectionParameter) {
-            setSelectedItem(((SelectionParameter)other).getSelectedItem());
-        } else throw new IllegalArgumentException("wrong parameter type");
-    }
-
-    @Override
-    public boolean sameContent(Parameter other) {
-        if (other instanceof SelectionParameter) {
-            return Objects.equals(((SelectionParameter)other).getSelectedItem(), getSelectedItem());
-        } else return false;
-    }
-
-    @Override
-    public boolean isValid() {
-        if (selectionName == null || getNoSelectionString().equals(selectionName)) return isAllowNoSelection();
-        return Arrays.stream(getChoiceList()).anyMatch(s -> s.equals(selectionName));
-    }
-
-    @Override
-    public void setSelectedItem(String item) {
-        if (getNoSelectionString().equals(item)) this.selectionName = null;
-        else this.selectionName = item;
-    }
-
-    public String getSelectedItem() {
-        if (getNoSelectionString().equals(selectionName)) return null;
-        return selectionName;
-    }
-
     public Selection getSelectedSelection() {
-        if (selectionName == null) return null;
+        if (getSelectedItem() == null) return null;
         if (getSelectionSupplier() == null) throw new RuntimeException("No selection supplier");
-        return getSelectionSupplier().get().filter(s -> s.getName().equals(selectionName)).findFirst().orElse(null);
+        return getSelectionSupplier().get().filter(s -> s.getName().equals(getSelectedItem())).findFirst().orElse(null);
     }
+
+    public Stream<Selection> getSelectedSelections() {
+        if (selectedItems.length == 0) return Stream.empty();
+        if (getSelectionSupplier() == null) throw new RuntimeException("No selection supplier");
+        if (selectedItems.length == 1) return Stream.of(getSelectedSelection());
+        Map<String, Selection> nameMapSel = getSelectionSupplier().get().collect(Collectors.toMap(Selection::getName, s->s));
+        return Arrays.stream(selectedItems).map(nameMapSel::get);
+    }
+
     public Supplier<Stream<Selection>> getSelectionSupplier() {
         Supplier<Stream<Selection>> selectionSupp = null;
         if (selectionSupplier!=null) {
             selectionSupp = selectionSupplier;
         } else if (getXP() != null) {
-            selectionSupp = xp.getSelectionSupplier();
+            selectionSupp = getXP().getSelectionSupplier();
         }
         return selectionSupp;
     }
@@ -118,51 +95,18 @@ public class SelectionParameter extends ParameterImpl<SelectionParameter> implem
         else return selectionSupp.get().filter(selectionFilter==null ? s->true:selectionFilter).map(Selection::getName).toArray(String[]::new);
     }
 
-    @Override
-    public int getSelectedIndex() {
-        String[] choices = getChoiceList();
-        for (int i = 0; i<choices.length; ++i) {
-            if (choices[i].equals(selectionName)) return i;
-        }
-        return -1;
-    }
-
-    @Override
-    public boolean isAllowNoSelection() {
-        return allowNoSelection;
-    }
-
     protected Experiment getXP() {
-        if (xp==null) xp= ParameterUtils.getExperiment(this);
-        return xp;
-    }
-
-    @Override
-    public String getNoSelectionString() {
-        return "NO SELECTION";
-    }
-
-    @Override
-    public Object toJSONEntry() {
-        if (getNoSelectionString().equals(selectionName)) return null;
-        return selectionName;
-    }
-
-    @Override
-    public void initFromJSONEntry(Object jsonEntry) {
-        if (jsonEntry == null) this.selectionName = null;
-        else this.selectionName=(String)jsonEntry;
+        return ParameterUtils.getExperiment(this);
     }
 
     @Override
     public SelectionParameter duplicate() {
-        SelectionParameter dup = super.duplicate();
+        SelectionParameter dup = new SelectionParameter(name, allowNoSelection, allowMultipleSelection);
         dup.setSelectionSupplier(selectionSupplier);
         dup.setSelectionFilter(selectionFilter);
-        dup.allowNoSelection = allowNoSelection;
+        dup.setContentFrom(this);
+        transferStateArguments(this, dup);
         return dup;
     }
 
-    @Override
-    public String toString() {return name + ": "+ (selectionName==null ? getNoSelectionString() : selectionName);}
 }

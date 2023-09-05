@@ -22,6 +22,7 @@ import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.function.Function;
 
 /**
@@ -32,15 +33,13 @@ import java.util.function.Function;
 
 public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParameter<V, P>> extends ParameterImpl<P> implements ActionableParameter<V, P>, ChoosableParameter<P>, ParameterWithLegacyInitialization<P, V>, Listenable<P> {
     String selectedItem;
-    protected String[] listChoice;
     boolean allowNoSelection;
     private int selectedIndex=-2;
     ConditionalParameterAbstract<V, ? extends ConditionalParameterAbstract<V, ?>> cond;
     Function<String, V> mapper;
 
-    public AbstractChoiceParameter(String name, String[] listChoice, String selectedItem, Function<String, V> mapper, boolean allowNoSelection) {
+    public AbstractChoiceParameter(String name, String selectedItem, Function<String, V> mapper, boolean allowNoSelection) {
         super(name);
-        this.listChoice=listChoice;
         setSelectedItem(selectedItem);
         this.allowNoSelection=allowNoSelection;
         this.mapper = mapper;
@@ -60,7 +59,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
             this.selectedItem = getNoSelectionString();
             selectedIndex=-1;
         } else {
-            this.selectedIndex=Utils.getIndex(listChoice, selectedItem);
+            this.selectedIndex=Utils.getIndex(getChoiceList(), selectedItem);
             if (selectedIndex>=0) this.selectedItem=selectedItem;
             else {
                 if (this.selectedItem==null) this.selectedItem=getNoSelectionString();
@@ -73,7 +72,7 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     
     public void setSelectedIndex(int selectedIndex) {
         if (selectedIndex>=0) {
-            this.selectedItem=listChoice[selectedIndex];
+            this.selectedItem=getChoiceList()[selectedIndex];
             this.selectedIndex=selectedIndex;
         } else {
             this.selectedIndex=-1;
@@ -123,10 +122,8 @@ public abstract class AbstractChoiceParameter<V, P extends AbstractChoiceParamet
     }
     
     // actionable parameter
-    @Override
-    public String[] getChoiceList() {
-        return listChoice;
-    }
+
+    public abstract String[] getChoiceList();
 
     protected void setCondValue() {
         if (cond!=null) cond.setActionValue(selectedItem ==null ? null : mapper.apply(selectedItem));

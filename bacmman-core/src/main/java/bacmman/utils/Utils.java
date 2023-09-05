@@ -24,19 +24,23 @@ import bacmman.image.Image;
 import bacmman.measurement.MeasurementExtractor;
 import com.sun.management.UnixOperatingSystemMXBean;
 import ij.gui.Plot;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.event.InputEvent;
 import java.awt.event.MouseEvent;
-import java.io.File;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -59,11 +63,16 @@ import javax.swing.tree.TreePath;
 import java.awt.FileDialog;
 import java.awt.Frame;
 
+
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 /**
  *
  * @author Jean Ollion
  */
 public class Utils {
+    private static final Logger logger = LoggerFactory.getLogger(Utils.class);
+
     public static <T, U> Collector<T, ?, Set<U>> collectToSet(Function<T, U> mapper) {
         return Collector.of(HashSet::new, (l, e)->l.add(mapper.apply(e)), (left, right) -> {
             left.addAll(right);
@@ -274,6 +283,13 @@ public class Utils {
         for (int i = 0; i<array.length; i++) if (key.equals(array[i])) return i;
         return -1;
     }
+
+    public static <V> int[] getIndices(V[] array, V... key) {
+        if (key==null || key.length == 0) return new int[0];
+        int[] res = new int[key.length];
+        for (int i = 0; i<key.length; ++i) res[i] = getIndex(array, key[i]);
+        return res;
+    }
     
     public static boolean isValid(String s, boolean allowSpecialCharacters) {
         if (s==null || s.length()==0) return false;
@@ -353,7 +369,13 @@ public class Utils {
         } else for (int i = 0; i<res.length; ++i) res[i] = arrayList.get(i).floatValue();
         return res;
     }
-    
+    public static byte[] replaceInvalidUTF8(byte[] chars) {
+        for (int i = 0; i<chars.length; ++i) {
+            if (chars[i] == 8 || chars[i] == 13) chars[i] = 32;
+            //if (chars[i] <32) chars[i] = 32;
+        }
+        return chars;
+    }
     public static String[] toStringArray(Enum[] array) {
         String[] res = new String[array.length];
         for (int i = 0;i<res.length;++i) res[i]=array[i].toString();
@@ -1253,5 +1275,81 @@ public class Utils {
         if (image==null && alternativePath!=null) image = clazz.getResource(alternativePath);
         if (image==null) return null;
         else return new ImageIcon(image);
+    }
+
+    public static String getResourceFileAsString(Class clazz, String filePath) throws IOException {
+        logger.debug("ressource: {} URL = {} stream is null: {}", filePath, clazz.getResource(filePath), clazz.getResourceAsStream(filePath)==null);
+        try (InputStream is = clazz.getResourceAsStream(filePath)) {
+            if (is == null) throw new IllegalArgumentException(filePath + " is not found");;
+            try (InputStreamReader isr = new InputStreamReader(is);
+                BufferedReader reader = new BufferedReader(isr)) {
+                return reader.lines().collect(Collectors.joining(System.lineSeparator()));
+            }
+        }
+    }
+    public static void extractResourceFile(Class clazz, String resource, String outputFile) throws IOException {
+        String content = getResourceFileAsString(clazz, resource);
+        logger.debug("extract resource {} content to file: {} content: {}", resource , outputFile, content);
+        FileIO.TextFile dockerFileTF = new FileIO.TextFile(outputFile, true, true);
+        dockerFileTF.write(content,false);
+        dockerFileTF.close();
+    }
+    public static String getClassFolder(Class clazz) {
+        String path = clazz.getName();
+        return path.substring(0, path.lastIndexOf('.')+1).replace(".", "/");
+    }
+    /**
+     * List directory contents for a resource folder. Not recursive.
+     * This is basically a brute-force implementation.
+     * Works for regular files and also JARs.
+     *
+     * @author Greg Briggs (https://www.uofr.net/~greg/java/get-resource-listing.html)
+     * @param clazz Any java class that lives in the same place as the resources you want.
+     * @param path Should end with "/", but not start with one.
+     * @return Just the name of each member item, not the full paths.
+     * @throws URISyntaxException
+     * @throws IOException
+     */
+    public static Stream<String> getResourceListing(Class clazz, String path) throws URISyntaxException, IOException {
+        ClassLoader classLoader = ClassLoader.getSystemClassLoader(); //clazz.getClassLoader()
+        URL dirURL = classLoader.getResource(path);
+        logger.debug("dirURL: {}, protocol {}", dirURL.getPath(), dirURL.getProtocol());
+        if (dirURL != null && dirURL.getProtocol().equals("file")) {
+            String[] res = new File(dirURL.toURI()).list();
+            if (res==null) return Stream.empty();
+            return Stream.of(res);
+        }
+
+        if (dirURL == null) {
+            /*
+             * In case of a jar file, we can't actually find a directory.
+             * Have to assume the same jar as clazz.
+             */
+            String me = clazz.getName().replace(".", "/")+".class";
+            dirURL = clazz.getClassLoader().getResource(me);
+        }
+
+        if (dirURL.getProtocol().equals("jar")) {
+            /* A JAR path */
+            String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf("!")); //strip out only the JAR file
+            JarFile jar = new JarFile(URLDecoder.decode(jarPath, "UTF-8"));
+            Enumeration<JarEntry> entries = jar.entries(); //gives ALL entries in jar
+            Set<String> result = new HashSet<>(); //avoid duplicates in case it is a subdirectory
+            while(entries.hasMoreElements()) {
+                String name = entries.nextElement().getName();
+                if (name.startsWith(path)) { //filter according to the path
+                    String entry = name.substring(path.length());
+                    int checkSubdir = entry.indexOf("/");
+                    if (checkSubdir >= 0) {
+                        // if it is a subdirectory, we just return the directory name
+                        entry = entry.substring(0, checkSubdir);
+                    }
+                    result.add(entry);
+                }
+            }
+            return result.stream();
+        }
+
+        throw new UnsupportedOperationException("Cannot list files for URL "+dirURL);
     }
 }

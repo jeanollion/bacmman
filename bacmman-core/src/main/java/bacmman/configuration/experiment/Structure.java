@@ -27,7 +27,9 @@ import bacmman.plugins.plugins.processing_pipeline.ObjectClassOperation;
 import bacmman.utils.HashMapGetCreate;
 import org.json.simple.JSONObject;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -101,14 +103,14 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
             s.setMaxStructureIdx();
             int parentIdx = s.parentStructure.getSelectedIndex();
             s.setParentStructure(parentIdx);
-            if (parameterChangeCallBack!=null) parameterChangeCallBack.accept(s.segmentationParent);
+            if (parameterChangeCallBack!=null) parameterChangeCallBack.forEach(cb -> cb.accept(s.segmentationParent));
         });
         segmentationParent.addListener((ParentObjectClassParameter source) -> {
             Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, source, false);
             logger.debug("segmentation parent modified for structure {}", s.getName());
             s.setMaxStructureIdx();
             s.setSegmentationParentStructure(s.segmentationParent.getSelectedIndex());
-            if (parameterChangeCallBack!=null) parameterChangeCallBack.accept(s.segmentationParent);
+            if (parameterChangeCallBack!=null) parameterChangeCallBack.forEach(cb -> cb.accept(s.segmentationParent));
         });
         processingPipeline.addListener((PluginParameter<ProcessingPipeline> source) -> {
             Structure s = ParameterUtils.getFirstParameterFromParents(Structure.class, source, false);
@@ -117,16 +119,18 @@ public class Structure extends ContainerParameterImpl<Structure> implements Para
         initChildList();
     }
     // to update display
-    Consumer<Parameter> parameterChangeCallBack;
+    List<Consumer<Parameter>> parameterChangeCallBack;
     @Override
-    public Structure setParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
-        this.parameterChangeCallBack=parameterChangeCallBack;
+    public Structure addParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        if (this.parameterChangeCallBack == null) this.parameterChangeCallBack = new ArrayList<>();
+        this.parameterChangeCallBack.add(parameterChangeCallBack);
         return this;
     }
 
     @Override
-    public Consumer<Parameter> getParameterChangeCallback() {
-        return parameterChangeCallBack;
+    public boolean removeParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack) {
+        if (this.parameterChangeCallBack ==null) return false;
+        return this.parameterChangeCallBack.remove(parameterChangeCallBack);
     }
 
     public Structure() {

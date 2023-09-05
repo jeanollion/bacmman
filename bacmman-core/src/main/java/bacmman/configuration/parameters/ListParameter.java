@@ -38,6 +38,7 @@ public interface ListParameter<T extends Parameter, L extends ListParameter<T, L
     int getMaxChildCount();
     boolean isDeactivatable();
     void setActivatedAll(boolean activated);
+    boolean allowDeactivate();
     List<T> getActivatedChildren();
     T getChildByName(String name);
     boolean allowMoveChildren();

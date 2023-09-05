@@ -21,7 +21,7 @@ public class SelectionOperations {
         if (selections.isEmpty()) return new Selection();
         Selection model = selections.iterator().next();
         selections.removeIf(s->s.getStructureIdx()!=model.getStructureIdx());
-        HashMapGetCreate<String, Set<String>> elByPos = new HashMapGetCreate(new HashMapGetCreate.SetFactory());
+        HashMapGetCreate<String, Set<String>> elByPos = new HashMapGetCreate<>(new HashMapGetCreate.SetFactory<>());
         for (Selection sel : selections) {
             for (String pos : sel.getAllPositions()) elByPos.getAndCreateIfNecessary(pos).addAll(sel.getElementStrings(pos));
         }
@@ -275,4 +275,11 @@ public class SelectionOperations {
         return parents.stream().map(p->p.getTrackHead()).distinct().collect(Collectors.toList());
     }
 
+    public static Selection createSelection(String name, List<String> position, int objectClass, MasterDAO dao) {
+        Selection s = dao.getSelectionDAO().getOrCreate(name, true);
+        s.setObjectClassIdx(objectClass);
+        Set<SegmentedObject> objectsToAdd = position.stream().flatMap(p -> dao.getDao(p).getRoots().stream().flatMap(r -> r.getChildren(objectClass))).collect(Collectors.toSet());
+        s.addElements(objectsToAdd);
+        return s;
+    }
 }

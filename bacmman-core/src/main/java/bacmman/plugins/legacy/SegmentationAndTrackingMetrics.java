@@ -18,7 +18,6 @@ import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.Pair;
 import bacmman.utils.Utils;
 import bacmman.processing.matching.trackmate.Spot;
-import org.eclipse.collections.impl.factory.Sets;
 import org.jgrapht.graph.DefaultEdge;
 import org.jgrapht.graph.DefaultWeightedEdge;
 import org.jgrapht.graph.SimpleWeightedGraph;
@@ -210,7 +209,8 @@ public class SegmentationAndTrackingMetrics implements Measurement, Hint, DevPlu
                         if (gPrevs.isEmpty() && sPrev==null) prevLinkEquals = true;
                         else if (!gPrevs.isEmpty() && sPrev!=null) {
                             Set<SegmentedObject> matchingGPrev = getAllMatchingG.apply(sPrev);
-                            prevLinkEquals = !Sets.intersect(matchingGPrev, gPrevs).isEmpty();
+                            matchingGPrev.retainAll(gPrevs);
+                            prevLinkEquals = !matchingGPrev.isEmpty();
                         } else prevLinkEquals = false;
                         sizeG = matchingG.stream().mapToDouble(o->o.getRegion().size()).sum();
                         sizeS = s.getRegion().size();

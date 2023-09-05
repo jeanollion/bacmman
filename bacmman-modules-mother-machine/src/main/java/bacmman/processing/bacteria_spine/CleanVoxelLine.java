@@ -43,7 +43,6 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.eclipse.collections.impl.factory.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -207,14 +206,14 @@ public class CleanVoxelLine {
         if (segments.size()==1) return lines;
         // compute largest shortest path & remove all the segments not included in the path
         // set end-points as vertices
-        segments.values().stream().filter(v->v.isEndBranch()).map(e->(Edge)e).collect(Collectors.toList()).forEach(e ->e.setEndPointsAsVertex());
+        segments.values().stream().filter(v->v.isEndBranch()).map(e->(Edge)e).collect(Collectors.toList()).forEach(Edge::setEndPointsAsVertex);
         if (imageDisp!=null) {
             imageDisp.accept(draw(true).setName("before largest shortest path"));
             imageDisp.accept(draw(false).setName("before largest shortest path"));
         }
         List<Vertex> lsPath = getLargestShortestPath();
         if (imageDisp!=null) {
-            for (int i = 0; i<lsPath.size()-1; ++i) logger.debug("largest shortest path: {}->{} w={}", lsPath.get(i).label, lsPath.get(i+1).label, Sets.intersect(lsPath.get(i).connectedSegments, lsPath.get(i+1).connectedSegments).iterator().next().voxels.size());
+            for (int i = 0; i<lsPath.size()-1; ++i) logger.debug("largest shortest path: {}->{} w={}", lsPath.get(i).label, lsPath.get(i+1).label, Stream.concat(lsPath.get(i).connectedSegments.stream(), lsPath.get(i+1).connectedSegments.stream()).distinct().findAny().get().voxels.size());
         }
         Set<Vertex> path = new HashSet<>(lsPath);
         // remove all edges not included in path 

@@ -90,28 +90,28 @@ public abstract class ParameterImpl<P extends ParameterImpl<P>> implements Param
         try {
                 ParameterImpl p = this.getClass().getDeclaredConstructor(String.class).newInstance(name);
                 p.setContentFrom(this);
-                p.setListeners(listeners);
-                p.addValidationFunction(additionalValidation);
-                p.setHint(toolTipText);
-                p.setSimpleHint(toolTipTextSimple);
-                p.setEmphasized(isEmphasized);
+                transferStateArguments(this, p);
                 return (P)p;
             } catch (Exception ex) {
                 try {
-                    ParameterImpl p = (ParameterImpl)this.getClass().newInstance();
+                    ParameterImpl p = this.getClass().newInstance();
                     p.setName(name);
                     p.setContentFrom(this);
-                    p.setHint(toolTipText);
-                    p.setSimpleHint(toolTipTextSimple);
-                    p.setListeners(listeners);
-                    p.addValidationFunction(additionalValidation);
-                    p.setEmphasized(isEmphasized);
+                    transferStateArguments(this, p);
                 return (P)p;
                 } catch (Exception ex2) {
                     logger.error("duplicate Simple Parameter", ex2);
                 }
             }
         return null;
+    }
+
+    public static void transferStateArguments(ParameterImpl source, ParameterImpl dest) {
+        dest.setHint(source.toolTipText);
+        dest.setSimpleHint(source.toolTipTextSimple);
+        dest.setListeners(source.listeners);
+        dest.addValidationFunction(source.additionalValidation);
+        dest.setEmphasized(source.isEmphasized);
     }
     
     @Override

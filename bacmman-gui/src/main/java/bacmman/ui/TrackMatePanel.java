@@ -96,7 +96,7 @@ public class TrackMatePanel {
             frameRangeLabel.setText(frameRange.toString());
             frameRangeLabel.setForeground(frameRange.isValid() ? Color.BLACK : Color.red);
         });
-
+        if (importConfigTree != null) importConfigTree.unRegister();
         importConfigTree = new ConfigurationTreeGenerator(null, importParams, b -> {
         }, (a, b) -> {
         }, h -> {
@@ -129,7 +129,8 @@ public class TrackMatePanel {
                 method.invoke(null, currentModel, parentTrack, objectClassIdx, importMode.getSelectedEnum() == IMPORT_MODE.OVERWRITE, importMode.getSelectedEnum() == IMPORT_MODE.TRACKS_ONLY, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP, objectMatchMode.getSelectedEnum() == MATCH_MODE.OVERLAP ? overlap.getValue().doubleValue() : centerDistance.getValue().doubleValue(), ProgressCallback.get(progress));
                 if (GUI.getInstance().trackTreeController != null)
                     GUI.getInstance().trackTreeController.updateTrackTree();
-            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException |
+                     ClassNotFoundException e) {
                 GUI.log("Could not import from trackmate:" + e.getMessage());
                 logger.debug("Could not import from trackmate:", e);
             } catch (Throwable e) {
@@ -162,7 +163,8 @@ public class TrackMatePanel {
                 currentImage = (Image) ((List) list).get(1);
                 closeCurrentTrackMate = (Runnable) ((List) list).get(2);
                 logger.debug("current model: {}", currentModel.getClass());
-            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+            } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException |
+                     ClassNotFoundException e) {
                 GUI.log("Could not start trackmate:" + e.getMessage());
                 logger.debug("Could not start trackmate:", e);
             } catch (Throwable e) {
@@ -190,7 +192,8 @@ public class TrackMatePanel {
                     currentImage = (Image) ((List) list).get(1);
                     closeCurrentTrackMate = (Runnable) ((List) list).get(2);
                     logger.debug("current model: {}", currentModel.getClass());
-                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException | ClassNotFoundException e) {
+                } catch (NoSuchMethodException | IllegalAccessException | InvocationTargetException |
+                         ClassNotFoundException e) {
                     GUI.log("Could not start trackmate from file:" + e.getMessage());
                     logger.debug("Could not start trackmate from file:", e);
                 } catch (Throwable e) {

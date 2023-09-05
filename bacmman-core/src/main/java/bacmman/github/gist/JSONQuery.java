@@ -254,6 +254,7 @@ public class JSONQuery {
         try {
             new JSONQuery(url).method(JSONQuery.METHOD.DELETE).authenticate(auth).fetch();
         } catch (Exception e) {
+            logger.debug("Error deleting file", e);
             return false;
         }
         return true;

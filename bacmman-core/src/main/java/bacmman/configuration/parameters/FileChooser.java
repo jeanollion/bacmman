@@ -45,6 +45,7 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     protected FileChooserOption option = FileChooserOption.DIRECTORIES_ONLY;
     boolean relativePath = true, mustExist=true;
     Predicate<String> validPath;
+    Path refPath;
     public FileChooser(String name) {this(name, FileChooserOption.FILE_OR_DIRECTORY, true);}
     public FileChooser(String name, FileChooserOption option) {
         this(name, option, true);
@@ -65,11 +66,15 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     public FileChooser setRelativePath(boolean relativePath) {
         if (this.relativePath==relativePath) return this;
         if (selectedFiles==null || selectedFiles.length==0) return this;
-        Path refPath = ParameterUtils.getExperiment(this).getPath();
+        Path refPath = this.refPath!=null ? this.refPath : ParameterUtils.getExperiment(this).getPath();
         if (refPath==null) throw new RuntimeException("Cannot change relative state, no path detected");
         if (this.relativePath) selectedFiles = toAbsolutePath(refPath, selectedFiles);
         else selectedFiles = toRelativePath(refPath, selectedFiles);
         this.relativePath=relativePath;
+        return this;
+    }
+    public FileChooser setRefPath(Path refPath) {
+        this.refPath = refPath;
         return this;
     }
     public FileChooser mustExist(boolean mustExist) {
@@ -233,7 +238,8 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
     protected  static String toAbsolutePath(Path ref, String toConvert) {
         return ref.resolve(Paths.get(toConvert)).normalize().toFile().getAbsolutePath();
     }
-    protected Path getRefPath() {
+    public Path getRefPath() {
+        if (refPath !=null) return refPath;
         Experiment xp = ParameterUtils.getExperiment(this);
         //if (xp==null || xp.getPath()==null) logger.warn("Could not get reference path for parameter: {} (from: {}). Experiment found ? {}", this, this.getParameterPath(), xp!=null);
         if (xp==null) return null;
@@ -274,4 +280,20 @@ public class FileChooser extends ParameterImpl<FileChooser> implements Listenabl
         public int getOption() {return option;}
         public boolean getMultipleSelectionEnabled(){return multipleSelection;}
     }
+
+    public static Predicate<String> fileExists = p -> {
+        if (p==null) return false;
+        File f = new File(p);
+        return f.isFile();
+    };
+    public static Predicate<String> dirExists = p -> {
+        if (p==null) return false;
+        File f = new File(p);
+        return f.isDirectory();
+    };
+    public static Predicate<String> exists = p -> {
+        if (p==null) return false;
+        File f = new File(p);
+        return f.exists();
+    };
 }

@@ -63,7 +63,7 @@ import java.util.stream.Stream;
  *
  * @author Jean Ollion
  */
-public class Task implements ProgressCallback{
+public class Task implements ProgressCallback {
         private static final Logger logger = LoggerFactory.getLogger(Task.class);
         public enum ExtractZAxis {IMAGE3D, CHANNEL, SINGLE_PLANE, MIDDLE_PLANE, BATCH}
         String dbName, dir;

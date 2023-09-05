@@ -5,6 +5,6 @@ import bacmman.configuration.parameters.Parameter;
 import java.util.function.Consumer;
 
 public interface ParameterChangeCallback<T> {
-    T setParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack);
-    Consumer<Parameter> getParameterChangeCallback();
+    T addParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack);
+    boolean removeParameterChangeCallback(Consumer<Parameter> parameterChangeCallBack);
 }

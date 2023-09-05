@@ -34,7 +34,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.eclipse.collections.impl.factory.Sets;
 import org.json.simple.JSONObject;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
@@ -463,12 +462,12 @@ public class Selection implements Comparable<Selection>, JSONSerializable {
             Map<Integer, List<SegmentedObject>> parentsBySIdx = SegmentedObjectUtils.splitByStructureIdx(posParents);
             if (!parentsBySIdx.containsKey(parentSIdx)) continue;
             Set<String> curParents = new HashSet<>(Utils.transform(parentsBySIdx.get(parentSIdx), Selection::indicesString));
-            Set<String> intersectParents = Sets.intersect(curParents, parentToChildrenMap.keySet());
-            if (intersectParents.isEmpty()) continue;
+            curParents.retainAll(parentToChildrenMap.keySet()); // intersection
+            if (curParents.isEmpty()) continue;
             List<String> toRemove = new ArrayList<>();
-            for (String p : intersectParents) toRemove.addAll(parentToChildrenMap.get(p));
+            for (String p : curParents) toRemove.addAll(parentToChildrenMap.get(p));
             this.removeElements(position, toRemove);
-            SegmentedObject.logger.debug("removed {} children from {} parent in position: {}", toRemove.size(), intersectParents.size(), position);
+            SegmentedObject.logger.debug("removed {} children from {} parent in position: {}", toRemove.size(), curParents.size(), position);
         }
     }
     /*public synchronized void removeChildrenOf(List<StructureObject> parents) {
