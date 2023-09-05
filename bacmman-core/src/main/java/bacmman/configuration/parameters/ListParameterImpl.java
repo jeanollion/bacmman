@@ -408,8 +408,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         return (L)this;
     }
     
-    public void setUnmutableIndex(int unMutableIndex) {
+    public L setUnmutableIndex(int unMutableIndex) {
         this.unMutableIndex=unMutableIndex;
+        return (L)this;
     }
     @Override
     public int getUnMutableIndex() {

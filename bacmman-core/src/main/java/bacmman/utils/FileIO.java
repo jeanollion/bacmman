@@ -268,6 +268,9 @@ public class FileIO {
         public File getFile() {
             return f;
         }
+        public boolean locked() {
+            return lock!=null && lock.isValid();
+        }
     }
     public static class ZipWriter {
         File f;

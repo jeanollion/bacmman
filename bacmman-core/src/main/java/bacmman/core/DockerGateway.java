@@ -9,7 +9,7 @@ import java.util.stream.Stream;
 
 public interface DockerGateway {
     Stream<String> listImages();
-    String buildImage(String tag, File dockerFile, File baseDir, Consumer<String> stdOut, Consumer<String> stdErr);
+    String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr);
     boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr);
     Stream<SymetricalPair<String>> listContainers();
     Stream<SymetricalPair<String>> listContainers(String imageId);

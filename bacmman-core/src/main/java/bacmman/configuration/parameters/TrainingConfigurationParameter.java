@@ -23,7 +23,7 @@ public class TrainingConfigurationParameter extends GroupParameter implements Py
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);
         this.datasetParameters = new GlobalDatasetParameters("Dataset", tiling, datasetParameters);
         this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, tiling, dataAugmentationParameters))
-                .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true);
+                .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true).setChildrenNumber(1).setUnmutableIndex(0);
         this.children = Arrays.asList(this.trainingParameters, this.datasetParameters, datasetList);
         initChildList();
     }
@@ -200,9 +200,8 @@ public class TrainingConfigurationParameter extends GroupParameter implements Py
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
         TextParameter channel = new TextParameter("Channel Name", "raw", false, false).setHint("Name of images / movies to consider within the dataset");
-        SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", 0, channel).unique(TextParameter::getValue);
+        SimpleListParameter<TextParameter> channels = new SimpleListParameter<>("Channel Names", 0, channel).unique(TextParameter::getValue).setChildrenNumber(1).setUnmutableIndex(0);
         BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch.");
-
 
         EnumChoiceParameter<TILE_NUMBER_MODE> tileNumberMode = new EnumChoiceParameter<>("Tile Number Mode", TILE_NUMBER_MODE.values(), TILE_NUMBER_MODE.AUTOMATIC).setHint("Tile number determination: constant or depending on image size");
         BoundedNumberParameter nTiles = new BoundedNumberParameter("Tile Number", 0, 0, 1, null ).setHint("Number of tiles.");

@@ -13,6 +13,7 @@ import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.FileIO;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.SymetricalPair;
+import bacmman.utils.Utils;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
@@ -28,8 +29,6 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
@@ -86,7 +85,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected FileIO.TextFile pythonConfig, javaConfig, javaExtractConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
-    final protected ActionListener workingDirPersistance;
+    final protected ActionListener workingDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.MAX_VALUE, maxLoss = Double.MIN_VALUE;
 
@@ -199,11 +198,11 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
             epochLabel.setText("Epoch:");
         });
-        String defWD = "";
+        String defWD;
         if (GUI.hasInstance()) {
             if (GUI.getDBConnection() != null) defWD = GUI.getDBConnection().getDir().toString();
             else defWD = GUI.getInstance().getWorkingDirectory();
-        }
+        } else defWD = "";
         workingDirectoryTextField.addActionListener(ae -> {
             if (workingDirectoryIsValid()) {
                 setWorkingDirectory();
@@ -211,7 +210,18 @@ public class DockerTrainingWindow implements ProgressLogger {
                 updateDisplayRelatedToWorkingDir();
             }
         });
-        workingDirPersistance = PropertyUtils.setPersistent(workingDirectoryTextField, WD_ID, defWD, true);
+        Action chooseFile = new AbstractAction("Choose local data folder") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String path = PropertyUtils.get(WD_ID, defWD);
+                File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame)dia.getParent());
+                if (f!=null) {
+                    workingDirectoryTextField.setText(f.getAbsolutePath());
+                    workingDirPersistence.actionPerformed(e);
+                }
+            }
+        };
+        workingDirPersistence = PropertyUtils.setPersistent(workingDirectoryTextField, WD_ID, defWD, true, chooseFile);
         if (workingDirectoryIsValid()) {
             setConfigurationFile(true);
             updateDisplayRelatedToWorkingDir();
@@ -235,6 +245,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                 .findFirst().orElse(null);
         if (imageName == null) { // look for dockerfile and build it
             logger.debug("docker image: {} not found within: {}", trainer.getDockerImageName(), images);
+            String dockerFilePath=null;
+            File dockerDir=null;
             try {
                 epochLabel.setText("Build:");
                 // TODO test if works in JARS
@@ -250,16 +262,20 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
                 //String version = dockerfileName.contains(":") ? dockerfileName.substring(dockerfileName.indexOf(':')) : "";
                 String tag = dockerfileName.replace(".dockerfile", "");
-                if (tag.contains(":")) tag = formatDockerTag(tag);
-                String dockerFilePath = Paths.get(currentWorkingDirectory, "dockerfile").toString();
+                if (tag.contains(":") || tag.contains("--")) tag = formatDockerTag(tag);
+                dockerDir = new File(currentWorkingDirectory, "docker");
+                if (!dockerDir.exists()) dockerDir.mkdir();
+                dockerFilePath = Paths.get(currentWorkingDirectory, "docker", "Dockerfile").toString();
                 logger.debug("will build docker image: {} from dockerfile: {} @ {}", tag, dockerfileName, dockerFilePath);
                 bacmman.utils.Utils.extractResourceFile(trainer.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 setMessage("Building docker image: " + tag);
-                imageName = dockerGateway.buildImage(tag, new File(dockerFilePath), new File(currentWorkingDirectory), this::parseBuildProgress, this::printError);
+                imageName = dockerGateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, this::printError);
             } catch (Exception e) {
                 logger.error("Error while listing resources", e);
                 return null;
             } finally {
+                if (dockerFilePath!=null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();
+                if (dockerDir!=null && dockerDir.exists()) dockerDir.delete();
                 epochLabel.setText("Epoch:");
             }
         }
@@ -267,6 +283,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     public static String formatDockerTag(String tag) {
+        tag = tag.replace("--", ":");
         Pattern p = Pattern.compile("(?<=[0-9])-(?=[0-9])");
         Matcher m = p.matcher(tag);
         return m.replaceAll(".");
@@ -387,6 +404,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void parseBuildProgress(String message) {
+        //16:14:28.235 [docker-java-stream-1238510046] DEBUG c.g.d.z.s.o.a.hc.client5.http.wire - http-outgoing-0 << "{"status":"Downloading","progressDetail":{"current":90067877,"total":566003872},"progress":"[=======\u003e                                           ]  90.07MB/566MB","id":"7f04413edb94"}[\r][\n]"
+        //16:14:28.398 [docker-java-stream-1238510046] DEBUG c.g.d.z.s.o.a.hc.client5.http.wire - http-outgoing-0 << "{"status":"Downloading","progressDetail":{"current":771,"total":1090},"progress":"[===================================\u003e               ]     771B/1.09kB","id":"7aa0f52ee7e3"}[\r][\n]"
         if (message == null || message.isEmpty()) return;
         Matcher m = buildProgressPattern.matcher(message);
         if (m.find()) {
@@ -402,7 +421,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("build progress: {}", message);
     }
 
-    String[] ignoreError = new String[]{"successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version"};
+    String[] ignoreError = new String[]{"successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA"};
 
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
@@ -432,7 +451,7 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected void setWorkingDirectory() {
         currentWorkingDirectory = workingDirectoryTextField.getText();
-        if (workingDirPersistance != null) workingDirPersistance.actionPerformed(null);
+        if (workingDirPersistence != null) workingDirPersistence.actionPerformed(null);
         Path refPath = Paths.get(currentWorkingDirectory);
         setWorkingDirectory(refPath, trainerParameter);
         setWorkingDirectory(refPath, trainerParameterRef);
@@ -456,15 +475,16 @@ public class DockerTrainingWindow implements ProgressLogger {
         pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, true);
         Path jConfigPath = Paths.get(currentWorkingDirectory, "training_jconfiguration.json");
         boolean canLoad = jConfigPath.toFile().isFile();
-        javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, true);
+        javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, Utils.isUnix());
         Path jExtractConfigPath = Paths.get(currentWorkingDirectory, "extract_jconfiguration.json");
-        javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, true);
+        javaExtractConfig = new FileIO.TextFile(jExtractConfigPath.toString(), true, Utils.isUnix());
         if (load && canLoad) loadConfigFile(false);
     }
 
     protected void loadConfigFile(boolean refOnly) {
         if (javaConfig == null) throw new RuntimeException("Load file first");
         String configS = javaConfig.read();
+        logger.debug("loaded config locked: {} file = {} -> {}", javaConfig.locked(), javaConfig.getFile().toString(), javaConfig.readLines());
         if (!configS.isEmpty()) {
             JSONObject config = JSONUtils.parse(configS);
             trainerParameterRef.initFromJSONEntry(config);

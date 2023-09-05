@@ -23,6 +23,7 @@ import bacmman.core.Core;
 import bacmman.data_structure.MasterDAOFactory;
 import bacmman.utils.JSONSerializable;
 import bacmman.utils.JSONUtils;
+import bacmman.utils.Utils;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -201,15 +202,27 @@ public class PropertyUtils {
         item.setSelectedItem(PropertyUtils.get(key, defaultValue));
         item.addActionListener((java.awt.event.ActionEvent evt) -> { logger.debug("item: {} jcb persistSel {}", key, item.getSelectedItem());PropertyUtils.set(key, (String)item.getSelectedItem()); });
     }
-    public static ActionListener setPersistent(JTextField item, String key, String defaultValue, boolean multiple) {
+    public static ActionListener setPersistent(JTextField item, String key, String defaultValue, boolean multiple, Action... rigthClickActions) {
         item.setText(PropertyUtils.get(key, defaultValue));
         ActionListener res;
         for (ActionListener al : item.getActionListeners()) al.actionPerformed(null); // perform action after having set default value
         if (!multiple) {
             res = (java.awt.event.ActionEvent evt) -> PropertyUtils.set(key, item.getText());
             item.addActionListener(res);
+            if (rigthClickActions.length > 0) {
+                item.addMouseListener(new MouseAdapter() {
+                    @Override
+                    public void mousePressed(MouseEvent evt) {
+                        if (SwingUtilities.isRightMouseButton(evt)) {
+                            JPopupMenu menu = new JPopupMenu();
+                            for (Action a : rigthClickActions) menu.add(a);
+                            menu.show(item, evt.getX(), evt.getY());
+                        }
+                    }
+                });
+            }
         }
-        else { // TODO each entry is a sub menu that allows to delete
+        else {
             res = (java.awt.event.ActionEvent evt) -> {
                 PropertyUtils.set(key, item.getText());
                 PropertyUtils.addFirstStringToList(key, item.getText());
@@ -218,37 +231,38 @@ public class PropertyUtils {
             item.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent evt) {
-                    if (SwingUtilities.isRightMouseButton(evt)) {
-                        JPopupMenu menu = new JPopupMenu();
-                        JMenu recentFiles = new JMenu("Recent");
-                        menu.add(recentFiles);
-                        List<String> recent = PropertyUtils.getStrings(key);
-                        for (String s : recent) {
-                            Action setRecent = new AbstractAction(s) {
-                                @Override
-                                public void actionPerformed(ActionEvent e) {
-                                    if (checkMod(e.getModifiers(), ActionEvent.CTRL_MASK)) {
-                                        List<String> recent = PropertyUtils.getStrings(key);
-                                        recent.remove(s);
-                                        PropertyUtils.setStrings(key, recent);
-                                    } else {
-                                        item.setText(s);
-                                        for (ActionListener al : item.getActionListeners()) al.actionPerformed(e);
-                                    }
-                                }
-                            };
-                            recentFiles.add(setRecent);
-                        }
-                        if (recent.isEmpty()) recentFiles.setEnabled(false);
-                        Action delRecent = new AbstractAction("Delete recent list (ctrl + click to delete one item)") {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    for (Action a : rigthClickActions) menu.add(a);
+                    JMenu recentFiles = new JMenu("Recent");
+                    menu.add(recentFiles);
+                    List<String> recent = PropertyUtils.getStrings(key);
+                    for (String s : recent) {
+                        Action setRecent = new AbstractAction(s) {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                PropertyUtils.setStrings(key, null);
+                                if (checkMod(e.getModifiers(), ActionEvent.CTRL_MASK)) {
+                                    List<String> recent = PropertyUtils.getStrings(key);
+                                    recent.remove(s);
+                                    PropertyUtils.setStrings(key, recent);
+                                } else {
+                                    item.setText(s);
+                                    for (ActionListener al : item.getActionListeners()) al.actionPerformed(e);
+                                }
                             }
                         };
-                        recentFiles.add(delRecent);
-                        menu.show(item, evt.getX(), evt.getY());
+                        recentFiles.add(setRecent);
                     }
+                    if (recent.isEmpty()) recentFiles.setEnabled(false);
+                    Action delRecent = new AbstractAction("Delete recent list (ctrl + click to delete one item)") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            PropertyUtils.setStrings(key, null);
+                        }
+                    };
+                    recentFiles.add(delRecent);
+                    menu.show(item, evt.getX(), evt.getY());
+                }
                 }
             });
 

@@ -906,6 +906,21 @@ public class Utils {
         return System.getProperty("os.name").toLowerCase().contains("win");
     }
     public static boolean isUnix() {return !isWindows();}
+
+    public static int getUID() {
+        if (!isUnix()) return -1;
+        Class c = null;
+        try {
+            c = Class.forName("com.sun.security.auth.module.UnixSystem");
+            Object unixSystem = c.getDeclaredConstructor().newInstance();
+            Method m = c.getDeclaredMethod("getUid");
+            return (int)m.invoke(unixSystem);
+        } catch (ClassNotFoundException | InvocationTargetException | InstantiationException | IllegalAccessException |
+                 NoSuchMethodException e) {
+            logger.debug("Error getting UID");
+            return -1;
+        }
+    }
     public static File[] chooseFiles(String dialogTitle, String directory, FileChooser.FileChooserOption option, Frame parent, String... fileExtension) {
         if (false && isMacOSX()) {
             // FileDialog does not allow to select directories...
@@ -1290,7 +1305,7 @@ public class Utils {
     public static void extractResourceFile(Class clazz, String resource, String outputFile) throws IOException {
         String content = getResourceFileAsString(clazz, resource);
         logger.debug("extract resource {} content to file: {} content: {}", resource , outputFile, content);
-        FileIO.TextFile dockerFileTF = new FileIO.TextFile(outputFile, true, true);
+        FileIO.TextFile dockerFileTF = new FileIO.TextFile(outputFile, true, false);
         dockerFileTF.write(content,false);
         dockerFileTF.close();
     }

@@ -115,12 +115,13 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
     public boolean sameContent(Parameter other) {
         if (other instanceof AbstractChoiceParameterMultiple) {
             AbstractChoiceParameterMultiple otherC = (AbstractChoiceParameterMultiple) other;
-            return Arrays.equals(selectedItems, otherC.selectedItems);
+            return Arrays.equals(getSelectedItems(), otherC.getSelectedItems());
         } else if (other instanceof AbstractChoiceParameter) {
             AbstractChoiceParameter otherC = (AbstractChoiceParameter) other;
             String otherSel = otherC.getSelectedItem();
-            if (otherSel==null || otherSel.equals(otherC.getNoSelectionString())) return selectedItems.length == 0;
-            else return selectedItems.length == 1 && otherSel.equals(selectedItems[0]);
+            String[] selItems = getSelectedItems();
+            if (otherSel==null || otherSel.equals(otherC.getNoSelectionString())) return selItems.length == 0;
+            else return selItems.length == 1 && otherSel.equals(selItems[0]);
         }
         else return false;
 
@@ -130,7 +131,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
         if (other instanceof AbstractChoiceParameterMultiple) {
             //bypassListeners=true;
             AbstractChoiceParameterMultiple otherC = (AbstractChoiceParameterMultiple)other;
-            setSelectedItems(otherC.getSelectedItems());
+            setSelectedItems(otherC.selectedItems);
             //bypassListeners=false;
             //logger.debug("choice {} set content from: {} current item: {}, current idx {}, other item: {}, other idx : {}", this.hashCode(), otherC.hashCode(), this.getSelectedItem(), this.getSelectedIndex(), otherC.getSelectedItem(), otherC.getSelectedIndex());
         } else if (other instanceof AbstractChoiceParameter) {
@@ -158,7 +159,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
 
     @Override
     public Object toJSONEntry() {
-        return JSONUtils.toJSONArray(selectedItems);
+        return JSONUtils.toJSONArray(getSelectedItems());
     }
 
     @Override

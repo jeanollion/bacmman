@@ -49,27 +49,33 @@ public class DockerGatewayImpl implements DockerGateway {
                 .connectionTimeout(Duration.ofSeconds(30))
                 .responseTimeout(Duration.ofSeconds(45))
                 .build();
-
         dockerClient = DockerClientImpl.getInstance(config, httpClient);
     }
     @Override
     public Stream<String> listImages() {
-        return dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length>0).map(i -> i.getRepoTags()[0]);
+        try {
+            return dockerClient.listImagesCmd().exec().stream().filter(i -> i.getRepoTags().length > 0).map(i -> i.getRepoTags()[0]);
+        } catch (RuntimeException e ) {
+            if (e.getMessage().startsWith("java.nio.file.NoSuchFileException")) {
+                logger.error("Could not connect with Docker. "+(Utils.isWindows()?"Is Docker started ? " : "Is Docker installed ?"));
+            }
+            throw e;
+        }
     }
 
     @Override
-    public String buildImage(String tag, File dockerFile, File baseDir, Consumer<String> stdOut, Consumer<String> stdErr) {
+    public String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr) {
         bacmman.docker.BuildImageResultCallback buildCb = dockerClient.buildImageCmd(dockerFile)
-                .withBaseDirectory(baseDir)
-                .withTags(Collections.singleton(tag)).withPull(true).exec(new bacmman.docker.BuildImageResultCallback(stdOut, stdErr));
+                .withTags(Collections.singleton(tag)).withPull(true)
+                .exec(new bacmman.docker.BuildImageResultCallback(stdOut, stdErr));
         return buildCb.awaitImageId();
     }
 
     @Override
     public boolean pullImage(String image, String version, Consumer<String> stdOut, Consumer<String> stdErr) {
         try {
-            if (image.contains(":")) {
-                String[] split = image.split(":");
+            if (image.contains("--")) {
+                String[] split = image.split("--");
                 image = split[0];
                 if (version==null) version = split[1];
             }
@@ -110,7 +116,10 @@ public class DockerGatewayImpl implements DockerGateway {
         CreateContainerCmd cmd = dockerClient.createContainerCmd(image)
            .withHostConfig(hostConfig)
            .withTty(tty);
-        if (Utils.isUnix()) cmd = cmd.withUser(new com.sun.security.auth.module.UnixSystem().getUid()+"");
+        if (Utils.isUnix()) {
+            int uid = Utils.getUID();
+            if (uid>=0) cmd = cmd.withUser(uid+"");
+        }
         CreateContainerResponse container = cmd.exec();
         logger.debug("create container response: {}", container);
         try {
