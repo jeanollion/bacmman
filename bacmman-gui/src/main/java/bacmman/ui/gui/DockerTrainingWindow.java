@@ -29,6 +29,7 @@ import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Comparator;
@@ -270,8 +271,8 @@ public class DockerTrainingWindow implements ProgressLogger {
                 Utils.extractResourceFile(trainer.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 setMessage("Building docker image: " + tag);
                 imageName = dockerGateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, this::printError);
-            } catch (Exception e) {
-                logger.error("Error while listing resources", e);
+            } catch (IOException e) {
+                logger.error("Error while extracting resources", e);
                 return null;
             } finally {
                 if (dockerFilePath != null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();

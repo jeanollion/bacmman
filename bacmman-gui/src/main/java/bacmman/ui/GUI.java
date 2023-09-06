@@ -1036,32 +1036,28 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // sample datasets
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
-        try {
-            Stream<JSONObject> dsStream = Utils.getResourcesForPath(GUI.class, "sample_datasets/")
-                    .filter(fn -> fn.endsWith(".json"))
-                    .map(fn -> {
-                        try {
-                            return Utils.getResourceFileAsString(GUI.class, "/sample_datasets/"+fn);
-                        } catch (IOException e) {
-                            return null;
-                        }
-                    }).filter(Objects::nonNull).map(s -> {
-                        try {
-                            return (JSONArray)new JSONParser().parse(s);
-                        } catch (ParseException e) {
-                            return null;
-                        }
-                    }).filter(Objects::nonNull)
-                    .flatMap(Collection::stream);
-            Map<String, List<JSONObject>> dbByFolder = dsStream.collect(Collectors.groupingBy(o -> (String) o.get("folder")));
-            dbByFolder.entrySet().stream().sorted(Entry.comparingByKey()).forEach(e -> {
-                JMenu folderMenu = new JMenu(e.getKey());
-                sampleDatasetMenu.add(folderMenu);
-                for (JSONObject o : e.getValue()) addSampleDataset(folderMenu, (String)o.get("name"), (String)o.get("gist_id"), (String)o.getOrDefault("hint", ""));
-            });
-        } catch (URISyntaxException | IOException e) {
-            throw new RuntimeException(e);
-        }
+        Stream<JSONObject> dsStream = Utils.getResourcesForPath(GUI.class, "sample_datasets/")
+                .filter(fn -> fn.endsWith(".json"))
+                .map(fn -> {
+                    try {
+                        return Utils.getResourceFileAsString(GUI.class, "/sample_datasets/"+fn);
+                    } catch (IOException e) {
+                        return null;
+                    }
+                }).filter(Objects::nonNull).map(s -> {
+                    try {
+                        return (JSONArray)new JSONParser().parse(s);
+                    } catch (ParseException e) {
+                        return null;
+                    }
+                }).filter(Objects::nonNull)
+                .flatMap(Collection::stream);
+        Map<String, List<JSONObject>> dbByFolder = dsStream.collect(Collectors.groupingBy(o -> (String) o.get("folder")));
+        dbByFolder.entrySet().stream().sorted(Entry.comparingByKey()).forEach(e -> {
+            JMenu folderMenu = new JMenu(e.getKey());
+            sampleDatasetMenu.add(folderMenu);
+            for (JSONObject o : e.getValue()) addSampleDataset(folderMenu, (String)o.get("name"), (String)o.get("gist_id"), (String)o.getOrDefault("hint", ""));
+        });
         sampleDatasetMenu.add(new JSeparator());
         JMenuItem upload = new JMenuItem("Upload...");
         upload.setToolTipText("Upload a file (or directory) as gist to a prompt account");
