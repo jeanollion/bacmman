@@ -428,16 +428,20 @@ public class ConfigurationTreeGenerator {
     public static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu) {
         addToMenu(p, menu, checkSubMenu, null, null);
     }
-    public static void addToMenu(Parameter p, JMenu menu, boolean checkSubMenu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItems) {
+    public static Object[] addToMenu(Parameter p, JMenu menu, boolean checkSubMenu, Runnable showMenu, Runnable updateOnSelect, Object... otherMenuItems) {
         if (checkSubMenu && (p instanceof ChoosableParameter || p instanceof ConditionalParameterAbstract || p instanceof ListParameter)) {
-            addToMenuAsSubMenu(p, menu, showMenu, otherMenuItems);
+            JMenu subMenu = addToMenuAsSubMenu(p, menu, showMenu, otherMenuItems);
+            return new Object[]{subMenu};
         } else if (p instanceof ChoosableParameter) {
             addToMenuChoice(((ChoosableParameter)p), menu, showMenu, updateOnSelect, otherMenuItems);
+            return null;
         }
         else if (p instanceof ConditionalParameterAbstract) {
             addToMenuCond((ConditionalParameterAbstract)p, menu, null, showMenu, updateOnSelect, otherMenuItems);
+            return null;
         } else if (p instanceof ListParameter) {
             addToMenuList((ListParameter)p, menu, showMenu, updateOnSelect, null, otherMenuItems);
+            return null;
         } else {
             Object[] UIElements = ParameterUIBinder.getUI(p).getDisplayComponent();
             if (p instanceof BoundedNumberParameter && UIElements.length == 2)
@@ -455,6 +459,7 @@ public class ConfigurationTreeGenerator {
                 }
             }
             if (otherMenuItems!=null) addToMenu(otherMenuItems, menu);
+            return UIElements;
         }
     }
     public static JMenu addToMenuAsSubMenu(Parameter parameter, JMenu menu) {
@@ -570,6 +575,7 @@ public class ConfigurationTreeGenerator {
         });
         String hint = list.getHintText();
         if (hint!=null && hint.length()>0) menu.setToolTipText(formatHint(hint, true));
+
     }
 
     private static JPanel addToMenu(String label, Component c, JMenu menu) {

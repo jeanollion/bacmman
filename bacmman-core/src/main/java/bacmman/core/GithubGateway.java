@@ -22,7 +22,7 @@ public class GithubGateway {
     protected char[] password;
     protected String username;
     ProgressLogger bacmmanLogger;
-    private Consumer<GithubGateway> promptCredientialFunction;
+    private Function<GithubGateway, Pair<String, char[]>> promptCredientialFunction;
 
     public GithubGateway setLogger(ProgressLogger logger) {
         bacmmanLogger = logger;
@@ -56,10 +56,14 @@ public class GithubGateway {
         if (username!=null && username.length()>0) passwords.put(username, password);
     }
     public UserAuth getAuthentication(boolean promptIfNecessary) {
-        if (password==null || password.length == 0 || username==null || username.length()==0) {
+        if (password==null || password.length == 0 || username==null || username.isEmpty()) {
             if (promptIfNecessary && promptCredientialFunction!=null) {
-                promptCredientialFunction.accept(this);
-                if (password!=null && password.length>0 && username!=null && username.length()>0) return getAuthentication(false);
+                Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+                if (cred != null) {
+                    username = cred.key;
+                    password = cred.value;
+                    if (password!=null && password.length>0 && username!=null && !username.isEmpty()) return getAuthentication(false);
+                }
             }
             return new NoAuth();
         }
@@ -70,21 +74,41 @@ public class GithubGateway {
             } catch (IllegalArgumentException e) {
                 if (bacmmanLogger!=null && !promptIfNecessary) bacmmanLogger.setMessage("No token associated with this username found");
                 if (promptIfNecessary) {
-                    promptCredientialFunction.accept(this);
-                    if (password!=null && password.length>0 && username!=null && username.length()>0) return getAuthentication(false);
+                    Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+                    if (cred != null) {
+                        username = cred.key;
+                        password = cred.value;
+                        if (password!=null && password.length>0 && username!=null && !username.isEmpty()) return getAuthentication(false);
+                    }
                 }
                 return new NoAuth();
             } catch (Throwable t) {
                 if (bacmmanLogger!=null && !promptIfNecessary) bacmmanLogger.setMessage("Token could not be retrieved. Wrong password ?");
                 if (promptIfNecessary) {
-                    promptCredientialFunction.accept(this);
-                    if (password!=null && password.length>0 && username!=null && username.length()>0) return getAuthentication(false);
+                    Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+                    if (cred != null) {
+                        username = cred.key;
+                        password = cred.value;
+                        if (password!=null && password.length>0 && username!=null && !username.isEmpty()) return getAuthentication(false);
+                    }
                 }
                 return new NoAuth();
             }
         }
     }
-    public void setPromptGithubCredientials(Consumer<GithubGateway> prompt) {
+    public void setPromptGithubCredientials(Function<GithubGateway, Pair<String, char[]>> prompt) {
         promptCredientialFunction = prompt;
+    }
+    public UserAuth promptCredentials(Consumer<String> error) {
+        Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+        if (cred == null || cred.key.isEmpty() || cred.value.length==0) return new NoAuth();
+        else {
+            try {
+                return new TokenAuth(username, password);
+            } catch (IllegalArgumentException e) {
+                if (error!=null) error.accept("Could not retried Token. Has Token been stored ?");
+                return new NoAuth();
+            }
+        }
     }
 }

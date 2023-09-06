@@ -1328,7 +1328,7 @@ public class Utils {
     public static Stream<String> getResourceListing(Class clazz, String path) throws URISyntaxException, IOException {
         ClassLoader classLoader = ClassLoader.getSystemClassLoader(); //clazz.getClassLoader()
         URL dirURL = classLoader.getResource(path);
-        logger.debug("dirURL: {}, protocol {}", dirURL.getPath(), dirURL.getProtocol());
+        logger.info("dirURL: {}, protocol {}", dirURL.getPath(), dirURL.getProtocol());
         if (dirURL != null && dirURL.getProtocol().equals("file")) {
             String[] res = new File(dirURL.toURI()).list();
             if (res==null) return Stream.empty();

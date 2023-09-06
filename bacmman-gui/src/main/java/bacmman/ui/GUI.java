@@ -29,6 +29,7 @@ import bacmman.data_structure.*;
 import bacmman.data_structure.dao.*;
 import bacmman.github.gist.LargeFileGist;
 import bacmman.github.gist.NoAuth;
+import bacmman.github.gist.UserAuth;
 import bacmman.plugins.Hint;
 import bacmman.plugins.HintSimple;
 import bacmman.plugins.Plugin;
@@ -48,6 +49,7 @@ import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 
 import static bacmman.data_structure.SegmentedObjectUtils.*;
 import static bacmman.plugins.PluginFactory.getClasses;
+import static bacmman.ui.gui.Utils.getDocumentListener;
 import static bacmman.ui.gui.image_interaction.ImageWindowManagerFactory.getImageManager;
 
 import bacmman.ui.gui.selection.SelectionRenderer;
@@ -63,16 +65,9 @@ import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.*;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -81,7 +76,10 @@ import javax.swing.event.*;
 import javax.swing.text.*;
 
 import bacmman.utils.*;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import bacmman.ui.logger.ExperimentSearchUtils;
@@ -93,6 +91,7 @@ import static bacmman.ui.gui.image_interaction.InteractiveImageKey.inferType;
 
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import javax.swing.tree.TreeSelectionModel;
 import bacmman.ui.logger.ProgressLogger;
 
@@ -1037,14 +1036,79 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // sample datasets
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
-        motherMachineDatasetMenu.setText("Mother Machine");
-        sampleDatasetMenu.add(motherMachineDatasetMenu);
-        addSampleDataset(motherMachineDatasetMenu, "Phase Contrast (50 fr, 53Mb)", "01a255d5a11f71d6b7cd6a8f81b41caa");
-        addSampleDataset(motherMachineDatasetMenu, "Fluoresence (50 fr, 2 Channels, 57Mb)", "adb4e7b76c1bd261fa477f70a2768e8a"); // hosted on sabilab account
+        try {
+            Stream<JSONObject> dsStream = Utils.getResourceListing(GUI.class, "sample_datasets/")
+                    .filter(fn -> fn.endsWith(".json"))
+                    .map(fn -> {
+                        try {
+                            return Utils.getResourceFileAsString(GUI.class, "/sample_datasets/"+fn);
+                        } catch (IOException e) {
+                            return null;
+                        }
+                    }).filter(Objects::nonNull).map(s -> {
+                        try {
+                            return (JSONArray)new JSONParser().parse(s);
+                        } catch (ParseException e) {
+                            return null;
+                        }
+                    }).filter(Objects::nonNull)
+                    .flatMap(Collection::stream);
+            Map<String, List<JSONObject>> dbByFolder = dsStream.collect(Collectors.groupingBy(o -> (String) o.get("folder")));
+            dbByFolder.entrySet().stream().sorted(Entry.comparingByKey()).forEach(e -> {
+                JMenu folderMenu = new JMenu(e.getKey());
+                sampleDatasetMenu.add(folderMenu);
+                for (JSONObject o : e.getValue()) addSampleDataset(folderMenu, (String)o.get("name"), (String)o.get("gist_id"), (String)o.getOrDefault("hint", ""));
+            });
+        } catch (URISyntaxException | IOException e) {
+            throw new RuntimeException(e);
+        }
+        sampleDatasetMenu.add(new JSeparator());
+        JMenuItem upload = new JMenuItem("Upload...");
+        upload.setToolTipText("Upload a file (or directory) as gist to a prompt account");
+        sampleDatasetMenu.add(upload);
+        upload.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                File f = Utils.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
+                if (f!=null) {
+                    UserAuth auth = Core.getCore().getGithubGateway().promptCredentials(INSTANCE::setMessage);
+                    if (auth instanceof NoAuth) return;
+                    try {
+                        LargeFileGist.storeFile(f, false, "", "dataset", auth, true, id->setMessage("Stored File ID: "+id), INSTANCE);
+                    } catch (IOException e) {
+                        setMessage("Could not upload file: "+ e.getMessage());
+                    }
+                }
+            }
+        });
+        JMenu downloadMenu = new JMenu("Download");
+        sampleDatasetMenu.add(downloadMenu);
+        TextParameter downloadId = new TextParameter("File ID").setHint("Enter uploaded file id");
+        JMenuItem download = new JMenuItem("Download...");
+        download.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                File f = Utils.chooseFile("Choose Directory to download dataset to", workingDirectory.getText() , FileChooser.FileChooserOption.DIRECTORIES_ONLY, INSTANCE);
+                if (f!=null) {
+                    try {
+                        LargeFileGist lf = new LargeFileGist(downloadId.getValue(), new NoAuth());
+                        lf.retrieveFile(f, true, true, new NoAuth(), null, INSTANCE);
+                        setMessage(lf.getFileName() + " downloaded to "+ f);
+                    } catch (IOException e) {
+                        setMessage("Could not download file: "+ e.getMessage());
+                    }
+                }
+            }
+        });
+        downloadId.addListener(l -> download.setEnabled(!downloadId.getValue().isEmpty()));
+        Object[] UIElement = ConfigurationTreeGenerator.addToMenu(downloadId, downloadMenu, false, ()->sampleDatasetMenu.setPopupMenuVisible(true), null, download);
+        if (UIElement!=null && UIElement[0] instanceof JTextComponent) {
+            ((JTextComponent)UIElement[0]).getDocument().addDocumentListener(getDocumentListener(e -> download.setEnabled(!downloadId.getValue().isEmpty())));
+            download.setEnabled(false);
+        }
+        // display memory
         setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
     } // end of constructor
 
-    private void addSampleDataset(JMenu targetMenu, String name, String id) {
+    private void addSampleDataset(JMenu targetMenu, String name, String id, String hint) {
         JMenuItem sample = new javax.swing.JMenuItem();
         sample.setText(name);
         sample.addActionListener(new java.awt.event.ActionListener() {
@@ -1061,6 +1125,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         targetMenu.add(sample);
+        if (hint !=null && !hint.isEmpty()) sample.setToolTipText(formatHint(hint));
     }
 
     private void setDataBrowsingButtonsTitles() {
@@ -1819,7 +1884,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         compactLocalDBMenuItem = new javax.swing.JMenuItem();
         importMenu = new javax.swing.JMenu();
         sampleDatasetMenu = new javax.swing.JMenu();
-        motherMachineDatasetMenu = new javax.swing.JMenu();
         importDataMenuItem = new javax.swing.JMenuItem();
         importPositionsToCurrentExperimentMenuItem = new javax.swing.JMenuItem();
         importConfigurationMenuItem = new javax.swing.JMenuItem();
@@ -5254,7 +5318,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenuItem openTrackMateMenuItem;
     private javax.swing.JMenuItem onlineConfigurationLibraryMenuItem;
     private javax.swing.JMenu sampleDatasetMenu;
-    private javax.swing.JMenu motherMachineDatasetMenu;
     private javax.swing.JMenuItem onlineDLModelLibraryMenuItem;
     private javax.swing.JMenu CTCMenu;
     private javax.swing.JMenuItem exportCTCMenuItem, exportSelCTCMenuItem;

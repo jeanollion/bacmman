@@ -219,7 +219,7 @@ public class DLModelsLibrary {
                     Action dupOther = new AbstractAction("Duplicate To another Account") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, false);
+                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway);
                             if (cred != null) {
                                 try {
                                     TokenAuth auth2 = new TokenAuth(cred.key, cred.value);

@@ -1,0 +1,9 @@
+[
+  { "name": "Phase Contrast", "folder": "Mother Machine", "gist_id": "01a255d5a11f71d6b7cd6a8f81b41caa", "hint": "50 fr, 53Mb" },
+  { "name": "Fluoresence", "folder": "Mother Machine", "gist_id": "adb4e7b76c1bd261fa477f70a2768e8a",
+    "hint": "50 fr, 2 Channels, 57Mb"
+  },
+  { "name": "Neutrophils", "folder": "Segmentation", "gist_id": "917bd79628670b95ec9b571f824201e3",
+    "hint": "Fluorescence imaged neutrophils. <br/>Credit: Ludvikova et al. <em>Near-infrared co-illumination of fluorescent proteins reduces photobleaching and phototoxicity</em> Nature Biotechnology 2023. <br/>3 images, 4.72Mb"
+  }
+]

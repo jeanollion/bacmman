@@ -153,16 +153,10 @@ public class PromptGithubCredentials extends JDialog {
         dispose();
     }
 
-    public static Pair<String, char[]> promptCredentials(GithubGateway gateway, boolean storeToGateway) {
-        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, storeToGateway);
+    public static Pair<String, char[]> promptCredentials(GithubGateway gateway) {
+        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, false);
         dialog.pack();
         dialog.setVisible(true);
         return dialog.credentials;
-    }
-
-    public static void promptCredentials(GithubGateway gateway) {
-        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, true);
-        dialog.pack();
-        dialog.setVisible(true);
     }
 }

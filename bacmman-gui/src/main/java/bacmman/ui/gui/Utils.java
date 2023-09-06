@@ -6,6 +6,8 @@ import ij.ImagePlus;
 import ij.gui.ImageCanvas;
 
 import javax.swing.*;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.text.DefaultEditorKit;
 import javax.swing.text.JTextComponent;
 import javax.swing.text.TextAction;
@@ -19,11 +21,29 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class Utils {
+    public static DocumentListener getDocumentListener(Consumer<DocumentEvent> consumer) {
+        return new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                consumer.accept(e);
+            }
 
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                consumer.accept(e);
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                consumer.accept(e);
+            }
+        };
+    }
     public static void addCopyMenu(Component c, boolean paste, boolean clear) {
         c.addMouseListener(new MouseAdapter() {
             @Override
