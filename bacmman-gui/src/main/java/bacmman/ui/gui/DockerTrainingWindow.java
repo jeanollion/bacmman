@@ -250,7 +250,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             try {
                 epochLabel.setText("Build:");
                 // TODO test if works in JARS
-                List<String> dockerFiles = Utils.getResourceListing(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
+                List<String> dockerFiles = Utils.getResourcesForPath(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
                 String dockerfileName = dockerFiles.stream()
                         .filter(n -> n.startsWith(trainer.getDockerImageName()))
                         .sorted(Comparator.reverseOrder())

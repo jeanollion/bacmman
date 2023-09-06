@@ -1037,7 +1037,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         sampleDatasetMenu.setText("Sample Datasets");
         this.importMenu.add(sampleDatasetMenu);
         try {
-            Stream<JSONObject> dsStream = Utils.getResourceListing(GUI.class, "sample_datasets/")
+            Stream<JSONObject> dsStream = Utils.getResourcesForPath(GUI.class, "sample_datasets/")
                     .filter(fn -> fn.endsWith(".json"))
                     .map(fn -> {
                         try {

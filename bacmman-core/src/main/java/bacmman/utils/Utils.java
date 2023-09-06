@@ -40,7 +40,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -1313,58 +1312,74 @@ public class Utils {
         String path = clazz.getName();
         return path.substring(0, path.lastIndexOf('.')+1).replace(".", "/");
     }
+    public static Stream<String> getResourcesForPath(String path) {
+        return getResourcesForPath(null, path);
+    }
     /**
      * List directory contents for a resource folder. Not recursive.
      * This is basically a brute-force implementation.
      * Works for regular files and also JARs.
      *
-     * @author Greg Briggs (https://www.uofr.net/~greg/java/get-resource-listing.html)
-     * @param clazz Any java class that lives in the same place as the resources you want.
-     * @param path Should end with "/", but not start with one.
-     * @return Just the name of each member item, not the full paths.
-     * @throws URISyntaxException
-     * @throws IOException
+     * @author Adapted from Greg Briggs (https://www.uofr.net/~greg/java/get-resource-listing.html)
+     * @param clazz Any java class that lives in the same place as the resources you want (optional).
+     * @param path path to inspect (separator = "/" ).
+     * @return Just the name of each member item, not the full paths. Do not throw errors, return empty stream instead
      */
-    public static Stream<String> getResourceListing(Class clazz, String path) throws URISyntaxException, IOException {
+    public static Stream<String> getResourcesForPath(Class clazz, String path) {
+        if (path.startsWith("/")) path = path.substring(1);
+        if (!path.endsWith("/")) path = path + "/";
+        final String pathF = path;
         ClassLoader classLoader = ClassLoader.getSystemClassLoader(); //clazz.getClassLoader()
-        URL dirURL = classLoader.getResource(path);
-        logger.info("dirURL: {}, protocol {}", dirURL.getPath(), dirURL.getProtocol());
-        if (dirURL != null && dirURL.getProtocol().equals("file")) {
-            String[] res = new File(dirURL.toURI()).list();
-            if (res==null) return Stream.empty();
-            return Stream.of(res);
-        }
+        Enumeration<URL> urlEnumeration = null;
+        try {
+            urlEnumeration = classLoader.getResources(path);
+        } catch (IOException e) {
 
-        if (dirURL == null) {
-            /*
-             * In case of a jar file, we can't actually find a directory.
-             * Have to assume the same jar as clazz.
-             */
+        }
+        if (urlEnumeration == null && clazz!=null) {
             String me = clazz.getName().replace(".", "/")+".class";
-            dirURL = clazz.getClassLoader().getResource(me);
-        }
+            try {
+                urlEnumeration = clazz.getClassLoader().getResources(me);
+            } catch (IOException e) {
 
-        if (dirURL.getProtocol().equals("jar")) {
-            /* A JAR path */
-            String jarPath = dirURL.getPath().substring(5, dirURL.getPath().indexOf("!")); //strip out only the JAR file
-            JarFile jar = new JarFile(URLDecoder.decode(jarPath, "UTF-8"));
-            Enumeration<JarEntry> entries = jar.entries(); //gives ALL entries in jar
-            Set<String> result = new HashSet<>(); //avoid duplicates in case it is a subdirectory
-            while(entries.hasMoreElements()) {
-                String name = entries.nextElement().getName();
-                if (name.startsWith(path)) { //filter according to the path
-                    String entry = name.substring(path.length());
-                    int checkSubdir = entry.indexOf("/");
-                    if (checkSubdir >= 0) {
-                        // if it is a subdirectory, we just return the directory name
-                        entry = entry.substring(0, checkSubdir);
-                    }
-                    result.add(entry);
-                }
             }
-            return result.stream();
         }
-
-        throw new UnsupportedOperationException("Cannot list files for URL "+dirURL);
+        if (urlEnumeration == null) return Stream.empty();
+        Stream<URL> urlStream = EnumerationUtils.toStream(urlEnumeration);
+        return urlStream.filter(Objects::nonNull).flatMap( u -> {
+            //logger.info("resources for {} -> {} protocol={}", path, u.getPath(), u.getProtocol());
+            if (u.getProtocol().equals("file")) {
+                String[] res;
+                try {
+                    res = new File(u.toURI()).list();
+                } catch (URISyntaxException e) {
+                    return Stream.empty();
+                }
+                if (res==null) return Stream.empty();
+                return Stream.of(res);
+            } else if (u.getProtocol().equals("jar")) {
+                try {
+                    String jarPath = u.getPath().substring(5, u.getPath().indexOf("!")); //strip out only the JAR file
+                    JarFile jar = new JarFile(URLDecoder.decode(jarPath, "UTF-8"));
+                    Enumeration<JarEntry> entries = jar.entries(); //gives ALL entries in jar
+                    Set<String> result = new HashSet<>(); //avoid duplicates in case it is a subdirectory
+                    while(entries.hasMoreElements()) {
+                        String name = entries.nextElement().getName();
+                        if (name.startsWith(pathF)) { //filter according to the path
+                            String entry = name.substring(pathF.length());
+                            int checkSubdir = entry.indexOf("/");
+                            if (checkSubdir >= 0) {
+                                // if it is a subdirectory, we just return the directory name
+                                entry = entry.substring(0, checkSubdir);
+                            }
+                            result.add(entry);
+                        }
+                    }
+                    return result.stream();
+                } catch (IOException e) {
+                    return Stream.empty();
+                }
+            } else return Stream.empty();
+        });
     }
 }
