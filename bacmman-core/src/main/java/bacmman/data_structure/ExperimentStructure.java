@@ -6,7 +6,6 @@ import bacmman.configuration.experiment.Structure;
 import bacmman.utils.Utils;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -71,9 +70,10 @@ public class ExperimentStructure {
 
     public String[] getObjectClassesNames(int... structureIndicies) {
         String[] res = new String[structureIndicies.length];
+        String[] names = xp.experimentStructure.getObjectClassesAsString();
         for (int i = 0; i<res.length; ++i) {
             if (structureIndicies[i]<0) res[i]="Viewfield";
-            else res[i] = xp.getStructure(structureIndicies[i]).getName();
+            else if (structureIndicies[i]<names.length) res[i] = xp.getStructure(structureIndicies[i]).getName();
         }
         return res;
     }

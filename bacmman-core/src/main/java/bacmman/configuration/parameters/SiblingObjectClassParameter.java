@@ -28,7 +28,6 @@ import java.util.Arrays;
  */
 public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<SiblingObjectClassParameter> {
     int parentStructureIdx=-2;
-    int[] idxStructureMap;
     boolean includeParent=false, includeCurrent=false;
     int maxStructure=-1;
 
@@ -53,9 +52,9 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
     }
     @Override public int getSelectedClassIdx() {
         int idx = super.getSelectedIndex();
-        getIndexStructureMap();
-        if (idx<0 || idx>= idxStructureMap.length) return -2;
-        return idxStructureMap[idx];
+        int[] idxObjectClassMap = getIndexObjectClassMap();
+        if (idx<0 || idx>= idxObjectClassMap.length) return -2;
+        return idxObjectClassMap[idx];
     }
     
     @Override public void setSelectedIndex(int selectedIndex) {
@@ -75,7 +74,6 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
             String[] sel = this.getSelectedItemsNames();
             this.parentStructureIdx = parentStructureIdx;
             if (sel.length == 1) this.setSelectedItem(sel[0]);
-            setIndexStructureMap();
         }
     }
     
@@ -83,10 +81,10 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
         if (structureIdx<0) super.setSelectedIndex(-1);
         else {
             super.setSelectedIndex(-1);
-            getIndexStructureMap();
-            if (idxStructureMap!=null) {
-                for (int i = 0; i<idxStructureMap.length; ++i) {
-                    if (idxStructureMap[i]==structureIdx) {
+            int[] idxObjectClassMap = getIndexObjectClassMap();
+            if (idxObjectClassMap !=null) {
+                for (int i = 0; i< idxObjectClassMap.length; ++i) {
+                    if (idxObjectClassMap[i]==structureIdx) {
                         super.setSelectedIndex(i);
                     }
                 }
@@ -94,19 +92,19 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
         }
     }
     
-    protected void setIndexStructureMap() {
+    public int[] getIndexObjectClassMap() {
         //logger.debug("sibling structure parameter: setIndexStructureMap getXP null: {}", getXP()==null);
         if (parentStructureIdx<-1) autoConfiguration();
-        if ((getXP()==null && idxStructureMap==null) || parentStructureIdx<-1) idxStructureMap=new int[]{-1};
+        if ((getXP()==null) || parentStructureIdx<-1) return new int[]{-1};
         else {
-            idxStructureMap =  getXP().experimentStructure.getAllChildStructures(parentStructureIdx);
-            if (maxStructure>=0) idxStructureMap = Arrays.stream(idxStructureMap).filter(i->i<maxStructure).toArray();
+            int[] idxObjectClassMap =  getXP().experimentStructure.getAllChildStructures(parentStructureIdx);
+            if (maxStructure>=0) idxObjectClassMap = Arrays.stream(idxObjectClassMap).filter(i->i<maxStructure).toArray();
             if (includeParent && parentStructureIdx!=-1) { // add Parent before
-                int[] idxStructureMap2 = new int[idxStructureMap.length+1];
-                System.arraycopy(idxStructureMap, 0, idxStructureMap2, 1, idxStructureMap.length);
+                int[] idxStructureMap2 = new int[idxObjectClassMap.length+1];
+                System.arraycopy(idxObjectClassMap, 0, idxStructureMap2, 1, idxObjectClassMap.length);
                 idxStructureMap2[0] = parentStructureIdx;
-                idxStructureMap=idxStructureMap2;
-            }
+                return idxStructureMap2;
+            } else return idxObjectClassMap;
         }
     }
     
@@ -120,15 +118,10 @@ public class SiblingObjectClassParameter extends ObjectClassParameterAbstract<Si
         }
     }
     
-    protected int[] getIndexStructureMap() {
-        if (idxStructureMap==null) setIndexStructureMap();
-        return idxStructureMap;
-    }
-    
     @Override
     public String[] getChoiceList() {
         if (getXP()!=null) {
-            return getXP().experimentStructure.getObjectClassesNames(getIndexStructureMap());
+            return getXP().experimentStructure.getObjectClassesNames(getIndexObjectClassMap());
         } else {
             return new String[]{"error: no xp found in tree"};
         }

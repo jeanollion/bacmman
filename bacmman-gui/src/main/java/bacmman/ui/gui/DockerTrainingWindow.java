@@ -214,8 +214,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String path = PropertyUtils.get(WD_ID, defWD);
-                File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame)dia.getParent());
-                if (f!=null) {
+                File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) dia.getParent());
+                if (f != null) {
                     workingDirectoryTextField.setText(f.getAbsolutePath());
                     workingDirPersistence.actionPerformed(e);
                 }
@@ -245,12 +245,12 @@ public class DockerTrainingWindow implements ProgressLogger {
                 .findFirst().orElse(null);
         if (imageName == null) { // look for dockerfile and build it
             logger.debug("docker image: {} not found within: {}", trainer.getDockerImageName(), images);
-            String dockerFilePath=null;
-            File dockerDir=null;
+            String dockerFilePath = null;
+            File dockerDir = null;
             try {
                 epochLabel.setText("Build:");
                 // TODO test if works in JARS
-                List<String> dockerFiles = bacmman.utils.Utils.getResourceListing(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
+                List<String> dockerFiles = Utils.getResourceListing(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
                 String dockerfileName = dockerFiles.stream()
                         .filter(n -> n.startsWith(trainer.getDockerImageName()))
                         .sorted(Comparator.reverseOrder())
@@ -267,15 +267,15 @@ public class DockerTrainingWindow implements ProgressLogger {
                 if (!dockerDir.exists()) dockerDir.mkdir();
                 dockerFilePath = Paths.get(currentWorkingDirectory, "docker", "Dockerfile").toString();
                 logger.debug("will build docker image: {} from dockerfile: {} @ {}", tag, dockerfileName, dockerFilePath);
-                bacmman.utils.Utils.extractResourceFile(trainer.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
+                Utils.extractResourceFile(trainer.getClass(), "/dockerfiles/" + dockerfileName, dockerFilePath);
                 setMessage("Building docker image: " + tag);
                 imageName = dockerGateway.buildImage(tag, new File(dockerFilePath), this::parseBuildProgress, this::printError);
             } catch (Exception e) {
                 logger.error("Error while listing resources", e);
                 return null;
             } finally {
-                if (dockerFilePath!=null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();
-                if (dockerDir!=null && dockerDir.exists()) dockerDir.delete();
+                if (dockerFilePath != null && new File(dockerFilePath).exists()) new File(dockerFilePath).delete();
+                if (dockerDir != null && dockerDir.exists()) dockerDir.delete();
                 epochLabel.setText("Epoch:");
             }
         }

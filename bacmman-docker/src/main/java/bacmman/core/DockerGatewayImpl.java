@@ -126,7 +126,7 @@ public class DockerGatewayImpl implements DockerGateway {
             dockerClient.startContainerCmd(container.getId()).exec();
         } catch (RuntimeException e) {
             if (e.getMessage().contains("nvml error: driver not loaded: unknown")) {
-                throw new RuntimeException("GPU not found: ");
+                throw new RuntimeException("GPU not found: ", e);
             } else throw e;
         }
         return container.getId();
