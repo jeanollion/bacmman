@@ -616,7 +616,7 @@ public class SelectionUtils {
         JMenuItem nonEmptyFilter = new JMenuItem("Non Empty");
         nonEmptyFilter.addActionListener((ActionEvent e) -> {
             for (Selection s : selectedValues) {
-                SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure);
+                SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(s.getStructureIdx()));
                 s.getMasterDAO().getSelectionDAO().store(s);
             }
             if (readOnly) Utils.displayTemporaryMessage("Changes in selections will not be stored as database could not be locked", 5000);

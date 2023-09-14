@@ -1,9 +1,11 @@
 package bacmman.github.gist;
 
 import bacmman.configuration.parameters.*;
+import bacmman.plugins.DockerDLTrainer;
 import bacmman.plugins.HistogramScaler;
 import org.json.simple.JSONObject;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -19,10 +21,9 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     ArrayNumberParameter contraction = InputShapesParameter.getInputShapeParameter(false, true,  new int[]{8, 8}, null).setEmphasized(true).setName("Contraction Factor").setHint("Size ratio between the smallest tensor in the network and the input tensor. <br />For a network that performs 3 contractions with each contraction dividing the image by two, enter 8 on each axis").addValidationFunction(a -> inputs.getChildren().stream().mapToInt(c-> c.is3D()?3:2).max().orElse(2) == a.getChildCount());
     TextParameter exportLibrary = new TextParameter("Export Library", "", true).setHint("DL Library the model was exported with");
     SimpleListParameter<CustomParameter<Parameter>> miscParameters = new SimpleListParameter<>("Other Parameters", -1, new CustomParameter<>("Parameter", Parameter.class, ObjectClassOrChannelParameter.class::isAssignableFrom));
-
+    PluginParameter<DockerDLTrainer> dockerTrainer = new PluginParameter<>("Docker Training Configuration", DockerDLTrainer.class, true);
     public DLModelMetadata() {
         super("Metadata");
-
     }
     @Override
     public String getHintText() {
@@ -30,7 +31,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
     }
     @Override
     protected void initChildList() {
-        super.initChildren(inputs, outputs, contraction, exportLibrary, miscParameters);
+        super.initChildren(inputs, outputs, contraction, exportLibrary, miscParameters, dockerTrainer);
     }
 
     @Override
@@ -41,6 +42,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         res.put("contraction", contraction.toJSONEntry());
         res.put("library", exportLibrary.toJSONEntry());
         res.put("otherParameters", miscParameters.toJSONEntry());
+        res.put("dockerDLTrainer", dockerTrainer.toJSONEntry());
         return res;
     }
 
@@ -53,6 +55,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         exportLibrary.initFromJSONEntry(jsonO.get("library"));
         if (jsonO.containsKey("contraction")) contraction.initFromJSONEntry(jsonO.get("contraction"));
         if (jsonO.containsKey("otherParameters")) miscParameters.initFromJSONEntry(jsonO.get("otherParameters"));
+        if (jsonO.containsKey("dockerDLTrainer")) dockerTrainer.initFromJSONEntry(jsonO.get("dockerDLTrainer"));
     }
     public DLModelMetadata setInputs(DLModelInputParameter... inputs) {
         this.inputs.removeAllElements();
@@ -94,6 +97,15 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
             this.miscParameters.insert(cp);
         }
         return this;
+    }
+
+    public DLModelMetadata setDockerDLTrainer(DockerDLTrainer trainer) {
+        this.dockerTrainer.setPlugin(trainer);
+        return this;
+    }
+
+    public DockerDLTrainer getDockerDLTrainer() {
+        return this.dockerTrainer.instantiatePlugin();
     }
 
     public List<DLModelInputParameter> getInputs() {
@@ -165,8 +177,8 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
         }
 
         public DLModelInputParameter setShape(int... shape) {
-            boolean fixedSize = shape == null || shape.length == 0;
-            if (!fixedSize) {
+            boolean fixedSize = shape!=null && shape.length > 0;
+            if (fixedSize) {
                 int[] distinct = IntStream.of(shape).distinct().toArray();
                 fixedSize = !(distinct.length == 1 && distinct[0]<=0);
             }
@@ -178,7 +190,7 @@ public class DLModelMetadata extends ContainerParameterImpl<DLModelMetadata>  {
                 if (shape.length == 1) {
                     int s = shape[0];
                     shape = new int[is3D.getSelected()?3:2];
-                    for (int i = 0; i<shape.length; ++i) shape[i] = s;
+                    Arrays.fill(shape, s);
                 }
                 this.fixedSize.setSelected(true);
                 this.shape.setValue(shape);

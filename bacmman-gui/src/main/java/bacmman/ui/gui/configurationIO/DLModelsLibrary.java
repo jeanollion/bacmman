@@ -350,8 +350,9 @@ public class DLModelsLibrary {
         return this;
     }
 
-    public void setConfigureParameterCallback(BiConsumer<String, DLModelMetadata> callback) {
+    public DLModelsLibrary setConfigureParameterCallback(BiConsumer<String, DLModelMetadata> callback) {
         this.configureParameterCallback = callback;
+        return this;
     }
 
     public void deleteSelectedGists(boolean deleteFile) {

@@ -13,7 +13,7 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> implemen
     private Number lowerBound, upperBound;
     private Number[] values;
     private int decimalPlaces;
-    Map<Integer, Number> additionalBounds;
+    Map<Integer, Number> additionalRightBounds, additionalLeftBounds;
     public IntervalParameter(String name, int decimalPlaces, Number lowerBound, Number upperBound, Number... values) {
         super(name);
         if (lowerBound!=null && upperBound!=null && compare(lowerBound, upperBound)>0) throw new IllegalArgumentException("lower bound should be inferior to upper bound");
@@ -25,13 +25,33 @@ public class IntervalParameter extends ParameterImpl<IntervalParameter> implemen
     }
 
     public IntervalParameter addRightBound(int index, Number bound) {
-        if (additionalBounds == null ) additionalBounds = new HashMap<>();
-        additionalBounds.put(index, bound);
+        if (additionalRightBounds == null ) additionalRightBounds = new HashMap<>();
+        if (additionalLeftBounds == null ) additionalLeftBounds = new HashMap<>();
+        additionalRightBounds.put(index, bound);
+        if (index+1<values.length) {
+            Number lb = additionalLeftBounds.get(index+1);
+            if (lb == null || compare(lb, bound)<0) additionalLeftBounds.put(index+1, bound);
+        }
         return this;
     }
-    public Map<Integer, Number> getAdditionalBounds() {
-        if (additionalBounds == null) return Collections.EMPTY_MAP;
-        else return additionalBounds;
+    public IntervalParameter addLeftBound(int index, Number bound) {
+        if (additionalRightBounds == null ) additionalRightBounds = new HashMap<>();
+        if (additionalLeftBounds == null ) additionalLeftBounds = new HashMap<>();
+        additionalLeftBounds.put(index, bound);
+        if (index>=1) {
+            Number rb = additionalRightBounds.get(index-1);
+            if (rb == null || compare(rb, bound)>0) additionalRightBounds.put(index-1, bound);
+        }
+        return this;
+    }
+    public Map<Integer, Number> getAdditionalBounds(boolean right) {
+        if (right) {
+            if (additionalRightBounds == null) return Collections.EMPTY_MAP;
+            else return additionalRightBounds;
+        } else {
+            if (additionalLeftBounds == null) return Collections.EMPTY_MAP;
+            else return additionalLeftBounds;
+        }
     }
     @Override
     public boolean sameContent(Parameter other) {

@@ -361,16 +361,15 @@ public class ExtractDatasetUtil {
         return resultingTask;
     }
 
-    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
+    public static Task getDiSTNetDatasetTask(MasterDAO mDAO, int objectClass, int[] outputDimensions, List<String> selections, String outputFile, int compression) throws IllegalArgumentException {
         Task resultingTask = new Task(mDAO);
         List<FeatureExtractor.Feature> features = new ArrayList<>(3);
         features.add(new FeatureExtractor.Feature( new RawImage(), objectClass ));
         features.add(new FeatureExtractor.Feature( new Labels(), objectClass ));
         features.add(new FeatureExtractor.Feature( new PreviousLinks(), objectClass ));
 
-        int[] dims = new int[]{0, 0};
         int[] eraseContoursOC = new int[0];
-        resultingTask.setExtractDS(outputFile, selections, features, dims, eraseContoursOC, compression);
+        resultingTask.setExtractDS(outputFile, selections, features, outputDimensions, eraseContoursOC, compression);
         return resultingTask;
     }
 

@@ -16,4 +16,12 @@ public interface DockerGateway {
     String createContainer(String image, boolean tty, int[] gpuIds, SymetricalPair<String>... mountDirs);
     void exec(String containerId, Consumer<String> stdOut, Consumer<String> stdErr, boolean remove, String... cmds) throws InterruptedException;
     void stopContainer(String containerId);
+    static Consumer<String> applyToSplit(Consumer<String> consumer) {
+        return message -> {
+            if (message.contains("\n")) {
+                String[] split = message.split("\n");
+                for (String s : split) consumer.accept(s);
+            } else consumer.accept(message);
+        };
+    }
 }

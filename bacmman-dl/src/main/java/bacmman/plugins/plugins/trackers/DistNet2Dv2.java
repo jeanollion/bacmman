@@ -1521,6 +1521,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             int n = predictions[0].length;
             System.arraycopy(ResizeUtils.getChannel(predictions[0], 0), 0, this.edm, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[1], 0), 0, this.center, idx, n);
+            for (int i = idx; i<idx+n; ++i) ImageOperations.applyFunction(this.center[i], c -> c<0 ? 0 : c, true);
             System.arraycopy(ResizeUtils.getChannel(predictions[2], 0), 0, this.dy, idx, n);
             System.arraycopy(ResizeUtils.getChannel(predictions[3], 0), 0, this.dx, idx, n);
             predNext = predictions[2][0].length ==2;

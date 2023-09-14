@@ -3,20 +3,24 @@ package bacmman.ui.gui;
 import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.core.*;
+import bacmman.github.gist.DLModelMetadata;
+import bacmman.github.gist.TokenAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.plugins.DockerDLTrainer;
+import bacmman.py_dataset.HDF5IO;
 import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
+import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.logger.ProgressLogger;
-import bacmman.utils.FileIO;
-import bacmman.utils.JSONUtils;
-import bacmman.utils.SymetricalPair;
+import bacmman.utils.*;
 import bacmman.utils.Utils;
+import ch.systemsx.cisd.hdf5.IHDF5Reader;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
 import com.intellij.uiDesigner.core.Spacer;
+import ij.ImagePlus;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.slf4j.Logger;
@@ -32,8 +36,11 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -67,6 +74,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JLabel epochLabel;
     private JLabel stepLabel;
     private JLabel lossJLabel;
+    private JButton taskButton;
+    private JButton testAugButton;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
     private static final Logger logger = LoggerFactory.getLogger(DockerTrainingWindow.class);
@@ -75,7 +84,8 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected String currentWorkingDirectory;
     protected PluginParameter<DockerDLTrainer> trainerParameter = new PluginParameter<>("Method", DockerDLTrainer.class, false)
             .setNewInstanceConfiguration(i -> {
-                if (currentWorkingDirectory != null) i.setReferencePath(Paths.get(currentWorkingDirectory));
+                if (currentWorkingDirectory != null)
+                    i.getConfiguration().setReferencePath(Paths.get(currentWorkingDirectory));
             }).addListener(tp -> {
                 updateExtractDatasetConfiguration();
                 updateDisplayRelatedToWorkingDir();
@@ -83,12 +93,13 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected PluginParameter<DockerDLTrainer> trainerParameterRef = trainerParameter.duplicate();
     protected final Color textFG;
-    protected FileIO.TextFile pythonConfig, javaConfig, javaExtractConfig;
+    protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
     final protected ActionListener workingDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.MAX_VALUE, maxLoss = Double.MIN_VALUE;
+    List<List<ImagePlus>> displayedImages = new ArrayList<>();
 
     public DockerTrainingWindow(DockerGateway dockerGateway) {
         this.dockerGateway = dockerGateway;
@@ -114,7 +125,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         setWriteButton.addActionListener(ae -> {
             setWorkingDirectory();
             setConfigurationFile(false);
-            writeConfigFile();
+            writeConfigFile(true, true, true, true);
             updateDisplayRelatedToWorkingDir();
             config.getTree().updateUI();
         });
@@ -140,7 +151,6 @@ public class DockerTrainingWindow implements ProgressLogger {
                         //logger.debug("interrupted exception", e);
                     } finally {
                         currentContainer = null;
-                        stopTrainingButton.setEnabled(false);
                     }
                 }
             });
@@ -155,6 +165,69 @@ public class DockerTrainingWindow implements ProgressLogger {
                 logger.debug("stopping container: {}", currentContainer);
                 dockerGateway.stopContainer(currentContainer);
                 currentContainer = null;
+            }
+            updateTrainingDisplay();
+        });
+        testAugButton.addActionListener(ae -> {
+            currentProgressBar = trainingProgressBar;
+            writeConfigFile(false, false, true, false); // save only python config in case
+            runLater(() -> {
+                if (dockerGateway == null) throw new RuntimeException("Docker Gateway not reachable");
+                DockerDLTrainer trainer = trainerParameter.instantiatePlugin();
+                currentContainer = getContainer(trainer, dockerGateway);
+                File outputFile = Paths.get(currentWorkingDirectory, "test_data_augmentation.h5").toFile();
+                if (currentContainer != null) {
+                    try {
+                        if (outputFile.exists()) outputFile.delete();
+                        dockerGateway.exec(currentContainer, this::parseTestDataAugProgress, this::printError, true, "python", "train.py", "/data", "--test_data_augmentation");
+                        logger.debug("data aug file found: {}", outputFile.isFile());
+                        if (outputFile.exists()) {
+                            List<ImagePlus> images = new ArrayList<>();
+                            IHDF5Reader reader = HDF5IO.getReader(outputFile);
+                            for (String s : HDF5IO.getAllDatasets(reader, "/data_aug")) {
+                                ImagePlus ip = HDF5IO.readDataset(reader, s);
+                                String[] split = s.split("/");
+                                ip.setTitle(split[split.length - 1]);
+                                ip.show();
+                                images.add(ip);
+                            }
+                            displayedImages.add(images);
+                        }
+                    } catch (InterruptedException ignored) { //InterruptedException
+
+                    } catch (Exception e) {
+                        logger.debug("error reading augmented data", e);
+                    } finally {
+                        currentContainer = null;
+                        outputFile.delete();
+                    }
+                }
+            });
+        });
+        testAugButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action closeAll = new AbstractAction("Close All Images") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            displayedImages.forEach(il -> il.forEach(ImagePlus::close));
+                            displayedImages.clear();
+                        }
+                    };
+                    menu.add(closeAll);
+                    Action closeLast = new AbstractAction("Close Last Images") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            if (displayedImages.isEmpty()) return;
+                            List<ImagePlus> images = displayedImages.remove(displayedImages.size() - 1);
+                            images.forEach(ImagePlus::close);
+                        }
+                    };
+                    menu.add(closeLast);
+                    menu.show(testAugButton, evt.getX(), evt.getY());
+                }
             }
         });
         saveModelButton.addActionListener(ae -> {
@@ -182,22 +255,41 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setMessage("Github not reachable");
                 return;
             }
+            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
             UserAuth auth = githubGateway.getAuthentication(true);
-            DLModelsLibrary dlModelLibrary;
-            if (GUI.hasInstance()) {
-                dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary().setWorkingDirectory(currentWorkingDirectory);
-            } else {
-                dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> {
-                }, this);
-                dlModelLibrary.display(dia.getParent() instanceof JFrame ? (JFrame) dia.getParent() : null);
-                currentProgressBar = trainingProgressBar;
-                epochLabel.setText("Upload:");
-            }
-
-            dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata(), getSavedModelPath());
+            dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
             // set back properties
             if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
             epochLabel.setText("Epoch:");
+        });
+        uploadModelButton.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent evt) {
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            GithubGateway githubGateway = Core.getCore().getGithubGateway();
+                            if (githubGateway == null) {
+                                setMessage("Github not reachable");
+                                return;
+                            }
+                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
+                                DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
+                                if (newTrainer != null) {
+                                    trainerParameter.setPlugin(newTrainer);
+                                    config.getTree().updateUI();
+                                }
+                            });
+                            // set back properties
+                            if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
+                        }
+                    };
+                    menu.add(downloadConfiguration);
+                    menu.show(uploadModelButton, evt.getX(), evt.getY());
+                }
+            }
         });
         String defWD;
         if (GUI.hasInstance()) {
@@ -234,9 +326,25 @@ public class DockerTrainingWindow implements ProgressLogger {
         config.getTree().updateUI();
         if (!config.getRoot().sameContent(configRef.getRoot())) {
             if (promptBoolean("Current configuration has unsaved changes. Save them ?", dia)) {
-                writeConfigFile();
+                writeConfigFile(true, true, true, true);
+                config.getTree().updateUI();
             }
         }
+    }
+
+    protected DLModelsLibrary getDLModelLibrary(GithubGateway githubGateway, BiConsumer<String, DLModelMetadata> configureCB) {
+        DLModelsLibrary dlModelLibrary;
+        if (GUI.hasInstance()) {
+            dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
+                    .setWorkingDirectory(currentWorkingDirectory)
+                    .setConfigureParameterCallback(configureCB);
+        } else {
+            dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> epochLabel.setText("Epoch:"), this).setConfigureParameterCallback(configureCB);
+            dlModelLibrary.display(dia.getParent() instanceof JFrame ? (JFrame) dia.getParent() : null);
+            currentProgressBar = trainingProgressBar;
+            epochLabel.setText("Upload:");
+        }
+        return dlModelLibrary;
     }
 
     protected String ensureImage(DockerDLTrainer trainer, DockerGateway dockerGateway) {
@@ -250,7 +358,6 @@ public class DockerTrainingWindow implements ProgressLogger {
             File dockerDir = null;
             try {
                 epochLabel.setText("Build:");
-                // TODO test if works in JARS
                 List<String> dockerFiles = Utils.getResourcesForPath(trainer.getClass(), "dockerfiles/").collect(Collectors.toList());
                 String dockerfileName = dockerFiles.stream()
                         .filter(n -> n.startsWith(trainer.getDockerImageName()))
@@ -329,14 +436,11 @@ public class DockerTrainingWindow implements ProgressLogger {
             currentProgressBar.setValue(currentProgressBar.getMinimum());
         }
         currentProgressBar.setIndeterminate(running);
-        this.stopTrainingButton.setEnabled(running);
-        this.startTrainingButton.setEnabled(!running);
-        this.saveModelButton.setEnabled(!running);
-        this.uploadModelButton.setEnabled(!running);
         this.directoryPanel.setEnabled(!running);
         this.datasetPanel.setEnabled(!running);
         minLoss = Double.MAX_VALUE;
         maxLoss = Double.MIN_VALUE;
+        updateTrainingDisplay();
     }
 
     @Override
@@ -398,10 +502,21 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
 
 
-        step:
+        //step:
         //201/201 [==============================] - 89s 425ms/step - loss: 0.5438 - lr: 2.0000e-04
         // TODO extract loss : min / max / current
-        logger.debug("train progress: {}", message);
+        //logger.debug("train progress: {}", message);
+    }
+
+    protected void parseTestDataAugProgress(String message) {
+        if (message == null || message.isEmpty()) return;
+        Matcher m = stepProgressPattern.matcher(message);
+        if (m.find()) {
+            int[] prog = parseProgress(message);
+            setProgress(stepProgressBar, prog[0], prog[1]);
+        } else {
+            setMessage(message);
+        }
     }
 
     protected void parseBuildProgress(String message) {
@@ -474,6 +589,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected void setConfigurationFile(boolean load) {
         if (currentWorkingDirectory == null) throw new RuntimeException("Working Directory is not set");
         pythonConfig = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "training_configuration.json").toString(), true, Utils.isUnix());
+        pythonConfigTest = new FileIO.TextFile(Paths.get(currentWorkingDirectory, "test_configuration.json").toString(), true, Utils.isUnix());
         Path jConfigPath = Paths.get(currentWorkingDirectory, "training_jconfiguration.json");
         boolean canLoad = jConfigPath.toFile().isFile();
         javaConfig = new FileIO.TextFile(jConfigPath.toString(), true, Utils.isUnix());
@@ -511,18 +627,25 @@ public class DockerTrainingWindow implements ProgressLogger {
         }
     }
 
-    protected void writeConfigFile() {
+    protected void writeConfigFile(boolean javaTrain, boolean pythonTrain, boolean pythonTest, boolean extract) {
         if (javaConfig == null) throw new RuntimeException("Load file first");
         if (!trainerParameter.isOnePluginSet()) throw new RuntimeException("Set trainer first");
-        JSONObject config = trainerParameter.toJSONEntry();
-        javaConfig.write(config.toJSONString(), false);
-        config = JSONUtils.parse(javaConfig.read());
-        trainerParameterRef.initFromJSONEntry(config);
-        pythonConfig.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);
-        if (extractConfig != null) {
-            javaExtractConfig.write(JSONUtils.toJSONString(extractConfig.getRoot().toJSONEntry()), false);
-        } else {
-            javaExtractConfig.write("", false);
+        if (javaTrain) {
+            JSONObject config = trainerParameter.toJSONEntry();
+            javaConfig.write(config.toJSONString(), false);
+            config = JSONUtils.parse(javaConfig.read());
+            trainerParameterRef.initFromJSONEntry(config);
+        }
+        if (pythonTrain)
+            pythonConfig.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);
+        if (pythonTest)
+            pythonConfigTest.write(JSONUtils.toJSONString(trainerParameter.instantiatePlugin().getConfiguration().getPythonConfiguration()), false);
+        if (extract) {
+            if (extractConfig != null) {
+                javaExtractConfig.write(JSONUtils.toJSONString(extractConfig.getRoot().toJSONEntry()), false);
+            } else {
+                //javaExtractConfig.write("", false);
+            }
         }
     }
 
@@ -556,7 +679,9 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     protected void updateTrainingDisplay(boolean configIsValid) {
         boolean enable = configIsValid && currentWorkingDirectory != null;
-        startTrainingButton.setEnabled(runner == null);
+        startTrainingButton.setEnabled(enable && runner == null);
+        testAugButton.setEnabled(enable && runner == null);
+        //taskButton.setEnabled(enable && runner == null);
         stopTrainingButton.setEnabled(runner != null);
         boolean saveModelEnable = enable;
         if (saveModelEnable) {
@@ -579,7 +704,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (res.isFile()) return res;
         // extension may be missing -> search
         File[] allFiles = res.getParentFile().listFiles();
-        logger.debug("looking for saved weight @ {} within {}", res.getParentFile(), allFiles);
+        //logger.debug("looking for saved weight @ {} within {}", res.getParentFile(), allFiles);
         if (allFiles == null) return null;
         for (File f : allFiles) {
             if (f.isFile() && f.getName().startsWith(res.getName())) return f;
@@ -614,16 +739,22 @@ public class DockerTrainingWindow implements ProgressLogger {
      */
     private void $$$setupUI$$$() {
         mainPanel = new JPanel();
-        mainPanel.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        mainPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
+        final JSplitPane splitPane1 = new JSplitPane();
+        splitPane1.setContinuousLayout(true);
+        splitPane1.setDividerLocation(400);
+        splitPane1.setLastDividerLocation(400);
+        splitPane1.setResizeWeight(0.0);
+        mainPanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
         configurationPanel = new JPanel();
         configurationPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
-        mainPanel.add(configurationPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        splitPane1.setLeftComponent(configurationPanel);
         configurationPanel.setBorder(BorderFactory.createTitledBorder(null, "Configuration", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         configurationJSP = new JScrollPane();
-        configurationPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(200, -1), new Dimension(300, -1), null, 0, false));
+        configurationPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(200, -1), new Dimension(400, -1), null, 0, false));
         actionPanel = new JPanel();
         actionPanel.setLayout(new GridLayoutManager(4, 1, new Insets(0, 0, 0, 0), -1, -1));
-        mainPanel.add(actionPanel, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, new Dimension(200, -1), null, null, 0, false));
+        splitPane1.setRightComponent(actionPanel);
         directoryPanel = new JPanel();
         directoryPanel.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(directoryPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -658,7 +789,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         datasetNameTextField.setToolTipText("Name of the extracted dataset file");
         extractDSNamePanel.add(datasetNameTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         extractDatasetConfigurationJSP = new JScrollPane();
-        datasetPanel.add(extractDatasetConfigurationJSP, new GridConstraints(0, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 70), new Dimension(-1, 90), null, 0, false));
+        datasetPanel.add(extractDatasetConfigurationJSP, new GridConstraints(0, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(-1, 70), new Dimension(-1, 90), null, 0, false));
         extractProgressBar = new JProgressBar();
         extractProgressBar.setStringPainted(true);
         datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -667,7 +798,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         trainingPanel.setBorder(BorderFactory.createTitledBorder(null, "Training", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         trainingCommandPanel = new JPanel();
-        trainingCommandPanel.setLayout(new GridLayoutManager(2, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingCommandPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
         trainingPanel.add(trainingCommandPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         startTrainingButton = new JButton();
         startTrainingButton.setText("Start");
@@ -681,6 +812,14 @@ public class DockerTrainingWindow implements ProgressLogger {
         uploadModelButton = new JButton();
         uploadModelButton.setText("Export To Library");
         trainingCommandPanel.add(uploadModelButton, new GridConstraints(1, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        taskButton = new JButton();
+        taskButton.setEnabled(false);
+        taskButton.setText("Create Task");
+        trainingCommandPanel.add(taskButton, new GridConstraints(0, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        testAugButton = new JButton();
+        testAugButton.setText("Test Data Aug");
+        testAugButton.setToolTipText("Generates samples of augmented images");
+        trainingCommandPanel.add(testAugButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
         trainingPanel.add(panel2, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -724,8 +863,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             addWindowListener(new WindowAdapter() {
                 @Override
                 public void windowClosing(WindowEvent evt) {
-                    dia = null;
                     close();
+                    dia = null;
                     logger.debug("Docker Training Window");
                 }
             });
@@ -774,8 +913,14 @@ public class DockerTrainingWindow implements ProgressLogger {
             pythonConfig.close();
             pythonConfig = null;
         }
+        if (pythonConfigTest != null) {
+            pythonConfigTest.close();
+            pythonConfigTest = null;
+        }
         if (extractConfig != null) extractConfig.unRegister();
         if (dia != null) dia.dispose();
+        if (runner != null) runner.cancelSilently();
+        if (currentContainer != null && dockerGateway != null) dockerGateway.stopContainer(currentContainer);
     }
 
     // helper methods
@@ -815,13 +960,13 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected void runLater(Runnable action) {
-        setRunning(true);
         runner = new DefaultWorker(i -> {
+            setRunning(true);
             action.run();
             return "";
         }, 1, null)
-                .appendEndOfWork(() -> setRunning(false))
-                .appendEndOfWork(() -> runner = null);
+                .appendEndOfWork(() -> runner = null)
+                .appendEndOfWork(() -> setRunning(false));
         runner.execute();
     }
 }

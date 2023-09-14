@@ -1,22 +1,23 @@
 package bacmman.configuration.parameters;
 
 import org.checkerframework.checker.units.qual.C;
-import org.json.JSONObject;
+import org.json.simple.JSONObject;
 import org.json.simple.JSONArray;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 
-public class ElasticDeformParameter extends GroupParameter implements PythonConfiguration {
+public class ElasticDeformParameter extends GroupParameterAbstract<ElasticDeformParameter> implements PythonConfiguration {
 
-    BoundedNumberParameter gridSpacing = new BoundedNumberParameter("Grid Spacing", 0, 15, 5, null).setHint("Gap between grid points (in pixels)");
+    BoundedNumberParameter probability = new BoundedNumberParameter("Probability", 5, 0.5, 0, 1).setHint("Probability that elastic deform is performed on a given batch (before tiling)");
+    BoundedNumberParameter gridSpacing = new BoundedNumberParameter("Grid Spacing", 0, 30, 5, null).setHint("Gap between grid points (in pixels)");
     BoundedNumberParameter pointNumber = new BoundedNumberParameter("Grid points", 0, 5, 3, null).setHint("Number of points in grid");
     enum GRID_MODE {SPACING, POINT_NUMBER}
     EnumChoiceParameter<GRID_MODE> gridMode = new EnumChoiceParameter<>("Gird Mode", GRID_MODE.values(), GRID_MODE.SPACING).setHint("How to define grid: pre-defined spacing or pre-defined point number");
     ConditionalParameter<GRID_MODE> gridModeCond = new ConditionalParameter<>(gridMode).setActionParameters(GRID_MODE.SPACING, gridSpacing).setActionParameters(GRID_MODE.POINT_NUMBER, pointNumber);
 
-    BoundedNumberParameter sigmaFactor = new BoundedNumberParameter("Sigma Factor", 5, 1./6, 0, 1).setHint("Increase value will increase deformation");
-    BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 5, 2, 1, 1).setHint("Increase value will increase deformation");
+    BoundedNumberParameter sigmaFactor = new BoundedNumberParameter("Sigma Factor", 5, 0.075, 0, 1).setHint("Increase value will increase deformation. Set 0 for no deformation");
+    BoundedNumberParameter sigma = new BoundedNumberParameter("Sigma", 5, 2, 0, null).setHint("Increase value will increase deformation. Set 0 for no deformation");
 
     enum SIGMA_MODE {ABSOLUTE, RELATIVE}
     EnumChoiceParameter<SIGMA_MODE> sigmaMode = new EnumChoiceParameter<>("Deformation Intensity", SIGMA_MODE.values(), SIGMA_MODE.RELATIVE).setHint("How to define deformation: absolute value or relative to grid spacing.");
@@ -31,8 +32,13 @@ public class ElasticDeformParameter extends GroupParameter implements PythonConf
 
     public ElasticDeformParameter(String name) {
         super(name);
-        this.children = Arrays.asList(gridModeCond, sigmaModeCond, order, borderModeCond);
+        this.children = Arrays.asList(probability, gridModeCond, sigmaModeCond, order, borderModeCond);
         initChildList();
+    }
+
+    @Override
+    public String getHintText() {
+        return "Elastic Deformation, applied (before tiling) on all channels";
     }
 
     @Override
@@ -45,6 +51,7 @@ public class ElasticDeformParameter extends GroupParameter implements PythonConf
     @Override
     public JSONObject getPythonConfiguration() {
         JSONObject res = new JSONObject();
+        res.put("probability", probability.getDoubleValue());
         switch (gridMode.getValue()) {
             case SPACING:
             default:

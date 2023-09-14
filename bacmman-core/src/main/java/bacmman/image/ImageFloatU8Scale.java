@@ -19,6 +19,7 @@
 package bacmman.image;
 
 import bacmman.utils.ArrayUtil;
+import bacmman.utils.Utils;
 
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
@@ -60,7 +61,7 @@ public class ImageFloatU8Scale extends ImageFloatingPoint<ImageFloatU8Scale> {
     public static double getOptimalScale(double... minAndMax) {
         double min = minAndMax[0];
         double max = minAndMax.length>1 ? minAndMax[1] : min;
-        if (min < 0) throw new IllegalArgumentException("Minimum should be positive");
+        if (min < 0) throw new IllegalArgumentException("Minimum should be positive: min value="+ Utils.format(min, 5));
         if (max <= 0) throw new IllegalArgumentException("Maximum should be strictly positive");
         return 255. / max;
     }

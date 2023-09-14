@@ -75,14 +75,16 @@ public class IntervalParameterUI implements ParameterUI {
                         parameter.setValue(d, ii); // only set if different
                         updateNode();
                     }*/
-                    Map<Integer, Number> additionalBounds = parameter.getAdditionalBounds();
+                    Map<Integer, Number> additionalRightBounds = parameter.getAdditionalBounds(true);
+                    Map<Integer, Number> additionalLeftBounds = parameter.getAdditionalBounds(false);
+
                     double low = ii==0 ? parameter.getLowerBound().doubleValue() : vs[ii-1];
                     double high = ii==vs.length-1 ? parameter.getUpperBound().doubleValue() : vs[ii+1];
                     if (d >=low && d<=high) { // within bounds
                         if (vs[ii] != d) { // only set if different
                             // also check bounds
-                            double leftBound = additionalBounds.getOrDefault(ii-1, Double.NEGATIVE_INFINITY).doubleValue();
-                            double rightBound = additionalBounds.getOrDefault(ii, Double.POSITIVE_INFINITY).doubleValue();
+                            double leftBound = additionalLeftBounds.getOrDefault(ii-1, Double.NEGATIVE_INFINITY).doubleValue();
+                            double rightBound = additionalRightBounds.getOrDefault(ii, Double.POSITIVE_INFINITY).doubleValue();
                             boolean set = true;
                             if (d < leftBound) {
                                 if (Double.isFinite(leftBound)) d = leftBound;

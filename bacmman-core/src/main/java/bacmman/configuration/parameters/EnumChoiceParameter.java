@@ -29,12 +29,10 @@ import java.util.function.Function;
  */
 
 public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParameterFixedChoiceList<E, EnumChoiceParameter<E>>  {
-    final E[] enumChoiceList;
+    E[] enumChoiceList;
     final Function<E, String> toString;
     public EnumChoiceParameter(String name, E[] enumChoiceList, E selectedItem, Function<E, String> toString) {
-        super(name, Arrays.stream(enumChoiceList)
-                        .map(toString)
-                        .toArray(String[]::new),
+        super(name, Arrays.stream(enumChoiceList).map(toString).toArray(String[]::new),
                 selectedItem==null ? null : toString.apply(selectedItem), s->Arrays.stream(enumChoiceList).filter(e->toString.apply(e).equals(s)).findAny().get(), false);
         this.enumChoiceList=enumChoiceList;
         this.toString=toString;
@@ -47,7 +45,11 @@ public class EnumChoiceParameter<E extends Enum<E>> extends AbstractChoiceParame
         this.enumChoiceList=enumChoiceList;
         this.toString = Enum::toString;
     }
-
+    public EnumChoiceParameter<E> setEnumChoiceList(E... enumChoiceList) {
+        this.enumChoiceList = enumChoiceList;
+        this.listChoice = Arrays.stream(enumChoiceList).map(toString).toArray(String[]::new);
+        return this;
+    }
     @Override public EnumChoiceParameter<E> duplicate() {
         EnumChoiceParameter<E> res = new EnumChoiceParameter<E>(name, enumChoiceList ,getSelectedEnum(), toString);
         res.setListeners(listeners);

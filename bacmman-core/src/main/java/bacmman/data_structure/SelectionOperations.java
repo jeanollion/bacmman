@@ -108,10 +108,9 @@ public class SelectionOperations {
         }
     }
 
-    public static void nonEmptyFilter(Selection sel, ExperimentStructure xp) {
-        int[] children = xp.getAllDirectChildStructuresAsArray(sel.objectClassIdx);
+    public static void nonEmptyFilter(Selection sel, int... ocToTest) {
         Predicate<SegmentedObject> filter = o -> {
-            for (int cOC : children) {
+            for (int cOC : ocToTest) {
                 if (o.getChildren(cOC).findAny().isPresent()) return false;
             }
             return true;

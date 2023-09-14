@@ -29,27 +29,20 @@ import bacmman.utils.JSONUtils;
  *
  * @author Jean Ollion
  */
-public class GroupParameter extends ContainerParameterImpl<GroupParameter> {
+public class GroupParameter extends GroupParameterAbstract<GroupParameter> {
+
     public GroupParameter(String name, Parameter... parameters) {
-        super(name);
-        this.children = Arrays.asList(parameters);
-        initChildList();
+        super(name, parameters);
     }
+
     public GroupParameter(String name, Collection<Parameter> parameters) {
-        super(name);
-        this.children = new ArrayList<>(parameters);
-        initChildList();
+        super(name, parameters);
     }
 
     protected GroupParameter(String name) {
         super(name);
     }
-    
-    @Override
-    protected void initChildList() {
-        super.initChildren(children);
-    }
-    
+
     @Override
     public GroupParameter duplicate() {
         List<Parameter> dup = ParameterUtils.duplicateList(children);
@@ -57,21 +50,4 @@ public class GroupParameter extends ContainerParameterImpl<GroupParameter> {
         transferStateArguments(this, res);
         return res;
     }
-    /*@Override
-    public String toString() {
-        return name + ":" + Utils.toStringList(children);
-    }*/
-
-    @Override
-    public JSONArray toJSONEntry() {
-        return JSONUtils.toJSONArrayMap(children);
-    }
-
-    @Override
-    public void initFromJSONEntry(Object jsonEntry) {
-        if (jsonEntry==null) return;
-        if (JSONUtils.isJSONArrayMap(jsonEntry)) JSONUtils.fromJSONArrayMap(children, (JSONArray)jsonEntry);
-        else JSONUtils.fromJSON(children, (JSONArray)jsonEntry);
-    }
-    
 }

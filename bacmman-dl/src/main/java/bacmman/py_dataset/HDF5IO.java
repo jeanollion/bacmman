@@ -16,8 +16,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.IntFunction;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 public class HDF5IO {
     public final static Logger logger = LoggerFactory.getLogger(HDF5IO.class);
@@ -183,8 +186,20 @@ public class HDF5IO {
         return HDF5Factory.configureForReading(file.getAbsolutePath()).reader();
     }
 
-    public static List<String> getNames(IHDF5Reader reader) {
-        return reader.getGroupMembers("/");
+    public static Set<String> getAllDatasets(IHDF5Reader reader, String start) {
+        Set<String> oldList = getAllGroupMembers(reader, Stream.of(start)).collect(Collectors.toSet());
+        Set<String> newList = getAllGroupMembers(reader, oldList.stream()).collect(Collectors.toSet());
+        while (!oldList.equals(newList)) {
+            oldList = newList;
+            newList = getAllGroupMembers(reader, oldList.stream()).collect(Collectors.toSet());
+        }
+        return newList;
+    }
+    protected static Stream<String> getAllGroupMembers(IHDF5Reader reader, Stream<String> groups) {
+        return groups.flatMap( g -> {
+            if (g.equals("/") || reader.isGroup(g)) return reader.getGroupMembers( g ).stream().map(s -> g + (g.equals("/") ? "" : "/") + s);
+            else return Stream.of(g);
+        });
     }
     public static DTYPE getBitDepth(HDF5DataSetInformation dsInfo) {
         int elementSize = dsInfo.getTypeInformation().getElementSize();

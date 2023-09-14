@@ -116,6 +116,10 @@ public class NumberParameter<P extends NumberParameter<P>> extends ParameterImpl
     }
 
     public static String trimDecimalPlaces(Number n, int digits) {
+        double d = n.doubleValue();
+        if ((d>0 && d<1e-2) || (d<0 && d>-1e-2) || d>=10000 || d<=-10000) {
+            return String.format("%." + Math.min(2, digits) + "e",d);
+        }
         DecimalFormat df = (DecimalFormat)NumberFormat.getInstance(Locale.US);
         df.setMaximumFractionDigits(digits);
         return df.format(n);

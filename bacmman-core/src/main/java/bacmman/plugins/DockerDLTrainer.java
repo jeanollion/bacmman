@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 
 public interface DockerDLTrainer extends Plugin {
-    void setReferencePath(Path refPath);
     TrainingConfigurationParameter getConfiguration();
     Parameter[] getDatasetExtractionParameters();
 
@@ -35,4 +34,6 @@ public interface DockerDLTrainer extends Plugin {
 
     String getDockerImageName();
     DLModelMetadata getDLModelMetadata();
+
+    enum SELECTION_MODE {NEW, EXISTING}
 }

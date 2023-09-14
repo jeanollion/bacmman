@@ -913,7 +913,7 @@ public class Utils {
             c = Class.forName("com.sun.security.auth.module.UnixSystem");
             Object unixSystem = c.getDeclaredConstructor().newInstance();
             Method m = c.getDeclaredMethod("getUid");
-            return (int)m.invoke(unixSystem);
+            return ((Number)m.invoke(unixSystem)).intValue();
         } catch (ClassNotFoundException | InvocationTargetException | InstantiationException | IllegalAccessException |
                  NoSuchMethodException e) {
             logger.debug("Error getting UID");

@@ -200,7 +200,7 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
         currentValue = actionValue;
         if (!action.getValue().equals(actionValue)) this.action.setValue(actionValue); // avoid loop
         initChildList();
-        fireListeners(); // TODO : was before initChildList before
+        fireListeners();
         //logger.debug("setActionValue: {} value: {}, class: {}, children: {}, allActions: {}",this.hashCode(), actionValue, actionValue.getClass().getSimpleName(), getCurrentParameters()==null ? "null" : getCurrentParameters().size(), this.parameters.keySet());
     }
 
@@ -233,7 +233,7 @@ public abstract class ConditionalParameterAbstract<V, T extends ConditionalParam
 
     @Override
     public T duplicate() {
-        ConditionalParameterAbstract res = super.duplicate();
+        ConditionalParameterAbstract<V, T> res = super.duplicate();
         res.parameterSupplier.putAll(parameterSupplier);
         return (T)res;
     }

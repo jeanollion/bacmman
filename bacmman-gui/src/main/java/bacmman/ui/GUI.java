@@ -4136,7 +4136,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             db.getSelectionDAO().store(s);
                             selectedSelections = Collections.singletonList(s.getName());
                         }
-                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], selectedSelections, outputFile, getExtractedDSCompressionFactor());
+                        Task t = ExtractDatasetUtil.getDiSTNetDatasetTask(db, oc[0], new int[]{0, 0}, selectedSelections, outputFile, getExtractedDSCompressionFactor());
                         if (selectionList.getSelectedValuesList().isEmpty()) populateSelections(); // will create a selection
                         if (t != null) actionPoolListModel.addElement(t);
                     } catch(IllegalArgumentException ex) {
@@ -4163,7 +4163,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                             }
                             int parentOC = db.getExperiment().experimentStructure.getParentObjectClassIdx(selOC[0]);
                             Selection s = SelectionOperations.createSelection("PixMClass_dataset", selectedPositions, parentOC, db);
-                            SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure);
+                            SelectionOperations.nonEmptyFilter(s, db.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(parentOC));
                             db.getSelectionDAO().store(s);
                             selectedSelections = Collections.singletonList(s.getName());
                         }
