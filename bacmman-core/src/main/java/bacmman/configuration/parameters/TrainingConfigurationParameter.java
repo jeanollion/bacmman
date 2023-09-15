@@ -33,8 +33,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         });
         this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
         this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, dataAugmentationParameters, otherDatasetParameters))
-                .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true)
-                .setChildrenNumber(1).setUnmutableIndex(0);
+            .addchildrenPropertyValidation(DatasetParameter::getChannelNumber, true)
+            .setChildrenNumber(1).addValidationFunction(l -> !l.getActivatedChildren().isEmpty());
         if (otherParameters == null) otherParameters = new Parameter[0];
         this.otherParameters = otherParameters;
         List<Parameter> testAugParams = new ArrayList<>();
@@ -298,7 +298,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
 
     enum TILE_NUMBER_MODE {CONSTANT, AUTOMATIC}
-    public class DatasetParameter extends GroupParameterAbstract<DatasetParameter> implements PythonConfiguration {
+    public class DatasetParameter extends GroupParameterAbstract<DatasetParameter> implements PythonConfiguration, Deactivatable {
         FileChooser path = new FileChooser("File Path", FileChooser.FileChooserOption.FILE_ONLY,false)
                 .setRelativePath(true);
         TextParameter keyword = new TextParameter("Keyword", "", false, true).setHint("Keyword to filter paths within dataset. Only paths that include the keyword will be considered");
@@ -313,7 +313,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         final boolean multipleChannel;
         final GroupParameter dataAug;
         final Parameter[] otherParameters;
-        protected DatasetParameter(String name, boolean multipleChannel, Parameter[] dataAugParameters, Parameter[] otherParameters) {
+        protected DatasetParameter(String name, boolean multipleChannel, Parameter[] dataAugParameters, Parameter[] otherParameters){
             super(name);
             if (refPath!=null) path.setRefPath(refPath);
             this.multipleChannel=multipleChannel;
@@ -389,6 +389,28 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public String toString() {
             return getName()+ (path.getFirstSelectedFilePath()==null ? "" : ": " + new File(path.getFirstSelectedFilePath()).getName());
         }
+
+        @Override
+        public boolean isActivated() {
+            return activated;
+        }
+        boolean activated;
+        @Override
+        public void setActivated(boolean activated) {
+            this.activated = activated;
+        }
+        @Override
+        public JSONArray toJSONEntry() {
+            JSONArray res = super.toJSONEntry();
+            if (!activated) Deactivatable.appendActivated(res, false);
+            return res;
+        }
+        @Override
+        public void initFromJSONEntry(Object entry) {
+            this.activated = Deactivatable.getActivated(entry);
+            entry = Deactivatable.copyAndRemoveActivatedPropertyIfNecessary(entry);
+            super.initFromJSONEntry(entry);
+        }
     }
 
     public static class RandomTilingParameter extends GroupParameterAbstract<RandomTilingParameter> implements PythonConfiguration {
@@ -396,10 +418,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter nTiles = new BoundedNumberParameter("Tile Number", 0, 0, 1, null ).setHint("Number of tiles.");
         BoundedNumberParameter tileOverlapFraction = new BoundedNumberParameter("Tile Overlap Fraction", 5, 0.3, 0, 1);
         ConditionalParameter<TILE_NUMBER_MODE> tileNumberModeCond = new ConditionalParameter<>(tileNumberMode).setActionParameters(TILE_NUMBER_MODE.CONSTANT, nTiles).setActionParameters(TILE_NUMBER_MODE.AUTOMATIC, tileOverlapFraction);
-
         IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.2, 1.2).setHint("Interval for random zoom range; a value < 1 zoom out. Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
         IntervalParameter aspectRatioRange = new IntervalParameter("Aspect Ratio Range", 5, 1/2, 2, 1/1.2, 1.2).setHint("Interval that limits aspect ratio when zooming in/out");
-        ArrayNumberParameter jitter = InputShapesParameter.getInputShapeParameter(false, true, new int[]{3, 3}, null)
+        ArrayNumberParameter jitter = InputShapesParameter.getInputShapeParameter(false, true, new int[]{10, 10}, null)
             .setMaxChildCount(3)
             .setName("Jitter Shape").setHint("Random jitter between different time points for timelapse dataset, in pixels. Allows for instance to improve robustness to lack of microscope stage stability");
         BooleanParameter randomStride = new BooleanParameter("Random Stride", true).setHint("Random spacing between tiles");

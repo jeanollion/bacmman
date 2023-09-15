@@ -259,7 +259,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
             UserAuth auth = githubGateway.getAuthentication(true);
             if (auth instanceof NoAuth) setMessage("Could not connect to online library");
-            else dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
+            else
+                dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
             // set back properties
             if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
             epochLabel.setText("Epoch:");
@@ -267,30 +268,30 @@ public class DockerTrainingWindow implements ProgressLogger {
         uploadModelButton.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent evt) {
-            if (SwingUtilities.isRightMouseButton(evt)) {
-                JPopupMenu menu = new JPopupMenu();
-                Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
-                    @Override
-                    public void actionPerformed(ActionEvent e) {
-                        GithubGateway githubGateway = Core.getCore().getGithubGateway();
-                        if (githubGateway == null) {
-                            setMessage("Github not reachable");
-                            return;
-                        }
-                        DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
-                            DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
-                            if (newTrainer != null) {
-                                trainerParameter.setPlugin(newTrainer);
-                                config.expandAll(3);
+                if (SwingUtilities.isRightMouseButton(evt)) {
+                    JPopupMenu menu = new JPopupMenu();
+                    Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            GithubGateway githubGateway = Core.getCore().getGithubGateway();
+                            if (githubGateway == null) {
+                                setMessage("Github not reachable");
+                                return;
                             }
-                        });
-                        // set back properties
-                        if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
-                    }
-                };
-                menu.add(downloadConfiguration);
-                menu.show(uploadModelButton, evt.getX(), evt.getY());
-            }
+                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
+                                DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
+                                if (newTrainer != null) {
+                                    trainerParameter.setPlugin(newTrainer);
+                                    config.expandAll(3);
+                                }
+                            });
+                            // set back properties
+                            if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
+                        }
+                    };
+                    menu.add(downloadConfiguration);
+                    menu.show(uploadModelButton, evt.getX(), evt.getY());
+                }
             }
         });
         String defWD;
@@ -763,6 +764,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         configurationPanel.add(configurationJSP, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, new Dimension(200, -1), new Dimension(400, -1), null, 0, false));
         actionPanel = new JPanel();
         actionPanel.setLayout(new GridLayoutManager(4, 1, new Insets(0, 0, 0, 0), -1, -1));
+        actionPanel.setMaximumSize(new Dimension(500, 2147483647));
         splitPane1.setRightComponent(actionPanel);
         directoryPanel = new JPanel();
         directoryPanel.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));

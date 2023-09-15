@@ -95,7 +95,7 @@ public abstract class AbstractChoiceParameterMultiple<V, P extends AbstractChoic
     public void setSelectedIndices(int[] selectedItems) {
         if (selectedItems == null) selectedItems = new int[0];
         String[] l = getChoiceList();
-        this.selectedItems = IntStream.of(selectedItems).filter(i->i>0 && i<l.length).mapToObj(i -> l[i]).toArray(String[]::new);
+        this.selectedItems = IntStream.of(selectedItems).filter(i->i>=0 && i<l.length).mapToObj(i -> l[i]).toArray(String[]::new);
     }
     @Override
     public int[] getSelectedIndices() {

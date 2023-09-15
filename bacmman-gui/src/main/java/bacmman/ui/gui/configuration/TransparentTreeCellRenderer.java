@@ -18,9 +18,13 @@
  */
 package bacmman.ui.gui.configuration;
 
+import bacmman.configuration.parameters.Deactivatable;
 import bacmman.configuration.parameters.Parameter;
 
 import java.awt.*;
+import java.awt.font.TextAttribute;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
 import javax.swing.JTree;
@@ -62,13 +66,15 @@ public class TransparentTreeCellRenderer extends DefaultTreeCellRenderer {
             boolean isValid = ((Parameter)value).isValid();
             if (!isValid) ret.setForeground(Color.RED);
             else if (isDifferent.test(((Parameter)value))) ret.setForeground(Color.BLUE);
-            if (isExpertMode.getAsBoolean()) { // bold parameter only in expert mode
-                boolean isEmphasized = ((Parameter) value).isEmphasized();
-                if (isEmphasized) ret.setFont(ret.getFont().deriveFont(Font.BOLD));
-                else ret.setFont(ret.getFont().deriveFont(Font.PLAIN));
-            } else ret.setFont(ret.getFont().deriveFont(Font.PLAIN));
+            boolean bold = isExpertMode.getAsBoolean() && ((Parameter) value).isEmphasized();
+            Font font = ret.getFont();
+            Map attributes = font.getAttributes();
+            if (value instanceof Deactivatable && !((Deactivatable)value).isActivated()) attributes.put(TextAttribute.STRIKETHROUGH, TextAttribute.STRIKETHROUGH_ON);
+            else attributes.remove(TextAttribute.STRIKETHROUGH);
+            Font newFont = new Font(attributes);
+            newFont.deriveFont(bold ? Font.BOLD : Font.PLAIN);
+            ret.setFont(newFont);
         }
-        
         return ret;
     }
     

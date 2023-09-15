@@ -37,6 +37,8 @@ import bacmman.plugins.PluginFactory;
 import bacmman.utils.HashMapGetCreate;
 import bacmman.utils.JSONUtils;
 import bacmman.utils.Utils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -44,7 +46,7 @@ import bacmman.utils.Utils;
  * @param <T> type of plugin
  */
 public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<PluginParameter<T>> implements Deactivatable, ChoosableParameter<PluginParameter<T>> {
-    
+    Logger logger = LoggerFactory.getLogger(PluginParameter.class);
     public final static HashMapGetCreate<Class<? extends Plugin>, List<String>> PLUGIN_NAMES=new HashMapGetCreate<Class<? extends Plugin>, List<String>>(c -> PluginFactory.getPluginNames(c));
     protected List<Parameter> pluginParameters;
     protected String pluginName=NO_SELECTION;
@@ -60,16 +62,17 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
         JSONObject res= new JSONObject();
         res.put("pluginName", pluginName);
         //res.put("pluginTypeName", pluginTypeName);
-        if (!activated) res.put("activated", activated);
+        if (!activated) Deactivatable.appendActivated(res, activated);
         if (additionalParameters!=null && !additionalParameters.isEmpty()) res.put("addParams", JSONUtils.toJSONArrayMap(additionalParameters)); // was: toJSON
         if (pluginParameters!=null && !pluginParameters.isEmpty()) res.put("params", JSONUtils.toJSONArrayMap(pluginParameters)); // was: toJSON
         return res;
     }
     @Override
     public void initFromJSONEntry(Object jsonEntry) {
+        activated = Deactivatable.getActivated(jsonEntry);
+        jsonEntry = Deactivatable.copyAndRemoveActivatedPropertyIfNecessary(jsonEntry);
         JSONObject jsonO = (JSONObject)jsonEntry;
         T instance = setPlugin((String)jsonO.get("pluginName"));
-        activated = (Boolean)jsonO.getOrDefault("activated", true);
         if (jsonO.containsKey("addParams") && additionalParameters!=null) {
             Object o = jsonO.get("addParams");
             boolean addParamSet;
@@ -276,9 +279,7 @@ public class PluginParameter<T extends Plugin> extends ContainerParameterImpl<Pl
     
     @Override
     public String toString() {
-        String res = ((name!=null && name.length()>0) ? name+ ": " : "")+this.getPluginName();
-        if (isActivated()) return res;
-        else return "<HTML><S>"+res+"<HTML></S>";
+        return ((name!=null && name.length()>0) ? name+ ": " : "")+this.getPluginName();
     }
     
     // deactivatable interface
