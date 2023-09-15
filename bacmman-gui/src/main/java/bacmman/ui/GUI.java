@@ -4150,7 +4150,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             };
-            datasetMenu.add(addExtractDiSTNetTask);
+            //datasetMenu.add(addExtractDiSTNetTask);
             addExtractDiSTNetTask.setEnabled(db!=null);
 
             Action addExtractPixMClassTask = new AbstractAction("Add new PixMCLass dataset extraction Task to List") {
@@ -4182,7 +4182,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             };
-            datasetMenu.add(addExtractPixMClassTask);
+            //datasetMenu.add(addExtractPixMClassTask);
             addExtractPixMClassTask.setEnabled(db!=null);
 
             Action addExtractDenoisingTask = new AbstractAction("Add new Denoising dataset extraction Task to List") {
@@ -4198,7 +4198,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                     }
                 }
             };
-            datasetMenu.add(addExtractDenoisingTask);
+            //datasetMenu.add(addExtractDenoisingTask);
             addExtractDenoisingTask.setEnabled(db!=null);
 
             if (db!=null && db.getExperiment()!=null) {
