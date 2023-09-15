@@ -1058,10 +1058,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             sampleDatasetMenu.add(folderMenu);
             for (JSONObject o : e.getValue()) addSampleDataset(folderMenu, (String)o.get("name"), (String)o.get("gist_id"), (String)o.getOrDefault("hint", ""));
         });
-        sampleDatasetMenu.add(new JSeparator());
+
         JMenuItem upload = new JMenuItem("Upload...");
         upload.setToolTipText("Upload a file (or directory) as gist to a prompt account");
-        sampleDatasetMenu.add(upload);
         upload.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = Utils.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
@@ -1077,7 +1076,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
         JMenu downloadMenu = new JMenu("Download");
-        sampleDatasetMenu.add(downloadMenu);
         TextParameter downloadId = new TextParameter("File ID").setHint("Enter uploaded file id");
         JMenuItem download = new JMenuItem("Download...");
         download.addActionListener(new java.awt.event.ActionListener() {
@@ -1099,6 +1097,11 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (UIElement!=null && UIElement[0] instanceof JTextComponent) {
             ((JTextComponent)UIElement[0]).getDocument().addDocumentListener(getDocumentListener(e -> download.setEnabled(!downloadId.getValue().isEmpty())));
             download.setEnabled(false);
+        }
+        if (PropertyUtils.get("gui_allow_upload", false)) {
+            sampleDatasetMenu.add(new JSeparator());
+            sampleDatasetMenu.add(upload);
+            sampleDatasetMenu.add(downloadMenu);
         }
         // display memory
         setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
@@ -1613,6 +1616,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public static GUI getInstance() {
         //if (INSTANCE==null) INSTANCE=new GUI();
         return INSTANCE;
+    }
+    public boolean isDisplayingDLModelLibrary() {
+        return dlModelLibrary != null;
     }
     public DLModelsLibrary displayOnlineDLModelLibrary() {
         if (dlModelLibrary!=null) dlModelLibrary.toFront();

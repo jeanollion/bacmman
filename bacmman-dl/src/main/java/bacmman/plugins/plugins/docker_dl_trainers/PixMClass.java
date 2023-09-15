@@ -9,7 +9,6 @@ import bacmman.github.gist.DLModelMetadata;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.ExtractDatasetUtil;
 
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -18,7 +17,7 @@ public class PixMClass implements DockerDLTrainer {
     Parameter[] trainingParameters = new Parameter[]{TrainingConfigurationParameter.getPatienceParameter(40)};
     Parameter[] datasetParameters = new Parameter[0];
     Parameter[] dataAugmentationParameters = new Parameter[]{new ElasticDeformParameter("Elastic Deform"), new IlluminationParameter("Illumination Transform")};
-    Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.FIXED_SIZE)};
+    Parameter[] otherDatasetParameters = new Parameter[]{new TrainingConfigurationParameter.InputSizerParameter("Input Images", TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.RANDOM_TILING, TrainingConfigurationParameter.RESIZE_OPTION.CONSTANT_SIZE)};
 
     ChannelImageParameter extractChannels = new ChannelImageParameter("Channel", new int[0]).unique().setHint("Select object class associated to the channel that will be used for segmentation");
     ObjectClassParameter extractClasses = new ObjectClassParameter("Classification classes", new int[0], false).unique()

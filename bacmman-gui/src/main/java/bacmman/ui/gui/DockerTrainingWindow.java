@@ -4,6 +4,7 @@ import bacmman.configuration.experiment.Experiment;
 import bacmman.configuration.parameters.*;
 import bacmman.core.*;
 import bacmman.github.gist.DLModelMetadata;
+import bacmman.github.gist.NoAuth;
 import bacmman.github.gist.TokenAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.plugins.DockerDLTrainer;
@@ -257,7 +258,8 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
             DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
             UserAuth auth = githubGateway.getAuthentication(true);
-            dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
+            if (auth instanceof NoAuth) setMessage("Could not connect to online library");
+            else dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
             // set back properties
             if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
             epochLabel.setText("Epoch:");
@@ -265,30 +267,30 @@ public class DockerTrainingWindow implements ProgressLogger {
         uploadModelButton.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent evt) {
-                if (SwingUtilities.isRightMouseButton(evt)) {
-                    JPopupMenu menu = new JPopupMenu();
-                    Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
-                        @Override
-                        public void actionPerformed(ActionEvent e) {
-                            GithubGateway githubGateway = Core.getCore().getGithubGateway();
-                            if (githubGateway == null) {
-                                setMessage("Github not reachable");
-                                return;
-                            }
-                            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
-                                DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
-                                if (newTrainer != null) {
-                                    trainerParameter.setPlugin(newTrainer);
-                                    config.getTree().updateUI();
-                                }
-                            });
-                            // set back properties
-                            if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
+            if (SwingUtilities.isRightMouseButton(evt)) {
+                JPopupMenu menu = new JPopupMenu();
+                Action downloadConfiguration = new AbstractAction("Configure Training Configuration From Library...") {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        GithubGateway githubGateway = Core.getCore().getGithubGateway();
+                        if (githubGateway == null) {
+                            setMessage("Github not reachable");
+                            return;
                         }
-                    };
-                    menu.add(downloadConfiguration);
-                    menu.show(uploadModelButton, evt.getX(), evt.getY());
-                }
+                        DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, (id, dl) -> {
+                            DockerDLTrainer newTrainer = dl.getDockerDLTrainer();
+                            if (newTrainer != null) {
+                                trainerParameter.setPlugin(newTrainer);
+                                config.expandAll(3);
+                            }
+                        });
+                        // set back properties
+                        if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
+                    }
+                };
+                menu.add(downloadConfiguration);
+                menu.show(uploadModelButton, evt.getX(), evt.getY());
+            }
             }
         });
         String defWD;
@@ -333,17 +335,24 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected DLModelsLibrary getDLModelLibrary(GithubGateway githubGateway, BiConsumer<String, DLModelMetadata> configureCB) {
+        boolean wasDisplayed = GUI.hasInstance() && GUI.getInstance().isDisplayingDLModelLibrary();
         DLModelsLibrary dlModelLibrary;
         if (GUI.hasInstance()) {
             dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
-                    .setWorkingDirectory(currentWorkingDirectory)
-                    .setConfigureParameterCallback(configureCB);
+                    .setWorkingDirectory(currentWorkingDirectory);
         } else {
-            dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> epochLabel.setText("Epoch:"), this).setConfigureParameterCallback(configureCB);
+            dlModelLibrary = new DLModelsLibrary(githubGateway, currentWorkingDirectory, () -> epochLabel.setText("Epoch:"), this);
             dlModelLibrary.display(dia.getParent() instanceof JFrame ? (JFrame) dia.getParent() : null);
             currentProgressBar = trainingProgressBar;
             epochLabel.setText("Upload:");
         }
+        if (!wasDisplayed) {
+            BiConsumer<String, DLModelMetadata> newConfigureCB = (s, m) -> {
+                configureCB.accept(s, m);
+                dlModelLibrary.close();
+            };
+            dlModelLibrary.setConfigureParameterCallback(newConfigureCB);
+        } else dlModelLibrary.setConfigureParameterCallback(configureCB);
         return dlModelLibrary;
     }
 
@@ -537,7 +546,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         logger.debug("build progress: {}", message);
     }
 
-    String[] ignoreError = new String[]{"successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA"};
+    String[] ignoreError = new String[]{"successful NUMA node", "TensorFlow binary is optimized", "Loaded cuDNN version", "could not open file to read NUMA", "`on_train_batch_end` is slow compared", "rebuild TensorFlow with the appropriate compiler flags", "Sets are not currently considered sequences", "Input with unsupported characters which will be renamed to input in the SavedModel", "Found untraced functions such as"};
 
     protected void printError(String message) {
         if (message == null || message.isEmpty()) return;
@@ -608,7 +617,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             if (!refOnly) {
                 Class currentTrainerClass = trainerParameter.getSelectedPluginClass();
                 trainerParameter.initFromJSONEntry(config);
-                this.config.expandAll(2);
+                this.config.expandAll(3);
                 if (currentTrainerClass == null || !currentTrainerClass.equals(trainerParameter.getSelectedPluginClass())) {
                     updateExtractDatasetConfiguration();
                 }

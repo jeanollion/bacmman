@@ -67,7 +67,7 @@ public class DockerGatewayImpl implements DockerGateway {
     public String buildImage(String tag, File dockerFile, Consumer<String> stdOut, Consumer<String> stdErr) {
         bacmman.docker.BuildImageResultCallback buildCb = dockerClient.buildImageCmd(dockerFile)
                 .withTags(Collections.singleton(tag)).withPull(true)
-                .exec(new bacmman.docker.BuildImageResultCallback(DockerGateway.applyToSplit(stdOut), DockerGateway.applyToSplit(stdErr)));
+                .exec(new bacmman.docker.BuildImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr));
         return buildCb.awaitImageId();
     }
 
@@ -81,7 +81,7 @@ public class DockerGatewayImpl implements DockerGateway {
             }
             PullImageCmd cmd = dockerClient.pullImageCmd(image);
             if (version!=null) cmd = cmd.withTag(version);
-            cmd.exec(new PullImageResultCallback(DockerGateway.applyToSplit(stdOut), DockerGateway.applyToSplit(stdErr))).awaitCompletion();
+            cmd.exec(new PullImageResultCallback(DockerGateway.applyToSplit(stdOut), stdErr)).awaitCompletion();
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
@@ -141,7 +141,7 @@ public class DockerGatewayImpl implements DockerGateway {
             .withAttachStderr(stdErr!=null);
         ExecCreateCmdResponse createCmdResponse = cmd.exec();
         try {
-            dockerClient.execStartCmd(createCmdResponse.getId()).exec(new ExecResultCallback(DockerGateway.applyToSplit(stdOut), DockerGateway.applyToSplit(stdErr))).awaitCompletion();
+            dockerClient.execStartCmd(createCmdResponse.getId()).exec(new ExecResultCallback(DockerGateway.applyToSplit(stdOut), stdErr)).awaitCompletion();
         } finally {
             if (remove) stopContainer(containerId);
         }

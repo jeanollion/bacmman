@@ -352,6 +352,7 @@ public class DLModelsLibrary {
 
     public DLModelsLibrary setConfigureParameterCallback(BiConsumer<String, DLModelMetadata> callback) {
         this.configureParameterCallback = callback;
+        updateEnableButtons();
         return this;
     }
 

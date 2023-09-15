@@ -17,6 +17,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     TrainingParameter trainingParameters;
     GlobalDatasetParameters globalDatasetParameters;
     SimpleListParameter<DatasetParameter> datasetList;
+    BooleanParameter testConstantView;
+    ArrayNumberParameter testInputShape;
     GroupParameter testDataAug;
     Parameter[] otherParameters;
     Path refPath;
@@ -45,6 +47,14 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                 return b.getIntValue() < ((TrainingParameter)tp).getStepNumber();
         }));
         testAugParams.add(new BooleanParameter("Input Only", true).setHint("Only return augmented input images"));
+        testAugParams.add(new BoundedNumberParameter("Batch Size", 0, 1, 1, null).setHint("size of test mini-batch for testing"));
+        testAugParams.add(new BoundedNumberParameter("Concat Batch Size", 0, 1, 1, null).setHint("size of concatenated test mini-batch for testing"));
+        testConstantView = new BooleanParameter("Constant View", false).setHint("Disable some augmentation parameters so that images have same view field, in order to facilitate comparison between iterations");
+        testAugParams.add(testConstantView);
+        testInputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{256, 256}, null)
+            .setMaxChildCount(3)
+            .setName("Input Shape").setHint("Shape (Y, X) of extracted tiles at training");
+        testAugParams.add(testInputShape);
         if (testDataAugmentationParameters!=null) testAugParams.addAll(Arrays.asList(testDataAugmentationParameters));
         this.testDataAug = new GroupParameter("Test Data Augmentation", testAugParams);
         this.children = new ArrayList<>();
@@ -458,12 +468,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             return json;
         }
     }
-    public enum RESIZE_OPTION {RANDOM_TILING, FIXED_SIZE, CONSTANT_TILING} // PAD, RESAMPLE
+    public enum RESIZE_OPTION {RANDOM_TILING, CONSTANT_SIZE, CONSTANT_TILING} // PAD, RESAMPLE
     public static class InputSizerParameter extends ConditionalParameterAbstract<RESIZE_OPTION, InputSizerParameter> implements PythonConfiguration {
         RandomTilingParameter randomTiling = new RandomTilingParameter("Tiling");
         RandomTilingParameter constantTiling = new RandomTilingParameter("Tiling").setConstant(true);
         public InputSizerParameter(String name) {
-            this(name, RESIZE_OPTION.FIXED_SIZE);
+            this(name, RESIZE_OPTION.CONSTANT_SIZE);
         }
         public InputSizerParameter(String name, RESIZE_OPTION defaultOption) {
             this(name, defaultOption, RESIZE_OPTION.values());
@@ -481,9 +491,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                     return randomTiling.getPythonConfigurationKey();
                 case CONSTANT_TILING:
                     return constantTiling.getPythonConfigurationKey();
-                case FIXED_SIZE:
+                case CONSTANT_SIZE:
                 default:
-                    return "fixed_size";
+                    return "constant_size";
             }
         }
         @Override
@@ -493,9 +503,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
                     return randomTiling.getPythonConfiguration();
                 case CONSTANT_TILING:
                     return constantTiling.getPythonConfiguration();
-                case FIXED_SIZE:
+                case CONSTANT_SIZE:
                 default:
-                    return Boolean.TRUE;
+                    return "true";
             }
         }
         @Override
