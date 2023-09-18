@@ -103,7 +103,7 @@ public class TextParameter extends ParameterImpl<TextParameter> implements Liste
     
 
     // recognition of illegal chars
-    private static final char[] ILLEGAL_CHARACTERS = {'/', '\n', '\r', '\t', '\0', '\f', '`', '?', '*', '\\', '<', '>', '|', '\"', ':', '.', ';', ',', ' ', '-'};
+    private static final char[] ILLEGAL_CHARACTERS = {'/', '\n', '\r', '\t', '\0', '\f', '`', '?', '*', '\\', '<', '>', '|', '\"', ':', '.', ';', ',', ' '};
     private static final char[] ILLEGAL_CHARACTERS_START = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
 
     public static boolean containsIllegalCharacters(String s) {

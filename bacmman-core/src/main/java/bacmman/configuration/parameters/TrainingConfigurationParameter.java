@@ -25,11 +25,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     public TrainingConfigurationParameter(String name, boolean multipleInputChannels, Parameter[] trainingParameters, Parameter[] globalDatasetParameters, Parameter[] dataAugmentationParameters, Parameter[] otherDatasetParameters, Parameter[] otherParameters, Parameter[] testDataAugmentationParameters) {
         super(name);
         this.trainingParameters = new TrainingParameter("Training", trainingParameters);
-        this.trainingParameters.loadModelName.addValidationFunction(tp -> {
-            String lmn = tp.getValue();
-            if (lmn.isEmpty()) return true;
+        this.trainingParameters.loadModelName.addValidationFunction(lmn -> {
+            TrainingParameter tp = (TrainingParameter) lmn.getParent();
+            String file = tp.getLoadModelWeightRelativePath();
+            if (file==null) return true;
             else if (refPath==null) return true;
-            else return Paths.get(refPath.toString(), lmn).toFile().isFile();
+            return Paths.get(refPath.toString(), file).toFile().isFile();
         });
         this.globalDatasetParameters = new GlobalDatasetParameters("Dataset", globalDatasetParameters);
         this.datasetList = new SimpleListParameter<>("Dataset List", new DatasetParameter("Dataset", multipleInputChannels, dataAugmentationParameters, otherDatasetParameters))
@@ -257,7 +258,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             JSONObject res = new JSONObject();
             for (Parameter p : this.children) {
                 if (p instanceof PythonConfiguration) res.put(((PythonConfiguration)p).getPythonConfigurationKey(), ((PythonConfiguration)p).getPythonConfiguration());
-                else if (p instanceof NumberParameter && p.getName().toLowerCase().contains("epochs") && p.getName().toLowerCase().contains("number")) res.put("n_epochs", p.toJSONEntry());
+                else if (p instanceof NumberParameter && p.getName().equals("Epoch Number")) res.put("n_epochs", p.toJSONEntry());
                 else res.put(toSnakeCase(p.getName()), p.toJSONEntry());
             }
             return res;
@@ -277,7 +278,12 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
             if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), getModelWeightFile()).toString();
             else return getModelWeightFile();
         }
-
+        public String getLoadModelWeightRelativePath() {
+            String file = getLoadModelWeightFile();
+            if (file == null) return null;
+            if (!weightDir.getValue().isEmpty()) return Paths.get(weightDir.getValue(), file).toString();
+            else return file;
+        }
         public String getLoadSavedWeightRelativePath() {
             String n = getLoadModelWeightFile();
             if (n==null) return null;
@@ -308,7 +314,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         SimpleListParameter<DLScalingParameter> scalers = new SimpleListParameter<>("Intensity Scaling", scaler).setHint("Input channel scaling parameter (one per channel or one for all channels)")
                 .addValidationFunction(TrainingConfigurationParameter.channelNumberValidation(true))
                 .setNewInstanceNameFunction((l, i) -> "Channel "+i).setChildrenNumber(1);
-        BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch.");
+        BoundedNumberParameter concatProp = new BoundedNumberParameter("Concatenate Proportion", 5, 1, 0, null ).setHint("In case list contains several datasets, this allows to modulate the probability that a dataset is picked in a mini batch. <br /> e.g.: 0.5 means a batch has twice less chances to be picked from this dataset compared to 1.");
 
         final boolean multipleChannel;
         final GroupParameter dataAug;
@@ -387,14 +393,16 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         public String getPythonConfigurationKey() {return null;}
         @Override
         public String toString() {
-            return getName()+ (path.getFirstSelectedFilePath()==null ? "" : ": " + new File(path.getFirstSelectedFilePath()).getName());
+            return getName()
+                    + (path.getFirstSelectedFilePath()==null ? "" : ": " + new File(path.getFirstSelectedFilePath()).getName()) +
+                    (keyword.getValue().isEmpty()? "" : " @"+keyword.getValue());
         }
 
         @Override
         public boolean isActivated() {
             return activated;
         }
-        boolean activated;
+        boolean activated=true;
         @Override
         public void setActivated(boolean activated) {
             this.activated = activated;
