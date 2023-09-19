@@ -22,12 +22,13 @@ public class PixMClass implements DockerDLTrainer {
     ChannelImageParameter extractChannels = new ChannelImageParameter("Channel", new int[0]).unique().setHint("Select object class associated to the channel that will be used for segmentation");
     ObjectClassParameter extractClasses = new ObjectClassParameter("Classification classes", new int[0], false).unique()
             .setHint("Select object classes that represent background, foreground (and contour)").addValidationFunction(oc -> oc.getSelectedIndices().length>=2);
+    ObjectClassParameter extractParentClass = new ObjectClassParameter("Parent Class", -1, true, false).setNoSelectionString("ViewField").setHint("Class that will define bounds of the extracted images");
     EnumChoiceParameter<SELECTION_MODE> selMode = new EnumChoiceParameter<>("Selection", SELECTION_MODE.values(), SELECTION_MODE.NEW).setHint("Which subset of the current dataset should be included into the extracted dataset. EXISTING: choose previously defined selection. NEW: will generate a selection");
     PositionParameter extractPos = new PositionParameter("Position", true, true).setHint("Position to include in extracted dataset. If no position is selected, all position will be included.");
     SelectionParameter extractSel = new SelectionParameter("Selection", false, true);
     ConditionalParameter<SELECTION_MODE> selModeCond = new ConditionalParameter<>(selMode)
             .setActionParameters(SELECTION_MODE.EXISTING, extractSel)
-            .setActionParameters(SELECTION_MODE.NEW, extractPos);
+            .setActionParameters(SELECTION_MODE.NEW, extractParentClass, extractPos);
     Parameter[] datasetExtractionParameters = new Parameter[] {extractChannels, extractClasses, selModeCond};
     TrainingConfigurationParameter configuration = new TrainingConfigurationParameter("Configuration", true, trainingParameters, datasetParameters, dataAugmentationParameters, otherDatasetParameters, null, null)
             .setEpochNumber(500).setStepNumber(100);
@@ -53,10 +54,11 @@ public class PixMClass implements DockerDLTrainer {
         switch (selMode.getSelectedEnum()) {
             case NEW:
             default: {
-                int parentOC = mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(selOC[0]);
+                int parentOC = extractParentClass.getSelectedClassIdx(); //mDAO.getExperiment().experimentStructure.getParentObjectClassIdx(selOC[0]);
                 String[] selectedPositions = extractPos.getSelectedPosition(true);
                 Selection s = SelectionOperations.createSelection("PixMClass_dataset", Arrays.asList(selectedPositions), parentOC, mDAO);
-                SelectionOperations.nonEmptyFilter(s, mDAO.getExperiment().experimentStructure.getAllDirectChildStructuresAsArray(parentOC));
+                logger.debug("filter out object from {}", s.getAllElementsAsStream().count());
+                SelectionOperations.nonEmptyFilter(s, extractClasses.getSelectedClassIdx());
                 mDAO.getSelectionDAO().store(s);
                 selections = Collections.singletonList(s.getName());
                 break;
