@@ -16,7 +16,7 @@ public class DLScalingParameter extends ConditionalParameter<DLScalingParameter.
 
 
     enum MODE {RANDOM_CENTILES, RANDOM_MIN_MAX, BRIGHT_FIELD, FLUORESCENCE}
-    IntervalParameter minCentileRange = new IntervalParameter("Min Centile Range", 6, 0, 100, 0.1, 5.).setHint("Zero (min value) of scaled image will correspond to a random centile drawn in this interval");
+    IntervalParameter minCentileRange = new IntervalParameter("Min Centile Range", 6, 0, 100, 0.01, 5.).setHint("Zero (min value) of scaled image will correspond to a random centile drawn in this interval");
     IntervalParameter maxCentileRange = new IntervalParameter("Max Centile Range", 6, 0, 100, 95., 99.9).setHint("One (max value) of scaled image will correspond to a random centile drawn in this interval");
     BooleanParameter saturate = new BooleanParameter("Saturate", true).setHint("whether values lower than min centile and greater than max centile are saturated");
     BoundedNumberParameter minRange = new BoundedNumberParameter("Min Range", 5, 0.1, 1e-5, 1).setHint("Image will be scaled to a random range [min, max] drawn in [0, 1] so that max - min >= this value");

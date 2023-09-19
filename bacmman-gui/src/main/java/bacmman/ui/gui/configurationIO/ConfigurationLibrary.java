@@ -352,7 +352,7 @@ public class ConfigurationLibrary {
                     Action dupOther = new AbstractAction("Duplicate To another Account") {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway);
+                            Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to duplicate to");
                             if (cred != null) {
                                 try {
                                     TokenAuth auth2 = new TokenAuth(cred.key, cred.value);

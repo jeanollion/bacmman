@@ -256,14 +256,21 @@ public class DockerTrainingWindow implements ProgressLogger {
                 setMessage("Github not reachable");
                 return;
             }
-            DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
-            UserAuth auth = githubGateway.getAuthentication(true);
-            if (auth instanceof NoAuth) setMessage("Could not connect to online library");
-            else
-                dlModelLibrary.uploadModel(auth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
-            // set back properties
-            if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
-            epochLabel.setText("Epoch:");
+            UserAuth modelAuth = githubGateway.promptCredentials(this::setMessage, "Account to save model file to...");
+            if (modelAuth instanceof NoAuth) {
+                setMessage("Could not connect to account to store model file to..");
+                return;
+            } else setMessage("Successfully authenticated to account to store model file to.");
+            UserAuth libAuth = githubGateway.getAuthentication(true, "Online Model Library Account");
+            if (libAuth instanceof NoAuth) setMessage("Could not connect to online library");
+            else {
+                setMessage("Successfully authenticated to account to store configuration to.");
+                DLModelsLibrary dlModelLibrary = getDLModelLibrary(githubGateway, null);
+                dlModelLibrary.uploadModel(modelAuth, trainer.getDLModelMetadata().setDockerDLTrainer(trainer), getSavedModelPath());
+                // set back properties
+                if (GUI.hasInstance()) dlModelLibrary.setProgressLogger(GUI.getInstance());
+                epochLabel.setText("Epoch:");
+            }
         });
         uploadModelButton.addMouseListener(new MouseAdapter() {
             @Override

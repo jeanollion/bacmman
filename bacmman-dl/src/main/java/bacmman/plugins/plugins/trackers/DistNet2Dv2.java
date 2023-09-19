@@ -290,7 +290,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             //if (stores != null) stores.get(p).addIntermediateImage("EDM Seeds", localExtremaEDM);
             RegionPopulation pop = WatershedTransform.watershed(edmI, insideCellsM, localExtremaEDM, config);
             if (stores!=null) {
-                Offset off = p.getBounds().reverseOffset();
+                Offset off = p.getBounds().duplicate().reverseOffset();
                 List<Region> regions = pop.getRegions().stream().map(Region::duplicate).collect(Collectors.toList());
                 stores.get(p).addMisc("Display Segmentation First Step", sel -> {
                     OverlayDisplayer disp = Core.getOverlayDisplayer();
@@ -387,6 +387,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
                     Point[] center = new Point[1];
                     double[] maxD = new double[]{Double.NEGATIVE_INFINITY};
                     o.getRegion().loop((x, y, z) -> {
+                        if (!centerI.containsWithOffset(x, y, z)) logger.error("OOB: region: {}, abs landmark: {} image: {}, parent: {}", o.getBounds(), o.getRegion().isAbsoluteLandMark(), centerI, o.getParent().getBounds());
                         double d = centerI.getPixelWithOffset(x, y, z);
                         if (d>maxD[0] || d==maxD[0] && center[0].distSq(geomCenter)>new Point(x, y).distSq(geomCenter) ) {
                             maxD[0] = d;
@@ -413,7 +414,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         ThreadRunner.execute(parentTrack, false, ta);
         if (stores!=null) {
             for (SegmentedObject p : parentTrack) {
-                Offset off = p.getBounds().reverseOffset();
+                Offset off = p.getBounds().duplicate().reverseOffset();
                 stores.get(p).addMisc("Display Center", sel -> {
                     if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
                     OverlayDisplayer disp = Core.getOverlayDisplayer();
@@ -652,7 +653,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         Set<SymetricalPair<SegmentedObject>> addLinks = graph.setTrackLinks(objectsF, editor);
         if (stores!=null) {
             parentTrack.forEach(p -> {
-                Offset off = p.getBounds().reverseOffset();
+                Offset off = p.getBounds().duplicate().reverseOffset();
                 stores.get(p).addMisc("Display Previous Contours", sel -> {
                     if (sel.isEmpty()) sel = p.getChildren(objectClassIdx).collect(Collectors.toList());
                     OverlayDisplayer disp = Core.getOverlayDisplayer();
@@ -1603,20 +1604,20 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         // offset & calibration
         Offset off = cropBB==null ? new SimpleOffset(0, 0, 0) : cropBB;
         for (int idx = 0; idx < parentTrack.size(); ++idx) {
-            pred.edm[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
-            pred.center[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
-            pred.dy[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
-            pred.dx[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+            pred.edm[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+            pred.center[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+            pred.dy[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+            pred.dx[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             if (pred.predNext) {
-                pred.dyN[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
-                pred.dxN[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+                pred.dyN[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+                pred.dxN[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
             }
             if (pred.predictCategories) {
-                pred.mergeMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
-                pred.noPrevMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+                pred.mergeMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+                pred.noPrevMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
                 if (pred.predNext) {
-                    pred.divMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
-                    pred.noNextMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+                    pred.divMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
+                    pred.noNextMap[idx].setCalibration(parentTrack.get(idx).getMaskProperties()).resetOffset().translate(parentTrack.get(idx).getMaskProperties()).translate(off);
                 }
             }
         }

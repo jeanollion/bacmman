@@ -236,7 +236,7 @@ public class SaveDLModelGist {
                         Action upOther = new AbstractAction("Upload Model to another account") {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway);
+                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to save model to...");
                                 if (cred != null) {
                                     try {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);
@@ -265,7 +265,7 @@ public class SaveDLModelGist {
                         Action delOther = new AbstractAction("Delete Model from another account") {
                             @Override
                             public void actionPerformed(ActionEvent e) {
-                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway);
+                                Pair<String, char[]> cred = PromptGithubCredentials.promptCredentials(gateway, "Account to delete from...");
                                 if (cred != null) {
                                     try {
                                         TokenAuth auth2 = new TokenAuth(cred.key, cred.value);

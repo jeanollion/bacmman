@@ -28,11 +28,11 @@ public class PromptGithubCredentials extends JDialog {
     boolean storeToGateway;
     Pair<String, char[]> credentials;
 
-    public PromptGithubCredentials(GithubGateway gateway, boolean storeToGateway) {
+    public PromptGithubCredentials(GithubGateway gateway, String message, boolean storeToGateway) {
         this.gateway = gateway;
         this.storeToGateway = storeToGateway;
         setContentPane(contentPane);
-        setTitle("Github Credentials");
+        setTitle(message == null ? "Github Credentials" : message);
         setModal(true);
         getRootPane().setDefaultButton(connect);
         username.addActionListener(e -> {
@@ -153,8 +153,8 @@ public class PromptGithubCredentials extends JDialog {
         dispose();
     }
 
-    public static Pair<String, char[]> promptCredentials(GithubGateway gateway) {
-        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, false);
+    public static Pair<String, char[]> promptCredentials(GithubGateway gateway, String message) {
+        PromptGithubCredentials dialog = new PromptGithubCredentials(gateway, message, false);
         dialog.pack();
         dialog.setVisible(true);
         return dialog.credentials;

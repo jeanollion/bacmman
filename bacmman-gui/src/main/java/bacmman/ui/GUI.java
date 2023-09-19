@@ -1065,7 +1065,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 File f = Utils.chooseFile("Choose File/Directory to upload", workingDirectory.getText() , FileChooser.FileChooserOption.FILES_AND_DIRECTORIES, INSTANCE);
                 if (f!=null) {
-                    UserAuth auth = Core.getCore().getGithubGateway().promptCredentials(INSTANCE::setMessage);
+                    UserAuth auth = Core.getCore().getGithubGateway().promptCredentials(INSTANCE::setMessage, "Connect to account to upload file to...");
                     if (auth instanceof NoAuth) return;
                     try {
                         LargeFileGist.storeFile(f, false, "", "dataset", auth, true, id->setMessage("Stored File ID: "+id), INSTANCE);

@@ -123,6 +123,7 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
             bypassListeners=true;
             ContainerParameterImpl otherP = (ContainerParameterImpl) other;
             if (!ParameterUtils.setContent(getChildren(), otherP.getChildren())) logger.warn("SCP: {}({}): different parameter length, they might not be well set: c:{}/src:{}", name, this.getClass().getSimpleName(), children.size(), otherP.children.size());
+            transferStateArguments((ContainerParameterImpl) other, this);
             bypassListeners=false;
         } else {
             //throw new IllegalArgumentException("wrong parameter type");
@@ -134,6 +135,9 @@ public abstract class ContainerParameterImpl<P extends ContainerParameterImpl<P>
         dest.setSimpleHint(source.toolTipTextSimple);
         dest.addValidationFunction(source.additionalValidation);
         if (source.isEmphasized!=null) dest.setEmphasized(source.isEmphasized);
+        if (source instanceof Deactivatable && dest instanceof Deactivatable) {
+            ((Deactivatable)dest).setActivated(((Deactivatable)source).isActivated());
+        }
     }
     @Override
     public P duplicate() {

@@ -39,7 +39,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         if (otherParameters == null) otherParameters = new Parameter[0];
         this.otherParameters = otherParameters;
         List<Parameter> testAugParams = new ArrayList<>();
-        testAugParams.add(new BoundedNumberParameter("Iteration Number", 0, 50, 1, null));
+        testAugParams.add(new BoundedNumberParameter("Iteration Number", 0, 10, 1, null));
         testAugParams.add(new BoundedNumberParameter("Batch Index", 0, -1, -1, null)
             .setHint("Index of bactch on which augmentation parameters will be tested. -1 = random idx")
             .addValidationFunction(b -> {
@@ -218,7 +218,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
     }
 
     public static class TrainingParameter extends GroupParameterAbstract<TrainingParameter> implements PythonConfiguration {
-        BoundedNumberParameter epochNumber = new BoundedNumberParameter("Epoch Number", 0, 32, 1, null);
+        BoundedNumberParameter epochNumber = new BoundedNumberParameter("Epoch Number", 0, 32, 0, null);
         BoundedNumberParameter stepNumber = new BoundedNumberParameter("Step Number", 0, 100, 1, null);;
         BoundedNumberParameter learningRate = new BoundedNumberParameter("Learning Rate", 8, 2e-4, 10e-8, null);
         TextParameter modelName = new TextParameter("Model Name", "", false, false).setHint("Name given to log / weight and saved model");
@@ -394,8 +394,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         @Override
         public String toString() {
             return getName()
-                    + (path.getFirstSelectedFilePath()==null ? "" : ": " + new File(path.getFirstSelectedFilePath()).getName()) +
-                    (keyword.getValue().isEmpty()? "" : " @"+keyword.getValue());
+                + (path.getFirstSelectedFilePath()==null ? "" : ": " + new File(path.getFirstSelectedFilePath()).getName()) +
+                (keyword.getValue().isEmpty()? "" : " @"+keyword.getValue());
         }
 
         @Override
@@ -426,8 +426,8 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter nTiles = new BoundedNumberParameter("Tile Number", 0, 0, 1, null ).setHint("Number of tiles.");
         BoundedNumberParameter tileOverlapFraction = new BoundedNumberParameter("Tile Overlap Fraction", 5, 0.3, 0, 1);
         ConditionalParameter<TILE_NUMBER_MODE> tileNumberModeCond = new ConditionalParameter<>(tileNumberMode).setActionParameters(TILE_NUMBER_MODE.CONSTANT, nTiles).setActionParameters(TILE_NUMBER_MODE.AUTOMATIC, tileOverlapFraction);
-        IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.2, 1.2).setHint("Interval for random zoom range; a value < 1 zoom out. Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
-        IntervalParameter aspectRatioRange = new IntervalParameter("Aspect Ratio Range", 5, 1/2, 2, 1/1.2, 1.2).setHint("Interval that limits aspect ratio when zooming in/out");
+        IntervalParameter zoomRange = new IntervalParameter("Zoom Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval for random zoom range; a value < 1 zoom out. Zoom is randomized for each axis and aspect ratio can be limited by the aspect ratio parameter");
+        IntervalParameter aspectRatioRange = new IntervalParameter("Aspect Ratio Range", 5, 1/2, 2, 1/1.1, 1.1).setHint("Interval that limits aspect ratio when zooming in/out");
         ArrayNumberParameter jitter = InputShapesParameter.getInputShapeParameter(false, true, new int[]{10, 10}, null)
             .setMaxChildCount(3)
             .setName("Jitter Shape").setHint("Random jitter between different time points for timelapse dataset, in pixels. Allows for instance to improve robustness to lack of microscope stage stability");

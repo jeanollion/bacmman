@@ -11,8 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 
 import static bacmman.github.gist.JSONQuery.GIST_BASE_URL;
 import static bacmman.github.gist.JSONQuery.logger;
@@ -22,13 +22,13 @@ public class GithubGateway {
     protected char[] password;
     protected String username;
     ProgressLogger bacmmanLogger;
-    private Function<GithubGateway, Pair<String, char[]>> promptCredientialFunction;
+    private BiFunction<GithubGateway, String, Pair<String, char[]>> promptCredientialFunction;
 
     public GithubGateway setLogger(ProgressLogger logger) {
         bacmmanLogger = logger;
         return this;
     }
-    public File downloadModel(String id, File destFile) {
+    public File downloadFile(String id, File destFile) {
         if (id.startsWith(GIST_BASE_URL)) id = id.replace(GIST_BASE_URL, "");
         try {
             UserAuth auth = getAuthentication(false);
@@ -56,9 +56,12 @@ public class GithubGateway {
         if (username!=null && username.length()>0) passwords.put(username, password);
     }
     public UserAuth getAuthentication(boolean promptIfNecessary) {
+        return getAuthentication(promptIfNecessary, null);
+    }
+    public UserAuth getAuthentication(boolean promptIfNecessary, String message) {
         if (password==null || password.length == 0 || username==null || username.isEmpty()) {
             if (promptIfNecessary && promptCredientialFunction!=null) {
-                Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+                Pair<String, char[]> cred = promptCredientialFunction.apply(this, message);
                 if (cred != null) {
                     username = cred.key;
                     password = cred.value;
@@ -69,12 +72,13 @@ public class GithubGateway {
         }
         else {
             try {
-                UserAuth auth = new TokenAuth(username, password);
+                TokenAuth auth = new TokenAuth(username, password);
+                passwords.put(username, password);
                 return auth;
             } catch (IllegalArgumentException e) {
                 if (bacmmanLogger!=null && !promptIfNecessary) bacmmanLogger.setMessage("No token associated with this username found");
                 if (promptIfNecessary) {
-                    Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+                    Pair<String, char[]> cred = promptCredientialFunction.apply(this, message);
                     if (cred != null) {
                         username = cred.key;
                         password = cred.value;
@@ -85,7 +89,7 @@ public class GithubGateway {
             } catch (Throwable t) {
                 if (bacmmanLogger!=null && !promptIfNecessary) bacmmanLogger.setMessage("Token could not be retrieved. Wrong password ?");
                 if (promptIfNecessary) {
-                    Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+                    Pair<String, char[]> cred = promptCredientialFunction.apply(this, message);
                     if (cred != null) {
                         username = cred.key;
                         password = cred.value;
@@ -96,17 +100,20 @@ public class GithubGateway {
             }
         }
     }
-    public void setPromptGithubCredientials(Function<GithubGateway, Pair<String, char[]>> prompt) {
+    public void setPromptGithubCredientials(BiFunction<GithubGateway, String, Pair<String, char[]>> prompt) {
         promptCredientialFunction = prompt;
     }
-    public UserAuth promptCredentials(Consumer<String> error) {
-        Pair<String, char[]> cred = promptCredientialFunction.apply(this);
+    public UserAuth promptCredentials(Consumer<String> error, String message) {
+        Pair<String, char[]> cred = promptCredientialFunction.apply(this, message);
         if (cred == null || cred.key.isEmpty() || cred.value.length==0) return new NoAuth();
         else {
             try {
-                return new TokenAuth(username, password);
-            } catch (IllegalArgumentException e) {
+                TokenAuth auth = new TokenAuth(cred.key, cred.value);
+                passwords.put(cred.key, cred.value);
+                return auth;
+            } catch (RuntimeException e) {
                 if (error!=null) error.accept("Could not retried Token. Has Token been stored ?");
+                logger.info("Authentication error", e);
                 return new NoAuth();
             }
         }

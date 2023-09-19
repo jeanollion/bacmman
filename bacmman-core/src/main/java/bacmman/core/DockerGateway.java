@@ -18,6 +18,7 @@ public interface DockerGateway {
     void stopContainer(String containerId);
     static Consumer<String> applyToSplit(Consumer<String> consumer) {
         return message -> {
+            if (message == null || message.isEmpty()) return;
             if (message.contains("\n")) {
                 String[] split = message.split("\n");
                 for (String s : split) consumer.accept(s);

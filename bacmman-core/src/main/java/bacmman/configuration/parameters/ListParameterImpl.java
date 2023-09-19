@@ -34,6 +34,7 @@ import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -75,6 +76,9 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
         dest.setHint(source.toolTipText);
         dest.setSimpleHint(source.toolTipTextSimple);
         dest.setListeners(source.listeners);
+        if (source instanceof Deactivatable && dest instanceof Deactivatable) {
+            ((Deactivatable)dest).setActivated(((Deactivatable)source).isActivated());
+        }
     }
     @Override public boolean isEmpty() {return getChildren().isEmpty();}
     @Override
@@ -282,11 +286,7 @@ public abstract class ListParameterImpl<T extends Parameter, L extends ListParam
     @Override
     public List<T> getActivatedChildren() {
         if (!isDeactivatable()) return getChildren();
-        else {
-            List<T> res = new ArrayList<T>(this.getChildCount());
-            for (T p: getChildren()) if (((Deactivatable)p).isActivated()) res.add(p);
-            return res;
-        }
+        else return getChildren().stream().filter(p->((Deactivatable)p).isActivated()).collect(Collectors.toList());
     }
     
     public T createChildInstance(String name) {
