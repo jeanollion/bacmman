@@ -39,9 +39,9 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         if (otherParameters == null) otherParameters = new Parameter[0];
         this.otherParameters = otherParameters;
         List<Parameter> testAugParams = new ArrayList<>();
-        testAugParams.add(new BoundedNumberParameter("Iteration Number", 0, 10, 1, null));
+        testAugParams.add(new BoundedNumberParameter("Iteration Number", 0, 10, 1, null).setHint("Number of random versions of the same mini batch"));
         testAugParams.add(new BoundedNumberParameter("Batch Index", 0, -1, -1, null)
-            .setHint("Index of bactch on which augmentation parameters will be tested. -1 = random idx")
+            .setHint("Index of batch on which augmentation parameters will be tested. -1 = random idx")
             .addValidationFunction(b -> {
                 Object tp = ((ContainerParameter)b.getParent().getParent()).getChildren().stream().filter(p -> p instanceof TrainingParameter).findAny().orElse(null);
                 if (tp==null) return true;
@@ -54,10 +54,10 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         testAugParams.add(testConstantView);
         testInputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{256, 256}, null)
             .setMaxChildCount(3)
-            .setName("Input Shape").setHint("Shape (Y, X) of extracted tiles at training");
+            .setName("Input Shape").setHint("Shape (Y, X) of the input image of the neural network");
         testAugParams.add(testInputShape);
         if (testDataAugmentationParameters!=null) testAugParams.addAll(Arrays.asList(testDataAugmentationParameters));
-        this.testDataAug = new GroupParameter("Test Data Augmentation", testAugParams);
+        this.testDataAug = new GroupParameter("Test Data Augmentation", testAugParams).setHint("These parameters will override the training parameter when testing data augmentation");
         this.children = new ArrayList<>();
         this.children.add(this.trainingParameters);
         this.children.add(this.globalDatasetParameters);
@@ -174,7 +174,7 @@ public class TrainingConfigurationParameter extends GroupParameterAbstract<Train
         BoundedNumberParameter concatBatchSize = new BoundedNumberParameter("Concat Batch Size", 0, 1, 1, null ).setHint("In case several datasets are set, allows to draw mini-batches from different datasets: each final mini-batch size will be <em>Concat Batch Size</em> x <em>Batch Size</em> ");
         ArrayNumberParameter inputShape = InputShapesParameter.getInputShapeParameter(false, true, new int[]{512, 512}, null)
                 .setMaxChildCount(3)
-                .setName("Input Shape").setHint("Shape (Y, X) of extracted tiles at training");
+                .setName("Input Shape").setHint("Shape (Y, X) of the input image of the neural network");
         protected GlobalDatasetParameters(String name, Parameter[] additionnalParameter) {
             super(name);
             this.children = new ArrayList<>();
