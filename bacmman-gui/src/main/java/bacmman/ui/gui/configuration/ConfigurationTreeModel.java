@@ -19,13 +19,12 @@
 package bacmman.ui.gui.configuration;
 
 import bacmman.configuration.parameters.*;
+import bacmman.ui.gui.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Enumeration;
-import java.util.List;
 import java.util.function.Consumer;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeModel;
@@ -57,58 +56,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
         if (path==null) return;
         tree.expandPath(new TreePath(path));
     }
-    public static class SaveExpandState {
-        private List<TreePath> expanded = new ArrayList<>();
-        private JTree tree;
-        public SaveExpandState setTree(JTree tree) {
-            this.tree=tree;
-            return this;
-        }
-        public SaveExpandState(JTree tree) {
-            this(tree, (TreeNode)tree.getModel().getRoot());
-            logger.debug("expanded paths: {}", expanded);
-        }
-        public SaveExpandState(JTree tree, TreeNode node) {
-            this.tree=tree;
-            TreeNode[] path = ((DefaultTreeModel)tree.getModel()).getPathToRoot(node);
-            if (path!=null) addPath(new TreePath(path));
-        }
-        public SaveExpandState(JTree tree, TreePath path) {
-            this.tree=tree;
-            if (path!=null) addPath(path);
-        }
-        public void restoreExpandedPaths() {
-            for (TreePath p : expanded) tree.expandPath(p);
-        }
-        private void addPath(TreePath path) {
-            List<TreePath> expandedPath = getExpandedPaths(path);
-            if (expandedPath.isEmpty()) {
-                if (!tree.isCollapsed(path)) expanded.add(path);
-                return;
-            }
-            for (TreePath subP : expandedPath) addPath(subP);
-        }
 
-        /**
-         * Adds expanded nodes to the list
-         * @param parent
-         * @return true if at least one expanded node has been added
-         */
-        private List<TreePath> getExpandedPaths(TreePath parent) {
-            TreeNode node = (TreeNode)parent.getLastPathComponent();
-            if (node.isLeaf()) return Collections.emptyList();
-            Enumeration<? extends TreeNode> children = node.children();
-            List<TreePath> next = new ArrayList<>();
-            while(children.hasMoreElements()) {
-                TreeNode child = children.nextElement();
-                if (!child.isLeaf()) {
-                    TreePath path = parent.pathByAddingChild(child);
-                    if (!tree.isCollapsed(path)) next.add(path);
-                }
-            }
-            return next;
-        }
-    }
     public void setJTree(JTree tree) {
         this.tree=tree;
     }
@@ -247,7 +195,7 @@ public class ConfigurationTreeModel extends DefaultTreeModel {
 
     @Override
     public void nodeStructureChanged(TreeNode node) {
-        SaveExpandState exp = new SaveExpandState(tree, node);
+        Utils.SaveExpandState exp = new Utils.SaveExpandState(tree, node);
         super.nodeStructureChanged(node);
         if (setHint!=null && (node instanceof PluginParameter)) {
             // if selected, also update hint

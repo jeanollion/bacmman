@@ -63,6 +63,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.net.URISyntaxException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
@@ -209,6 +210,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     TrackMatePanel trackMatePanel;
     ConfigurationLibrary configurationLibrary;
     DLModelsLibrary dlModelLibrary;
+    enum TAB {HOME, CONFIGURATION, CONFIGURATION_TEST, DATA_BROWSING, TRAINING, MODEL_LIBRARY, CONFIGURATION_LIBRARY}
+    Map<TAB, Integer> tabIndex = new HashMap<>();
+    DockerTrainingWindow dockerTraining;
     /**
      * Creates new form GUI
      */
@@ -235,8 +239,6 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             tabs.getTabComponentAt(1).repaint();
         };
         tabs.addChangeListener(e -> setSelectedTab(tabs.getSelectedIndex()));
-
-
 
         // selections
         selectionModel = new DefaultListModel<>();
@@ -1103,9 +1105,20 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             sampleDatasetMenu.add(upload);
             sampleDatasetMenu.add(downloadMenu);
         }
+
         // display memory
         setMessage("Max Memory: "+String.format("%.3f", Runtime.getRuntime().maxMemory()/1000000000d)+"Gb");
     } // end of constructor
+
+    public void ensureTrainTab() {
+        if (dockerTraining == null) dockerTraining = new DockerTrainingWindow(Core.getCore().getDockerGateway());
+        if (!tabIndex.containsKey(TAB.TRAINING)) {
+            tabs.addTab("Training", dockerTraining.getMainPanel());
+            tabIndex.put(TAB.TRAINING, tabs.getTabCount() - 1);
+            tabs.setEnabledAt(tabIndex.get(TAB.TRAINING), Core.getCore().getDockerGateway() != null);
+        }
+        tabs.setSelectedIndex(tabIndex.get(TAB.TRAINING));
+    }
 
     private void addSampleDataset(JMenu targetMenu, String name, String id, String hint) {
         JMenuItem sample = new javax.swing.JMenuItem();
@@ -1167,7 +1180,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (configurationTreeGenerator!=null && configurationTreeGenerator.getTree()!=null) this.configurationTreeGenerator.getTree().setEnabled(!running);
         this.moduleList.setEnabled(!running);
         // config test tab
-        tabs.setEnabledAt(2, !running);
+        tabs.setEnabledAt(tabIndex.get(TAB.CONFIGURATION_TEST), !running);
         if (testConfigurationTreeGenerator!=null && testConfigurationTreeGenerator.getTree()!=null) this.testConfigurationTreeGenerator.getTree().setEnabled(!running);
         this.testCopyButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
         this.testCopyToTemplateButton.setEnabled(!running && testStepJCB.getSelectedIndex()==0);
@@ -1175,7 +1188,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         // browsing tab
         if (trackTreeController!=null) this.trackTreeController.setEnabled(!running);
         if (trackTreeStructureSelector!=null) this.trackTreeStructureSelector.getTree().setEnabled(!running);
-        tabs.setEnabledAt(3, !running);
+        tabs.setEnabledAt(tabIndex.get(TAB.DATA_BROWSING), !running);
         if (!running) updateDisplayRelatedToXPSet();
     }
 
@@ -1447,7 +1460,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         updateConfigurationTree();
         setTrackTreeStructures();
         loadObjectTrees();
-        tabs.setSelectedIndex(0);
+        tabs.setSelectedIndex(tabIndex.get(TAB.HOME));
         ImageWindowManagerFactory.getImageManager().flush();
         if (xp!=null) setMessage("XP: "+xp+ " closed");
         logger.debug("db {} closed.", xp);
@@ -1469,10 +1482,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         setTitle("**BACMMAN**"+v+xp);
         for (Component c: relatedToXPSet) c.setEnabled(enable);
         runActionAllXPMenuItem.setEnabled(!enable); // only available if no xp is set
-        this.tabs.setEnabledAt(1, enable); // configuration
-        this.tabs.getComponentAt(1).setForeground(enable ? Color.black : Color.gray);
-        this.tabs.setEnabledAt(2, enable); // test
-        this.tabs.setEnabledAt(3, enable); // data browsing
+        this.tabs.setEnabledAt(tabIndex.get(TAB.CONFIGURATION), enable); // configuration
+        this.tabs.getComponentAt(tabIndex.get(TAB.CONFIGURATION)).setForeground(enable ? Color.black : Color.gray);
+        this.tabs.setEnabledAt(tabIndex.get(TAB.CONFIGURATION_TEST), enable); // test
+        this.tabs.setEnabledAt(tabIndex.get(TAB.DATA_BROWSING), enable); // data browsing
         // readOnly
         if (enable) {
             boolean rw = !db.isConfigurationReadOnly();
@@ -1588,7 +1601,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private int lastSelTab=0;
     public void setSelectedTab(int tabIndex) {
         if (tabs.getSelectedIndex()!=tabIndex) tabs.setSelectedIndex(tabIndex);
-        if (lastSelTab==1 && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
+        if (lastSelTab==this.tabIndex.get(TAB.CONFIGURATION) && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
         lastSelTab=tabIndex;
         if (tabs.getSelectedComponent()==dataPanel) {
             if (reloadObjectTrees) {
@@ -1610,6 +1623,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             populateTestParentTrackHead();
             updateTestConfigurationTree();
         }
+        if (dockerTraining != null && tabs.getSelectedComponent() == dockerTraining.getMainPanel()) dockerTraining.focusGained();
         //if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
     }
     
@@ -2057,7 +2071,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Home", actionPanel);
-
+        tabIndex.put(TAB.HOME, tabs.getTabCount()-1);
         configurationSplitPane.setDividerLocation(500);
 
         configurationSplitPaneRight.setDividerLocation(250);
@@ -2096,7 +2110,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Configuration", configurationPanel);
-
+        tabIndex.put(TAB.CONFIGURATION, tabs.getTabCount()-1);
         testSplitPane.setDividerLocation(500);
 
         testSplitPaneRight.setDividerLocation(250);
@@ -2337,7 +2351,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Configuration Test", testPanel);
-
+        tabIndex.put(TAB.CONFIGURATION_TEST, tabs.getTabCount()-1);
         trackPanel.setBorder(javax.swing.BorderFactory.createTitledBorder("Segmentation & Tracking Results"));
 
         trackSubPanel.setLayout(new javax.swing.BoxLayout(trackSubPanel, javax.swing.BoxLayout.LINE_AXIS));
@@ -2639,6 +2653,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         );
 
         tabs.addTab("Data Browsing", dataPanel);
+        tabIndex.put(TAB.DATA_BROWSING, tabs.getTabCount()-1);
 
         homeSplitPane.setLeftComponent(tabs);
 
@@ -2821,8 +2836,9 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         JMenuItem runDockerTrainer = new JMenuItem("Train Neural Network");
         runDockerTrainer.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                DockerTrainingWindow win = new DockerTrainingWindow(Core.getCore().getDockerGateway());
-                win.display(null);
+                //DockerTrainingWindow win = new DockerTrainingWindow(Core.getCore().getDockerGateway());
+                //win.display(INSTANCE);
+                ensureTrainTab();
             }
         });
         runDockerTrainer.setEnabled(Core.getCore().getDockerGateway()!=null);
@@ -3425,19 +3441,41 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (relativePath == null) return null;
         Triplet<String, String, File> relPath = dsTree.parseRelativePath(relativePath);
         if (relPath == null) return null;
-        String name = ExperimentSearchUtils.addPrefix(relPath.v1, currentDBPrefix);
-        if (!Utils.isValid(name, false)) {
+        if (!Utils.isValid(relPath.v1, false)) {
             setMessage("Name should not contain special characters");
             logger.error("Name should not contain special characters");
             return null;
         } else if (dsTree.getDatasetNode(relativePath)!=null) {
-            setMessage("dataset name already exists");
-            logger.error("dataset name already exists");
+            setMessage("dataset already exists");
+            logger.error("dataset already exists");
             return null;
         }
-        relPath.v1 = name;
         return relPath;
     }
+
+    private void move(DatasetTree.DatasetTreeNode dataset) throws IOException {
+        if (dataset==null) return;
+        boolean wasOpen = db!=null && db.getDir().toFile() == dataset.getFile() && db.getDBName().equals(dataset.getName());
+        Triplet<String, String, File> newDestination = promptNewDatasetPath();
+        if (newDestination == null) return;
+        if (wasOpen) closeExperiment();
+        // check that destination dir do not already exist:
+        Path newDir = Paths.get(newDestination.v3.toString(), newDestination.v1);
+        if (Files.exists(newDir)) {
+            if (!Utils.promptBoolean("Destination Directory already exist, overwrite ?", this)) return;
+        }
+        Path oldDatasetPath = Paths.get(dataset.getFile().toString());
+        // rename config file
+        Path oldConfig = oldDatasetPath.resolve(dataset.getName() + "_config.json");
+        Path newConfig = oldDatasetPath.resolve(newDestination.v1 + "_config.json");
+        Files.move(oldConfig, newConfig);
+        // move whole directory
+        Files.move(oldDatasetPath, newDir);
+        populateDatasetTree();
+        if (wasOpen) openDataset(newDestination.v2, null, false);
+        this.dsTree.setSelectedDataset(newDestination.v2);
+    }
+
     private void refreshExperimentListMenuItemActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_refreshExperimentListMenuItemActionPerformed
         populateDatasetTree();
         PropertyUtils.set(PropertyUtils.LOCAL_DATA_PATH, workingDirectory.getText());
@@ -4849,6 +4887,19 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             };
             menu.add(duplicate);
             duplicate.setEnabled(selectedDataset!=null);
+            Action move = new AbstractAction("Rename/Move Dataset") {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    try {
+                        move(selectedDataset);
+                    } catch (IOException ex) {
+                        setMessage("Could not move dataset:" + ex.getMessage());
+                        logger.error("Error moving dataset", ex);
+                    }
+                }
+            };
+            menu.add(move);
+            move.setEnabled(selectedDataset!=null);
             menu.show(datasetTree, evt.getX(), evt.getY());
         }
     }//GEN-LAST:event_datasetListMouseClicked

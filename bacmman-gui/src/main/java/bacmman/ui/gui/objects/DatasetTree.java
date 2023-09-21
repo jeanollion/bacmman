@@ -30,7 +30,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.swing.*;
 import javax.swing.event.TreeExpansionEvent;
-import javax.swing.event.TreeExpansionListener;
 import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.*;
 import java.awt.event.MouseEvent;
@@ -50,7 +49,7 @@ import static javax.swing.tree.TreeSelectionModel.DISCONTIGUOUS_TREE_SELECTION;
  * @author Jean Ollion
  */
 public class DatasetTree {
-    final DefaultTreeModel treeModel;
+    DefaultTreeModel treeModel;
     final JTree tree;
     boolean expanding=false;
     public static final Logger logger = LoggerFactory.getLogger(DatasetTree.class);
@@ -171,24 +170,20 @@ public class DatasetTree {
     }
     public void updateDatasets(ProgressCallback pcb) {
         if (getRoot()==null) return;
-        Enumeration<TreePath> exp = tree.getExpandedDescendants(getRootPath());
-        List<TreePath> expandedState = exp==null? new ArrayList<>() : Collections.list(exp);
+        bacmman.ui.gui.Utils.SaveExpandState<DatasetTreeNode> exp = new bacmman.ui.gui.Utils.SaveExpandState<>(tree, getRoot())
+                .setEquals();
         TreePath[] sel = tree.getSelectionPaths();
         addDir(null, getRoot().file, new HashSet<>(), pcb);
-        expanding = true;
-        tree.expandPath(getRootPath());
-        for (TreePath toExpand : expandedState) {
-            tree.expandPath(toExpand);
-        }
-        expanding = false;
-        removeEmptyFolders(true);
+        exp.restoreExpandedPaths();
+        removeEmptyFolders(false);
         Utils.addToSelectionPaths(tree, sel); // TODO check that selection still in tree ?
         tree.updateUI();
     }
     private void addDir(DatasetTreeNode parent, File dir, Set<String> datasetNames, ProgressCallback pcb) {
         if (parent==null) {
             tree.removeAll();
-            treeModel.setRoot(new DatasetTreeNode(dir, dir.getName(), "", true, datasetNames, pcb));
+            this.treeModel=new DefaultTreeModel(new DatasetTreeNode(dir, dir.getName(), "", true, datasetNames, pcb));
+            tree.setModel(this.treeModel);
             return;
         }
         File[] subDirs = dir.listFiles(d -> d.isDirectory() && !d.getName().equals("Output")); // a dataset cannot contain other datasets -> no need to search in its dir
@@ -300,8 +295,7 @@ public class DatasetTree {
 
     private Stream<DatasetTreeNode> getNodeStream() {
         if (treeModel.getRoot()==null) return Stream.empty();
-        return Collections.list(getRoot().depthFirstEnumeration()).stream()
-                .map(n->(DatasetTreeNode)n);
+        return Collections.list(getRoot().depthFirstEnumeration()).stream();
     }
 
     private List<DatasetTreeNode> getExistingNodes() {
@@ -422,6 +416,19 @@ public class DatasetTree {
 
         public Stream<DatasetTreeNode> childrenStream() {
             return EnumerationUtils.toStream(children()).map(o -> (DatasetTreeNode)o);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            DatasetTreeNode that = (DatasetTreeNode) o;
+            return Objects.equals(relPath, that.relPath);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(relPath);
         }
     }
 }

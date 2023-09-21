@@ -56,8 +56,10 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
             .setActionParameters(METHOD.EXTEND_ON_SIDES, addBefore, addAfter, outOfBound)
             .setActionParameters(METHOD.FROM_OBJECT_CLASS, refObjectClass);
 
-    SimpleListParameter<ConditionalParameter<METHOD>> axisCond = new SimpleListParameter<>("Per axis modification", 0, methodCond)
-            .setNewInstanceNameFunction((l, idx)-> "XYZ".charAt(idx)+" axis").setEmphasized(true).setMaxChildCount(3).setChildrenNumber(2);
+    SimpleListParameter<ConditionalParameter<METHOD>> axisCond = new SimpleListParameter<>("Per axis modification", -1, methodCond)
+            .setNewInstanceNameFunction((l, idx)-> "XYZ".charAt(idx)+" axis")
+            .setEmphasized(true).setMaxChildCount(3).setChildrenNumber(2)
+            .addValidationFunction(l -> !l.getActivatedChildren().isEmpty());
 
     private static void modifyBoundingBox(SegmentedObject parent, MutableBoundingBox toModify, BoundingBox parentBounds, ConditionalParameter<METHOD> axisParameter, int axisNumber) {
         METHOD method = ((EnumChoiceParameter<METHOD>)axisParameter.getActionableParameter()).getSelectedEnum();
@@ -257,14 +259,21 @@ public class ConvertToBoundingBox implements PostFilter, Hint {
         }
     }
 
+    private static int getAxis(String name) {
+        char n = name.charAt(0);
+        if (n=='X') return 0;
+        else if (n=='Y') return 1;
+        else if (n=='Z') return 2;
+        else throw new RuntimeException("Invalid axis name: "+name);
+    }
+
     @Override
     public RegionPopulation runPostFilter(SegmentedObject parent, int childStructureIdx, RegionPopulation childPopulation) {
         BoundingBox parentBds = useParentBounds.getSelected() ? new SimpleBoundingBox(parent.getBounds()).resetOffset() : parent.getRoot().getBounds(); // post-filter: relative to parent
         childPopulation.ensureEditableRegions();
         childPopulation.getRegions().forEach(r->{
             MutableBoundingBox bds = new MutableBoundingBox(r.getBounds());
-            List<ConditionalParameter<METHOD>> axisParam = this.axisCond.getChildren();
-            for (int axis = 0; axis<axisParam.size(); ++axis) modifyBoundingBox(parent, bds, parentBds, axisParam.get(axis), axis);
+            this.axisCond.getActivatedChildren().forEach(axisParam -> modifyBoundingBox(parent, bds, parentBds, axisParam, getAxis(axisParam.getName())));
             r.setMask(new BlankMask(new SimpleImageProperties(bds, r.getScaleXY(), r.getScaleZ())));
         });
         return childPopulation;
