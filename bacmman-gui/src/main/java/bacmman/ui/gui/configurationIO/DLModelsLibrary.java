@@ -512,6 +512,18 @@ public class DLModelsLibrary {
         if (onClose != null) onClose.run();
     }
 
+    public JPanel getMainPanel() {
+        return contentPane;
+    }
+
+    public void focusGained() {
+
+    }
+
+    public void focusLost() {
+
+    }
+
     public void toFront() {
         dia.toFront();
     }

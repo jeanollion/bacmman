@@ -25,9 +25,10 @@ public class MLModelFileParameterUI implements ParameterUI {
             new AbstractAction("Configure From Library") {
                 @Override
                 public void actionPerformed(ActionEvent ae) {
-                    boolean wasDisplayed = GUI.hasInstance() && GUI.getInstance().isDisplayingDLModelLibrary();
+                    boolean fromGUI = GUI.hasInstance();
+                    int tabIdx = fromGUI ? GUI.getInstance().getCurrentTab() : -1;
                     DLModelsLibrary library;
-                    if (GUI.hasInstance()) library = GUI.getInstance().displayOnlineDLModelLibrary();
+                    if (fromGUI) library = GUI.getInstance().displayOnlineDLModelLibrary();
                     else library = new DLModelsLibrary(ParameterUtils.getExperiment(parameter).getGithubGateway(), parameter.getSelectedPath(), ()->{}, Core.getProgressLogger());
                     library.setConfigureParameterCallback((id, metadata)-> {
                         parameter.configureFromMetadata(id, metadata);
@@ -37,9 +38,10 @@ public class MLModelFileParameterUI implements ParameterUI {
                             model.nodeStructureChanged(parameter.getParent()); // dlengine
                             if (parameter.getParent().getParent()!=null) model.nodeStructureChanged(parameter.getParent().getParent()); // above dlengine
                         }
-                        if (!wasDisplayed) library.close();
+                        if (!fromGUI) library.close();
                         else {
                             library.setConfigureParameterCallback(null);
+                            GUI.getInstance().setSelectedTab(tabIdx);
                         }
                     });
                     if (GUI.getInstance()==null) library.display(null);

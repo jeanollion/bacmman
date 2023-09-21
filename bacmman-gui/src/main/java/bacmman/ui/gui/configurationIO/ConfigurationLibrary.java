@@ -520,6 +520,14 @@ public class ConfigurationLibrary {
         logger.debug("set local tree: {}", currentMode);
     }
 
+    public void focusGained() {
+
+    }
+
+    public void focusLost() {
+        if (configurationChanged != null) configurationChanged.run();
+    }
+
     public void display(JFrame parent) {
         dia = new Dial(parent, "Online Configuration Library");
         dia.setVisible(true);
@@ -527,12 +535,12 @@ public class ConfigurationLibrary {
             dia.addWindowFocusListener(new WindowFocusListener() {
                 @Override
                 public void windowGainedFocus(WindowEvent focusEvent) {
-
+                    focusGained();
                 }
 
                 @Override
                 public void windowLostFocus(WindowEvent focusEvent) {
-                    if (configurationChanged != null) configurationChanged.run();
+                    focusLost();
                 }
             });
         }
@@ -712,6 +720,10 @@ public class ConfigurationLibrary {
             });
         }
 
+    }
+
+    public JPanel getMainPanel() {
+        return mainPanel;
     }
 
     public void close() {

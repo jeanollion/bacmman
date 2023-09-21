@@ -5,7 +5,6 @@ import bacmman.configuration.parameters.*;
 import bacmman.core.*;
 import bacmman.github.gist.DLModelMetadata;
 import bacmman.github.gist.NoAuth;
-import bacmman.github.gist.TokenAuth;
 import bacmman.github.gist.UserAuth;
 import bacmman.plugins.DockerDLTrainer;
 import bacmman.py_dataset.HDF5IO;
@@ -13,14 +12,12 @@ import bacmman.ui.GUI;
 import bacmman.ui.PropertyUtils;
 import bacmman.ui.gui.configuration.ConfigurationTreeGenerator;
 import bacmman.ui.gui.configurationIO.DLModelsLibrary;
-import bacmman.ui.gui.configurationIO.PromptGithubCredentials;
 import bacmman.ui.logger.ProgressLogger;
 import bacmman.utils.*;
 import bacmman.utils.Utils;
 import ch.systemsx.cisd.hdf5.IHDF5Reader;
 import com.intellij.uiDesigner.core.GridConstraints;
 import com.intellij.uiDesigner.core.GridLayoutManager;
-import com.intellij.uiDesigner.core.Spacer;
 import ij.ImagePlus;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
@@ -35,13 +32,13 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.BiConsumer;
-import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -50,6 +47,7 @@ import static bacmman.utils.Utils.format;
 import static bacmman.utils.Utils.promptBoolean;
 
 public class DockerTrainingWindow implements ProgressLogger {
+    private Frame parent;
     private JPanel mainPanel;
     private JPanel configurationPanel;
     private JPanel actionPanel;
@@ -77,8 +75,12 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JLabel lossJLabel;
     private JButton taskButton;
     private JButton testAugButton;
+    private JTextField modelDestinationTextField;
+    private JButton moveModelButton;
+    private JLabel timeLabel;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
+    static String MD_ID = "docker_training_move_dir";
     private static final Logger logger = LoggerFactory.getLogger(DockerTrainingWindow.class);
     final protected DockerGateway dockerGateway;
     protected ConfigurationTreeGenerator config, configRef, extractConfig;
@@ -97,7 +99,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected FileIO.TextFile pythonConfig, pythonConfigTest, javaConfig, javaExtractConfig;
     protected DefaultWorker runner;
     protected String currentContainer;
-    final protected ActionListener workingDirPersistence;
+    final protected ActionListener workingDirPersistence, moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
     protected double minLoss = Double.MAX_VALUE, maxLoss = Double.MIN_VALUE;
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
@@ -117,6 +119,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         textFG = new Color(workingDirectoryTextField.getForeground().getRGB());
         workingDirectoryTextField.getDocument().addDocumentListener(getDocumentListener(this::updateDisplayRelatedToWorkingDir));
         datasetNameTextField.getDocument().addDocumentListener(getDocumentListener(this::updateExtractDisplay));
+        modelDestinationTextField.getDocument().addDocumentListener(getDocumentListener(this::updateTrainingDisplay));
 
         setLoadButton.addActionListener(ae -> {
             setWorkingDirectory();
@@ -317,7 +320,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             @Override
             public void actionPerformed(ActionEvent e) {
                 String path = PropertyUtils.get(WD_ID, defWD);
-                File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) dia.getParent());
+                File f = Utils.chooseFile("Choose local data folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
                 if (f != null) {
                     workingDirectoryTextField.setText(f.getAbsolutePath());
                     workingDirPersistence.actionPerformed(e);
@@ -329,6 +332,29 @@ public class DockerTrainingWindow implements ProgressLogger {
             setConfigurationFile(true);
             updateDisplayRelatedToWorkingDir();
         }
+        Action chooseFileMD = new AbstractAction("Choose model destination folder") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                String path = PropertyUtils.get(MD_ID, defWD);
+                File f = Utils.chooseFile("Choose model destination folder", path, FileChooser.FileChooserOption.DIRECTORIES_ONLY, (Frame) (dia != null ? dia.getParent() : parent));
+                if (f != null) {
+                    modelDestinationTextField.setText(f.getAbsolutePath());
+                    moveDirPersistence.actionPerformed(e);
+                }
+            }
+        };
+        moveDirPersistence = PropertyUtils.setPersistent(modelDestinationTextField, MD_ID, defWD, true, chooseFileMD);
+        moveModelButton.addActionListener(ae -> {
+            Path source = getSavedModelPath().toPath();
+            Path dest = getMoveModelDestinationDir().toPath().resolve(source.getFileName());
+            try {
+                Files.move(source, dest);
+            } catch (IOException e) {
+                setMessage("Error moving model: " + e.getMessage());
+                logger.error("Error moving model", e);
+            }
+            updateTrainingDisplay();
+        });
     }
 
     protected void promptSaveConfig() {
@@ -343,9 +369,10 @@ public class DockerTrainingWindow implements ProgressLogger {
     }
 
     protected DLModelsLibrary getDLModelLibrary(GithubGateway githubGateway, BiConsumer<String, DLModelMetadata> configureCB) {
-        boolean wasDisplayed = GUI.hasInstance() && GUI.getInstance().isDisplayingDLModelLibrary();
+        boolean fromGUI = GUI.hasInstance();
+        int tabIdx = fromGUI ? GUI.getInstance().getCurrentTab() : -1;
         DLModelsLibrary dlModelLibrary;
-        if (GUI.hasInstance()) {
+        if (fromGUI) {
             dlModelLibrary = GUI.getInstance().displayOnlineDLModelLibrary()
                     .setWorkingDirectory(currentWorkingDirectory);
         } else {
@@ -354,13 +381,20 @@ public class DockerTrainingWindow implements ProgressLogger {
             currentProgressBar = trainingProgressBar;
             epochLabel.setText("Upload:");
         }
-        if (!wasDisplayed) {
-            BiConsumer<String, DLModelMetadata> newConfigureCB = (s, m) -> {
+        BiConsumer<String, DLModelMetadata> newConfigureCB;
+        if (!fromGUI) {
+            newConfigureCB = (s, m) -> {
                 configureCB.accept(s, m);
                 dlModelLibrary.close();
             };
-            dlModelLibrary.setConfigureParameterCallback(newConfigureCB);
-        } else dlModelLibrary.setConfigureParameterCallback(configureCB);
+        } else {
+            newConfigureCB = (s, m) -> {
+                configureCB.accept(s, m);
+                GUI.getInstance().setSelectedTab(tabIdx);
+                dlModelLibrary.setConfigureParameterCallback(null);
+            };
+        }
+        dlModelLibrary.setConfigureParameterCallback(newConfigureCB);
         return dlModelLibrary;
     }
 
@@ -637,6 +671,7 @@ public class DockerTrainingWindow implements ProgressLogger {
             }
         }
     }
+
     protected void loadExtractConfig() {
         if (extractConfig != null) {
             String exConfigS = javaExtractConfig.read();
@@ -717,6 +752,13 @@ public class DockerTrainingWindow implements ProgressLogger {
             uploadModelEnable = savedWeight != null && savedWeight.isDirectory();
         }
         uploadModelButton.setEnabled(uploadModelEnable);
+        boolean moveDirIsValid = getMoveModelDestinationDir().isDirectory();
+        modelDestinationTextField.setForeground(moveDirIsValid ? textFG : Color.red.darker());
+        moveModelButton.setEnabled(uploadModelEnable && moveDirIsValid);
+    }
+
+    protected File getMoveModelDestinationDir() {
+        return new File(modelDestinationTextField.getText());
     }
 
     protected File getSavedWeightFile() {
@@ -747,6 +789,11 @@ public class DockerTrainingWindow implements ProgressLogger {
 
     public JPanel getMainPanel() {
         return mainPanel;
+    }
+
+    public DockerTrainingWindow setParent(Frame parent) {
+        this.parent = parent;
+        return this;
     }
 
     public void focusGained() {
@@ -781,7 +828,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         mainPanel.setLayout(new GridLayoutManager(1, 1, new Insets(0, 0, 0, 0), -1, -1));
         final JSplitPane splitPane1 = new JSplitPane();
         splitPane1.setContinuousLayout(true);
-        splitPane1.setDividerLocation(400);
+        splitPane1.setDividerLocation(386);
         splitPane1.setLastDividerLocation(400);
         splitPane1.setResizeWeight(0.0);
         mainPanel.add(splitPane1, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_WANT_GROW, null, null, null, 0, false));
@@ -832,7 +879,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractProgressBar.setStringPainted(true);
         datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
-        trainingPanel.setLayout(new GridLayoutManager(3, 1, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.setLayout(new GridLayoutManager(5, 1, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         trainingPanel.setBorder(BorderFactory.createTitledBorder(null, "Training", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         trainingCommandPanel = new JPanel();
@@ -882,6 +929,17 @@ public class DockerTrainingWindow implements ProgressLogger {
         lossJLabel = new JLabel();
         lossJLabel.setText("                             ");
         trainingPanel.add(lossJLabel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(70, 20), null, null, 0, false));
+        final JPanel panel5 = new JPanel();
+        panel5.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.add(panel5, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        modelDestinationTextField = new JTextField();
+        panel5.add(modelDestinationTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
+        moveModelButton = new JButton();
+        moveModelButton.setText("Move Model");
+        panel5.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        timeLabel = new JLabel();
+        timeLabel.setText("");
+        trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**

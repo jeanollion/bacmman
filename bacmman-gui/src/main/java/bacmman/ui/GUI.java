@@ -261,6 +261,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
                 if (Core.getCore().getOmeroGateway()!=null) Core.getCore().getOmeroGateway().close();
                 if (configurationLibrary!=null) configurationLibrary.close();
                 if (dlModelLibrary!=null) dlModelLibrary.close();
+                if (dockerTraining!=null) dockerTraining.close();
                 logger.debug("Closed successfully");
             }
         });
@@ -912,24 +913,10 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             }
         });
 
-        Runnable onClose = () -> {
-            if (configurationTreeGenerator!=null) this.configurationTreeGenerator.getTree().updateUI();
-            if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
-            updateConfigurationTabValidity();
-            configurationLibrary = null;
-        };
-        Runnable onConfigurationChanged = () -> { // update configuration trees
-            updateTestConfigurationTree();
-            updateConfigurationTree();
-        };
         onlineConfigurationLibraryMenuItem.setText("Online Configuration Library");
         this.importMenu.add(onlineConfigurationLibraryMenuItem);
         onlineConfigurationLibraryMenuItem.addActionListener(e -> {
-            if (configurationLibrary!=null) configurationLibrary.toFront();
-            else {
-                configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, onConfigurationChanged, this);
-                configurationLibrary.display(this);
-            }
+            displayConfigurationLibrary();
         });
 
         onlineDLModelLibraryMenuItem.setText("Online DL Model library");
@@ -1114,6 +1101,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         if (dockerTraining == null) dockerTraining = new DockerTrainingWindow(Core.getCore().getDockerGateway());
         if (!tabIndex.containsKey(TAB.TRAINING)) {
             tabs.addTab("Training", dockerTraining.getMainPanel());
+            dockerTraining.setParent(INSTANCE);
             tabIndex.put(TAB.TRAINING, tabs.getTabCount() - 1);
             tabs.setEnabledAt(tabIndex.get(TAB.TRAINING), Core.getCore().getDockerGateway() != null);
         }
@@ -1600,7 +1588,13 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     
     private int lastSelTab=0;
     public void setSelectedTab(int tabIndex) {
-        if (tabs.getSelectedIndex()!=tabIndex) tabs.setSelectedIndex(tabIndex);
+        int currentIdx = tabs.getSelectedIndex();
+        if (currentIdx!=tabIndex) {
+            tabs.setSelectedIndex(tabIndex);
+            if (dlModelLibrary!=null && this.tabIndex.containsKey(TAB.MODEL_LIBRARY)) dlModelLibrary.focusLost();
+            if (configurationLibrary!=null && this.tabIndex.containsKey(TAB.CONFIGURATION_LIBRARY)) configurationLibrary.focusLost();
+
+        }
         if (lastSelTab==this.tabIndex.get(TAB.CONFIGURATION) && tabIndex!=lastSelTab) setConfigurationTabValid.accept(db==null? true : db.getExperiment().isValid());
         lastSelTab=tabIndex;
         if (tabs.getSelectedComponent()==dataPanel) {
@@ -1624,6 +1618,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             updateTestConfigurationTree();
         }
         if (dockerTraining != null && tabs.getSelectedComponent() == dockerTraining.getMainPanel()) dockerTraining.focusGained();
+        if (dlModelLibrary != null && tabs.getSelectedComponent() == dlModelLibrary.getMainPanel()) dlModelLibrary.focusGained();
+        if (configurationLibrary != null && tabs.getSelectedComponent() == configurationLibrary.getMainPanel()) configurationLibrary.focusGained();
         //if (trackMatePanel!=null && tabs.getSelectedComponent() == trackMatePanel.getPanel()) trackMatePanel.updateComponents(db, this);
     }
     
@@ -1634,12 +1630,51 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     public boolean isDisplayingDLModelLibrary() {
         return dlModelLibrary != null;
     }
+
+    public int getCurrentTab() {
+        return tabs.getSelectedIndex();
+    }
+
+    public ConfigurationLibrary displayConfigurationLibrary() {
+        if (configurationLibrary == null) {
+            Runnable onClose = () -> {
+                if (configurationTreeGenerator!=null) this.configurationTreeGenerator.getTree().updateUI();
+                if (testConfigurationTreeGenerator!=null) testConfigurationTreeGenerator.getTree().updateUI();
+                updateConfigurationTabValidity();
+                configurationLibrary = null;
+            };
+            Runnable onConfigurationChanged = () -> { // update configuration trees
+                updateTestConfigurationTree();
+                updateConfigurationTree();
+            };
+            configurationLibrary = new ConfigurationLibrary(db, Core.getCore().getGithubGateway(), onClose, onConfigurationChanged, this);
+        }
+        /*if (configurationLibrary!=null) configurationLibrary.toFront();
+        else {
+            create lib here
+            configurationLibrary.display(this);
+        }*/
+        if (!tabIndex.containsKey(TAB.CONFIGURATION_LIBRARY)) {
+            tabs.addTab("Configuration Library", configurationLibrary.getMainPanel());
+            tabIndex.put(TAB.CONFIGURATION_LIBRARY, tabs.getTabCount() - 1);
+        }
+        tabs.setSelectedIndex(tabIndex.get(TAB.CONFIGURATION_LIBRARY));
+        return configurationLibrary;
+    }
+
     public DLModelsLibrary displayOnlineDLModelLibrary() {
-        if (dlModelLibrary!=null) dlModelLibrary.toFront();
+        /*if (dlModelLibrary!=null) dlModelLibrary.toFront();
         else {
             dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
             dlModelLibrary.display(this);
         }
+        return dlModelLibrary;*/
+        if (dlModelLibrary==null) dlModelLibrary = new DLModelsLibrary(Core.getCore().getGithubGateway(), workingDirectory.getText(), ()->{dlModelLibrary=null;},  this);
+        if (!tabIndex.containsKey(TAB.MODEL_LIBRARY)) {
+            tabs.addTab("Model Library", dlModelLibrary.getMainPanel());
+            tabIndex.put(TAB.MODEL_LIBRARY, tabs.getTabCount() - 1);
+        }
+        tabs.setSelectedIndex(tabIndex.get(TAB.MODEL_LIBRARY));
         return dlModelLibrary;
     }
     public static boolean hasInstance() {
