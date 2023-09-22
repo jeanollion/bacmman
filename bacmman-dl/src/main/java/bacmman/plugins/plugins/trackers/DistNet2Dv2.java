@@ -121,12 +121,17 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         Map<SegmentedObject, Double>[] divMapContainer = new Map[1];
         double dMax = parentTrack.stream().map(SegmentedObject::getBounds).mapToDouble(bds -> Math.sqrt(bds.sizeX()*bds.sizeX() + bds.sizeY()*bds.sizeY())).max().orElse(Double.NaN);
         TrackAssignerDistnet assigner = new TrackAssignerDistnet(dMax);
+        if (trackPreFilters!=null) {
+            trackPreFilters.filter(objectClassIdx, parentTrack);
+            if (stores != null && !trackPreFilters.isEmpty())
+                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
+        }
         for (int i = 0; i<parentTrack.size(); i+=increment) {
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             logger.debug("Frame Window: [{}; {}) ( [{}, {}] ), last: {}", i, maxIdx, parentTrack.get(i).getFrame(), parentTrack.get(maxIdx-1).getFrame(), last);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            PredictionResults prediction = predict(objectClassIdx, subParentTrack, trackPreFilters, prevPrediction, null); // actually appends to prevPrediction
+            PredictionResults prediction = predict(objectClassIdx, subParentTrack, prevPrediction, null); // actually appends to prevPrediction
             assigner.setPrediction(prediction);
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
@@ -206,7 +211,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             boolean last = i+increment>parentTrack.size();
             int maxIdx = Math.min(parentTrack.size(), i+increment);
             List<SegmentedObject> subParentTrack = parentTrack.subList(i, maxIdx);
-            PredictionResults prediction = predict(objectClassIdx, subParentTrack, null, prevPrediction, null); // actually appends to prevPrediction
+            PredictionResults prediction = predict(objectClassIdx, subParentTrack, null, null); // actually appends to prevPrediction
             assigner.setPrediction(prediction);
             if (stores != null && prediction.division != null && this.stores.get(parentTrack.get(0)).isExpertMode()) {
                 subParentTrack.forEach(p -> stores.get(p).addIntermediateImage("divMap", prediction.division.get(p)));
@@ -1037,7 +1042,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
 
     public PredictionResults predictEDM(SegmentedObject parent, int objectClassIdx, BoundingBox minimalBounds) {
         List<SegmentedObject> parentTrack = Arrays.asList(parent);
-        return predict(objectClassIdx, parentTrack, new TrackPreFilterSequence(""), null, minimalBounds);
+        return predict(objectClassIdx, parentTrack, null, minimalBounds);
     }
 
     @Override
@@ -1186,7 +1191,10 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         this.stores = stores;
     }
 
-    protected static Image[][] getInputs(Image[] images, Image prev, Image next, boolean[] noPrevParent, int inputWindow, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
+    protected static Image[][] getInputs(Map<Integer, Image> images, int inputWindow, boolean addNext, int idxMin, int idxMaxExcl, int frameInterval) {
+        int min = images.keySet().stream().mapToInt(i->i).min().getAsInt();
+        int max = images.keySet().stream().mapToInt(i->i).max().getAsInt();
+
         BiFunction<Integer, Integer, Image> getImage[] = new BiFunction[1];
         getImage[0] = (cur, i) -> {
             if (i < 0) {
@@ -1502,18 +1510,16 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
             noNextMap = new Image[edm.length];
         }
 
-        void predict(DLengine engine, Image[] images, Image prevImage, Image nextImage, boolean[] noPrevParent, int frameInterval, boolean predictAll) {
-            int idxLimMin = !predictAll && frameInterval > 1 ? frameInterval : 0;
-            int idxLimMax = !predictAll && frameInterval > 1 ? (next ? images.length - frameInterval : images.length) : images.length;
-            init(idxLimMax - idxLimMin);
-            double interval = idxLimMax - idxLimMin;
+        void predict(DLengine engine, Map<Integer, Image> images, int frameMinIncl, int frameMaxExcl, int frameInterval) {
+            init(frameMaxExcl - frameMinIncl);
+            double interval = frameMaxExcl - frameMinIncl;
             int increment = (int)Math.ceil( interval / Math.ceil( interval / batchSize.getIntValue()) );
-            for (int i = idxLimMin; i < idxLimMax; i += increment ) {
-                int idxMax = Math.min(i + increment, idxLimMax);
-                Image[][] input = getInputs(images, i == 0 ? prevImage : images[i - 1], nextImage, noPrevParent, inputWindow, next, i, idxMax, frameInterval);
-                logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, idxLimMin, idxLimMax);
+            for (int i = frameMinIncl; i < frameMaxExcl; i += increment ) {
+                int idxMax = Math.min(i + increment, frameMaxExcl);
+                Image[][] input = getInputs(images, inputWindow, next, i, idxMax, frameInterval);
+                logger.debug("input: [{}; {}) / [{}; {})", i, idxMax, frameMinIncl, frameMaxExcl);
                 Image[][][] predictions = dlResizeAndScale.predict(engine, input); // 0=edm, 1=dy, 2=dx, 3=cat, (4=cat_next)
-                appendPrediction(predictions, i - idxLimMin);
+                appendPrediction(predictions, i - frameMinIncl);
             }
         }
 
@@ -1562,7 +1568,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         }
     }
 
-    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, TrackPreFilterSequence trackPreFilters, PredictionResults previousPredictions, BoundingBox cropBB) {
+    private PredictionResults predict(int objectClassIdx, List<SegmentedObject> parentTrack, PredictionResults previousPredictions, BoundingBox cropBB) {
         boolean next = this.next.getSelected();
         long t0 = System.currentTimeMillis();
         DLengine engine = dlEngine.instantiatePlugin();
@@ -1571,16 +1577,7 @@ public class DistNet2Dv2 implements TrackerSegmenter, TestableProcessingPlugin, 
         logger.info("engine instantiated in {}ms, class: {}", t1 - t0, engine.getClass());
         SegmentedObject previousParent = parentTrack.get(0).getPrevious();
         SegmentedObject nextParent = next? parentTrack.get(parentTrack.size()-1).getNext() : null;
-        List<SegmentedObject> extendedParentTrack = new ArrayList<>(parentTrack);
-        if (previousParent!=null) extendedParentTrack.add(0, previousParent);
-        if (nextParent!=null) extendedParentTrack.add(nextParent);
-        if (trackPreFilters!=null) {
-            trackPreFilters.filter(objectClassIdx, extendedParentTrack);
-            if (stores != null && !trackPreFilters.isEmpty())
-                parentTrack.forEach(o -> stores.get(o).addIntermediateImage("after-prefilters", o.getPreFilteredImage(objectClassIdx)));
-        }
         long t2 = System.currentTimeMillis();
-        if (trackPreFilters!=null) logger.debug("track prefilters run for {} objects in {}ms", parentTrack.size(), t2 - t1);
         UnaryOperator<Image> crop = cropBB==null?i->i:i->i.crop(cropBB);
         Image[] images = parentTrack.stream().map(p -> p.getPreFilteredImage(objectClassIdx)).map(crop).toArray(Image[]::new);
         boolean[] noPrevParent = new boolean[parentTrack.size()]; // in case parent track contains gaps
