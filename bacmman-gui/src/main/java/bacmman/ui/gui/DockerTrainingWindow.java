@@ -452,7 +452,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         String image = ensureImage(trainer, dockerGateway);
         logger.debug("docker image: {}", image);
         try {
-            return dockerGateway.createContainer(image, true, new int[]{1}, new SymetricalPair<>(currentWorkingDirectory, "/data"));
+            return dockerGateway.createContainer(image, true, Core.getCore().dockerGPUs, new SymetricalPair<>(currentWorkingDirectory, "/data"));
         } catch (RuntimeException e) {
             setMessage("Error trying to start container");
             setMessage(e.getMessage());

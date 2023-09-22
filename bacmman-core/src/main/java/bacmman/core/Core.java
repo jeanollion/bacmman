@@ -67,6 +67,7 @@ public class Core {
     public String tfVisibleDeviceList="";
     public boolean tfSetAllowGrowth=false;
     public double tfPerProcessGpuMemoryFraction=1;
+    public int[] dockerGPUs=new int[0];
     public static Core getCore() {
         if (core==null) {
             synchronized(lock) {

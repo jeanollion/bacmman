@@ -3,6 +3,7 @@ package bacmman.core;
 import bacmman.utils.SymetricalPair;
 
 import java.io.File;
+import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
@@ -24,5 +25,10 @@ public interface DockerGateway {
                 for (String s : split) consumer.accept(s);
             } else consumer.accept(message);
         };
+    }
+    static int[] parseGPUList(String gpuList) {
+        if (gpuList==null || gpuList.isEmpty()) return new int[0];
+        String[] split = gpuList.split(",");
+        return Arrays.stream(split).mapToInt(Integer::parseInt).toArray();
     }
 }

@@ -200,7 +200,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
             "     name \"/device:GPU:<id>\") are also called \"TF GPU id\"s. Please\n" +
             "     refer to third_party/tensorflow/core/common_runtime/gpu/gpu_id.h\n" +
             "     for more information.");
-
+    private TextParameter dockerVisibleGPUList = new TextParameter("Visible GPU List", "0", true, true).setHint("Comma-separated list of GPU ids that determines the <em>visible</em> to <em>virtual</em> mapping of GPU devices.");
     private NumberParameter marginCTC = new BoundedNumberParameter("Edge Margin", 0, 0, 0, null).setHint("Margin that reduced the Field-Of-View at edges. Cells outside the FOV are excluded from export");
     private NumberParameter subsamplingCTC = new BoundedNumberParameter("Temporal subsampling", 0, 1, 1, null).setHint("1=no sub-sampling, 2= 1 frame out of 2 etc...");
     private EnumChoiceParameter<CTB_IO_MODE> exportModeTrainCTC = new EnumChoiceParameter<>("Mode", CTB_IO_MODE.values(), CTB_IO_MODE.RESULTS);
@@ -292,7 +292,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         this.actionPoolJSP.setToolTipText(formatHint("List of tasks to be performed. To add a new task, open a dataset, select positions, select object classes and tasks to be performed, then right-click on this panel and choose <em>Add current task to task list</em> <br />The different tasks of this list can be performed on different experiment. They will be performed in the order of the list.<br />Right-click menu allows removing, re-ordering and running tasks, as well as saving and loading task list to a file."));
         helpMenu.setToolTipText(formatHint("List of all commands and associated shortcuts. <br />Change here preset to AZERTY/QWERTY keyboard layout"));
         localZoomMenu.setToolTipText(formatHint("Controls for Local zoom (activated/deactivated with TAB)"));
-        tensorflowMenu.setToolTipText(formatHint("Tensorflow Option"));
+        tensorflowMenu.setToolTipText(formatHint("Options related to the use of Tensorflow from Java (it is used for prediction with deep neural networks)"));
+        dockerMenu.setToolTipText(formatHint("Options related to docker (it is used for training of deep neural networks)"));
         roiMenu.setToolTipText(formatHint("Controls on displayed annotations"));
         manualCuration.setToolTipText(formatHint("Controls on manual curation (edition) of segmented objects"));
         this.importConfigurationMenuItem.setToolTipText(formatHint("Will overwrite configuration from a selected file to current dataset/selected datasets. <br />Selected configuration file must have same number of object classes<br />Overwrites configuration for each Object class<br />Overwrite pre-processing template"));
@@ -507,6 +508,16 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         tfVisibleDeviceList.addListener(p->setTFProps.run());
         tfSetAllowGrowth.addListener(p->setTFProps.run());
         tfPerProcessGpuMemoryFraction.addListener(p->setTFProps.run());
+
+        // docker
+        PropertyUtils.setPersistent(dockerVisibleGPUList, PropertyUtils.DOCKER_GPU_LIST);
+
+        ConfigurationTreeGenerator.addToMenu(dockerVisibleGPUList, dockerMenu);
+        Runnable setDockerProps = () -> {
+            Core.getCore().dockerGPUs = DockerGateway.parseGPUList(dockerVisibleGPUList.getValue());
+        };
+        setDockerProps.run();
+        dockerVisibleGPUList.addListener(p->setDockerProps.run());
 
         // python gateway
         PropertyUtils.setPersistent(pyGatewayPort, "py_gateway_port");
@@ -1970,6 +1981,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
         clearPPImageMenuItem = new javax.swing.JMenuItem();
         localZoomMenu = new javax.swing.JMenu();
         tensorflowMenu = new javax.swing.JMenu();
+        dockerMenu = new javax.swing.JMenu();
         roiMenu = new javax.swing.JMenu();
         manualCuration = new javax.swing.JMenu();
         memoryMenu = new javax.swing.JMenu();
@@ -3156,6 +3168,8 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
 
         tensorflowMenu.setText("Tensorflow Options");
         optionMenu.add(tensorflowMenu);
+        dockerMenu.setText("Docker Options");
+        optionMenu.add(dockerMenu);
 
         logMenu.setText("Log");
 
@@ -5386,7 +5400,7 @@ public class GUI extends javax.swing.JFrame implements ImageObjectListener, Prog
     private javax.swing.JMenu localDBMenu;
     private javax.swing.JRadioButtonMenuItem localFileSystemDatabaseRadioButton;
     private javax.swing.JMenu localZoomMenu;
-    private javax.swing.JMenu tensorflowMenu;
+    private javax.swing.JMenu tensorflowMenu, dockerMenu;
     private javax.swing.JMenu roiMenu;
     private javax.swing.JMenu manualCuration;
     private JMenuItem rollback;
