@@ -29,6 +29,6 @@ public interface DockerGateway {
     static int[] parseGPUList(String gpuList) {
         if (gpuList==null || gpuList.isEmpty()) return new int[0];
         String[] split = gpuList.split(",");
-        return Arrays.stream(split).mapToInt(Integer::parseInt).toArray();
+        return Arrays.stream(split).filter(s->!s.isEmpty()).mapToInt(Integer::parseInt).toArray();
     }
 }
