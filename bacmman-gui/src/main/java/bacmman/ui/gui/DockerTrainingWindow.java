@@ -78,6 +78,7 @@ public class DockerTrainingWindow implements ProgressLogger {
     private JTextField modelDestinationTextField;
     private JButton moveModelButton;
     private JLabel timeLabel;
+    private JLabel learningRateLabel;
     private Dial dia;
     static String WD_ID = "docker_training_working_dir";
     static String MD_ID = "docker_training_move_dir";
@@ -101,7 +102,9 @@ public class DockerTrainingWindow implements ProgressLogger {
     protected String currentContainer;
     final protected ActionListener workingDirPersistence, moveDirPersistence;
     protected JProgressBar currentProgressBar = trainingProgressBar;
-    protected double minLoss = Double.MAX_VALUE, maxLoss = Double.MIN_VALUE;
+    protected double minLoss = Double.POSITIVE_INFINITY, maxLoss = Double.NEGATIVE_INFINITY;
+    protected long lastStepTime = 0, lastEpochTime = 0, trainTime = 0;
+    protected double stepDuration = Double.NaN, epochDuration = Double.NaN;
     List<List<ImagePlus>> displayedImages = new ArrayList<>();
 
     public DockerTrainingWindow(DockerGateway dockerGateway) {
@@ -489,8 +492,13 @@ public class DockerTrainingWindow implements ProgressLogger {
         currentProgressBar.setIndeterminate(running);
         this.directoryPanel.setEnabled(!running);
         this.datasetPanel.setEnabled(!running);
-        minLoss = Double.MAX_VALUE;
-        maxLoss = Double.MIN_VALUE;
+        minLoss = Double.POSITIVE_INFINITY;
+        maxLoss = Double.NEGATIVE_INFINITY;
+        lastEpochTime = 0;
+        lastStepTime = 0;
+        trainTime = 0;
+        stepDuration = Double.NaN;
+        epochDuration = Double.NaN;
         updateTrainingDisplay();
     }
 
@@ -523,13 +531,29 @@ public class DockerTrainingWindow implements ProgressLogger {
         } else return null;
     }
 
-    protected void displayLoss(String message) {
+    protected String parseLearningRate(String message) {
+        if (message == null || message.isEmpty()) return null;
+        int i = message.toLowerCase().indexOf("lr: ");
+        if (i >= 0) {
+            Matcher m = numberPattern.matcher(message);
+            if (m.find(i)) return m.group();
+            else return null;
+        } else return null;
+    }
+
+    protected void displayLoss(String message, boolean minMax) {
         String loss = parseLoss(message);
         if (loss == null) return;
         double value = Double.parseDouble(loss);
-        if (value < minLoss) minLoss = value;
-        if (value > maxLoss) maxLoss = value;
-        lossJLabel.setText("Loss: " + format(value, 5) + " - Min/Max: [ " + format(minLoss, 5) + "; " + format(maxLoss, 5) + " ]");
+        if (minMax) {
+            if (value < minLoss) minLoss = value;
+            if (value > maxLoss) maxLoss = value;
+        }
+        String lossMessage = "Loss: " + format(value, 5);
+        if (Double.isFinite(minLoss)) {
+            lossMessage += " - Min/Max: [ " + format(minLoss, 5) + "; " + format(maxLoss, 5) + " ]";
+        }
+        lossJLabel.setText(lossMessage);
     }
 
     protected void parseTrainingProgress(String message) {
@@ -538,12 +562,15 @@ public class DockerTrainingWindow implements ProgressLogger {
         if (m.find()) {
             int[] prog = parseProgress(message.substring(message.indexOf("Epoch")));
             setProgress(currentProgressBar, prog[0], prog[1]);
+            displayTime(false);
         } else {
             m = stepProgressPattern.matcher(message);
             if (m.find()) {
                 int[] prog = parseProgress(message);
                 setProgress(stepProgressBar, prog[0], prog[1]);
-                displayLoss(message);
+                displayTime(true);
+                displayLoss(message, prog[0] == prog[1]);
+
             } else { //Epoch 00002: loss improved from 0.78463 to 0.54376, saving model to /data/test.h5
                 m = epochEndPattern.matcher(message);
                 if (m.find()) {
@@ -551,12 +578,78 @@ public class DockerTrainingWindow implements ProgressLogger {
                 }
             }
         }
+        String lr = parseLearningRate(message);
+        if (lr != null) learningRateLabel.setText("LR: " + lr);
 
 
         //step:
         //201/201 [==============================] - 89s 425ms/step - loss: 0.5438 - lr: 2.0000e-04
-        // TODO extract loss : min / max / current
         //logger.debug("train progress: {}", message);
+    }
+
+    protected void displayTime(boolean isStep) {
+        int currentEpoch = currentProgressBar.getValue();
+        int maxEpoch = currentProgressBar.getMaximum();
+        int currentStep = stepProgressBar.getValue();
+        int maxStep = stepProgressBar.getMaximum();
+        int elapsedSteps = (currentEpoch - 1) * maxStep + currentStep - 1;
+        if (currentStep <= 1 && currentEpoch <= 1) trainTime = System.currentTimeMillis();
+        if (!isStep) {
+            if (currentEpoch <= 1) lastEpochTime = System.currentTimeMillis();
+            else {
+                long currentEpochTime = System.currentTimeMillis();
+                double diff = currentEpochTime - lastEpochTime;
+                if (Double.isNaN(epochDuration)) epochDuration = diff;
+                else epochDuration += diff;
+                lastEpochTime = currentEpochTime;
+            }
+        } else {
+            if (currentStep <= 1) lastStepTime = System.currentTimeMillis();
+            else {
+                long currentStepTime = System.currentTimeMillis();
+                double diff = currentStepTime - lastStepTime;
+                if (Double.isNaN(stepDuration)) stepDuration = diff;
+                else stepDuration += diff;
+                lastStepTime = currentStepTime;
+            }
+        }
+        String stepTime, epochTime, trainingTime;
+        if (!Double.isNaN(stepDuration)) {
+            double avgTimeMS = stepDuration / elapsedSteps;
+            if (avgTimeMS > 1000) stepTime = Utils.format(avgTimeMS / 1000, 2) + "s/step";
+            else stepTime = Utils.format(avgTimeMS, 0) + "ms/step";
+        } else {
+            stepTime = "     ms/step";
+        }
+        if (!Double.isNaN(epochDuration) || !Double.isNaN(stepDuration)) {
+            double avgTimeMS = Double.isNaN(epochDuration) ? (stepDuration / elapsedSteps) * maxStep : epochDuration / currentEpoch;
+            double elapsedEpoch = System.currentTimeMillis() - lastEpochTime;
+            double elapsedTraining = System.currentTimeMillis() - trainTime;
+            double totalTraining = avgTimeMS * maxEpoch;
+            if (avgTimeMS >= 60000)
+                epochTime = Utils.format(elapsedEpoch / 60000, 2) + " / " + Utils.format(avgTimeMS / 60000, 2) + "min";
+            else if (avgTimeMS >= 1000)
+                epochTime = Utils.format(elapsedEpoch / 1000, 2) + " / " + Utils.format(avgTimeMS / 1000, 2) + "s";
+            else epochTime = Utils.format(elapsedEpoch, 0) + " / " + Utils.format(avgTimeMS, 0) + "ms";
+            if (totalTraining >= 86400000) {
+                if (elapsedTraining >= 86400000) trainingTime = Utils.format(elapsedTraining / 86400000, 2);
+                else if (elapsedTraining >= 3600000) trainingTime = Utils.format(elapsedTraining / 3600000, 2) + "h";
+                else trainingTime = Utils.format(elapsedTraining / 60000, 2) + "min";
+                trainingTime += " / " + Utils.format(totalTraining / 86400000, 2) + "days";
+            } else if (totalTraining >= 3600000) {
+                if (elapsedTraining >= 3600000) trainingTime = Utils.format(elapsedTraining / 3600000, 2);
+                else trainingTime = Utils.format(elapsedTraining / 60000, 2) + "min";
+                trainingTime += " / " + Utils.format(totalTraining / 3600000, 2) + "h";
+            } else if (avgTimeMS >= 60000)
+                trainingTime = Utils.format(elapsedTraining / 60000, 2) + " / " + Utils.format(totalTraining / 60000, 2) + "min";
+            else if (avgTimeMS >= 1000)
+                trainingTime = Utils.format(elapsedTraining / 1000, 2) + " / " + Utils.format(totalTraining / 1000, 2) + "s";
+            else trainingTime = Utils.format(elapsedTraining, 0) + " / " + Utils.format(totalTraining, 0) + "ms";
+        } else {
+            epochTime = "      /      min";
+            trainingTime = "      /      h";
+        }
+        timeLabel.setText(stepTime + " | Epoch: " + epochTime + " | Total: " + trainingTime);
     }
 
     protected void parseTestDataAugProgress(String message) {
@@ -879,12 +972,12 @@ public class DockerTrainingWindow implements ProgressLogger {
         extractProgressBar.setStringPainted(true);
         datasetPanel.add(extractProgressBar, new GridConstraints(2, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         trainingPanel = new JPanel();
-        trainingPanel.setLayout(new GridLayoutManager(5, 1, new Insets(0, 0, 0, 0), -1, -1));
+        trainingPanel.setLayout(new GridLayoutManager(5, 2, new Insets(0, 0, 0, 0), -1, -1));
         actionPanel.add(trainingPanel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         trainingPanel.setBorder(BorderFactory.createTitledBorder(null, "Training", TitledBorder.DEFAULT_JUSTIFICATION, TitledBorder.DEFAULT_POSITION, null, null));
         trainingCommandPanel = new JPanel();
         trainingCommandPanel.setLayout(new GridLayoutManager(2, 3, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(trainingCommandPanel, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        trainingPanel.add(trainingCommandPanel, new GridConstraints(0, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         startTrainingButton = new JButton();
         startTrainingButton.setText("Start");
         trainingCommandPanel.add(startTrainingButton, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
@@ -907,7 +1000,7 @@ public class DockerTrainingWindow implements ProgressLogger {
         trainingCommandPanel.add(testAugButton, new GridConstraints(1, 2, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         final JPanel panel2 = new JPanel();
         panel2.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(panel2, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        trainingPanel.add(panel2, new GridConstraints(1, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         final JPanel panel3 = new JPanel();
         panel3.setLayout(new GridLayoutManager(2, 1, new Insets(0, 0, 0, 0), -1, -1));
         panel2.add(panel3, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, 1, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
@@ -927,19 +1020,22 @@ public class DockerTrainingWindow implements ProgressLogger {
         stepProgressBar.setStringPainted(true);
         panel4.add(stepProgressBar, new GridConstraints(1, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         lossJLabel = new JLabel();
-        lossJLabel.setText("                             ");
+        lossJLabel.setText("                                                                   ");
         trainingPanel.add(lossJLabel, new GridConstraints(2, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, new Dimension(70, 20), null, null, 0, false));
         final JPanel panel5 = new JPanel();
         panel5.setLayout(new GridLayoutManager(1, 2, new Insets(0, 0, 0, 0), -1, -1));
-        trainingPanel.add(panel5, new GridConstraints(4, 0, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
+        trainingPanel.add(panel5, new GridConstraints(4, 0, 1, 2, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_BOTH, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, null, null, null, 0, false));
         modelDestinationTextField = new JTextField();
         panel5.add(modelDestinationTextField, new GridConstraints(0, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_WANT_GROW, GridConstraints.SIZEPOLICY_FIXED, null, new Dimension(150, -1), null, 0, false));
         moveModelButton = new JButton();
         moveModelButton.setText("Move Model");
         panel5.add(moveModelButton, new GridConstraints(0, 1, 1, 1, GridConstraints.ANCHOR_CENTER, GridConstraints.FILL_HORIZONTAL, GridConstraints.SIZEPOLICY_CAN_SHRINK | GridConstraints.SIZEPOLICY_CAN_GROW, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
         timeLabel = new JLabel();
-        timeLabel.setText("");
-        trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        timeLabel.setText("                                                                                   ");
+        trainingPanel.add(timeLabel, new GridConstraints(3, 0, 1, 2, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
+        learningRateLabel = new JLabel();
+        learningRateLabel.setText("                          ");
+        trainingPanel.add(learningRateLabel, new GridConstraints(2, 1, 1, 1, GridConstraints.ANCHOR_WEST, GridConstraints.FILL_NONE, GridConstraints.SIZEPOLICY_FIXED, GridConstraints.SIZEPOLICY_FIXED, null, null, null, 0, false));
     }
 
     /**

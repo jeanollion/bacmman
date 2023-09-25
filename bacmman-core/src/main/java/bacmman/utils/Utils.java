@@ -1169,14 +1169,14 @@ public class Utils {
 
     public static String format(Number n, int digits) {
         if (n instanceof Integer || n instanceof Long) {
-            if (Math.abs(n.intValue())<=1000) return n.toString();
-            else return String.format(java.util.Locale.US, "%."+digits+"E", n.doubleValue());
+            if (Math.abs(n.longValue())<=1000) return n.toString();
+            else return String.format(java.util.Locale.US, "%."+digits+"e", n.doubleValue());
         } else {
             double abs = Math.abs(n.doubleValue());
             if (Double.isInfinite(abs) || Double.isNaN(abs)) return Measurements.NA_STRING; // NAN ?
             double pow = Math.pow(10, digits);
             if (abs > 1000 || (abs<0.1 && ((int)(abs*pow))/pow!=abs)) {
-                return String.format(java.util.Locale.US, "%."+ digits+ "E", n);
+                return String.format(java.util.Locale.US, "%."+ digits+ "e", n);
             } else {
                 return String.format(java.util.Locale.US, "%."+ digits+"f", n);
             }
