@@ -295,7 +295,7 @@ public class DatasetTree {
 
     private Stream<DatasetTreeNode> getNodeStream() {
         if (treeModel.getRoot()==null) return Stream.empty();
-        return Collections.list(getRoot().depthFirstEnumeration()).stream();
+        return Collections.list(getRoot().depthFirstEnumeration()).stream().map(o -> (DatasetTreeNode) o);
     }
 
     private List<DatasetTreeNode> getExistingNodes() {

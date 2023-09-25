@@ -219,9 +219,9 @@ public class Utils {
             newPath[0] = tree.getModel().getRoot();
             for (int i = 1; i<newPath.length; ++i) {
                 int ii = i;
-                List<Object> nodes = (List<Object>) EnumerationUtils.toStream(((T)newPath[i-1]).children())
-                        .filter(o -> equals.test((T)o, (T)path.getPathComponent(ii)))
-                        .collect(Collectors.toList());
+                Stream<? extends TreeNode> nodeStream = EnumerationUtils.toStream(((T)newPath[i-1]).children())
+                        .filter(o -> equals.test((T)o, (T)path.getPathComponent(ii)));
+                List nodes = nodeStream.collect(Collectors.toList());
                 if (nodes.isEmpty()) return null;
                 if (nodes.size()>1) throw new RuntimeException("Error getting path: "+path+ " node has several equivalents: "+path.getPathComponent(i));
                 newPath[i] = nodes.get(0);
